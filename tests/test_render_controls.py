@@ -4535,7 +4535,7 @@ def test_a_phone_shows_a_notice_in_the_banner_s_status_words(browser, serve):
     expect(press).to_have_accessible_name(name)
     assert press.bounding_box()["x"] == pytest.approx(before["x"], abs=0.5)
 
-    expect(notice).to_be_hidden(timeout=6_000)
+    expect(notice).to_be_hidden()
     expect(words).to_have_css("opacity", "1")
 
 

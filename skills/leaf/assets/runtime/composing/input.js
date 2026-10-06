@@ -256,7 +256,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const drawn = drawing?.read() ?? null;
       strokesSeen = drawn?.strokes.length ?? 0;
       // What was typed in another draft is no change to this one.
-      const draft = drawing?.draft?.();
+      const draft = drawing?.draft();
       if (draft !== draftSeen) strokesWhenTyped = 0;
       draftSeen = draft;
       strokesWhenTyped = Math.min(strokesWhenTyped, strokesSeen);

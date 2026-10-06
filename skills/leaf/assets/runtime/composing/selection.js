@@ -45,7 +45,7 @@ import { bindQueuedWork } from "../queued-work.js";
 import { closestAcross, elementById, inChrome } from "../passages.js";
 
 import { notice } from "../notifications.js";
-import { validDrawing } from "./drawing-record.js";
+import { sentDrawing, validDrawing } from "./drawing-record.js";
 import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
@@ -693,7 +693,7 @@ export function createSelectionComposer({
         const ctx = composerCtx(anchor);
         const suggestion = suggestCheck.checked;
         const about = pendingAbout;
-        const drawing = structuredClone(pendingDrawing);
+        const drawing = pendingDrawing && sentDrawing(structuredClone(pendingDrawing));
         // The accepted comment becomes a thread, drawn as a card beside the passage unless
         // Threads is open. Carry the submitted field's geometry into the new card, which
         // stands where the field did: by the row a pointing gesture named.

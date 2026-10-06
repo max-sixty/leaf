@@ -422,7 +422,6 @@ app = mountApplication({
   reportPageError,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),
-  pageComposerDrawing: () => panelComposer.pageComposerDrawing(),
   wireInput: inputs.wireInput,
   anchorPlacement,
   anchorPaint,
@@ -592,8 +591,6 @@ panelComposer = createPanelComposer({
   stepThread: (...args) => navigation.stepThread(...args),
   firstUnread: () => app.read.firstUnread(),
   unreadCount: () => app.read.unreadCount(),
-  paintDrawings: drawingPaint.paint,
-  drawingEdits,
 });
 selectionComposer = createSelectionComposer({
   panelIsOpen,
@@ -698,18 +695,14 @@ drawing = createDrawingController({
   pageGeometry: { refreshAim: pageGeometry.refreshAim },
   pointer: pointerAt,
   visibleTargets: targets.visibleTargets,
-  pageDrawing: panelComposer.pageComposerDrawing,
-  pageComposerOpen: panelIsOpen,
   anchoredDrawing: selectionComposer.draftDrawing,
   heldDrawings: selectionComposer.heldDrawings,
   watchHeldDrawings: selectionComposer.watchHeldDrawings,
   draftKey: selectionComposer.draftKey,
   openAnchoredDrawing: (anchor, drawing) =>
     selectionComposer.openComposer(anchor, "", { carry: true, drawing }),
-  openPageDrawing: panelComposer.openPageDrawing,
   replaceDrawing: (anchor, drawing) => {
-    if (anchor) selectionComposer.setDraftDrawing(anchor, drawing);
-    else panelComposer.setPageDrawing(drawing);
+    selectionComposer.setDraftDrawing(anchor, drawing);
     drawingPaint.paint();
   },
   setDesignMode: designMode.setActive,

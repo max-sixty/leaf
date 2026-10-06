@@ -1,19 +1,25 @@
 /* Drawing gesture controller.
  *
  * Draw mode claims primary-pointer drags anywhere on the page until the user leaves it.
- * Every drawing belongs to a comment draft. A semantic target under or horizontally
- * alongside a stroke's first point names its anchored draft and remains the thread
- * coordinate; a stroke with none belongs to the page draft. A stroke joins the drawing its
- * draft already holds, in that drawing's frame, so neither putting the box away nor
- * leaving Draw mode loses ink; once the draft is sent or its drawing removed, the next
- * stroke starts another. Within one Draw mode session, each stroke after the first goes
- * to the first stroke's draft wherever it starts, while that draft holds a drawing.
+ * Every drawing belongs to the comment draft of one element: the semantic target under
+ * a stroke's first point, or else the one on screen nearest it, so a stroke in empty
+ * space opens its box beside the content it was drawn by, as any other does. (Strokes
+ * with no element made page comments once; their box had to open in Threads, which
+ * covered the ink just drawn, and a page-level box anywhere else would have been the
+ * one comment box with no element to stand by.) A stroke joins the drawing its draft
+ * already holds, in that drawing's frame, so neither putting the box away nor leaving
+ * Draw mode loses ink; once the draft is sent or its drawing removed, the next stroke
+ * starts another. Within one Draw mode session, each stroke after the first goes to the
+ * first stroke's draft wherever it starts, while that draft holds a drawing.
  *
  * Ink the user has drawn and not sent stands on the page until they send it or take it
  * back, whether or not its composer is up and whether or not Draw mode is: a drawing that
  * vanished with its box and came back whole with the next stroke read as one deleted and
  * then one that could not be. The open composer's drawing is drawn as pending, the others
- * as parked. `z` or ⌘Z in Draw mode takes back the last stroke drawn; a composer's ⌘Z,
+ * as parked. Where a draft's element stands is read once (`targetOf`) for its ink, its
+ * strokes and its undo; a draft whose element a revision took away is drawn parked where
+ * its element last stood (the record's `at`), still undoable and removable from its box,
+ * rather than vanishing again. `z` or ⌘Z in Draw mode takes back the last stroke drawn; a composer's ⌘Z,
  * while strokes are its draft's latest change, and its own control take back its own
  * drawing's. Taking back the last stroke removes the drawing, as the composer's removal
  * does at once.
@@ -124,14 +130,11 @@ export function createDrawingController({
   pageGeometry: { refreshAim },
   pointer,
   visibleTargets,
-  pageDrawing,
-  pageComposerOpen,
   anchoredDrawing,
   heldDrawings,
   watchHeldDrawings,
   draftKey,
   openAnchoredDrawing,
-  openPageDrawing,
   replaceDrawing,
   setDesignMode,
   closeTargetPicker,
@@ -144,7 +147,7 @@ export function createDrawingController({
 }) {
   let drawModeOn = false;
   let stroke = null;
-  // The draft this session's first stroke went to: its anchor, or null for the page draft.
+  // The anchor of the draft this session's first stroke went to.
   let session = null;
   // The draft the latest stroke went to, which an undo takes it back from. Unlike the
   // session, it outlasts Draw mode: leaving the mode does not change what was drawn last.
@@ -196,12 +199,18 @@ export function createDrawingController({
     repaint();
   }
 
-  function targetAlongside({ x, y }) {
+  // The target on screen nearest a point outside every target: alongside it in the
+  // margin, or above or below it in the space between blocks. The smaller of two equally
+  // near is the more particular thing the stroke was drawn by.
+  function targetNearest({ x, y }) {
     let nearest = null;
     for (const target of visibleTargets()) {
       const box = target.rect;
-      if (!box?.width || !box?.height || y < box.top || y > box.bottom) continue;
-      const distance = x < box.left ? box.left - x : Math.max(x - box.right, 0);
+      if (!box?.width || !box?.height) continue;
+      const distance = Math.hypot(
+        Math.max(box.left - x, 0, x - box.right),
+        Math.max(box.top - y, 0, y - box.bottom),
+      );
       const area = box.width * box.height;
       if (
         !nearest ||
@@ -218,21 +227,18 @@ export function createDrawingController({
     if (atPointer.x < 0) return null;
     const at = elementFromPointAcross(atPointer.x, atPointer.y);
     if (!at || leafSurface(at)) return null;
-    return (
-      aimTargetAt(at) ?? targetAlongside(atPointer) ?? { anchor: null, element: null }
-    );
+    return aimTargetAt(at) ?? targetNearest(atPointer);
   }
 
-  // The drawing a draft already holds: the anchored draft's, or the page draft's. Read off
-  // the durable drafts rather than remembered here or read off a box on screen, because a
-  // send, a removal or another tab can settle a draft between strokes, and putting its box
-  // away or leaving Draw mode does not.
-  const heldDrawing = (anchor) => (anchor ? anchoredDrawing(anchor) : pageDrawing());
-  const sameDraft = (left, right) =>
-    left === right || Boolean(left && right && draftKey(left) === draftKey(right));
+  // The drawing a draft already holds. Read off the durable drafts rather than
+  // remembered here or read off a box on screen, because a send, a removal or another tab
+  // can settle a draft between strokes, and putting its box away or leaving Draw mode
+  // does not.
+  const heldDrawing = (anchor) => anchoredDrawing(anchor);
+  const sameDraft = (left, right) => draftKey(left) === draftKey(right);
 
-  // Where an anchored drawing stands now: its target, or null once the target has gone or
-  // its data moved on, which leaves the drawing nowhere to be drawn or reframed.
+  // Where a draft's element stands now: the element, or null once it has gone or its
+  // data moved on, which leaves its drawing no frame to be drawn in or added to.
   function targetOf(anchor) {
     const found = resolveAnchor(anchor, "");
     return found && found.status !== "outdated"
@@ -243,20 +249,15 @@ export function createDrawingController({
   // A later stroke of the session goes to the first stroke's draft wherever it starts, in
   // that drawing's frame, while the draft holds it. Null leaves the stroke to the draft
   // under the pointer: before the session's first stroke, once its draft has settled, or
-  // when its anchor's element has gone and the frame with it.
+  // when its element has gone and the frame with it.
   function sessionTarget() {
     if (!session || !heldDrawing(session.anchor)) return null;
-    if (!session.anchor) return { anchor: null, element: null };
-    const found = resolveAnchor(session.anchor, "");
-    return found?.status !== "outdated" && found?.element
-      ? { anchor: session.anchor, element: found.element }
-      : null;
+    const element = targetOf(session.anchor);
+    return element ? { anchor: session.anchor, element } : null;
   }
 
   function strokeFrom(points, targetBox) {
-    const origin = targetBox
-      ? documentPoint(targetBox.left, targetBox.top)
-      : { left: 0, top: 0 };
+    const origin = documentPoint(targetBox.left, targetBox.top);
     return points.map(({ left, top }) => [
       rounded(
         clamp(left - origin.left, -DRAWING_COORDINATE_LIMIT, DRAWING_COORDINATE_LIMIT),
@@ -277,13 +278,16 @@ export function createDrawingController({
   // The drawing's geometry, and the size of the box its offsets were drawn in, which is
   // what places a mark on a picture that has no words. The window is read with the box,
   // so the two describe the same layout: the one the agent's picture of the comment lays
-  // the page out in again.
+  // the page out in again. `at` is where that box stood in the document, which the draft
+  // keeps for itself.
   function drawingOf(strokes, box) {
     const { clientWidth, clientHeight } = document.documentElement;
+    const at = documentPoint(box.left, box.top);
     return {
       format: DRAWING_FORMAT,
       strokes,
-      ...(box && { box: [rounded(box.width), rounded(box.height)] }),
+      box: [rounded(box.width), rounded(box.height)],
+      at: [rounded(at.left), rounded(at.top)],
       viewport: [clientWidth, clientHeight],
       scheme: shownScheme(),
     };
@@ -294,9 +298,8 @@ export function createDrawingController({
   // is rebuilt on every frame of a stroke.
   function captured(strokes, box) {
     const drawing = drawingOf(strokes, box);
-    const origin = box ?? { left: -scrollX, top: -scrollY };
     const said = wordsUnder(
-      drawing.strokes.flat().map(([x, y]) => [origin.left + x, origin.top + y]),
+      drawing.strokes.flat().map(([x, y]) => [box.left + x, box.top + y]),
     );
     if (!said) return drawing;
     const says =
@@ -308,20 +311,17 @@ export function createDrawingController({
 
   function rememberPoint(x, y) {
     if (!stroke || stroke.invalid) return false;
-    if (stroke.anchor) {
-      // A projection may replace the target during capture. Resolve the semantic anchor
-      // again so the stroke follows a valid replacement and cancels if it disappeared.
-      const found = resolveAnchor(stroke.anchor, "");
-      const target = found?.status !== "outdated" ? found?.element : null;
-      const box = target && shownBox(target);
-      if (!box?.width || !box?.height) {
-        stroke.invalid = true;
-        shiftDrawingPaint();
-        return false;
-      }
-      stroke.target = target;
-      stroke.box = box;
+    // A projection may replace the target during capture. Resolve the semantic anchor
+    // again so the stroke follows a valid replacement and cancels if it disappeared.
+    const target = targetOf(stroke.anchor);
+    const box = target && shownBox(target);
+    if (!box?.width || !box?.height) {
+      stroke.invalid = true;
+      shiftDrawingPaint();
+      return false;
     }
+    stroke.target = target;
+    stroke.box = box;
     const screen = { x, y };
     const prior = stroke.lastScreen;
     if (prior) {
@@ -355,9 +355,9 @@ export function createDrawingController({
     claimedPointer = event.pointerId;
     claim(event);
     const target = sessionTarget() ?? targetAtPointer();
-    const box = target?.element ? shownBox(target.element) : null;
-    if (!target || (target.element && (!box?.width || !box?.height))) {
-      announce("Draw on the page.");
+    const box = target && shownBox(target.element);
+    if (!box?.width || !box?.height) {
+      announce("Draw on or beside something on the page.");
       return;
     }
     if (heldDrawing(target.anchor)?.strokes.length >= MAX_DRAWING_STROKES) {
@@ -419,8 +419,7 @@ export function createDrawingController({
     const drawing = captured(strokesWith(held, completed), completed.box);
     session = { anchor: completed.anchor };
     lastDrawn = { anchor: completed.anchor };
-    if (completed.anchor) openAnchoredDrawing(completed.anchor, drawing);
-    else openPageDrawing(drawing);
+    openAnchoredDrawing(completed.anchor, drawing);
     announce(
       held
         ? "Stroke added to the drawing."
@@ -432,15 +431,9 @@ export function createDrawingController({
   // while its ink stands on the page, or else the drawing an open composer carries. A
   // composer's own undo takes from its own draft.
   function undoTarget() {
-    if (
-      lastDrawn &&
-      heldDrawing(lastDrawn.anchor) &&
-      (!lastDrawn.anchor || targetOf(lastDrawn.anchor))
-    )
-      return lastDrawn;
+    if (lastDrawn && heldDrawing(lastDrawn.anchor)) return lastDrawn;
     const open = heldDrawings().find((held) => held.open);
-    if (open) return { anchor: open.anchor };
-    return pageComposerOpen() && pageDrawing() ? { anchor: null } : null;
+    return open ? { anchor: open.anchor } : null;
   }
 
   // Take back a drawing's last stroke: the named draft's, from its composer's control, or
@@ -450,14 +443,14 @@ export function createDrawingController({
   // words they stand over; where it is not, the words go, since they spoke for strokes
   // that are no longer all there. The last stroke taken back takes the drawing with it.
   function undoStroke(anchor = undoTarget()?.anchor) {
-    const held = anchor !== undefined && heldDrawing(anchor);
+    const held = anchor && heldDrawing(anchor);
     if (!held) {
       announce("No stroke to undo.");
       return;
     }
-    const target = anchor ? targetOf(anchor) : null;
+    const target = targetOf(anchor);
     const box = target && shownBox(target);
-    const shown = !anchor || Boolean(box?.width && box?.height);
+    const shown = Boolean(box?.width && box?.height);
     const strokes = (shown ? strokesIn(held, box) : held.strokes).slice(0, -1);
     const { says, ...unread } = held;
     replaceDrawing(
@@ -515,21 +508,34 @@ export function createDrawingController({
     };
   }
 
-  // Every unsent drawing but the one `drawing` is adding to, which that stroke draws.
+  // Every unsent drawing but the one `drawing` is adding to, which that stroke draws. A
+  // drawing whose element has gone stands parked in the document's plane, where the
+  // element last stood.
   function draftDrawings(drawing) {
     const drawings = [];
-    const state = (open) => (open ? "lf-drawing-pending" : "lf-drawing-parked");
-    const page = pageDrawing();
-    if (page && drawing?.anchor !== null)
-      drawings.push({
-        drawing: page,
-        target: null,
-        className: state(pageComposerOpen()),
-      });
     for (const { anchor, drawing: held, open } of heldDrawings()) {
       if (drawing && sameDraft(anchor, drawing.anchor)) continue;
       const target = targetOf(anchor);
-      if (target) drawings.push({ drawing: held, target, className: state(open) });
+      if (target)
+        drawings.push({
+          drawing: held,
+          target,
+          className: open ? "lf-drawing-pending" : "lf-drawing-parked",
+        });
+      else if (held.at) {
+        const [left, top] = held.at;
+        const { box, ...unframed } = held;
+        drawings.push({
+          drawing: {
+            ...unframed,
+            strokes: held.strokes.map((points) =>
+              points.map(([x, y]) => [x + left, y + top]),
+            ),
+          },
+          target: null,
+          className: "lf-drawing-parked",
+        });
+      }
     }
     return drawings;
   }

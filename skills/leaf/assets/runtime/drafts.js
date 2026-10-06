@@ -2,9 +2,9 @@
 
    Every unsent composition persists:
 
-   - the general comment box, including an attached page drawing;
+   - the general comment box;
    - each thread reply;
-   - the selection composer, including its anchor and mode;
+   - the selection composer, including its anchor, mode and drawing;
    - a thread's first message and replies;
    - an `lf-draft` edit.
 

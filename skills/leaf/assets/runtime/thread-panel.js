@@ -92,8 +92,6 @@ export function createThreadPanelController({
       // the walks and placement all read as open while it shows, so a panel still on
       // screen after the press would take the next key the user meant for the page.
       panel.close();
-      // The page drawing the general box carries stands parked while the box is away.
-      syncGeneral();
     }
     if (open) closePreview?.();
   }

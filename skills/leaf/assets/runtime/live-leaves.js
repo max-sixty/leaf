@@ -3,7 +3,7 @@ import { clocked } from "./presence.js";
 import { pagePresented } from "./presentation.js";
 import { liveLeavesList, drawerIsOpen, othersPanel } from "./drawers.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { activityFacts, countUpdates } from "./banner.js";
+import { activityFacts, countMoves } from "./banner.js";
 import { rowWalk } from "./walk-position.js";
 
 let others = [];
@@ -94,12 +94,12 @@ function rowPresence(entry) {
 // part of the account they can already read.
 const activityAccount = ({ counts }) => {
   const parts = [];
-  if (counts.active) parts.push(`${countUpdates(counts.active)} active`);
-  if (counts.handling) parts.push(`${countUpdates(counts.handling)} being handled`);
-  if (counts.queued) parts.push(`${countUpdates(counts.queued)} queued`);
+  if (counts.active) parts.push(`${countMoves(counts.active)} active`);
+  if (counts.handling) parts.push(`${countMoves(counts.handling)} being handled`);
+  if (counts.queued) parts.push(`${countMoves(counts.queued)} queued`);
   if (counts.picked_up)
-    parts.push(`${countUpdates(counts.picked_up)} picked up; turn ended`);
-  if (counts.pending) parts.push(`${countUpdates(counts.pending)} waiting`);
+    parts.push(`${countMoves(counts.picked_up)} picked up; turn ended`);
+  if (counts.pending) parts.push(`${countMoves(counts.pending)} waiting`);
   return parts.length ? parts.join("; ") : null;
 };
 
@@ -132,19 +132,27 @@ function renderOthersNow(state) {
     state === null
       ? []
       : state.others.filter((entry) => entry.activity.kind !== "closed");
+  // A neighbour's row is its page, keyed by `page_key`, and its link is wherever that
+  // page is served now. A server restarted on another port keeps the row, and the focus
+  // on it, where they were; only the destination changes.
   const wanted = state
     ? [
-        { key: "self", title: document.title, entry: state },
-        ...others.map((entry) => ({ key: entry.url, title: entry.title, entry })),
+        { key: "self", href: null, title: document.title, entry: state },
+        ...others.map((entry) => ({
+          key: entry.page_key,
+          href: entry.url,
+          title: entry.title,
+          entry,
+        })),
       ]
     : [];
   rows = Object.freeze(
-    wanted.map(({ key, title, entry }) => {
+    wanted.map(({ key, href, title, entry }) => {
       const { tone, line } = rowPresence(entry);
       return Object.freeze({
         key,
         self: key === "self",
-        href: key === "self" ? null : key,
+        href,
         title,
         tone,
         line,

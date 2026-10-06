@@ -361,6 +361,15 @@ in the integration.
   same container CI runs, the approach Playwright recommends (an arm64 image on a
   Mac matches CI only on an arm64 runner); or a hosted visual-review service that
   renders both sides itself.
+- **Keep the agent journey's samples.** `leaf-dev journey` prints one timed sample
+  per run, and `publish-site` runs it on every release, but only the machine that
+  ran it keeps the sample (`$XDG_STATE_HOME/leaf-dev/journey.jsonl`), so CI's
+  samples are lost and a slower title or reply shows only to whoever is watching.
+  Find a durable store that CI and local runs can both write to, with the Worker's
+  credential proxy in mind, and chart each step across releases against the targets
+  in `notes/user-feedback-responsiveness.md`. Uploading a CI artifact needs no extra
+  token but keeps 90 days; a file in `max-sixty/leaf-assets` keeps history but needs
+  a token that can push there.
 - **Consider bundling the browser runtime.** A navigation loads about 220 JS modules
   over HTTP/1.1's six connections. A prototype bundling `leaf.js` with esbuild cut a
   widgetless page from 217 requests to 38 and its open from 332–483 ms to 238–258 ms,

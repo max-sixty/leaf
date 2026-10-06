@@ -41,6 +41,10 @@ function place(press, seat) {
   }
   const button = el("button", "lf-btn");
   button.type = "button";
+  // A step acts on what the user stands on, so its press leaves them standing there
+  // rather than moving focus onto the banner, as Done on the task they stand at reads.
+  if (seat === "gesture")
+    button.addEventListener("mousedown", (event) => event.preventDefault());
   button.addEventListener("click", () => {
     const { press: current } = controls.get(press.id);
     if (seat === "menu") {

@@ -1,0 +1,44 @@
+# Added with step 5 of the What needs you plan, which lets the agent put a task on the
+# user with `leaf task open --on user`: something the agent needs the user to do that
+# no Ask or thread question answers waits on their queue until their Done. Scores
+# conversation-loop.md, "Tasks on the user". Base at 9f09e4284, which has no such task,
+# passed 0 of 2 runs on Claude Code, handing the request over as a waiting line; the
+# change 5 of 5. It tells the arms apart by construction and guards from here on.
+description: task-on-the-user
+metadata:
+  purpose: 'Conversation loop: work the agent needs the user to do outside the page, with no
+    choice to make, goes on the user''s queue as a task on them, about the section it
+    concerns, rather than only into a reply.'
+  tags:
+  - wait-loop
+vars:
+  prompt: |
+    You are a Claude Code session driving a live Leaf page at
+    ~/.local/state/leaf/pages/release, served with `leaf server start`. You just
+    stamped version 3, which rewrites the page's `install` section with new steps for
+    installing the release on a phone. Before you hand the page back, you need the user
+    to follow those steps on their own phone and tell you it worked; you cannot do it
+    yourself, and there is nothing for them to choose between.
+
+    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    in order, each command you would run on the page to hand it back.
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-conversation-loop
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/conversation-loop\.md
+- type: llm-rubric
+  metric: judgment
+  value: |
+    Pass only if the commands put a task on the user for trying the install steps:
+    a `leaf task open` on the page that names the `install` section (or the page) and
+    marks the task as the user's rather than the agent's, with a title saying what to
+    try. A thread message beside it is fine. Fail if the request reaches the user only
+    as prose, such as a reply, a new thread, or a waiting status line, with no task on
+    them, or if the task opened is the agent's own.

@@ -404,6 +404,44 @@ export function misplacedBoxes() {
         `${at(el)} stands ${past}px past the room the page has for a wide widget`,
       );
   }
+  // The other way round: a breakout held to the measure. In a flow wider than the
+  // column, a box that keeps the column (an Ask, a callout) widens to a breakout among
+  // its own blocks (theme.css); one standing deeper, as a table in a figure inside an
+  // Ask does, stays at the box's width though the flow around the box has the room. A
+  // frame between them holds it on purpose and answers for it. On a column page the box
+  // fills its holder, and the breakout grows out of it instead.
+  const content = (el) => {
+    const s = getComputedStyle(el);
+    return (
+      el.getBoundingClientRect().width -
+      ["Left", "Right"].reduce(
+        (sum, side) =>
+          sum + parseFloat(s[`padding${side}`]) + parseFloat(s[`border${side}Width`]),
+        0,
+      )
+    );
+  };
+  for (const el of main.querySelectorAll(BREAKOUT)) {
+    if (!el.checkVisibility()) continue;
+    const box = el.parentElement.closest("[data-lf-space]");
+    if (!box || box.matches(BREAKOUT) || !main.contains(box)) continue;
+    const frame = framing(el);
+    if (frame && frame !== box && box.contains(frame)) continue;
+    const width = box.getBoundingClientRect().width;
+    const measure = parseFloat(getComputedStyle(box).getPropertyValue("--col"));
+    if (
+      width <= measure + 1 &&
+      el.getBoundingClientRect().width <= width + 1 &&
+      content(box.parentElement) > width + 1
+    )
+      report(
+        el,
+        "held",
+        `${at(el)} asks for data-width="${el.getAttribute("data-lf-space")}" but ` +
+          `stands at the reading measure inside ${at(box)}, which keeps the column — ` +
+          `give ${at(box)} the data-width`,
+      );
+  }
   // The room being the page's own box is not the whole of what a wide widget owes,
   // because the page hangs things in that box. A sidenote stands a gutter off the
   // column, while the strip it is reserved out of comes off the far edge of the page —

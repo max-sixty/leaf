@@ -2217,6 +2217,9 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         + ask.format(id="ask", width="", table="")
         + ask.format(id="granted", width=' data-width="wide"', table="")
         + ask.format(id="holds", width="", table=table.format(id="holds"))
+        + ask.format(
+            id="deep", width="", table=f"<figure>{table.format(id='deep')}</figure>"
+        )
         + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
         + '<lf-options id="list" choose><lf-option id="list-a">Leave it</lf-option>'
         + f'<lf-option id="list-b">Raise it {table.format(id="list")}</lf-option>'
@@ -2240,6 +2243,14 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     # The widened Ask has the room for its options track, so the table stands beside
     # the list rather than at the measure.
     assert at["holds-t"]["width"] > 720, at
+    # A wide block deeper in, inside a figure, is held to the measure with its Ask, and
+    # the render check says to give the Ask the width.
+    held = [
+        finding["at"]
+        for finding in render_checks_model.evaluate_probe(page, "misplacedBoxes")
+        if finding["kind"] == "held"
+    ]
+    assert held == ["<table id=deep-t>"], held
 
     column = open_page(browser, serve(leaf_page("Column", body)))
     resized(column, 1726, 900)
@@ -2247,6 +2258,11 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     assert at["holds"]["width"] == at["prose"]["width"] == 720, at
     assert at["holds-t"]["width"] == 1080, at
     assert at["holds-t"]["left"] < at["prose"]["left"], at
+    assert not [
+        finding
+        for finding in render_checks_model.evaluate_probe(column, "misplacedBoxes")
+        if finding["kind"] == "held"
+    ]
 
 
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):

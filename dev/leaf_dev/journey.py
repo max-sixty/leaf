@@ -34,6 +34,7 @@ the first (`worker/README.md` owns that contract).
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -95,6 +96,14 @@ TITLE_PATIENCE = 60
 # How long a local harness gets to serve the page and start watching it.
 SETUP_LIMIT = 600
 HARNESSES = ("cc", "codex")
+
+
+def samples_path() -> Path:
+    """Where this machine keeps every sample, one JSON line each, outside any
+    checkout so runs from every worktree accumulate. A stopgap until a store CI can
+    write to too (`TODO.md`, "Keep the agent journey's samples")."""
+    state = os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state"
+    return Path(state) / "leaf-dev" / "journey.jsonl"
 
 
 class Session(NamedTuple):
@@ -814,4 +823,10 @@ def journey(target: str, release: str | None) -> None:
             result = run_journey(session, version)
         finally:
             session.context.close()
-    print(json.dumps({**named, **result}, indent=2))
+    sample = {**named, **result}
+    print(json.dumps(sample, indent=2))
+    samples = samples_path()
+    samples.parent.mkdir(parents=True, exist_ok=True)
+    with samples.open("a") as kept:
+        kept.write(json.dumps({"at": datetime.now().astimezone().isoformat(), **sample}) + "\n")
+    print(f"kept in {samples}", file=sys.stderr)

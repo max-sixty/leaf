@@ -1156,6 +1156,13 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
         ("https://leaf-dev.example", None, False),
         ("http://127.0.0.1:8787", "b" * 40, False),
     ]
+    # Each sample is also kept on this machine, outside the checkout.
+    kept = journey.samples_path().read_text().splitlines()
+    assert [json.loads(line)["origin"] for line in kept] == [
+        "http://127.0.0.1:8080",
+        "https://leaf-dev.example",
+        "http://127.0.0.1:8787",
+    ]
 
 
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):

@@ -8433,13 +8433,16 @@ def pressed_send_surface(browser, serve, surface):
 )
 def test_sending_flashes_only_the_new_message(browser, serve, surface):
     """Sending cues the words in every surface, including a shadow-root thread.
-    Admission and subsequent repaint do not restart the cue or wash the card."""
+    Sticky authors share the words' fade. Admission and subsequent repaint do not
+    restart the cue or wash the card."""
     page, _box, send, _after, _reply = pressed_send_surface(browser, serve, surface)
     # Capture the first painted cue, before driver latency can consume its duration.
     page.evaluate(
-        """() => {
+        """surface => {
           window.__sendPaint = null;
-          const root = document.querySelector('#patch')?.shadowRoot ?? document;
+          const root = ["card", "composer"].includes(surface)
+            ? document.querySelector(".lf-margin-preview")
+            : document.querySelector("#patch")?.shadowRoot ?? document;
           const observer = new MutationObserver(() => {
             const message = [...root.querySelectorAll('.lf-msg')].find(node =>
               node.textContent.includes('Sent from the box.')
@@ -8453,7 +8456,8 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
             observer.disconnect();
           });
           observer.observe(root, {subtree: true, childList: true, attributes: true});
-        }"""
+        }""",
+        surface,
     )
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -8467,6 +8471,19 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
           return getComputedStyle(message).backgroundColor !== 'rgba(0, 0, 0, 0)';
         }"""
     )
+    if surface in {"card", "composer"}:
+        message = page.locator(
+            ".lf-margin-preview .lf-msg", has_text="Sent from the box."
+        )
+        # Compare painted ground, rather than just the inherited computed colour:
+        # a second translucent layer can have the same colour and paint darker.
+        for time in [0, 600, 1199]:
+            message.evaluate(
+                "(node, time) => node.getAnimations()[0].currentTime = time", time
+            )
+            one_frame(page)
+            pixels = Image.open(io.BytesIO(message.screenshot())).convert("RGB")
+            assert pixels.getpixel((1, 1)) == pixels.getpixel((1, pixels.height - 4))
     held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)

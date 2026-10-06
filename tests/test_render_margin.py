@@ -3513,7 +3513,7 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     back = reference.locator(
         '.lf-command-reference-command[data-lf-command="navigation.back"]'
     )
-    expect(back).to_have_text("close options")
+    expect(back).to_have_text("Close options")
     expect(
         back.locator("xpath=ancestor::tr").locator(".lf-command-reference-description")
     ).to_have_text("Fold the secondary page actions")

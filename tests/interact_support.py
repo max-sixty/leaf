@@ -2024,6 +2024,6 @@ def consume_pending_input(session_id):
     batches = delivery.pending_batches(session_id)
     if not batches:
         return None
-    payload = delivery.freeze_delivery(batches, carrier="hook")
+    payload = delivery.freeze_delivery(batches)
     delivery.receive_held(payload, session_id)
     return payload

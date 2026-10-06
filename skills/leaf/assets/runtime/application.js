@@ -79,7 +79,6 @@ export function mountApplication(dependencies) {
     hasPending,
     fabAnchorAt: dependencies.activeActionAnchor,
     targetPickerOpen: dependencies.targetPickerOpen,
-    pageComposerDrawing: dependencies.pageComposerDrawing,
   });
   let threadPresenter;
   let stateApplication;

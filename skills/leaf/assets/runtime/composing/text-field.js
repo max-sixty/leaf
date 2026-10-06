@@ -59,7 +59,9 @@
  *
  * Enter, Mod+Enter and Escape are not bound here. Leaf's key dispatcher owns them on the
  * document, and cancels the press it acts on; Shift+Enter inserts a line and continues
- * a list or quote.
+ * a list or quote. Mod+Z walks the words' history unless the owner's `yieldsUndo` says
+ * the press is its own, as a composer's is while a stroke is its draft's latest change;
+ * the press then reaches the dispatcher with the words untouched.
  *
  * The host is the textarea's scrollport. CodeMirror's content-sized inner scroller
  * never clips the words; the page sizes the host. When that room changes, the field
@@ -383,6 +385,8 @@ class LeafText extends HTMLElement {
   #view = null;
   #root;
   #internals = null;
+  // Set by the box's owner: true while Mod+Z belongs to the owner rather than the words.
+  yieldsUndo = null;
   #editable = new Compartment();
   #attributes = new Compartment();
   #placeholderLayer = document.createElement("div");
@@ -484,6 +488,10 @@ class LeafText extends HTMLElement {
           ...standardKeymap.filter(
             ({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter",
           ),
+          // A box whose draft holds more than its words can take undo for its owner
+          // while the owner's change is the latest (`yieldsUndo`): the words' history
+          // stands still and the press goes on to the owner's binding.
+          { key: "Mod-z", run: () => Boolean(this.yieldsUndo?.()) },
           ...historyKeymap,
         ]),
         new LanguageSupport(markdownLanguage),

@@ -116,7 +116,6 @@ export function rowWalk({
       id: `${id}.edge`,
       keys: ["Home", "End"],
       routes: [route("Home", home), route("End", end)],
-      description: `${capital(home)} / ${end} ${noun.toLowerCase()}`,
       title: `${home} / ${end}`,
       // Home and End answer as they do in any list, so the shortcut bar spends its
       // slots on the walk and on what the list offers that no other list does; the

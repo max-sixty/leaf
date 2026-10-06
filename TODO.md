@@ -366,6 +366,15 @@ in the integration.
   same container CI runs, the approach Playwright recommends (an arm64 image on a
   Mac matches CI only on an arm64 runner); or a hosted visual-review service that
   renders both sides itself.
+- **Consider bundling the browser runtime.** A navigation loads about 220 JS modules
+  over HTTP/1.1's six connections. A prototype bundling `leaf.js` with esbuild cut a
+  widgetless page from 217 requests to 38 and its open from 332–483 ms to 238–258 ms,
+  roughly 10% of browser-test time. The bundle would hold `assets/runtime/` and Leaf's
+  own packages; custom packages stay unbuilt and import only `/runtime/widget-api.js`,
+  a bundle entry, which `page check` would then enforce, since any other runtime import
+  loads a second runtime. **Unconfirmed:** it needs automatic rebuilds on preview, test
+  and merge, since a committed bundle would conflict across concurrent runtime PRs.
+  Untested alternative: `modulepreload` hints.
 
 ## Etc
 

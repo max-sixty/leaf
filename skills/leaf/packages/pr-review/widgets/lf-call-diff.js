@@ -117,7 +117,7 @@ function buildGroup(owner, key, open) {
   const group = el("details", "lf-call-group");
   group.open = open;
   const summary = buildLine("summary");
-  const body = el("div", "lf-call-group-body");
+  const body = el("div", "lf-call-group-body lf-text-scroller");
   group.dataset.callGroup = key;
   summary.classList.add("lf-call-group-summary");
   group.append(summary, body);

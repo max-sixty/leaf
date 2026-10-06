@@ -352,7 +352,7 @@ def carry_turn(
         if reasons
         else []
     )
-    delivery = freeze_delivery(batches, carrier="hook") if batches else None
+    delivery = freeze_delivery(batches) if batches else None
     deadline = started + CONFIRM_WITHIN
     from .reconnect import publishing_notices
 

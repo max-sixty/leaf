@@ -4,7 +4,6 @@ delivery:
   format: leaf-delivery-v3
   id: <delivery>
   created_at: <time>
-  carrier: hook
   acknowledge: null
   batches:
     - page: <page>

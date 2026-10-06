@@ -63,7 +63,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-cluster:is(:hover, :focus-within) { z-index: var(--lf-z-margin-raised); }
   /* A pane's lane is a stacking context of its own (its clip makes it one), so the lane
      rises with the row the pointer or the keyboard is on. */
-  .lf-margin-lane:has(.lf-margin-cluster:is(:hover, :focus-within)) {
+  .lf-margin-lane:has(.lf-margin-cluster:is(:hover, :focus-within)),
+  .lf-margin-carrier:has(.lf-margin-cluster:is(:hover, :focus-within)) {
     z-index: var(--lf-z-margin-raised); }
   /* Placement fits the finished thread before typing. Only the editor paints; the
      transparent header/reply slots neither take document flow nor intercept presses. */

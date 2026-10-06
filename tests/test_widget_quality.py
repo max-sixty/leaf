@@ -229,7 +229,9 @@ DIFF_EXAMPLE = json.loads(
 # around it is, its closing tag on a line of its own, with words that wrap in a phone's
 # column. The diff package's worked example, whose stated height is its drawing's at
 # the report's desktop width, read in a phone's window, where it also opens the column;
-# and at a desktop width closing a panel, whose frame trims the host's own margin.
+# and at a desktop width closing a panel, whose frame trims the host's own margin. A
+# framed tab set and a side-list queue whose names run past a phone's width, each
+# reserving the one row its strip keeps.
 FIRST_BOXES = {
     "draft-in-a-phone-column": (
         """
@@ -246,6 +248,26 @@ FIRST_BOXES = {
         f'<section class="panel" id="ends"><p>The patch.</p>{DIFF_EXAMPLE}</section>',
         1200,
     ),
+    "tab-names-outrunning-a-phone": (
+        '<section id="views-section"><lf-tabs id="views">'
+        + "".join(
+            f'<lf-tab id="view-{i}" label="View {i}"><p id="words-{i}">View {i}.</p>'
+            "</lf-tab>"
+            for i in range(12)
+        )
+        + "</lf-tabs></section>",
+        390,
+    ),
+    "queue-in-a-phone": (
+        '<lf-tabs id="queue" list="side">'
+        + "".join(
+            f'<lf-tab id="item-{i}" label="Item {i}" summary="merge · {i} days old">'
+            f'<p id="item-words-{i}">Item {i}.</p></lf-tab>'
+            for i in range(12)
+        )
+        + "</lf-tabs>",
+        390,
+    ),
 }
 
 
@@ -255,7 +277,9 @@ def test_a_widget_first_paints_the_box_it_presents(browser, serve, case):
     indentation and closing line dropped and the words wrapped as the body wraps them.
     A diff's toolbar keeps one row in a phone's column, so the height its author stated
     at a desktop width holds there, and its drawing hands no margin out past the frame
-    trim at either edge. What follows each stays where it first painted."""
+    trim at either edge. A tab strip is one row however many names it holds, the
+    summary line a queue's rows carry included, so the open panel stands where it
+    first painted. What follows each stays where it first painted."""
     markup, width = FIRST_BOXES[case]
     url = serve(
         leaf_page(

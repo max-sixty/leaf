@@ -912,13 +912,14 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
 def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     """`list="side"` stands a tab set's list beside its panels: a queue whose items open
     one at a time. Where the set holds both the list is a column left of the open panel,
-    walked down as well as across; on a phone it is a row above the panel, so the open
-    item never lands below the whole queue. A row carries its panel's summary under its
-    name, and once its item's Ask is answered, a check and the picked option's title
-    beside the name, said in the tab's description too. Answered is the log's reading,
-    so an undo takes them off once its answer is adopted, and the agent settling the
-    question keeps them on. Answering moves no row. A tab's name is its label whatever
-    the row shows, and a panel bounds what it holds."""
+    walked down as well as across; on a phone it is one row above the panel, scrolled
+    sideways, so the open item never lands below the whole queue. A row carries its
+    panel's summary under its name, and once its item's Ask is answered, a check and
+    the picked option's title beside the name, said in the tab's description too.
+    Answered is the log's reading, so an undo takes them off once its answer is
+    adopted, and the agent settling the question keeps them on. Answering moves no
+    row. A tab's name is its label whatever the row shows, and a panel bounds what it
+    holds."""
 
     BOARD = (
         '<lf-board id="board">'
@@ -945,7 +946,9 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     source = leaf_page(
         "a queue",
         "<header><h1>Queue</h1></header>"
-        '<lf-tabs id="queue" list="side">' + "".join(map(ticket, "abc")) + "</lf-tabs>",
+        '<lf-tabs id="queue" list="side">'
+        + "".join(map(ticket, "abcdefgh"))
+        + "</lf-tabs>",
         layout="workspace",
     )
     page = open_page(browser, live_url(serve(source)))
@@ -1021,9 +1024,17 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         "sev a · suggested fix. Answered: Fix"
     )
 
+    # On a phone the list is one row over the open item, however long the queue.
     resized(page, 390, 844)
     narrow = page.evaluate(boxes)
     assert narrow["stripBottom"] <= narrow["panelTop"] + 1, narrow
+    row = page.evaluate("""() => {
+      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const tops = [...strip.querySelectorAll('.lf-tab-btn')]
+        .map((b) => Math.round(b.getBoundingClientRect().top));
+      return {rows: new Set(tops).size, runsPast: strip.scrollWidth > strip.clientWidth};
+    }""")
+    assert row == {"rows": 1, "runsPast": True}, row
 
     # As a scrolling page's root set, a side list keeps the page's history but is a
     # box: nothing sticks, so a switch leaves the page where the user stands.
@@ -1111,6 +1122,84 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
     wait_until_ready(page)
     expect(answer).to_be_visible()
     expect(answer).to_have_text("Fix")
+
+
+def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
+    """A strip whose names outrun its one row scrolls them sideways, and keeps the open
+    tab in the row and clear of the press at either edge: when the window narrows under
+    it, which turns a side list's column into a row, and when a walk opens another tab,
+    the tab already open included. The press stands at the strip's edge, so no name
+    shows unfaded beside it."""
+
+    def views(key, summary):
+        return "".join(
+            f'<lf-tab id="{key}-{i}" label="View {key} {i}"'
+            + (f' summary="sev {i} · suggested fix"' if summary else "")
+            + f'><p id="{key}-words-{i}">View {key} {i}.</p></lf-tab>'
+            for i in range(12)
+        )
+
+    source = leaf_page(
+        "Long strips",
+        '<h1 id="title">Strips</h1><section id="framed-section">'
+        f'<lf-tabs id="framed">{views("framed", False)}</lf-tabs></section>'
+        f'<lf-tabs id="queue" list="side">{views("queue", True)}</lf-tabs>'
+        f'<section id="rtl-section" dir="rtl"><lf-tabs id="rtl">{views("rtl", False)}'
+        "</lf-tabs></section>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1200, 900)
+    # The open tab inside the strip and clear of every press showing, with at least
+    # `presses` of them showing.
+    shown = """([id, presses]) => {
+      const strip = document.querySelector(`#${id} > .lf-tabstrip`);
+      const room = strip.getBoundingClientRect();
+      const tab = strip.querySelector('[aria-selected="true"]').getBoundingClientRect();
+      const faces = [...strip.querySelectorAll('.lf-tabstrip-scroll > span')]
+        .filter((face) => face.checkVisibility())
+        .map((face) => face.getBoundingClientRect());
+      return strip.scrollWidth > strip.clientWidth && faces.length >= presses
+        && room.left <= tab.left && tab.right <= room.right
+        && faces.every((face) => face.right <= tab.left || tab.right <= face.left);
+    }"""
+    # Focus brings itself into view, so the tabs opened before the window narrows are
+    # left unfocused.
+    for name in ("View framed 11", "View queue 11"):
+        tab = page.get_by_role("tab", name=name, exact=True)
+        tab.click()
+        tab.blur()
+    resized(page, 390, 844)
+    for strip in ("framed", "queue"):
+        page.wait_for_function(shown, arg=[strip, 0])
+
+    framed = page.locator("#framed").get_by_role("tab")
+    framed.last.focus()
+    page.keyboard.press("Home")
+    expect(framed.first).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(shown, arg=["framed", 1])
+    # Walking to the tab already open brings it back after a scroll took it away.
+    page.evaluate("""() => {
+      const strip = document.querySelector('#framed > .lf-tabstrip');
+      strip.scrollLeft = strip.scrollWidth;
+    }""")
+    page.keyboard.press("Home")
+    page.wait_for_function(shown, arg=["framed", 1])
+    page.keyboard.press("ArrowLeft")
+    expect(framed.last).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(shown, arg=["framed", 1])
+    for _ in range(4):
+        page.keyboard.press("ArrowLeft")
+    expect(framed.nth(7)).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(shown, arg=["framed", 2])
+
+    # In a right-to-left strip the names run from the right, so ArrowLeft is ahead.
+    rtl = page.locator("#rtl").get_by_role("tab")
+    rtl.first.focus()
+    page.keyboard.press("ArrowLeft")
+    expect(rtl.nth(1)).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(shown, arg=["rtl", 1])
+    page.keyboard.press("ArrowRight")
+    expect(rtl.first).to_have_attribute("aria-selected", "true")
 
 
 def test_root_tab_targets_remain_global(browser, serve):

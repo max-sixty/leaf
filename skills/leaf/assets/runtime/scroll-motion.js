@@ -76,7 +76,8 @@ function carried(subject, source) {
 // what it holds (`scrollAxes`). Offsets are signed as `scrollLeft` and `scrollTop` read
 // them, negative toward the far end of an axis the scroller starts at; the timeline
 // measures distance from its start. A subject the scroller does not carry, one
-// positioned outside it, has none.
+// positioned outside it, has none. Without scroll timelines each axis is listed with
+// none to follow, so a caller sees what it must place again on each scroll instead.
 export function scrollMotions(source, subject, reach = 0) {
   if (!scrollContainer(source)) return [];
   const axes = scrollAxes(source);
@@ -87,6 +88,10 @@ export function scrollMotions(source, subject, reach = 0) {
     ["y", source.scrollTop, source.scrollHeight - source.clientHeight],
   ]) {
     if (!(extent > 0)) continue;
+    if (!scrollFollows()) {
+      motions.push({ source, subject: holder, axis, scroll, vector: axes[axis] });
+      continue;
+    }
     const sign = startsAtFar(source, axis) ? -1 : 1;
     const whole = holder === source || sign < 0;
     const timeline = whole

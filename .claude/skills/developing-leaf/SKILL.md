@@ -128,11 +128,23 @@ uv run playwright show-trace --host 127.0.0.1 --port 0 \
   .tmp/recordings/NAME/worktree/trace.zip
 ```
 
-When showing a timeline in Leaf, place a direct link to the same recording in the
-running Trace Viewer beside its controls. The viewer supplies action details,
-Before/Action/After DOM snapshots, source, console and network inspection; Leaf
-supplies the anchored discussion. Keep both previews running and verify that the
+When showing a timeline in Leaf, select the optional `playwright` package and
+read its author instructions. Bind `lf-trace` to the original archive's imported
+`playwright-trace` source; that contract's producer instructions own the import
+command. The widget combines action checkpoints and optional intermediate frames
+in one chronological timeline, with comments on images and saved accessibility
+elements, and a direct link to the
+same recording in the running Trace Viewer. The viewer supplies DOM, source,
+console and network inspection. Keep both previews running and verify that the
 viewer URL reaches the user's browser before handing it over.
+
+For an important result, perform the input and use a Playwright expectation to
+establish the intended browser state. Review the successful expectation's After
+checkpoint; returning from the input alone does not prove an asynchronous update
+finished. Native tracing groups name those operations without adding captures.
+Add `--checkpoint-images` alongside `--record` when the review needs native PNG images
+at those checkpoints. Taking them adds capture work and briefly hides the live
+caret, so omit it when ordinary motion and caret behavior are the evidence.
 
 `uv run leaf-dev stills` compares HEAD with the merge base with `main` and crops
 each changed catalogue state into a before/after pair. Commit first, since it
@@ -215,6 +227,17 @@ For a change to preview startup or lifetime, add `--preview`. It starts the
 canonical user preview in each task, checks the keyed URL across those turns,
 and interrupts its isolated server between turns to prove that the preview
 restores both the address and working feedback without a source edit.
+
+## Test a Pi session
+
+`uv run --project <root> leaf-dev verify-pi-task` runs a real Pi session, the
+version `dev/pi/` pins, with this working tree installed as its Pi package and the
+host's Codex login as its only login. It checks each comment is answered once, a
+comment during a run is answered in that run, Escape closes the turn without waking
+Pi again, and quitting ends the session's claim. Run it after a change to
+`hooks/pi.ts`, `PiHarness`, `hooks.py`, or the watch between turns in `session.py`;
+the suite drives the extension with a stand-in for Pi, and only this run shows what
+Pi itself does.
 
 ## Compare checkout versions
 

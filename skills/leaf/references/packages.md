@@ -73,6 +73,7 @@ The optional bundled packages are:
 | `pr-review` | A typed pull-request brief with a safe Markdown description and compact checks table, plus a data-backed unified call diff. |
 | `monitoring` | Release-workspace instructions for current state, checks, a run log, and a rollback Ask. |
 | `visual-review` | Ordered website cases with aligned before-and-after evidence, automatic comparison orientation, authored focus and full-frame context, flip and overlay, fit and captured-size inspection, exact preview links, and dispositions. |
+| `playwright` | Native trace import and `lf-trace` review of actions, checkpoint images, captured frames and saved accessibility elements, with comments that restore their recorded moment and a link to Playwright's full viewer. |
 | `gallery` | Static action controls, disclosures, and status indicators for the developer feature gallery; ordinary pages do not select it. |
 
 The diagram and diff renderers are large and most pages draw neither, so they travel in
@@ -482,6 +483,16 @@ against the contract, so a value that fails it reaches users as that source's er
 rather than as data, and `page check` and `page state` report it. Tabs hear a
 rewritten file as they hear any other page change.
 
+A contract that carries media URLs declares `resources`, a list of
+[JMESPath expressions](https://jmespath.org/tutorial.html) selecting each URL string
+or array of URL strings. For example, `"resources": ["images[].url"]` names the
+`url` fields of an `images` array. An absent optional field may select null.
+Selected URLs must be canonical `/media/` URLs returned by `page media`, or
+HTTP(S) URLs. Leaf does not interpret ordinary strings elsewhere as references.
+Snapshots capture the selected local media with the current data value; offline
+exports embed those bytes. Remote media stays remote. These resources belong to
+the data reading, so capturing them does not change a stored authored revision.
+
 A source's revision is a digest of its file's bytes, and its `updated` instant is the
 file's modification time. Nothing keeps a replaced value: every document that binds a
 source reads its current value, including stamped versions and widgets frozen into
@@ -514,8 +525,9 @@ own error.
 
 A source id keeps one contract for the lifetime of the page. `data clear` removes the
 current value and keeps the recorded contract, so the id is never released for a new
-meaning. Use a new source id for a new contract. Re-vendoring preserves each binding
-and refuses an incoming registry that would change a bound contract's schema.
+meaning. Use a new contract and a new source id for a new meaning. Re-vendoring
+preserves each binding and refuses an incoming registry that would change a bound
+contract's schema, record declaration, or resource selectors.
 `leaf page state PAGE` exposes the complete `data_bindings` inventory so a producer can
 discover the ids, contracts, widgets, and documents it needs without parsing markup.
 Every source value goes to every user of the page, including fields a module does not

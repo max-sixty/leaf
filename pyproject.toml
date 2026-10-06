@@ -42,6 +42,7 @@ requires-python = ">=3.10"
 dependencies = [
   "anyio>=4.10",
   "click>=8",
+  "jmespath>=1",
   "jsonschema>=4",
   "markdown-it-py>=4",
   "packaging>=22",
@@ -110,7 +111,8 @@ leaf-website = { workspace = true }
 # The site module is one load group because its module-scoped build and host are the
 # shared setup; everything else stays individually balanced. Chromium launches once
 # per worker for the run.
-# Two workers cap the browser load when suites overlap.
+# Two workers cap the browser load when suites overlap on one machine; CI's own
+# runner sets its count in ci.yaml.
 # `-n0` to debug a single test.
 [tool.pytest.ini_options]
 addopts = "-n 2 --dist loadgroup --regtest-consider-line-endings --image-snapshot-save-diff -p leaf_dev.thread_snapshot_plugin"

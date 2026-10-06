@@ -2,20 +2,63 @@
 
 import re
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import click
+import jmespath
+from jmespath.exceptions import JMESPathError
 from referencing.exceptions import Unresolvable
 
 from .files import list_revisions
 from .registry.schema import aware_instant, json_validator
 from .revision_artifact import read_revision
-from .schema import DATA_SOURCE_NAME
+from .schema import DATA_SOURCE_NAME, DIR_FILES, MEDIA_DIR
 from .structure import SourceDocument
 from .thread_context import logged_fragment
 
 
 class DataError(click.ClickException):
     """A malformed data store or payload at the page data boundary."""
+
+
+def resource_urls(value, declaration: dict) -> set[str]:
+    """Declared media references in a validated value, selected by JMESPath.
+
+    Expressions return a URL string, an array of URL strings, or null for an
+    absent optional field. Ordinary strings elsewhere in the value remain data.
+    Local references use the canonical page media namespace; remote references
+    stay remote and are never fetched by snapshot or export.
+    """
+    urls = set()
+    for expression in declaration.get("resources", []):
+        try:
+            selected = jmespath.search(expression, value)
+        except JMESPathError as error:
+            raise DataError(f"resource expression {expression!r}: {error}") from error
+        if selected is None:
+            continue
+        selected = [selected] if isinstance(selected, str) else selected
+        if not isinstance(selected, list) or any(
+            not isinstance(url, str) for url in selected
+        ):
+            raise DataError(
+                f"resource expression {expression!r} must select URL strings"
+            )
+        for url in selected:
+            try:
+                remote = urlsplit(url)
+                is_remote = remote.scheme in {"http", "https"} and bool(remote.netloc)
+            except ValueError:
+                is_remote = False
+            if not re.fullmatch(rf"/{MEDIA_DIR}/{DIR_FILES[MEDIA_DIR]}", url) and not (
+                is_remote and not any(char.isspace() for char in url)
+            ):
+                raise DataError(
+                    f"resource expression {expression!r}: {url!r} must be a "
+                    "canonical /media/ URL or an HTTP(S) URL"
+                )
+            urls.add(url)
+    return urls
 
 
 def data_bindings(lf_elements: list, registry: dict):
@@ -57,16 +100,22 @@ def declared_data_bindings(
     return bindings, seats, errors
 
 
-def _contract_semantics(registry: dict, contract: str) -> tuple[dict, dict | None]:
-    """The validation and record meaning of one contract.
+def _contract_semantics(
+    registry: dict, contract: str
+) -> tuple[dict, dict | None, frozenset[str]]:
+    """The validation, record and resource meaning of one contract.
 
     Descriptions and agent instructions may improve without changing what a source value
-    means to a pinned document. JSON Schema and the record declaration may not: an
+    means to a pinned document. Schema, record and resource declarations may not: an
     old document keeps consuming the page's replaceable current value through the
     registry captured with that document.
     """
     declaration = registry["$data"]["contracts"][contract]
-    return declaration["schema"], declaration.get("records")
+    return (
+        declaration["schema"],
+        declaration.get("records"),
+        frozenset(declaration.get("resources", [])),
+    )
 
 
 def merge_data_document_readings(
@@ -100,8 +149,8 @@ def merge_data_document_readings(
                 continue
             if source in semantics and semantics[source] != meaning:
                 errors.append(
-                    f"source {source!r} keeps contract {contract!r}, but its schema "
-                    f"or record declaration changes between {seats[source]} and "
+                    f"source {source!r} keeps contract {contract!r}, but its schema, "
+                    f"record declaration, or resources change between {seats[source]} and "
                     f"{seat}; use a new source id for the new meaning"
                 )
                 continue
@@ -161,8 +210,8 @@ def data_contract_transition_errors(
                 registry, contract
             ):
                 errors.append(
-                    f"source {source!r} contract {contract!r} changes its schema or "
-                    f"record declaration from {seats[source]}"
+                    f"source {source!r} contract {contract!r} changes its schema, "
+                    f"record declaration, or resources from {seats[source]}"
                 )
     return errors
 
@@ -375,6 +424,10 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
             f"unresolved reference {error.ref!r}"
         )
     if error is None:
+        try:
+            resource_urls(value, declaration)
+        except DataError as error:
+            return f"source {source!r} contract {contract!r}: {error.message}"
         records = declaration.get("records")
         items = (
             value.get(records["items"]) if records and isinstance(value, dict) else None

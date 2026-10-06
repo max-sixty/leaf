@@ -1,0 +1,427 @@
+{
+  "$data": {
+    "contracts": {
+      "playwright-trace": {
+        "description": "A review index derived from one immutable Playwright format-9 trace archive. Times are native monotonic milliseconds within each stream; screenshots and saved accessibility trees have separate capture times.",
+        "instructions": {
+          "producer": "Initialize a page with package playwright and bind an lf-trace widget to its source id. Import the native archive through the producer and Leaf canonical media writer: leaf package run playwright import_trace.py TRACE --page PAGE --leaf /absolute/path/to/bin/leaf --viewer-url URL | leaf data set PAGE SOURCE. The viewer URL must open the same unchanged trace.zip. Keep the original archive; its SHA-256 scopes every imported action, image and saved-tree node identity. Use a new source id for another recording. Format 9 only; other versions are refused explicitly. Review the recording for credentials and personal data before sharing. PNG checkpoints and accessibility trees are sequential captures: tree boxes describe the saved tree, not an exact pixel target in the neighboring image. Imported action titles, timings and action errors are retained. DOM inspection, network, console, source, test-runner hierarchy, attachments and complete assertion results remain in the linked Playwright viewer."
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "archive": {
+              "type": "object",
+              "properties": {
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "format": {
+                  "const": 9
+                }
+              },
+              "required": [
+                "sha256",
+                "format"
+              ],
+              "additionalProperties": false
+            },
+            "viewerUrl": {
+              "type": "string",
+              "format": "uri",
+              "pattern": "^https?://\\S+$"
+            },
+            "streams": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/stream"
+              }
+            },
+            "pages": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/page"
+              }
+            },
+            "actions": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/action"
+              }
+            },
+            "images": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/image"
+              }
+            }
+          },
+          "required": [
+            "archive",
+            "viewerUrl",
+            "streams",
+            "pages",
+            "actions",
+            "images"
+          ],
+          "additionalProperties": false,
+          "$defs": {
+            "box": {
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                },
+                "width": {
+                  "type": "number"
+                },
+                "height": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "x",
+                "y",
+                "width",
+                "height"
+              ],
+              "additionalProperties": false
+            },
+            "node": {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "box": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/box"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "path",
+                "role",
+                "name",
+                "text",
+                "box"
+              ],
+              "additionalProperties": false
+            },
+            "tree": {
+              "type": "object",
+              "properties": {
+                "timestamp": {
+                  "type": "number"
+                },
+                "nodes": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/node"
+                  }
+                }
+              },
+              "required": [
+                "timestamp",
+                "nodes"
+              ],
+              "additionalProperties": false
+            },
+            "phase": {
+              "type": "object",
+              "properties": {
+                "pageId": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$"
+                },
+                "timestamp": {
+                  "type": "number"
+                },
+                "imageId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "tree": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/tree"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "pageId",
+                "timestamp",
+                "imageId",
+                "tree"
+              ],
+              "additionalProperties": false
+            },
+            "action": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$"
+                },
+                "stream": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$"
+                },
+                "callId": {
+                  "type": "string"
+                },
+                "pageId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "title": {
+                  "type": "string"
+                },
+                "startTime": {
+                  "type": "number"
+                },
+                "endTime": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "error": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "phases": {
+                  "type": "object",
+                  "properties": {
+                    "before": {
+                      "$ref": "#/$defs/phase"
+                    },
+                    "action": {
+                      "$ref": "#/$defs/phase"
+                    },
+                    "after": {
+                      "$ref": "#/$defs/phase"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "id",
+                "stream",
+                "callId",
+                "pageId",
+                "title",
+                "startTime",
+                "endTime",
+                "error",
+                "phases"
+              ],
+              "additionalProperties": false
+            },
+            "image": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$"
+                },
+                "pageId": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$"
+                },
+                "stream": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$"
+                },
+                "timestamp": {
+                  "type": "number"
+                },
+                "kind": {
+                  "enum": [
+                    "frame",
+                    "checkpoint"
+                  ]
+                },
+                "url": {
+                  "type": "string",
+                  "pattern": "^/media/[a-f0-9]+\\.(jpg|png)$"
+                },
+                "width": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "callId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "phase": {
+                  "enum": [
+                    "before",
+                    "action",
+                    "after",
+                    null
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "pageId",
+                "stream",
+                "timestamp",
+                "kind",
+                "url",
+                "width",
+                "height",
+                "callId",
+                "phase"
+              ],
+              "additionalProperties": false
+            },
+            "page": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$"
+                },
+                "stream": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$"
+                },
+                "pageId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "stream",
+                "pageId"
+              ],
+              "additionalProperties": false
+            },
+            "stream": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9-]*$"
+                },
+                "origin": {
+                  "type": "string"
+                },
+                "playwrightVersion": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "wallTime": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "monotonicTime": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "origin",
+                "playwrightVersion",
+                "wallTime",
+                "monotonicTime"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "resources": [
+          "images[].url"
+        ]
+      }
+    }
+  },
+  "lf-trace": {
+    "description": "A commentable Playwright recording with action phases, native captured frames and saved accessibility elements.",
+    "x-instructions": "Bind one empty widget to an imported playwright-trace source. Use data-height to size the review frame; images and saved elements scroll beneath its controls. Displayed times are elapsed within each recording stream. One chronological timeline navigates recorded action checkpoints; Show intermediate frames includes native JPEG frames between them. Left and Right step through the displayed stops. A checkpoint marks the recorded API phase; a separately captured image retains its own timestamp. Comments on images pin their exact capture, while comments on saved elements pin the selected action phase and tree path. Keep the linked Playwright viewer running for DOM, source, console and network inspection.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]*$"
+      },
+      "source": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*$"
+      }
+    },
+    "required": [
+      "id",
+      "source"
+    ],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-data": {
+      "trace": {
+        "contract": "playwright-trace",
+        "source": "source"
+      }
+    },
+    "x-upgrade": true,
+    "x-height": true,
+    "x-space": "available",
+    "x-visual": {
+      "prefixes": [
+        "trace-"
+      ]
+    },
+    "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\" data-height=\"640\"></lf-trace>"
+  }
+}

@@ -30,7 +30,7 @@ import { holdFocus, restoringFocus } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { showHeld } from "./held-news.js";
-import { draftHasContent } from "../drafts.js";
+import { threadHoldsDraft } from "./replies.js";
 import { focusThread } from "./focus.js";
 import { passOn, retainUserIntent } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
@@ -127,7 +127,10 @@ class ThreadListView extends RetainedFace {
     const seen = view.node.open
       ? this.checkVisibility()
       : Boolean(seenRect(view.node, new Map()));
-    const draft = draftHasContent("reply:" + key);
+    const draft = threadHoldsDraft(
+      key,
+      thread.msgs.map(({ id }) => id),
+    );
     if (news && (seen || draft)) return "news";
     return draft ? "draft" : null;
   }

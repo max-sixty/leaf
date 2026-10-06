@@ -532,14 +532,19 @@ export function registerWritingDestination(prefix, reveal) {
   return () => writingRoutes.delete(prefix);
 }
 
-export function createWritingResume({ revealReply, arriveEditor }) {
+// The drafts a thread view holds, which the thread's own destination reveals: its
+// reply box (`reply:<thread key>`) and a rewrite of one of its messages
+// (`rewrite:<message id>`, thread/message-edit.js).
+const THREAD_HELD = /^(reply|rewrite):/;
+
+export function createWritingResume({ revealInThread, arriveEditor }) {
   const resume = async () => {
     const place = writingPlace;
     if (!place) return;
     const intent = retainUserIntent();
     let input;
-    if (place.context.startsWith("reply:"))
-      input = await revealReply(place.context.slice("reply:".length), intent);
+    if (THREAD_HELD.test(place.context))
+      input = await revealInThread(place.context, intent);
     else {
       const resolve = () => {
         const route = [...writingRoutes].find(([prefix]) =>

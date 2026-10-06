@@ -28,6 +28,7 @@ import { closestAcross } from "../passages.js";
 import { focused } from "../keyboard/scopes.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 import { THREAD, SAY_ROW } from "./selectors.js";
+import { editContext } from "./message-edit.js";
 
 const REPLY_COMPOSITION = Symbol("reply composition");
 const compositions = new Map(); // context -> native session, with its current owner
@@ -110,6 +111,12 @@ export function holdReplyCompositions(threads, realize) {
     }
   };
 }
+
+// Whether the thread under `key` holds words the user has not sent: in its reply box,
+// or in a rewrite of one of its messages, `ids`, they closed without saving.
+export const threadHoldsDraft = (key, ids) =>
+  draftHasContent(replyContext(key)) ||
+  ids.some((id) => draftHasContent(editContext(id)));
 
 export const hasReplyDraft = () =>
   [...compositions.keys()].some((context) => loadDraft(context) !== null);

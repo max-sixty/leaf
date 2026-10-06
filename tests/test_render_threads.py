@@ -9721,7 +9721,7 @@ def test_pending_message_headers_match_their_bodies(browser, serve, surface):
 def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     """A double click, or ↑ from the thread's empty reply box, opens the user's own
     words in place. Enter sends the rewrite; Escape keeps the message as it was and the
-    words for the next opening, and Cancel discards them.
+    words for the next opening, which Resume writing reaches, and Cancel discards them.
 
     The rewrite draws on the message in the gesture, labelled edited, and reaches the
     log as one `edit` naming the message. The agent's words offer no rewrite, and the
@@ -9786,7 +9786,10 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     page.keyboard.press("Escape")
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the south bracket.")
-    message.locator(".lf-msg-text").dblclick()
+    # Resume writing goes back to the kept words, as it does to a kept reply.
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", "Fit the south bracket. Or not.")
     message.get_by_role("button", name="Cancel").click()
     expect(message.locator(".lf-msg-editor")).to_have_count(0)

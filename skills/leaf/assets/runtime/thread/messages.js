@@ -22,6 +22,7 @@ import { reportPageError } from "../layer-client.js";
 import { editable, isReaction, moved } from "./model.js";
 import {
   MessageEditor,
+  OPEN_MESSAGE_EDIT,
   holdsMessageEdit,
   openMessageEdit,
   releaseMessageEdit,
@@ -228,6 +229,7 @@ export class MessageView {
         if (event.target.closest?.(".lf-msg-editor")) return;
         if (this.openEdit()) window.getSelection()?.removeAllRanges();
       });
+      this.node.addEventListener(OPEN_MESSAGE_EDIT, () => this.openEdit());
     }
     // The view the user opened the rewrite in draws its editor (`message-edit.js`); a
     // closed editor goes with its subscription and keys.

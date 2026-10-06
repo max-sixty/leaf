@@ -24,10 +24,15 @@ import { offer, reachedForWords } from "../widget-elements.js";
 import { keeps, keepsHidden } from "../keeps.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { wireReply, replyIsEditing, replyAvailable, dismissReply } from "./replies.js";
+import {
+  wireReply,
+  replyIsEditing,
+  replyAvailable,
+  dismissReply,
+  threadHoldsDraft,
+} from "./replies.js";
 import { settleThread, foldOut, finishFold, isFolding } from "./folding.js";
 import { iconTemplate } from "../icons.js";
-import { loadDraft } from "../drafts.js";
 import { SAY_BOX } from "./selectors.js";
 import { focusThread, threadFocusStop } from "./focus.js";
 import { renderMarkdown } from "../markdown.js";
@@ -171,7 +176,10 @@ function navigationSummary(model, control) {
   // The reserved box under the title's control carries that control's words.
   const status =
     control ?? (model.resolved ? "Resolved" : model.attention?.label || "");
-  const draft = Boolean(loadDraft("reply:" + model.key));
+  const draft = threadHoldsDraft(
+    model.key,
+    model.messages.map(({ id }) => id),
+  );
   // While a title is on its way, the title slot says so in words drawn apart from any
   // title; the theme keeps the placeholder muted while naming is under way.
   // The meta row digests a folded card. What the open card shows elsewhere is marked

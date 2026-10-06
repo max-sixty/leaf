@@ -4,7 +4,7 @@
    is a turn the agent answers (events.md, `edit`). Two facts make up a rewrite, each
    with the owner its kind has elsewhere:
 
-   - Its words are a draft under `edit:<message id>` (drafts.js), so they keep every
+   - Its words are a draft under `rewrite:<message id>` (drafts.js), so they keep every
      promise a reply's words keep: they survive a reload, reach every tab, come back on
      a refusal, and stay until Save or Cancel settles them. Opening a rewrite again
      finds the words a closed one left.
@@ -16,7 +16,8 @@
      message as it was, since nothing the user did there asked it to change.
 
    A double click on the message, its Edit control, or ↑ in the thread's empty reply box
-   opens it. Enter saves; Escape closes it and keeps its words; Cancel discards them. All
+   opens it, and Resume writing (`g i`) opens a rewrite whose words were kept where its
+   thread lands (`openMessageEditIn`). Enter saves; Escape closes it and keeps its words; Cancel discards them. All
    three leave the user standing on the thread, as a sent reply does. Save sends through
    the one ledger, which draws the new words on the message in the gesture
    (`foldThreads`), and a refusal opens the editor again on the words it gives back.
@@ -33,7 +34,9 @@ import {
 import { TEXT_FIELD } from "../control-selectors.js";
 import { offer } from "../widget-elements.js";
 
-const editContext = (id) => `edit:${id}`;
+export const editContext = (id) => `rewrite:${id}`;
+// What a message's view answers by opening its rewrite, as a press on its Edit control.
+export const OPEN_MESSAGE_EDIT = "lf-open-message-edit";
 // message id -> {view, panel}: the view drawing its editor, null once that view is
 // gone, and whether it stood in the Threads panel.
 const open = new Map();
@@ -63,6 +66,20 @@ export function openMessageEdit(id, text, view, panel) {
     tellDraft(ctx, text);
   }
   open.set(id, { view, panel });
+}
+
+// Open the rewrite of message `id` where `thread`, a drawn thread, shows it, and answer
+// the box its words are in: none where the thread does not draw that message as one the
+// user may rewrite.
+export function openMessageEditIn(thread, id) {
+  const message = [...(thread?.querySelectorAll(".lf-msg") ?? [])].find(
+    (node) => (node.dataset.mid ?? node.dataset.event) === id,
+  );
+  message?.dispatchEvent(new CustomEvent(OPEN_MESSAGE_EDIT));
+  return (
+    message?.querySelector(`:scope > .lf-msg-body > .lf-msg-editor > ${TEXT_FIELD}`) ??
+    null
+  );
 }
 
 function closeMessageEdit(id, { discard }) {

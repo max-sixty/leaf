@@ -131,7 +131,6 @@ function carryScroll(node, motions) {
     })
   )
     return;
-  for (const effect of record?.effects ?? []) effect.cancel();
   const sameGraph =
     before.length === motions.length &&
     before.every(
@@ -141,6 +140,7 @@ function carryScroll(node, motions) {
   let root = record?.root ?? node;
   let layers = record?.layers ?? [];
   if (!sameGraph) {
+    for (const effect of record?.effects ?? []) effect.cancel();
     const previous = root;
     root = node;
     layers = [];
@@ -173,7 +173,12 @@ function carryScroll(node, motions) {
       layers,
       motions,
       effects: motions.map((motion, i) =>
-        followScroll(layers[i], motion, motion.scroll),
+        followScroll(
+          layers[i],
+          motion,
+          motion.scroll,
+          sameGraph ? record?.effects[i] : null,
+        ),
       ),
     });
   else translations.delete(node);

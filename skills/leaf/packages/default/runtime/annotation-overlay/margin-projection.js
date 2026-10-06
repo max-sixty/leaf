@@ -172,6 +172,7 @@ import {
   cardMeasure,
   cardMinimum,
   commentAttachment,
+  commentReference,
   commentBoundary,
   commentPlacement,
   makeRoom,
@@ -742,6 +743,7 @@ export function createMarginProjection({
     const { side, fresh, hold } = previewSide.choose({
       clear: place.clear,
       row: place.row,
+      column: place.column,
       extent: place.extent,
       boundary,
       scroller,
@@ -802,12 +804,7 @@ export function createMarginProjection({
         watch(ui);
         return previewPlacement.position(
           ui.computePosition,
-          {
-            contextElement: place.element,
-            contextNode:
-              side === "left" || side === "right" ? place.contextNode : place.element,
-            getBoundingClientRect: () => reference,
-          },
+          commentReference(place, reference),
           { placement, middleware },
           plane,
           place.element,

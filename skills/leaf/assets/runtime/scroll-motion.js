@@ -54,6 +54,17 @@ export function scrollFollows(subject = null, source = null) {
   return true;
 }
 
+// Geometry and its scroll origins are one reading, retained across module loads and
+// asynchronous solving. The overflow owner selects the sources it needs from this
+// reading; capturing ancestors here does not choose which boxes are scrollports.
+export function scrollOrigins(contexts) {
+  const origins = new Map();
+  for (const context of contexts)
+    for (let at = context; at; at = renderedParent(at))
+      if (at instanceof Element) origins.set(at, { x: at.scrollLeft, y: at.scrollTop });
+  return origins;
+}
+
 const scrollContainer = (box) =>
   box === box.ownerDocument.scrollingElement ||
   /auto|scroll|hidden/.test(
@@ -101,14 +112,16 @@ function carried(subject, source) {
 // measures distance from its start. A subject the scroller does not carry, one
 // positioned outside it, has none. Without scroll timelines each axis is listed with
 // none to follow, so a caller sees what it must place again on each scroll instead.
-export function scrollMotions(source, subject, reach = 0) {
+// An `origin` from the subject's geometry reading also fixes a virtual subject's
+// visible interval to that reading rather than a later dependency continuation.
+export function scrollMotions(source, subject, reach = 0, origin = null) {
   if (!scrollContainer(source)) return [];
   const axes = scrollAxes(source);
   const holder = carried(subject, source);
   const motions = [];
   for (const [axis, scroll, extent] of [
-    ["x", source.scrollLeft, source.scrollWidth - source.clientWidth],
-    ["y", source.scrollTop, source.scrollHeight - source.clientHeight],
+    ["x", origin?.x ?? source.scrollLeft, source.scrollWidth - source.clientWidth],
+    ["y", origin?.y ?? source.scrollTop, source.scrollHeight - source.clientHeight],
   ]) {
     if (!(extent > 0)) continue;
     if (!scrollFollows(holder, source)) {
@@ -193,13 +206,19 @@ export const scrolledBy = (motions) =>
     { x: 0, y: 0 },
   );
 
-export function followScroll(layer, { from, to, vector, timeline, whole }, origin) {
+export function followScroll(
+  layer,
+  { from, to, vector, timeline, whole },
+  origin,
+  previous = null,
+) {
   const value = (offset) =>
     `translate(${(origin - offset) * vector.x}px, ${(origin - offset) * vector.y}px)`;
   // A source with no overflow has an inactive timeline. Its zero-scroll position
   // remains the underlying placement, including an attachment measured mid-scroll.
   layer.style.transform = value(0);
-  return layer.animate([{ transform: value(from) }, { transform: value(to) }], {
+  const frames = [{ transform: value(from) }, { transform: value(to) }];
+  const timing = {
     timeline,
     duration: "auto",
     fill: "both",
@@ -207,5 +226,29 @@ export function followScroll(layer, { from, to, vector, timeline, whole }, origi
     ...(whole
       ? { rangeStart: `${Math.abs(from)}px`, rangeEnd: `${Math.abs(to)}px` }
       : {}),
-  });
+  };
+  const before = previous?.timeline;
+  if (
+    previous?.effect.target === layer &&
+    before.constructor === timeline.constructor &&
+    before.source === timeline.source &&
+    before.axis === timeline.axis &&
+    (whole ||
+      (before.subject === timeline.subject &&
+        before.startOffset.value === timeline.startOffset.value &&
+        before.endOffset.value === timeline.endOffset.value))
+  ) {
+    // An already sampled timeline owns the first frame too. Updating its effect
+    // retains that sample; replacing it would expose the zero-scroll underlying
+    // placement for one frame while the new animation awaits its first sample.
+    previous.effect.setKeyframes(frames);
+    previous.effect.updateTiming({ duration: "auto", fill: "both" });
+    if (whole) {
+      previous.rangeStart = timing.rangeStart;
+      previous.rangeEnd = timing.rangeEnd;
+    }
+    return previous;
+  }
+  previous?.cancel();
+  return layer.animate(frames, timing);
 }

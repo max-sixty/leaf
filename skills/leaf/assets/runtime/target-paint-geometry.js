@@ -218,8 +218,12 @@ export function standOver(stand, placed, borderRadius) {
     const stood = stand.levels[i];
     motions.forEach((motion, j) => {
       if (sameMotion(motion, stood.motions[j])) return;
-      stood.animations[j].cancel();
-      stood.animations[j] = followScroll(stood.layers[j], motion, 0);
+      stood.animations[j] = followScroll(
+        stood.layers[j],
+        motion,
+        0,
+        stood.animations[j],
+      );
       stood.motions[j] = motion;
     });
   });

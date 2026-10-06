@@ -31,6 +31,7 @@ import { union } from "/runtime/rect.js";
 import { floatingPlacement, floatingUi } from "../floating.js";
 import {
   commentAttachment,
+  commentReference,
   commentBoundary,
   commentPlacement,
   makeRoom,
@@ -293,6 +294,7 @@ export function createFloatingResponsePlacement({
     };
     const { fresh } = fabPlacement.choose({
       clear: keepClear,
+      column: place.column,
       extent: roomRect,
       boundary,
       scroller,
@@ -359,11 +361,7 @@ export function createFloatingResponsePlacement({
         });
         return fabPosition.position(
           ui.computePosition,
-          {
-            contextElement: owner ?? document.documentElement,
-            contextNode: place.contextNode,
-            getBoundingClientRect: () => reference,
-          },
+          commentReference(place, reference),
           { placement, middleware },
           response.open ? () => "page" : plane,
           owner ?? document.documentElement,

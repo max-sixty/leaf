@@ -87,7 +87,6 @@ customElements.define(
     #interactive = false;
     #ready = false;
     #resumeProjection = null;
-    #stop = null;
     #targetChanges = new MutationObserver(() => this.#render());
 
     connectedCallback() {
@@ -97,7 +96,6 @@ customElements.define(
         if (this.#interactive) {
           if (this.#dirty && !this.#resumeProjection)
             this.#resumeProjection = this.#controller.defer();
-          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
         }
         return;
       }
@@ -114,7 +112,7 @@ customElements.define(
         this.#ready = true;
         this.#watchTargets();
         if (this.#interactive)
-          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
+          this.#controller.subscribe(() => this.#paintAvailability());
         this.#render();
         // Built, so the height the page reserved for it lifts (x-height).
         this.classList.add("lf-rendered");
@@ -126,8 +124,6 @@ customElements.define(
 
     disconnectedCallback() {
       this.#targetChanges.disconnect();
-      this.#stop?.();
-      this.#stop = null;
       this.#resumeProjection?.();
       this.#resumeProjection = null;
       this.disarm();
@@ -216,7 +212,6 @@ customElements.define(
         this.getAttribute("submit-label") ?? "Submit changes",
       );
       this.#revert.addEventListener("click", () => this.#revertDraft());
-      this.#submit.addEventListener("click", () => void this.#submitChanges());
       actions.append(this.#revert, this.#submit);
 
       this.#editor.append(toolbar, this.#candidateList, targets, changes, actions);
@@ -322,7 +317,7 @@ customElements.define(
           decision: true,
           title: () => this.#submit.textContent,
           when: () => this.#canSubmit(),
-          run: () => this.#submit.click(),
+          run: () => void this.#submitChanges(),
         },
         {
           id: "targeting.focused-element",
@@ -805,7 +800,6 @@ customElements.define(
 
     #paintAvailability() {
       if (!this.#submit) return;
-      this.#submit.toggleAttribute("disabled", !this.#canSubmit());
       this.#revert.toggleAttribute("disabled", !this.#dirty);
       paintKeys();
     }

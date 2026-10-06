@@ -86,7 +86,7 @@ item.
 | **Pane** | One reading region, typically in a workspace's body: an optional header, exactly one body element, an optional footer |
 | **Reading region** | A stable semantic place used by navigation and reading-position recovery |
 | **Effective reading scroller** | The scroll container currently governing one reading region |
-| **Sticky header** | A sticky box of stated height that stands over the top of the scroller it sticks in, such as an `lf-diff` file header or a root `lf-tabs` strip. It sticks at `--lf-top` and adds its height to `--lf-top` for what it stands over, so headers stack. What passes under it is not on screen (`headerInset`), and a landing arrives clear of it |
+| **Sticky header** | A sticky box of stated height that stands over the top of the scroller it sticks in, such as an `lf-diff` file header, a root `lf-tabs` strip, or an open thread's title in the Threads list. It sticks at `--lf-top` and adds its height to `--lf-top` for what it stands over, so headers stack. What passes under it is not on screen (`headerInset`), and a landing arrives clear of it |
 | **Reading posture** | Whether a region's body scrolls on its own (`bounded`) or the region is carried by its container (`flow`); the stylesheet decides, for a pane the workspace Layout's media query, and the runtime reads the result |
 
 A root `lf-tabs` and an embedded `lf-tabs` remain the same element type; placement
@@ -101,13 +101,13 @@ stylesheet decides whether their bodies scroll.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Runtime-owned interface outside authored content, rooted at the one `.lf-chrome` container |
-| **Banner** | The persistent chrome row carrying page status and the primary Approval and Threads controls, with secondary global controls in its overflow disclosure. While a user's gesture holds a next step, such as Comment on selection after a touch selection or Exit Draw mode while a finger is in Draw mode, that step stands on the row in Approval and Threads' place |
+| **Banner** | The persistent chrome row carrying page status, which ends with the two queues' counts (a press on them opens the Queue panel), and the primary Approval and Threads controls, with secondary global controls in its overflow disclosure. While a user's gesture holds a next step, such as Comment on selection after a touch selection or Exit Draw mode while a finger is in Draw mode, that step stands on the row in Approval and Threads' place |
 | **Bottom bar** | The row at the window's foot, at one stated height (`--lf-bottom-bar-h`), holding the shortcut bar and the status; the page ends above it as it starts below the banner |
 | **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
 | **Thread panel** | The right-side auxiliary surface containing threads; it stands over the page and takes no width from it, and covers the page only where it leaves less than a usable page beside it |
-| **Drawer** | A mutually exclusive auxiliary surface that slides in at the window's left edge, one at a time; the Asks drawer stands over the page as the thread panel does, and the Leaves drawer always covers |
+| **Drawer** | A mutually exclusive auxiliary surface that slides in at the window's left edge, one at a time; the Queue panel stands over the page as the thread panel does, and the Leaves drawer always covers |
 
-The current drawers are the **Asks drawer** and **Leaves drawer**. Use *covering auxiliary
+The current drawers are the **Queue panel** (experimental) and the **Leaves drawer**. Use *covering auxiliary
 surface*, not *modal workspace*: a covering surface and a modal dialog are different
 web interaction primitives. A covering surface makes the page inert behind it; a surface
 over the page, such as the thread panel on a desktop window, takes no width from
@@ -166,7 +166,8 @@ spine instead.
 | **Go-to sequence** | The `g` prefix grammar that builds a current map of Go-to targets, paints transient hint codes, and resolves complete ordered addresses |
 | **Target picker** | The `s` interaction that presents addressable elements and ends when the user chooses one or closes it |
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
-| **Walk** | Ordered semantic movement among same-kind destinations |
+| **Walk** | Ordered semantic movement among one category of destination: open threads (`t`), the user's queue (`a`), a list's rows |
+| **Queue** | What one side has to act on: the user's (`on_you`: open Asks, then each other thread whose attention is the user's, and page moves to send again) or the agent's (`on_agent`: owed replies, moves in hand that owe nothing, open tasks). `agent_state.queues` and `runtime/queues.js` select both from the same readings; `a` walks the user's, and the Queue panel lists both, with what is done (answered Asks, ended tasks) folded beneath |
 | **Trip** | One travel to a destination, a thread's passage, an Ask, a datum, or the element a followed fragment link names: it clears the auxiliary surface hiding the destination, then stays when the user already has it or departs, leaving a history entry. A fragment link always departs, by the entry the browser's navigation adds; Back or Forward to an entry whose fragment names an element the page has hidden since is a trip that departs by no entry |
 | **Journey** | Consecutive trips each leaving from the last one's landing, which share one history entry so Back returns to where the first began; it may mix threads and Asks, and is not a walk |
 | **Standing** | Holding a destination or a control inside it: a thread on the page or in the panel, an Ask, or authored page content. A panel thread's title and its messages are one destination. Chrome controls, margin markers, mark notes, and contents-outline links are apparatus rather than destinations |
@@ -217,7 +218,7 @@ These terms name Leaf concepts that no standard term covers, so they stay:
   layer that holds nothing, which focus restoration has no name for.
 - **Unwind**, not *dismiss*: one Escape takes off whichever step stands innermost, a
   selection or a narrowing as well as a surface, and only surfaces are dismissed.
-- **Walk**: ordered movement among same-kind destinations, as a DOM `TreeWalker` walks;
+- **Walk**: ordered movement among one category of destination, as a DOM `TreeWalker` walks;
   roving focus moves within one widget.
 - **Frame**, **Text**, and **surface**: the CSS terms (containing block, `margin-trim`)
   each cover half of a frame, which both sizes what it holds and trims its edge margins.

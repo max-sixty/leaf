@@ -34,14 +34,18 @@ subpackage's initializer is only a marker, never a second API.
 - `thread_context`, `thread`: thread identity, frozen markup, delivery context,
   thread writes, and the reply lifecycle;
 - `workflows`, `activity`: unsettled user moves with their evidence, and the
-  page-level fold over workflows, status, claim, turn, and watcher;
+  page-level fold over workflows, tasks, starts, status, claim, turn, and watcher;
 - `asks`: the one implementation of page and thread Asks, which every surface reads;
-- `work`: transient subject claims and widget work seats;
-- `tasks`: work the agent owes until it ends it: the fold, its admission gate, and
-  `leaf task`;
+- `work`: the subjects work stands on: what an id names, which widgets seat a task,
+  and which widget tasks a version would leave without a target;
+- `tasks` (experimental, expected to change a lot): the agent's queue as the log
+  holds it: the tasks it owes until it ends them and the `start` that takes a move or
+  task in hand, their fold, admission gate, and `leaf task`;
 - `delivery`, `session`, `hooks`, `hook_carrier`, `harness`: the delivery envelope
   and its receipt, status and the `leaf wait` watch, the harness hooks' entry, the
   prompt and Stop hooks as a session's carrier, and harness declarations;
+- `reconnect`: outage eligibility and once-per-outage notices, published under
+  the ownership, service, and session lifecycle locks;
 - `codex_state`: Codex delivery eligibility and shared delivery serialization paths;
 - `codex`, `codex_adapter`: Codex delivery records and App Server turn folds, and
   the detached carrier behind `leaf codex start`;

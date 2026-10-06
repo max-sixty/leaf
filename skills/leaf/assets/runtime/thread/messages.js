@@ -1,9 +1,9 @@
 /* Synchronous Lit message presentation and frozen authored message islands.
 
    Every surface uses the same message, header and body vocabulary. Generated
-   metadata, prose, workflow and reaction placement have one owner. Message headers
-   declare their stationary text-reflow boundary; a hoisted root header leaves that
-   declaration to the thread's complete metadata row. An
+   metadata, prose, workflow and reaction placement have one owner. Each message
+   retains its header and body together, sharing delivery, unread and fold state.
+   Its header declares its stationary text-reflow boundary. An
    immutable descriptor changes prose without reconnecting the validated authored
    fragment. A new message cues its own words once on first presentation, in every
    surface: one the user just sent, and any turn, whoever wrote it, joining a thread
@@ -27,7 +27,12 @@ import {
 } from "../projection/authored.js";
 import { stageWidgetDescriptors } from "../widget-descriptors.js";
 import { strongestWorkflow, workflowLabel, workflowTitle } from "./workflow.js";
-import { markDeclared, renderQuiet, renderSaid } from "../presentation.js";
+import {
+  markDeclared,
+  renderQuiet,
+  renderSaid,
+  writePrepaint,
+} from "../presentation.js";
 import { highlightBlocks } from "../syntax.js";
 import { ago } from "../presence.js";
 import { elementById, pageQueryAll } from "../passages.js";
@@ -104,11 +109,13 @@ export function prepareAuthoredMessage(message, thread) {
     });
     const authored = stageAuthoredStates(template.content, new Map());
     rememberPassageParts(template.content, ["event", message.id]);
+    const text = template.content.textContent;
+    writePrepaint(template.content);
     const nodes = Object.freeze([...template.content.childNodes]);
     authoredMessages.set(key, {
       message: message.id,
       body: {
-        text: template.content.textContent,
+        text,
         document: { thread, message: message.id },
       },
       authored,
@@ -192,7 +199,7 @@ export class MessageView {
     this.node = document.createElement("div");
   }
 
-  present(model, { externalHeader = false, arrived = false } = {}) {
+  present(model, { arrived = false } = {}) {
     const prior = this.#model;
     this.#model = model;
     const panel = model.panel;
@@ -208,7 +215,7 @@ export class MessageView {
         this.node.dataset.lfOffer = "";
       }
     }
-    keeps(this.#header, "data-lf-reflow", externalHeader ? null : "text");
+    keeps(this.#header, "data-lf-reflow", "text");
     if (prior && prior.author !== model.author)
       this.node.classList.toggle(prior.author, false);
     this.node.classList.toggle(model.author, true);
@@ -228,17 +235,16 @@ export class MessageView {
           model.reactions,
         )
       : nothing;
+    const receipt = model.workflowLabel
+      ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
+          >${model.workflowLabel}</span
+        >`
+      : nothing;
     render(
       html`
         <b>${model.by}</b
         ><span class="lf-msg-meta"
-          ><time datetime=${model.timestamp}>${model.age}</time> ${
-            model.workflowLabel
-              ? html`<span class="lf-msg-sending" title=${model.workflowTitle}
-                  >${model.workflowLabel}</span
-                >`
-              : nothing
-          }
+          ><time datetime=${model.timestamp}>${model.age}</time> ${receipt}
           ${
             model.failure
               ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
@@ -260,7 +266,7 @@ export class MessageView {
     );
     render(
       html`
-        ${externalHeader ? nothing : this.#header}
+        ${this.#header}
         <div
           class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
         >
@@ -315,10 +321,6 @@ export class MessageView {
       );
     }
     return this.node;
-  }
-
-  get header() {
-    return this.#header;
   }
 
   #body(body) {

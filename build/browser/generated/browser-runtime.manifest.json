@@ -12,8 +12,10 @@
     "skills/leaf/assets/runtime/collapse.js",
     "skills/leaf/assets/runtime/pending/model.js",
     "skills/leaf/assets/runtime/projection/model.js",
+    "skills/leaf/assets/runtime/queues.js",
     "skills/leaf/assets/runtime/thread/identity.js",
-    "skills/leaf/assets/runtime/thread/model.js"
+    "skills/leaf/assets/runtime/thread/model.js",
+    "skills/leaf/assets/runtime/thread/workflow.js"
   ],
   "entryPoints": {
     "skills/leaf/assets/vendor/browser-runtime.js": "build/browser/index.ts",
@@ -21,7 +23,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "888f07e6256dbeb40cfb9e8f8ad442f78352f29ee123cce7f0a813e53a3b345e",
+  "lockfileSha256": "5cc058420ee32fc5e60bca5998f45b9f7a8f3826f1a63292a246450fc2866807",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -45,13 +47,11 @@
     "@shikijs/core": "4.5.0",
     "@shikijs/engine-javascript": "4.5.0",
     "@shikijs/langs": "4.5.0",
-    "@shikijs/themes": "4.5.0",
     "acorn": "8.18.0",
     "agentic-mermaid": "0.4.1",
     "diff": "9.0.0",
     "esbuild": "0.28.2",
     "happy-dom": "20.14.5",
-    "highlight.js": "11.12.0",
     "lit": "3.3.3",
     "lit-html": "3.3.0",
     "marked": "18.0.14",
@@ -74,6 +74,7 @@
     "createSemanticApplication",
     "describeFailure",
     "html",
+    "noChange",
     "nothing",
     "render",
     "repeat"
@@ -161,12 +162,12 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 27517,
-      "sha256": "b3a37a56d423af80f5466b49a8820a523f9f3864a0bbc734b22d88b5429b68ba"
+      "bytes": 29322,
+      "sha256": "1f5ba405731ef5f852b0ce1c4dd9798776227ae8e330a1ac7c2dafd1ee421036"
     },
     "build/browser/generated/browser-runtime.js.map": {
-      "bytes": 177123,
-      "sha256": "626afa2763806f0723eb12c5187fb5d2a9235604137bf5e8e01cf8da222267a0"
+      "bytes": 191986,
+      "sha256": "bf12ff9373fb7de1052b735bbf4d5dbe030f52a0e7b5d8b9a9664f65500f1b79"
     },
     "skills/leaf/assets/vendor/lit.js": {
       "bytes": 32081,

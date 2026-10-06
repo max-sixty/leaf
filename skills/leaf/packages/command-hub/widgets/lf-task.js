@@ -32,17 +32,11 @@ customElements.define(
   "lf-task",
   class extends HTMLElement {
     #controller = widgetController(this);
-    #stop = null;
 
     connectedCallback() {
-      if (once(this) && !closestCommandRole(this.parentElement, "command"))
-        renderChips(this);
-      this.#stop ??= this.#controller.subscribe(() => {});
-    }
-
-    disconnectedCallback() {
-      this.#stop?.();
-      this.#stop = null;
+      if (!once(this)) return;
+      if (!closestCommandRole(this.parentElement, "command")) renderChips(this);
+      this.#controller.subscribe(() => {});
     }
 
     renderState(state) {

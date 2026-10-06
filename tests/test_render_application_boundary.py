@@ -5,7 +5,7 @@ import re
 from itertools import pairwise
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, append_command
 from leaf import event_log as events_model
 from leaf import interaction_log as interaction_model
 from leaf.render_checks import rendered, wait_until_ready
@@ -22,6 +22,7 @@ from render_cases_interaction import (
 from render_harness import (
     banner_control,
     consume_browser_errors,
+    expect_asks_answered,
     holding,
     leaf_page,
     open_page,
@@ -297,10 +298,9 @@ def test_browser_trace_sheds_repeated_gestures_when_delivery_stalls(browser, ser
                 entry["type"] == "click"
                 for entry in response.request.post_data_json["entries"]
             )
-        ),
-        timeout=15_000,
+        )
     ):
-        page.wait_for_timeout(2500)
+        pass
 
     rows = [
         json.loads(line)
@@ -346,10 +346,9 @@ def test_browser_trace_keeps_actions_ahead_of_new_repeated_observations(browser,
                 entry["type"] == "click" and entry["pointer"]["x"] == 599
                 for entry in response.request.post_data_json["entries"]
             )
-        ),
-        timeout=15_000,
+        )
     ):
-        page.wait_for_timeout(2500)
+        pass
 
     rows = [
         json.loads(line)
@@ -693,18 +692,18 @@ def activation_page(source):
 
 
 PAGE_WIDGET = """\
-import { LitElement, html, keeps, layerFact, widgetController } from "/runtime/widget-api.js";
+import { LitElement, html, keeps, layerFact, once, widgetController } from "/runtime/widget-api.js";
 
 customElements.define("lf-local", class extends LitElement {
   controller = widgetController(this);
   reading = this.controller.read();
-  stop = null;
 
   connectedCallback() {
     super.connectedCallback();
+    if (!once(this)) return;
     layerFact("$tones");
     keeps(this, "data-page-widget", "ready");
-    this.stop ??= this.controller.subscribe(reading => {
+    this.controller.subscribe(reading => {
       this.reading = reading;
       this.dataset.renderOrder = `${this.dataset.renderOrder || ""}subscribe,`;
       keeps(this, "data-subscriber-choice", this.dataset.renderedChoice);
@@ -713,12 +712,6 @@ customElements.define("lf-local", class extends LitElement {
     });
     const held = globalThis.__heldLocalPresentations?.get(this.id);
     if (held) this.controller.present(held);
-  }
-
-  disconnectedCallback() {
-    this.stop?.();
-    this.stop = null;
-    super.disconnectedCallback();
   }
 
   choose() {
@@ -955,7 +948,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     expect(page.locator("#release-ship .lf-pick")).to_have_attribute(
         "aria-checked", "true"
     )
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/1")
+    expect_asks_answered(page, "0/1")
     expect(approval).to_be_disabled()
     expect(approval).to_have_attribute(
         "title", "Answer every Ask before approving this work"
@@ -974,7 +967,7 @@ def test_admission_holds_approval_until_the_answer_is_in_the_log(
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
-    expect(page.locator(".lf-asks")).to_have_text("Asks 1/1")
+    expect_asks_answered(page, "1/1")
     expect(approval).to_be_enabled()
     expect(approval).to_have_attribute(
         "title", "Approve this work; the page stays open for follow-up"
@@ -1234,15 +1227,43 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
 
 
+@pytest.mark.parametrize("lifetime", ["light", "shadow-child", "shadow-host"])
 def test_widget_controller_owns_presentation_across_values_and_lifetimes(
-    browser, serve
+    browser, serve, lifetime
 ):
     """One widget owns distinct render and preparation regions across its lifetime."""
     # The owner is removed and reattached by script below. Keep it after the page's
     # content so that neither operation moves text the reader did not ask to move.
+    widget = '<lf-local id="page-local" choice="idle"></lf-local>'
+    declarations = PAGE_DECLARATION
+    modules = {"widgets/lf-local.js": PAGE_WIDGET}
+    if lifetime != "light":
+        widget = (
+            f'<lf-controller-stage id="controller-stage">{widget}</lf-controller-stage>'
+        )
+        declarations = {
+            **declarations,
+            "lf-controller-stage": {
+                "description": "A declared shadow stage for the controller lifetime.",
+                "type": "object",
+                "properties": {"id": {"type": "string"}},
+                "required": ["id"],
+                "additionalProperties": False,
+                "x-content": "markup",
+                "x-upgrade": True,
+                "x-shadow": True,
+                "x-example": '<lf-controller-stage id="stage-example"><p id="stage-words">Words</p></lf-controller-stage>',
+            },
+        }
+        modules["widgets/lf-controller-stage.js"] = """\
+import { once, shadowStage } from '/runtime/widget-api.js';
+customElements.define('lf-controller-stage', class extends HTMLElement {
+  connectedCallback() { if (once(this)) shadowStage(this, [...this.children]); }
+});
+"""
     source = LIVE_V1.replace(
         "</main>",
-        '<lf-local id="page-local" choice="idle"></lf-local></main>',
+        f"{widget}</main>",
     )
     page = open_page(
         browser,
@@ -1250,18 +1271,18 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
             serve(
                 source,
                 page_files={
-                    "registry.json": json.dumps(PAGE_DECLARATION),
-                    "widgets/lf-local.js": PAGE_WIDGET,
+                    "registry.json": json.dumps(declarations),
+                    **modules,
                 },
             )
         ),
     )
+    page.locator("#page-local").evaluate("node => { window.pageLocal = node; }")
     page.evaluate(
         """async () => {
           const presentation = await window.__lfRuntimeImport(
             '/runtime/semantic-state.js'
           );
-          window.pageLocal = document.querySelector('#page-local');
           window.whenLeafPresented = presentation.whenApplicationPresented;
           window.whenLeafRegionsPresented =
             presentation.whenApplicationRegionsPresented;
@@ -1285,7 +1306,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     )
     assert held_render == ["widget:page-local:render"]
     page.evaluate("heldWidgetUpdate.release(); stopHeldWidgetReading()")
-    page.wait_for_function("readLeafPresentation().pending.length === 0", timeout=3000)
+    page.wait_for_function("readLeafPresentation().pending.length === 0")
 
     # Several children prepared by one owner are one requirement. A later call for the
     # same reading includes the earlier promise rather than superseding it.
@@ -1312,14 +1333,13 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     page.evaluate("firstPreparation.release('first')")
     assert page.evaluate("preparationReady") is False
     page.evaluate("secondPreparation.release('second')")
-    page.wait_for_function("preparationReady", timeout=3000)
+    page.wait_for_function("preparationReady")
 
     # Deferral installs a held render ticket for each selected value. Refusal publishes
     # the newest authoritative value, but neither it nor the older optimistic ticket may
     # count as presented until the one-shot resume paints that newest reading.
     held_events = []
     page.route("**/api/event", lambda route: held_events.append(route))
-    page.evaluate("window.pageLocal = document.querySelector('#page-local')")
     before = int(page.locator("#page-local").get_attribute("data-readings"))
     page.evaluate(
         """async () => {
@@ -1346,7 +1366,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
           dragging(document.body, false);
         }"""
     )
-    page.wait_for_function("projectionReady", timeout=3000)
+    page.wait_for_function("projectionReady")
     assert page.evaluate("readLeafPresentation().pending") == [
         "widget:page-local:render"
     ]
@@ -1386,10 +1406,12 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
         "entry => entry.event.attempt === attempt)",
         arg=attempt,
     )
-    page.wait_for_function("presentationReady", timeout=3000)
+    page.wait_for_function("presentationReady")
     page.unroute("**/api/event")
 
-    # A removed owner retires both regions. Reconnecting the same instance reattaches
+    # A removed owner pauses its one retained subscription and retires both regions.
+    # Releasing a local edit after removal must not paint that detached owner.
+    # Reconnecting the same instance catches up once and reattaches
     # its still-pending preparation at the same semantic epoch, so an already resolved
     # readiness call cannot be reused as proof for the replacement renderer.
     # Leave the widget by a real gesture before probing its lifetime: removing a
@@ -1397,30 +1419,70 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     page.locator("#live-title").click()
     rendered(page)
     page.evaluate(
+        """lifetime => {
+          window.localLifetimeOwner = lifetime === 'shadow-host'
+            ? document.querySelector('#controller-stage') : pageLocal;
+          window.localLifetimeParent = localLifetimeOwner.parentNode;
+        }""",
+        lifetime,
+    )
+    page.evaluate(
         """() => {
-          window.pageLocal = document.querySelector('#page-local');
+          window.beforeDetachedReading = Number(pageLocal.dataset.readings);
+          window.resumeDetached = pageLocal.controller.defer();
           window.reconnectPreparation = heldPreparation();
           pageLocal.controller.present(reconnectPreparation.promise);
           window.beforeRemovalReady = false;
           whenLeafPresented().then(() => { beforeRemovalReady = true; });
-          pageLocal.remove();
+          localLifetimeOwner.remove();
+          resumeDetached();
         }"""
     )
-    page.wait_for_function("beforeRemovalReady", timeout=3000)
+    page.wait_for_function("beforeRemovalReady")
+    assert page.evaluate("Number(pageLocal.dataset.readings)") == page.evaluate(
+        "beforeDetachedReading"
+    )
+    assert page.evaluate("readLeafPresentation().pending") == []
+    detached_edit = append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "page-local",
+            "action": "choose",
+            "detail": {"choice": "chosen"},
+        },
+    )
+    told(page)
+    assert page.evaluate("Number(pageLocal.dataset.readings)") == page.evaluate(
+        "beforeDetachedReading"
+    )
+    assert page.evaluate("pageLocal.dataset.renderedChoice") == "idle"
     page.evaluate(
         """() => {
-          document.querySelector('main').append(pageLocal);
+          localLifetimeParent.append(localLifetimeOwner);
           window.reconnectedReady = false;
           whenLeafPresented().then(() => { reconnectedReady = true; });
           return true;
         }"""
     )
     assert page.evaluate("reconnectedReady") is False
+    assert page.evaluate("Number(pageLocal.dataset.readings)") == page.evaluate(
+        "beforeDetachedReading + 1"
+    )
+    expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
     assert page.evaluate("readLeafPresentation().pending") == [
         "widget:page-local:preparation"
     ]
     page.evaluate("reconnectPreparation.release('reconnected')")
-    page.wait_for_function("reconnectedReady", timeout=3000)
+    page.wait_for_function("reconnectedReady")
+    append_command(
+        serve.page_dir,
+        {"kind": "undo", "author": "user", "undoes": detached_edit["id"]},
+    )
+    told(page)
+    expect(page.locator("#page-local").get_by_role("status")).to_have_text("idle")
 
     # A synchronous render failure cannot escape the publisher or leave a partial
     # widget as presentation proof. The coordinator reports it, installs the existing
@@ -1438,7 +1500,7 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
     expect(page.locator("#page-local .lf-error")).to_have_text(
         "<lf-local> failed: <lf-local> renderState threw: deliberate render failure"
     )
-    page.wait_for_function("readLeafPresentation().pending.length === 0", timeout=3000)
+    page.wait_for_function("readLeafPresentation().pending.length === 0")
     assert page.evaluate("window.__failedLocalRenders") == 1
     assert take_browser_errors(page) == [
         "leaf: Presentation failed: <lf-local> renderState threw: deliberate render failure"
@@ -1538,7 +1600,6 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             pending.includes('widget:thread-local:preparation') &&
             pending.includes('widget:page-local:preparation');
         }""",
-        timeout=5000,
     )
     page.evaluate(
         "threadReady = false; allReady = false; "
@@ -1548,7 +1609,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
     )
     assert page.evaluate("threadReady") is False
     page.evaluate("threadPreparation.release('thread')")
-    page.wait_for_function("threadReady", timeout=3000)
+    page.wait_for_function("threadReady")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
     expect(page.locator("#thread-local")).to_have_attribute(
         "data-rendered-choice", "chosen"
@@ -1558,7 +1619,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
         "readLeafPresentation().pending"
     )
     page.evaluate("pagePreparation.release('page')")
-    page.wait_for_function("allReady", timeout=3000)
+    page.wait_for_function("allReady")
 
     # A descendant owns its own fail-soft result. Its failure reports once and settles,
     # while the parent list, count, and narrowing keep the same candidate reading.
@@ -1601,7 +1662,6 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
           readLeafPresentation().pending.includes(
             'widget:thread-failing:preparation'
           )""",
-        timeout=5000,
     )
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
@@ -1611,7 +1671,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
         ".then(() => { threadReady = true; }); "
         "failedThreadPreparation.reject(new Error('frozen descendant failure')); true"
     )
-    page.wait_for_function("threadReady", timeout=3000)
+    page.wait_for_function("threadReady")
     expect(page.locator("#thread-failing")).to_have_count(1)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 2")
     expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
@@ -1806,7 +1866,6 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     page.wait_for_function(
         """() => window.completeListFailures === 2 &&
           window.threadRetryHeld === true""",
-        timeout=5000,
     )
 
     assert page.evaluate("() => !window.threadPreparationSettled")
@@ -1852,13 +1911,11 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
           window.readLeafPresentation().pending.includes(
             'widget:thread-held:preparation'
           )""",
-        timeout=5000,
     )
     page.evaluate("window.threadPreparation.release('prepared')")
     page.wait_for_function("() => window.threadPreparationSettled === true")
     page.wait_for_function(
         "() => !window.readLeafPresentation().pending.includes('thread')",
-        timeout=5000,
     )
     expect(page.locator("#thread-held")).to_have_count(1)
     expect(page.locator('[data-id="held-widget-thread"]')).to_have_count(1)
@@ -2017,7 +2074,7 @@ def test_a_refused_thread_reading_leaves_a_user_who_moved_on_where_they_went(
             "text": "A thread whose reading is refused once.",
         },
     )
-    page.wait_for_function("() => window.waiting === true", timeout=5000)
+    page.wait_for_function("() => window.waiting === true")
 
     write(went, "where the user went")
     went.evaluate("node => node.setSelectionRange(6, 10, 'backward')")
@@ -2105,7 +2162,7 @@ def test_thread_readiness_waits_for_the_keyed_thread_list(browser, serve):
     )
     # The held owner was actually called. Read the same readiness door as page
     # authors and the render gate, without naming its internal renderer tickets.
-    page.wait_for_function("() => window.threadListHeld === true", timeout=3000)
+    page.wait_for_function("() => window.threadListHeld === true")
     assert (
         page.evaluate(
             "() => document.querySelector('script[data-lf-entry]').lfReadiness(null, 'presented')"

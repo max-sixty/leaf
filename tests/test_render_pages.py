@@ -30,7 +30,7 @@ from render_cases_interaction import (
     SEATED_ASK_WIDGETS,
     live_url,
 )
-from render_cases_layout import banner_control, toggle_asks, with_one_ask
+from render_cases_layout import banner_control, toggle_queue, with_one_ask
 from render_cases_navigation import (
     composer_quote,
 )
@@ -100,7 +100,7 @@ def test_sort_source_follows_the_initial_step_when_code_arrives_later(browser, s
         reduced_motion="reduce", viewport={"width": 1440, "height": 900}
     )
     held = []
-    context.route("**/vendor/highlight.esm.js", lambda route: held.append(route))
+    context.route("**/vendor/syntax.esm.js", lambda route: held.append(route))
     page = open_page(
         browser,
         serve(example),
@@ -429,7 +429,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             card = page.locator(f'.lf-thread[data-id="{thread["id"]}"]')
             expect(
                 card.get_by_role(
-                    "button", name="Reopen", exact=True, include_hidden=True
+                    "button",
+                    name=re.compile(r"\bReopen(?: thread)?$"),
+                    include_hidden=True,
                 )
             ).to_have_count(1)
             anchor = thread["anchor"]
@@ -819,9 +821,8 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     toggle.click()
     page.locator(".lf-thread-summary").first.click()
     thread = page.locator(".lf-thread").first
-    # The card lifts its first message's head beside the thread's actions.
     expect(thread.locator(".lf-msg.agent")).to_have_count(1)
-    expect(thread.locator(".lf-thread-root-meta .lf-msg-head b")).to_have_text("Codex")
+    expect(thread.locator(".lf-msg.agent > .lf-msg-head b")).to_have_text("Codex")
     expect(thread.locator(".lf-quote")).to_have_text("“Retries are capped at three”")
 
     write(thread.locator("leaf-text"), "three is the retry budget, not a guess")
@@ -1087,7 +1088,14 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     assert reply.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [5, 16, "backward"]
+    # The remote resolution waits behind the thread's notice while the focused
+    # draft is in view. The user can reveal it without losing their reply.
+    notice = thread.locator(".lf-thread-news")
+    expect(notice).to_have_text("Resolved")
+    expect(thread).to_have_attribute("data-resolved", "false")
+    notice.click()
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
+    expect(reply).to_have_js_property("value", "keep this inline reply")
 
 
 def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
@@ -1146,11 +1154,17 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     page.unroute("**/api/state*")
     nudge(page_dir)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    # The resolved card stays where the user is writing in it.
-    expect(page.locator(".lf-thread")).to_have_attribute("data-resolved", "true")
+    # The card keeps the user's editing place and holds the remote resolution
+    # behind a notice until they choose to show it.
+    thread = page.locator(".lf-thread")
+    expect(thread.locator(".lf-thread-news")).to_have_text("Resolved")
+    expect(thread).to_have_attribute("data-resolved", "false")
     expect(page.locator(".lf-thread leaf-text")).to_have_js_property(
         "value", "keep this unfinished reply"
     )
+    thread.locator(".lf-thread-news").click()
+    expect(thread).to_have_attribute("data-resolved", "true")
+    expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
 
 
 def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
@@ -2069,6 +2083,57 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     assert root_overflow(page) == 0
 
 
+def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
+    """A widget's preferred minimum never claims the sidebar's margin. Native wide and
+    available blocks read the same capacity; four and five board columns previously
+    overrode it at mid widths, while the control without a sidebar fitted there.
+    Narrow boards scroll their columns inside that allocation rather than the page.
+    """
+    sidebar = '<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
+    boards = "".join(
+        f'<lf-board id="board-{count}">'
+        + "".join(
+            f'<lf-column id="col-{count}-{i}" label="Column {i}"></lf-column>'
+            for i in range(count)
+        )
+        + "</lf-board>"
+        for count in (4, 5, 6)
+    )
+    for resident in (sidebar, ""):
+        page = open_page(
+            browser,
+            serve(
+                leaf_page(
+                    "Board beside contents",
+                    resident
+                    + '<h1>Board beside contents</h1><section id="boards"><h2>Boards</h2>'
+                    + '<div id="wide" data-width="wide">Wide evidence.</div>'
+                    + '<div id="room" data-width="available">Available evidence.</div>'
+                    + boards
+                    + "</section>",
+                )
+            ),
+        )
+        for width in (540, 840, 1040, 1440):
+            resized(page, width, 900)
+            at = page.evaluate("""() => Object.fromEntries(
+              ['wide', 'room', 'board-4', 'board-5', 'board-6'].map(id => {
+                const el = document.getElementById(id), b = el.getBoundingClientRect();
+                return [id, {left: b.left, right: b.right, width: b.width,
+                             scrolls: el.scrollWidth - el.clientWidth}];
+              }))""")
+            for name in ("wide", "board-4", "board-5", "board-6"):
+                assert at[name]["left"] >= at["room"]["left"] - 1, (width, at)
+                assert at[name]["right"] <= at["room"]["right"] + 1, (width, at)
+            assert root_overflow(page) == 0, (width, at)
+            if width == 540:
+                assert at["board-4"]["scrolls"] > 0, at
+                assert at["board-5"]["scrolls"] > 0, at
+            elif width == 1440:
+                assert at["wide"]["width"] == pytest.approx(1080, abs=1), at
+                assert at["room"]["width"] > at["wide"]["width"], at
+
+
 def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
     """`wide` is the shared capped evidence width wherever a block stands. A wide
     Layout's track and a workspace pane are wider than `--wide` at a large window, so
@@ -2079,7 +2144,12 @@ def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
     narrow window's pane still bounds the wide block."""
     blocks = """
 <div id="named" data-width="wide">Named wide.</div>
-<lf-board id="board"><lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column></lf-board>
+<lf-board id="board">
+<lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column>
+<lf-column id="two" label="Two"></lf-column><lf-column id="three" label="Three"></lf-column>
+<lf-column id="four" label="Four"></lf-column><lf-column id="five" label="Five"></lf-column>
+<lf-column id="six" label="Six"></lf-column>
+</lf-board>
 <div id="plain">No width named.</div>
 <div id="available" data-width="available">Available.</div>
 """
@@ -3100,7 +3170,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     takes, so the release-notes shot, the wide exhibit in the control, grows left only
     to stop short of it.
 
-    The Asks drawer stands over the left margin and moves nothing in it. A narrow viewport
+    The Queue panel stands over the left margin and moves nothing in it. A narrow viewport
     returns the aside to the flow, and print proves paper reserves no blank margin for a
     posture it cannot use.
 
@@ -3220,7 +3290,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
 
-    # The Asks drawer stands over the page's left margin and moves nothing in it: the fixed
+    # The Queue panel stands over the page's left margin and moves nothing in it: the fixed
     # ToC and the sidebar stay where the page put them, under the drawer while it stands.
     resized(page, 1700, 900)
     margin = """() => {
@@ -3229,10 +3299,10 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
           return {sidebarLeft: sidebar.left, tocLeft: toc.left};
         }"""
     before = page.evaluate(margin)
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_be_visible()
     page.wait_for_function(
-        """() => document.querySelector('.lf-asks-panel').getAnimations().length === 0"""
+        """() => document.querySelector('.lf-queue-panel').getAnimations().length === 0"""
     )
     assert page.evaluate(margin) == before
     geometry = page.evaluate(
@@ -3255,8 +3325,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert abs(geometry["tocBottom"] - (geometry["lineTop"] - 24)) <= 1, (
         f"the map's foot is not the band's top less its inset: {geometry}"
     )
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_be_hidden()
 
     resized(page, 1400, 900)
 
@@ -3521,8 +3591,8 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
         else:
             assert at["note"]["float"] == "none", (width, at)
 
-    # The Asks drawer stands over the page and grants or withdraws no margin.
-    toggle_asks(page)
+    # The Queue panel stands over the page and grants or withdraws no margin.
+    toggle_queue(page)
     panelled = page.evaluate(reading)
     assert panelled["sidebars"] == at["sidebars"]
     assert panelled["taken"] == at["taken"]

@@ -24,7 +24,7 @@ import time
 import urllib.parse
 import urllib.request
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
@@ -42,6 +42,7 @@ from leaf import files as files_model
 from leaf import harness as harness_model
 from leaf import hosting as hosting_model
 from leaf import layer as layer_model
+from leaf import leases as leases_model
 from leaf import packages as packages_model
 from leaf import page_memory as page_memory_model
 from leaf import passages as passages_model
@@ -50,7 +51,6 @@ from leaf import schema as schema_model
 from leaf import server as server_model
 from leaf import server_rows as server_rows_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf import thread_context as thread_context_model
@@ -259,13 +259,27 @@ STATED_TIMEOUT = 60
 """How long a pure-Python wait gives another thread or process to state its fact.
 
 The deadline separates a product that never states the fact from a machine that
-has not reached it yet, so it is generous rather than tight. Two workers share
-one runner's cores with a browser, and a stretch of ordinary work there runs
-many times slower than it does on an unloaded host: a wait sized as a small
-multiple of the unloaded duration reddens `main` on the runs where the other
-worker happens to be driving Chrome. On a local host at load 230 over 18 cores,
+has not reached it yet, so it is generous rather than tight. Several workers
+share one runner's cores with their browsers, and a stretch of ordinary work there
+runs many times slower than it does on an unloaded host: a wait sized as a small
+multiple of the unloaded duration reddens `main` on the runs where another worker
+happens to be driving Chrome. On a local host at load 230 over 18 cores,
 two concurrent `page init`s took up to 25s and three `leaf codex start`
-commands 20s. `SERVED_TIMEOUT_MS` is the browser side's counterpart."""
+commands 20s. `SERVED_TIMEOUT_MS` is the browser side's counterpart.
+
+Every Python-side wait in the suite takes its deadline from here, so a slow machine
+is answered in one place (`test_a_wait_takes_the_suites_deadline`). A
+wait whose length is its subject, such as a product's own timeout passed in to be
+exercised, names that value where it is defined instead."""
+
+COMPOSITE_TIMEOUT = 2 * STATED_TIMEOUT
+"""The hang bound on a subprocess that does several stated waits' worth of work
+before it says anything: a nested pytest run, a preview that builds and serves a
+page before printing its address, a hook launched through uv."""
+
+POLL_INTERVAL = 0.05
+"""How often a pure-Python poll re-reads its fact. It sets how soon a fact is seen
+once stated, never whether it is."""
 
 
 def wait_for(
@@ -290,7 +304,48 @@ def wait_for(
         if time.monotonic() >= deadline:
             said = failure() if callable(failure) else failure
             pytest.fail(f"{said}; last reading was {reading!r}")
-        time.sleep(0.05)
+        time.sleep(POLL_INTERVAL)
+
+
+def lock_contention(
+    monkeypatch, *paths: Path, by: str | None = None
+) -> threading.Event:
+    """Return an event set once an exclusive lock on one of `paths` finds it held.
+
+    A taker blocked in the kernel states nothing, so neither a sleep nor a short
+    wait can tell one held behind the lock from one that never reached it, or from
+    one let through. This intercepts `flock`: a blocking exclusive request on the
+    file one of `paths` names is first tried without blocking, and when that is
+    refused the event is set before the request waits as its caller asked. An
+    uncontended acquisition passes through and sets nothing.
+
+    `by` names the thread whose waiting is the claim, where another thread could
+    take the same lock in passing; leave it out where only the taker under test
+    can."""
+    native_flock = fcntl.flock
+    contended = threading.Event()
+
+    def names(fd) -> bool:
+        held = os.fstat(fd if isinstance(fd, int) else fd.fileno())
+        for path in paths:
+            try:
+                if os.path.samestat(held, os.stat(path)):
+                    return True
+            except FileNotFoundError:
+                continue
+        return False
+
+    def observed_flock(fd, operation):
+        taker = threading.current_thread().name
+        if operation == fcntl.LOCK_EX and by in (None, taker) and names(fd):
+            try:
+                return native_flock(fd, operation | fcntl.LOCK_NB)
+            except BlockingIOError:
+                contended.set()
+        return native_flock(fd, operation)
+
+    monkeypatch.setattr(fcntl, "flock", observed_flock)
+    return contended
 
 
 def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
@@ -321,7 +376,7 @@ def running_http_server(httpd):
     finally:
         httpd.shutdown()
         httpd.server_close()
-        thread.join(timeout=5)
+        thread.join(timeout=STATED_TIMEOUT)
         assert not thread.is_alive(), "the fixture HTTP server did not stop"
 
 
@@ -650,7 +705,7 @@ def bind_task_lifetime_to_worker(page):
         cleanup_model.write_session({**record, "lifetime": {"pid": os.getpid()}})
 
 
-def release_codex_command(page, release):
+def release_codex_command(page, host, finished):
     """Complete a held command before its synthetic Codex harness can exit.
 
     The command must finish its claim transaction while its ancestor is alive.
@@ -658,13 +713,18 @@ def release_codex_command(page, release):
     delivery, before the fixture releases the one-command harness.
     """
     wait_for(
-        Path(f"{release}.ready").exists,
+        finished.exists,
         bool,
         failure="the held Codex command did not finish",
-        timeout=60,
     )
     bind_task_lifetime_to_worker(page)
-    release.touch()
+    release_held(host)
+
+
+def release_held(host):
+    """Let an `under_codex` harness held with `finished` exit, by giving its
+    shell the line it waits for. The pipe stays open for `communicate`."""
+    os.write(host.stdin.fileno(), b"\n")
 
 
 def live_versions(d):
@@ -856,16 +916,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     joining either worker, including when an assertion fails."""
     entering = threading.Event()
     resume = threading.Event()
-    init_waiting = threading.Event()
     original_append_record = service_model.PageTransaction._append_record
-    original_page_locked = vendoring_model.page_locked
-
-    @contextmanager
-    def observed_page_locked(locked):
-        if locked == page_dir:
-            init_waiting.set()
-        with original_page_locked(locked) as held:
-            yield held
 
     def held_append_record(page, event):
         if event.get("kind") == kind:
@@ -885,24 +936,31 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     monkeypatch.setattr(
         service_model.PageTransaction, "_append_record", held_append_record
     )
-    monkeypatch.setattr(vendoring_model, "page_locked", observed_page_locked)
-    with ThreadPoolExecutor(max_workers=2) as executor:
+    # The held writer keeps whichever page locks it took until it resumes, so a
+    # re-vendor found waiting on one of them is waiting on the writer.
+    waiting = lock_contention(
+        monkeypatch, page_dir, page_dir / cleanup_model.EVENTS_FILE, by="re-vendor_0"
+    )
+    with (
+        ThreadPoolExecutor(max_workers=1) as writer,
+        ThreadPoolExecutor(max_workers=1, thread_name_prefix="re-vendor") as init,
+    ):
         try:
-            writing = executor.submit(write)
+            writing = writer.submit(write)
             wait_for(
                 entering.is_set,
                 bool,
                 failure=f"{kind} never passed old-layer validation",
             )
-            vendoring = executor.submit(init_result)
+            vendoring = init.submit(init_result)
+            # Either the re-vendor waits on the writer's lock, or, written without
+            # serialization, it finishes with the writer still held.
             wait_for(
-                init_waiting.is_set,
+                lambda: waiting.is_set() or vendoring.done(),
                 bool,
-                failure="Re-vendoring did not attempt the page lock",
+                failure="re-vendor neither waited on the writer nor finished",
             )
-            # A re-vendor that writes without serialization finishes here, with
-            # the writer still held.
-            passed_writer, _ = wait([vendoring], timeout=2)
+            passed_writer = not waiting.is_set()
         finally:
             resume.set()
         written = writing.result(timeout=STATED_TIMEOUT)
@@ -1197,14 +1255,14 @@ def available_loopback_port() -> int:
 
 def fifo_writer(path: Path, failure: str) -> int:
     """Open a nonblocking writer once a child is waiting on this FIFO."""
-    deadline = time.monotonic() + 10
+    deadline = time.monotonic() + STATED_TIMEOUT
     while time.monotonic() < deadline:
         try:
             return os.open(path, os.O_WRONLY | os.O_NONBLOCK)
         except OSError as error:
             if error.errno != errno.ENXIO:
                 raise
-            time.sleep(0.05)
+            time.sleep(POLL_INTERVAL)
     path.unlink()
     pytest.fail(failure)
 
@@ -1240,7 +1298,7 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     the suite starts ends with the run")."""
     yield
     while HELD_LEASES:
-        HELD_LEASES.pop().close()
+        leases_model.release_lease(HELD_LEASES.pop())
     for root in (tmp_path, isolated_session):
         for lease in root.rglob("server.lock"):
             if server_model.running_server(lease.parent):
@@ -1271,10 +1329,10 @@ def neighbour_page(directory, title=None, dead=False, published=True, port=59999
     initialized = CliRunner().invoke(cli_model.cli, ["page", "init", str(directory)])
     assert initialized.exit_code == 0, initialized.output
     write_revision(directory, 1, html.encode())
-    # What `page init` writes: a page always has a status record.
+    # A neighbour the agent has finished with.
     cleanup_model.write_json(
         directory / "status.json",
-        {"state": "idle", "detail": "", "ts": None, "after": 0},
+        {"state": "idle", "detail": "", "ts": None},
     )
     if published:
         append_carried_log_record(
@@ -1310,6 +1368,138 @@ def _status(page_dir, *args):
     return CliRunner().invoke(cli_model.cli, ["status", str(page_dir), *args])
 
 
+def declare_idle(page_dir):
+    """Write the page's `idle` declaration directly, past `leaf status idle`'s refusal
+    over unanswered moves, for a test whose subject is what an idle page does."""
+    with service_model.PageTransaction(page_dir) as page:
+        return page.set_status("idle", "")
+
+
+def declare_work(page_dir, line, *, item=None, ts=None, **voice):
+    """Seed the agent's work in hand as the log holds it, for a test of how a page
+    reads it: a `start` on `item`, or on the page's own task, which this opens when
+    the page has none, dated `ts` (now by default) and spoken in `voice` (`agent`,
+    `session`, `turn`). Raw, so a test can date it in the past; `working` is the
+    command an agent runs."""
+    from leaf.tasks import open_tasks
+
+    if item is None:
+        item = (
+            next(
+                (
+                    task["id"]
+                    for task in open_tasks(events_model.read_events(page_dir))
+                    if task["subject"] == {"kind": "page"}
+                ),
+                None,
+            )
+            or append_carried_log_record(
+                page_dir,
+                {
+                    "kind": "task",
+                    "author": "agent",
+                    "subject": {"kind": "page"},
+                    "title": "Work on the page",
+                    **({"ts": ts} if ts else {}),
+                },
+            )["id"]
+        )
+    return append_carried_log_record(
+        page_dir,
+        {
+            "kind": "start",
+            "author": "agent",
+            "item": item,
+            "text": line,
+            **({"ts": ts} if ts else {}),
+            **voice,
+        },
+    )
+
+
+def end_work(page_dir):
+    """End every open task on the page as a whole, `declare_work`'s and `working`'s,
+    so nothing the agent opened for itself is in hand any more."""
+    from leaf.tasks import open_tasks
+
+    for task in open_tasks(events_model.read_events(page_dir)):
+        if task["subject"] == {"kind": "page"}:
+            append_carried_log_record(
+                page_dir,
+                {
+                    "kind": "task_end",
+                    "author": "agent",
+                    "task": task["id"],
+                    "outcome": "done",
+                },
+            )
+
+
+def end_work_on(page_dir, subject):
+    """End the open tasks on the thread or widget `subject` names, done."""
+    from leaf.tasks import open_tasks
+    from leaf.work import page_subject
+
+    named = page_subject(page_dir, events_model.read_events(page_dir), subject)
+    for task in open_tasks(events_model.read_events(page_dir)):
+        if task["subject"] == named:
+            ended = CliRunner().invoke(
+                cli_model.cli, ["task", "end", str(page_dir), task["id"], "done"]
+            )
+            assert ended.exit_code == 0, ended.output
+
+
+def newest_move(page_dir, widget):
+    """The id of the user's newest move on `widget`, the item a start on it names."""
+    return next(
+        event["id"]
+        for event in reversed(events_model.read_events(page_dir))
+        if event["kind"] == "action"
+        and event["author"] == "user"
+        and event["widget"] == widget
+    )
+
+
+def _start(page_dir, item, line):
+    """`leaf task start`: take a move or task in hand with the banner's line."""
+    return CliRunner().invoke(
+        cli_model.cli, ["task", "start", str(page_dir), str(item), line]
+    )
+
+
+def working(page_dir, line, subject="page"):
+    """Show work no move asked for: open a task on `subject` (the page, unless a
+    thread or widget is named) and start it with `line`, as an agent does. Reuses the
+    page's open task on that subject, so a test can say what it does next. Returns the
+    start's record."""
+    from leaf import event_log as log_model
+    from leaf.tasks import open_tasks
+    from leaf.work import page_subject
+
+    named = (
+        {"kind": "page"}
+        if subject == "page"
+        else page_subject(page_dir, log_model.read_events(page_dir), subject)
+    )
+    task = next(
+        (
+            task
+            for task in open_tasks(log_model.read_events(page_dir))
+            if task["subject"] == named
+        ),
+        None,
+    )
+    if task is None:
+        opened = CliRunner().invoke(
+            cli_model.cli, ["task", "open", str(page_dir), subject, line[:80]]
+        )
+        assert opened.exit_code == 0, opened.output
+        task = json.loads(opened.output.splitlines()[-1])
+    started = _start(page_dir, task["id"], line)
+    assert started.exit_code == 0, started.output
+    return json.loads(started.output.splitlines()[-1])
+
+
 @pytest.fixture
 def comment_once_served():
     """Post a user comment as soon as a server answers for the page, so a wait
@@ -1324,17 +1514,17 @@ def comment_once_served():
     posting = []
 
     def watch(page_dir):
-        deadline = time.monotonic() + 30
+        deadline = time.monotonic() + STATED_TIMEOUT
 
         def post():
-            while not stopped.wait(0.1):
+            while not stopped.wait(POLL_INTERVAL):
                 if server_model.running_server(page_dir):
                     append_carried_log_record(
                         page_dir, {"kind": "comment", "author": "user", "text": "hi"}
                     )
                     return
                 if time.monotonic() > deadline:
-                    session_model.cmd_status(page_dir, "idle", "no server came up")
+                    declare_idle(page_dir)
                     return
 
         thread = threading.Thread(target=post, daemon=True)
@@ -1344,7 +1534,7 @@ def comment_once_served():
     yield watch
     stopped.set()
     for thread in posting:
-        thread.join(timeout=5)
+        thread.join(timeout=STATED_TIMEOUT)
 
 
 @pytest.fixture
@@ -1422,7 +1612,7 @@ def under_codex(spawn, codex_program):
     )
 
     def start(
-        command, env, *, app_server=False, hold_until=None, **kwargs
+        command, env, *, app_server=False, finished=None, **kwargs
     ) -> subprocess.Popen:
         # `app-server` is the whole difference between the app's shared harness and
         # one session's own process — same program, same ancestry, one word in
@@ -1430,16 +1620,20 @@ def under_codex(spawn, codex_program):
         # last word either way, which is what keeps that the only difference.
         hosting = ["app-server"] if app_server else []
         shell_command = f"{command}; exit"
-        if hold_until is not None:
-            # Mark command completion while keeping the fake harness alive. A
-            # test can then hand its lifetime to the worker before release;
-            # unlike a real task, this harness would otherwise die with its command.
+        if finished is not None:
+            # Create `finished` once the command has, and keep the fake harness
+            # alive until a line or the end of its stdin. A test can then hand
+            # its lifetime to the worker before release (`release_held`); unlike
+            # a real task, this harness would otherwise die with its command. The
+            # worker holds the pipe's other end, so the harness also ends when the
+            # worker does, however it ends.
             shell_command = (
                 f"{command}; result=$?; "
-                f"touch {shlex.quote(f'{hold_until}.ready')}; "
-                f"while [ ! -e {shlex.quote(str(hold_until))} ]; do sleep 0.01; done; "
+                f"touch {shlex.quote(str(finished))}; "
+                "read -r released; "
                 "exit $result"
             )
+            kwargs["stdin"] = subprocess.PIPE
         return spawn(
             [str(codex_program), "-c", runner, *hosting, shell_command],
             env={**env, "PYTHONHOME": sys.base_prefix},
@@ -1472,24 +1666,25 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
     program = """
 import json, sys
 from pathlib import Path
+from leaf.harness import session_harness
 from leaf.hosting import start_server
 from leaf.service import claim_page
 page = Path(sys.argv[1])
 claim_page(page)
-started = start_server(page)
+started = start_server(page, harness=session_harness())
 print(json.dumps({"url": started.url}))
 """
-    release_start = tmp_path / "release-page-host"
+    finished = tmp_path / "page-host-finished"
     started = under_codex(
         shlex.join([sys.executable, "-c", program, str(page)]),
         env,
-        hold_until=release_start,
+        finished=finished,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
-    release_codex_command(page, release_start)
-    out, err = started.communicate(timeout=60)
+    release_codex_command(page, started, finished)
+    out, err = started.communicate(timeout=STATED_TIMEOUT)
     assert started.returncode == 0, f"{out}{err}"
     assert json.loads(out)["url"].startswith("http://127.0.0.1:")
     return page
@@ -1558,7 +1753,7 @@ def start_server_command(page_dir, *flags, session_id="starter"):
         | {"CLAUDE_CODE_SESSION_ID": session_id, "CLAUDE_PID": str(os.getpid())},
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=STATED_TIMEOUT,
         check=False,
     )
 

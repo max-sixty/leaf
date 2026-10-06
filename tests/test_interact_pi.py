@@ -13,12 +13,17 @@ from pathlib import Path
 
 import pytest
 from interact_support import (
+    HELD_LEASES,
     STATED_TIMEOUT,
     append_carried_log_record,
+    available_loopback_port,
     page_state,
     serving,
+    wait_for,
 )
 from leaf import harness as harness_model
+from leaf import leases as leases_model
+from leaf import server as server_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
@@ -109,7 +114,7 @@ def start_pi(page_dir, monkeypatch, spawn, sessionless):
         monkeypatch.setenv("LEAF_PI_PID", str(driven.pid))
         service_model.claim_page(page_dir)
         serving(page_dir, 1)
-        session_model.cmd_status(page_dir, "waiting", "")
+        session_model.cmd_waiting(page_dir, "")
         driven.emit("session_start", idle=True, reason="startup")
         return driven
 
@@ -209,6 +214,30 @@ def test_a_reload_keeps_the_pi_session_and_its_watch(page_dir, pi):
         page_dir, {"kind": "comment", "author": "user", "text": "after reload"}
     )
     assert pi.delivered(until=comment["id"]) == [comment["id"]]
+
+
+def test_the_pi_watch_restarts_a_session_server_that_died(page_dir, pi):
+    """The watch the extension runs revives the session's server as `leaf wait`
+    would. The server it starts must serve as the Pi session the hook names,
+    though nothing in the hook's environment names that session."""
+    leases_model.release_lease(HELD_LEASES.pop())
+    cleanup_model.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": available_loopback_port(),
+            "enabled": True,
+            "lifetime": "session",
+        },
+    )
+    wait_for(
+        lambda: server_model.running_server(page_dir),
+        bool,
+        failure="the Pi watch never restarted the dead session server",
+    )
+    claim = service_model.page_claim(page_dir)
+    assert (claim["harness"], claim["id"]) == ("pi", "pi-s1")
 
 
 def test_pi_and_claude_code_nested_either_way_rank_by_process(monkeypatch):

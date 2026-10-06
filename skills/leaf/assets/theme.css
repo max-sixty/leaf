@@ -143,12 +143,15 @@
   --lf-banner-row: max(42px, calc(var(--t-5) * var(--lf-ui-lh) + 19px),
     calc(var(--aim-floor) + 9px));
   --lf-banner-status-row: max(36px, calc(var(--t-5) * var(--lf-ui-lh) + 4px));
-  /* The complete toolbar owns 30em of UI type and leaves 210px for
-     status, insets, and the gap. Both rooms are independent of page capabilities.
+  /* The complete toolbar owns 30em of UI type, the queue counts beside the status
+     11em, about what "9 on you · 9 on Claude" takes, and 220px is left for the status,
+     insets, and the gaps. Below that the banner takes two rows, and the sentence has the
+     first to itself (chrome.css). The rooms are independent of page capabilities and of
+     whether anything waits, since the counts come and go with the log after first paint.
      A larger UI font raises the same capacity boundary before first paint. */
   --lf-banner-actions-w: calc(30 * var(--t-5));
   --lf-banner-rows: clamp(1, round(up,
-    calc((var(--lf-banner-actions-w) + 210px + var(--lf-safe-left)
+    calc((var(--lf-banner-actions-w) + 11 * var(--t-5) + 220px + var(--lf-safe-left)
       + var(--lf-safe-right)) / 100vw)), 2);
   --lf-banner-h: calc(var(--lf-banner-status-row) * (var(--lf-banner-rows) - 1) + var(--lf-banner-row)
     + var(--lf-safe-top));
@@ -401,8 +404,8 @@
      quarter of the accent, beside a border already tinted with it, and in dark that
      ring all but vanished where every other control wore the solid band.
 
-     Naming this token is how a shadow-drawn ring joins the population the corpus floor
-     divides by, exactly as naming --focus-ring is for an outline-drawn one; the ring
+     Naming this token is how the suite's ring samples recognise a shadow-drawn ring,
+     exactly as naming --focus-ring is for an outline-drawn one; the ring
      itself is still what the box paints, not what it names. */
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
   --target-trace-w: 1.5px;
@@ -431,13 +434,13 @@
   --danger-tint: light-dark(#f7e0da, #35211b); --danger-ink: light-dark(#9c3526, #e0a091);
   --add-tint: light-dark(#e4efe0, #1b2a1c); --del-tint: light-dark(#f7e2dc, #33201b);
   --hi-tint: light-dark(#fff8c5, #342d14);
-  /* Six syntax roles are enough to find structure without turning evidence into a
-     paint box. Unmapped scopes keep the inherited code ink. Each role clears 4.5:1
-     on the code canvas and semantic line tints; the render gate checks the result. */
-  --syn-comment: light-dark(#696458, #a59d8e); --syn-keyword: light-dark(#a3372c, #e59a8c);
+  /* Shiki's theme reads these CSS variables directly. The palette follows the
+     page's color scheme and can be overridden wherever code is drawn. The render
+     gate checks the colors the browser actually paints on each code canvas. */
+  --syn-comment: light-dark(#5a5549, #cac2b3); --syn-keyword: light-dark(#8d251d, #efafa0);
   --syn-string: light-dark(#1d4f6b, #9dc4dd);
-  --syn-number: light-dark(#2f5480, #a8c4e2); --syn-name: light-dark(#6b4a9e, #c3a8de);
-  --syn-type: light-dark(#8a5a12, #dcb27e);
+  --syn-number: light-dark(#2f5480, #a8c4e2); --syn-name: light-dark(#573387, #cdb2e8);
+  --syn-type: light-dark(#6b4305, #e6bc88);
 
   /* Series colors, for a chart's marks. Five, and the sixth is refused rather than
      drawn: these are the most a user can hold apart, and a palette that runs out and
@@ -502,8 +505,9 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-bottom-bar-h: 0px; }
    spelled out in full — falls back to `none` rather than reading as one.
 
    Naming is not how the layer says a ring is there; the outline is, and nothing the
-   product ships reads this. What holds the layer to naming what it draws is the corpus
-   floor, in the suite, which divides by these names and credits what the page paints. */
+   product ships reads this. What holds the layer to naming what it draws is the suite's
+   ring samples, which require every rule drawing the ring to name it and credit what
+   the page paints. */
 @property --lf-focus-ring {
   syntax: "<custom-ident>";
   inherits: false;
@@ -657,7 +661,7 @@ html { background: var(--paper); }
     main { padding-block: 24px; }
   }
 }
-/* The auxiliary surfaces — the Asks drawer on the left, the thread panel on the right, the
+/* The auxiliary surfaces — the Queue drawer on the left, the thread panel on the right, the
  * Leaves drawer — stand over the page and never take room from it. The page's geometry is
  * the author's, and a surface the user raises for a moment does not reflow it: the shell
  * is the same width with a surface up as without one, so every container query, rail and
@@ -705,13 +709,20 @@ body {
     var(--lf-auxiliary-width, 0px));
 }
 @media screen {
-  html[data-lf-live] body[data-lf-auxiliary-surface="asks"] {
+  html[data-lf-live] body[data-lf-auxiliary-surface="queue"] {
     --lf-auxiliary-width: var(--lf-drawer-slot-width, 300px);
   }
   html[data-lf-live] body[data-lf-auxiliary-surface="threads"] {
     --lf-auxiliary-width: var(--lf-thread-panel-width, 420px);
   }
 }
+/* What delivery writes into an upgraded widget for its first paint (`x-prepaint`,
+ * revision_delivery.py): the structure its module will draw, so the browser sizes the
+ * widget as it will size the drawing. It holds that room and shows none of its
+ * placeholder words, which the drawing replaces with the log's. A reading with no
+ * runtime gets no drawing, so the room goes with it. */
+[data-lf-prepaint] { visibility: hidden; }
+html:not([data-lf-interactive]) [data-lf-prepaint] { display: none; }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
  * parse while JavaScript upgrades widgets and reads the standing log. Generated page
  * interface joins it as soon as widget and page-interface upgrade gives that apparatus
@@ -901,24 +912,6 @@ hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
 .density-working h3 { margin: 12px 0 4px; }
 .density-working h4 { margin: 10px 0 4px; }
 .density-working :is(th, td) { padding: 4px 10px; }
-/* Syntax roles. The runtime writes these into any code block that names a language —
-   a <pre><code class="language-*"> or a lf-code with `language` — having collapsed the
-   tokenizer's scopes into six of leaf's own first. Styled at document level like
-   the marks, because they land on the page's own elements; one attribute rather than
-   six classes, so the shared class vocabulary doesn't widen at all. A tokenizer swap
-   costs one table in leaf.js and no page that has already shipped. */
-[data-lf-syn="cm"] { color: var(--syn-comment); font-style: italic; }
-[data-lf-syn="kw"] { color: var(--syn-keyword); }
-[data-lf-syn="st"] { color: var(--syn-string); }
-[data-lf-syn="nu"] { color: var(--syn-number); }
-[data-lf-syn="fn"] { color: var(--syn-name); }
-[data-lf-syn="ty"] { color: var(--syn-type); }
-/* A diff's own lines take the tints lf-diff and lf-suggestion already carry, so an
-   added line reads the same whichever of the three drew it. Ink only: these spans
-   cover a line's text and not its box, and a background would print as a ragged
-   half-width band. */
-[data-lf-syn="ins"] { color: var(--ok-ink); }
-[data-lf-syn="del"] { color: var(--danger-ink); }
 figure { margin: 22px 0; }
 figcaption { font-size: var(--t-6); color: var(--muted); margin-top: 8px; }
 img, svg, video { max-width: 100%; height: auto; }

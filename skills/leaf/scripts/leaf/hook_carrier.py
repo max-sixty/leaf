@@ -1,7 +1,7 @@
 """The prompt and Stop hooks as a session's carrier, under Claude Code or Pi: they
 carry the page input pending on the session's pages into its turn and enforce the
-agent conversation loop. `hooks` reaches this module only for a session holding a
-page.
+agent conversation loop. `hooks` reaches this module for active ownership or a
+reconnect notice about a page the session previously served.
 
 Claude Code runs the prompt hook as every turn begins, including a turn the end
 of a background task opens, idle or between two tool calls, and adds what the
@@ -41,24 +41,24 @@ from .service import (
 from .state import flocked, session_lock_path, session_record
 
 
-def reclaim(obligations: list[dict]) -> str:
-    """What to do about owed moves a standing claim covers that this turn did not
-    write since their pickup, which hold the turn until it answers them or claims
-    them again (`activity.turn_obligations`): named only for such moves, so a move
-    nobody is at work on is never offered a claim in place of its answer."""
-    subjects = list(
+def restart(obligations: list[dict]) -> str:
+    """What to do about owed moves a start covers that this turn did not write since
+    their pickup, which hold the turn until it answers them or starts them again
+    (`activity.turn_obligations`): named only for such moves, so a move nobody is at
+    work on is never offered a start in place of its answer."""
+    moves = list(
         dict.fromkeys(
-            obligation["subject"]["id"]
+            start["item"]
             for obligation in obligations
-            if obligation["claimed_by"]
+            for start in obligation["started_by"]
         )
     )
-    if not subjects:
+    if not moves:
         return ""
     return (
-        f"; the work claim on {', '.join(subjects)} is older than its pickup: "
-        "answer once that work is done, or while it still runs claim it again with "
-        '`leaf status <page> working "<what is still running>" --on <id>`'
+        f"; your start on {', '.join(moves)} is older than its pickup: answer once "
+        "that work is done, or while it still runs start it again with "
+        '`leaf task start <page> <id> "<what is still running>"`'
     )
 
 
@@ -165,7 +165,7 @@ def remedies(
         if plan.owed:
             reasons.append(
                 (
-                    f"{plan.page}: {unanswered(plan.owed, 'acknowledged')}{reclaim(plan.owed)}.",
+                    f"{plan.page}: {unanswered(plan.owed, 'acknowledged')}{restart(plan.owed)}.",
                     ANSWER_ASK_INSTRUCTION,
                 )
             )
@@ -259,18 +259,15 @@ def hook_acknowledgement(delivery_id: str) -> str:
     )
 
 
-def compose(batches: list[dict], attention: list[str]) -> str:
-    """Publish one reader-confirmed envelope inline, or its exact pointer.
+def render(delivery: dict | None, attention: list[str]) -> str:
+    """Render one reader-confirmed envelope inline, or its exact pointer.
 
     Hook completion cannot establish receipt: a harness timeout discards stdout,
     and large context may be truncated. The model acknowledges only after the
     complete immutable delivery reached its context on either path.
     """
-    if not batches:
+    if delivery is None:
         return "\n".join(attention)
-    delivery = freeze_delivery(
-        batches, carrier="hook", acknowledge=hook_acknowledgement
-    )
     message = "\n".join(
         [
             "Leaf has new input for your turn. Read this complete delivery and take its acknowledge route before answering.",
@@ -292,11 +289,16 @@ def compose(batches: list[dict], attention: list[str]) -> str:
 
 
 def carry_turn(
-    event: str | None, sid: str, payload: dict, expected: dict | None | object = ...
+    harness: type[Harness],
+    event: str | None,
+    sid: str,
+    payload: dict,
+    expected: dict | None | object = ...,
+    *,
+    reconnect_harness: str | None = None,
 ) -> bool | None:
-    """Answer a prompt, Stop, or other page-reading hook for a session holding a
-    page: open or close its turn, hand over its pending input, and name what its
-    pages are owed."""
+    """Compose this lifecycle's page input, obligations, and reconnect context
+    into the one hook output its harness reads."""
     expected = session_record(sid) if expected is ... else expected
     plans = read_plans(sid)
     if session_record(sid) != expected or any(
@@ -319,8 +321,6 @@ def carry_turn(
     ):
         return True
     reasons = remedies(plans, batches)
-    if not reasons and not batches:
-        return
     # The message avoids "unattended": a page can be watched and still be owed
     # an answer, and the runtime spends that word on a different fact — a page
     # served to nobody at all.
@@ -339,11 +339,19 @@ def carry_turn(
     )
     # Publishing context proves no receipt. Its reader acknowledges the exact
     # envelope after the harness accepted this output into its turn.
-    message = compose(batches, attention)
-    with flocked(session_lock_path(sid)):
-        if session_record(sid) != expected:
+    delivery = (
+        freeze_delivery(batches, carrier="hook", acknowledge=hook_acknowledgement)
+        if batches
+        else None
+    )
+    from .reconnect import publishing_notices
+
+    with publishing_notices(reconnect_harness, sid, expected) as context:
+        if context is None:
             return
-        print(
-            json.dumps(type(plans[0].harness).hook_context(event, message)),
-            flush=True,
-        )
+        message = render(delivery, [*context, *attention])
+        if message:
+            print(
+                json.dumps(harness.hook_context(event, message)),
+                flush=True,
+            )

@@ -47,7 +47,10 @@ has tried; settle that before building it.
 - **Test annotation placement in context.** Compare a pinned marker card with a
   sparse left-comment layout on a document and a workspace. Keep full history and
   search in Threads and use Page Map on narrow pages; show only one margin treatment
-  at a time.
+  at a time. Include dense phone prose with anchored pins: the comparison report
+  showed pins covering text at 390px. Test what happens when no text-clear seat
+  exists, preserving annotation access without moving the reading column. See
+  [the comparison finding](notes/comparisons.md#phone-annotation-placement-2026-10-05).
 - **Make the next move and its result apparent.** Play through `review-a-plan`,
   `triage-board`, `pr-walkthrough`, and `ship-review`; fix dead ends and moves whose
   result is hidden. Decide whether a page needs one progress reading across Asks,
@@ -91,6 +94,9 @@ has tried; settle that before building it.
 
 ### User continuity and mobile access
 
+- **Consider automatic Leaf recovery on resume.** Reuse the reconnect notice's
+  eligibility checks to restore serving, ownership, and feedback delivery, while
+  respecting explicit stops and transfers to another session.
 - **Verify the native phone reading journey.** Check the explicit selection-to-comment
   handoff and reproduce the interactive-reply crash on a real iPhone. Browser emulation
   covers element targeting, commenting, passage geometry, and viewport sizing, but cannot
@@ -119,16 +125,6 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Decide whether a thread card may cover the margin rail.** A card beside its
-  target starts right of the target's margin marker whenever the room past the marker
-  still holds the card's minimum width (`comment-placement.js`, where `options` reads
-  `margin`), so the marker stays visible. The card therefore opens well right of the
-  text and narrower than it could be; starting it beside the text would cover the
-  rail's markers for as long as it is open. Weigh that trade, then settle how Leaf
-  states which elements a floating surface may cover. Today each placement names the
-  boxes it keeps clear of (`clear`, `margin`) in its own code, so no element can declare
-  that it may be covered, or must never be.
-
 - **Give the phone banner one row.** Decided, not built
   ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
   short with an ellipsis, with a passing notice taking that slot for a few seconds;
@@ -233,7 +229,8 @@ that changes size after first paint, with its cause.
   the first state answer, after first paint. Serving that state inside the page does
   not work: modules run after first paint, and a page revision is immutable while the
   log keeps changing. Follow #1566's Command Hub pattern instead: draw a summary whose
-  size is known at first paint, open the rows from it, and hold later growth with
+  structure is fixed, declared as the widget's `x-prepaint` so the first paint lays it
+  out, open the rows from it, and hold later growth with
   `HeldReading` (`runtime/thread/held-news.js`) while it would be seen. Check first
   whether a text document, which the reader came to read, can stand behind a summary.
 - **Decide the contents' form before first paint.** `lf-toc` changes size because the
@@ -345,6 +342,16 @@ height and where a switch lands wait on the workspace decision under Layout.
   broad selection is about 3,700 s of test time on a CI runner. If the rate rose,
   look at which escapes a cheap fixed set of tests would have caught, and choose
   that set by measured catches per second rather than by kind.
+- **Guard thread appearance on CI again.** The thread snapshot gate compares images
+  on macOS only (`dev/leaf_dev/thread_snapshots.py`), so a pull request's Linux CI
+  checks the delivery journey but not how it looks. Fonts and antialiasing differ by
+  OS, so Mac and Linux images never match. A Linux image could only be made on CI's
+  own runner, which meant pushing, downloading the run's images and accepting them
+  by hand. Find an approach where whoever changes the appearance can render the
+  compared images themselves. Candidates: render Linux baselines locally in the
+  same container CI runs, the approach Playwright recommends (an arm64 image on a
+  Mac matches CI only on an arm64 runner); or a hosted visual-review service that
+  renders both sides itself.
 
 ## Etc
 
@@ -352,6 +359,11 @@ Revisit these when their stated trigger becomes real; they are not an active que
 
 ### Product and harness ideas
 
+- **Revisit where an abandoned comment's words come back.** A page comment closed
+  with Escape keeps its words, and the next box `c` opens, such as a thread card's
+  reply, offers them, since Leaf can't know exactly where the user last typed. That
+  is deliberate; a better approach may tie the words to where they were written.
+  Trigger: a user is surprised to find their words in an unrelated box.
 - **Revisit a pin's icons if they read unclearly.** A pin shows the rail's outline
   icon in white on its fill, at 26px. A filled icon reads more clearly at that size,
   and needs no second copy — the same SVG with its fill set — but only an icon whose

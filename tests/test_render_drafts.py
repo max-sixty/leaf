@@ -89,6 +89,72 @@ from test_render_application_boundary import THREAD_MIRROR, THREAD_MIRROR_DECLAR
 from test_render_threads import hold_visible_thread_presentation
 
 
+@pytest.mark.parametrize(
+    ("unique", "tall"),
+    [(True, False), (False, False), (False, True)],
+    ids=["unique", "repeated", "tall-repeated"],
+)
+def test_a_visible_editor_is_the_reading_place_until_the_reader_scrolls_away(
+    browser, serve, unique, tall
+):
+    """A pane carries live editing across posture changes without pulling back old focus."""
+
+    def context(prefix):
+        return "".join(
+            f"<p>{prefix} paragraph {number if unique else ''} stays where the reader left it.</p>"
+            for number in range(35)
+        )
+
+    before = context("Reading")
+    after = context("Following" if unique else "Reading")
+    field_height = ' style="height:1000px"' if tall else ""
+    source = leaf_page(
+        "Editing in a reading region",
+        f'<lf-pane id="editor-pane" label="Working text"><div>{before}'
+        f'<textarea aria-label="Working draft"{field_height}></textarea>'
+        f"{after}</div></lf-pane>",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1366, 768)
+    field = page.get_by_role("textbox", name="Working draft")
+    field.click()
+    page.keyboard.type("The reader is working here")
+    rendered(page)
+
+    def in_view():
+        return field.evaluate(
+            """async (node, tall) => {
+          const {seenRect, shownBox} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const seen = seenRect(node, new Map()), rect = shownBox(node);
+          return Boolean(seen && (tall
+            ? seen.bottom - seen.top > 10
+            : seen.top <= rect.top + 1 && seen.bottom >= rect.bottom - 1));
+        }""",
+            tall,
+        )
+
+    assert in_view()
+    resized(page, 390, 760)
+    rendered(page)
+    expect(field).to_be_focused()
+    expect(field).to_have_value("The reader is working here")
+    assert in_view(), "the new page scroller lost the live editing place"
+
+    # Focus alone is not a reading place: scrolling elsewhere deliberately leaves
+    # the same editor focused, and the next posture must retain that new reading.
+    page.mouse.wheel(0, -10000)
+    page.wait_for_function("document.scrollingElement.scrollTop === 0")
+    scroll_settled(page)
+    rendered(page)
+    expect(field).to_be_focused()
+    assert not in_view()
+    resized(page, 1366, 768)
+    rendered(page)
+    expect(field).to_be_focused()
+    assert not in_view(), "a stale focused editor displaced the reader's new place"
+
+
 @pytest.mark.parametrize("bounded", [False, True])
 def test_typing_in_a_visible_inline_reply_keeps_the_reading_position(
     browser, serve, bounded
@@ -287,6 +353,8 @@ diff --git a/reading.py b/reading.py
     expect(field).to_be_visible()
     page.locator(".lf-threads").evaluate("list => list.scrollTop = 70")
     scroll_settled(page, ".lf-threads")
+    before_click = page.locator(".lf-threads").evaluate("list => list.scrollTop")
+    assert before_click > 0
     assert field.evaluate(
         "field => field.getBoundingClientRect().top > "
         "field.getRootNode().host.closest('.lf-threads').getBoundingClientRect().top"
@@ -295,7 +363,9 @@ diff --git a/reading.py b/reading.py
     field.click()
 
     expect(field).to_be_focused()
-    assert page.locator(".lf-threads").evaluate("list => list.scrollTop") == 70
+    assert (
+        page.locator(".lf-threads").evaluate("list => list.scrollTop") == before_click
+    )
 
 
 @pytest.mark.watch_shifts
@@ -985,12 +1055,35 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     later absolute value lands first and the deferred earlier value overwrites it
     when the box closes. An unrelated board move proves the poll saw the same
     batch while the editor was open, without making the test depend on time.
+    Reconnecting the same editor restores its local deferral before semantic catchup.
     """
     page = open_page(browser, serve(JOURNEY_V1))
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
     editor = draft.locator("leaf-text")
     write(editor, "Local unsent words.")
+
+    draft.evaluate(
+        """node => {
+          window.__lfEditingDraft = {
+            node, parent: node.parentNode, next: node.nextSibling,
+            editor: node.querySelector('leaf-text'),
+          };
+          node.remove();
+        }"""
+    )
+    # The fixture deliberately removes the editor's subject. Consume that allowed
+    # disappearance at the frame where the words watcher observes the removal.
+    one_frame(page)
+    consume_browser_errors(page, "typed words left the screen without a key or press")
+    page.evaluate(
+        """() => {
+          const {node, parent, next} = window.__lfEditingDraft;
+          parent.insertBefore(node, next);
+        }"""
+    )
+    assert editor.evaluate("node => node === window.__lfEditingDraft.editor")
+    editor.focus()
 
     d = serve.page_dir
     for text in ("Foreign first edit.", "Foreign committed words."):
@@ -3512,6 +3605,9 @@ def test_reply_admission_finishes_or_restores_its_native_session(
     )
     told(page)
     rendered(page)
+    if surface == "panel":
+        # The open card holds the resolution behind its notice until the user asks.
+        card.get_by_role("button", name="Resolved", exact=True).click()
     expect(field).to_be_hidden()
     assert stored_draft_text(page, "reply:" + root) == next_words
 
@@ -3572,10 +3668,17 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
         assert field.evaluate("box => [box.selectionStart, box.selectionEnd]") == [5, 5]
         page.keyboard.press("Escape")
         expect(field).not_to_be_visible()
+    elif resolution == "inactive-agent" and surface == "panel":
+        # The open card holds the resolution behind its notice, words and all, until
+        # the user presses it.
+        expect(field).to_be_visible()
+        expect(field).to_have_js_property("value", words)
+        thread.get_by_role("button", name="Resolved", exact=True).click()
+        expect(field).not_to_be_visible()
     else:
         expect(thread.locator("leaf-text")).not_to_be_visible()
     assert stored_draft_text(page, f"reply:{root['id']}") == words
-    if resolution == "inactive-agent":
+    if resolution == "inactive-agent" and surface == "margin":
         # An unresolved thread still draws its inactive reply box after Escape.
         # Agent settlement then closes it, as this lifecycle deliberately requires.
         # The generic words sensor cannot infer that ending the editing session made
@@ -3668,6 +3771,11 @@ def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
         rendered(page)
         expect(thread.locator("leaf-text")).to_be_visible()
         page.locator("#p3").click(position={"x": 10, "y": 10})
+        if surface == "panel":
+            # The open card holds the resolution behind its notice, so it still draws
+            # an open thread's reply box until the user asks to see the resolution.
+            expect(thread.locator("leaf-text")).to_be_visible()
+            thread.get_by_role("button", name="Resolved", exact=True).click()
         expect(thread.locator("leaf-text")).not_to_be_visible()
         if surface == "margin":
             expect(page.locator('[data-lf-margin-for="p3"]')).to_have_count(0)
@@ -3969,12 +4077,9 @@ def test_replaced_reply_compositions_keep_their_carets_and_leave_commands(
     told(page)
     expect(after).to_be_focused()
     # One margin card remains the current selection. The other native session keeps
-    # its caret until the user selects its next route; a hidden mirror is not that route.
+    # its words and caret until the user selects its next route.
     page.evaluate("() => window.lfWordsJudged()")
-    consume_browser_errors(
-        page,
-        'typed words left the screen without a key or press: "My unfinished first answer."',
-    )
+    assert take_browser_errors(page) == []
     for root, word in zip(roots, words):
         box = page.locator(f'.lf-thread[data-id="{root}"] leaf-text')
         expect(box).to_have_js_property("value", word)
@@ -4671,7 +4776,6 @@ def test_the_reading_keys_accumulate_and_reverse(browser, serve, down, up):
             page.wait_for_function(
                 "e => Math.abs(document.scrollingElement.scrollTop - e) < 1",
                 arg=expected,
-                timeout=5000,
             )
         except PlaywrightTimeout:
             pass
@@ -4910,7 +5014,6 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
     page.wait_for_function(
         "e => Math.abs(document.scrollingElement.scrollTop - e) < 1",
         arg=step,
-        timeout=5000,
     )
     page_now, threads_now = offsets()
     assert page_now > page_was, (
@@ -4950,7 +5053,6 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
         " return Math.abs(t.scrollTop - w[0]) < 1"
         " || Math.abs(document.scrollingElement.scrollTop - w[1]) >= 1; }",
         arg=[thread_step, page_was],
-        timeout=5000,
     )
     page_now, threads_now = offsets()
     assert threads_now > threads_was, (
@@ -4969,7 +5071,6 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
     page.wait_for_function(
         "() => { const t = document.querySelector('.lf-threads');"
         " return document.scrollingElement.scrollTop < 1 || t.scrollTop < 1; }",
-        timeout=5000,
     )
     edge_page, edge_threads = offsets()
     assert edge_page == pytest.approx(0, abs=1), (

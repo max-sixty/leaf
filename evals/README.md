@@ -70,7 +70,7 @@ directory it is given, the only place the judge may read. `metadata.conditions` 
 | --- | --- |
 | `arrangement_eval` | Authors and revises a page from `request.md` and screenshots each version at three widths for the judge, and on Leaf seeds a user choice, has a fresh reader report it, and checks a further revision keeps it. |
 | `usability_eval` | Seeded pages read, resumed and revised, and live handoffs where the harness posts user moves through the served page. Fixtures are in `usability/fixtures/`. |
-| `delivery_eval` | Comments posted between turns and mid-turn, each of which must be picked up, claimed and answered. |
+| `delivery_eval` | Comments posted between turns and mid-turn, each of which must be picked up, started and answered. |
 | `reader_eval` | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards. |
 
 The assertion helpers live here: `reference-read.cjs` passes when the agent read a

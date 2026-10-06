@@ -41,6 +41,10 @@ it. A later plain reply remains pending for the next slice.
 Other answers in the slice take the operations their delivered `handling`
 clauses name.
 
+Before finishing a turn that changed `index.html`, run `leaf page check <page>`
+and fix every error. The final reply requires valid source, and its refusal arrives
+after the model's turn has ended, when it can no longer correct the edit.
+
 A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a
 user message. Read it with `leaf delivery read <id>`: it was frozen for the queue, so
 its reply is a plain `reply` for `leaf thread reply`, as `references/harness-codex.md`
@@ -51,10 +55,10 @@ describes.
 Plan updates, tool starts, reasoning summaries, and waits for approval or user input
 are watched as the task's current step. Leaf retains thinking, tool use, replying,
 approval waits, and input waits as distinct observations. They describe overall page
-activity; an observed step alone does not claim work on a particular message. A
-sentence declared with `leaf status` stays the page's sentence, and the step stands
-beside it in the banner's disclosure; without a declared sentence for this work, the
-step is the sentence.
+activity; an observed step alone does not start a particular message. The line of
+an item you started with `leaf task start` stays the page's sentence, and the step
+stands beside it in the banner's disclosure; with no item in hand, the step is the
+sentence.
 
 ## Hand a page over from a terminal
 

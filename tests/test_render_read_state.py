@@ -6,13 +6,13 @@ import threading
 import time
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import STATED_TIMEOUT, append_carried_log_record, wait_for
 from leaf import data as data_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
 from leaf import http as http_model
 from leaf import thread as thread_model
-from leaf.render_checks import rendered
+from leaf.render_checks import SERVED_TIMEOUT_MS, rendered
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_cases_navigation import source_revision
@@ -171,7 +171,8 @@ def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(
     panel_settled(page)
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     expect(card.locator(".lf-thread-unread")).to_have_text("1 unread")
-    page.locator(".lf-first-unread").click()
+    with sending(page, "first unread acknowledgement"):
+        page.locator(".lf-first-unread").click()
     expect(card).to_have_attribute("open", "")
     expect(card.locator(f'.lf-msg[data-mid="{root}"]')).to_be_focused()
     expect(card.locator(f'.lf-msg[data-mid="{root}"]')).not_to_have_class(
@@ -227,7 +228,7 @@ def test_opening_threads_acknowledges_the_first_visible_answer(
     monkeypatch.setattr(http_model, "accept_event", hold_the_read)
     try:
         page.locator(".lf-threads-toggle").click()
-        assert arrived.wait(10), "opening Threads sent no read"
+        assert arrived.wait(STATED_TIMEOUT), "opening Threads sent no read"
         card = page.locator(f'.lf-thread[data-id="{root}"]')
         expect(card).to_have_attribute("open", "")
         expect(page.locator(".lf-first-unread")).to_be_hidden()
@@ -569,12 +570,11 @@ def test_visible_message_waits_for_whole_document_presentation(browser, serve):
 
     page.evaluate("window.__releaseReadPresentation()")
     told(page)
-    for _ in range(100):
-        if _read_events(serve.page_dir):
-            break
-        page.wait_for_timeout(20)
-    else:
-        raise AssertionError("presented answer was not acknowledged")
+    wait_for(
+        lambda: _read_events(serve.page_dir),
+        bool,
+        failure="presented answer was not acknowledged",
+    )
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": reply["id"], "version": reply["id"]}
     ]
@@ -777,7 +777,7 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
 ):
     """A reply landing in the diff thread the user had just written grew the thread at
     its foot, on screen, and everything after the diff moved down the page. It waits
-    behind a notice in the thread's head row, which appears without changing the
+    behind a notice in the thread's control row, which appears without changing the
     thread's height, and stays unread while none of it has shown. The keyboard reaches
     the notice from the thread and opens it, and the reply's body, drawn inside the
     widget's shadow tree, is read once shown. The browser fixture's shift watch holds
@@ -822,7 +822,7 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
         for_event=root,
     )
     told(page)
-    news = thread.locator(":scope > .lf-thread-root-meta").get_by_role(
+    news = thread.locator(":scope > .lf-thread-controls").get_by_role(
         "button", name="1 new reply"
     )
     expect(news).to_be_visible()
@@ -912,7 +912,7 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
             )["id"]
         )
         told(page)
-    news = thread.locator(":scope > .lf-thread-root-meta").get_by_role(
+    news = thread.locator(":scope > .lf-thread-controls").get_by_role(
         "button", name="2 new replies"
     )
     expect(news).to_be_visible()
@@ -1130,7 +1130,7 @@ def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_foll
 ):
     """A thread the agent starts in a seat lands at the seat's foot, and drawn at once
     it pushed the page after the seat down. It waits behind a notice in a row of fixed
-    size: the head row of the seat's last thread, or, in a seat that draws no thread, a
+    size: the control row of the seat's last thread, or, in a seat that draws no thread, a
     row standing in place of the first-message row at that row's height, since the row
     has no room beside its box. It shows when the user opens the notice from the
     keyboard, when they start a thread of their own, which shows after it, and when they
@@ -1164,7 +1164,7 @@ def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_foll
     row = (
         seat.locator(":scope > .lf-seat-news")
         if beside == "box"
-        else threads.first.locator(":scope > .lf-thread-root-meta")
+        else threads.first.locator(":scope > .lf-thread-controls")
     )
     news = row.get_by_role("button", name="1 new thread")
     expect(news).to_be_visible()
@@ -1466,7 +1466,7 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
         assert not receipt(), "a message partly under the open panel was marked read"
         page.get_by_role("button", name="Close threads").click()
         panel_settled(page, open=False)
-    deadline = time.monotonic() + 10
+    deadline = time.monotonic() + SERVED_TIMEOUT_MS / 1000
     while not receipt() and time.monotonic() < deadline:
         page.wait_for_timeout(100)
     assert receipt(), "the answer shown whole was never marked read"

@@ -1159,8 +1159,10 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 /* The board's minimum is every column at its floor and the gaps between them. A layout
  * that respects a widget's minimum, as a flex item's or a grid track's automatic minimum
  * does, gives the board that much or wraps it onto a row of its own; held to less, the
- * board scrolls its columns inside itself. The nearest size container caps it: the
- * shell, or a framed box holding the board (a pane's body, a card), and a sample,
+ * board scrolls its columns inside itself. Its declared reach caps the minimum at the
+ * room its holder grants, including the page's occupied margins. A frame grants only
+ * its own width. Without a declared reach (a frozen message), the nearest size container
+ * caps it: a framed box holding the board (a pane's body, a card), and a sample,
  * which cannot be one, through `--lf-box-cap`. So a phone or a box narrower
  * than the minimum scrolls the board rather than the page. Screen only: a sheet has no room
  * beside the column to give, so on paper the board is the column's width. */
@@ -1168,7 +1170,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 @media screen {
   :scope:is(lf-board) { min-inline-size: min(calc(var(--lf-board-columns)
                * var(--lf-reading-column-floor) + (var(--lf-board-columns) - 1) * var(--sp-2)),
-               calc(100cqi - 2 * var(--col-pad)), var(--lf-box-cap, 100vw)); }
+               var(--lf-reach, calc(100cqi - 2 * var(--col-pad))),
+               var(--lf-box-cap, 100vw)); }
 }
 :scope:is(lf-board):has(> lf-column:nth-of-type(2)) { --lf-board-columns: 2; }
 :scope:is(lf-board):has(> lf-column:nth-of-type(3)) { --lf-board-columns: 3; }
@@ -2155,12 +2158,9 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * Ask's as it would have the heading's. The list drops its end margin in favour of
  * whatever follows.
  *
- * A container also re-bases `cqi`, which `--lf-room` is written in (layouts.css), so a
- * breakout inside the Ask would measure the Ask rather than the shell. The Ask resolves
- * that room once, as its parent would, and hands it to its children as a length.
- * Beside the list, the free room is set to zero, so nothing in the context reaches
- * under the track. */
-@property --lf-ask-room { syntax: "<length-percentage>"; inherits: true; initial-value: 0px; }
+ * The page resolves its room before a child container can rebase its lengths.
+ * Beside the list, each context block receives only the evidence track's allocation;
+ * its minimum and descendants cannot claim the answer track's room. */
 /* The Ask that qualifies says so to its own children (`--lf-ask-track`, which does not
  * inherit), and each rule below asks its parent with a style query. An ordinary Ask held
  * inside one, among its evidence or in an option, finds the same named container, but
@@ -2168,13 +2168,11 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 @property --lf-ask-track { syntax: "<integer>"; inherits: false; initial-value: 0; }
 :scope:is(lf-ask):has(> :is(h1, h2, h3, h4, h5, h6):first-child ~ :is(figure, img, svg, table, lf-chart, lf-shot) ~ lf-options:last-child) {
   container: lf-ask / inline-size;
-  --lf-ask-room: var(--lf-room, 0px);
   --lf-ask-track: 1;
   & > :is(h1, h2, h3, h4, h5, h6):first-child { margin-block-start: 0; }
 }
 @container lf-ask (width >= 0) {
   @container style(--lf-ask-track: 1) {
-    :scope:is(lf-ask) > * { --lf-room: var(--lf-ask-room); }
     :scope:is(lf-ask) > lf-options { margin-block-end: 0; }
   }
 }
@@ -2187,7 +2185,9 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
       float: inline-start;
       clear: inline-start;
       inline-size: calc(100% - 16rem - var(--sp-4));
+      min-inline-size: 0;
       margin-block-end: 0;
+      --lf-room: 100%;
       --lf-free-l: 0px;
       --lf-free-r: 0px;
     }
@@ -2381,7 +2381,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-chart).lf-rendered, :scope:is(lf-tree).lf-rendered, :scope:is(lf-code).lf-rendered {
              font: inherit; color: inherit; overflow: visible; }
 /* The authored body, before its module replaces it. Nothing here says white-space: the
-   body is a <pre>, which is the whole reason it is one. Everything here undoes the rule
+   body is a <pre>, which is the whole reason it is one (a draft, whose module draws
+   wrapped prose, says its own below). Everything here undoes the rule
    near the top that dresses a <pre> as evidence the page is showing — a box, a rule, a
    mono face, an inset. This <pre> is not that: it is the widget's own content, about to
    be rendered or edited, inside an element that has already said how it looks and how
@@ -2569,6 +2570,13 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-draft) { display: block; border: 1px dashed var(--border-2); border-radius: 6px;
            padding: 10px 14px; margin: 12px 0; background: var(--card); }
 .lf-draft-body, .lf-draft-edit.lf-ui { white-space: pre-wrap; }
+/* The authored <pre> stands where the drawn body will, so it wraps as that body does
+   and drops what the module's decoder drops (`decodeBodyRecord`, projection/authored.js):
+   the indentation the HTML around it gave every line, and the line of spaces before an
+   indented closing tag. pre-line keeps the draft's line breaks and drops both, so the first
+   paint has the drawn body's lines; it reads otherwise only where the draft's own lines
+   are indented relative to one another or hold runs of spaces. */
+:scope:is(lf-draft) > pre { white-space: pre-line; }
 .lf-draft-pencil { opacity: 1; }
 /* The one control whose face is deliberately the document's: the box shows the page's
    words in the page's serif, or the word under the press reflows out from under the

@@ -74,16 +74,19 @@ const threadReturns = new WeakMap();
 // its reply target in the list's landable band: the reply area, or the thread's end
 // where the target is the thread itself, since a reply row pinned at the list's foot
 // stands over that end. Native nearest-edge scrolling guarantees the target is visible,
-// but it can put the sticky heading through the middle of a text line. The thread
+// but it can put the sticky title through the middle of a text line. The thread
 // header and message bodies expose complete block boundaries; use those rather than
 // attempting to infer line boxes from prose. Landing the thread's end never starts
 // below the latest turn's head, a message or the summary standing for earlier ones: a
 // turn taller than the list is read from its head, with the pinned reply row still
-// standing at the foot.
+// standing at the foot. A block landed at the start stands its `scroll-margin-top`
+// below the band's top, clear of the title pinned over it (chrome.css), so that much
+// of the band is not room for it.
 const threadLandingStart = (held, target, threadsBox) => {
   const band = landingBand(threadsBox);
   if (!band) return null;
-  const room = band.bottom - band.top;
+  const room = (node) =>
+    band.bottom - band.top - parseFloat(getComputedStyle(node).scrollMarginTop);
   const targetBox = shownBox(target);
   const last = target === held ? targetBox.bottom : targetBox.top;
   const transcript = held.querySelector(".lf-thread-transcript");
@@ -106,7 +109,7 @@ const threadLandingStart = (held, target, threadsBox) => {
         (getComputedStyle(node).display !== "contents" &&
           box.height > 0 &&
           box.top <= last &&
-          targetBox.bottom - box.top <= room),
+          targetBox.bottom - box.top <= room(node)),
     )
     .sort((a, b) => a.box.top - b.box.top);
   return candidates[0]?.node ?? null;
@@ -224,14 +227,13 @@ const cardThread = () => {
   const thread = focusedThreadTarget();
   return thread?.localName === "details" && !thread.open ? null : thread;
 };
+// Settlement belongs to the thread, wherever its view places that control.
 const resolutionControl = (thread) =>
-  thread?.querySelector(
-    ":scope .lf-thread-meta-actions > .lf-resolve, " +
-      ":scope .lf-thread-meta-actions > .lf-reopen, " +
-      ":scope .lf-thread-root-meta > .lf-reopen, " +
-      ":scope > .lf-thread-actions > .lf-reopen, " +
-      ":scope > .lf-page-thread-resolved .lf-reopen",
-  ) ?? null;
+  thread
+    ? ([...thread.querySelectorAll(".lf-resolve, .lf-reopen")].find(
+        (control) => control.closest(THREAD) === thread,
+      ) ?? null)
+    : null;
 
 function prepareLanding({ held = null, box, route = null }) {
   if (

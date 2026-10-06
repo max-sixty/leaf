@@ -17,25 +17,26 @@
    The thread card stands where the comment box its thread began in stood, by the one
    rule `comment-placement.js` states for both: beside what it is about, level with the
    words it quotes or the row a pointing gesture named, where that room takes the card's
-   minimum measure, and past its cluster where the room beyond takes that too;
-   otherwise under or over what it is about. A thread with no target stands by its
-   cluster. The card is as wide as its thread up to the room its side gives, and keeps
-   its height in every case; one too tall for its spot slides inside the boundary
-   rather than shrinking. This module supplies what the card stands by, the visible
-   boundary — the reading region or the viewport under the banner and over the bottom
-   chrome — and the card's size for the room; Floating UI (floating.js) places it and
-   follows what moves its target. A card leaving with what it is about passes under the
-   chrome, which stacks over it, and a reading region clips it at its edge. The card
-   contains the complete inline thread view; the Threads panel remains the complete
-   index and takes over when already open. Once placed, the card keeps its side and
-   holds one edge at its distance from the line it stands level with (`holding`,
-   comment-placement.js, which reports what this module tells it of the thread):
-   its top, so a turn arriving or the reply gaining a line leaves the transcript and the
-   reply's first lines where the user reads them, and the reply's foot and Send move
-   down a line per wrap; its foot, with the reply row on it, for the turn that joins the
-   transcript while the user drafts or sends, and where the card stands over what it is
-   about and is read. Opening it on another thread lets it choose its spot afresh. A scroll
-   never closes it: the card leaves with what it is about and comes back with it.
+   minimum measure, and past its cluster where the room beyond takes its whole measure,
+   else over the cluster; otherwise under or over what it is about. A thread with no
+   target stands by its cluster. The card is as wide as its thread up to the room its
+   side gives, and keeps its height in every case; one too tall for its spot slides
+   inside the boundary rather than shrinking. This module supplies what the card stands
+   by, the visible boundary — the reading region or the viewport under the banner and
+   over the bottom chrome — and the card's size for the room; Floating UI (floating.js)
+   places it and follows what moves its target. A card leaving with what it is about
+   passes under the chrome, which stacks over it, and a reading region clips it at its
+   edge. The card contains the complete inline thread view; the Threads panel remains
+   the complete index and takes over when already open. Once placed, the card keeps its
+   side and holds one edge at its distance from the line it stands level with
+   (`holding`, comment-placement.js, which reports what this module tells it of the
+   thread): its top, so a turn arriving or the reply gaining a line leaves the
+   transcript and the reply's first lines where the user reads them, and the reply's
+   foot and Send move down a line per wrap; its foot, with the reply row on it, for the
+   turn that joins the transcript while the user drafts or sends, and where the card
+   stands over what it is about and is read. Opening it on another thread lets it choose
+   its spot afresh. A scroll never closes it: the card leaves with what it is about and
+   comes back with it.
 
    Floating UI supplies the height available at the held edge. Native grid tracks
    share that room between the transcript and reply, each growing to its words and
@@ -140,7 +141,6 @@ import {
   effectiveScroller,
   readingRegionFor,
   registerReadingRegion,
-  shownRegionBounds,
 } from "/runtime/reading-regions.js";
 
 import { focused, keys, paintKeys } from "/runtime/keyboard/scopes.js";
@@ -600,6 +600,20 @@ export function createMarginProjection({
     });
   }
 
+  // How far past its border box the card paints: its shadow's furthest offset, blur and
+  // spread, in its own pixels.
+  function paintReach(card) {
+    const shadows = getComputedStyle(card).boxShadow.split(/,(?![^(]*\))/);
+    return Math.max(
+      0,
+      ...shadows.map((shadow) => {
+        const [x = 0, y = 0, blur = 0, spread = 0] = (
+          shadow.match(/-?[\d.]+px/g) ?? []
+        ).map(parseFloat);
+        return Math.max(Math.abs(x), Math.abs(y)) + blur + spread;
+      }),
+    );
+  }
   // Placement supplies the outer bounds; the native tracks share them between
   // reading and writing. A scroll that only carries a fitting card writes nothing;
   // clipped contents receive newly available room without requiring a complete fit.
@@ -714,9 +728,7 @@ export function createMarginProjection({
         replyEditor.value !== "" ||
         sending),
     );
-    const boundary = commentBoundary({
-      region: place.region && shownRegionBounds(place.region),
-    });
+    const boundary = commentBoundary({ region: place.region });
     if (!boundary.width || !boundary.height) {
       void floatingUi().then((ui) => stillCurrent() && watch(ui));
       return false;
@@ -727,7 +739,6 @@ export function createMarginProjection({
       row: place.row,
       extent: place.extent,
       boundary,
-      minimumWidth: cardMinimum(),
       scroller,
       coarse: coarsePointer.matches,
     });
@@ -745,10 +756,10 @@ export function createMarginProjection({
         const { reference, placement, middleware, plane } = previewSide.options(ui, {
           clear: place.clear,
           row: place.row,
+          lastRow: place.lastRow,
           column: place.column,
           margin: place.margin,
           boundary,
-          minimumWidth: cardMinimum(),
           fit({ width, height, scale }) {
             if (!stillCurrent()) return;
             // Capture when fitting actually starts, after the module load and any
@@ -820,19 +831,21 @@ export function createMarginProjection({
         const { scale } = previewSide.landed(position);
         // An unchanged declaration is the browser's own no-op, and `keeps` is the rest's.
         previewPlacement.stand(position);
-        const card = preview.getBoundingClientRect();
+        const card = previewPlacement.clientBox(position);
         previewAway = card.bottom <= boundary.top || card.top >= boundary.bottom;
         // Leaving with what it is about, the card passes under the chrome, which stacks
         // over it, and a reading region it stands in cuts it at the region's edge as it
-        // cuts the words.
+        // cuts the words. An edge further out than the card paints cuts nothing, and
+        // stands at that reach, so a scroll that moves it there writes nothing.
         const region = boundary.inRegion;
         if (region) {
+          const reach = -paintReach(preview);
           const inset = [
             (region.top - card.top) / scale.y,
             (card.right - region.right) / scale.x,
             (card.bottom - region.bottom) / scale.y,
             (region.left - card.left) / scale.x,
-          ];
+          ].map((cut) => Math.max(cut, reach));
           preview.style.clipPath = `inset(${inset.map(layoutPx).join(" ")})`;
         } else preview.style.removeProperty("clip-path");
         keeps(preview, "data-lf-thread-placement", THREAD_SIDES[side]);

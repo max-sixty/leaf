@@ -1,19 +1,12 @@
-// Pierre's theme registry, cut to the token themes lf-diff maps onto Leaf's syntax roles.
-import { normalizeTheme } from "@shikijs/core";
+// Pierre resolves the same Leaf token theme as ordinary code blocks.
+import { leafTheme, normalizeTheme } from "shiki";
 
 const descriptors = new Map([
   [
-    "github-light",
+    "leaf",
     {
-      name: "github-light",
-      load: () => import("@shikijs/themes/github-light"),
-    },
-  ],
-  [
-    "github-dark",
-    {
-      name: "github-dark",
-      load: () => import("@shikijs/themes/github-dark"),
+      name: "leaf",
+      load: async () => normalizeTheme(leafTheme),
     },
   ],
 ]);

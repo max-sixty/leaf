@@ -147,6 +147,7 @@
           <a href="#x-owners"><code>x-owners</code></a>
           <a href="#x-paints"><code>x-paints</code></a>
           <a href="#x-patch"><code>x-patch</code></a>
+          <a href="#x-prepaint"><code>x-prepaint</code></a>
           <a href="#x-reading-role"><code>x-reading-role</code></a>
           <a href="#x-refers"><code>x-refers</code></a>
           <a href="#x-required-members"><code>x-required-members</code></a>
@@ -183,8 +184,8 @@
                 <p>
                   The region begins with one direct heading, then carries any context
                   and evidence the user needs before the control; the nested widget
-                  still owns the answer and its fold. The banner, Asks drawer,
-                  <code>a</code>/<code>A</code> ask walk, standing ring, and
+                  still owns the answer and its fold. The banner, Queue panel,
+                  <code>a</code>/<code>A</code> queue walk, standing ring, and
                   <code>page state</code> name the region while replay names the nested
                   widget. An arrival targets the region's opening; the widget's
                   answering controls remain available through Tab.
@@ -208,24 +209,22 @@
                   standing state (<code>answered</code>), so the answer is a reading of
                   state the fold already keeps rather than a flag beside it, and the
                   action whose admission makes that condition hold is the one admission
-                  marks as the answer. The banner's count, the <code>a</code>/<code
-                    >A</code
-                  >
-                  ask walk that steps asks, and the command reference dialog's row are
-                  readings of one projection, so nothing names a tag and a new widget
-                  joins by declaring. Quoted material decides nothing — an exhibited Ask
-                  is a mention (x-exhibit). A widget that also declares x-thread-seat
-                  puts a box under its own Ask, and a thread standing in that box takes
-                  the Ask off the user's list for as long as it waits on the agent —
-                  whoever opened it. That is not an answer: the widget's state is
-                  untouched, so a version still has to record what the words settled. An
-                  ordinary reply or resolve hands the thread back. A widget inside a
-                  thread presents an Ask like one on the page, with one bound set by
-                  frozen thread markup: the thread's own reply box is already that seat,
-                  so only an action can answer it there. <code>when</code> selects Leaf
-                  elements that originate Asks, <code>answered</code> says which
-                  standing state answers one, and <code>all</code> names a blanket
-                  answer offered by the banner.
+                  marks as the answer. The banner's count, the Asks the
+                  <code>a</code>/<code>A</code> queue walk stops at, and the command
+                  reference dialog's row are readings of one projection, so nothing
+                  names a tag and a new widget joins by declaring. Quoted material
+                  decides nothing — an exhibited Ask is a mention (x-exhibit). A widget
+                  that also declares x-thread-seat puts a box under its own Ask, and a
+                  thread standing in that box takes the Ask off the user's list for as
+                  long as it waits on the agent — whoever opened it. That is not an
+                  answer: the widget's state is untouched, so a version still has to
+                  record what the words settled. An ordinary reply or resolve hands the
+                  thread back. A widget inside a thread presents an Ask like one on the
+                  page, with one bound set by frozen thread markup: the thread's own
+                  reply box is already that seat, so only an action can answer it there.
+                  <code>when</code> selects Leaf elements that originate Asks,
+                  <code>answered</code> says which standing state answers one, and
+                  <code>all</code> names a blanket answer offered by the banner.
                 </p>
               </details>
             </div>
@@ -532,6 +531,39 @@
               </details>
             </div>
           </section>
+          <section class="reference-entry" id="x-prepaint">
+            <h3><code>x-prepaint</code></h3>
+            <div class="reference-copy">
+              <p>
+                Markup an upgraded element shows at its first paint, before its module
+                draws: one element holding the structure the module will draw, with
+                words that size it as the drawing's will.
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-prepaint contract">Full contract</summary>
+                <p>
+                  Delivery writes it into every occurrence in the served document, as
+                  the element's first child marked data-lf-prepaint, so the browser lays
+                  the widget out from its real structure, wrapping as its drawing will,
+                  rather than in a room summed from line heights; the theme holds that
+                  room and paints none of it, and a reading without the runtime hides
+                  it. The module takes it out in the same step that draws its
+                  replacement, so nothing moves, and draws by filling in a copy of the
+                  same markup, so the declaration is the one statement of that
+                  structure. <code>{"as": tag}</code> declares the markup of the named
+                  widget, for one that first paints as that widget will stand in it, as
+                  a command with no seat draws a readings seat at its head. It is
+                  written exactly as the parser reads it back, every element closed,
+                  since delivery inserts it as written and markup left open would take
+                  in the occurrence's own children; and it carries no id, no custom
+                  element and no script, since every occurrence gets a copy. Declare it
+                  on a widget whose drawn structure is fixed while its values come from
+                  the log, as a command's outcome and count tiles are; a drawing whose
+                  rows the log decides has no structure to write in.
+                </p>
+              </details>
+            </div>
+          </section>
           <section class="reference-entry" id="x-reading-role">
             <h3><code>x-reading-role</code></h3>
             <div class="reference-copy">
@@ -806,16 +838,17 @@
                   Full contract
                 </summary>
                 <p>
-                  Its module subscribes through consumeThreads, selects Threads from the
-                  public collection, and places them in its own outlets. The returned
-                  handle can open Comment from one of the widget's projected elements.
-                  Leaf owns anchors, drafts, response modes, submission, Thread
-                  rendering, reply and reaction state, settlement, focus, receipts, and
-                  margin-projection fallback. A placement claims that active composer or
-                  Thread locally for the current reconciliation; unloaded, filtered,
-                  collapsed, outdated, or otherwise undisplayable datums receive no
-                  placement and remain in the global Threads index plus the ordinary
-                  fallback.
+                  Its module registers through placeThreads, receives one ordered batch
+                  of admitted exact targets, and returns matching outlet Elements or
+                  null. Core maps those outlets to their Threads or the active composer
+                  and commits their placement and lifetime. The returned handle can open
+                  Comment from one of the widget's projected elements. Leaf owns
+                  anchors, drafts, response modes, submission, Thread rendering, reply
+                  and reaction state, settlement, focus, receipts, and margin-projection
+                  fallback. A placement claims that active composer or Thread locally
+                  for the current reconciliation; unloaded, filtered, collapsed,
+                  outdated, or otherwise undisplayable datums receive no placement and
+                  remain in the global Threads index plus the ordinary fallback.
                 </p>
               </details>
             </div>
@@ -969,8 +1002,8 @@
                   Almost no widget declares it, and none needs to while one tag is one
                   kind of thing: a name away from the page is then the tag with its
                   prefix dropped. It is wrong where a tag holds several kinds. Every
-                  shape of lf-suggestion came out as "suggestion", so a row in the Asks
-                  drawer named a deletion by the words it proposed to remove and read
+                  shape of lf-suggestion came out as "suggestion", so a row in the Queue
+                  panel named a deletion by the words it proposed to remove and read
                   exactly like the insertion above it. The word is asked for wherever
                   the page names an element away from itself — a drawer row, a comment's
                   anchor label — and an element that has not upgraded yet, or answers
@@ -987,14 +1020,14 @@
             <div class="reference-copy">
               <p>
                 <code>true</code>: this widget is a block prose seat that can admit
-                <code>leaf status --on</code> without a pending user move, so the work
+                <code>leaf task open</code> without a pending user move, so the task
                 shows as local chrome beside its authored markup.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-work contract">Full contract</summary>
                 <p>
                   Only a block widget whose x-content is markup may declare it. Once
-                  admitted, a page-widget claim appears at the page edge through its
+                  admitted, a page-widget task appears at the page edge through its
                   target margin entry even if a later layer drops x-work. The
                   declaration is permission for runtime chrome, not a consequence of
                   x-content: markup may itself be an owner gesture or sit in a hidden

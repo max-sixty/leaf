@@ -629,43 +629,51 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
 
 def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve):
     """A diff's file header pins at the top of the box that scrolls it, whoever made the
-    box scroll: a box the page's own CSS makes scroll, and a column's sticky sidebar,
-    each start `--lf-top` again, where both pinned the header the banner's height below
-    the box's top. A page's sticky box that scrolls keeps the slot it met, so it still
-    stops at the banner's foot."""
+    box scroll: a page rule, an inline style, and a column's sticky sidebar each start
+    `--lf-top` again, where each pinned the header the banner's height below the box's
+    top. The root keeps the banner's height though a page rule makes it scroll, and a
+    page's sticky box keeps the slot it met though another rule makes it scroll, so both
+    still stop at the banner's foot."""
     path = "src/deeply/nested/module/file.rs"
     rows = "".join(f"+    let value_{i} = {i};\n" for i in range(80))
     patch = (
         f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
         f"@@ -1 +1,81 @@\n fn main() {{\n{rows}"
     )
+
+    def diff(id):
+        return f'<lf-diff id="{id}"><pre>{patch}</pre></lf-diff>'
+
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Scrolling boxes",
-                '<aside class="sidebar" id="side"><lf-diff id="in-side"><pre>'
-                + patch
-                + '</pre></lf-diff></aside><h1>Scrolling boxes</h1><div id="box">'
-                '<lf-diff id="in-box"><pre>'
-                + patch
-                + '</pre></lf-diff></div><div id="panel"><p>Panel.</p></div>'
+                f'<aside class="sidebar" id="side">{diff("in-side")}</aside>'
+                f'<h1>Scrolling boxes</h1><div id="box">{diff("in-box")}</div>'
+                '<div id="inline" style="max-height: 320px; overflow: auto">'
+                f'{diff("in-inline")}</div>'
+                '<div id="panel" class="tall"><p>Panel.</p></div>'
                 + "<p>Filler.</p>" * 60,
-                head="<style>#box { max-height: 320px; overflow: auto; }"
-                "#panel { position: sticky; top: var(--lf-top); max-height: 200px;"
-                " overflow-y: auto; }</style>",
+                head="<style>html { overflow-y: scroll; }"
+                "#box, .tall { max-height: 320px; overflow: auto; }"
+                "#panel { position: sticky; top: var(--lf-top); }</style>",
             )
         ),
     )
     resized(page, 1600, 1000)
     expect(page.locator("main")).to_have_attribute("data-lf-margin", re.compile("sidebar"))
-    page.wait_for_function("() => document.querySelectorAll('lf-diff.lf-rendered').length === 2")
+    page.wait_for_function(
+        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 3"
+    )
     read = page.evaluate(
         """async () => {
-        const pinned = async (box, diff) => {
+        const pinned = async (id) => {
+            const box = document.getElementById(id);
             box.scrollTop = 400;
             await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-            const head = diff.shadowRoot.querySelector('.lf-diff-file > details > summary');
+            const head = box.querySelector('lf-diff').shadowRoot
+                .querySelector('.lf-diff-file > details > summary');
             return {
                 scrolled: box.scrollTop,
                 gap: head.getBoundingClientRect().top
@@ -673,17 +681,18 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
             };
         };
         return {
-            box: await pinned(document.querySelector('#box'), document.querySelector('#in-box')),
-            side: await pinned(document.querySelector('#side'), document.querySelector('#in-side')),
+            box: await pinned('box'),
+            inline: await pinned('inline'),
+            side: await pinned('side'),
             panel: getComputedStyle(document.querySelector('#panel')).top,
             root: getComputedStyle(document.documentElement).getPropertyValue('--lf-top'),
         };
     }"""
     )
-    for box in ("box", "side"):
+    for box in ("box", "inline", "side"):
         assert read[box]["scrolled"] == 400, read
         assert read[box]["gap"] == pytest.approx(0, abs=1.5), read
-    assert read["panel"] == read["root"] != "0px", read
+    assert read["root"] != "0px" and read["panel"] == read["root"], read
 
 
 def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):
@@ -12324,12 +12333,13 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
 ):
     """A file's row gives way from its folders, and its title reaches only a pointer
     resting on it. The keyboard standing on the row, and a finger held on it, read the
-    whole path in a box under the row, a folded file's too. Releasing the hold folds
-    the file, as a tap does, and a tap shows nothing."""
+    whole path in a box under the row, a folded file's too, over the next file's row.
+    Releasing the hold folds the file, as a tap does, and a tap shows nothing."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/nested/file.md"
-    patch = (
-        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+    patch = "".join(
+        f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
         "@@ -1 +1 @@\n-old\n+new\n"
+        for name in (path, "src/next.rs")
     )
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
@@ -12345,20 +12355,31 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
         context=context,
     )
     page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
-    head = page.locator("lf-diff .lf-diff-head")
+    head = page.locator("lf-diff .lf-diff-head").first
+    # The box is generated content, which takes no hit unless a rule lets it: this
+    # test's own rule does, so a hit-test at the box's corner says what stands on top.
+    head.evaluate("""head => {
+        const sheet = new CSSStyleSheet();
+        sheet.replaceSync('.lf-diff-path::after { pointer-events: auto !important; }');
+        const root = head.getRootNode();
+        root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+    }""")
     read = """head => {
-        const word = getComputedStyle(head.querySelector('.lf-diff-path'), '::after');
-        const fold = head.parentElement;
+        const path = head.querySelector('.lf-diff-path');
+        const word = getComputedStyle(path, '::after');
+        const at = head.getBoundingClientRect();
+        const hit = word.content === 'none' ? null : head.getRootNode().elementFromPoint(
+            at.left + head.clientLeft + parseFloat(word.left) + 6,
+            at.top + head.clientTop + parseFloat(word.top) + 6,
+        );
         return {
-            open: fold.open,
+            open: head.parentElement.open,
             word: word.content === 'none' ? null
                 : word.content.replace(/\\u200b/g, ''),
             shown: word.visibility === 'visible',
-            below: parseFloat(word.top) >= head.getBoundingClientRect().height,
-            fits: parseFloat(word.left) + parseFloat(word.width)
-                <= head.getBoundingClientRect().width + 0.5,
-            clipped: getComputedStyle(fold).overflow !== 'visible'
-                && !fold.open,
+            below: parseFloat(word.top) >= at.height,
+            fits: parseFloat(word.left) + parseFloat(word.width) <= at.width + 0.5,
+            onTop: hit === path,
         };
     }"""
     whole = f'"{path}" / ""'
@@ -12373,7 +12394,7 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
         "shown": True,
         "below": True,
         "fits": True,
-        "clipped": False,
+        "onTop": True,
     }, standing
     page.keyboard.press("Enter")
     assert head.evaluate(read) == {**standing, "open": False}

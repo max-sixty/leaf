@@ -821,25 +821,31 @@ main {
  * widget back. */
 @property --lf-width { syntax: "<length>"; inherits: true; initial-value: 0px; }
 /* Where a box sticking here stops: the sticky headers standing over the top of its
- * scroller, stacked. On the root it starts at the banner's height (above); a box the
- * theme makes scroll that can hold a header starts it again from its own top (a bounded
- * block, a table, a board, a column's sticky sidebar; a workspace pane's body from minus
- * its top padding, layouts.css), and the runtime writes the same restart into each rule
- * of the page's own CSS that makes a box scroll (page-sheets.js). A sticky header (a page tab strip, a diff's file header) has a stated
- * height and sticks at the `--lf-top` it inherits; what it stands over takes that value
- * plus its height, which the header's holder passes on under a second name, since a
- * custom property cannot read itself. The stacked value goes on a box that does not
- * itself scroll, since a box that scrolls is read where it stands. A landing clears the
- * headers over a whole scroller through its `scroll-padding` and one over part of it
- * through `scroll-margin` on the rows under it, and the runtime's reading of what is on
- * screen takes the value at each element (geometry.js, `headerInset`). Registered so
- * that reading is a length. */
+ * scroller, stacked. On the root it starts at the banner's height (above). Every other
+ * box that scrolls starts it again from its own top, whoever made it scroll: the
+ * runtime marks each one it finds scrolling (reach.js, `paintSlot`), and the mark
+ * restarts it at no specificity ([data-lf-scrolls], shadow.css). A box that states its
+ * own start keeps it. A workspace pane's body starts from minus its top padding, and the
+ * workspace's body states 0, since it scrolls only past a width and the runtime finds a
+ * box scrolling only when the box arrives (layouts.css). A box that sticks keeps the
+ * value it met for its own `top`, so a sticking box that scrolls headers restarts the
+ * slot for them itself (a column's sidebar, layouts.css). A sticky header (a page tab
+ * strip, a diff's file header) has a stated height and sticks at the `--lf-top` it
+ * inherits; what it stands over takes that value plus its height, which the header's
+ * holder passes on under a second name, since a custom property cannot read itself.
+ * The stacked value goes on a box that does not itself scroll, since a box that scrolls
+ * is read where it stands. A landing clears the headers over a whole scroller through
+ * its `scroll-padding` and one over part of it through `scroll-margin` on the rows
+ * under it, and the runtime's reading of what is on screen takes the value at each
+ * element (geometry.js, `headerInset`). Registered so that reading is a length. */
 @property --lf-top { syntax: "<length>"; inherits: true; initial-value: 0px; }
 /* The same for a box sticking at its scroller's foot: what it stands over takes its
  * height and offset as `--lf-bottom`, and the runtime's reading of what is on screen
  * leaves that band out too (geometry.js, `footerInset`). A long open thread's reply
- * row is one (chrome.css). No box restarts it, since nothing inside what a footer
- * stands over carries a footer of its own. */
+ * row is one (chrome.css). No box restarts it. Nothing inside what a footer stands
+ * over carries a footer of its own, and the slot's other reader, the landing margin of
+ * every box in that thread's content (chrome.css), is read on a box that scrolls too:
+ * a restart there would let a landing on that box stop under the reply row. */
 @property --lf-bottom { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --lf-free-l { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 @property --lf-free-r { syntax: "<length>"; inherits: true; initial-value: 99999px; }
@@ -862,7 +868,6 @@ main {
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
     overscroll-behavior: contain;
-    --lf-top: 0px;
   }
 }
 /* A phone's vertical rhythm is a fact about the device, so this asks the window. */
@@ -966,11 +971,10 @@ img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
  * a table too wide to wrap, which it loses either way — the same trade pre and
  * lf-board already make, and the reason not to write a print rule undoing this
  * one. */
-/* A table scrolls its own columns, so, like `pre`, its rows never size what holds it.
- * Scrolling sideways makes it the scroller for anything sticking inside it, which
- * sticks at the table's own top (`--lf-top`), and, like `pre`, leaves room under its
- * last row for an overlay scrollbar (shadow.css, beside `pre`). */
-table { display: block; overflow-x: auto; container-type: inline-size scroll-state; --lf-top: 0px;
+/* A table scrolls its own columns, so, like `pre`, its rows never size what holds it,
+ * and, like `pre`, it leaves room under its last row for an overlay scrollbar
+ * (shadow.css, beside `pre`). */
+table { display: block; overflow-x: auto; container-type: inline-size scroll-state;
         border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
 /* A table standing in a drawn frame (a panel, a callout, a pane, a cell) fills it. The

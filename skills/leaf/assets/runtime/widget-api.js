@@ -161,6 +161,7 @@ export {
   PAGE_INTERFACE,
   PRESENTATION,
   afterPresentation,
+  isPagePaint,
   quietWord,
 } from "./presentation.js";
 export {

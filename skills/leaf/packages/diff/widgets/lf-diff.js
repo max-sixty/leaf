@@ -23,6 +23,7 @@ import {
   holdFocus,
   inChrome,
   inBaseLayer,
+  isPagePaint,
   commands,
   keeps,
   keepsText,
@@ -344,8 +345,10 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
     next.comment = previous.comment;
   }
   if (pre && nextPre) {
+    // The fresh render's attributes, and whatever the runtime painted on the kept box,
+    // which a fresh render never carries (a scroller's marks, reach.js).
     for (const { name } of [...pre.attributes])
-      if (!nextPre.hasAttribute(name)) pre.removeAttribute(name);
+      if (!nextPre.hasAttribute(name) && !isPagePaint(name)) pre.removeAttribute(name);
     for (const { name, value } of nextPre.attributes) keeps(pre, name, value);
     setChildren(
       pre,

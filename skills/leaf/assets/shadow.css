@@ -611,6 +611,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * every declared tree, and a diff's lines scroll in one. No offsets: relative moves
  * nothing. */
 [data-lf-holds] { position: relative; }
+/* A box that scrolls starts the sticky-header slot again at its own top (theme.css, at
+ * `--lf-top`), whoever made it scroll: reachScrollers marks it. At no specificity, so a
+ * box that states where its own slot starts keeps that. */
+:where([data-lf-scrolls]) { --lf-top: 0px; }
 /* The layer's marks for a box that shows less than it holds across (reachScrollers, for
  * why the sweep and not a rule beside each overflow decides who wears them). Scrolling
  * is the honest answer when the room ran short, and on a platform drawing overlay

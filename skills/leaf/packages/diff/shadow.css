@@ -51,8 +51,12 @@
    path's slashes (`data-path`, lf-diff.js) and ends at the row's end. A press shows it
    only once held, so a click or a tap that folds the file does not flash it. The row and
    the file's frame clip what they hold, so both let it out while it shows, and the
-   row rounds its own corners where the frame's clip rounded them. */
+   row rounds its own corners where the frame's clip rounded them. The file stands over
+   the files after it meanwhile, whose rows and presses would otherwise cover a folded
+   file's box, and keeps its own press over its row. */
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary { position: relative; }
+.lf-diff-file:has(> .lf-diff-fold > .lf-diff-head:is([data-lf-held-word], :focus-visible,
+                                                      .lf-focus-visible)) { z-index: 4; }
 .lf-diff-fold:has(> .lf-diff-head:is([data-lf-held-word], :focus-visible,
                                      .lf-focus-visible)) { overflow: visible; }
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details

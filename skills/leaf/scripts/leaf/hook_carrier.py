@@ -18,7 +18,6 @@ the turn a preview and its path, so a delivery that large goes as a pointer its
 reader confirms once read. Every inline envelope requires the same confirmation."""
 
 import json
-from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -260,18 +259,15 @@ def hook_acknowledgement(delivery_id: str) -> str:
     )
 
 
-def compose(batches: list[dict], attention: list[str]) -> str:
-    """Publish one reader-confirmed envelope inline, or its exact pointer.
+def render(delivery: dict | None, attention: list[str]) -> str:
+    """Render one reader-confirmed envelope inline, or its exact pointer.
 
     Hook completion cannot establish receipt: a harness timeout discards stdout,
     and large context may be truncated. The model acknowledges only after the
     complete immutable delivery reached its context on either path.
     """
-    if not batches:
+    if delivery is None:
         return "\n".join(attention)
-    delivery = freeze_delivery(
-        batches, carrier="hook", acknowledge=hook_acknowledgement
-    )
     message = "\n".join(
         [
             "Leaf has new input for your turn. Read this complete delivery and take its acknowledge route before answering.",
@@ -299,7 +295,7 @@ def carry_turn(
     payload: dict,
     expected: dict | None | object = ...,
     *,
-    context: Sequence[str] = (),
+    reconnect_harness: str | None = None,
 ) -> bool | None:
     """Compose this lifecycle's page input, obligations, and reconnect context
     into the one hook output its harness reads."""
@@ -325,8 +321,6 @@ def carry_turn(
     ):
         return True
     reasons = remedies(plans, batches)
-    if not reasons and not batches and not context:
-        return
     # The message avoids "unattended": a page can be watched and still be owed
     # an answer, and the runtime spends that word on a different fact — a page
     # served to nobody at all.
@@ -334,7 +328,7 @@ def carry_turn(
     # pages owing the same thing used to carry three copies of the same
     # instruction into the turn, which is most of what the message weighed.
     protocols = list(dict.fromkeys(protocol for _, protocol in reasons if protocol))
-    attention = list(context) + (
+    attention = (
         [
             "Leaf needs attention:",
             *(f"- {line}" for line, _ in reasons),
@@ -345,11 +339,19 @@ def carry_turn(
     )
     # Publishing context proves no receipt. Its reader acknowledges the exact
     # envelope after the harness accepted this output into its turn.
-    message = compose(batches, attention)
-    with flocked(session_lock_path(sid)):
-        if session_record(sid) != expected:
+    delivery = (
+        freeze_delivery(batches, carrier="hook", acknowledge=hook_acknowledgement)
+        if batches
+        else None
+    )
+    from .reconnect import publishing_notices
+
+    with publishing_notices(reconnect_harness, sid, expected) as context:
+        if context is None:
             return
-        print(
-            json.dumps(harness.hook_context(event, message)),
-            flush=True,
-        )
+        message = render(delivery, [*context, *attention])
+        if message:
+            print(
+                json.dumps(harness.hook_context(event, message)),
+                flush=True,
+            )

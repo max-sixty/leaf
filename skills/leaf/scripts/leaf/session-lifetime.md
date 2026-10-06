@@ -272,19 +272,22 @@ nothing.
 
 ### Reconnect notices
 
-Resume and prompt hooks inspect the session's last claims before selecting active
-ownership. An enabled session service with inactive ownership or no exact live
-server lease emits a reconnect notice with `leaf server start <page>`, which restores
-serving and feedback delivery. The notice also covers the orphan grace period,
-while the old listener may still be running. Explicit releases, stopped services,
-standing services, developer previews, and pages another session claimed are excluded.
+Resume and prompt hooks inspect the session's retained claims, including those whose
+ownership has expired. An enabled session service with inactive ownership or no
+exact live server lease emits a reconnect notice with `leaf server start <page>`,
+which restores serving and feedback delivery. The notice also covers the orphan
+grace period, while the old listener may still be running. Explicit releases,
+stopped services, standing services, developer previews, and pages another session
+claimed are excluded.
 
 `reconnect.py` reserves one notice per harness/session/page in
 `sessions/<session>.<harness>.reconnect`. This notification record survives SessionEnd
 and generation changes. Matching active ownership and exact live serving close the
 outage, both when a hook observes recovery and when a serve commits it. A later outage
 can then emit another notice. Reservation is serialized with ownership and desired
-service changes; hook stdout proves no model receipt, so output is at-most-once.
+service changes and the final lifecycle check through stdout publication. A stale
+hook reserves nothing, leaving its successor able to notify. Hook stdout proves no
+model receipt, so output is at-most-once.
 SessionStart does not open a new turn or reacquire a page. The Stop hook does not
 continue a turn to deliver a reconnect notice.
 

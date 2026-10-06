@@ -12560,10 +12560,9 @@ def test_a_repeated_stop_is_held_open_only_by_the_users_input(claimed, capsys):
 def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
     claimed, tmp_path, monkeypatch, capsys
 ):
-    """The hook captures every page's input, composes the turn's context, and only
-    then confirms each page. A page another session claimed in between refuses its
-    receipt, and its input stays pending for the new owner; the other page, and
-    the ones after the refusal, are confirmed as usual."""
+    """A captured delivery survives a transfer, but its reader cannot receipt it
+    while another session owns one of its pages. All input stays pending until
+    the reader holds every page again and acknowledges the complete delivery."""
     moved = tmp_path / "a-moved"  # ahead of `claimed` in the walk's path order
     shutil.copytree(claimed, moved)
     assert service_model.claim_page(moved)
@@ -12573,16 +12572,16 @@ def test_a_page_that_changed_hands_before_receipt_keeps_its_input(
         )
         for page in (moved, claimed)
     }
-    compose = hook_carrier_model.compose
+    freeze = hook_carrier_model.freeze_delivery
 
-    def compose_then_transfer(batches, attention):
-        composed = compose(batches, attention)
+    def freeze_then_transfer(batches, **kwargs):
+        delivery = freeze(batches, **kwargs)
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
         assert service_model.claim_page(moved)
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
-        return composed
+        return delivery
 
-    monkeypatch.setattr(hook_carrier_model, "compose", compose_then_transfer)
+    monkeypatch.setattr(hook_carrier_model, "freeze_delivery", freeze_then_transfer)
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
     assert "decision" not in answer
@@ -14543,6 +14542,180 @@ def test_concurrent_resume_hooks_emit_one_reconnect_notice(page_dir, harness):
         f"leaf server start {shlex.quote(str(page_dir.resolve()))}"
         in json.loads(notice)["hookSpecificOutput"]["additionalContext"]
     )
+
+
+def test_reconnect_publication_and_task_activity_writer_cannot_lock_each_other_out(
+    page_dir, tmp_path, spawn
+):
+    """A publisher waiting on the writer's first page cannot hold its second page."""
+    first = tmp_path / "a-old" / "page"
+    second = tmp_path / "a" / "page"
+    shutil.copytree(page_dir, first)
+    second.parent.mkdir()
+    page_dir.rename(second)
+    for page in (first, second):
+        record_claim(page, harness="codex")
+        session_model.cmd_waiting(page, "Watching the current turn")
+        cleanup_model.write_json(
+            page / "service.json",
+            {
+                "host": "127.0.0.1",
+                "bind": "127.0.0.1",
+                "port": 41000,
+                "enabled": True,
+                "lifetime": "session",
+                "server_id": "retired-server",
+            },
+        )
+    common = """\
+import fcntl
+import os
+from pathlib import Path
+import sys
+from leaf import hooks, codex, service, state
+first = Path(os.environ["FIRST"])
+second = Path(os.environ["SECOND"])
+native_flock = fcntl.flock
+def names(fd, path):
+    held = os.fstat(fd if isinstance(fd, int) else fd.fileno())
+    return os.path.samestat(held, path.stat())
+"""
+    environment = os.environ | {"FIRST": str(first), "SECOND": str(second)}
+    writer = spawn(
+        [
+            sys.executable,
+            "-c",
+            common
+            + """\
+def second_page_is_available(fd, operation):
+    if operation == fcntl.LOCK_EX and names(fd, second / "events.jsonl"):
+        try:
+            return native_flock(fd, operation | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise RuntimeError("reconnect publisher holds the writer's second page while waiting for its first")
+    return native_flock(fd, operation)
+fcntl.flock = second_page_is_available
+enter = service.PageTransaction.__enter__
+def held_first_page(page):
+    entered = enter(page)
+    if page.page_dir == first:
+        print("writer holds first page", flush=True)
+        assert sys.stdin.readline() == "continue\\n"
+    return entered
+service.PageTransaction.__enter__ = held_first_page
+expected = state.session_record("s1")
+codex.set_stream_activity("s1", expected["turn"], {"kind": "working", "detail": "Both pages updated"}, expected=expected)
+""",
+        ],
+        env=environment,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert select.select([writer.stdout], [], [], STATED_TIMEOUT)[0], (
+        "the task writer never acquired its first page"
+    )
+    assert writer.stdout.readline() == "writer holds first page\n"
+    publisher = spawn(
+        [
+            sys.executable,
+            "-c",
+            common
+            + """\
+def observed_contention(fd, operation):
+    if operation == fcntl.LOCK_EX and names(fd, first / "events.jsonl"):
+        try:
+            return native_flock(fd, operation | fcntl.LOCK_NB)
+        except BlockingIOError:
+            print("publisher waiting for first page", flush=True)
+    return native_flock(fd, operation)
+fcntl.flock = observed_contention
+hooks.cmd_hook("codex", {"hook_event_name": "SessionStart", "session_id": "s1", "source": "resume"})
+""",
+        ],
+        env=environment,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    assert select.select([publisher.stdout], [], [], STATED_TIMEOUT)[0], (
+        "the reconnect publisher never contended on the writer's held page"
+    )
+    assert publisher.stdout.readline() == "publisher waiting for first page\n"
+    output, error = writer.communicate("continue\n", timeout=STATED_TIMEOUT)
+    assert writer.returncode == 0, f"{output}{error}"
+    output, error = publisher.communicate(timeout=STATED_TIMEOUT)
+    assert publisher.returncode == 0, f"{output}{error}"
+    context = json.loads(output)["hookSpecificOutput"]["additionalContext"]
+    for page in (first, second):
+        assert f"leaf server start {shlex.quote(str(page))}" in context
+        assert (
+            files_model.read_json(page / "status.json")["stream"]["activity"]["detail"]
+            == "Both pages updated"
+        )
+
+
+@pytest.mark.parametrize("harness", ["claude-code", "codex"])
+@pytest.mark.parametrize("event", ["SessionStart", "UserPromptSubmit"])
+def test_a_stale_hook_cannot_consume_the_resumed_turns_reconnect_notice(
+    page_dir, harness, event, monkeypatch, capsys
+):
+    """An overlapping prompt can discard old context without silencing recovery."""
+    from leaf import reconnect as reconnect_model
+
+    record_claim(page_dir, harness=harness)
+    cleanup_model.write_json(
+        page_dir / "service.json",
+        {
+            "host": "127.0.0.1",
+            "bind": "127.0.0.1",
+            "port": 41000,
+            "enabled": True,
+            "lifetime": "session",
+            "server_id": "retired-server",
+        },
+    )
+    cleanup_model.end_session("s1")
+    with monkeypatch.context() as overlap:
+        if event == "SessionStart":
+            records = reconnect_model.claim_records
+
+            def resumed_while_discovering(sid):
+                # Exhaustion is after the former per-page notice reservations,
+                # but before the final check that decides whether to print them.
+                yield from records(sid)
+                cleanup_model.prompt_turn(sid, "newer-turn")
+
+            overlap.setattr(reconnect_model, "claim_records", resumed_while_discovering)
+        else:
+            plans = hook_carrier_model.read_plans
+
+            def resumed_while_planning(sid):
+                reading = plans(sid)
+                cleanup_model.prompt_turn(sid, "newer-turn")
+                return reading
+
+            overlap.setattr(hook_carrier_model, "read_plans", resumed_while_planning)
+        hooks_model.cmd_hook(
+            harness,
+            {"hook_event_name": event, "session_id": "s1", "source": "resume"},
+        )
+    assert capsys.readouterr().out == ""
+    resume = {
+        "hook_event_name": "SessionStart",
+        "session_id": "s1",
+        "source": "resume",
+    }
+    hooks_model.cmd_hook(harness, resume)
+    output = capsys.readouterr().out
+    assert output, "the stale hook silenced the reconnect notice for every later turn"
+    assert (
+        f"leaf server start {shlex.quote(str(page_dir.resolve()))}"
+        in json.loads(output)["hookSpecificOutput"]["additionalContext"]
+    )
+    hooks_model.cmd_hook(harness, resume)
+    assert capsys.readouterr().out == ""
 
 
 def test_prompt_combines_reconnect_notice_and_pending_user_delivery(claimed, capsys):
@@ -17202,15 +17375,17 @@ def test_hook_publication_never_receipts_input_before_its_reader(
         )
     # A lock taken after planning would block the former receipt loop after its
     # first write, allowing a harness timeout to discard context already receipted.
-    compose = hook_carrier_model.compose
+    freeze = hook_carrier_model.freeze_delivery
     held = service_model.PageTransaction(sibling)
 
-    def compose_with_locked_receipt_page(batches, attention):
-        message = compose(batches, attention)
+    def freeze_with_locked_receipt_page(batches, **kwargs):
+        delivery = freeze(batches, **kwargs)
         held.__enter__()
-        return message
+        return delivery
 
-    monkeypatch.setattr(hook_carrier_model, "compose", compose_with_locked_receipt_page)
+    monkeypatch.setattr(
+        hook_carrier_model, "freeze_delivery", freeze_with_locked_receipt_page
+    )
     try:
         hooks_model.cmd_hook(
             "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
@@ -17223,7 +17398,7 @@ def test_hook_publication_never_receipts_input_before_its_reader(
         held.__exit__(None, None, None)
     # Discard the first output just as the harness does on timeout. A later prompt
     # publishes the same input; only its reader's exact ack advances cursors.
-    monkeypatch.setattr(hook_carrier_model, "compose", compose)
+    monkeypatch.setattr(hook_carrier_model, "freeze_delivery", freeze)
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )

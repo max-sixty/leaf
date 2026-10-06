@@ -7967,7 +7967,7 @@ def test_an_agent_reply_into_an_open_card_cues_only_its_own_words(browser, serve
     rendered(page)
     cued = """preview => [...preview.querySelectorAll('.lf-msg')].filter(message =>
       message.getAnimations().some(animation =>
-        animation.effect.getKeyframes().some(frame => frame.backgroundColor)))
+        animation.effect.getKeyframes().some(frame => frame['--lf-msg-arrival'])))
       .map(message => message.textContent.includes('arriving') ? 'reply' : 'root')"""
     assert preview.evaluate(cued) == []
     # Pause the cue at its first frame, before driver latency can let it finish.
@@ -7979,7 +7979,7 @@ def test_an_agent_reply_into_an_open_card_cues_only_its_own_words(browser, serve
               node.textContent.includes('arriving'));
             if (!message) return;
             const cue = message.getAnimations().find(animation =>
-              animation.effect.getKeyframes().some(frame => frame.backgroundColor));
+              animation.effect.getKeyframes().some(frame => frame['--lf-msg-arrival']));
             if (cue) { cue.pause(); cue.currentTime = 0; }
             window.__arrival = Boolean(cue);
             observer.disconnect();

@@ -72,9 +72,9 @@ directory explicitly; export or copy anything that must outlive the page directo
    `leaf page check` before the reply, even on a record, because each valid save
    is already live on the user's page and further checking only delays the answer
    they are waiting for. Stamp a record again, with its render check and reading,
-   at a checkpoint the user would name, such as sign-off (step 6), or when an
-   answer to a page Ask needs a stamped version
-   (`references/authoring-revisions.md`). A page declaring
+   at a checkpoint the user would name, such as sign-off (step 6), and wherever a
+   reference requires a stamped version, as taking in an answer to a page Ask
+   does (`references/authoring-revisions.md`). A page declaring
    `<meta name="lf-review" content="sign-off">` is always a record, since
    approval requires a stamped version.
 4. Read `references/conversation-loop.md` and exactly one harness contract:

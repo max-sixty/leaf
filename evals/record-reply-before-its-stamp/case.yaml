@@ -5,8 +5,9 @@
 # the user names. Base at bff833ee2 rendered and stamped before the reply on both
 # harnesses (0 of 3 each); the change replied after `page check` and stamped at
 # sign-off (3 of 3 each). Against base bb97a2801, after the skill's core principles
-# landed, the scores held: base 0 of 3 and the change 3 of 3 on each harness. Base
-# fails the sign-off criterion only because it already stamped before the first reply.
+# landed, the scores held: base 0 of 3 and the change 3 of 3 on each harness, and
+# the final wording 2 of 2. Base fails the sign-off criterion only because it already
+# stamped before the first reply.
 description: record-reply-before-its-stamp
 metadata:
   purpose: 'Checks and checkpoints: a revision answering a message on a stamped record is checked

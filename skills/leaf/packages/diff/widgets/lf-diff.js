@@ -189,12 +189,9 @@ function renderedLines(file, rendered) {
 // a path wraps, as in a rename's row, it breaks after its slashes before anywhere else:
 // with no break in it but the one the stylesheet forces, a narrow row cut names mid-word
 // ("skills/wor|ktrunk", "preview.|rs"). The text is unchanged; a <wbr> adds only the
-// opportunity, and the title holds the whole path wherever the row cuts it.
+// opportunity.
 function pathNode(className, path) {
-  const node = Object.assign(document.createElement("span"), {
-    className,
-    title: path,
-  });
+  const node = Object.assign(document.createElement("span"), { className });
   const parts = path.split("/");
   const base = parts.pop();
   if (parts.length) {
@@ -213,21 +210,26 @@ function pathNode(className, path) {
   return node;
 }
 
-// A row wears `data-path-cut` while it cuts its path short. Whether it does changes only
-// with the width of a part of the path, the folders or the name (the window, the face,
-// the press beside it), so each part's size is watched rather than polled. A part is
-// cut where its words run past its box, measured by a Range to the layout unit:
-// `scrollWidth` rounds to whole pixels, and the ellipsis is drawn for a fraction of one.
+// While a file's row cuts its path short, the row wears `data-path-cut`, which draws the
+// whole path for the keyboard and a held press (shadow.css), and the path's title holds
+// it for a pointer resting there. A path the row shows whole has neither, since each
+// would repeat it. Whether the row cuts the path changes only with the width of a part
+// of it, the folders or the name (at a new window width, face or press beside it), so
+// each part's size is watched rather than polled. A part is cut where its words run
+// past its box, measured by a Range to the layout unit: `scrollWidth` rounds to whole
+// pixels, and the ellipsis is drawn for a fraction of one.
 const runsPast = (part) => {
   const words = new Range();
   words.selectNodeContents(part);
   return words.getBoundingClientRect().width > part.getBoundingClientRect().width;
 };
-function watchPathCut(summary, named) {
+function watchPathCut(summary, named, path) {
   const parts = [...named.children];
-  const sizes = sizeObserver(() =>
-    summary.toggleAttribute("data-path-cut", parts.some(runsPast)),
-  );
+  const sizes = sizeObserver(() => {
+    const cut = parts.some(runsPast);
+    summary.toggleAttribute("data-path-cut", cut);
+    keeps(named, "title", cut ? path : null);
+  });
   for (const part of parts) sizes.observe(part);
 }
 
@@ -235,11 +237,10 @@ function summaryNode(file, open) {
   const details = document.createElement("details");
   details.className = "lf-diff-fold";
   details.open = open;
-  // The row's path gives way from its folders, and its title reaches only a pointer
-  // resting on it, so a row that cuts its path short says the whole path while the
-  // keyboard stands on it or a press is held on it (held-word.js, shadow.css). It says
-  // `data-path`: the path with a zero-width space after each slash, since generated
-  // content takes no <wbr>.
+  // The row's path gives way from its folders, so a row that cuts it short says the
+  // whole path (`watchPathCut`), and a press held on the row reads it as the keyboard
+  // standing there does (held-word.js). It says `data-path`: the path with a zero-width
+  // space after each slash, since generated content takes no <wbr>.
   const summary = document.createElement("summary");
   summary.className = `lf-diff-head ${HOLDS_WORD}`;
   const path = file.name || "(unnamed file)";
@@ -252,7 +253,7 @@ function summaryNode(file, open) {
   const named = pathNode("lf-diff-path", path);
   named.dataset.path = path.replaceAll("/", "/\u200b");
   summary.append(named, stat);
-  watchPathCut(summary, named);
+  watchPathCut(summary, named, path);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",

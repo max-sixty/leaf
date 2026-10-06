@@ -12497,7 +12497,7 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     resting on it. The keyboard standing on the row, and a finger held on it, read the
     whole path in a box under the row, a folded file's too, over the next file's row.
     Releasing the hold folds the file, as a tap does, and a tap shows nothing. A row
-    that shows its whole path at the width it has now shows no box."""
+    that shows its whole path at the width it has now shows no box and has no title."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/nested/file.md"
     patch = "".join(
         f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
@@ -12593,20 +12593,24 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     assert head.evaluate(read)["open"] is True, "a tap unfolds it"
     assert head.evaluate(read)["word"] is None
 
-    # A row that shows its whole path shows no box, and a row's box follows the width
-    # the row is given while the keyboard stays on it.
+    # A row that shows its whole path shows no box and has no title, and a row's box
+    # and title follow the width the row is given while the keyboard stays on it.
     page.keyboard.press("Shift")
+    titled = "head => head.querySelector('.lf-diff-path').getAttribute('title')"
     short = page.locator("lf-diff .lf-diff-head").nth(1)
     short.focus()
     assert short.evaluate(read)["word"] is None, "a short path is said twice"
+    assert short.evaluate(titled) is None, "a short path's title repeats it"
     head.focus()
-    assert head.evaluate(read)["word"] == whole
+    assert head.evaluate(read)["word"] == whole and head.evaluate(titled) == path
     page.set_viewport_size({"width": 1400, "height": 844})
     rendered(page)
     assert head.evaluate(read)["word"] is None, "a path the row shows whole is said"
+    assert head.evaluate(titled) is None
     page.set_viewport_size({"width": 390, "height": 844})
     rendered(page)
     assert head.evaluate(read)["word"] == whole, "a narrowed row hides its path"
+    assert head.evaluate(titled) == path
 
 
 # A page-authored driver that points at a code block's lines through its declared `for`,

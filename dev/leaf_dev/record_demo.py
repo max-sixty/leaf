@@ -236,9 +236,7 @@ class DemoWaiter:
         if not stdout.strip():
             payload = {}
         elif hooked:
-            payload = freeze_delivery(
-                pending_batches(harness.session), carrier="hook"
-            )
+            payload = freeze_delivery(pending_batches(harness.session), carrier="hook")
             receive_held(payload, harness.session)
         else:
             payload = json.loads(stdout)

@@ -356,8 +356,7 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
                 <code>leaf delivery read &lt;delivery-id&gt;</code> confirms a pointer,
                 which the hook hands over instead when the input is too large for the
                 turn's context or the hook ran too slowly to confirm it. A Codex task
-                running its
-                own wait gets the envelope printed and confirms it with
+                running its own wait gets the envelope printed and confirms it with
                 <code>leaf wait --ack &lt;delivery-id&gt;</code>; printed output can be
                 lost or cut off, so unconfirmed events stay available to the next wait.
                 The Codex adapter acknowledges what it carries, and the agent follows
@@ -582,8 +581,8 @@ flowchart TD
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-picked" at="1s" kind="observation">
                 <strong>Picked up</strong> Leaf's hook puts your comment in the agent's
-                turn and confirms receipt. Your comment reads Picked up, and until the agent
-                writes its own words the banner reads
+                turn and confirms receipt. Your comment reads Picked up, and until the
+                agent writes its own words the banner reads
                 <em>Claude working — on your update</em>.
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-reply" at="5s" kind="intervention">

@@ -17406,9 +17406,7 @@ def test_a_hook_confirms_only_what_it_has_already_published(
     assert all(events_model.read_cursor(page) > 0 for page in (claimed, sibling))
 
 
-def test_a_hook_too_slow_to_confirm_hands_over_a_pointer(
-    claimed, monkeypatch, capsys
-):
+def test_a_hook_too_slow_to_confirm_hands_over_a_pointer(claimed, monkeypatch, capsys):
     """A hook past CONFIRM_WITHIN may be past its harness's timeout by the time it
     exits, which would discard what it printed, so it confirms nothing and hands
     over a pointer; the session's own `leaf delivery read` confirms it. Read after

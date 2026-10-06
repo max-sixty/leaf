@@ -187,7 +187,9 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     if (
       !key ||
       !surface?.id ||
-      !(surface.hasAttribute("aria-label") || surface.hasAttribute("aria-labelledby")) ||
+      !(
+        surface.hasAttribute("aria-label") || surface.hasAttribute("aria-labelledby")
+      ) ||
       !scroller ||
       !focus ||
       !show ||

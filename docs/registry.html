@@ -712,19 +712,22 @@
             <h3><code>x-space</code></h3>
             <div class="reference-copy">
               <p>
-                The default width capacity an element needs beyond the prose measure:
-                <code>wide</code> takes the vocabulary's shared capped evidence width,
-                while <code>available</code> takes all room the page shell can give
-                after enclosing frames, chrome, and actual margin residents.
+                The default width an element takes in a flow wider than the prose
+                measure: <code>column</code> keeps that measure and starts where the
+                prose does, for an element whose content is read as lines of text;
+                <code>wide</code> takes the vocabulary's shared capped evidence width;
+                <code>available</code> takes all room the page shell can give after
+                enclosing frames, chrome, and actual margin residents.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-space contract">Full contract</summary>
                 <p>
-                  The declaration says nothing about how the package arranges content
-                  inside that allocation. An authored occurrence may override the
-                  default with data-width=column|wide|available; delivery paints that
-                  choice into the served document as data-lf-space and the theme
-                  allocates it without moving the prose axis.
+                  An element that declares none fills the box it stands in. The
+                  declaration says nothing about how the package arranges content inside
+                  that allocation. An authored occurrence may override the default with
+                  data-width=column|wide|available; delivery paints that choice into the
+                  served document as data-lf-space and the theme allocates it without
+                  moving the prose axis.
                 </p>
               </details>
             </div>

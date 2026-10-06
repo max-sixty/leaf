@@ -198,7 +198,10 @@ function paint() {
   render(menuTemplate(), overflowMenu);
   for (const entry of controls.values()) paintControl(entry);
   if (!held || document.activeElement === held.focusTarget) return;
-  (focusable(held) ? held.focusTarget : overflowBtn).focus({ preventScroll: true });
+  // Where the control stands, not whether it would take a press: a refused Approval
+  // is still a Tab stop.
+  const door = bannerControlDoor(held.control);
+  (door === held.control ? held.focusTarget : door)?.focus({ preventScroll: true });
 }
 
 const focusable = (entry) =>

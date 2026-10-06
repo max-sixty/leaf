@@ -3189,6 +3189,20 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     expect(more).to_have_attribute("aria-expanded", "false")
     expect(more).to_be_focused()
 
+    # Crossing the phone width reseats the refused Approval, a Tab stop like any
+    # other, and focus goes with it: to the door while More is shut, and to Approval
+    # itself wherever it stands visible.
+    refused = page.locator(".lf-signoff")
+    resized(page, 1200, 800)
+    refused.focus()
+    resized(page, 390, 800)
+    expect(more).to_be_focused()
+    page.keyboard.press("Enter")
+    refused.focus()
+    resized(page, 1200, 800)
+    expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
+    expect(refused).to_be_focused()
+
 
 def test_more_wears_a_dot_while_a_press_would_approve(browser, serve):
     """On a phone Approval stands behind More, and More wears its dot, named in its

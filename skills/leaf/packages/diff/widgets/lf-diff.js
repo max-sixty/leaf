@@ -30,9 +30,10 @@ import {
   loadDeferred,
   listWalkPosition,
   offer,
+  once,
   paintKeys,
   projectData,
-  consumeThreads,
+  placeThreads,
   relabel,
   retainUserIntent,
   scrollBehavior,
@@ -648,20 +649,13 @@ customElements.define(
 
     connectedCallback() {
       this.addEventListener("lf-reveal", this.revealPassage);
-      this.stopActions ??= this.controller.subscribe(this.paintReviewAvailability);
+      if (once(this)) this.controller.subscribe(this.paintReviewAvailability);
       if (!this.threadSurface)
-        this.threadSurface = consumeThreads(this, (collection, surfaces) => {
+        this.threadSurface = placeThreads(this, (targets) => {
           this.beginThreadSurface();
-          for (const thread of collection.threads) {
-            if (thread.anchor?.section !== this.id || !thread.anchor.datum) continue;
-            const target = surfaces.target(thread.key);
-            const outlet = target && this.threadOutletFor(target);
-            if (outlet) surfaces.place(thread.key, outlet);
-          }
-          const outlet =
-            surfaces.composition && this.threadOutletFor(surfaces.composition);
-          if (outlet) surfaces.placeComposition(outlet);
+          const outlets = targets.map((target) => this.threadOutletFor(target));
           this.endThreadSurface();
+          return outlets;
         });
       if (this.stopWatching) return;
       // A page diff's file header pins at `--lf-top`, the top of the page's box that
@@ -798,8 +792,6 @@ customElements.define(
 
     disconnectedCallback() {
       this.removeEventListener("lf-reveal", this.revealPassage);
-      this.stopActions?.();
-      this.stopActions = null;
       this.rendering = (this.rendering ?? 0) + 1;
       this.stopWatching?.();
       this.stopWatching = null;

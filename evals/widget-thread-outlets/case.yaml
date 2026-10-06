@@ -1,0 +1,34 @@
+# Guards local placement separately from independent dashboard mirrors.
+description: widget-thread-outlets
+metadata:
+  purpose: A package resolves seats for its own data without reimplementing Thread placement.
+  tags:
+  - packages
+  - threads
+vars:
+  prompt: |
+    I'm writing a Leaf package widget that displays projected data rows. Comments
+    should appear beside their row, including the user's editor before their first
+    comment is sent. Some rows are filtered out or still loading. The widget already
+    has beginThreadSurface(), endThreadSurface(), and outletFor(target), which returns
+    the row's outlet or null when no seat is available.
+
+    Read the public package references and show the supported registration code.
+    Leaf should retain its normal conversations, drafts, and fallback for comments
+    whose rows aren't visible. Return the JavaScript and required registry declaration.
+assert:
+- type: javascript
+  metric: reads-module-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/module-authoring\.md
+- type: llm-rubric
+  metric: resolves-local-outlets
+  value: |
+    Pass only if the widget declares x-thread-surface: true and registers through
+    placeThreads. Its callback uses Leaf's ordered target batch, returns a matching
+    array of outlets or null, and runs beginThreadSurface and endThreadSurface around
+    the batch. It must let core retain the Thread/composer identities and perform
+    placement, rather than enumerating/filtering the complete Thread collection,
+    placing by Thread key, or placing the composer separately. Fail if it mounts
+    independent mirrored conversations or hand builds conversation/editor DOM.

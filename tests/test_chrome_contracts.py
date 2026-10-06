@@ -563,8 +563,16 @@ def test_a_reply_lands_above_an_open_cards_reply_box_and_moves_neither_it_nor_it
             now,
         )
         if answers > 1:
-            tail = message.evaluate("el => el.getBoundingClientRect().bottom")
-            assert list_box[0] < tail <= standing["box"][0] + 1
+            # At the scroll limit, line leading can lie under the pinned editor.
+            # The words must clear it, so measure text rather than the message box.
+            tail = message.locator(".lf-msg-text > p").last.evaluate(
+                """el => {
+                  const range = document.createRange();
+                  range.selectNodeContents(el);
+                  return range.getBoundingClientRect().bottom;
+                }"""
+            )
+            assert list_box[0] < tail <= now["box"][0], (standing, now, tail)
 
 
 @pytest.mark.parametrize("contents", ["short", "long"])
@@ -1321,8 +1329,7 @@ def test_a_conversation_keeps_its_face_and_sends_from_margin_and_panel(
               return {
                 messages: [...thread.querySelectorAll('.lf-msg')].map(message => ({
                   body: styles(message.querySelector('.lf-msg-body'), type),
-                  author: styles(message.querySelector(':scope > .lf-msg-head b')
-                    ?? thread.querySelector('.lf-thread-root-meta b'), type),
+                  author: styles(message.querySelector(':scope > .lf-msg-head b'), type),
                 })),
                 metadata: styles(thread.querySelector('.lf-msg-meta'), type),
                 field: styles(field, [...type, 'padding-top', 'padding-right', 'padding-bottom',
@@ -1726,16 +1733,16 @@ def test_resolved_thread_has_one_surface_and_reopens_from_its_title(
 
 @pytest.mark.parametrize("width", [320, 800])
 @pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
+def test_a_thread_keeps_submit_in_its_field_and_resolve_above_its_messages(
     browser, serve, width, scheme
 ):
-    """Submit belongs to the field while Resolve stands with the root metadata.
+    """Submit belongs to the field while Resolve has its own thread control row.
 
     Growing the field leaves Submit at its foot and Resolve fixed. The field
     puts its words on the messages' reading edge, and keeps their inset as the
     field grows and scrolls, leaving room for Submit in the same row.
-    Resolve aligns with the root author and time instead of the quoted target. The
-    same layout holds at narrow and wide panel widths in both palettes."""
+    Resolve stays above the transcript while each message keeps its author and time.
+    The same layout holds at narrow and wide panel widths in both palettes."""
     context = browser.new_context(
         viewport={"width": width, "height": 720}, color_scheme=scheme
     )
@@ -1783,7 +1790,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                                    height: own.height, right: own.right, bottom: own.bottom},
                           compose: rect('.lf-thread-reply'), field: rect('.lf-compose-field'),
                           field_box: rect('.lf-thread-reply leaf-text'),
-                          metadata: rect('.lf-thread-root-meta'),
+                          controls: rect('.lf-thread-controls'),
                           metadataActions: rect('.lf-thread-meta-actions'),
                           send: rect('.lf-thread-send'), resolve: rect('.lf-resolve'),
                           closeBorder: getComputedStyle(document.querySelector(
@@ -1800,7 +1807,8 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
                             close: radius('.lf-thread-panel-head [aria-label="Close threads"]'),
                           },
                           message: rect('.lf-msg-body'),
-                          author: rect('.lf-thread-root-meta b'),
+                          header: rect('.lf-msg > .lf-msg-head'),
+                          author: rect('.lf-msg > .lf-msg-head b'),
                           messageFont: messageStyle.font,
                           inputFont: inputStyle.font,
                           textStart: rect('.lf-thread-reply leaf-text').x +
@@ -1826,7 +1834,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
     assert short["send"]["bottom"] < short["field_box"]["bottom"]
     assert short["textEnd"] <= short["send"]["x"]
     assert short["field"]["height"] < 50
-    assert short["resolve"]["y"] == pytest.approx(short["metadata"]["y"], abs=1)
+    assert short["resolve"]["y"] == pytest.approx(short["controls"]["y"], abs=1)
     assert short["metadataActions"]["right"] == pytest.approx(
         short["message"]["right"], abs=1
     )
@@ -1834,7 +1842,8 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_with_its_metadata(
         short["metadataActions"]["right"], abs=1
     )
     assert short["author"]["x"] == pytest.approx(short["message"]["x"], abs=1)
-    assert short["resolve"]["bottom"] <= short["metadata"]["bottom"] + 1
+    assert short["resolve"]["bottom"] <= short["controls"]["bottom"] + 1
+    assert short["controls"]["bottom"] <= short["header"]["y"]
     assert float(short["closeBorder"][:-2]) == 0
     assert float(short["resolveBorder"][:-2]) == 0
     assert float(short["sendBorder"][:-2]) == 0

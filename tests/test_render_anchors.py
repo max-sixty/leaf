@@ -5911,8 +5911,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     expect(thread.locator("leaf-text")).to_be_visible()
 
     # News updates the root's workflow line in both views, in place.
-    inline_status = thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
-    panel_status = panel_thread.locator(".lf-thread-root-meta .lf-msg-sending")
+    inline_status = thread.locator(
+        ":scope > .lf-thread-transcript > .lf-msg:first-child > .lf-msg-head .lf-msg-sending"
+    )
+    panel_status = panel_thread.locator(
+        ".lf-thread-transcript > .lf-msg:first-child > .lf-msg-head .lf-msg-sending"
+    )
     expect(inline_status).to_have_text("Sent")
     expect(panel_status).to_have_text("Sent")
     inline_status.evaluate("node => { node.dataset.identityProbe = 'inline'; }")

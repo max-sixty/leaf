@@ -462,13 +462,16 @@ def test_a_comment_box_opens_where_a_panel_beside_the_page_leaves_it_in_sight(
     page.keyboard.type("draft words")
     box = page.locator("leaf-text.lf-fab-input")
     expect(page.locator("#pr-exact-patch leaf-text.lf-fab-input")).to_be_focused()
+    page_at_rest(page)
     edge = panel.locator(".lf-edge").first.bounding_box()
     middle = edge["y"] + edge["height"] / 2
     page.mouse.move(edge["x"] + edge["width"] / 2, middle)
     page.mouse.down()
-    page.mouse.move(440, middle, steps=8)
+    # Slowly, so the box moves home and back toward its seat on frames between.
+    page.mouse.move(440, middle, steps=30)
     page.mouse.up()
-    expect(page.locator("#pr-exact-patch leaf-text.lf-fab-input")).to_have_count(0)
+    page_at_rest(page)
+    assert page.locator("#pr-exact-patch leaf-text.lf-fab-input").count() == 0
     assert box.evaluate("box => box.value") == "draft words"
     assert box.evaluate(
         "box => box.getBoundingClientRect().right <="

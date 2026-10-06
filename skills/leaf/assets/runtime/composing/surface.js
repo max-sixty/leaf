@@ -182,12 +182,7 @@ export function createResponseSurface({
   let fabPositionWaiters = [];
   const fabFocused = () => (fabInlineOutlet ? focused() : document.activeElement);
 
-  // A seat a panel stands over cannot take the user even where it paints: the panels
-  // dominate what focus reaches, so the editor falls back to its home instead.
-  const fabDrawn = () => {
-    const editor = composerOpen ? fabInput : fabBar;
-    return drawn(editor) && !underOccluder(editor);
-  };
+  const fabDrawn = () => drawn(composerOpen ? fabInput : fabBar);
   const answerFabPosition = (positioned) => {
     // Physical completion cannot certify an editor hidden by its current seat.
     // Keep its waiters until a current placement commits it, or cancellation declines.
@@ -227,6 +222,14 @@ export function createResponseSurface({
 
   function seatFab(outlet) {
     if (!(outlet instanceof Element) || !fabAnchor || !composerOpen) return false;
+    // A seat a panel stands over cannot take the user even where it paints: the panels
+    // dominate what focus reaches, so the editor stays at its home instead. The seat is
+    // judged, not the editor moved into it, which measures no width until the outlet
+    // renders it; a boxless outlet is judged by the box that lays out what it holds.
+    let seat = outlet;
+    while (seat && !(seat.getBoundingClientRect().width > 0))
+      seat = seat.parentElement ?? seat.getRootNode().host;
+    if (seat && underOccluder(seat)) return false;
     // Admit the actual editor after its native move: an empty or display:contents
     // outlet has no visibility of its own. A rejected nomination leaves the previous
     // seat, geometry and held typing place intact so the cohort can try its fallback.

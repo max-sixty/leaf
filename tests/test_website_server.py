@@ -54,7 +54,14 @@ from leaf.structure import SourceDocument
 from leaf.thread import cmd_reply, cmd_resolve
 from leaf_dev import example_previews, journey, startup, verify_site
 from playwright.sync_api import expect
-from render_harness import LONG_PAGE, consume_browser_errors, open_page, told, write
+from render_harness import (
+    LONG_PAGE,
+    consume_browser_errors,
+    open_page,
+    panel_settled,
+    told,
+    write,
+)
 from websockets.exceptions import ConnectionClosedError
 
 ROOT = Path(__file__).parent.parent
@@ -1213,7 +1220,6 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     # the status to the harness.
     instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
     assert "Leave the page's status to the harness" in instructions
-    assert "leaf page check" not in instructions
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(
@@ -2871,6 +2877,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     page.reload()
     told(page)
     page.locator(".lf-threads-toggle").click()
+    panel_settled(page, True)
     page.evaluate("window.__leafVerifier.startVisibleReplyClock")
     box = page.locator(".lf-general leaf-text")
     write(box, "edit the page")
@@ -2889,7 +2896,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     told(page)
     rendered(page)
     thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
-    metadata = thread.locator(".lf-thread-root-meta > .lf-msg-head")
+    metadata = thread.locator(
+        ".lf-thread-transcript > .lf-msg:first-child > .lf-msg-head"
+    )
     expect(metadata.locator(".lf-msg-sending")).to_have_count(1)
     news = thread.locator(".lf-thread-news")
     expect(news).to_be_visible()

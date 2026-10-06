@@ -3,6 +3,8 @@
    Every surface uses the same metadata, transcript, message and reply vocabulary.
    Containers own navigation and placement, including whether their transcript scrolls;
    shadow.css owns the conversation's appearance through widget shadow boundaries.
+   Thread controls stay outside the transcript's message and summary folds. MessageView
+   owns each complete message, so no container extracts or reparents its header.
 
    Immutable descriptors contain generated presentation only. Retained native editors,
    margin controls and frozen message widgets keep their mechanical lifetime outside
@@ -249,6 +251,17 @@ const marginControlsSizes = sizeObserver((entries) => {
     );
 });
 
+// A panel card's reply row is pinned over the turns above it at the list's foot, so the
+// card states the row's height and a landing in those turns stops above it (chrome.css).
+// The row grows with its draft, so the height is read rather than a token.
+const replyRowSizes = sizeObserver((entries) => {
+  for (const { target, borderBoxSize } of entries)
+    target.parentElement?.style.setProperty(
+      "--lf-thread-reply-h",
+      `${borderBoxSize[0].blockSize}px`,
+    );
+});
+
 export class ThreadView {
   #commands;
   #messageCommands;
@@ -260,7 +273,7 @@ export class ThreadView {
   #outletReplyShown = null;
   #keys = new WeakSet();
   #settlements = new Map();
-  #metadataActions = document.createElement("span");
+  #actions = document.createElement("span");
   #expandedSummaries = new Set();
   #navigation = null;
   #marginControls = null;
@@ -310,7 +323,7 @@ export class ThreadView {
       this.node.dataset.lfGen = "1";
       this.node.dataset.lfOffer = "";
     }
-    this.#metadataActions.className = "lf-thread-meta-actions";
+    this.#actions.className = "lf-thread-meta-actions";
     // Native disclosure opens at the attribute checkpoint; queued toggle may arrive
     // after paint. Release held news here so the first opened body is current,
     // whether a summary, the panel list's choice (a walk to the card) or a
@@ -474,26 +487,19 @@ export class ThreadView {
         : null;
     this.#titleControl = titleControl;
     const marginControls = model.surface === "margin" ? this.#marginControls : null;
-    let headerActions = null;
+    let threadActions = null;
     if (!model.resolved || replySlot || model.folding || marginControls) {
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
         : [headerSettlement ? null : settlement].filter(Boolean);
-      for (const child of [...this.#metadataActions.children])
+      for (const child of [...this.#actions.children])
         if (!actions.includes(child)) child.remove();
       actions.forEach((control, index) => {
-        if (this.#metadataActions.children[index] !== control)
-          this.#metadataActions.insertBefore(
-            control,
-            this.#metadataActions.children[index] ?? null,
-          );
+        if (this.#actions.children[index] !== control)
+          this.#actions.insertBefore(control, this.#actions.children[index] ?? null);
       });
-      headerActions = this.#metadataActions;
+      threadActions = actions.length || model.news ? this.#actions : null;
     }
-    // The root's metadata row carries the thread's actions, except in the margin card,
-    // whose controls stand over its own scrolling transcript, where each message keeps
-    // its head.
-    const hoists = Boolean(headerActions) && !marginControls;
     const describedRanges = summaryRanges(model.messages, model.summaries);
     const summaries = new Set(model.summaries.map(({ id }) => id));
     for (const id of this.#expandedSummaries)
@@ -515,7 +521,7 @@ export class ThreadView {
       };
     });
     const boundaries = panel ? unreadBoundaries(rangeState) : new Map();
-    const messages = model.messages.map((message, index) => {
+    const messages = model.messages.map((message) => {
       let view = this.#messages.get(message.key);
       if (!view)
         this.#messages.set(
@@ -523,10 +529,9 @@ export class ThreadView {
           (view = new MessageView(this.#messageCommands)),
         );
       view.present(message, {
-        externalHeader: index === 0 && hoists,
         arrived: Boolean(prior),
       });
-      return { key: message.key, node: view.node, header: view.header };
+      return { key: message.key, node: view.node };
     });
     this.#lastMessage = messages.at(-1)?.node ?? null;
     const messageNodes = new Map(messages.map(({ key, node }) => [key, node]));
@@ -546,9 +551,7 @@ export class ThreadView {
         nodes,
       };
     });
-    const hoistedRoot = hoists ? messages[0]?.key : null;
-    const markerFor = (key) =>
-      readBoundary(key === hoistedRoot ? null : boundaries.get(key));
+    const markerFor = (key) => readBoundary(boundaries.get(key));
     const transcript = repeat(
       ranges,
       (range) => range.key,
@@ -584,15 +587,14 @@ export class ThreadView {
             </header>`
           : nothing
       }
-      ${readBoundary(hoistedRoot ? boundaries.get(hoistedRoot) : null)}
       ${
-        hoists && messages[0]
-          ? html`<div class="lf-thread-root-meta" data-lf-reflow="text">
-              ${messages[0].header}${news} ${headerActions}
-            </div>`
-          : headerActions
-            ? this.#marginControlsRowOf(html`${news}${headerActions}`)
-            : nothing
+        threadActions
+          ? marginControls
+            ? this.#marginControlsRowOf(html`${news}${threadActions}`)
+            : html`<div class="lf-thread-controls" data-lf-reflow="text">
+                ${news}${threadActions}
+              </div>`
+          : nothing
       }
       <div class="lf-thread-transcript">${transcript}</div>
     `;
@@ -887,7 +889,15 @@ export class ThreadView {
       ...this.#commands.reply,
       onChange: replyChanged,
     });
-    return { node: row, dispose: lifetime.dispose };
+    if (!panel) return { node: row, dispose: lifetime.dispose };
+    replyRowSizes.observe(row);
+    return {
+      node: row,
+      dispose: () => {
+        replyRowSizes.unobserve(row);
+        lifetime.dispose();
+      },
+    };
   }
 
   #prepareLanding(reopen) {

@@ -568,6 +568,10 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
         claim = reading.transaction.active_claim
         last = reading.batch[-1]["seq"]
         end, settled = first_sight(reading.page_dir, last)
+        # TODO: read what the stopped turn was handed from its pickups rather than
+        # from where the log stood: input that arrived mid-run but was never handed
+        # over, as Pi holds it until `turn_end`, then waits for the next prompt
+        # instead of waking the session.
         if interrupted:
             return last > end
         return (

@@ -32,6 +32,10 @@
  * SessionEnd registrations do the same work under either watch and stay in
  * `hooks.json`.
  *
+ * TODO: once Claude Code loads modules without an opt-in, make this module the
+ * only carrier and drop the background Stop registration, `loop-guard.py`, and
+ * the interrupt half of the nudge.
+ *
  * A module's processes inherit Claude Code's own environment, which names no
  * session of its own, so every call states the session and Claude Code's process
  * as a hook's environment does. That process is the parent of every process the
@@ -145,6 +149,9 @@ async function wake($: EngineInterface, session: string, ended: Watch, woke: str
       // The turn may have ended while the hook ran, and an idle session reads an
       // appended row only at its next turn. The prompt that starts one has its
       // prompt hook carry the handed input back as a move still owed its answer.
+      // TODO: a turn that ends between this check and the append leaves the row
+      // unread until the next turn, and the watch that ending starts sees the
+      // input as handed over, so it waits for the user's next prompt.
       if (running) {
         await $.session.append({
           message: { type: 'user', content: [{ type: 'text', text: context ?? prompt }] },

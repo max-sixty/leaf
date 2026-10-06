@@ -37,7 +37,6 @@ import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { takesLetters } from "../focus.js";
-import { coarsePointer } from "../pointer.js";
 import { repaint } from "../repaint.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
@@ -51,14 +50,15 @@ import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
 
 // The floating field immediately accepts a comment on the target the user named.
-// Tab from the field, `e`, or on a coarse pointer the ellipsis, unfolds every other
-// response the target offers. The field is the group's stable primary control; reaction
+// Tab from the field, or `e` while it stands unfocused, unfolds every other response
+// the target offers. The field is the group's stable primary control; reaction
 // vocabulary changes the choices, not the disclosure or the field's place.
 //
-// A fine pointer gets no ellipsis: the field spans the bar, so a sent message keeps the
-// card's whole measure rather than ending a button's width short of its Reply field.
-// Its keys open the choices. A finger has no keys, so a coarse pointer keeps the
-// ellipsis as its route to Suggest and the reactions (keyboard/AGENTS.md, "Touch routes").
+// The bar shows no ellipsis (⋯) on any pointer: the field spans the bar, so a sent
+// message keeps the card's whole measure rather than ending a button's width short of
+// its Reply field. The keys are the only route to Suggest and the reactions, so a mouse
+// or a finger alone has none. That gap is accepted for now; whether to make them more
+// available is open (TODO.md, keyboard/AGENTS.md "Touch routes").
 // One affordance, raised only where the user has already pointed: a native text
 // selection or an explicit Comment target gesture on an item or visual part.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
@@ -77,26 +77,17 @@ export const fab = responseAction(el("button", "lf-ui lf-fab"), {
 });
 fab.id = "lf-comment-button";
 fab.title = "Comment";
-const fabMore = responseAction(el("button", "lf-ui lf-response-more"), {
-  icon: "more",
-  label: "Other responses",
-  behavior: "disclosure",
-  collapse: true,
-});
-fabMore.setAttribute("aria-label", "Show other responses");
-fabMore.title = "Show other responses";
 export const fabOptions = el("span", "lf-response-options");
 fabOptions.id = "lf-response-options";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
-fabMore.setAttribute("aria-controls", fabOptions.id);
 const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
   icon: "edit",
   label: "Suggest",
   collapse: true,
 });
 fabOptions.append(fabSuggest);
-fabBar.append(fab, fabMore, fabOptions);
+fabBar.append(fab, fabOptions);
 
 export const composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
@@ -346,11 +337,10 @@ export function createSelectionComposer({
     if (next) setReact(false);
     responseOptionsOpen = next;
     fabBar.classList.toggle("lf-response-open", next);
-    fabMore.setAttribute("aria-expanded", String(next));
     if (place && fabAnchorAt()) showFab(fabAnchorAt());
     if (next && focus) focusResponseOption(focus);
     else if (!next && returnFocus) {
-      [fabInput, fabMore, fab]
+      [fabInput, fab]
         .find((control) => control.checkVisibility())
         ?.focus({ preventScroll: true });
     }
@@ -366,10 +356,6 @@ export function createSelectionComposer({
         !designModeActive() &&
         (!composerOpen || (!pendingAbout && !pendingDrawing))
       ),
-    );
-    keepsHidden(
-      fabMore,
-      !anchor || !responseOptionsAvailable() || !coarsePointer.matches,
     );
     if (responseOptionsOpen && !responseOptionsAvailable())
       setResponseOptions(false, { place: false });
@@ -629,7 +615,6 @@ export function createSelectionComposer({
 
   function mount() {
     declareResponseOptionKeys();
-    coarsePointer.addEventListener("change", () => syncResponseOptions());
     syncComposer = wireInput(composerInput, {
       hint: () =>
         suggestCheck.checked
@@ -710,11 +695,6 @@ export function createSelectionComposer({
     });
     suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);
     fabSuggest.onclick = () => setSuggestionMode(!suggestCheck.checked);
-    fabMore.onclick = () =>
-      setResponseOptions(!responseOptionsOpen, {
-        focus: responseOptionsOpen ? null : "first",
-        returnFocus: responseOptionsOpen,
-      });
     document.addEventListener("focusin", (event) => {
       if (responseOptionsOpen && !fabBar.contains(event.composedPath()[0]))
         setResponseOptions(false);

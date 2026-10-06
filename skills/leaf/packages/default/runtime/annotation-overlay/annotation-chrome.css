@@ -98,18 +98,12 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     min-height: var(--lf-response-height);
     grid-column: 1; grid-row: 1; align-self: stretch;
     grid-template-rows: minmax(0, 1fr); }
-  /* Only a coarse pointer shows the ellipsis (composing/selection.js). It takes an
-     implicit column, so without it the field spans the bar and no gap is kept for it. */
-  .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-response-more {
-    grid-column: 2; grid-row: 1; }
   .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-response-options {
     grid-column: 1 / -1; grid-row: 2; }
   .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden])) {
     grid-template-columns: auto minmax(var(--lf-response-min-width), 1fr); }
   .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden]))
     .lf-compose-field { grid-column: 2; }
-  .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden]))
-    > .lf-response-more { grid-column: 3; }
   .lf-visual-marks { display: contents; }
   /* Every projected state is a moment (anchor-paint.js), drawn as one accent contour;
      an action's target alone keeps the hairline. */

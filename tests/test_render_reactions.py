@@ -195,9 +195,8 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     expect(bar.locator(".lf-fab-input")).to_have_attribute(
         "aria-label", re.compile(r"^Comment")
     )
-    # A fine pointer reaches the other responses by key, so no ellipsis stands beside
-    # the field (test_a_finger_opens_the_other_responses_from_the_ellipsis).
-    expect(bar.locator(".lf-response-more")).to_be_hidden()
+    # The other responses open by key, so no control stands beside the field.
+    expect(bar.locator(":scope > button:visible")).to_have_count(0)
     expect(bar.locator(".lf-react:visible")).to_have_count(0)
     expect(bar.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Tab")
@@ -205,7 +204,6 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     expect(bar).to_be_visible()
     expect(bar.locator(".lf-fab-input")).to_be_visible()
     expect(surface).to_have_class(re.compile("lf-response-open"))
-    expect(surface.locator(".lf-response-more:visible")).to_have_count(0)
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     assert surface.locator(
         ".lf-react:visible > .lf-response-action-glyph"
@@ -347,7 +345,6 @@ def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
 
     surface = page.locator(".lf-fab-bar")
     expect(surface).to_have_class(re.compile(r"\blf-response-open\b"))
-    expect(surface.locator(":scope > .lf-response-more:visible")).to_have_count(0)
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     assert "1–6" in shortcut_bar_text(page)
 
@@ -1040,8 +1037,8 @@ def test_the_response_field_grows_as_a_rectangle_and_spans_the_bar(browser, serv
     its chosen rail and then wraps, growing through the room placement states — a dozen
     lines shows them all, and only one taller than the band below the banner scrolls,
     standing inside that band — and the corner stays fixed through all of that. On a
-    narrow screen the same room caps the bar and the field is what gives. With no
-    ellipsis beside it, the field spans the bar, so the sent message spans the card as
+    narrow screen the same room caps the bar and the field is what gives. With nothing
+    beside it, the field spans the bar, so the sent message spans the card as
     its reply does."""
     page = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
@@ -1117,36 +1114,6 @@ def test_the_response_field_grows_as_a_rectangle_and_spans_the_bar(browser, serv
     assert message["x"] + message["width"] == pytest.approx(
         reply["x"] + reply["width"], abs=1
     ), (message, reply)
-
-
-def test_a_finger_opens_the_other_responses_from_the_ellipsis(browser, serve):
-    """A finger has no Tab or `e`, so a coarse pointer keeps the ellipsis beside the
-    field as its route to Suggest and the reactions."""
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
-    )
-    page = open_page(browser, serve(PANEL_PAGE), context=context)
-    page.locator("#how-store").evaluate("""paragraph => {
-      const range = document.createRange();
-      range.selectNodeContents(paragraph);
-      getSelection().removeAllRanges();
-      getSelection().addRange(range);
-    }""")
-    page.locator(".lf-banner-actions").get_by_role(
-        "button", name="Comment on selection"
-    ).tap()
-    bar = page.locator(".lf-fab-bar")
-    more = bar.locator(":scope > .lf-response-more")
-    expect(bar.locator(".lf-fab-input")).to_be_focused()
-    expect(more.locator('svg[data-lf-icon="more"]')).to_be_visible()
-    expect(more).to_have_attribute("aria-label", "Show other responses")
-    expect(more).to_have_attribute("data-lf-behavior", "disclosure")
-    expect(more).to_have_css("border-radius", button_radius(page))
-    more.tap()
-    expect(bar).to_have_class(re.compile("lf-response-open"))
-    expect(more).to_be_hidden()
-    expect(bar.locator(".lf-fab-suggest")).to_be_visible()
-    expect(bar.locator(".lf-react:visible")).to_have_count(6)
 
 
 @pytest.mark.parametrize("covered_width", [390, 450])

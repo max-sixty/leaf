@@ -1298,7 +1298,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     display: none !important;
   }
   .lf-fab-bar.lf-response-open { flex-wrap: wrap; }
-  .lf-fab-bar.lf-response-open > .lf-response-more { display: none !important; }
   /* The choices are one row, the width the bar's side can hold. A side is chosen for
      the field, which is narrower than Suggest and six reactions at
      their resting 38px: beside the open Threads panel at 1024px the bar had 256px for

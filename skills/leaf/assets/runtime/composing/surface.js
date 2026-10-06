@@ -14,9 +14,8 @@
 
    The bar a selection or keyboard-selected addressable raises is `.lf-fab-bar`: the
    durable, compact `.lf-fab-input`, which spans the bar so a sent message keeps the
-   card's whole measure. Only a coarse pointer adds a response ellipsis beside it, the
-   finger's route to the other responses; a fine pointer reaches them by key
-   (composing/selection.js). An explicit addressable target
+   card's whole measure. No control stands beside it: the other responses are reached
+   by key alone, on every pointer (composing/selection.js). An explicit addressable target
    opens and focuses that field. On desktop, selecting a passage leaves the field open
    but unfocused. Selection observed outside a completed page gesture offers Comment
    on selection in the banner, as does selection on touch screens;

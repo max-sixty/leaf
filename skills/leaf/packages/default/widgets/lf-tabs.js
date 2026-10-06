@@ -33,7 +33,9 @@
  * focus from the destination or delaying it. Reduced motion keeps the selected state
  * without the highlight; switching again or disconnecting cancels an unfinished cue.
  * Every tab's accessible name is its label; what else the tab shows describes it. A
- * side list's row adds the panel's `summary` under the name, and beside the name, once
+ * side list stands each run of neighbouring panels that share a `group` under a label
+ * of that group, which each of their tabs' descriptions names. A side list's row adds
+ * the panel's `summary` under the name, and beside the name, once
  * every Ask its panel holds is answered, a check with the answer's own words where the
  * panel holds one Ask, or the check alone where it holds several. So a queue shows how
  * far the user has worked through it, and an undo that reopens an Ask takes the check
@@ -143,7 +145,23 @@ customElements.define(
       strip.setAttribute("role", "tablist");
       if (side) strip.setAttribute("aria-orientation", "vertical");
       strip.append(this.#edge("start"));
+      let group = null;
       for (const panel of panels) {
+        // A queue sorts its items under the panels' `group`: each run of neighbouring
+        // panels with one group stands under a label of it, the page's words, before
+        // the run's first row. The label is no tab, so the walk passes it by, and a
+        // tablist holds only tabs, so it is hidden from assistive technology, which
+        // hears the group in each tab's description instead (`#marks`).
+        if (side && panel.getAttribute("group") !== group) {
+          group = panel.getAttribute("group");
+          if (group) {
+            const heading = document.createElement("span");
+            heading.className = "lf-tab-group";
+            heading.setAttribute("aria-hidden", "true");
+            relabel(heading, group, { says: true });
+            strip.append(heading);
+          }
+        }
         const btn = selectableOffer("tab", "lf-tab-btn");
         btn.setAttribute("aria-controls", panel.id);
         const name = document.createElement("span");
@@ -320,7 +338,9 @@ customElements.define(
           keeps(slot, "data-lf-answered", answered ? "" : null);
           keepsText(slot.firstElementChild, answer);
         }
+        const group = this.#side && panel.getAttribute("group");
         const description = [
+          group && `${group} group`,
           panel.getAttribute("summary"),
           changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
           !answered

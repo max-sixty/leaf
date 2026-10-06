@@ -273,7 +273,9 @@ decide, is one `lf-tabs list="side"` as the body: its list is the queue and each
 `lf-tab`, so one opens beside the list and a link or an Ask opens its own, and a row
 whose item's Asks are all answered shows a check, with the picked answer beside it
 where the item holds one Ask. Write no script to select, hide or mark an item; the tab
-set does all three.
+set does all three. Where the items fall into kinds the user works through in turn,
+such as merge, close and FYI, give each `lf-tab` its kind as `group` and keep each
+kind's items together: the list sets each run under a heading of its group.
 
 The page itself does not scroll; a region does, where what it holds runs past it. Each
 pane's body scrolls on its own, and a widget that fills the body, such as a playground's

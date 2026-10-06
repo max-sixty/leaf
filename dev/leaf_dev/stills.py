@@ -554,6 +554,7 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
+    State("alert-queue", "alert-review", at_rest),
     State(
         "alert-queue-touch", "alert-review", at_rest, viewport=(390, 844), touch=True
     ),

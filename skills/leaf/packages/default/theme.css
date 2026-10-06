@@ -1336,9 +1336,15 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * as labeled sections. */
 :where(:scope:is(lf-tabs)) { display: block; margin: 14px 0; }
 :scope:is(lf-tab) { display: block; }
-:scope:is(lf-tab)::before { content: attr(label); display: block; font-size: var(--t-6);
-                 text-transform: uppercase; letter-spacing: .05em;
-                 color: var(--muted); margin: 18px 0 8px; }
+/* A stacked panel's name and a queue's group label (below) are one face: a small
+ * heading over what follows it. */
+:scope:is(lf-tab)::before, :scope:is(lf-tabs) > .lf-tabstrip > .lf-tab-group {
+                 font-size: var(--t-6); text-transform: uppercase; letter-spacing: .05em;
+                 color: var(--muted); }
+:scope:is(lf-tab)::before { content: attr(label); display: block; margin: 18px 0 8px; }
+/* Stacked, a queue's panel carries its group before its name, since no list stands
+ * over the panels to say it. */
+:scope:is(lf-tab)[group]::before { content: attr(group) " · " attr(label); }
 :scope:is(lf-tabs).lf-rendered > lf-tab { margin-top: 14px; }
 /* Laid out by the live-page block below; hidden until then, because a row of
  * buttons is worth showing only where something will answer one. */
@@ -1512,6 +1518,17 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     line-height: var(--lf-tab-summary-h);
     color: var(--muted);
   }
+    /* A group's label is a heading over its run of rows in the column, and in the row
+     * a word before the run's first tab, centred on the names. It is no tab, so it
+     * takes no aim floor. */
+  :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip > .lf-tab-group {
+    padding: 12px 12px 4px;
+  }
+  :scope:is(lf-tabs)[list="side"].lf-rendered
+    > .lf-tabstrip
+    > .lf-tab-group:nth-child(1 of .lf-tab-group) {
+    padding-top: 2px;
+  }
   :scope:is(lf-tabs)[list="side"].lf-rendered > lf-tab { grid-column: 2; grid-row: 1; }
   @container (width < 36rem) {
     :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip {
@@ -1531,6 +1548,17 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     }
     :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip .lf-tab-btn {
       max-inline-size: 16rem;
+    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered > .lf-tabstrip > .lf-tab-group {
+      flex: none;
+      align-self: center;
+      padding: 0 4px 0 10px;
+    }
+    :scope:is(lf-tabs)[list="side"].lf-rendered
+      > .lf-tabstrip
+      > .lf-tab-group:nth-child(1 of .lf-tab-group) {
+      padding-block-start: 0;
+      padding-inline-start: 4px;
     }
     :scope:is(lf-tabs)[list="side"].lf-rendered
       > .lf-tabstrip

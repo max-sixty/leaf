@@ -1124,6 +1124,72 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
     expect(answer).to_have_text("Fix")
 
 
+def test_a_queue_stands_its_items_under_their_groups(browser, serve):
+    """Each run of neighbouring queue items that share a `group` stands under a label
+    of it: a heading over the run in the column, and a word before the run's first tab
+    in a phone's row. A label is not a tab, so the walk passes it by and assistive
+    technology hears the group in each tab's description instead."""
+
+    def item(key, group):
+        return (
+            f'<lf-tab id="i-{key}" label="Item {key}" group="{group}" '
+            f'summary="{key} summary"><p id="p-{key}">Item {key}.</p></lf-tab>'
+        )
+
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Grouped queue",
+                '<h1 id="title">Triage</h1><lf-tabs id="queue" list="side">'
+                + "".join(
+                    item(key, group)
+                    for key, group in zip(
+                        "abcde", ["Merge", "Merge", "Close", "FYI", "FYI"]
+                    )
+                )
+                + "</lf-tabs>",
+            )
+        ),
+    )
+    resized(page, 1200, 900)
+    layout = """() => {
+      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const box = (el) => el.getBoundingClientRect();
+      return [...strip.querySelectorAll(':scope > .lf-tab-group')].map((label) => {
+        const first = label.nextElementSibling;
+        return {
+          words: label.textContent,
+          hidden: label.getAttribute('aria-hidden'),
+          stop: label.tabIndex,
+          first: first.getAttribute('aria-controls'),
+          above: box(label).bottom <= box(first).top + 0.5,
+          before: box(label).right <= box(first).left + 0.5,
+          inRow: box(strip).top <= box(label).top && box(label).bottom <= box(strip).bottom,
+        };
+      });
+    }"""
+    column = page.evaluate(layout)
+    assert [(g["words"], g["first"], g["hidden"], g["stop"]) for g in column] == [
+        ("Merge", "i-a", "true", -1),
+        ("Close", "i-c", "true", -1),
+        ("FYI", "i-d", "true", -1),
+    ], column
+    assert all(g["above"] for g in column), column
+
+    tabs = page.locator("#queue").get_by_role("tab")
+    expect(tabs).to_have_count(5)
+    expect(tabs.nth(2)).to_have_accessible_description("Close group. c summary")
+    tabs.nth(1).focus()
+    page.keyboard.press("ArrowDown")
+    expect(tabs.nth(2)).to_have_attribute("aria-selected", "true")
+    expect(tabs.nth(2)).to_be_focused()
+
+    resized(page, 390, 844)
+    row = page.evaluate(layout)
+    assert all(g["before"] and g["inRow"] for g in row), row
+
+
 def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     """A strip whose names outrun its one row scrolls them sideways, and keeps the open
     tab in the row and clear of the press at either edge: when the window narrows under

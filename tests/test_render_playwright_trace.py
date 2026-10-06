@@ -3,6 +3,7 @@
 import importlib.util
 from pathlib import Path
 
+import pytest
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import exporting as exporting_model
@@ -174,6 +175,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     archive_id = record["archive"]["sha256"]
     slider.fill("0")
     evidence_top = None
+    image_rect = None
     for index, (_, kind, identity, name) in enumerate(points):
         if index:
             user.keyboard.press("ArrowRight")
@@ -190,13 +192,30 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         if evidence_top is None:
             evidence_top = top
         assert abs(top - evidence_top) <= 1, (index, kind, top, evidence_top)
+        raster = widget.locator(".lf-trace-image img")
+        if raster.count():
+            rect = raster.bounding_box()
+            rect["y"] -= widget.locator(".lf-trace-body").bounding_box()["y"]
+            if image_rect is None:
+                image_rect = rect
+            # JPEG filmstrip dimensions round the native aspect ratio; at the
+            # same display width that can change the height by up to two pixels.
+            assert all(
+                abs(rect[key] - image_rect[key]) <= (2 if key == "height" else 1)
+                for key in rect
+            ), (
+                index,
+                kind,
+                rect,
+                image_rect,
+            )
     frame_index = next(
         index for index, point in enumerate(points) if point[1] == "image"
     )
     slider.fill(str(frame_index))
-    image = widget.locator(".lf-trace-image")
+    image = widget.locator(".lf-trace-image img")
     captured = image.get_attribute("data-lf-datum")
-    image.locator("img").click(modifiers=["Alt"])
+    image.click(modifiers=["Alt"])
     expect(editor).to_be_visible()
     user.keyboard.insert_text("This exact captured frame.")
     with sending(user, "a comment on the original frame"):
@@ -246,7 +265,35 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     )
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
     user.keyboard.press("Escape")
+    # Ink belongs to the image pixels, not its full-width figure and caption.
+    raster.scroll_into_view_if_needed()
+    box = raster.bounding_box()
+    user.mouse.move(box["x"] + box["width"] * 0.3, box["y"] + box["height"] * 0.3)
+    user.keyboard.press("w")
+    expect(user.locator("html")).to_have_attribute("data-lf-draw-mode", "")
+    user.mouse.down()
+    user.mouse.move(
+        box["x"] + box["width"] * 0.5, box["y"] + box["height"] * 0.5, steps=8
+    )
+    user.mouse.up()
+    expect(user.locator(".lf-drawing-pending")).to_have_count(1)
+
+    def ink_shares():
+        rendered(user)
+        return user.evaluate(
+            """() => {
+              const mark = document.querySelector('.lf-drawing-pending').getBoundingClientRect();
+              const image = document.querySelector('.lf-trace-image img').getBoundingClientRect();
+              return [(mark.x-image.x)/image.width, (mark.y-image.y)/image.height,
+                      mark.width/image.width, mark.height/image.height];
+            }"""
+        )
+
+    wide_ink = ink_shares()
+    assert wide_ink == pytest.approx([0.3, 0.3, 0.2, 0.2], abs=0.01)
     resized(user, 390, 844)
+    assert ink_shares() == pytest.approx(wide_ink, abs=0.01)
+    user.keyboard.press("Escape")
     assert user.evaluate("document.documentElement.scrollWidth <= innerWidth")
     assert (
         raster.bounding_box()["width"]
@@ -411,7 +458,7 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     ]
     if earlier_frames:
         latest = max(earlier_frames, key=lambda image: image["timestamp"])
-        expect(widget.locator(".lf-trace-image")).to_have_attribute(
+        expect(widget.locator(".lf-trace-image img")).to_have_attribute(
             "data-lf-datum", f"trace-{record['archive']['sha256']}-image-{latest['id']}"
         )
     else:

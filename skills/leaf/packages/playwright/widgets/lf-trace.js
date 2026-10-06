@@ -86,6 +86,7 @@ customElements.define(
   class extends HTMLElement {
     #snapshot = null;
     #origins = new Map();
+    #imageWidths = new Map();
     #trace = null;
     #page = null;
     #selected = null;
@@ -365,6 +366,15 @@ customElements.define(
       this.#snapshot = snapshot;
       this.#trace = snapshot?.value ?? null;
       this.#origins = this.#trace ? streamOrigins(this.#trace) : new Map();
+      // Filmstrip JPEGs are smaller encodings of the same viewport. Their pixel
+      // width must not become a different display zoom at every timeline stop.
+      this.#imageWidths = new Map();
+      for (const image of this.#trace?.images ?? []) {
+        this.#imageWidths.set(
+          image.pageId,
+          Math.max(this.#imageWidths.get(image.pageId) ?? 0, image.width),
+        );
+      }
       this.classList.toggle("lf-rendered", this.#trace !== null);
       if (oldArchive !== this.#trace?.archive.sha256) {
         this.#images.clear();
@@ -591,15 +601,13 @@ customElements.define(
         keeps(img, "alt", label);
         keeps(img, "width", String(image.width));
         keeps(img, "height", String(image.height));
+        keeps(img, "data-lf-image-width", String(this.#imageWidths.get(image.pageId)));
         keepsText(figure.querySelector("figcaption"), label);
         imageNodes.push(figure);
-        add(
-          this.#id("image", image.id),
-          figure,
-          label,
-          ["images", this.#trace.images.indexOf(image)],
-          img,
-        );
+        add(this.#id("image", image.id), img, label, [
+          "images",
+          this.#trace.images.indexOf(image),
+        ]);
       }
       keepsHidden(this.missingImage, !!image);
       keepsText(

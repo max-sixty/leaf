@@ -46,7 +46,7 @@
 .lf-trace-error { color: var(--danger); }
 .lf-trace-images { min-inline-size: 0; }
 .lf-trace-image { margin: 0; }
-.lf-trace-image img { display: block; inline-size: attr(width px); max-inline-size: 100%; block-size: auto; margin-inline: auto; border: 1px solid var(--border-2); box-sizing: border-box; }
+.lf-trace-image img { display: block; inline-size: attr(data-lf-image-width px); max-inline-size: 100%; block-size: auto; margin-inline: auto; border: 1px solid var(--border-2); box-sizing: border-box; }
 .lf-trace-caption { margin-block: 6px 0; }
 .lf-trace-missing-image { padding: var(--sp-4); border: 1px dashed var(--border-2); color: var(--muted); margin-block: 0; }
 .lf-trace-tree { margin-block-start: var(--sp-3); }

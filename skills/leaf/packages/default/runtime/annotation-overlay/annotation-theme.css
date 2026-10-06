@@ -3,48 +3,25 @@
  * faces and package themes retain their precedence. Persistent rows, pins and the
  * explicit overlay rail reserve are absent from a page-rendered document. */
 
-/* The margin projection is a retained projection with one cluster per page target. Its
- * primary margin entry, optional `…`, and the secondary margin entries that ellipsis
- * unfolds share one host. Every cluster lives in the chrome's margin layer and stands by
- * its target through anchor positioning (margin-layout.js); nothing is inserted into the
- * page's content and nothing here moves it.
+/* Every retained cluster lives in the chrome's document-plane layer; nothing is
+ * inserted into authored content. Zero-size lanes start at the document origin.
+ * margin-layout.js writes each row's coordinates and native scroll translations;
+ * a bounded reading region's lane clips paint and presses to its visible band.
  *
- * The layer and its lanes are static and zero-height, so the initial containing block is
- * every cluster's: any element of the page is an anchor it may stand by, and the browser
- * moves it with its target through every scroll between the two, a pane's or a board's.
- * A positioned wrapper would become the clusters' containing block and make every target
- * outside it an invalid anchor. The layer lays its lanes out as flex items, which take a
- * z-index without being positioned. A lane holds the clusters of one pane that scrolls on
- * its own, and the layout clips it to what the pane shows.
- *
- * Nothing clamps a pin to the window: the browser applies a clamp before it moves the pin
- * with its scrolled target, so a card in a board scrolled sideways would stand its pin
- * off its corner. A target scrolled out of its scroller withholds its row instead.
- *
- * A cluster stands level with its target's top (`--lf-inset-top` where it anchors to a
- * box holding the target), pushed down by packing (`--lf-push`). In
- * the rail it hangs `--rail-hang` off `main`'s edge and unfolds rightward. As a pin it
- * stands where the layout seats it, `--pin-inset` plus `--lf-inset-right` in from the
- * right edge of the box it anchors to: inside its target's top-right corner, or in room
- * beside its target where that corner would cover words. It unfolds leftward. Every position function falls back to a place off screen: an anchor can be
- * invalid (a target inside `content-visibility: hidden` or gone), and
- * `position-visibility` hides a cluster only when its anchor is valid and scrolled out of
- * view. */
+ * Packing seats rows level with their target and pushes arrivals into free room.
+ * A rail row hangs --rail-hang beyond the column and unfolds rightward. A pin uses
+ * the clear seat the geometry owner found near its target and unfolds leftward.
+ * A target clipped out of its region withholds its row from paint and tab order. */
 .lf-margin-projection { display: flex; height: 0; pointer-events: none; }
 .lf-margin-projection[hidden] { display: none; }
-.lf-margin-toolbar, .lf-margin-lane { height: 0; }
+.lf-margin-toolbar, .lf-margin-lane {
+    position: absolute; left: 0; top: 0; width: 0; height: 0; }
 .lf-margin-lane { z-index: 2; }
 .lf-margin-cluster { position: absolute; z-index: 2;
-    top: calc(anchor(top, -9999px) + var(--lf-inset-top, 0px) + var(--lf-push, 0px));
-    position-visibility: anchors-visible;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--focus-ring-room); pointer-events: auto; }
 /* Keep a new row measurable, but unpainted until layout gives it a posture. */
 .lf-margin-cluster:not([data-lf-place]) { visibility: hidden; }
-.lf-margin-cluster[data-lf-place="rail"] {
-    left: calc(anchor(--lf-page right, -9999px) + var(--rail-hang) + var(--lf-step, 0px)); }
-.lf-margin-cluster[data-lf-place="pin"] {
-    right: calc(anchor(right, 9999px) + var(--pin-inset) + var(--lf-inset-right, 0px)); }
 /* A pin folded for want of room (`seatRows`, margin-placement.js) opens over whatever
  * stands beside it, which keeps its place. */
 .lf-margin-cluster[data-lf-place="pin"][data-lf-folded][data-lf-options-open] {

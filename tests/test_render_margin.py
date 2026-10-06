@@ -466,7 +466,7 @@ def test_an_unchanged_viewport_refresh_restates_no_margin_name(
     Every row lives in the margin layer, whatever it holds, and `syncInlineOffers`
     builds another host in place wherever an offer's target stands in chrome. So
     the watch is rooted at the layer, the Map door, the inline hosts, and the page's
-    anchors, whose names the pass writes. The reach is asserted the way the
+    boxes. The reach is asserted the way the
     population is: a run where rows stood somewhere the watch does not reach would
     otherwise return the same clean `[]` it returns when nothing is wrong.
 
@@ -475,7 +475,7 @@ def test_an_unchanged_viewport_refresh_restates_no_margin_name(
     refreshes in one synchronous task never reach it. Each refresh is therefore
     read across a settled frame, which both pages now allow. The layout pass
     places every row from what it writes, so a refresh that restated a posture, an
-    offset, a push, or an anchor name shows up here as a restatement.
+    offset or a push shows up here as a restatement.
     """
     page = open_page(browser, serve(page_source))
     resized(page, 1440, 900)
@@ -489,8 +489,7 @@ def test_an_unchanged_viewport_refresh_restates_no_margin_name(
           const text = nodes => [...nodes].map(node => node.textContent).join('');
           const layer = document.querySelector('nav.lf-margin-projection');
           const hosts = [...document.querySelectorAll('.lf-margin-cluster')];
-          const anchors = [...document.querySelectorAll('main, main *')]
-            .filter(el => el.style.anchorName);
+          const pageBoxes = [...document.querySelectorAll('main, main *')];
           const roots = [layer, document.querySelector('.lf-page-map-toggle'),
             ...document.querySelectorAll(
               'div.lf-ui[data-lf-margin-for]:not(.lf-margin-cluster)')];
@@ -503,10 +502,9 @@ def test_an_unchanged_viewport_refresh_restates_no_margin_name(
             observer.observe(root, {subtree: true, childList: true,
               characterData: true, characterDataOldValue: true,
               attributes: true, attributeOldValue: true});
-          // An anchor is the page's own element: only the name the pass writes on it is
-          // the margin's.
-          for (const anchor of anchors)
-            observer.observe(anchor, {attributes: true, attributeOldValue: true,
+          // A placement pass must not restate authored style on any content box.
+          for (const box of pageBoxes)
+            observer.observe(box, {attributes: true, attributeOldValue: true,
               attributeFilter: ['style']});
           const on = record => record.target.className || record.target.nodeName;
           const unchanged = [];
@@ -551,7 +549,7 @@ def test_an_unchanged_viewport_refresh_restates_no_margin_name(
           return {
             unchanged, news,
             outside: hosts.filter(host => !layer.contains(host)).length,
-            anchors: anchors.length,
+            pageBoxes: pageBoxes.length,
           };
         }""",
         {"refreshes": 5},
@@ -559,9 +557,9 @@ def test_an_unchanged_viewport_refresh_restates_no_margin_name(
     assert refresh["unchanged"] == [], refresh["unchanged"]
     assert refresh["news"] == [], refresh["news"]
     # The reach the readings above are worth: every row stands in the watched layer,
-    # and the anchors whose names the pass writes are watched too.
+    # and every authored box is watched too.
     assert refresh["outside"] == 0, refresh
-    assert refresh["anchors"] > 0, refresh
+    assert refresh["pageBoxes"] > 0, refresh
 
 
 def test_a_held_marker_keeps_the_keyboard_when_the_rail_falls(browser, serve):
@@ -9919,6 +9917,64 @@ def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, ser
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
 
 
+@pytest.mark.parametrize("change", ["size", "layout"])
+def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
+    browser, serve, change
+):
+    """A fixed-size pane can move its target through a sibling's resize or a
+    same-size view rearrangement. The geometry owner hears the size owner and the
+    explicit layout owner, and moves the row before their frame paints."""
+    source = PANE_PIN_PAGE.replace(
+        "</head>",
+        "<style>#pane-top[data-offset] { transform: translateY(24px); }</style></head>",
+    )
+    page = open_page(browser, serve(source, events=[_comment_on("pane-top")]))
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    margins_laid_out(page)
+    page.locator('[data-lf-margin-for="pane-top"] button').first.focus()
+    rendered(page)
+    reading = """() => {
+      const target = document.getElementById('pane-top');
+      const row = document.querySelector('[data-lf-margin-for="pane-top"]');
+      const r = row.getBoundingClientRect(), t = target.getBoundingClientRect();
+      return {top: r.top, offset: r.top - t.top,
+        height: document.querySelector('main').getBoundingClientRect().height,
+        hit: row.contains(document.elementFromPoint(r.left + r.width / 2,
+                                                   r.top + r.height / 2))};
+    }"""
+    before = page.evaluate(reading)
+    page.evaluate(
+        """async change => {
+          const target = document.getElementById('pane-top');
+          if (change === 'size') target.previousElementSibling.style.height = '224px';
+          else {
+            target.setAttribute('data-offset', '');
+            const {layoutChanged} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
+            await layoutChanged(target);
+          }
+        }""",
+        change,
+    )
+    rendered(page)
+    after = page.evaluate(reading)
+    assert after["height"] == before["height"]
+    if change == "size":
+        assert after["top"] - before["top"] == pytest.approx(24, abs=1)
+        assert after["offset"] == pytest.approx(before["offset"], abs=1)
+    else:
+        # Moving only the paragraph can change the clear seat around it. The layout
+        # notification must settle that seat as a full geometry reading would.
+        assert after["top"] != before["top"]
+        page.evaluate("""async () => {
+          const {layoutMarginRows} = await window.__lfRuntimeImport(
+            '/runtime/annotation-overlay/margin-layout.js');
+          layoutMarginRows();
+        }""")
+        assert page.evaluate(reading) == after
+    assert after["hit"]
+
+
 _PARAGRAPH = (
     "<p>The export writes one file per tenant each night, and the archive would roll"
     " every tenant into a partitioned bundle that the reader opens lazily by key"
@@ -10078,21 +10134,21 @@ def test_a_pin_keeps_clear_only_of_controls_the_user_can_see(browser, serve):
     assert tops["marker"] == pytest.approx(tops["heading"], abs=1), tops
 
 
+@pytest.mark.parametrize("target_tree", ["shadow", "slotted"])
+@pytest.mark.parametrize("native_scroll", [True, False])
 def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
-    browser, serve
+    browser, serve, target_tree, native_scroll
 ):
-    """An anchor name reaches only its own tree, so a target inside a shadow root anchors
-    through its host and stands at an inset from it. A scroller inside that tree moves
-    the target and not the host, and its scroll never leaves the tree: the row follows
-    the target once the pass has heard the scroll there, and is withheld once the
-    target has scrolled out of that scroller's view, downward or sideways, though the
-    host it anchors through still shows."""
+    """Rendered ancestry owns motion and clipping, including a light-DOM target
+    slotted into a shadow scrollport. Native translations and observed fallback
+    keep the same seat, then withhold the row when its target leaves the view."""
     page = open_page(browser, serve(PANEL_PAGE))
     resized(page, 1440, 900)
     page.evaluate(
-        """async () => {
+        """async ({tree, native}) => {
           const { contributionEntry, registerContribution } =
             await window.__lfRuntimeImport('/runtime/widget-api.js');
+          if (!native) window.ScrollTimeline = undefined;
           const host = document.createElement('div');
           const root = host.attachShadow({mode: 'open'});
           root.innerHTML = '<div id="inner" style="height: 100px; overflow: auto">'
@@ -10101,21 +10157,35 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
             + '<div id="wide" style="width: 100px; overflow: auto">'
             + '<div style="display: flex; width: 600px">'
             + '<p id="side" style="flex: none; width: 80px; margin: 0">Side</p>'
-            + '</div></div>';
+            + '</div></div>'
+            + '<div style="height: 100px; overflow: auto">'
+            + '<div style="height: 20px"></div><slot name="moved"></slot>'
+            + '<div style="height: 400px"></div></div>';
           document.querySelector('main').prepend(host);
-          const target = root.getElementById('deep');
+          let target = root.getElementById('deep');
+          let side = root.getElementById('side');
+          if (tree === 'slotted') {
+            for (const [element, name] of [[target, 'deep'], [side, 'side']]) {
+              const slot = document.createElement('slot');
+              slot.name = name;
+              element.replaceWith(slot);
+              element.slot = name;
+              host.append(element);
+            }
+          }
           const margin = registerContribution({key: 'deep', target,
             read: () => ({entries: [contributionEntry({
               key: 'deep', glyph: '!', label: 'deep controls'})]}),
             activate: () => {}});
           const sideways = registerContribution({key: 'side',
-            target: root.getElementById('side'),
+            target: side,
             read: () => ({entries: [contributionEntry({
               key: 'side', glyph: '!', label: 'side controls'})]}),
             activate: () => {}});
           window.__deep = {host, target, inner: root.getElementById('inner'), margin,
                            wide: root.getElementById('wide'), sideways};
-        }"""
+        }""",
+        {"tree": target_tree, "native": native_scroll},
     )
     rendered(page)
     offset = """() => {
@@ -10126,6 +10196,17 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
     }"""
     before = page.evaluate(offset)
     assert not before["withheld"], before
+    if target_tree == "slotted":
+        # Reassignment changes the geometry owner without changing any box's size.
+        # The old and new roots must both hear their own subsequent scrolls.
+        page.evaluate("() => { window.__deep.target.slot = 'moved'; }")
+        rendered(page)
+        reassigned = page.evaluate(offset)
+        assert not reassigned["withheld"], reassigned
+        assert reassigned["offset"] == pytest.approx(before["offset"], abs=1)
+        page.evaluate("() => { window.__deep.target.slot = 'deep'; }")
+        rendered(page)
+        assert page.evaluate(offset) == before
     page.evaluate("() => { window.__deep.inner.scrollTop = 20; }")
     rendered(page)
     after = page.evaluate(offset)
@@ -10140,6 +10221,85 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
     page.evaluate("() => { window.__deep.wide.scrollLeft = 200; }")
     rendered(page)
     assert page.evaluate(side), "a target scrolled sideways out of view keeps its row"
+
+
+@pytest.mark.parametrize(
+    "writing_mode,direction,flex_direction,flex_wrap",
+    [
+        ("horizontal-tb", "ltr", "", ""),
+        ("horizontal-tb", "rtl", "", ""),
+        ("vertical-rl", "ltr", "", ""),
+        ("vertical-rl", "rtl", "", ""),
+        ("vertical-lr", "ltr", "", ""),
+        ("sideways-lr", "ltr", "", ""),
+        ("sideways-lr", "rtl", "", ""),
+        ("horizontal-tb", "ltr", "row-reverse", ""),
+        ("horizontal-tb", "ltr", "column-reverse", ""),
+        ("vertical-rl", "rtl", "row-reverse", ""),
+        ("horizontal-tb", "ltr", "row", "wrap-reverse"),
+        ("horizontal-tb", "ltr", "column", "wrap-reverse"),
+    ],
+)
+def test_document_overlay_follows_the_scrollers_signed_origin(
+    browser, serve, writing_mode, direction, flex_direction, flex_wrap
+):
+    """Timeline progress and DOM offsets use different coordinates. One shared
+    primitive carries a document-plane overlay through transformed, signed axes,
+    including writing modes and the main/cross origins of flex scrollports."""
+    source = leaf_page(
+        "signed scroll coordinates",
+        '<div id="scroll-source" style="height:120px;width:180px;overflow:auto;'
+        "transform:scale(.9) rotate(2deg);transform-origin:top left;"
+        f"writing-mode:{writing_mode};direction:{direction};"
+        + (
+            f"display:flex;flex-direction:{flex_direction};flex-wrap:{flex_wrap or 'nowrap'};"
+            if flex_direction
+            else ""
+        )
+        + '"><div id="scroll-target" style="height:800px;width:800px;flex:none">'
+        "Scroll geometry</div></div>",
+    )
+    page = open_page(browser, serve(source))
+    page.evaluate(
+        """async () => {
+          const {readScrollTranslations, scrollTranslation} =
+            await window.__lfRuntimeImport('/runtime/scroll-translations.js');
+          const source = document.getElementById('scroll-source');
+          const target = document.getElementById('scroll-target');
+          const box = target.getBoundingClientRect();
+          const overlay = document.createElement('div');
+          overlay.className = 'lf-ui';
+          overlay.style.cssText = `position:absolute;left:${box.left + scrollX}px;`
+            + `top:${box.top + scrollY}px;width:20px;height:20px;pointer-events:none`;
+          document.body.append(overlay);
+          const effects = readScrollTranslations([source])
+            .map(motion => scrollTranslation(overlay, motion));
+          window.__signedScroll = {source, target, overlay, effects};
+        }"""
+    )
+    rendered(page)
+    reading = """() => {
+      const {source, target, overlay} = window.__signedScroll;
+      const box = target.getBoundingClientRect(), at = overlay.getBoundingClientRect();
+      return {x: at.left - box.left, y: at.top - box.top,
+        scrollLeft: source.scrollLeft, scrollTop: source.scrollTop};
+    }"""
+    before = page.evaluate(reading)
+    page.evaluate(
+        """() => {
+          const {source} = window.__signedScroll;
+          source.scrollLeft = 20;
+          if (!source.scrollLeft) source.scrollLeft = -20;
+          source.scrollTop = 20;
+          if (!source.scrollTop) source.scrollTop = -20;
+        }"""
+    )
+    rendered(page)
+    after = page.evaluate(reading)
+    assert abs(after["scrollLeft"]) == 20, after
+    assert abs(after["scrollTop"]) == 20, after
+    assert after["x"] == pytest.approx(before["x"], abs=0.05), (before, after)
+    assert after["y"] == pytest.approx(before["y"], abs=0.05), (before, after)
 
 
 LOG_ROW_FILLER = "".join(
@@ -10389,11 +10549,10 @@ def test_the_margin_layer_follows_the_page_in_the_tab_order(browser, serve):
     expect(page.locator("#after-margin-entries")).to_be_focused()
 
 
-def test_a_marker_with_nowhere_to_stand_is_withheld_and_reported(browser, serve):
-    """A page can hide its elements' anchor names from everything outside a box
-    (`anchor-scope`), and a row outside it then has no anchor to take: it would stand at
-    its off-screen fallback, focusable and unseen. The layout withholds it instead, and
-    the render gate names it, while the row beside it stands as ever."""
+def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serve):
+    """Margin coordinates do not cross the author's CSS anchor scope. Both scoped
+    and ordinary targets keep their controls reachable, with the same target and
+    row identities when the scope changes."""
     source = leaf_page(
         "a scoped note",
         '<h1 id="t">Scoped</h1><p id="flow">In the flow.</p>'
@@ -10408,18 +10567,12 @@ def test_a_marker_with_nowhere_to_stand_is_withheld_and_reported(browser, serve)
     stuck = page.locator('.lf-margin-cluster[data-lf-margin-for="fixed-note"]')
     flow = page.locator('.lf-margin-cluster[data-lf-margin-for="flow"]')
     expect(flow).to_be_visible()
-    expect(stuck).to_have_attribute("data-lf-parked", "")
-    expect(stuck).to_be_hidden()
-    findings = render_checks_model.evaluate_probe(page, "strandedMargins")
-    assert [f for f in findings if "fixed-note" in f], findings
+    expect(stuck).to_be_visible()
 
     # The author's scope can change while the target and its row keep their identity.
     page.locator("#scope").evaluate("el => el.style.anchorScope = 'none'")
     margins_laid_out(page)
     expect(stuck).to_be_visible()
-    expect(stuck).not_to_have_attribute("data-lf-parked", "")
-    findings = render_checks_model.evaluate_probe(page, "strandedMargins")
-    assert not [f for f in findings if "fixed-note" in f], findings
 
 
 @pytest.mark.parametrize(

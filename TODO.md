@@ -414,7 +414,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   the dispatcher for work handed to another session (step 7 of
   [What needs you](notes/what-needs-you/page.html#task-hierarchy)). Trigger: a page
   whose work the user wants to see broken down.
-- **Tell the agent when to ask before ending a task.** The agent ends every task
+- **Tell the agent when to ask before ending its own task.** The agent ends its tasks
   itself, and asks first, with an Ask or a thread question, when the result needs the
   user's sign-off
   ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped

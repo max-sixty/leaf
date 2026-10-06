@@ -272,7 +272,7 @@
                   <td>
                     The agent controls the tasks: you ask for work in prose and it opens
                     the task, and it asks for your sign-off with an Ask or a question
-                    (<a href="#task-done">who ends a task</a>).
+                    (<a href="#task-done">who ends the agent's task</a>).
                   </td>
                   <td>Not needed for now</td>
                 </tr>
@@ -1150,12 +1150,16 @@ stateDiagram-v2
             </section>
 
             <section id="task-done">
-              <h3>Who decides a task is done?</h3>
+              <h3>Who decides the agent's task is done?</h3>
               <p>
-                <strong>Decided: the agent, always.</strong> It ends every task itself,
-                with <code>leaf task end</code> as done, failed or dropped and a note
-                saying where the result is, or with a version stamped
-                <code>--completes</code>.
+                <strong>Decided: the agent ends its own tasks.</strong> It ends each one
+                itself, with <code>leaf task end</code> as done, failed or dropped and a
+                note saying where the result is, or with a version stamped
+                <code>--completes</code>. A task on you ends the way its kind does (<a
+                  href="#task-ends"
+                  >how each kind ends</a
+                >): an Ask at its widget's answer, a question at your reply, and any
+                other at your Done.
               </p>
               <p>
                 <strong>When it needs your sign-off, it asks first.</strong> The agent

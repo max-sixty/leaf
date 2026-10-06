@@ -10114,7 +10114,9 @@ def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
         f'.lf-msg[data-mid="{second["id"]}"] .lf-msg-editor leaf-text'
     )
     expect(latest).to_be_focused()
-    page.keyboard.press("Home")
+    # ↑ on the box's first line goes to its start, as in any box, and ↑ from there on.
+    page.keyboard.press("ArrowUp")
+    expect(latest).to_be_focused()
     page.keyboard.press("ArrowUp")
     earlier = thread.locator(
         f'.lf-msg[data-mid="{first["id"]}"] .lf-msg-editor leaf-text'

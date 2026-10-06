@@ -107,6 +107,9 @@ function closeMessageEdit(id, { discard }) {
  * opens, or null. */
 export class MessageEditor {
   #stop;
+  // Where the caret stood when ↑ went down, while it is down: the editor's own ↑ moves
+  // it to the start from anywhere on the first line before the key's binding reads it.
+  #upFromStart = null;
 
   constructor(id, view, panel, { wireInput, said, send, land, paint, previous }) {
     const ctx = editContext(id);
@@ -160,8 +163,8 @@ export class MessageEditor {
           description: "From the start of the box, edit your message before this one",
           title: "edit previous message",
           when: () =>
-            this.input.selectionStart === 0 &&
-            this.input.selectionEnd === 0 &&
+            (this.#upFromStart ??
+              (this.input.selectionStart === 0 && this.input.selectionEnd === 0)) &&
             Boolean(previous()),
           run: () => {
             const before = previous();
@@ -173,6 +176,18 @@ export class MessageEditor {
     });
     this.node.append(cancel);
     cancel.addEventListener("click", () => leave(true));
+    this.input.addEventListener(
+      "keydown",
+      (event) => {
+        if (event.key === "ArrowUp")
+          this.#upFromStart =
+            this.input.selectionStart === 0 && this.input.selectionEnd === 0;
+      },
+      { capture: true },
+    );
+    this.input.addEventListener("keyup", (event) => {
+      if (event.key === "ArrowUp") this.#upFromStart = null;
+    });
     this.#stop = mirrorDraft(this.input, sync, ctx, { retained: true });
   }
 

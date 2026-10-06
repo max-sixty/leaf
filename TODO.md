@@ -148,15 +148,6 @@ and its chrome coordinate.
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
   without asking, which is the trade to weigh ([plan](notes/chrome-and-covers.md)).
-- **Align a widget's column with the text's measure.** `lf-options` cards run 1294px
-  beside 720px paragraphs in a wide panel, because text keeps the measure (`theme.css`,
-  `:where(p, li, …) { max-inline-size: var(--col) }`) and a widget without `x-space`
-  takes the whole flow. Declaring the existing column allocation on `lf-options` is not
-  enough on its own: `schema.py` allows `x-space` only `wide` and `available`, and
-  `[data-lf-space="column"]` centres its box (`margin-inline: auto`) while text in a
-  wide flow starts at the left edge. The column allocation and the text measure have to
-  align the same way first; start-aligned in any flow wider than the column is the
-  reading that matches the prose.
 - **Let a page restyle Leaf's chrome on purpose.** A page's rules reach a widget's
   controls when they name the widget (`runtime/page-sheets.js`), but `chrome.css` is
   unlayered and adopted after the page's sheets, so a page rule naming a chrome class

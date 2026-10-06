@@ -176,12 +176,12 @@ Two arrange a box's children, on `main` or on any block:
 On `main`, every class but `layout-column` makes a wide page: every block, the title
 included, starts at one left edge and takes the page's width, while text keeps the
 reading measure, as do an Ask, a callout and a widget read as text, such as an option
-list or a draft. An Ask or a callout widens to a block inside it that declares
-`data-width`; give it `data-width` itself where it holds a playground or another
-surface that declares none ("Bounds and widths"). A wide, sidebar or tiles page is
-capped at the widest page and sets its title larger; a workspace takes the whole
-window and leaves its title to the theme. `layout-column` on a block keeps the measure
-but gives it no room to break out into, since that room is the page's.
+list or a draft. Give an Ask or a callout `data-width` where it holds a chart, a table,
+a playground or another surface that needs more room ("Bounds and widths"). A wide,
+sidebar or tiles page is capped at the widest page and sets its title larger; a
+workspace takes the whole window and leaves its title to the theme. `layout-column` on
+a block keeps the measure but gives it no room to break out into, since that room is
+the page's.
 
 A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so
 an ordinary rule adjusts it — a different track share, a gap, an order — and a page
@@ -311,9 +311,9 @@ room left by the page shell, frames, chrome, and a margin resident that takes it
 such as a sidebar standing in the margin or the contents map's spine; the markers beside
 it then stand as pins on it, and it moves below a note hanging level with it. The
 occurrence overrides a widget's or idiom's default, so `data-width="column"` can
-deliberately keep a normally wide widget with the prose. An Ask or a callout widens to
-the widest block it holds, so `data-width="wide"` on its chart or table gives both the
-room; give the Ask or callout the width itself where what needs the room declares none.
+deliberately keep a normally wide widget with the prose. An Ask or a callout keeps the
+column; give it the width its chart, table or playground needs, and in a wider flow it
+also widens to a block of its own that declares one.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
 `lf-diff`; do not reproduce their responsive widths in page CSS.
 

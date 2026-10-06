@@ -2204,8 +2204,8 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
 ):
     """On a wide page an Ask and a callout keep the prose's width and left edge, so the
     Ask's ring and pin stand beside what it asks, as on a column page. One granted
-    `data-width`, or holding a block that declares one, takes that room for the
-    evidence. On a column page the Ask stays in the column and its wide block breaks
+    `data-width`, or holding a block of its own that declares one, takes that room for
+    the evidence. On a column page the Ask stays in the column and its wide block breaks
     out of it, as the block would from a section."""
     table = '<table id="{id}-t" data-width="wide"><tr><td>p95</td></tr></table>'
     ask = (
@@ -2218,9 +2218,12 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
         + ask.format(id="granted", width=' data-width="wide"', table="")
         + ask.format(id="holds", width="", table=table.format(id="holds"))
         + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
+        + '<lf-options id="list" choose><lf-option id="list-a">Leave it</lf-option>'
+        + f'<lf-option id="list-b">Raise it {table.format(id="list")}</lf-option>'
+        + "</lf-options>"
     )
     measure = """() => Object.fromEntries(
-      ['prose', 'ask', 'granted', 'holds', 'holds-t', 'callout'].map(id => {
+      ['prose', 'ask', 'granted', 'holds', 'holds-t', 'callout', 'list'].map(id => {
         const box = document.getElementById(id).getBoundingClientRect();
         return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
       }))"""
@@ -2228,7 +2231,9 @@ def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
     resized(page, 1726, 900)
     at = page.evaluate(measure)
     edge = at["prose"]["left"]
-    for boxed in ("ask", "callout"):
+    # An option list keeps the measure whatever one option holds: only a box's own
+    # blocks widen it.
+    for boxed in ("ask", "callout", "list"):
         assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
     for wide in ("granted", "holds"):
         assert at[wide] == {"width": 1080, "left": edge}, (wide, at)

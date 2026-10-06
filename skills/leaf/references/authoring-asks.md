@@ -19,13 +19,11 @@ last.
 
 An `lf-ask` keeps the prose's width on every page, a wide one included, so its
 question, options and the marker beside it stand with the paragraphs around it.
-Give an Ask more room with `data-width` when what it holds needs it, on the Ask or
-on the block that needs the room, since the Ask widens to what it holds: `wide` for
-a chart, image or table, `available` for a playground or another surface that uses
-every column it gets (`page-authoring.md`, "Bounds and widths"). An Ask that frames
-such a figure around one option list sets the list beside its premise and evidence
-wherever it has the room, so the question, the figure and every option share the
-window.
+Give an Ask `data-width` when what it holds needs more room: `wide` for a chart,
+image or table, `available` for a playground or another surface that uses every
+column it gets (`page-authoring.md`, "Bounds and widths"). An Ask that frames such a
+figure around one option list sets the list beside its premise and evidence wherever
+the Ask has the room, so the question, the figure and every option share the window.
 
 Write related, independently answerable Asks in page order. A widget can carry its
 own question and context, or an `lf-ask` can frame them around it. They remain visible

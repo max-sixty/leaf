@@ -221,7 +221,7 @@
     /* A breakout inside another takes its holder's width. A box allocated the column is
      * no holder of that kind: one that draws a frame withholds the room as any frame does
      * (below), and one that does not, such as an Ask, lets a breakout through as a section
-     * does, and widens to it in a wider flow (theme.css). */
+     * does, and widens to one of its own blocks in a wider flow (theme.css). */
     [data-lf-space]:not([data-lf-space="column"]) [data-lf-space] {
       --lf-room: 100%;
     }

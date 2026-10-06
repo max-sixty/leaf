@@ -34,8 +34,7 @@ import { draftHasContent } from "../drafts.js";
 import { focusThread } from "./focus.js";
 import { passOn, retainUserIntent } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
-import { nextRender } from "../rendering.js";
-import { foldOut, finishFold, isFolding } from "./folding.js";
+import { isFolding } from "./folding.js";
 import { threadKey } from "./model.js";
 import { seenRect, whenOffScreen } from "../geometry.js";
 import { gesturedOn } from "./held-news.js";
@@ -58,8 +57,6 @@ class ThreadListView extends RetainedFace {
   #rollbackFocus = null;
   #passingFocus = false;
   #selection = [];
-  #draftViews = new Set();
-  #draftFrame = 0;
   #intent = null;
   #leaving = new Map();
 
@@ -98,6 +95,7 @@ class ThreadListView extends RetainedFace {
   #choose(card) {
     const row = this.#visibleRows().find((row) => row.node === card);
     if (!row) return;
+    this.#commands.beforeChoose(card);
     // A title choice is an arrival; restoring that title after paint is not.
     if (!restoringFocus()) showHeld(card.dataset.id);
     this.#select(row.key);
@@ -111,7 +109,7 @@ class ThreadListView extends RetainedFace {
   // the render that first does, and its card carries the answer while it stays. The
   // user's own gesture on the thread (`gesturedOn`) takes the card in the turn it is
   // drawn, or, while its reply holds words, once the words go ("draft"), so settlement
-  // never puts a draft away; a settlement folds it out (willUpdate). Anything else is
+  // never puts a draft away; its thread owner folds a settlement out. Anything else is
   // news ("news"), and its card stays, holding the news (held-news.js) or drawn as the
   // news left it in the shape it stood in, while its going would move something the
   // user sees: while any of it shows, since every card after it would rise, and, as
@@ -164,16 +162,29 @@ class ThreadListView extends RetainedFace {
   }
 
   revealNavigation(id) {
-    const node = this.querySelector(
-      `[data-id="${CSS.escape(id)}"], [data-mid="${CSS.escape(id)}"]`,
+    const row = this.#rows.find(
+      (row) => row.kind === "thread" && this.#views.get(row.key).ownsMessage(id),
     );
-    const card = node?.closest(".lf-thread");
-    const row = this.#rows.find((row) => row.kind === "thread" && row.node === card);
     // Narrowing owns hidden rows. Its completed reveal calls back here; opening
     // one before that would paint no disclosure and invalidate the same transition.
-    if (!row || card.hidden) return;
+    if (!row || row.node.hidden) return;
     this.#select(row.key);
     this.#showExpanded();
+  }
+
+  incomingTail(reading, card) {
+    const prior = this.committed.rows.find(
+      (row) => row.kind === "thread" && this.#views.get(row.key)?.node === card,
+    );
+    const next = prior && reading.rows.find((row) => row.key === prior.key);
+    return next?.kind === "thread"
+      ? this.#views.get(prior.key).incomingTail(prior.descriptor, next.descriptor)
+      : null;
+  }
+
+  messageTail(id) {
+    const view = [...this.#views.values()].find((view) => view.ownsMessage(id));
+    return view?.messageTail(id) ?? null;
   }
 
   constructor() {
@@ -189,18 +200,6 @@ class ThreadListView extends RetainedFace {
         this.#passingFocus = false;
       }
       passOn(this, focused());
-    });
-    // A title pressed by a pointer takes focus on the way down and opens on its click,
-    // where the press's landing and the list's place hold already stand (landing.js,
-    // thread-list.js); every other focus opens it as it arrives.
-    this.addEventListener("focusin", (event) => {
-      const title = event.target;
-      if (
-        !this.#passingFocus &&
-        title.matches?.(".lf-thread-summary") &&
-        !title.matches(":active")
-      )
-        this.#choose(title.parentElement);
     });
   }
   configure(commands, initialModel) {
@@ -282,7 +281,15 @@ class ThreadListView extends RetainedFace {
       wanted.add(row.key);
       let view = this.#views.get(row.key);
       if (!view) {
-        this.#views.set(row.key, (view = new ThreadView("panel", this.#commands.card)));
+        this.#views.set(
+          row.key,
+          (view = new ThreadView("panel", {
+            ...this.#commands.card,
+            choose: () => {
+              if (!this.#passingFocus) this.#choose(view.node);
+            },
+          })),
+        );
         // A card opened by something other than the list becomes the choice: a reveal
         // says so in the task that opens it, so the card it replaces closes in the same
         // task; the browser's own opening (find-in-page) is heard on its toggle.
@@ -299,44 +306,9 @@ class ThreadListView extends RetainedFace {
           // A kept card the user closed by opening another goes, if out of sight.
           if (!view.node.open && view.model.kept) this.#commands.repaintThread();
         });
-        view.node.addEventListener("click", (event) => {
-          if (event.target.closest(".lf-thread-summary")?.parentElement !== view.node)
-            return;
-          event.preventDefault();
-          this.#choose(view.node);
-        });
       }
       if (viewChanged) view.releaseNews();
-      let descriptor = row.descriptor;
-      const prior = view.model;
-      if (this.#retaining || !descriptor.resolved || descriptor.visible)
-        finishFold(view.node);
-      // A change of view puts away at once every card it stops admitting, including
-      // one whose resolution it shows.
-      const folding =
-        !this.#retaining &&
-        descriptor.resolved &&
-        (isFolding(view.node) ||
-          (prior &&
-            !viewChanged &&
-            !prior.resolved &&
-            !prior.folding &&
-            prior.visible &&
-            !descriptor.visible &&
-            foldOut(view.node, this.#commands.repaintThread)));
-      if (folding) {
-        view.retire();
-        descriptor = Object.freeze({
-          ...prior,
-          id: descriptor.id,
-          folding: true,
-          grow: false,
-          settlement: Object.freeze({ ...prior.settlement, pending: false }),
-        });
-        if (view.node.contains(focused())) this.focus({ preventScroll: true });
-      }
-      view.setNavigation({ draftChanged: () => this.#draftChanged(view) });
-      view.present(descriptor);
+      view.present(row.descriptor, { retaining: this.#retaining, viewChanged });
       rows.push({ kind: "thread", key: row.key, node: view.node });
     }
     for (const [key, view] of this.#views) if (!wanted.has(key)) view.retire();
@@ -345,22 +317,6 @@ class ThreadListView extends RetainedFace {
     // while that card still folds, the words stood above it and carried it down.
     const giving = rows.some((row) => row.kind === "thread" && isFolding(row.node));
     this.#rows = giving ? rows.filter((row) => row.kind !== "empty") : rows;
-  }
-
-  // A folded row says whether its reply holds a draft. A send empties the box and
-  // publishes the message it sent as two steps, so the row repaints in the next frame,
-  // from where both leave it, rather than once for the emptied box and again for the
-  // message.
-  #draftChanged(view) {
-    this.#draftViews.add(view);
-    this.#draftFrame ||= nextRender(() => {
-      this.#draftFrame = 0;
-      for (const changed of this.#draftViews)
-        if ([...this.#views.values()].includes(changed)) {
-          changed.repaint();
-        }
-      this.#draftViews.clear();
-    });
   }
 
   updated() {

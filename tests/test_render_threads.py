@@ -3772,7 +3772,6 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
                 },
               },
             });
-            controller.mountThreadList(() => true);
             return { ...elements, handle };
           };
           window.__testThreadPanels = [mount(), mount()];

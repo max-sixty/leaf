@@ -5776,7 +5776,6 @@ def _hold_required_thread_panel(page):
       handle=app.registerThreadPanel({controller,threadsBox:elements.threadsBox,required:true,view:{
         narrowing,panelIsOpen:()=>true,scrollToElement:()=>{},setThreadCounts:()=>{},onListChanged:()=>{},
         refreshAnchorHover:()=>{},travel:{showThread:()=>{},retainPanelLanding:()=>{},retainNarrowing:()=>{}}}});
-      controller.mountThreadList(()=>true);
       await app.refreshThread();
     }""")
 

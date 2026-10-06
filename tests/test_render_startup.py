@@ -4377,7 +4377,7 @@ customElements.define('lf-feed', class extends HTMLElement {
     seen = comment["anchor"]["source_revision"]
 
     page.locator('[data-lf-datum="a-1"]').click(modifiers=["Alt"])
-    page.locator(".lf-fab-bar .lf-response-more").click()
+    page.keyboard.press("Tab")
     reaction = page.locator('.lf-fab-bar .lf-react[data-token="keep"]')
     expect(reaction).to_be_visible()
     with sending(page, "the record reaction"):
@@ -4428,7 +4428,7 @@ customElements.define('lf-feed', class extends HTMLElement {
     assert drafted["anchor"]["identity"] == "a"
 
     row.click(modifiers=["Alt"])
-    page.locator(".lf-fab-bar .lf-response-more").click()
+    page.keyboard.press("Tab")
     expect(reaction).to_have_attribute("aria-pressed", "true")
     with sending(page, "the record reaction withdrawal"):
         reaction.click()
@@ -4442,6 +4442,8 @@ customElements.define('lf-feed', class extends HTMLElement {
     "failure",
     [
         "outletFor",
+        "invalid-count",
+        "invalid-outlet",
         "unregister",
         "end-unregister",
         "disconnect",
@@ -4466,7 +4468,7 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     """An adapter failure cannot keep stale local views or stop the next widget.
 
     Each case is one way a surface stops holding its threads: its callback throws
-    (outletFor, after partial claims on the first datum), it unregisters outside or
+    (outletFor, after preparing the first datum), it unregisters outside or
     inside its callback, it leaves the page, its outlet moves out of it or off the
     page, it places nothing, or its datum goes while the callback awaits. Its threads
     fall back to the core surface with the unsent draft, and its picker lets go of the
@@ -4485,7 +4487,7 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
         "x-example": '<lf-test-surface id="surface-example"></lf-test-surface>',
     }
     module = """
-import {projectData, consumeThreads} from '/runtime/widget-api.js';
+import {projectData, placeThreads} from '/runtime/widget-api.js';
 customElements.define('lf-test-surface', class extends HTMLElement {
   connectedCallback() {
     projectData(this, ['first', 'second'], key => key, key => {
@@ -4498,15 +4500,13 @@ customElements.define('lf-test-surface', class extends HTMLElement {
       row.append(words, outlet);
       return row;
     });
-    this.surface = consumeThreads(this, async (collection, surfaces) => {
-      for (const thread of collection.threads) {
-        const target = surfaces.target(thread.key);
-        if (!target) continue;
+    this.surface = placeThreads(this, async (targets) => {
+      const outlets = targets.map((target) => {
         const {anchor, placement} = target;
         if (anchor.datum === 'second' && this.failure === 'outletFor')
           throw new Error('surface fixture: outletFor');
-        if (this.failure !== 'hidden') surfaces.place(thread.key, placement.datumElement.outlet);
-      }
+        return this.failure === 'hidden' ? null : placement.datumElement.outlet;
+      });
         if (this.failure === 'end-unregister') {
           this.failure = null;
           this.surface.unregister();
@@ -4522,6 +4522,9 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             row.remove();
           }
         }
+      if (this.failure === 'invalid-count') return outlets.slice(1);
+      if (this.failure === 'invalid-outlet') return outlets.map(() => undefined);
+      return outlets;
     });
   }
   fail(phase) {
@@ -4716,13 +4719,14 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             "value", "Keep this unsent reply."
         )
         expect(markers).to_have_count(0)
-    # Only a throw and an outlet outside its owner are faults the page reports.
-    if failure in {"outletFor", "moved"}:
-        expected = (
-            "returned an outlet outside its presentation owner"
-            if failure == "moved"
-            else "surface fixture: outletFor"
-        )
+    # Invalid output is a failed preparation, never a partial successful claim.
+    if failure in {"outletFor", "moved", "invalid-count", "invalid-outlet"}:
+        expected = {
+            "outletFor": "surface fixture: outletFor",
+            "moved": "returned an outlet outside its presentation owner",
+            "invalid-count": "return one outlet or null per target",
+            "invalid-outlet": "A Thread outlet must be an Element or null",
+        }[failure]
         consume_browser_errors(page, expected)
 
 
@@ -5717,19 +5721,18 @@ def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve)
     )
     page = open_page(browser, url)
     page.evaluate("""async () => {
-      const {consumePageThreads} = await __lfRuntimeImport('/runtime/application.js');
+      const {placePageThreads} = await __lfRuntimeImport('/runtime/application.js');
       const rail = document.querySelector('#review');
       const outlets = new Map();
-      window.pageSurface = consumePageThreads(rail, (collection, surface) => {
-        for (const thread of collection.threads) {
-          if (!surface.target(thread.key)) continue;
+      window.pageSurface = placePageThreads(rail, (targets) => {
+        return targets.map(({thread}) => {
           let outlet = outlets.get(thread.key);
           if (!outlet) {
             outlet = document.createElement('div');
             outlet.dataset.lfGen='1'; rail.append(outlet); outlets.set(thread.key,outlet);
           }
-          surface.place(thread.key,outlet);
-        }
+          return outlet;
+        });
       });
     }""")
     thread = page.locator("#review .lf-page-thread")
@@ -5793,7 +5796,7 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
         "x-example": '<lf-test-seat id="sample"></lf-test-seat>',
     }
     module = """
-import {projectData, consumeThreads} from '/runtime/widget-api.js';
+import {projectData, placeThreads} from '/runtime/widget-api.js';
 customElements.define('lf-test-seat', class extends HTMLElement {
   connectedCallback() {
     projectData(this, ['row'], key => key, key => {
@@ -5803,12 +5806,9 @@ customElements.define('lf-test-seat', class extends HTMLElement {
     });
   }
   start() {
-    this.surface = consumeThreads(this, (collection, surface) => {
+    this.surface = placeThreads(this, (targets) => {
       if (this.fail) throw new Error('exact widget failed');
-      for (const thread of collection.threads) {
-        const target = surface.target(thread.key);
-        if (target) surface.place(thread.key, target.placement.datumElement.outlet);
-      }
+      return targets.map(target => target.placement.datumElement.outlet);
     });
   }
 });
@@ -5858,15 +5858,14 @@ customElements.define('lf-test-seat', class extends HTMLElement {
       };
       const rail = document.querySelector('#review');
       const outlets = new Map();
-      window.pageSurface = app.consumePageThreads(rail, (collection, surface) => {
+      window.pageSurface = app.placePageThreads(rail, (targets) => {
         if (window.failPage) throw new Error('required page failed');
-        for (const thread of collection.threads) {
-          if (!surface.target(thread.key)) continue;
+        return targets.map(({thread}) => {
           let outlet = outlets.get(thread.key);
           if (!outlet) { outlet = document.createElement('div');
             outlet.dataset.lfGen='1'; outlet.style.cssText='display:flow-root;height:250px;overflow:auto'; rail.append(outlet); outlets.set(thread.key,outlet); }
-          surface.place(thread.key, outlet);
-        }
+          return outlet;
+        });
       });
     }""")
     expect(page.locator("#review .lf-page-thread")).to_have_count(2)
@@ -5938,7 +5937,7 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
         "x-example": '<lf-test-seat id="seat"></lf-test-seat>',
     }
     module = """
-import {projectData,consumeThreads} from '/runtime/widget-api.js';
+import {projectData,placeThreads} from '/runtime/widget-api.js';
 customElements.define('lf-test-seat',class extends HTMLElement{
   connectedCallback(){
     this.style.cssText='display:block;height:360px;overflow:auto';
@@ -5948,12 +5947,8 @@ customElements.define('lf-test-seat',class extends HTMLElement{
       return row;
     });
     this.side='a';
-    this.surface=consumeThreads(this,(collection,surface)=>{
-      if(surface.composition)surface.placeComposition(this.querySelector("[data-lf-datum]")[this.side]);
-      for(const thread of collection.threads){
-        const target=surface.target(thread.key);if(target)surface.place(thread.key,target.placement.datumElement[this.side]);
-      }
-    });
+    this.surface=placeThreads(this,targets=>
+      targets.map(target=>target.placement.datumElement[this.side]));
   }
 });
 """
@@ -5990,11 +5985,9 @@ customElements.define('lf-test-seat',class extends HTMLElement{
     page.evaluate("""async()=>{
       const app=await __lfRuntimeImport('/runtime/application.js');window.refresh=app.refreshThread;
       const rail=document.querySelector('#rail'); const outlet=document.createElement('div');outlet.dataset.lfGen='1';rail.append(outlet);
-      window.pageSurface=app.consumePageThreads(rail,async(collection,surface)=>{
+      window.pageSurface=app.placePageThreads(rail,async(targets)=>{
         if(window.holdNext){window.holdNext=false;await new Promise(resolve=>window.releasePage=resolve);}
-        if(surface.composition)surface.placeComposition(outlet);
-        for(const thread of collection.threads)if(surface.target(thread.key))
-          surface.place(thread.key,window.invalid?document.querySelector('#foreign'):outlet);
+        return targets.map(()=>window.invalid?document.querySelector('#foreign'):outlet);
       });
     }""")
     expect(page.locator("#rail .lf-page-thread")).to_have_count(1)
@@ -6155,9 +6148,9 @@ def test_source_retired_during_required_panel_prepare_is_not_claimed(browser, se
     page.evaluate("""async()=>{
       const app=await __lfRuntimeImport('/runtime/application.js');
       const rail=document.querySelector('#rail');const outlet=document.createElement('div');outlet.dataset.lfGen='1';rail.append(outlet);
-      window.surface=app.consumePageThreads(rail,(collection,surface)=>{
-        window.offered=collection.threads.filter(t=>surface.target(t.key)).map(t=>t.id);
-        for(const t of collection.threads)if(surface.target(t.key))surface.place(t.key,outlet);
+      window.surface=app.placePageThreads(rail,targets=>{
+        window.offered=targets.map(({thread})=>thread.id);
+        return targets.map(()=>outlet);
       });
       document.querySelector('#retire').onclick=()=>{document.querySelector('#subject').id='retired';};
       await app.refreshThread();

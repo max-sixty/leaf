@@ -55,7 +55,7 @@
       - var(--lf-taken-l, 0px)));
     --lf-free-r: max(0px, calc(var(--lf-beside) - var(--lf-shift) - var(--col-pad)
       - var(--lf-taken-r, 0px)));
-    --lf-room: max(0px, calc(100cqi - 2 * var(--col-pad)));
+    --lf-room: calc(var(--lf-width) + var(--lf-free-l) + var(--lf-free-r));
   }
   @media screen {
     main.layout-column { position: relative; inset-inline-start: var(--lf-shift); }
@@ -238,8 +238,8 @@
      * page's to give, and inside a disclosure or a callout the page is not what holds the
      * widget — a board that took the window from inside a <details> hung out over both
      * edges of the frame it was filed under, which reads as a broken page rather than as a
-     * wide exhibit. Stated as no room rather than as an exception to the rule above, so the
-     * widget falls back to the floor that rule already has and fills its holder exactly.
+     * wide exhibit. Stated as the holder's own width rather than as an exception to the
+     * rule above, so the widget fills its holder exactly.
      *
      * A box declares that it frames what it holds in the rule where it draws the frame
      * (`--lf-block-frame`), and the room is the second thing the layer reads out of that one
@@ -267,7 +267,7 @@
      * scroll container until a diagram in a board card was drawn 332px across the next
      * column, and four widgets letting a diagram out were found the day it could. */
     @container style(--lf-block-frame: 1) {
-      * { --lf-room: 0px; }
+      * { --lf-room: 100%; }
     }
     /* When startup is incomplete, undrawn widgets show source in the column. */
     html[data-lf-startup-error]:not([data-lf-interactive]) [data-lf-space] {

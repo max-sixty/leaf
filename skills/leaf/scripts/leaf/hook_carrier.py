@@ -1,23 +1,34 @@
 """The prompt and Stop hooks as a session's carrier, under Claude Code or Pi: they
 carry the page input pending on the session's pages into its turn and enforce the
-agent conversation loop. `hooks` reaches this module only for a session holding a
-page.
+agent conversation loop. `hooks` reaches this module for active ownership or a
+reconnect notice about a page the session previously served.
 
 Claude Code runs the prompt hook as every turn begins, including a turn the end
 of a background task opens, idle or between two tool calls, and adds what the
 hook returns to that turn's context; what the Stop hook returns reaches the
 model the same way, and continues the turn (`Harness.hook_context`). Leaf's Pi
 extension calls both at the same points of a run. So these two hooks are the
-session's carrier
-(`Harness.hook_delivers`): each freezes the input pending on the session's pages and hands over its complete
-envelope or immutable pointer. The reader confirms receipt only once the whole
-delivery is in context; hook completion and stdout publication prove no receipt.
+session's carrier (`Harness.hook_delivers`): each freezes the input pending on
+the session's pages and hands over its complete envelope inline, or its
+immutable pointer.
 
-Claude Code writes a hook's context over 10,000 characters to a file and hands
-the turn a preview and its path, so a delivery that large goes as a pointer its
-reader confirms once read. Every inline envelope requires the same confirmation."""
+The hook confirms an inline envelope itself, as it hands it over, so the user's
+moves read Picked up without waiting on the model; the envelope's `acknowledge`
+is null. Two things could keep inline context from reaching the turn, and the
+hook rules out both before it confirms. A harness discards the output of a hook
+it times out, so the hook confirms only by a deadline well inside its timeout
+(`CONFIRM_WITHIN`): it goes inline only before it, confirms only after
+publishing, and leaves pending any page whose lock is still held at the deadline.
+Stopped before it confirms, it has confirmed nothing, and it never waits on a
+lock past the deadline into the harness's timeout. Claude Code cuts context over a limit to a preview
+(`HOOK_CONTEXT_LIMIT`), so a delivery that large goes as a pointer, and so does
+one the hook was too slow to confirm; the agent's `leaf delivery read` of a
+pointer is its receipt, as it is of the pointer Codex's tool hook offers. What remains is a turn that ends
+just after it starts, as an interrupt can; its moves then read Picked up in a
+turn that ended, as an App Server turn's do."""
 
 import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,6 +36,7 @@ from .activity import acknowledged_obligations, turn_obligations, unanswered
 from .delivery import (
     batch_data,
     freeze_delivery,
+    receive_held,
     record_pickup,
 )
 from .harness import Harness, claim_harness
@@ -251,44 +263,41 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
 HOOK_CONTEXT_LIMIT = 10_000
 
 
-def hook_acknowledgement(delivery_id: str) -> str:
-    """Only the reader can prove a harness hook's context reached its turn."""
-    return (
-        "Once this complete delivery is in your context, confirm it with "
-        f"`leaf delivery ack {delivery_id}`. Until then, the user's moves read Sent."
-    )
+# How long after it starts a hook may still hand a delivery over inline and wait
+# for the locks that confirm it. Every registration of the prompt and Stop hooks
+# allows 20 s (`hooks/hooks.json`, `hooks/pi.ts`), and the hook takes about 0.4 s.
+# The other half covers what this clock does not see: uv's start and the
+# interpreter's imports before it, and the receipt's writes and exit after it.
+CONFIRM_WITHIN = 10.0
 
 
-def compose(batches: list[dict], attention: list[str]) -> str:
-    """Publish one reader-confirmed envelope inline, or its exact pointer.
-
-    Hook completion cannot establish receipt: a harness timeout discards stdout,
-    and large context may be truncated. The model acknowledges only after the
-    complete immutable delivery reached its context on either path.
-    """
-    if not batches:
-        return "\n".join(attention)
-    delivery = freeze_delivery(
-        batches, carrier="hook", acknowledge=hook_acknowledgement
-    )
+def render(
+    delivery: dict | None, attention: list[str], *, inline: bool
+) -> tuple[str, bool]:
+    """The hook's context, and whether it hands `delivery` over inline, which
+    confirms it: only where `inline` allows and the whole message fits under
+    `HOOK_CONTEXT_LIMIT`. Otherwise it hands over the pointer its reader's
+    `leaf delivery read` confirms."""
+    if delivery is None:
+        return "\n".join(attention), False
     message = "\n".join(
         [
-            "Leaf has new input for your turn. Read this complete delivery and take its acknowledge route before answering.",
+            "Leaf has new input for your turn. Read this complete delivery before answering.",
             json.dumps(delivery, ensure_ascii=False),
             *attention,
         ]
     )
-    if len(message.encode("utf-8")) < HOOK_CONTEXT_LIMIT:
-        return message
+    if inline and len(message.encode("utf-8")) < HOOK_CONTEXT_LIMIT:
+        return message, True
     return "\n".join(
         [
             (
-                "Leaf has new input for this turn, too large to hand over inline. "
-                f"Read it with `leaf delivery read {delivery['id']}`, then confirm it as its `acknowledge` says."
+                "Leaf has new input for this turn. Read it with "
+                f"`leaf delivery read {delivery['id']}`, which confirms it."
             ),
             *attention,
         ]
-    )
+    ), False
 
 
 def carry_turn(
@@ -297,10 +306,14 @@ def carry_turn(
     sid: str,
     payload: dict,
     expected: dict | None | object = ...,
+    *,
+    started: float,
+    reconnect_harness: str | None = None,
 ) -> bool | None:
-    """Answer a prompt, Stop, or other page-reading hook `harness` ran for a
-    session holding a page: open or close its turn, hand over its pending input,
-    and name what its pages are owed, in the output that harness reads."""
+    """Compose this lifecycle's page input, obligations, and reconnect context
+    into the one hook output its harness reads, and confirm the delivery it
+    hands over inline by `CONFIRM_WITHIN` after `started`, the hook's
+    `time.monotonic()` as it began."""
     expected = session_record(sid) if expected is ... else expected
     plans = read_plans(sid)
     if session_record(sid) != expected or any(
@@ -323,8 +336,6 @@ def carry_turn(
     ):
         return True
     reasons = remedies(plans, batches)
-    if not reasons and not batches:
-        return
     # The message avoids "unattended": a page can be watched and still be owed
     # an answer, and the runtime spends that word on a different fact — a page
     # served to nobody at all.
@@ -341,13 +352,22 @@ def carry_turn(
         if reasons
         else []
     )
-    # Publishing context proves no receipt. Its reader acknowledges the exact
-    # envelope after the harness accepted this output into its turn.
-    message = compose(batches, attention)
-    with flocked(session_lock_path(sid)):
-        if session_record(sid) != expected:
+    delivery = freeze_delivery(batches, carrier="hook") if batches else None
+    deadline = started + CONFIRM_WITHIN
+    from .reconnect import publishing_notices
+
+    with publishing_notices(reconnect_harness, sid, expected) as context:
+        if context is None:
             return
-        print(
-            json.dumps(harness.hook_context(event, message)),
-            flush=True,
+        message, inline = render(
+            delivery,
+            [*context, *attention],
+            inline=time.monotonic() < deadline,
         )
+        if message:
+            print(
+                json.dumps(harness.hook_context(event, message)),
+                flush=True,
+            )
+    if inline:
+        receive_held(delivery, sid, deadline=deadline)

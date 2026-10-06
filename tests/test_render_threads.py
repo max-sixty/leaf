@@ -1853,9 +1853,9 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(
     expect(shelf.locator("img")).to_have_count(4)
     rendered(page)
     field_box = field.bounding_box()
-    more_box = page.locator(".lf-response-more").bounding_box()
-    assert field_box["x"] + field_box["width"] <= more_box["x"]
-    assert more_box["x"] + more_box["width"] <= width
+    shelf_box = shelf.bounding_box()
+    assert shelf_box["x"] + shelf_box["width"] <= field_box["x"]
+    assert field_box["x"] + field_box["width"] <= width
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("close — draft kept")
     layout = shelf.evaluate(
         """element => ({

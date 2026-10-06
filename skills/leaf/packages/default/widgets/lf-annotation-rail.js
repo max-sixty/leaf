@@ -15,7 +15,7 @@ import {
   anchorLabel,
   annotationMode,
   consumeAnnotations,
-  consumePageThreads,
+  placePageThreads,
   contributionItemKey,
   HeldReading,
   holdFocus,
@@ -68,8 +68,8 @@ customElements.define(
     connectedCallback() {
       if (once(this)) this.#build();
       if (annotationMode !== "page") return;
-      this.#surface ??= consumePageThreads(this, (collection, surfaces) =>
-        this.#present(collection, surfaces),
+      this.#surface ??= placePageThreads(this, (targets, { collection }) =>
+        this.#present(targets, collection),
       );
       this.#annotations ??= consumeAnnotations(this, (entries, view) =>
         this.#presentActions(entries, view),
@@ -353,7 +353,7 @@ customElements.define(
       }
     }
 
-    #present(collection, surfaces) {
+    #present(targets, collection) {
       const current = new Map(collection.threads.map((thread) => [thread.key, thread]));
       const wanted = JSON.stringify(
         collection.threads.map((thread) => [
@@ -390,8 +390,6 @@ customElements.define(
           row.node.style.minBlockSize = "";
           row.node.removeAttribute("data-lf-ar-retired");
           keepsHidden(row.button, false);
-          const target = surfaces.target(thread.key);
-          if (target) surfaces.place(thread.key, row.outlet);
         } else {
           // The successful cohort empties the old native outlet. Keep its allocation
           // until the held layout can leave, with no stale navigation control.
@@ -426,18 +424,22 @@ customElements.define(
         }
       }
       keepsHidden(this.#empty, shape.length > 0);
-      keepsHidden(
-        this.#composer,
-        !surfaces.composition && !this.#composerOutlet.firstElementChild,
-      );
-      this.#composer.toggleAttribute("data-lf-ar-retired", !surfaces.composition);
-      if (surfaces.composition) {
+      const composer = targets.find((target) => !target.thread);
+      keepsHidden(this.#composer, !composer && !this.#composerOutlet.firstElementChild);
+      this.#composer.toggleAttribute("data-lf-ar-retired", !composer);
+      if (composer) {
         keepsText(
           this.#composerName,
-          `Comment · ${anchorLabel(surfaces.composition.anchor) || "The page"}`,
+          `Comment · ${anchorLabel(composer.anchor) || "The page"}`,
         );
-        surfaces.placeComposition(this.#composerOutlet);
       }
+      return targets.map(({ thread }) =>
+        thread
+          ? retained.has(thread.key)
+            ? this.#rows.get(thread.key).outlet
+            : null
+          : this.#composerOutlet,
+      );
     }
   },
 );

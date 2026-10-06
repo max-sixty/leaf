@@ -3169,3 +3169,31 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     # Completion is the reading rendered waited on. A later slide-end scan can
     # queue new work, so a second reading need not still be settled.
     expect(page.locator(".lf-thread-panel")).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_send_room_moves_to_every_line_only_while_the_field_scrolls(
+    engine, request, serve
+):
+    """The field holds Send's room after its last words until its words scroll, and on
+    every line while they do, in an engine without CSS scroll-state queries as in
+    Chromium. Keyed on the query alone, WebKit and Firefox held it on every line
+    always, so the change never reached them."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
+    page = open_page(request.getfixturevalue(engine), url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
+    thread.locator(".lf-thread-summary").click()
+    field = thread.locator(".lf-thread-reply leaf-text")
+    scrolls = "el => el.scrollHeight > el.clientHeight"
+
+    write(field, "First line.\nSecond line.")
+    assert not field.evaluate(scrolls)
+    expect(field).to_have_js_property("endRoom", "last-line")
+    write(field, "A long draft scrolls inside its field. " * 120)
+    assert field.evaluate(scrolls)
+    expect(field).to_have_js_property("endRoom", "every-line")
+    write(field, "Short again.")
+    expect(field).to_have_js_property("endRoom", "last-line")

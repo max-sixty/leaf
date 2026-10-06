@@ -111,22 +111,13 @@ sheet.replaceSync(`
   .lf-field-placeholder { padding-inline-end: var(--lf-field-end-room); }
   /* The action stands beside more than the last line under a finger, whose hit box is
      taller than a line, and in a scrolled field, which carries other lines past it. */
-  :host { container-type: scroll-state; }
   @media (pointer: coarse) {
     .lf-field { padding-inline-end: var(--lf-field-end-room); }
     .lf-field-placeholder { padding-inline-end: 0; }
     .cm-line.lf-field-last::after { content: none; }
   }
-  @container scroll-state(scrollable: block) {
-    .lf-field { padding-inline-end: var(--lf-field-end-room); }
-    .cm-line.lf-field-last::after { content: none; }
-  }
-  /* A browser that cannot tell when the field scrolls holds the room on every line. */
-  @supports not (container-type: scroll-state) {
-    .lf-field { padding-inline-end: var(--lf-field-end-room); }
-    .lf-field-placeholder { padding-inline-end: 0; }
-    .cm-line.lf-field-last::after { content: none; }
-  }
+  :host(:state(scrolls)) .lf-field { padding-inline-end: var(--lf-field-end-room); }
+  :host(:state(scrolls)) .cm-line.lf-field-last::after { content: none; }
   /* A draft wears the sent message's faces. Strong, emphasis and strikethrough are the
      elements themselves, which the platform dresses here as it does in the message;
      the rest read the theme's tokens, since its element rules stop at this root. A
@@ -444,6 +435,16 @@ class LeafText extends HTMLElement {
       });
   });
 
+  // Whether the host scrolls, for the action's room. CSS has a scroll-state query for
+  // this, which only Chromium supports; elsewhere every field read as scrolled. The
+  // host's height stops at the page's limit while the words grow inside it, so the
+  // reading watches the editor's scroller too. A resize observer reports before paint,
+  // so the room never shows a frame on the wrong lines.
+  #overflow = sizeObserver(() => {
+    if (this.scrollHeight > this.clientHeight) this.#internals.states.add("scrolls");
+    else this.#internals.states.delete("scrolls");
+  });
+
   static observedAttributes = ["aria-label", "aria-describedby", "placeholder"];
 
   constructor() {
@@ -530,6 +531,8 @@ class LeafText extends HTMLElement {
     });
     this.#model = null;
     this.#sizes.observe(this);
+    this.#overflow.observe(this);
+    this.#overflow.observe(this.#view.scrollDOM);
     // The scroller is focusable only so a press on it keeps focus in the editor, and
     // the field's scroller never scrolls; left focusable it is the node the root
     // delegates focus to, which holds no caret.
@@ -545,6 +548,7 @@ class LeafText extends HTMLElement {
       if (this.isConnected || !this.#view) return;
       this.#model = this.#view.state;
       this.#sizes.disconnect();
+      this.#overflow.disconnect();
       this.#view.destroy();
       this.#view = null;
       this.#internals.states.delete("ready");

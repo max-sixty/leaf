@@ -131,12 +131,7 @@ def admission_tasks(readings) -> list[dict]:
         [{**task, "thread": None} for task in canonical_tasks(events)],
         thread_asks,
         [
-            {
-                "id": identity,
-                "msgs": held["msgs"],
-                "revisions": held["revisions"],
-                "user_prompt": prompts.get(identity),
-            }
+            {"id": identity, "msgs": held["msgs"], "user_prompt": prompts.get(identity)}
             for identity, held in threads.items()
         ],
         task_ends(events),

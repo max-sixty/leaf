@@ -231,9 +231,9 @@ export class MessageView {
     }
     // The view the user opened the rewrite in draws its editor (`message-edit.js`); a
     // closed editor goes with its subscription and keys.
-    const editing = model.editable && holdsMessageEdit(model.id, this);
+    const editing = model.editable && holdsMessageEdit(model.id, this, panel);
     if (editing && !this.#editor)
-      this.#editor = new MessageEditor(model.id, this, {
+      this.#editor = new MessageEditor(model.id, this, panel, {
         wireInput: this.#commands.reply.wireInput,
         said: () => this.#model.body.text,
         send: (text, options) =>
@@ -372,7 +372,7 @@ export class MessageView {
   openEdit() {
     const model = this.#model;
     if (!model?.editable) return false;
-    openMessageEdit(model.id, model.body.text, this);
+    openMessageEdit(model.id, model.body.text, this, model.panel);
     this.#commands.edit.paint();
     this.#editor?.focus();
     return true;

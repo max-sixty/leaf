@@ -1382,6 +1382,35 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     assert thread["resolved"] is None
     assert [item[0] for item in owed_answers()] == [again["id"]]
 
+    # A question asked after the rewritten words stays the user's: a rewrite up the
+    # thread is owed an answer, and answers nothing asked since.
+    asking = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            "--for",
+            again["id"],
+            "--text",
+            "Which year goes first?",
+            "--awaits",
+        ],
+    )
+    assert asking.exit_code == 0, asking.output
+    typo = append_command(
+        page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": asked["id"],
+            "text": "Chart both!",
+        },
+    )
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["attention"]["kind"] == "needs_user", thread["attention"]
+    assert [item[0] for item in owed_answers()] == [typo["id"]]
+
     reaction = append_command(
         page_dir,
         {"kind": "reply", "author": "user", "parent": answer["id"], "token": "keep"},

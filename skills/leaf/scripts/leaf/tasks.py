@@ -69,13 +69,7 @@ import sys
 from pathlib import Path
 
 from .asks import settles
-from .events import (
-    conversation_turns,
-    exchange,
-    is_reaction,
-    note_settlements,
-    taken_back,
-)
+from .events import is_reaction, message_turns, note_settlements, taken_back
 
 OUTCOMES = ("done", "failed", "dropped")
 
@@ -356,11 +350,11 @@ def _answer(thread: dict, question: dict, tokens: dict) -> dict | None:
     the rule that takes it off them (`asks.settles`). A question the agent asked again
     before the user moved has none until the user answers the later one, which
     answers both."""
-    turns = conversation_turns(thread)
+    turns = message_turns(thread)
     return next(
         (
             message
-            for message in exchange(thread)
+            for message in thread["msgs"]
             if message["seq"] > question["seq"]
             and (
                 settles(message, question["id"], tokens)

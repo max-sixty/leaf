@@ -10,10 +10,10 @@
      finds the words a closed one left.
    - That an editor stands open is disclosure, this document's mechanical state, held
      here by message id. One view of the message draws it: the one it was opened in,
-     or, once that view is gone, the next view of the message this document presents,
-     which takes the editor as a replacement node takes words and caret. Another view
-     of the same message, or another tab, draws the message as it was, since nothing
-     the user did there asked it to change.
+     or, once that view is gone, the next view of the message on the same surface
+     (the Threads panel, or the page), which takes the editor as a replacement node
+     takes words and caret. A view on the other surface, or in another tab, draws the
+     message as it was, since nothing the user did there asked it to change.
 
    A double click on the message, its Edit control, or ↑ in the thread's empty reply box
    opens it. Enter saves; Escape closes it and keeps its words; Cancel discards them. All
@@ -34,32 +34,35 @@ import { TEXT_FIELD } from "../control-selectors.js";
 import { offer } from "../widget-elements.js";
 
 const editContext = (id) => `edit:${id}`;
-const open = new Map(); // message id -> the view drawing its editor, or null
+// message id -> {view, panel}: the view drawing its editor, null once that view is
+// gone, and whether it stood in the Threads panel.
+const open = new Map();
 
-// Whether `view` draws the editor for message `id`: the view holding it, or the first to
-// ask once no view does.
-export function holdsMessageEdit(id, view) {
-  if (!open.has(id)) return false;
+// Whether `view`, on the surface `panel` says, draws the editor for message `id`: the
+// view holding it, or the first on the same surface to ask once no view does.
+export function holdsMessageEdit(id, view, panel) {
   const holder = open.get(id);
-  if (holder !== null && holder !== view) return false;
-  open.set(id, view);
+  if (!holder || holder.panel !== panel) return false;
+  if (holder.view !== null && holder.view !== view) return false;
+  holder.view = view;
   return true;
 }
 
-// The view drawing `id`'s editor is gone; whichever view of the message comes next
+// The view drawing `id`'s editor is gone; the next view of the message on its surface
 // takes it.
 export function releaseMessageEdit(id, view) {
-  if (open.get(id) === view) open.set(id, null);
+  const holder = open.get(id);
+  if (holder?.view === view) holder.view = null;
 }
 
 // Open a rewrite of `id` in `view`, on the words a closed one left or the message's own.
-export function openMessageEdit(id, text, view) {
+export function openMessageEdit(id, text, view, panel) {
   const ctx = editContext(id);
   if (loadDraft(ctx) === null) {
     saveDraft(ctx, text);
     tellDraft(ctx, text);
   }
-  open.set(id, view);
+  open.set(id, { view, panel });
 }
 
 function closeMessageEdit(id, { discard }) {
@@ -79,7 +82,7 @@ function closeMessageEdit(id, { discard }) {
 export class MessageEditor {
   #stop;
 
-  constructor(id, view, { wireInput, said, send, land, paint }) {
+  constructor(id, view, panel, { wireInput, said, send, land, paint }) {
     const ctx = editContext(id);
     this.node = offer("div", "lf-msg-editor");
     this.input = offer(TEXT_FIELD);
@@ -107,9 +110,10 @@ export class MessageEditor {
         if (text === said().trim()) return leave(true);
         leave(false);
         const sent = await sendDraft(ctx, owns, (attempt) => send(raw, { attempt }));
-        // A refusal has given the words back to the draft; show them where they were.
-        if (!sent && loadDraft(ctx) !== null) {
-          openMessageEdit(id, raw, view);
+        // A refusal has given the words back to the draft; show them where they were,
+        // while that view stands. Otherwise they wait in the draft for the next opening.
+        if (!sent && loadDraft(ctx) !== null && view.node.isConnected) {
+          openMessageEdit(id, raw, view, panel);
           paint();
         }
       },

@@ -72,6 +72,14 @@ def exchange(thread: dict) -> list:
     return sorted([*thread["msgs"], *thread["revisions"]], key=lambda m: m["seq"])
 
 
+def message_turns(thread: dict) -> list:
+    """The thread's spoken messages that participate in the exchange, where their
+    words stand. A question asked after a message is answered by the user's words
+    after it, so a rewrite of an earlier message, though a turn the agent owes, answers
+    no question asked since (`asks`, `tasks`)."""
+    return [message for message in spoken_turns(thread) if not message.get("ephemeral")]
+
+
 def conversation_turns(thread: dict) -> list:
     """Spoken messages and user revisions that participate in the exchange, excluding
     progress updates."""

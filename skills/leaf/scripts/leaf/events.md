@@ -280,9 +280,9 @@ them:
   reopens a resolved thread and owes an answer as a reply would. That answer names
   the edit as `responds` and the rewritten message as its parent (`workflows`,
   `turn_message`). Its delivery carries `was`, since the thread's digest reads the new
-  text. A rewrite of an earlier message is still the thread's newest turn, so it hands
-  the thread to the agent even past a question the agent asked since, as any user
-  reply that leaves the question unanswered does.
+  text. A question is answered by words standing after it (`events.message_turns`),
+  so a rewrite of a message before an agent's question leaves that question on the
+  user, beside the answer the agent owes the rewrite.
 - `thread_title` names an existing thread with a nonblank, single-line
   plain-text title of at most 80 characters. The latest title is projected separately
   from messages into browser state and agent context; an unnamed thread has

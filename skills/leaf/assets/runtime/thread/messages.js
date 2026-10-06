@@ -24,6 +24,7 @@ import {
   MessageEditor,
   OPEN_MESSAGE_EDIT,
   holdsMessageEdit,
+  keptRewrite,
   openMessageEdit,
   releaseMessageEdit,
 } from "./message-edit.js";
@@ -292,6 +293,15 @@ export class MessageView {
               ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
               : nothing
           }
+          ${
+            model.editable && !editing && keptRewrite(model.id)
+              ? html`<span
+                  class="lf-msg-kept"
+                  title="Your rewrite is kept; open it to save or cancel"
+                  >unsaved edit</span
+                >`
+              : nothing
+          }
         </span>
         ${
           model.editable && !editing
@@ -374,7 +384,7 @@ export class MessageView {
   openEdit() {
     const model = this.#model;
     if (!model?.editable) return false;
-    openMessageEdit(model.id, model.body.text, this, model.panel);
+    openMessageEdit(model.id, this, model.panel);
     this.#commands.edit.paint();
     this.#editor?.focus();
     return true;

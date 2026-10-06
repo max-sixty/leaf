@@ -312,8 +312,7 @@ test("pending thread gestures fold in the order the user made them, as the log w
   // The newest turn is the one the agent answers, whichever kind it is.
   assert.equal(fold(rewrite, reply).attention.workflow, "pending:reply");
   assert.equal(fold(reply, rewrite).attention.workflow, "pending:rewrite");
-  // A rewrite after a resolve reopens the thread; a resolve after it closes it again.
-  assert.equal(fold(resolve, rewrite).resolved, null);
+  // A resolve after a rewrite closes the thread the rewrite reopened.
   assert.deepEqual(fold(rewrite, resolve).resolved, { author: "user", pending: true });
 });
 

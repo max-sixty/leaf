@@ -9786,6 +9786,7 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     page.keyboard.press("Escape")
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the south bracket.")
+    expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
     # Resume writing goes back to the kept words, as it does to a kept reply.
     page.keyboard.press("g")
     page.keyboard.press("i")
@@ -9793,8 +9794,12 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     expect(editor).to_have_js_property("value", "Fit the south bracket. Or not.")
     message.get_by_role("button", name="Cancel").click()
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    expect(message.locator(".lf-msg-kept")).to_have_count(0)
     message.locator(".lf-msg-text").dblclick()
     expect(editor).to_have_js_property("value", "Fit the south bracket.")
+    # Opening and closing a rewrite with its words unchanged keeps nothing.
     page.keyboard.press("Escape")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    expect(message.locator(".lf-msg-kept")).to_have_count(0)
     round_trip(page)
     assert len([e for e in events_model.read_events(d) if e["kind"] == "edit"]) == 1

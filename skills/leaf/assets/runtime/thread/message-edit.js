@@ -4,10 +4,11 @@
    is a turn the agent answers (events.md, `edit`). Two facts make up a rewrite, each
    with the owner its kind has elsewhere:
 
-   - Its words are a draft under `rewrite:<message id>` (drafts.js), so they keep every
-     promise a reply's words keep: they survive a reload, reach every tab, come back on
-     a refusal, and stay until Save or Cancel settles them. Opening a rewrite again
-     finds the words a closed one left.
+   - Its words are a draft under `rewrite:<message id>` (drafts.js), once the user
+     changes them, so they keep every promise a reply's words keep: they survive a
+     reload, reach every tab, come back on a refusal, and stay until Save or Cancel
+     settles them. Opening a rewrite again finds the words a closed one left, and the
+     message says it holds them (`keptRewrite`).
    - That an editor stands open is disclosure, this document's mechanical state, held
      here by message id. One view of the message draws it: the one it was opened in,
      or, once that view is gone, the next view of the message on the same surface
@@ -17,14 +18,16 @@
 
    A double click on the message, its Edit control, or ↑ in the thread's empty reply box
    opens it, and Resume writing (`g i`) opens a rewrite whose words were kept where its
-   thread lands (`openMessageEditIn`). Enter saves; Escape closes it and keeps its words; Cancel discards them. All
-   three leave the user standing on the thread, as a sent reply does. Save sends through
+   thread lands (`openMessageEditIn`). Enter saves; Escape closes it and keeps its
+   words; Cancel discards them. All three leave the user standing on the thread, as a
+   sent reply does. Save sends through
    the one ledger, which draws the new words on the message in the gesture
    (`foldThreads`), and a refusal opens the editor again on the words it gives back.
    Words the message already says are no rewrite, so saving them closes the editor and
    sends nothing. */
 import {
   clearDraft,
+  draftHasContent,
   loadDraft,
   mirrorDraft,
   saveDraft,
@@ -58,15 +61,13 @@ export function releaseMessageEdit(id, view) {
   if (holder?.view === view) holder.view = null;
 }
 
-// Open a rewrite of `id` in `view`, on the words a closed one left or the message's own.
-export function openMessageEdit(id, text, view, panel) {
-  const ctx = editContext(id);
-  if (loadDraft(ctx) === null) {
-    saveDraft(ctx, text);
-    tellDraft(ctx, text);
-  }
+// Open a rewrite of `id` in `view`.
+export function openMessageEdit(id, view, panel) {
   open.set(id, { view, panel });
 }
+
+// Whether the user closed a rewrite of `id` and kept its words for later.
+export const keptRewrite = (id) => !open.has(id) && draftHasContent(editContext(id));
 
 // Open the rewrite of message `id` where `thread`, a drawn thread, shows it, and answer
 // the box its words are in: none where the thread does not draw that message as one the
@@ -107,7 +108,8 @@ export class MessageEditor {
     const save = offer("button", "lf-btn lf-thread-send", "Save");
     const cancel = offer("button", "lf-btn lf-msg-edit-cancel", "Cancel");
     this.node.append(this.input, save);
-    this.input.value = loadDraft(ctx) ?? "";
+    // The words a closed rewrite left, or the message's own.
+    this.input.value = loadDraft(ctx) ?? said();
     const leave = (discard) => {
       land();
       closeMessageEdit(id, { discard });
@@ -130,7 +132,7 @@ export class MessageEditor {
         // A refusal has given the words back to the draft; show them where they were,
         // while that view stands. Otherwise they wait in the draft for the next opening.
         if (!sent && loadDraft(ctx) !== null && view.node.isConnected) {
-          openMessageEdit(id, raw, view, panel);
+          openMessageEdit(id, view, panel);
           paint();
         }
       },

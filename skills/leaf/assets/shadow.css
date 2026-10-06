@@ -334,7 +334,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-page-thread-resolved > .lf-thread-news { margin-inline-start: auto; }
 .lf-seat-news { display: flex; align-items: center; box-sizing: border-box; }
 .lf-msg-head time { color: var(--muted-2); }
-.lf-msg-head .lf-edited { color: var(--muted-2); }
+.lf-msg-head :is(.lf-edited, .lf-msg-kept) { color: var(--muted-2); }
 /* The user's own message offers its rewrite at the head's end, in the meta's face.
    The end holds still while the meta's receipt changes its words beside it, as a
    control in this text region must. A pointer that hovers finds it on the message it

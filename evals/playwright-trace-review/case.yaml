@@ -1,0 +1,41 @@
+# Added with the Playwright package: imported journeys should use the shared
+# review widget and preserve the full viewer route. The native-video case remains
+# the guardrail for recordings whose input is a video rather than a trace index.
+description: playwright-trace-review
+metadata:
+  purpose: 'Author a commentable imported browser journey with the optional Playwright package.'
+  tags:
+  - evidence
+  - packages
+vars:
+  prompt: |
+    Write a Leaf section for reviewing a browser journey recorded by Playwright.
+    The page has the playwright package selected. Its release-journey source
+    already holds an imported playwright-trace value, including a viewerUrl
+    for full diagnostic inspection. The recording has two buttons with the same
+    accessible name. The user needs to step through recorded actions and images,
+    comment on a saved button, and return to that exact moment from the thread.
+
+    The page directory is unavailable. Read the selected package's registry and
+    author instructions under the Leaf skill's base directory, then reply with
+    the section's HTML.
+assert:
+- type: javascript
+  metric: reads-trace-registry
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/packages/playwright/registry\.json
+- type: javascript
+  metric: reads-trace-author
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/packages/playwright/instructions/author[.]md
+- type: javascript
+  metric: uses-imported-trace
+  value: file://text-regex.cjs
+  config:
+    pattern: '<lf-trace(?=\s|>)(?=[^>]*\sid\s*=\s*["''][a-z0-9-]+["''])(?=[^>]*\ssource\s*=\s*["'']release-journey["''])[^>]*>\s*</lf-trace\s*>'
+    flags: i
+- type: llm-rubric
+  metric: keeps-captured-evidence
+  value: The section uses the selected package's trace widget for the imported journey, with no custom playback module or reconstruction of the recorded application's live behavior. Its prose does not claim that image pixels and saved accessibility boxes were captured simultaneously, or that matching accessible names uniquely identifies a button.

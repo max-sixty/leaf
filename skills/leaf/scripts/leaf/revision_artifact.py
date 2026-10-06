@@ -558,6 +558,38 @@ class _Capture(Slot):
     """A page's last capture, by every input it was built from."""
 
 
+def capture_local_resource(page_dir: Path, path: str) -> Resource:
+    """Freeze one resolved page-local resource with the shared containment/MIME gate.
+
+    Authored dependency capture and declared external-data media capture both
+    read exact bytes here. Callers own URL admission before supplying a path.
+    """
+    source = page_dir / path.removeprefix("/")
+    root = page_dir / ("page" if path.startswith("/page/") else "media")
+    if path.startswith(("/page/", "/media/")) and (
+        not root.resolve().is_relative_to(page_dir.resolve())
+        or not source.resolve().is_relative_to(root.resolve())
+    ):
+        raise ArtifactError(
+            f"{path}: dependency escapes its source directory through a symlink"
+        )
+    try:
+        data = source.read_bytes()
+    except OSError as error:
+        raise ArtifactError(
+            f"{path}: cannot capture dependency: {error.strerror}"
+        ) from error
+    mime = RESOURCE_TYPES.get(
+        source.suffix,
+        "application/octet-stream"
+        if not path.startswith(("/page/", "/media/"))
+        else None,
+    )
+    if mime is None or mime == "text/html":
+        raise ArtifactError(f"{path}: unsupported dependency MIME type")
+    return Resource(data, mime)
+
+
 def _capture_artifact(
     page_dir: Path,
     document: SourceDocument,
@@ -572,30 +604,8 @@ def _capture_artifact(
     def capture(path: str):
         if path in resources:
             return
-        source = page_dir / path.removeprefix("/")
-        root = page_dir / ("page" if path.startswith("/page/") else "media")
-        if path.startswith(("/page/", "/media/")) and (
-            not root.resolve().is_relative_to(page_dir.resolve())
-            or not source.resolve().is_relative_to(root.resolve())
-        ):
-            raise ArtifactError(
-                f"{path}: dependency escapes its source directory through a symlink"
-            )
-        try:
-            data = source.read_bytes()
-        except OSError as error:
-            raise ArtifactError(
-                f"{path}: cannot capture dependency: {error.strerror}"
-            ) from error
-        mime = RESOURCE_TYPES.get(
-            source.suffix,
-            "application/octet-stream"
-            if not path.startswith(("/page/", "/media/"))
-            else None,
-        )
-        if mime is None or mime == "text/html":
-            raise ArtifactError(f"{path}: unsupported dependency MIME type")
-        resources[path] = Resource(data, mime)
+        resource = capture_local_resource(page_dir, path)
+        data, mime = resource.data, resource.mime
         edges = []
         if mime == "application/javascript" and path.startswith("/page/"):
             for _, _, specifier in _javascript_imports(data, path):

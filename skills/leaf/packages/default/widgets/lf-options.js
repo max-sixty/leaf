@@ -288,7 +288,6 @@ customElements.define(
     #done = null;
     #keysDirty = false;
     #settled = null;
-    #stop = null;
     #wired = false;
 
     constructor() {
@@ -309,14 +308,17 @@ customElements.define(
       // widget descriptor. Only a live or settled decision enters the controller path.
       const exhibited = quoted(this);
       super.connectedCallback();
-      if (!this.#wired) this.#wire(exhibited);
+      const firstConnection = !this.#wired;
+      if (firstConnection) this.#wire(exhibited);
       this.#addition?.connect();
       if (this.#choosable && this.hasAttribute("multiple") && !this.#done)
         this.#doneRow();
       this.#settled?.connect();
       if (!exhibited && (this.hasAttribute("choose") || this.hasAttribute("settled"))) {
-        this.#controller ??= widgetController(this);
-        this.#stop ??= this.#controller.subscribe(this.#present);
+        if (firstConnection) {
+          this.#controller = widgetController(this);
+          this.#controller.subscribe(this.#present);
+        }
       } else {
         this.#presentAuthored();
       }
@@ -699,8 +701,6 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      this.#stop?.();
-      this.#stop = null;
       this.#addition?.disconnect();
       this.#settled?.disconnect();
       super.disconnectedCallback();

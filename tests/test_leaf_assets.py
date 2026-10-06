@@ -31,6 +31,11 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
     (seed / "examples" / "example-retained.jpg").write_bytes(preview.read_bytes())
     (seed / "demo").mkdir()
     (seed / "demo" / "session-card.png").write_bytes(b"old demo card")
+    snapshots = seed / "tests/thread-snapshots"
+    (snapshots / "linux").mkdir(parents=True)
+    (snapshots / "linux/checkpoint.png").write_bytes(b"this runtime's Linux pixels")
+    (seed / "examples/media").mkdir()
+    (seed / "examples/media/retained.png").write_bytes(b"authored example media")
     leaf_assets.run("git", "add", "-A", cwd=seed)
     leaf_assets.run("git", "commit", "-m", "Initial assets", cwd=seed)
     leaf_assets.run("git", "push", cwd=seed)
@@ -83,7 +88,13 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
         )
     repository = "max-sixty/leaf-assets"
     (source / "leaf-assets.json").write_text(
-        json.dumps({"repository": repository, "revision": old_revision})
+        json.dumps(
+            {
+                "repository": repository,
+                "revision": old_revision,
+                "thread_snapshots_revision": old_revision,
+            }
+        )
     )
     readme = source / "README.md"
     prefix = leaf_assets.raw_prefix(repository)
@@ -98,6 +109,9 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
 
     preview.write_bytes(b"another publisher's changed decision preview")
     (seed / "examples" / "example-unused.jpg").write_bytes(b"not in the catalog")
+    (snapshots / "linux/checkpoint.png").write_bytes(b"another runtime's Linux pixels")
+    (snapshots / "head-only").mkdir()
+    (snapshots / "head-only/checkpoint.png").write_bytes(b"an unreviewed profile")
     leaf_assets.run("git", "add", "-A", cwd=seed)
     leaf_assets.run(
         "git", "commit", "-m", "Refresh the preview independently", cwd=seed
@@ -119,6 +133,7 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
     assert json.loads((source / "leaf-assets.json").read_text()) == {
         "repository": repository,
         "revision": revision,
+        "thread_snapshots_revision": old_revision,
     }
     assert readme.read_text() == f"![Demo]({prefix}{revision}/demo/session-card.png)\n"
     assert leaf_assets.run("git", "rev-parse", "HEAD", cwd=remote) == revision
@@ -142,6 +157,9 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
         draft_dir,
     )
     next_preview = draft / "examples" / "example-decision.jpg"
+    assert (
+        draft / "examples/media/retained.png"
+    ).read_bytes() == b"authored example media"
     next_address = (
         f"/media/{media_name(next_preview.read_bytes(), next_preview.suffix)}"
     )
@@ -224,6 +242,51 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
 
     assert {page: page.read_bytes() for page in ordinary} == ordinary
     assert leaf_assets.run("git", "rev-parse", "HEAD", cwd=remote) == revision
+
+    # Accepting a reviewed runtime expectation advances only its own consumer.
+    if failure == "push":
+        rejection.write_text("#!/bin/sh\nexit 0\n")
+    acceptance_dir = tmp_path / "acceptance"
+    acceptance_dir.mkdir()
+    reviewed = {
+        "profile/checkpoint.png": b"reviewed runtime pixels",
+        "linux/checkpoint.png": b"this runtime's Linux pixels",
+    }
+    accepted_checkout = leaf_assets.stage(
+        "tests/thread-snapshots",
+        reviewed,
+        acceptance_dir,
+        replace_tree=True,
+        revision_key="thread_snapshots_revision",
+    )
+    publisher(accepted_checkout)
+    accepted = leaf_assets.publish(accepted_checkout, "Accept thread expectations")
+    assert accepted != revision
+    assert leaf_assets.specification(source) == (repository, revision)
+    assert leaf_assets.specification(
+        source, revision_key="thread_snapshots_revision"
+    ) == (repository, accepted)
+    assert readme.read_bytes() == ordinary[readme]
+    assert {page: page.read_bytes() for page in docs.glob("*.html")} == {
+        page: ordinary[page] for page in docs.glob("*.html")
+    }
+    committed = leaf_assets.run(
+        "git",
+        "ls-tree",
+        "-r",
+        "--name-only",
+        accepted,
+        "tests/thread-snapshots",
+        cwd=remote,
+    ).splitlines()
+    assert committed == [f"tests/thread-snapshots/{name}" for name in sorted(reviewed)]
+    for name, content in reviewed.items():
+        assert (
+            accepted_checkout / "tests/thread-snapshots" / name
+        ).read_bytes() == content
+    assert (
+        accepted_checkout / "examples/media/retained.png"
+    ).read_bytes() == b"authored example media"
 
 
 def test_a_publication_keeps_what_others_published_since_its_pin(tmp_path, monkeypatch):

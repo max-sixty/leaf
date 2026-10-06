@@ -24,8 +24,12 @@ const result = await build({
     {
       name: "leaf-pierre-bounds",
       setup(build) {
+        build.onResolve({ filter: /^shiki\/wasm$/ }, () => ({
+          path: path.join(work, "wasm-leaf.mjs"),
+        }));
         build.onResolve({ filter: /^shiki$/ }, () => ({
-          path: path.join(work, "shiki-leaf.mjs"),
+          path: "./syntax.esm.js",
+          external: true,
         }));
         build.onResolve({ filter: /^@pierre\/theming\/themes$/ }, () => ({
           path: path.join(work, "themes-leaf.mjs"),

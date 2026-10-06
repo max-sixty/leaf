@@ -1,7 +1,8 @@
 """Reviewed PNG expectations for one real message-delivery journey.
 
 Images and viewport geometry live in max-sixty/leaf-assets, pinned by the existing
-leaf-assets.json. Tests compare current Leaf directly against that immutable set;
+leaf-assets.json's thread_snapshots_revision. Tests compare current Leaf directly
+against that immutable set;
 no historical runtime, source patch or baseline build is involved. Appearance is
 compared on macOS only: fonts and antialiasing differ by OS, and a Linux image could
 be made only on CI's own runner (TODO.md, "Development velocity"). Elsewhere the
@@ -16,9 +17,10 @@ Existing fetch-assets warms the same cache as every other asset reader.
 
 Capture runs the same journey and hard delivery assertions, writing all 48 PNG images and
 geometry readings to a new evidence folder. Review its actual images and observations,
-then accept publishes that profile through leaf_assets.stage / publish and updates
-the ordinary asset pin. Acceptance never occurs in normal tests. CI retains failed
-run evidence. Small antialias noise is excluded by Pixelmatch's AA handling and
+then accept replaces that profile within the pinned collection, publishes through
+leaf_assets.stage / publish and updates the thread-expectations pin, leaving media's
+revision untouched. Acceptance never occurs in normal tests. CI retains failed run
+evidence. Small antialias noise is excluded by Pixelmatch's AA handling and
 calibrated 0.01 perceptual tolerance; every other mismatched pixel fails, with no
 whole-image allowance. Independently compare viewport geometry so a translated crop
 cannot conceal placement changes.
@@ -237,8 +239,11 @@ ASSET_DIRECTORY = "tests/thread-snapshots"
 
 
 def expected_store() -> Path:
-    """The immutable PNG tree every checkout's ordinary asset pin governs."""
-    return leaf_assets.pinned_assets() / ASSET_DIRECTORY
+    """The immutable PNG tree selected by this checkout's reviewed expectations."""
+    return (
+        leaf_assets.pinned_assets(revision_key="thread_snapshots_revision")
+        / ASSET_DIRECTORY
+    )
 
 
 @click.group("thread-snapshots")
@@ -312,7 +317,7 @@ def capture_files(directory: Path, profile: str) -> dict[str, bytes]:
     "directory", type=click.Path(exists=True, file_okay=False, path_type=Path)
 )
 def accept(directory: Path):
-    """Publish a complete, reviewed capture and update Leaf's immutable asset pin."""
+    """Publish a complete, reviewed capture and update the expectations pin."""
     marker = directory / "capture.json"
     if not marker.is_file():
         raise click.ClickException(f"not a successful capture: {directory}")
@@ -325,9 +330,21 @@ def accept(directory: Path):
         raise click.ClickException(
             f"capture changed after its assertions passed: {directory}"
         )
+    # Preserve this runtime's other reviewed profiles, never the asset head's.
+    baseline = expected_store()
+    collection = {
+        path.relative_to(baseline).as_posix(): path.read_bytes()
+        for path in baseline.rglob("*")
+        if path.is_file() and path.relative_to(baseline).parts[0] != profile
+    }
+    collection.update({f"{profile}/{name}": data for name, data in files.items()})
     with tempfile.TemporaryDirectory(prefix="leaf-thread-images-") as staging:
         checkout = leaf_assets.stage(
-            f"{ASSET_DIRECTORY}/{profile}", files, Path(staging)
+            ASSET_DIRECTORY,
+            collection,
+            Path(staging),
+            replace_tree=True,
+            revision_key="thread_snapshots_revision",
         )
         revision = leaf_assets.publish(
             checkout, f"Accept reviewed thread appearance for {profile}"

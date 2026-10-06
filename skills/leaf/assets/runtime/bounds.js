@@ -44,9 +44,21 @@
    leaves. Each held block is then watched on its own, for what it holds and for its
    size. What is registered is what stands in the page.
 
+   A block in content the browser skips, a hidden tab's panel or a shut disclosure, is
+   left as it stands until it is drawn (geometry.js, `skipped`). Finding its scroller
+   reads the style of every box it holds, and finding its end reads layout, and either
+   question makes the browser style and lay out the hidden subtree first. Asked on each
+   change a hidden log took, that forced pass left Chromium with style written
+   elsewhere on the page unapplied, so a decided suggestion kept showing its retired
+   words (#1868). A block first seen hidden stands as its own scroller meanwhile. Each
+   skipped sync renews the block's size observation, whose first delivery comes once
+   the block is drawn and asks again, so a log that grew while hidden opens on its
+   newest entry.
+
    The watch starts before presentation because the first read it takes is the one the
    user sees: an `end` log opens at its end, and a pin taken after the page presents
    would show it at its top and then jump. */
+import { skipped } from "./geometry.js";
 import { sizeObserver } from "./rendering.js";
 import { atScrollEnd as atEnd, scrollToEnd } from "./scrolling.js";
 import { watchArrivals } from "./arrivals.js";
@@ -129,30 +141,42 @@ function holdBlock(bounded) {
     hold.box = null;
     registered.delete(hold);
   };
-  hold.sync = () => {
+  const adopt = (box) => {
+    if (box === hold.box) return;
+    letGo();
+    box.addEventListener("scroll", onScroll, { passive: true });
+    resize.observe(box);
+    byBox.set(box, hold);
+    hold.box = box;
+    hold.left = false;
+    hold.pinned = null;
+    stopRegion = registerReadingRegion({ id: hold.id, host: bounded, body: box });
+    registered.add(hold);
+  };
+  // `observed` when the block's own size observer asks, which cannot take a fresh
+  // observation of the block: the same delivery would never reach it (reach.js).
+  const sync = (observed) => {
     hold.bound = bounded.getAttribute(BOUND);
     if (!bounded.isConnected || hold.bound === null) return letGo();
-    const box = scrollerOf(bounded);
-    if (box !== hold.box) {
-      letGo();
-      box.addEventListener("scroll", onScroll, { passive: true });
-      resize.observe(box);
-      byBox.set(box, hold);
-      hold.box = box;
-      hold.left = false;
-      hold.pinned = null;
-      stopRegion = registerReadingRegion({ id: hold.id, host: bounded, body: box });
-      registered.add(hold);
+    if (skipped(bounded)) {
+      if (!hold.box) adopt(bounded);
+      if (!observed) {
+        resize.unobserve(bounded);
+        resize.observe(bounded);
+      }
+      return;
     }
+    adopt(scrollerOf(bounded));
     if (!bounded.matches(FOLLOWING)) return;
     if (!following(hold)) {
       hold.left = true;
       return;
     }
-    scrollToEnd(box);
-    hold.pinned = box.scrollTop;
+    scrollToEnd(hold.box);
+    hold.pinned = hold.box.scrollTop;
   };
-  const resize = sizeObserver(hold.sync);
+  hold.sync = () => sync(false);
+  const resize = sizeObserver(() => sync(true));
   resize.observe(bounded);
   new MutationObserver(hold.sync).observe(bounded, {
     childList: true,

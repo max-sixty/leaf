@@ -1599,6 +1599,55 @@ def test_a_bound_at_its_end_follows_a_rebuilt_feed_until_the_user_scrolls_back(
     assert page.locator("#feed").evaluate("feed => feed.scrollTop") == 200
 
 
+def test_a_log_growing_in_a_hidden_tab_opens_on_its_newest_entry(browser, serve):
+    """A bounded log in a tab the user is not viewing grows without Leaf styling the
+    hidden panel to follow it. Opening the tab shows the newest entry, each time the log
+    grew while hidden. Asking the panel's style was the box-by-box read that left a
+    decided suggestion's retired words showing in Chromium (#1868)."""
+    entry = "<p>Entry: the deploy copied a shard to the new key format.</p>"
+    url = serve(
+        leaf_page(
+            "A log in a hidden tab",
+            '<h1>Deploy</h1><section><lf-tabs id="views">'
+            '<lf-tab id="summary" label="Summary"><p>Running.</p></lf-tab>'
+            f'<lf-tab id="history" label="History"><div id="log" data-bound="end">'
+            f"{entry * 30}</div></lf-tab></lf-tabs></section>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    resized(page, 1280, 900)
+    tabs = page.locator("#views")
+    summary = tabs.get_by_role("tab", name="Summary", exact=True)
+    history = tabs.get_by_role("tab", name="History", exact=True)
+    at_end = """() => { const log = document.getElementById('log');
+      return log.scrollHeight > log.clientHeight
+        && log.scrollHeight - log.scrollTop - log.clientHeight <= 2; }"""
+    page.evaluate(
+        """() => {
+          window.lfStyleAsked = [];
+          const log = document.getElementById('log');
+          const asked = window.getComputedStyle;
+          window.getComputedStyle = function (el, ...rest) {
+            if (log.contains(el)) window.lfStyleAsked.push(el.localName);
+            return asked.call(this, el, ...rest);
+          };
+        }"""
+    )
+    grow = """count => document.getElementById('log').append(
+      ...Array.from({length: count}, (_, i) => Object.assign(
+        document.createElement('p'), {textContent: `Arrived ${i}`})))"""
+
+    for _ in range(2):
+        expect(summary).to_have_attribute("aria-selected", "true")
+        page.evaluate("() => { window.lfStyleAsked.length = 0; }")
+        page.evaluate(grow, 20)
+        rendered(page)
+        assert page.evaluate("() => window.lfStyleAsked") == []
+        history.click()
+        page.wait_for_function(at_end)
+        summary.click()
+
+
 def revised_log(first, last):
     """A page whose log bounded at its end holds entries `first` to `last`."""
     filler = "".join(

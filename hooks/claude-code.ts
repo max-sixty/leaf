@@ -149,9 +149,9 @@ async function wake($: EngineInterface, session: string, ended: Watch, woke: str
       // The turn may have ended while the hook ran, and an idle session reads an
       // appended row only at its next turn. The prompt that starts one has its
       // prompt hook carry the handed input back as a move still owed its answer.
-      // TODO: a turn that ends between this check and the append leaves the row
-      // unread until the next turn, and the watch that ending starts sees the
-      // input as handed over, so it waits for the user's next prompt.
+      // TODO: that prompt names the input only as moves owed their answer, so a
+      // turn that ends while the hook runs drops the delivery the hook already
+      // recorded as picked up. Appending `context` before submitting would keep it.
       if (running) {
         await $.session.append({
           message: { type: 'user', content: [{ type: 'text', text: context ?? prompt }] },

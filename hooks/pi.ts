@@ -145,7 +145,8 @@ export default function leaf(pi: ExtensionAPI) {
 		if (!running) stopActive = false;
 		// A run that started meanwhile takes the message as a steer.
 		// TODO: the hook has already recorded that steer's pickup, and an Escape
-		// before Pi takes it clears it; the next prompt hands the input over again.
+		// before Pi takes it clears it; the next prompt's hook then names the input
+		// only as moves owed their answer.
 		pi.sendMessage(message(context ?? `Leaf: ${woke.trim()}`), { triggerTurn: true, deliverAs: "steer" });
 	}
 

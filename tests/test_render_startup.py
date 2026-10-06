@@ -5255,6 +5255,150 @@ def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(
     }
 
 
+def test_projection_subscriptions_follow_their_owner_and_cancel_queued_reads(
+    browser, serve
+):
+    """Retiring a queued read cannot revive it or its clock subscription."""
+    page = open_page(browser, serve(SUGGESTION_PAGE))
+    result = page.evaluate(
+        """async () => {
+          const {watchProjection} = await window.__lfRuntimeImport('/runtime/projection-watch.js');
+          const {clockValue, tickClock} = await window.__lfRuntimeImport('/runtime/presence.js');
+          const owner = document.createElement('div');
+          document.body.append(owner);
+          const changed = action => new Promise(resolve => {
+            const observer = new MutationObserver(() => {
+              observer.disconnect();
+              resolve();
+            });
+            observer.observe(document.body, {childList: true, subtree: true});
+            action();
+          });
+          let clock = 0;
+          let cancelled = 0;
+          const cancel = watchProjection(owner, () => {
+            cancelled += 1;
+            clockValue(() => clock);
+          });
+          cancel();
+          await Promise.resolve();
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          let calls = 0;
+          const stop = watchProjection(owner, () => {
+            calls += 1;
+            clockValue(() => clock);
+          });
+          await Promise.resolve();
+          const initial = calls;
+          await changed(() => { owner.remove(); document.body.append(owner); });
+          const moved = calls;
+          await changed(() => owner.remove());
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const detached = calls;
+          await changed(() => document.body.append(owner));
+          await Promise.resolve();
+          const resumed = calls;
+          stop();
+          await changed(() => owner.remove());
+          await changed(() => document.body.append(owner));
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          owner.remove();
+          return {cancelled, initial, moved, detached, resumed, stopped: calls};
+        }"""
+    )
+    assert result == {
+        "cancelled": 0,
+        "initial": 1,
+        "moved": 1,
+        "detached": 1,
+        "resumed": 2,
+        "stopped": 2,
+    }
+
+
+def test_data_subscriptions_follow_their_owner_and_stop_permanently(browser, serve):
+    """Detachment releases data/clock work; reattachment restores the newest reading.
+
+    A move in one mutation batch retains the original subscription. Removing an owner
+    with an in-flight render also releases its presentation, so readiness can settle
+    without waiting for a renderer whose owner is absent.
+    """
+    page = open_page(browser, data_projection_page(serve))
+    result = page.evaluate(
+        """async () => {
+          const {watchData, clockValue} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {tickClock} = await window.__lfRuntimeImport('/runtime/presence.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+          const widget = document.querySelector('lf-feed');
+          const home = widget.parentElement;
+          const changed = action => new Promise(resolve => {
+            const observer = new MutationObserver(() => {
+              observer.disconnect();
+              resolve();
+            });
+            observer.observe(document.body, {childList: true, subtree: true});
+            action();
+          });
+          const deliveries = [];
+          let clock = 0;
+          let release;
+          const stop = watchData(widget, 'rows', snapshot => {
+            clockValue(() => clock);
+            deliveries.push(snapshot?.revision ?? null);
+            if (snapshot?.revision === 'held-owner')
+              return new Promise(resolve => { release = resolve; });
+          });
+          const initial = deliveries.length;
+          await changed(() => document.body.append(widget));
+          const moved = deliveries.length;
+          await changed(() => widget.remove());
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          const detached = deliveries.length;
+          await changed(() => home.append(widget));
+          const resumed = deliveries.length;
+          const next = structuredClone(runtime.data);
+          next.version = 'held-owner-version';
+          next.sources.deployments.revision = 'held-owner';
+          acceptData(next, runtime.state.taken);
+          const pending = notifyDataSubscribers();
+          const held = deliveries.at(-1);
+          await changed(() => widget.remove());
+          await pending;
+          release();
+          const newest = structuredClone(runtime.data);
+          newest.version = 'newest-owner-version';
+          newest.sources.deployments.revision = 'newest-owner';
+          acceptData(newest, runtime.state.taken);
+          await notifyDataSubscribers();
+          const absent = deliveries.length;
+          await changed(() => home.append(widget));
+          const restored = deliveries.at(-1);
+          stop();
+          await changed(() => widget.remove());
+          await changed(() => home.append(widget));
+          clock += 1;
+          await tickClock(message => { throw new Error(message); });
+          return {initial, moved, detached, resumed, held, absent, restored,
+            stopped: deliveries.length};
+        }"""
+    )
+    assert result == {
+        "initial": 1,
+        "moved": 1,
+        "detached": 1,
+        "resumed": 2,
+        "held": "held-owner",
+        "absent": 3,
+        "restored": "newest-owner",
+        "stopped": 4,
+    }
+
+
 def test_an_async_projection_keeps_the_provenance_of_its_rendered_snapshot(
     browser, serve
 ):

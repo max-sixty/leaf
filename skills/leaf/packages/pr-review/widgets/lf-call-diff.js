@@ -13,6 +13,7 @@ import {
   projectData,
   setChildren,
   watchData,
+  once,
 } from "/runtime/widget-api.js";
 
 const LOCATION = /^(.*?)(?: {2,})(\S+:\d+(?:-\d+)?)$/;
@@ -207,15 +208,8 @@ customElements.define(
   "lf-call-diff",
   class extends HTMLElement {
     connectedCallback() {
-      if (this.stopWatching) return;
-      this.stopWatching = watchData(this, "document", (snapshot) =>
-        this.show(snapshot),
-      );
-    }
-
-    disconnectedCallback() {
-      this.stopWatching?.();
-      this.stopWatching = null;
+      if (!once(this)) return;
+      watchData(this, "document", (snapshot) => this.show(snapshot));
     }
 
     show(snapshot) {

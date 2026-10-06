@@ -45,6 +45,7 @@ import {
   shortAgo,
   TEXT_BOX,
   watchUpdates,
+  watchOwner,
 } from "/runtime/widget-api.js";
 import {
   closestCommandRole,
@@ -654,20 +655,16 @@ function paint(plan) {
 customElements.define(
   "lf-command",
   class extends HTMLElement {
-    #stop;
-
     connectedCallback() {
-      once(this);
-      this.#stop ??= watchUpdates(this, () => render(this));
-    }
-
-    // The panels leave with the command: standing in a seat, they would outlive it
-    // there, and a command that connects again repaints them into its current seat.
-    disconnectedCallback() {
-      this.#stop?.();
-      this.#stop = null;
-      for (const held of Object.values(holders.get(this) ?? {})) held.dispose();
-      if (drawn.has(this)) seat(this, band(this));
+      if (!once(this)) return;
+      watchOwner(this, {
+        // The command takes its panels out of an external seat only when it leaves.
+        disconnect: () => {
+          for (const held of Object.values(holders.get(this) ?? {})) held.dispose();
+          if (drawn.has(this)) seat(this, band(this));
+        },
+      });
+      watchUpdates(this, () => render(this));
     }
 
     // The seat this command's `readings` names connected or disconnected.

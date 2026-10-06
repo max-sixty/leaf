@@ -21,7 +21,7 @@ import sys
 import time
 from collections.abc import Callable
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
@@ -391,7 +391,7 @@ class CodexHarness(EnvironmentHarness):
         if wait_is_live(None, self.session) and not adapter_is_live(self.session):
             yield
             return
-        with preparing_adapter():
+        with preparing_adapter(self):
             yield
 
     def lifetime(self) -> dict:
@@ -500,8 +500,8 @@ class PiHarness(EnvironmentHarness):
     Stop hook as a run is about to settle (`agent_before_settle`, whose
     `continue` keeps it going), and the Interrupt hook when a run settles
     without going on from there, which is what an Escape does. As the session
-    starts and as each run settles it starts the watch (`leaf hook --watch`),
-    with the Interrupt payload after an interrupted run. When the watch wakes
+    starts and as each run settles it starts the watch (`leaf hook --harness pi
+    --watch`), with the Interrupt payload after an interrupted run. When the watch wakes
     it, it calls the prompt hook itself and sends what that returns: a message
     an extension sends to an idle Pi starts a run without its prompt events
     (measured at 1.0.2)."""
@@ -583,6 +583,9 @@ _ENVIRONMENT_HARNESSES: tuple[type[EnvironmentHarness], ...] = (
     CodexHarness,
     PiHarness,
 )
+# The harnesses whose hooks Leaf registers, by the name a registration passes
+# (`hook_harness`).
+HOOK_HARNESSES = {harness.name: harness for harness in _ENVIRONMENT_HARNESSES}
 HARNESSES: dict[str, type[Harness]] = {
     harness.name: harness for harness in (*_ENVIRONMENT_HARNESSES, EmbeddedHarness)
 }
@@ -639,26 +642,53 @@ def session_harness() -> Harness | None:
     )
 
 
-def detached_environment() -> dict[str, str]:
-    """The environment for a process this command detaches: its own, less the
-    identity of every harness `session_harness` did not choose.
+def hook_harness(name: str, session: str) -> EnvironmentHarness:
+    """The harness a hook registration names, for the session its payload names.
+
+    A hook's environment is no evidence of its harness: Codex states no thread
+    to its hooks, and a hook inherits the variables of every harness above its
+    own, so a Codex task started from a Claude Code shell carries that session's
+    identity. So each harness registers its own hooks, each passing its name:
+    `hooks/hooks.json` for Claude Code, `hooks/codex.json`, which Codex's
+    manifest names in place of that default, and the Pi extension `hooks/pi.ts`."""
+    harness = HOOK_HARNESSES[name]
+    return harness(
+        session=session,
+        agent=os.environ.get(AGENT_VARIABLE) or harness.default_agent,
+    )
+
+
+def detached_environment(harness: Harness | None) -> dict[str, str]:
+    """The environment for a process this one detaches on behalf of `harness`: its
+    own, less the identity of every other harness.
 
     A detached process leaves the harnesses above this one behind, so it could not
     rank them by process again, and the tie order would choose for it: a server a
     Codex task under Claude Code starts would serve as the Claude Code session.
-    It inherits the one identity chosen here instead."""
-    chosen = session_harness()
+    Nor could a hook's child, whose environment never named its harness. So the
+    starter settles the harness, the child inherits only that one's identity, and
+    a child that acts for it is handed it whole (`harness_argument`)."""
     others = {
         variable
-        for harness in _ENVIRONMENT_HARNESSES
-        if not isinstance(chosen, harness)
-        for variable in harness.identity_variables
+        for implied in _ENVIRONMENT_HARNESSES
+        if not isinstance(harness, implied)
+        for variable in implied.identity_variables
     }
-    return {
-        name: value
-        for name, value in os.environ.items()
-        if chosen is None or name not in others
-    }
+    return {name: value for name, value in os.environ.items() if name not in others}
+
+
+def harness_argument(harness: Harness | None) -> str:
+    """`harness` as a detached child's argument, which `harness_from_argument`
+    rebuilds, so the child acts for the harness its starter settled rather than
+    one its environment implies."""
+    return json.dumps(
+        None if harness is None else {"name": harness.name, **asdict(harness)}
+    )
+
+
+def harness_from_argument(argument: str) -> Harness | None:
+    record = json.loads(argument)
+    return None if record is None else HARNESSES[record.pop("name")](**record)
 
 
 def claim_harness(claim: dict) -> Harness:

@@ -425,7 +425,7 @@ export function floatingPlacement({ floating, update }) {
       placementProof = null;
       stood.delete(floating);
       if (frame !== floating) {
-        const restore = frame.contains(floating) && holdFocus(floating);
+        const restore = frame.contains(floating) ? holdFocus(floating) : null;
         if (frame.contains(floating)) frame.before(floating);
         frame.remove();
         frame = floating;

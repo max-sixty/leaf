@@ -142,9 +142,15 @@ holds this widget, or `null`. Each `actions` entry carries its availability and
 exact history or Undo candidates. Guard every optimistic mutation with its entry's
 availability; `dispatch()` repeats the same check.
 
-`subscribe(callback)` invokes immediately, returns cleanup, and should be stopped on
-disconnect; reconnecting subscribes again. For each reading the controller calls the
-module's `renderState(state)` first and these subscribers after. Report-only and quoted
+Call `subscribe(callback)` once during the widget's initialization. It invokes
+immediately while connected and returns cleanup for retiring the callback itself.
+The controller retains callbacks across removal: it stops semantic updates and releases
+presentation regions while detached, then paints the latest reading and restores
+preparation proof when the same owner reconnects. No unsubscribe or resubscribe belongs
+in the widget's connection callbacks. Native listeners, timers, data feeds, reading
+regions, margin contributions, and thread surfaces still follow their own lifetimes.
+For each reading the controller calls the module's `renderState(state)` first and these
+subscribers after. Report-only and quoted
 semantic widgets subscribe too, even with no interactive controls. What the declaration
 alone determines, such as a holder's settlement (`x-retired-when`), Leaf paints whether
 or not the module subscribes.
@@ -360,7 +366,12 @@ so crossing that semantic boundary replaces the host instead of emulating a butt
 element or a function returning the element that currently anchors the action. `source`
 defaults to that target and may separately name the semantic owner when presentation has
 to move to a surviving ancestor.
-`activate(token, context)` is the sole effect path and receives the projected origin,
+An entry that presents a declared command sets `scope` to its `commandScope` capability
+and `activation` to that command's stable id. Leaf derives the entry's disabled state
+from the command's availability and invokes the same `run(binding, context)` callback
+as its keyboard route. Keep its semantic action in `run`; no separate `activate`
+callback is needed for these entries. Other actions use `activate(token, context)`.
+The context carries the projected origin,
 surface, input kind, current entry, and a focus capability. That capability moves the
 current surface only when activation owned keyboard standing and otherwise returns
 false. The returned registration
@@ -485,11 +496,21 @@ const actions = commandScope("In a swipe deck", [
     control: passButton,
     bindingBadge: passHint,
     when: canSwipe,
-    run: () => passButton.click(),
+    run: () => swipe("pass"),
   },
 ]);
 commands(deck, actions);
 ```
+
+For a native button, `control` and `run` declare one activation path: Leaf invokes
+`run` for both its click and its keyboard command, and paints native disabled state
+from `when`. Remove a separate button click listener and disabled painter. Call
+`paintKeys()` after private state used by `when` changes; closures are not reactive.
+Use the semantic action directly in `run`, never the same button's `click()`. Native
+inputs keep their platform activation and editing behavior; a row that focuses an
+editor or activates a checkbox does not replace that native behavior. Generated
+contribution controls use the same callback through their surface-aware registration
+("Focus, motion, and travel" above).
 
 Set `decision: true` and provide `control` when a command starts, advances, answers, or
 revises the Ask containing `source`. This semantic role neither assigns a binding nor
@@ -559,7 +580,8 @@ controller.
 Every row passed to `commands()` has a stable dotted `id`, such as `draft.save`. Keep that
 identity when its key or wording changes: the command browser and repeated widget
 instances use it instead of display prose. If one compact row binds keys with different
-meanings, add `routes` with an `id`, `title`, and ordinary `binding` or explicit `contextKeys` for each meaning. The
+meanings, add `routes` with an `id`, `title`, and ordinary `binding` or explicit `contextKeys` for each meaning. A route may
+declare its own `when` when its control is available independently of its siblings. The
 shortcut bar stays compact, while the command reference lists and runs each route on its own.
 Use `runFromCommandReference: false` only for a parameterized step that cannot be run without a
 choice the command reference does not have, such as a generated hint tied to the live viewport. An
@@ -772,36 +794,32 @@ The handle's `update()` requests a new render after a local layout change.
 ## Widget-local Thread placement
 
 A widget declares `"x-thread-surface": true` to place Thread UI beside its own
-projected data. Use `consumeThreads(owner, render)` with
-`surfaces.place(thread.key, outlet)` for an exact datum and
-`surfaces.placeComposition(outlet)` for its active composer. The callback
-selects its Threads and hands each an outlet it owns. Here
-`this.outletFor` stands for the widget's own method, which finds or creates the outlet
-element beside the datum and returns `null` when the datum is not displayed
-(`lf-diff`'s `threadOutletFor` is the worked example):
+projected data. Use `placeThreads(owner, render)`. Core hands the callback one ordered
+batch of admitted local targets; return an array of matching outlet Elements or `null`
+in that same order. Each target supplies `{anchor, placement, thread}`;
+`placement.datumElement` is the exact rendered datum, and `thread` is its current Thread
+record or `null` for the active composer. Several targets may share one outlet.
+Here `this.outletFor` stands for the widget's own method, which finds or creates the
+outlet beside the datum (`lf-diff`'s `threadOutletFor` is the worked example):
 
 ```js
-this.threadSurface = consumeThreads(this, (collection, surfaces) => {
-  for (const thread of collection.threads) {
-    if (thread.anchor?.section !== this.id || !thread.anchor.datum) continue;
-    const target = surfaces.target(thread.key);
-    const outlet = target && this.outletFor(target);
-    if (outlet) surfaces.place(thread.key, outlet);
-  }
-  const outlet = surfaces.composition && this.outletFor(surfaces.composition);
-  if (outlet) surfaces.placeComposition(outlet);
+this.threadSurface = placeThreads(this, (targets) => {
+  this.beginThreadSurface();
+  const outlets = targets.map((target) => this.outletFor(target));
+  this.endThreadSurface();
+  return outlets;
 });
 ```
 
-`target(key)` returns `{anchor, placement}` only for an exact datum belonging to the
-widget, otherwise `null`; `placement.datumElement` is the rendered datum. It also
-returns `null` for a thread the agent starts at an on-screen datum where the widget
-draws no thread yet, since the outlet it opened would move what the user is reading:
-the thread waits in the margin until the user presses its marker, adds a turn of their
-own, or scrolls the datum out of the window.
-`composition` supplies the equivalent placement for the active composer, which may
-precede any Thread. The widget owns outlet creation, removal, and layout.
-Leaf validates target ownership and outlet containment before committing placements.
+The batch includes only exact datums belonging to the widget, in current Thread order,
+followed by its active composer when that resolves exactly. It omits a thread the agent
+starts at an on-screen datum where the widget draws no thread yet, since opening the
+outlet would move what the user is reading: that thread waits in the margin until the
+user presses its marker, adds a turn of their own, or scrolls the datum out of the window.
+The composer may precede any Thread at its datum. The widget owns outlet creation,
+removal, and layout; it returns `null` for data that is filtered, collapsed, or not yet
+hydrated. Core maps each returned outlet to its target and validates target ownership
+and outlet containment before committing placements.
 Core moves its one composer node or renders retained messages, replies, reactions,
 settlement controls, and receipts into each outlet. A claimed thread does not also
 appear in the margin projection; the Threads panel remains the complete index. With
@@ -809,11 +827,14 @@ Threads closed, `t`/`T` lands on this local surface before trying the margin-pro
 fallback. Clicking the Threads toggle from the focused surface carries the same thread
 into the panel.
 
-The consumer omits placements for data that is filtered, collapsed, or not yet hydrated.
-That keeps lazy widgets lazy and restores the margin-projection fallback. Deliberate thread
-travel may reveal the datum through `lfRevealDatum`; the ordinary reconciliation pass
+Returning `null` keeps lazy widgets lazy and restores the margin-projection fallback.
+Deliberate thread travel may reveal the datum through `lfRevealDatum`; the ordinary reconciliation pass
 then invokes the consumer again. The registration handle's `update()` invalidates layout-only
 visibility changes, and `unregister()` removes the surface when the widget disconnects.
+A callback may return a Promise for its outlet array. Its second argument supplies
+`{signal, collection}`: the abort signal marks a superseded or unregistered preparation,
+and the immutable complete collection supports retained layout allocations. Returning
+outlets after cancellation cannot claim or move content.
 If a callback throws, Leaf reports a page error, clears that registration's core-owned
 views, and returns its threads to the margin. Other registrations continue, and the
 next ordinary reconciliation retries the consumer. Outlets must remain inside their
@@ -829,13 +850,13 @@ Escape may return focus. Widgets do not receive draft, submission, or event APIs
 ## Page annotation presentation
 
 With `data-annotations="page"` on `body`, one connected Element may register
-`consumePageThreads(owner, render)` to nominate page-owned conversation outlets.
-Its callback receives the current immutable Thread collection and the same
-`target`, `place`, `composition` and `placeComposition` capabilities as a
-widget-local surface. Page targets include exact passages and visual details,
-as well as projected data. `target(key)` expresses candidacy: widget-local
-outlets that survive final validation take priority. A held widget arrival stays
-with its existing notice until the user opens it. Source-target coverage and
+`placePageThreads(owner, render)` to nominate page-owned conversation outlets.
+Its callback receives the same admitted target batch and `{signal, collection}` context,
+and returns the same matching outlet array as a widget-local surface. Page targets
+include exact passages and visual details, as well as projected data. The complete
+collection remains available for holding a row's allocation while its live target is
+absent. Targets express candidacy: widget-local outlets that survive final validation
+take priority. A held widget arrival stays with its existing notice until the user opens it. Source-target coverage and
 outlet containment are separate: the source may be elsewhere in the document,
 but the outlet must stay inside its registered owner. Core validates both again
 at the sole conversation/composer commit. Failure of this selected page callback

@@ -113,15 +113,17 @@ box follows its last message; a long panel thread pins the
 box at its scroller's foot. News that would move a reply in flow waits behind the
 thread's existing notice; a pinned reply lets the transcript grow above it.
 Where news would move what the reader is reading, it waits behind a control of fixed size:
-in a seat in the page's flow, an agent's reply, the reopening it brings, and a
-thread the agent starts wait behind a notice in a row the seat already draws, and a
-thread that would open a seat of its own, as on a diff line with no thread, waits in
-the margin behind its marker (`thread/held-news.js`). It shows once a gesture of theirs
-takes them to it: opening the notice or the thread, walking to the thread or one of its
-Asks, or replying there. In the Threads panel, a card
-news takes out of the view, as another actor resolving its thread under Open does,
-stays where it stands, drawn as the news left it in the shape it stood in, until its
-going would move nothing the user sees or they change the view
+in a seat in the page's flow or an open panel card, whatever the thread would draw
+differently (an agent's reply, a reaction from another tab, the thread resolved or
+reopened elsewhere) waits behind a notice in a row the thread already draws, as does a
+thread the agent starts in the seat, and a thread that would open a seat of its own, as
+on a diff line with no thread, waits in the margin behind its marker
+(`thread/held-news.js`). It shows once a gesture of theirs takes them to it: opening
+the notice or the thread, walking to the thread or one of its Asks, or acting there. In
+the Threads panel, a card news takes out of the view, as another actor resolving its
+thread under Open does, stays where it stands, holding the news behind that notice
+and, once shown, in the shape it stood in, until its going would move nothing the
+user sees or they change the view
 (`thread/thread-list-view.js`, `keeping`). A region whose rows only the
 log or the clock decides, so no first paint can size it, shows none of them until the
 reader opens them through a control of fixed size the widget already draws, as a
@@ -182,7 +184,7 @@ words and caret remain with its native node (`standFab`, `runtime/composing/surf
 words and caret to the replacement. The suite's browser fixture fails any test
 whose page loses typed words without a key or press (`tests/words_watch.js`), and
 every corpus page is scrolled to both ends and back with each typed box open
-(`test_words_in_a_box_survive_scrolling_away_and_back`).
+(`typed_box_findings` in `tests/test_render_gate.py`).
 
 ### Visual grammar
 
@@ -294,8 +296,8 @@ quoted comment judder. One place has one writer: two owners that each set it in 
 rewrite it every time either paints. A paint that more than one step of a script asks
 for waits for the script to end (`rendering.js`, `afterScript`), rather than painting
 the step between. The browser fixture fails a write that changes
-nothing in any test (`tests/write_watch.js`), and
-`test_a_scroll_writes_only_what_it_changes` fails a place a scroll writes on every step.
+nothing in any test (`tests/write_watch.js`), and `test_page_fixture_renders`
+fails a place a scroll writes on every step (`scroll_findings`).
 
 What a page says follows from where it stands now, not from how it got there. The one
 history its arrangement keeps is the order its margin rows came in, since a row that
@@ -305,9 +307,8 @@ and closed again leaves the page as the last time did, holding no more nodes or
 listeners; a page resized says at each width what it said there before. So whatever
 sets a state also clears it, when the width or the gesture that called for it ends,
 and "none" has one spelling, the attribute's absence, which `keeps` writes for a null
-value. The corpus holds each rule: `test_a_page_at_rest_does_nothing`,
-`test_a_closed_surface_leaves_the_page_as_it_found_it` and
-`test_a_resized_page_comes_back_as_it_was`.
+value. The corpus holds each rule, in
+`test_a_still_page_comes_back_from_every_journey_as_it_was`.
 
 Stylesheets apply in layers. `theme.css` holds page tokens, element styles,
 idioms, and CSS-only widgets, and each package theme follows it; shared shadow

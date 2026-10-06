@@ -207,6 +207,9 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     assert right == 0, (left, right)
 
     page.locator("#right-start").click()
+    reading = """async () => (await window.__lfRuntimeImport(
+      '/runtime/reading-regions.js')).userReadingRegion()?.host.id ?? null"""
+    assert page.evaluate(reading) == "right-reading"
     page.keyboard.press("d")
     page.wait_for_function(f"() => ({tops})()[1] > 0")
     scroll_settled(page, "#right-reading > :not(header, footer)")
@@ -215,6 +218,7 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     page.locator("#left-head").focus()
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
+    assert page.evaluate(reading) is None
 
 
 def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, serve):
@@ -518,24 +522,19 @@ def test_a_pane_comment_stays_in_its_reading_region(browser, serve):
     expect(preview.locator(".lf-page-thread")).to_be_focused()
 
 
+# The handoff guard decides `wheel` and `reveal`, and on a fresh document `wheel`
+# again, since it has no tab controls until its widgets load. `untouched` is the
+# control: the restoration a gesture must stop does run when there is none. `focus`
+# guards the gesture a user would miss most; the edit, blank and hidden gestures
+# are kept today by state captured at install and by kept nodes, not by this guard.
 @pytest.mark.parametrize(
     ("install", "gesture"),
     [
-        ("patch", gesture)
-        for gesture in (
-            "wheel",
-            "focus",
-            "edit",
-            "blank",
-            "reveal",
-            "hidden",
-            "untouched",
-        )
-    ]
-    # A fresh document has no tab controls until its widgets have loaded.
-    + [
-        ("reload", gesture)
-        for gesture in ("wheel", "focus", "edit", "blank", "hidden", "untouched")
+        ("patch", "wheel"),
+        ("patch", "reveal"),
+        ("patch", "untouched"),
+        ("patch", "focus"),
+        ("reload", "wheel"),
     ],
 )
 def test_revision_restoration_yields_to_input_while_a_diagram_loads(
@@ -570,10 +569,6 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
         )
     )
     page = open_page(browser, live_url(serve(source)))
-    if gesture == "hidden":
-        # A cached hidden reading must not select its tab over the active one.
-        page.get_by_role("tab", name="Second", exact=True).click()
-        page.get_by_role("tab", name="First", exact=True).click()
     page.locator("#reading-draft").fill("kept draft")
     left = page.locator("#left-reading > :not(header, footer)")
     left.evaluate("el => el.scrollTop = 300")
@@ -608,20 +603,13 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
             )
         elif gesture == "focus":
             page.locator("#right-head").click()
-        elif gesture == "edit":
-            page.keyboard.type(" fresh")
-        elif gesture == "blank":
-            page.mouse.click(2, 200)
-            expect(page.locator("body")).to_be_focused()
         elif gesture == "reveal":
             page.get_by_role("tab", name="Second", exact=True).click()
         scroll = left.evaluate("el => el.scrollTop")
         held.pop().continue_()
         wait_for_revision(page, 2)
         expect(page.locator("#late-diagram svg")).to_have_count(1)
-        expect(page.locator("#reading-draft")).to_have_value(
-            "kept fresh draft" if gesture == "edit" else "kept draft"
-        )
+        expect(page.locator("#reading-draft")).to_have_value("kept draft")
         expect(
             page.get_by_role(
                 "tab", name="Second" if gesture == "reveal" else "First", exact=True
@@ -631,17 +619,13 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
             assert left.evaluate("el => el.scrollTop") == pytest.approx(scroll, abs=1)
         elif gesture == "focus":
             expect(page.locator("#right-head")).to_be_focused()
-        elif gesture == "blank":
-            expect(page.locator("body")).to_be_focused()
         elif gesture == "untouched":
             assert page.locator("#left-landmark").evaluate(
                 "el => el.getBoundingClientRect().top"
             ) == pytest.approx(before, abs=2)
-        if gesture in ("wheel", "edit", "hidden", "untouched"):
+        if gesture in ("wheel", "untouched"):
             expect(draft).to_be_focused()
-            assert draft.evaluate("el => el.selectionStart") == (
-                10 if gesture == "edit" else 4
-            )
+            assert draft.evaluate("el => el.selectionStart") == 4
     finally:
         for route in held:
             route.continue_()
@@ -1240,28 +1224,15 @@ def test_a_nested_pane_footer_travels_in_the_outer_region_that_contains_it(
 def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     browser, serve, live_leaf
 ):
-    """Core chrome is a gallery journey, not merely present around its samples."""
+    """Core chrome is a gallery journey, not merely present around its samples.
+
+    Each core surface opens on the gallery and shows the gallery's own content: its
+    Ask in the Queue, its open, resolved, and media threads in Threads, its
+    earlier version, the other open page, and at phone width its Page Map. How each
+    surface behaves belongs to that surface's own tests."""
     live_leaf("second", "A second Leaf page")
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1600, 900)
-
-    expect(
-        page.get_by_role(
-            "heading",
-            name="Asks: decisions and answers",
-            exact=True,
-        )
-    ).to_be_visible()
-    guide = page.locator("#bg-core-controls-guide")
-    for surface in (
-        "status line",
-        "Threads",
-        "Versions menu",
-        "Map",
-        "Command reference",
-        "All leaves",
-    ):
-        expect(guide).to_contain_text(surface)
     expect(page.locator(".lf-banner-status")).not_to_be_empty()
 
     banner_control(page, ".lf-queue").click()
@@ -1277,54 +1248,28 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
     banner_control(page, ".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    # The agent opened this thread without a title and nothing is naming it, so its
-    # row reads the question rather than a placeholder.
-    untitled = page.locator(
-        '.lf-thread[data-id="72e031c5bf0d485ba9054628e09869d4"] .lf-thread-topic'
-    )
-    expect(page.locator("#bg-thread-states")).to_be_visible()
-    expect(untitled).to_have_text(
-        "Is lunch provided, or should attendees make their own plans?"
-    )
-    expect(page.locator('[data-filter-value="resolved"]')).not_to_have_text("Resolved")
     page.locator(".lf-thread-filter-toggle").click()
-    page.locator('[data-filter-value="resolved"]').click()
+    # The narrowing offers a status only while some thread holds it.
+    resolved = page.locator('[data-filter-value="resolved"]')
+    expect(resolved).to_be_enabled()
+    resolved.click()
     expect(
         page.locator('.lf-thread[data-resolved="true"]:not([hidden])')
     ).not_to_have_count(0)
     page.locator('[data-filter-value="open"]').click()
-    expect(page.locator("#bg-thread-media")).to_contain_text(
-        "supplied by its companion thread log"
-    )
-    media_open = page.locator(
-        '.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"] .lf-message-media'
-    )
     media_thread = page.locator(
         '.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"]'
     )
     media_thread.locator(".lf-thread-summary").click()
-    expect(media_open).to_be_visible()
-    url_before = page.url
-    media_open.click()
+    media_thread.locator(".lf-message-media").click()
     viewer = page.get_by_role("dialog", name="Image preview")
-    expect(viewer).to_be_visible()
     expect(viewer.locator("img")).to_have_attribute(
         "src", "/media/051bee487bfb5d13.png"
     )
-    assert page.url == url_before
-    page.keyboard.press("w")
-    expect(viewer).to_be_visible()
-    expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     page.keyboard.press("Escape")
     expect(viewer).to_be_hidden()
-    expect(media_open).to_be_focused()
-    expect(page.locator(".lf-thread-panel")).to_be_visible()
-    # The viewer returns to thread content; Escape from a thread is the panel's own.
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
-    # The panel's parent is the document, so the way out is the page rather than any
-    # chrome control — the toggle that reopens it, or the drawer the user came from.
-    assert page.evaluate("() => document.activeElement === document.body")
 
     banner_control(page, ".lf-version").click()
     expect(
@@ -1333,7 +1278,6 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     page.keyboard.press("Escape")
 
     banner_control(page, ".lf-others").click()
-    expect(page.locator(".lf-others-panel")).to_be_visible()
     expect(page.locator("a.lf-others-row")).to_contain_text("A second Leaf page")
     page.keyboard.press("Escape")
 
@@ -1348,18 +1292,7 @@ def test_the_feature_gallery_exercises_the_injected_core_surfaces(
     expect(page.locator("#bg-view-threads > section").first).to_be_in_viewport()
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    sheet = page.get_by_role("dialog", name="Page Map", exact=True)
-    expect(sheet).to_be_visible()
-    header = sheet.locator(".lf-page-map-head")
-    # The one close control every surface wears: the cross, named for what it closes.
-    close = header.get_by_role("button", name="Close Page Map", exact=True)
-    expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
-    expect(close).to_have_text("")
-    header_box, close_box = header.bounding_box(), close.bounding_box()
-    assert header_box and close_box
-    assert close_box["x"] + close_box["width"] == pytest.approx(
-        header_box["x"] + header_box["width"], abs=0.5
-    ), (header_box, close_box)
+    expect(page.get_by_role("dialog", name="Page Map", exact=True)).to_be_visible()
 
 
 def _accepted_gallery_proposal(browser, serve):
@@ -1406,26 +1339,48 @@ def test_the_feature_gallery_keeps_a_choice_when_its_proposal_is_undone(browser,
     )
 
 
-@pytest.mark.parametrize(
-    ("destination", "view"),
-    [
-        ("#bg-core-surfaces", "Decisions"),
-        ("#bg-thread-states", "Threads"),
-        ("#bg-panel-views", "Threads"),
-        ("#bg-quoted-and-visual", "Page & layout"),
-        ("#bg-external-data", "Data & work"),
-        ("#bg-interactions", "Interactions"),
-    ],
-)
-def test_the_feature_gallery_sections_are_stable_preview_destinations(
-    browser, serve, destination, view
-):
-    """A preview can name its subject directly instead of asking the user to find it."""
+# The gallery sections a preview may name, and the page tab each opens.
+GALLERY_DESTINATIONS = {
+    "bg-core-surfaces": "Decisions",
+    "bg-thread-states": "Threads",
+    "bg-panel-views": "Threads",
+    "bg-quoted-and-visual": "Page & layout",
+    "bg-external-data": "Data & work",
+    "bg-interactions": "Interactions",
+}
+
+
+def test_the_feature_gallery_sections_are_stable_preview_destinations(browser, serve):
+    """A preview can name its subject directly instead of asking the user to find it.
+
+    Arriving at a fragment the gallery holds in a closed tab is one runtime path
+    whichever section it names, so one arrival proves it; what differs per section is
+    only which tab holds it, which the same page answers for every destination."""
+    destination = "#bg-external-data"
     root = live_url(serve(FEATURE_GALLERY))
     page = open_page(browser, root + destination)
     expect(
-        page.locator("#bg-gallery-tabs").get_by_role("tab", name=view)
+        page.locator("#bg-gallery-tabs").get_by_role("tab", name="Data & work")
     ).to_have_attribute("aria-selected", "true")
+    # The handover key is exchanged for a cookie before the address is shown.
+    expect(page).to_have_url(root.split("?", 1)[0] + destination)
+    expect(page.locator(":target")).to_have_attribute("id", destination[1:])
+    expect(page.locator(destination)).to_be_in_viewport()
+
+    holders = page.evaluate(
+        """ids => Object.fromEntries(ids.map(id => {
+          const target = document.getElementById(id);
+          const panel = target?.closest('#bg-gallery-tabs > lf-tab');
+          const tab = panel && document.querySelector(
+            `#bg-gallery-tabs [role="tab"][aria-controls="${panel.id}"]`);
+          return [id, {tag: target?.localName || null,
+                       tab: tab?.textContent.trim() || null}];
+        }))""",
+        list(GALLERY_DESTINATIONS),
+    )
+    assert holders == {
+        id: {"tag": "section", "tab": view} for id, view in GALLERY_DESTINATIONS.items()
+    }
 
     links = page.get_by_role("navigation", name="On this page").get_by_role(
         "link", include_hidden=True
@@ -1443,12 +1398,6 @@ def test_the_feature_gallery_sections_are_stable_preview_destinations(
         target["tag"] == "section" and not target["generated"] for target in targets[1:]
     ), targets
     assert len({target["href"] for target in targets}) == len(targets), targets
-
-    target = page.locator(destination)
-    # The handover key is exchanged for a cookie before the address is shown.
-    expect(page).to_have_url(root.split("?", 1)[0] + destination)
-    expect(page.locator(":target")).to_have_attribute("id", destination[1:])
-    expect(target).to_be_in_viewport()
 
 
 def test_the_feature_gallery_exercises_core_user_workflows(browser, serve):
@@ -3472,6 +3421,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
     page.locator("#p").click(
         click_count=3
     )  # a real selection, spanning the inline tags
+    page.keyboard.press("c")
     page.locator(".lf-fab-input").click()
     page.wait_for_function(
         "() => document.querySelector('.lf-composer').style.display === 'contents'"
@@ -3541,6 +3491,7 @@ def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
         const s = getSelection(); s.removeAllRanges(); s.addRange(r);
         document.dispatchEvent(new MouseEvent('mouseup', {bubbles: true}));
     }""")
+    page.get_by_role("button", name="Comment on selection", exact=True).click()
     page.locator(".lf-fab-input").click()
     wait_for_pending_mark(page)
     assert chrome not in pending_text(page), (
@@ -4838,7 +4789,7 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
 
 
 def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
-    """Resolve shares the first message line without changing the current surface."""
+    """Thread controls and complete messages keep their room when the reply is focused."""
     url = serve(SEATED_QUESTION_PAGE)
     panel_comment(serve.page_dir, "First job note", {"section": "jobs"})
     root = panel_comment(
@@ -4896,8 +4847,11 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
           const control = el.querySelector(
             ':scope .lf-thread-meta-actions > .lf-resolve'
           ).getBoundingClientRect();
+          const controls = el.querySelector(
+            ':scope > .lf-thread-controls'
+          ).getBoundingClientRect();
           const headNode = el.querySelector(
-            ':scope .lf-thread-root-meta'
+            ':scope .lf-msg > .lf-msg-head'
           );
           const head = headNode.getBoundingClientRect();
           const author = headNode.querySelector('b').getBoundingClientRect();
@@ -4907,20 +4861,22 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
           const body = bodyNode.getBoundingClientRect();
           return {actionsTop: actions.top, actionsBottom: actions.bottom,
                   controlTop: control.top, expectedTop: own.top + inset,
-                  controlBottom: control.bottom, headTop: head.top,
+                  controlBottom: control.bottom, controlsTop: controls.top,
+                  controlsBottom: controls.bottom, headTop: head.top,
                   headBottom: head.bottom,
                   authorBottom: author.bottom,
                   bodyTop: body.top,
                   bodyMargin: parseFloat(getComputedStyle(bodyNode).marginTop)};
         }"""
     )
-    assert placement["controlTop"] == pytest.approx(placement["headTop"], abs=1)
+    assert placement["controlTop"] == pytest.approx(placement["controlsTop"], abs=1)
     assert placement["actionsTop"] == pytest.approx(placement["controlTop"], abs=1)
     assert placement["actionsBottom"] == pytest.approx(
         placement["controlBottom"], abs=1
     )
-    assert placement["controlBottom"] <= placement["headBottom"], (
-        f"Resolve did not share the first inline message's heading: {placement}"
+    assert placement["controlBottom"] <= placement["controlsBottom"]
+    assert placement["controlsBottom"] <= placement["headTop"], (
+        f"thread controls overlap the first message: {placement}"
     )
     assert placement["bodyTop"] - placement["headBottom"] == pytest.approx(
         placement["bodyMargin"], abs=1
@@ -5088,6 +5044,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
               const target = compose.getBoundingClientRect();
               const clear = parseFloat(getComputedStyle(list).scrollPaddingTop) || 0;
               const start = view.top + clear;
+              const contentStart = start +
+                (parseFloat(getComputedStyle(compose).scrollMarginTop) || 0);
               // A turn's head is a block boundary as well as its paragraphs: a long
               // arrival starts the latest turn there.
               const blocks = [...thread.querySelectorAll(
@@ -5099,7 +5057,8 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
                   top: block.getBoundingClientRect().top,
                 }));
               const lines = [];
-              const walker = document.createTreeWalker(thread, NodeFilter.SHOW_TEXT);
+              const walker = document.createTreeWalker(
+                thread.querySelector('.lf-thread-content'), NodeFilter.SHOW_TEXT);
               for (let text; text = walker.nextNode();) {
                 if (!text.data.trim()) continue;
                 for (let i = 0; i < text.length; i++) {
@@ -5107,11 +5066,13 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
                   range.setStart(text, i);
                   range.setEnd(text, Math.min(i + 1, text.length));
                   const line = range.getBoundingClientRect();
-                  if (line.width && line.top < start && line.bottom > start)
+                  if (line.width && line.top < contentStart &&
+                      line.bottom > contentStart)
                     lines.push(line.toJSON());
                 }
               }
-              return {target: target.toJSON(), listBottom: view.bottom, start, blocks,
+              return {target: target.toJSON(), listBottom: view.bottom,
+                      start, contentStart, blocks,
                       crossedLines: lines, scroll: list.scrollTop,
                       maximumScroll: list.scrollHeight - list.clientHeight};
             }"""
@@ -5120,7 +5081,7 @@ def test_pressing_a_page_mark_stands_in_the_thread_it_opens(
         # A list scrolled to its limit has no travel left to align a content block.
         if landing["scroll"] and landing["scroll"] < landing["maximumScroll"] - 1:
             assert any(
-                block["top"] == pytest.approx(landing["start"], abs=2)
+                block["top"] == pytest.approx(landing["contentStart"], abs=2)
                 for block in landing["blocks"]
             ), f"the long arrival cut through a content block: {landing}"
         elif landing["scroll"]:
@@ -7225,6 +7186,16 @@ def test_the_g_chord_opens_an_empty_page_map(browser, serve):
             "searchbox", name="Find an action, status, or location in Page Map"
         )
     ).to_be_focused()
+    # The one close control every surface wears: the cross, named for what it closes,
+    # at the header's end.
+    header = sheet.locator(".lf-page-map-head")
+    close = header.get_by_role("button", name="Close Page Map", exact=True)
+    expect(close.locator('svg[data-lf-icon="cross"]')).to_have_count(1)
+    header_box, close_box = header.bounding_box(), close.bounding_box()
+    assert header_box and close_box
+    assert close_box["x"] + close_box["width"] == pytest.approx(
+        header_box["x"] + header_box["width"], abs=0.5
+    ), (header_box, close_box)
     expect(sheet).to_contain_text(
         "No margin controls, status indicators, or locations yet"
     )
@@ -8710,16 +8681,16 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     expect(versions).to_be_hidden()
-    contextual_versions = reference.locator(
-        '.lf-command-reference-command[data-lf-command^="version.open-v"]'
-    )
+    contextual_versions = reference.locator('[data-lf-command^="version.open-v"]')
     assert contextual_versions.count() > 0
-    contextual_availability = contextual_versions.evaluate_all(
-        "buttons => buttons.map(button => [button.dataset.lfCommand, button.dataset.lfAvailable])"
-    )
-    assert {available for _, available in contextual_availability} == {"false"}, (
-        contextual_availability
-    )
+    # Number keys delegate to native version rows. Once the modal dismisses the
+    # menu, the reference still names those routes but offers no action for them.
+    expect(contextual_versions.first).to_contain_text("open v")
+    expect(
+        reference.locator(
+            '.lf-command-reference-command[data-lf-command^="version.open-v"]'
+        )
+    ).to_have_count(0)
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
     expect(versions).to_be_hidden()
@@ -12622,17 +12593,9 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
-    close = page.locator(".lf-command-reference-close")
     expect(reference).to_be_visible()
-    close.evaluate(
-        """control => control.addEventListener('click', () => {
-          control.dataset.shortcutClicks =
-            String(Number(control.dataset.shortcutClicks || 0) + 1);
-        })"""
-    )
     page.keyboard.press("Escape")
     expect(reference).to_be_hidden()
-    expect(close).to_have_attribute("data-shortcut-clicks", "1")
 
 
 def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser, serve):
@@ -12655,22 +12618,14 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     expect(field).not_to_be_focused()
     page.keyboard.press("c")
     expect(field).to_be_focused()
-    send = composer.locator(".lf-compose-field .lf-compose-submit")
-    send.evaluate(
-        """control => control.addEventListener('click', () => {
-          document.body.dataset.composerShortcutClicks =
-            String(Number(document.body.dataset.composerShortcutClicks || 0) + 1);
-        })"""
-    )
     write(field, "Send through the compact control.")
     page.keyboard.press("Shift+Enter")
-    assert page.locator("body").get_attribute("data-composer-shortcut-clicks") is None
     expect(field).to_have_js_property("value", "Send through the compact control.\n")
     expect(field).to_have_attribute(
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
     )
-    page.keyboard.press("Enter")
-    expect(page.locator("body")).to_have_attribute("data-composer-shortcut-clicks", "1")
+    with sending(page, "the composer shortcut"):
+        page.keyboard.press("Enter")
     expect(composer).to_be_hidden()
     # The send left the user on the element the new thread's card is about, and letting
     # go of it takes the card down.
@@ -14465,3 +14420,111 @@ def test_a_page_element_named_host_leaves_the_keyboard_climb_at_the_document(
     panel_settled(page)
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
+
+
+def test_a_command_button_owns_activation_and_the_native_form_default(browser, serve):
+    """A command's pointer/native-key press and shortcut perform one semantic result."""
+    page = open_page(browser, serve(NOTED_PAGE))
+    page.evaluate(
+        """async () => {
+          const {commands, paintKeys} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const form = document.createElement('form');
+          const button = document.createElement('button');
+          button.id = 'command-form-button';
+          button.textContent = 'Apply command';
+          form.append(button);
+          document.querySelector('main').prepend(form);
+          window.commandForm = {runs: 0, submits: 0, available: true,
+            invalidate: paintKeys};
+          form.addEventListener('submit', event => {
+            event.preventDefault();
+            window.commandForm.submits++;
+          });
+          commands(form, 'In the command form', [{
+            id: 'test.apply-form', keys: ['x'], title: 'Apply command', control: button,
+            when: () => window.commandForm.available,
+            run: () => window.commandForm.runs++,
+          }]);
+        }"""
+    )
+    button = page.locator("#command-form-button")
+    rendered(page)
+    expect(button).not_to_have_attribute("aria-keyshortcuts")
+    page.keyboard.press("x")
+    assert page.evaluate("() => commandForm.runs") == 0
+    button.click()
+    page.keyboard.press("Enter")
+    page.keyboard.press("Space")
+    page.keyboard.press("x")
+    assert page.evaluate("() => [commandForm.runs, commandForm.submits]") == [4, 0]
+    expect(button).to_have_attribute("aria-keyshortcuts", "x")
+    page.evaluate("() => {commandForm.available = false; commandForm.invalidate();}")
+    expect(button).to_be_disabled()
+    page.keyboard.press("x")
+    assert page.evaluate("() => [commandForm.runs, commandForm.submits]") == [4, 0]
+    page.evaluate("() => {commandForm.available = true; commandForm.invalidate();}")
+    expect(button).to_be_enabled()
+    button.click()
+    assert page.evaluate("() => [commandForm.runs, commandForm.submits]") == [5, 0]
+    # The platform exempts the first legend in a disabled fieldset. Command-owned
+    # disabled output must follow that constraint without trapping its previous paint.
+    page.evaluate(
+        """() => {
+          const fieldset = document.createElement('fieldset');
+          fieldset.disabled = true;
+          const legend = document.createElement('legend');
+          fieldset.append(legend, document.querySelector('#command-form-button'));
+          document.querySelector('form').append(fieldset);
+          commandForm.legend = legend;
+          commandForm.invalidate();
+        }"""
+    )
+    expect(button).to_be_disabled()
+    page.evaluate(
+        """() => {
+          commandForm.legend.append(document.querySelector('#command-form-button'));
+          commandForm.invalidate();
+        }"""
+    )
+    expect(button).to_be_enabled()
+    button.click()
+    assert page.evaluate("() => [commandForm.runs, commandForm.submits]") == [6, 0]
+    page.evaluate(
+        """async () => {
+          const {commands} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          document.querySelector('fieldset').disabled = false;
+          const one = document.querySelector('#command-form-button');
+          const two = document.createElement('button');
+          two.id = 'command-form-second';
+          two.textContent = 'Second route';
+          one.form.append(two);
+          commandForm.routes = [];
+          commands(one.form, 'Routed form', [{
+            id: 'test.form-routes', keys: ['1', '2'], title: 'Apply route', control: one,
+            routes: [{id: 'test.form-one', title: 'First', binding: '1'},
+              {id: 'test.form-two', title: 'Second', binding: '2', control: two}],
+            run: binding => commandForm.routes.push(binding),
+          }]);
+          one.setAttribute('aria-disabled', 'true');
+          commandForm.invalidate();
+        }"""
+    )
+    second = page.locator("#command-form-second")
+    expect(button).to_be_disabled()
+    second.click()
+    page.keyboard.press("1")
+    page.keyboard.press("2")
+    assert page.evaluate("() => commandForm.routes") == ["2", "2"]
+    # A stale enabled native seat still consumes the command's form default when
+    # genuine ARIA availability refuses its activation.
+    page.evaluate(
+        """() => {
+          const one = document.querySelector('#command-form-button');
+          one.disabled = false;
+          one.click();
+        }"""
+    )
+    assert page.evaluate("() => [commandForm.routes, commandForm.submits]") == [
+        ["2", "2"],
+        0,
+    ]

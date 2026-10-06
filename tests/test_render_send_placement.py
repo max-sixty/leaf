@@ -1516,6 +1516,12 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
               ? captured : range.getBoundingClientRect(),
           };
           const owner = floatingPlacement({floating: box, update: () => {}});
+          window.detachPlacement = () => {
+            const framed = box.parentElement !== document.querySelector('.lf-chrome');
+            box.remove();
+            owner.stop();
+            return framed;
+          };
           if (existing) {
             owner.begin();
             const answer = await owner.position(ui.computePosition, reference,
@@ -1573,3 +1579,4 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
     assert state["plane"] == "page", state
     assert state["box"]["x"] == pytest.approx(state["quote"]["right"], abs=1), state
     assert state["box"]["y"] == pytest.approx(state["quote"]["top"], abs=1), state
+    assert page.evaluate("detachPlacement()"), "the detached placement had no frame"

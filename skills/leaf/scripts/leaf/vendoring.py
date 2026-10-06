@@ -38,14 +38,14 @@ from .schema import (
     PAGE_OWNED_DIRS,
     PAGE_OWNED_FILES,
     SERVER_LOCK,
-    STATUS_FILE,
 )
-from .service import PageTransaction, claim_path, read_status
-from .state import EVENTS_FILE, json_bytes, now_iso, write_json
+from .service import PageTransaction, claim_path
+from .state import EVENTS_FILE, json_bytes
 from .structure import SourceDocument
+from .tasks import open_tasks
 from .validation.compatibility import candidate_vocabulary_gaps
 from .validation.source import check_source
-from .work import widget_work_without_targets
+from .work import widget_tasks_without_targets
 
 
 def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:
@@ -239,10 +239,18 @@ def _refuse_data_contract_drift(
     # validating it with today's rules would prevent `page init` from replacing the
     # exact older layer it exists to migrate. Binding discovery only reads x-data.
     if current := read_json(page_dir / "registry.json"):
-        documents = page_data_document_readings(page_dir, events, current)
-        standing_bindings, standing_errors = merge_data_document_readings(
-            working_data_document_readings(page_dir, current, events, history=documents)
-        )
+        # Both layers interpret the same inventory, including an edit whose first
+        # revision has not yet activated.
+        history = page_data_document_readings(page_dir, events, current)
+        try:
+            documents = working_data_document_readings(
+                page_dir, current, events, history=history
+            )
+        except UnicodeDecodeError:
+            # An unreadable edit cannot activate or introduce a binding. Its source
+            # error belongs to page check; the active history still constrains the layer.
+            documents = history
+        standing_bindings, standing_errors = merge_data_document_readings(documents)
         incoming_bindings, incoming_errors = merge_data_document_readings(
             documents, incoming
         )
@@ -260,7 +268,7 @@ def _refuse_data_contract_drift(
         contract_changes = data_contract_transition_errors(documents, incoming)
         if binding_errors or binding_changes or contract_changes:
             sys.exit(
-                "this page's immutable documents do not keep one meaning for each "
+                "this page's documents do not keep one meaning for each "
                 "data source:\n"
                 + "\n".join(
                     f"  - {error}"
@@ -279,19 +287,15 @@ def _refuse_untargeted_work(page_dir: Path, events: list[dict], incoming: dict) 
         read_revision(page_dir, revision).under(incoming), events, revision
     )
     document = page.document
-    untargeted = widget_work_without_targets(
-        document,
-        page.projection,
-        events,
-        read_status(page_dir),
-        incoming,
+    untargeted = widget_tasks_without_targets(
+        document, page.projection, open_tasks(events), incoming
     )
     if untargeted:
         sys.exit(
-            "the incoming layer would remove the local target for active widget work on "
+            "the incoming layer would remove the target of the open task on "
             + ", ".join(repr(widget) for widget in untargeted)
-            + "; stamp a later version with --completes for that work before "
-            "re-vendoring"
+            + "; end that task, or stamp a later version with --completes for it, "
+            "before re-vendoring"
         )
 
 
@@ -445,22 +449,9 @@ def _commit_layer(page_dir: Path, plan: _PagePlan) -> None:
             elif stale.is_dir():
                 with contextlib.suppress(OSError):
                     stale.rmdir()
-    if not (page_dir / STATUS_FILE).exists():
-        # Fresh creation holds only the page lock. Re-vendoring also
-        # holds the page transaction. Calling cmd_status would try to re-enter the
-        # latter's event-log flock for an existing directory missing status.
-        write_json(
-            page_dir / STATUS_FILE,
-            {
-                "state": "working",
-                "detail": "Writing the page",
-                "ts": now_iso(),
-                "after": 0,
-            },
-        )
     # The append-only log's stable inode is also the successful-init marker and
-    # the page transaction lease. Publish it only after the layer and initial
-    # status commit, so a failed first write still takes the fresh-init path.
+    # the page transaction lease. Publish it only after the layer commits, so a
+    # failed first write still takes the fresh-init path.
     if fresh:
         # A log this page starts holds nothing the old one's user acknowledged,
         # so the acknowledgement position goes with the log it named. Re-vendoring

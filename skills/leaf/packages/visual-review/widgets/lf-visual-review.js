@@ -11,7 +11,7 @@ import {
   countAreas,
   describeDifference,
   compoundReadingRegionId,
-  consumeThreads,
+  placeThreads,
   failSoft,
   holdFocus,
   keeps,
@@ -125,7 +125,8 @@ customElements.define(
     #title = null;
 
     connectedCallback() {
-      if (once(this)) this.#buildLayout();
+      const firstConnection = once(this);
+      if (firstConnection) this.#buildLayout();
       this.#stopEvidence ??= registerReadingRegion({
         id: compoundReadingRegionId(this, "evidence"),
         host: this.#evidenceHost,
@@ -137,23 +138,14 @@ customElements.define(
       for (const stage of this.querySelectorAll(".lf-vr-shot-host"))
         this.#sizes.observe(stage);
       window.addEventListener("resize", this.#onResize);
-      this.#threadSurface ??= consumeThreads(this, (collection, surfaces) => {
-        for (const thread of collection.threads) {
-          if (thread.anchor?.section !== this.id || !thread.anchor.datum) continue;
-          const target = surfaces.target(thread.key);
-          const outlet = target && this.#threadOutlet(target);
-          if (outlet) surfaces.place(thread.key, outlet);
-        }
-        const outlet = surfaces.composition && this.#threadOutlet(surfaces.composition);
-        if (outlet) surfaces.placeComposition(outlet);
-      });
-      this.stopActions ??= this.#controller.subscribe(() => this.#paintAvailability());
+      this.#threadSurface ??= placeThreads(this, (targets) =>
+        targets.map((target) => this.#threadOutlet(target)),
+      );
+      if (firstConnection) this.#controller.subscribe(() => this.#paintAvailability());
       this.stopWatching ??= watchData(this, "run", (snapshot) => this.#show(snapshot));
     }
 
     disconnectedCallback() {
-      this.stopActions?.();
-      this.stopActions = null;
       this.stopWatching?.();
       this.stopWatching = null;
       this.#threadSurface?.unregister();
@@ -186,7 +178,6 @@ customElements.define(
       this.#queueHost.setAttribute("aria-label", "Visual review cases");
       const previous = offer("button", "lf-btn lf-vr-previous", "Previous");
       previous.type = "button";
-      previous.addEventListener("click", () => this.#step(-1));
       this.#queue = offer("wa-select", "lf-vr-case-select");
       this.#queue.name = "visual-case";
       this.#queue.size = "s";
@@ -195,7 +186,6 @@ customElements.define(
       this.#queue.addEventListener("change", () => this.#select(this.#queue.value));
       const next = offer("button", "lf-btn lf-vr-next", "Next");
       next.type = "button";
-      next.addEventListener("click", () => this.#step(1));
       this.#queueHost.append(previous, this.#queue, next);
       const queue = make("header", "lf-vr-queue");
       queue.append(this.#queueHost);
@@ -508,6 +498,7 @@ customElements.define(
       this.#commands = commands(this, "In a visual review", [
         {
           id: "visual.next-case",
+          control: () => this.#queueHost.querySelector(".lf-vr-next"),
           keys: ["ArrowDown"],
           title: "next case",
           when: () => this.#caseEntries.size > 1,
@@ -515,6 +506,7 @@ customElements.define(
         },
         {
           id: "visual.previous-case",
+          control: () => this.#queueHost.querySelector(".lf-vr-previous"),
           keys: ["ArrowUp"],
           title: "previous case",
           when: () => this.#caseEntries.size > 1,
@@ -931,8 +923,7 @@ customElements.define(
     #paintNavigation() {
       const count = this.#caseEntries.size;
       this.#queue.toggleAttribute("disabled", count === 0);
-      for (const button of this.#queueHost.querySelectorAll("button"))
-        button.toggleAttribute("disabled", count < 2);
+      paintKeys();
     }
 
     async #review(id, disposition) {

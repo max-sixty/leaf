@@ -159,6 +159,9 @@ export function createQueuePanel({ arriveAtItem, announce }) {
       return thread && shortAgo(threadSummary(thread).latest);
     if (item.kind === "answer") return workflowLabel(workflowOf(item.id));
     if (item.kind === "work") return shortAgo(workflowOf(item.id)?.ts);
+    // A task the agent has in hand says the line its start gave, as a move in hand does.
+    if (item.kind === "task" && item.running)
+      return [item.running.text, shortAgo(item.running.ts)].filter(Boolean).join(" · ");
     return "";
   }
   function ended(item) {
@@ -200,7 +203,7 @@ export function createQueuePanel({ arriveAtItem, announce }) {
       word,
       title: words,
       where,
-      live: item.kind === "work",
+      live: item.kind === "work" || Boolean(item.running),
       account: [word, words, where, list === "done" ? item.detail : ""]
         .filter(Boolean)
         .join(" · "),

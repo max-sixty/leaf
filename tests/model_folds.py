@@ -34,18 +34,16 @@ from interact_support import ModelPage, model_layer
 from leaf.event_contracts import admitted_event
 from leaf.passages import SourceReading
 from leaf.served_state.browser import browser_state
-from leaf.service import claim_update_sources
 from leaf.structure import SourceDocument
 
 NOW = "2026-09-19T12:00:00+00:00"
 
-# A page nobody has claimed, as `presence.presence` reports one: the agent said
-# what it was doing while writing the page and no session holds it now. Written
-# out because these are the facts a fold is allowed to see, and a fixture that
-# reached for the real reading would bring the developer's own machine with it.
+# A page nobody has claimed, as `presence.presence` reports one: the agent has
+# declared nothing and no session holds it now. Written out because these are the
+# facts a fold is allowed to see, and a fixture that reached for the real reading
+# would bring the developer's own machine with it.
 UNCLAIMED = {
-    "status": {"state": "working", "detail": "Writing the page", "ts": NOW, "after": 0},
-    "claims": [],
+    "status": {"state": "waiting", "detail": ""},
     "listening": False,
     "cursor": 0,
     "pending": 0,
@@ -87,7 +85,6 @@ def reading(
     *,
     registry: dict | None = None,
     revision: int | None = None,
-    work: tuple[dict, ...] | list[dict] = (),
 ) -> dict:
     """The `/api/state` reading of one page, folded in this process.
 
@@ -102,11 +99,9 @@ def reading(
     Each one then goes through the same append door the server admits it through,
     so what this folds is a log the page could really have. A command the door
     would refuse raises `EventRefused` here rather than folding: the fixture cannot
-    state a premise the product would not have accepted.
-
-    `work` are the claims `leaf status working --on` writes to the status store, as
-    that store holds them; the server reads them as `service.claim_update_sources`
-    does.
+    state a premise the product would not have accepted. The work the agent has in hand is
+    such a command too: a `start` naming a move or task, as `leaf task start`
+    writes it.
     """
     if isinstance(documents, str):
         documents = {1: documents}
@@ -137,7 +132,7 @@ def reading(
         {rev: SourceReading(document, registry) for rev, document in parsed.items()},
         log,
         active_revision,
-        {**UNCLAIMED, "claims": claim_update_sources({"work": list(work)})},
+        UNCLAIMED,
         active,
         {active_revision},
         NOW,

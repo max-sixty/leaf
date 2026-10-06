@@ -1,71 +1,45 @@
 /* This module owns code tokenization and highlighting. */
 import { runtime } from "./context.js";
+import { syntaxLanguages } from "./syntax-languages.js";
 
 const registry = runtime.registry;
 
-// Code is colored in the browser, at upgrade, and the spans land in the DOM. Colouring it
-// in Python instead would put the spans in the file, and the file is what Claude writes
-// the next version from.
-//
-// What a page ends up wearing is leaf's own vocabulary, not the tokenizer's: six
-// roles on one data-lf-syn attribute, styled from --syn-* like every other surface, so
-// both color schemes come from the same token block the rest of the theme uses. The
-// bundle's ~50 scopes collapse here, at the one place that knows both — a page that
-// carried hljs-* classes would have pinned that library into every version ever written.
-// Anything unmapped keeps the block's ink, so a scope this table forgets reads plain
-// rather than reading wrong.
-// Every key is a scope one of the bundled grammars actually emits; operator, punctuation,
-// emphasis and strong are left out on purpose, because a block reads calmer with its
-// syntax uncoloured and its prose unstyled.
-// A line per role rather than per scope, so the collapse is what the table shows.
-// prettier-ignore
-const SYNTAX_ROLE = {
-  comment: "cm", quote: "cm", doctag: "cm",
-  keyword: "kw", literal: "kw", built_in: "kw", type: "kw", bullet: "kw",
-  string: "st", regexp: "st", "char": "st", subst: "st", "template-variable": "st",
-  code: "st", link: "st",
-  number: "nu",
-  title: "fn", meta: "fn", section: "fn",
-  name: "ty", tag: "ty", attr: "ty", attribute: "ty", property: "ty", variable: "ty",
-  params: "ty", symbol: "ty", "selector-tag": "ty", "selector-id": "ty",
-  "selector-class": "ty", "selector-attr": "ty", "selector-pseudo": "ty",
-  addition: "ins", deletion: "del",
-};
+// Ordinary code and Pierre's diffs share one Shiki engine and theme. Colors
+// follow the page's scheme; generated spans never enter the authored source.
+// The engine loads only for code, and each grammar only when it is requested.
+let tokenizerReady;
+const tokenizer = () => (tokenizerReady ??= import("/vendor/syntax.esm.js"));
+const languagesReady = new Map();
 
-let hljsReady;
-// Lazily, once, and only on a page that has code to color: the bundle is 75 KB and most
-// pages have none.
-const loadHljs = () =>
-  (hljsReady ??= import("/vendor/highlight.esm.js").then((m) => m.default));
-
-// Code as [{text, role}] — a flat run in source order, roles from the table above and
-// null where the block's own ink is the answer. A list rather than markup because the two
-// callers build different DOM from it: a plain <pre> emits one span per token, lf-code
-// interleaves the line spans it numbers. A declared language is validated by `page check` against the
-// registry's $languages.names, so an unknown one here means the vendored bundle was built
-// from a different list — thrown, caught by the caller's failSoft, and reported by the
-// render gate, which fails on a console error.
-export async function syntax(source, lang) {
-  const hljs = await loadHljs();
-  if (!hljs.getLanguage(lang))
-    throw new Error(
-      `no ${lang} in /vendor/highlight.esm.js — rebuild it from registry.json's $languages.names`,
+// The registry generates the literal import map. A missing language is a bundle
+// mismatch, not a reason to silently color a declared language as plain text.
+// An absent language prepares only the theme, for a diff of an unknown file type.
+export function ensureSyntaxLanguage(lang) {
+  if (!lang) return tokenizer();
+  if (!languagesReady.has(lang)) {
+    const load = syntaxLanguages[lang];
+    if (!load)
+      throw new Error(`no ${lang} grammar — rebuild syntax from registry.json`);
+    languagesReady.set(
+      lang,
+      Promise.all([tokenizer(), load()]).then(async ([shared, grammar]) => {
+        await shared.registerLanguage(lang, grammar.default);
+        return shared;
+      }),
     );
-  const holder = document.createElement("template");
-  holder.innerHTML = hljs.highlight(source, {
-    language: lang,
-    ignoreIllegals: true,
-  }).value;
-  const tokens = [];
-  const walk = (node, role) => {
-    for (const child of node.childNodes) {
-      if (child.nodeType === Node.TEXT_NODE) tokens.push({ text: child.data, role });
-      // Scopes nest (an html tag holds its own name and attrs); the innermost that this
-      // table knows wins, and one it doesn't inherits rather than clearing.
-      else walk(child, roleOf(child) ?? role);
-    }
-  };
-  walk(holder.content, null);
+  }
+  return languagesReady.get(lang);
+}
+
+// Code as [{text, style}] — a flat run in source order, carrying Shiki's
+// themed CSS declarations directly. CSS variables inherit the page's palette.
+// A list rather than markup because callers build different DOM from it: plain code
+// emits one span per token, while lf-code interleaves the line spans it numbers.
+// A declared language is validated by page check
+// against the registry's $languages.names.
+export async function syntax(source, lang) {
+  const shared = await ensureSyntaxLanguage(lang);
+  const tokens = await shared.tokenize(source, lang);
   // The vendored tokenizer's output is data entering, so it is checked once, here, and
   // indexed everywhere after: that the tokens partition the source exactly. Three things
   // rest on it — lf-code numbers its lines by counting newlines in them, `hi` and each
@@ -79,28 +53,22 @@ export async function syntax(source, lang) {
   return tokens;
 }
 
-// hljs writes `class="hljs-title function_"`: the scope prefixed, then its sub-scopes bare.
-// Only the prefixed one is a scope name, and `char.escape` arrives as `hljs-char escape_`.
-const roleOf = (el) => {
-  for (const cls of el.classList)
-    if (cls.startsWith("hljs-")) return SYNTAX_ROLE[cls.slice(5)];
-  return undefined;
-};
-
-// Tokens as nodes: one span per role, and the bare text where none applies, so nothing
-// lands in the DOM that says nothing. Both callers build from here — a <pre> replacing its
+// Tokens as nodes: one span per style, and the bare text where none applies, so nothing
+// lands in the DOM that says nothing. Callers build from here — plain code replacing its
 // own children, lf-code appending into the line it is numbering — because a second place
 // writing the same span is a second place to forget the attribute.
 export const synNodes = (tokens) =>
-  tokens.map(({ text, role }) => {
-    if (!role) return document.createTextNode(text);
+  tokens.map(({ text, style }) => {
+    if (!Object.keys(style).length) return document.createTextNode(text);
     const span = document.createElement("span");
-    span.dataset.lfSyn = role;
+    span.dataset.lfSyn = "";
+    for (const [property, value] of Object.entries(style))
+      span.style.setProperty(property, value);
     span.textContent = text;
     return span;
   });
 
-// Tokens re-cut so none crosses a newline: one array of {text, role} per line, in source
+// Tokens re-cut so none crosses a newline: one array of {text, style} per line, in source
 // order. The tokenizer's runs and a line are two different spans of the same characters,
 // and this is where they are reconciled for lf-code, whose lines are what it numbers.
 // It tokenizes a whole run and cuts it afterwards rather than colouring a line at a time,
@@ -109,11 +77,11 @@ export const synNodes = (tokens) =>
 // second line as code.
 export function tokenLines(tokens) {
   const lines = [[]];
-  for (const { text, role } of tokens) {
+  for (const { text, style } of tokens) {
     const parts = text.split("\n");
     parts.forEach((part, i) => {
       if (i) lines.push([]);
-      if (part) lines.at(-1).push({ text: part, role });
+      if (part) lines.at(-1).push({ text: part, style });
     });
   }
   return lines;
@@ -183,7 +151,8 @@ export async function highlightBlocks(root) {
       }
       if (!lang) continue;
       // Tokens that colour nothing are the text the block already holds.
-      if (tokens.some(({ role }) => role)) code.replaceChildren(...synNodes(tokens));
+      if (tokens.some(({ style }) => Object.keys(style).length))
+        code.replaceChildren(...synNodes(tokens));
       code.dataset.lfSyntax = lang;
     } catch (err) {
       console.error(

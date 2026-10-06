@@ -923,17 +923,25 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      room it needs, and it is the layer's own number (theme.css) rather than one
      worked out from the controls this list happens to hold. The list pads its content
      by the same room, so its content box is the band it lands in, which an open card
-     fills (below). A bottom surface standing over the list, the live status over a
-     covering panel, deepens its foot by the room it covers (`--lf-threads-foot`,
-     chrome-layout.js). */
+     fills (below). Nothing standing over the list takes room from it: over a covering
+     panel the bottom status shows only transient feedback, which clears the reply
+     instead (chrome-layout.js).
+
+     That padding is inside the scrollport, so the list's words scroll through it, and
+     a sticky offset is measured from the content box inside it. A row pinned to an
+     edge therefore either offsets back across the padding or paints over it. At the
+     top, the sticky-header slot `--lf-top` (theme.css) restarts at minus the top
+     padding, as a workspace pane's does, so an open thread's title stands on the
+     scrollport's edge. At the foot, the reply row stands where a landing puts a
+     thread's end and paints the band below it (below). */
   /* The editor takes a share of this actual list, so typing leaves the preceding
      turn readable even when the panel is short. */
   .lf-threads-frame { flex: 1; min-height: 0; display: grid; container-type: size; }
   .lf-threads-frame::after, .lf-threads { grid-area: 1 / 1; min-height: 0; }
   .lf-threads { overflow-y: auto; overscroll-behavior: contain; z-index: 0;
-    --lf-list-foot: var(--lf-threads-foot, var(--focus-ring-room));
-    padding: var(--focus-ring-room) var(--lf-list-inset) var(--lf-list-foot); --lf-block-frame: 1;
-    scroll-padding: var(--focus-ring-room) 0 var(--lf-list-foot); }
+    padding: var(--focus-ring-room) var(--lf-list-inset); --lf-block-frame: 1;
+    scroll-padding: var(--focus-ring-room) 0;
+    --lf-top: calc(-1 * var(--focus-ring-room)); }
   /* The list holds focus itself only while it shows no thread (thread-list-view.js):
      an empty list, or the last one folding away as it resolves. That folding card is
      positioned, so it paints after the scrollport and an outline on the list itself
@@ -964,10 +972,33 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     --lf-block-frame: 1; }
   .lf-threads > .lf-thread:nth-last-child(1 of :not([hidden])) {
     border-block-end-color: transparent; margin-bottom: 0; }
-  /* The summary is the thread's title and focus stop in both disclosure states. */
+  /* The summary is the thread's title and focus stop in both disclosure states. Its
+     height is stated, since it is a sticky header (below). */
   .lf-thread-compact { --lf-thread-pad: 0px; margin: 0; padding: 0;
     --lf-thread-surface: var(--paper); background: var(--lf-thread-surface); border-radius: 0;
-    anchor-scope: --lf-thread-settlement; }
+    anchor-scope: --lf-thread-settlement;
+    --lf-thread-title-h: max(32px, var(--aim-floor)); --lf-thread-title-z: 6; }
+  /* A thread's title is a sticky header (theme.css, at `--lf-top`): reading down a long
+     open conversation keeps its name on screen until the card's end pushes it off, as
+     a diff's file header does for its rows. A closed card is its title alone, so the
+     title has nowhere to go; it stays sticky anyway, since a box changing between
+     sticky and static is reported as a layout shift though nothing moved. What it
+     stands over takes `--lf-top` past it, so the runtime's reading of what is on screen
+     leaves the band under it out (geometry.js, `headerInset`), and a landing on
+     anything under it arrives below it through `scroll-margin-top`; the list's scroll
+     padding adds the ring room. It paints over everything that passes beneath it, so
+     it stands above every layer a row raises inside the list: an icon over its
+     button's disc, a reaction trigger, a held word's label (1 to 5, shadow.css). An
+     open reaction list is a popover over them all (shadow.css). The rows stay
+     unisolated, so what a row raises still stands over the rows after it. */
+  .lf-threads > .lf-thread-compact { --lf-top-outer: var(--lf-top); }
+  .lf-threads > .lf-thread-compact > .lf-thread-summary {
+    position: sticky; top: var(--lf-top); z-index: var(--lf-thread-title-z); }
+  .lf-threads > .lf-thread-compact > :not(.lf-thread-summary) {
+    --lf-top: calc(var(--lf-top-outer) + var(--lf-thread-title-h)); }
+  :is(.lf-threads > .lf-thread-compact > :not(.lf-thread-summary),
+      .lf-threads > .lf-thread-compact > :not(.lf-thread-summary) *) {
+    scroll-margin-top: var(--lf-thread-title-h); }
   /* The card paints its whole surface, including margins and retained reply space.
      Sticky rows also paint over the conversation that scrolls beneath them. */
   .lf-thread-compact > :is(.lf-thread-summary, .lf-thread-reply) {
@@ -976,7 +1007,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     display: flex; flex-direction: column; }
   .lf-thread-summary { display: grid; flex: none;
     grid-template-columns: minmax(0, 1fr) minmax(0, max-content) auto;
-    align-items: baseline; align-content: center; column-gap: 8px; width: 100%; min-height: max(32px, var(--aim-floor)); border: 0;
+    align-items: baseline; align-content: center; column-gap: 8px; width: 100%; block-size: var(--lf-thread-title-h); border: 0;
     padding: 4px var(--lf-thread-inset); background: var(--lf-thread-surface); color: var(--ink);
     text-align: left; font: 500 13px/18px var(--sans); cursor: pointer; }
   .lf-thread-summary:hover { background: var(--chip); }
@@ -1008,9 +1039,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      expanded body, anchored beside the disclosure at the status's reserved box. */
   .lf-thread-status[data-lf-settlement] { anchor-name: --lf-thread-settlement; padding-inline: 4px; }
   .lf-thread-compact[open] > .lf-thread-summary .lf-thread-status[data-lf-settlement] { visibility: hidden; }
-  /* The reserved label is hidden while its separate button paints at that anchor. */
+  /* The reserved label is hidden while its separate button paints at that anchor,
+     over the title it stands in, however high the title stacks to stay over its rows. */
   .lf-thread-header-action {
-    position: absolute; position-anchor: --lf-thread-settlement; position-visibility: always; z-index: 3;
+    position: absolute; position-anchor: --lf-thread-settlement; position-visibility: always;
+    z-index: calc(var(--lf-thread-title-z) + 1);
     inset-inline-start: anchor(left); inset-block-start: anchor(center);
     translate: 0 -50%; width: anchor-size(width); box-sizing: border-box;
     font: 400 11px/14px var(--sans); padding: 0 4px; margin: 0;
@@ -1020,7 +1053,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-thread-compact:not([open]) > .lf-thread-header-action { display: none; }
   /* The container supplies navigation and an inset; shadow.css owns the conversation. */
   .lf-thread-compact > .lf-thread-content > .lf-thread-head { margin: 12px var(--lf-thread-inset); }
-  .lf-thread-compact > .lf-thread-content > .lf-thread-root-meta { margin: 12px var(--lf-thread-inset) 0; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-controls { margin: 12px var(--lf-thread-inset) 0; }
   .lf-thread-compact > .lf-thread-content > .lf-thread-transcript { flex: none; margin-inline: var(--lf-thread-inset); }
   /* A checkpoint is agent-written reading context, followed by the retained originals
      it covers. One disclosure beside that context controls the entire range. */
@@ -1055,14 +1088,37 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      field grows.
 
      A short thread ends with its reply row; spare panel room follows the card.
-     A long thread pins that row above the list's focus-ring inset. Its editor grows
-     in flow until it reaches that edge, then grows upward while Send stays there.
+     A long thread pins that row a ring's room above the list's foot, just above where
+     a landing puts a thread's end, so a thread landed or scrolled to its end has the
+     row pinned. Its editor grows in flow until it reaches that edge, then grows upward
+     while Send stays there. The band from the row down to the scrollport's edge, that
+     offset and the list's foot, is the row's own ground: it paints its surface on down
+     so nothing scrolls by beneath it. Like the title, it stands above every layer a
+     row raises.
+     That ground is paint, not room, on the card's own surface; the card clips it to
+     itself, so it shows only where the card runs on past the row.
      ReplyContinuity retains a live body's extent when a turn is removed, and
      HeldNews holds arrivals where growing the transcript would move the reply. */
   .lf-thread-compact > .lf-thread-reply { margin: 0; padding: 12px var(--lf-thread-inset);
-    position: sticky; bottom: var(--focus-ring-room); }
+    position: sticky; bottom: var(--focus-ring-room); z-index: var(--lf-thread-title-z); }
+  /* The pinned row covers the turns that scroll under it, so a landing on any of them,
+     a Tab or a jump, stops above it with its ring clear, as `scroll-margin-top` stops
+     one below the title: the row's height (`--lf-thread-reply-h`, thread-card.js), the
+     ring's room the row stands above the list's content box, and the ring's room above
+     the row; the list's scroll padding is the room below the content box. The row
+     itself takes none. The caret lives in it, and a
+     cover the caret stands in makes the browser scroll on every key. */
+  :is(.lf-threads > .lf-thread-compact:has(> .lf-thread-reply)
+        > :not(.lf-thread-summary, .lf-thread-reply),
+      .lf-threads > .lf-thread-compact:has(> .lf-thread-reply)
+        > :not(.lf-thread-summary, .lf-thread-reply) *) {
+    scroll-margin-bottom: calc(var(--lf-thread-reply-h, 0px) + 2 * var(--focus-ring-room)); }
+  .lf-thread-compact > .lf-thread-reply::after { content: ""; position: absolute;
+    inset-inline: 0; inset-block-start: 100%;
+    block-size: calc(2 * var(--focus-ring-room));
+    background: var(--lf-thread-surface); }
   .lf-thread-compact[open]:not([hidden]):has(> .lf-thread-reply) { display: flex;
-    flex-direction: column; box-sizing: border-box;
+    flex-direction: column; box-sizing: border-box; overflow-y: clip;
     padding-block-end: calc(var(--focus-ring-room) - var(--lf-thread-border) - 1px); }
   .lf-thread-compact[open]:has(> .lf-thread-reply)
     > .lf-thread-content > .lf-thread-head { margin-block-end: 0; }
@@ -1077,7 +1133,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-quote-label { min-width: 0; }
   .lf-anchor-status { margin-inline-start: 7px; color: var(--muted-2);
     font: 500 var(--t-6)/1.25 var(--sans); }
-  .lf-going { overflow: hidden; box-sizing: border-box; }
+  /* Clip, not hidden: a scroll container would take the open title's sticky pin from
+     the list, and the title would jump off screen as the fold begins. */
+  .lf-going { overflow: clip; box-sizing: border-box; }
   /* The reply box stands at the card's foot, the edge the fold draws up, so it leaves
      as the fold begins rather than ride that edge. */
   .lf-going > .lf-thread-reply { visibility: hidden; }
@@ -1131,7 +1189,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      paintAnchors for the one thing that wears this and why. */
   .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
   /* A border image outset into the inline margin draws the rail and takes no room. */
-  :is(.lf-msg.lf-unread, .lf-thread-root-meta:has(+ .lf-thread-transcript > .lf-msg.lf-unread:first-child)) {
+  .lf-msg.lf-unread {
     border-image: linear-gradient(var(--accent), var(--accent)) 0 0 0 1 / 0 0 0 2px
       / 0 0 0 6px; }
   .lf-thread-panel { --lf-thread-inset: 12px; --lf-list-inset: 8px;
@@ -1142,7 +1200,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-thread-panel-foot { display: flex; flex-direction: column; flex: none; }
   /* Every composer gives its field the row; its submit action lives inside that field. */
   .lf-general { display: flex; gap: 6px; align-items: flex-end; }
-  .lf-thread-actions { display: flex; justify-content: space-between; margin-top: 8px; }
   .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
   .lf-thread-action:hover { color: var(--ok); }
   /* Reopen stands in the same row as Resolve and answers the same question from the
@@ -1558,9 +1615,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   }
   /* A covering thread panel stands over the bar's right end, and its foot over the
      status's seat; notices are live feedback, so the status rises clear of that foot,
-     whose height syncLayout states. */
+     whose height syncLayout states. A walk's position stays off it: standing there it
+     took a strip from the bottom of the thread the user was reading, to say what the
+     open card and its pinned title already show. */
   :scope > .lf-thread-panel[aria-modal="true"] ~ .lf-bottom-status {
     bottom: calc(var(--lf-panel-foot-h, 0px) + 14px + var(--lf-safe-bottom)); translate: none; }
+  :scope > .lf-thread-panel[aria-modal="true"]
+    ~ .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]), > .lf-notice.show)) {
+    display: none; }
   .lf-shortcut-bar .lf-shortcut { display: inline-flex; gap: 5px; align-items: baseline; }
   /* A row off the line keeps its width, out of flow and unseen, so the trim reads every
      row where it stands rather than showing one to see whether it wraps

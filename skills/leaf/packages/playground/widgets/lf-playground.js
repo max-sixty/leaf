@@ -122,13 +122,10 @@ customElements.define(
     #interactive = false;
     #regions = [];
     #unregister = [];
-    #stop = null;
 
     connectedCallback() {
       if (!once(this)) {
         this.#registerRegions();
-        if (this.#interactive)
-          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
         this.#paintAvailability();
         return;
       }
@@ -138,7 +135,7 @@ customElements.define(
         // Built, so the height the page reserved for it lifts (x-height).
         this.classList.add("lf-rendered");
         if (this.#interactive)
-          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
+          this.#controller.subscribe(() => this.#paintAvailability());
       } catch (error) {
         this.#unregisterRegions();
         failSoft(this, error);
@@ -146,8 +143,6 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      this.#stop?.();
-      this.#stop = null;
       this.#unregisterRegions();
     }
 
@@ -566,8 +561,6 @@ customElements.define(
         "lf-btn primary lf-playground-submit",
         this.getAttribute("submit-label") ?? "Use these settings",
       );
-      this.#reset.addEventListener("click", () => this.#apply(this.#defaults));
-      this.#submit.addEventListener("click", () => this.#choose());
       this.#copy.append(copyTrigger);
       actions.append(this.#reset, this.#copy, this.#submit);
       if (OFFLINE) {
@@ -656,15 +649,15 @@ customElements.define(
           control: this.#submit,
           decision: true,
           title: () => this.#submit.textContent,
-          when: () => this.#available(),
-          run: () => this.#submit.click(),
+          when: () => !this.#choosing && this.#available(),
+          run: () => this.#choose(),
         },
         {
           id: "playground.reset",
           keys: ["Alt+0"],
           control: this.#reset,
           title: "reset controls",
-          run: () => this.#reset.click(),
+          run: () => this.#apply(this.#defaults),
         },
       ]);
     }
@@ -836,7 +829,6 @@ customElements.define(
 
     #paintAvailability() {
       if (!this.#submit) return;
-      this.#submit.toggleAttribute("disabled", this.#choosing || !this.#available());
       paintKeys();
     }
 

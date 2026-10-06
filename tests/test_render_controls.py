@@ -8,12 +8,14 @@ from browser_sources import browser_function
 from interact_support import (
     append_carried_log_record,
     append_command,
+    declare_work,
+    end_work,
     record_claim,
+    working,
 )
 from leaf import event_log as events_model
 from leaf import leases as leases_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import state as cleanup_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.schema import ELEMENT_ID
@@ -128,6 +130,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
     this.count = 0;
     this.allowed = true;
+    this.disabled = false;
     this.result = offer('output', '', '0');
     const editor = offer('input');
     editor.setAttribute('aria-label', 'Practice note');
@@ -135,7 +138,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     this.append(this.control, editor, this.result);
     const disable = offer('button', '', 'Toggle disabled');
     disable.onclick = () => {
-      this.control.disabled = !this.control.disabled;
+      this.disabled = !this.disabled;
       paintKeys();
     };
     const ariaDisable = offer('button', '', 'Toggle ARIA disabled');
@@ -154,20 +157,19 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
       paintKeys();
     };
     const quiet = offer('button', '', 'Quiet action');
-    quiet.onclick = () => keepsText(quiet, 'Quiet action applied');
     this.append(disable, ariaDisable, guard, replace, quiet);
     const scope = commandScope('In the command probe', [
       {
         id: 'probe.apply', keys: ['x'], contextKeys: ['1'],
         control: () => this.control, bindingBadge: () => this.badge,
         title: 'Apply the operation', line: 'apply',
-        when: () => this.allowed,
-        run: () => this.control.click(),
+        when: () => this.allowed && !this.disabled,
+        run: () => keepsText(this.result, String(++this.count)),
       },
       {
         id: 'probe.quiet', keys: ['q'], control: quiet,
         title: 'Activate without an inline hint', line: 'quiet action',
-        run: () => quiet.click(),
+        run: () => keepsText(quiet, 'Quiet action applied'),
       },
     ]);
     commands(this, scope);
@@ -183,7 +185,6 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     this.badge = offer('kbd', 'lf-key-badge');
     this.badge.setAttribute('aria-hidden', 'true');
     this.control.prepend(this.badge);
-    this.control.onclick = () => { keepsText(this.result, String(++this.count)); };
   }
 });
 """
@@ -316,6 +317,24 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     rendered(page)
     expect(result).to_have_text("4")
 
+    # Native pointer, Enter and Space use the command's callback once each. The
+    # owner's private availability also disables a real pointer press, then restores
+    # the same retained button without adding another activation listener.
+    action.click()
+    expect(result).to_have_text("5")
+    page.keyboard.press("Enter")
+    expect(result).to_have_text("6")
+    page.keyboard.press("Space")
+    expect(result).to_have_text("7")
+    widget.get_by_role("button", name="Toggle availability").click()
+    expect(action).to_be_disabled()
+    box = action.bounding_box()
+    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    expect(result).to_have_text("7")
+    widget.get_by_role("button", name="Toggle availability").click()
+    action.click()
+    expect(result).to_have_text("8")
+
 
 @pytest.mark.parametrize("annotation_mode", ["overlay", "page"])
 def test_widget_context_keys_work_without_an_ask(browser, serve, annotation_mode):
@@ -384,15 +403,13 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     for (const badge of [firstHint, secondHint]) badge.setAttribute('aria-hidden', 'true');
     first.prepend(firstHint);
     second.prepend(secondHint);
-    DISABLE_FIRST
+    const firstUnavailable = DISABLE_FIRST
     const apply = (binding) => keepsText(result, binding === '1' ? 'First applied' : 'Second applied');
-    first.onclick = () => apply('1');
-    second.onclick = () => apply('2');
     this.append(first, second, result);
     commands(this, 'In parameterized actions', [{
       id: 'probe.apply', keys: ['1', '2'], title: 'Apply an action', line: 'apply',
       routes: [
-        {id: 'probe.first', binding: '1', control: first,
+        {id: 'probe.first', binding: '1', control: first, when: () => !firstUnavailable,
          bindingBadge: firstHint, title: 'Apply the first action'},
         {id: 'probe.second', binding: '2', control: second,
          bindingBadge: secondHint, title: 'Apply the second action'},
@@ -420,9 +437,9 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
     """
     module = KEYBOARD_ROUTE_MODULE.replace(
         "DISABLE_FIRST",
-        "first.disabled = true;"
+        "true;"
         if disabled == "native"
-        else "first.setAttribute('aria-disabled', 'true');",
+        else "false; first.setAttribute('aria-disabled', 'true');",
     )
     page = open_page(
         browser,
@@ -489,8 +506,6 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     for (let index = 1; index <= 12; index++) {
       const control = offer('button', '', `Action ${index}`);
       const apply = () => keepsText(result, `Action ${index} applied`);
-      control.onclick = index === 11
-        ? () => keepsText(result, 'Action 11 clicked') : apply;
       this.append(control);
       rows.push({id: `probe.action-${index}`, title: `Action ${index}`, decision: true,
         contextKeys: index <= 9 ? [String(index)] : index === 10 ? ['F10'] : [],
@@ -548,7 +563,7 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     page.keyboard.press("F12")
     expect(result).to_have_text("Action 12 applied")
     page.get_by_role("button", name="Action 11", exact=True).click()
-    expect(result).to_have_text("Action 11 clicked")
+    expect(result).to_have_text("Action 11 applied")
     page.keyboard.press("?")
     page.keyboard.press("?")
     unbound = page.locator(
@@ -882,7 +897,6 @@ customElements.define('lf-verdict', class extends HTMLElement {
     inheritedHint.setAttribute('aria-hidden', 'true');
     const result = offer('output', '', '0');
     let count = 0;
-    control.onclick = () => keepsText(result, String(++count));
     this.append(control, inheritedHint, result);
     commands(this, 'In the inspection', [{
       id: 'probe.inspect', keys: ['x'], title: 'Inspect the proposal', line: 'inspect',
@@ -1751,6 +1765,43 @@ diff --git a/gateway/limits.py b/gateway/limits.py
     head='<meta name="lf-review" content="sign-off">',
 )
 
+# One interaction demo, the gallery's suggestion replay, under the opt-in that installs
+# the runtime's playback row, laid out as the feature gallery lays that row out. The
+# `accept` scenario (interaction-gallery.js) names its suggestion `bg-motion-accept`.
+INTERACTION_PLAYBACK_PAGE = leaf_page(
+    "Interaction playback",
+    """
+<section class="interaction-gallery" id="demos" data-interaction-gallery
+         data-interaction-viewport="2">
+<h2>Interactions</h2>
+<lf-tabs id="demo-tabs">
+  <lf-tab id="demo-accept" label="Accept a suggestion">
+    <figure class="interaction-demo" data-interaction-demo="accept">
+      <template id="demo-accept-page" data-sample>
+        <p id="demo-accept-copy">The importer now
+          <lf-suggestion id="bg-motion-accept"><lf-old>usually finishes</lf-old><lf-new>finishes</lf-new></lf-suggestion>
+          before the next run begins.</p>
+      </template>
+      <div class="interaction-stage interaction-frame-stage">
+        <iframe class="interaction-frame" data-interaction-frame name="interaction-accept"
+                title="Contained Leaf suggestion animation" tabindex="-1"
+                aria-hidden="true"></iframe>
+        <span class="interaction-pointer" hidden aria-hidden="true"></span>
+      </div>
+      <figcaption>The pointer presses Accept.</figcaption>
+    </figure>
+  </lf-tab>
+</lf-tabs>
+</section>
+""",
+    head="""<style>
+.interaction-gallery .lf-interaction-controls {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+}
+.interaction-gallery .lf-interaction-status { flex-basis: 100%; }
+</style>""",
+)
+
 SIGNOFF_STABILITY_PAGE = LONG_PAGE.replace(
     "<title>long</title>",
     '<title>long</title><meta name="lf-review" content="sign-off">',
@@ -1826,13 +1877,12 @@ CONTROL_ARCHETYPES = (
         "target": '#stable-shot .lf-shotcap[data-lf-state="after"]',
     },
     {
-        # The gallery's playback row. The runtime injects one Play/Pause/Replay control
-        # beside Loop and Viewport, so the changing word must cost the button no width.
-        # Pressing Replay sends it through every word it has. `example` because a demo is
-        # a scenario the module names rather than markup a page can compose, so the
-        # mechanism stands on the gallery and nowhere a synthetic page reaches.
+        # The interaction gallery's playback row. The runtime injects one
+        # Play/Pause/Replay control beside Loop and Viewport, so the changing word must
+        # cost the button no width. Pressing Replay sends it through every word it has.
+        # Its own page because the row exists only under the gallery opt-in.
         "name": "interaction-playback",
-        "source": FEATURE_GALLERY,
+        "source": INTERACTION_PLAYBACK_PAGE,
         "target": "[data-interaction-toggle]",
     },
     {
@@ -2347,7 +2397,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
         "Checking the whole page and its open threads before recording every update. "
         * 4
     )
-    session_model.cmd_status(serve.page_dir, "working", detail)
+    working(serve.page_dir, detail)
     told(page)
     expect(page.locator(".lf-status-detail")).to_contain_text(detail.strip())
     door = page.locator(".lf-status-button")
@@ -2376,7 +2426,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
           return window.__lfStatusNodes.text.data;
         }"""
     )
-    session_model.cmd_status(serve.page_dir, "working", detail)
+    working(serve.page_dir, detail)
     told(page)
     survived = page.evaluate(
         """() => ({
@@ -2409,7 +2459,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()
     expect(explanation).to_be_hidden()
-    session_model.cmd_status(serve.page_dir, "working", detail)
+    working(serve.page_dir, detail)
     told(page)
     expect(reference).to_be_visible()
     expect(explanation).to_be_hidden()
@@ -3331,6 +3381,8 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
     sentence rather than a second account of it. The age moving and a count turning over
     are not kinds and stay out of the region."""
     url = serve(SUGGESTION_PAGE)
+    # The agent has the page in hand when the user opens it.
+    working(serve.page_dir, "Writing the page")
     page = open_page(browser, url)
     live = page.locator(".lf-live")
     expect(page.locator(".lf-banner .lf-dot.working")).to_be_visible()
@@ -3365,7 +3417,7 @@ def test_a_status_kind_change_is_announced_in_the_banners_own_words(browser, ser
         )
     told(page)
     expect(live).to_contain_text("Claude is waiting for approval")
-    lease.close()
+    leases_model.release_lease(lease)
 
     held = []
 
@@ -3838,7 +3890,7 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     # The synthetic page composes every mechanism a page can author, and carries the
     # standing comment the margin entry's row is made of. An archetype naming another
     # source is one whose causal state cannot coexist with that composed page, or whose
-    # mechanism lives only in a shipped gallery.
+    # mechanism lives only in a shipped gallery or under a page-wide opt-in.
     source = archetype.get("source")
     page = open_page(
         browser,
@@ -3858,8 +3910,6 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
             ],
         ),
     )
-    if source == FEATURE_GALLERY:
-        page.locator("#bg-gallery-tabs").get_by_role("tab", name="Interactions").click()
     page_at_rest(page)
     page.evaluate(DEFINE_BOXES)
     control = page.locator(archetype["target"])
@@ -4197,7 +4247,7 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     resized(page, width, 844)
 
     def say(detail):
-        session_model.cmd_status(serve.page_dir, "working", detail)
+        working(serve.page_dir, detail)
         told(page)
         page.wait_for_function(
             "(words) => document.querySelector('.lf-status-text').textContent === words",
@@ -4211,8 +4261,9 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     assert short["right"] < short["roomRight"] - 60, (
         f"a short status press still spans the banner's free room: {short}"
     )
-    # The page's suggestions wait on the user, so the counts stand beside the status.
-    expect(page.locator(".lf-status-queues")).to_have_text("3 on you")
+    # The page's suggestions wait on the user, and the page task the status runs on
+    # waits on the agent, so the counts stand beside the status.
+    expect(page.locator(".lf-status-queues")).to_have_text("3 on you · 1 on Agent")
     page.evaluate(DEFINE_BOXES)
     beside = page.evaluate(
         BANNER_WATCH, f":is({NEIGHBOUR}, .lf-status-queues):not(.lf-status-button)"
@@ -4513,14 +4564,7 @@ def test_a_panel_row_follows_its_pages_status_live(
     page.keyboard.press("Shift+l")
     row = page.locator("a.lf-others-row")
     expect(row.locator(".lf-others-line")).to_have_text("Working — running the suite")
-    cleanup_model.write_json(
-        other_dir / "status.json",
-        {
-            "state": "working",
-            "detail": "recording the demo",
-            "ts": cleanup_model.now_iso(),
-        },
-    )
+    declare_work(other_dir, "recording the demo")
     told(page)
     expect(row.locator(".lf-others-line")).to_have_text("Working — recording the demo")
     # A neighbour waiting on its own user says so in this seat's shorter words, and
@@ -4528,6 +4572,7 @@ def test_a_panel_row_follows_its_pages_status_live(
     # where a user picks which page to go to. The hover holds it whole, since the
     # line ellipsizes at the panel's width, and it is the row's hover and not the
     # line's, the innermost title winning where two overlap.
+    end_work(other_dir)
     cleanup_model.write_json(
         other_dir / "status.json",
         {
@@ -4590,14 +4635,7 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
           };
         }"""
     )
-    cleanup_model.write_json(
-        other_dir / "status.json",
-        {
-            "state": "working",
-            "detail": "recording the demo",
-            "ts": cleanup_model.now_iso(),
-        },
-    )
+    declare_work(other_dir, "recording the demo")
     cleanup_model.write_json(
         closing_dir / "status.json",
         {"state": "idle", "detail": "", "ts": cleanup_model.now_iso()},
@@ -5295,7 +5333,10 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
         """The list keeps the focused summary in its usable reading band.
 
         Thread rows reflow at the narrower width, so the same thread can have a
-        different numeric offset while remaining the user's reading place.
+        different numeric offset while remaining the user's reading place. An open
+        thread's title is a sticky header that pins on the list's own top edge, past
+        the scroll padding, and draws its ring inside itself, so its band starts at
+        that edge.
         """
         held = threads.evaluate(
             "el => ({at: el.scrollTop, limit: el.scrollHeight - el.clientHeight})"
@@ -5309,7 +5350,7 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
             "const box = list.getBoundingClientRect(); "
             "const style = getComputedStyle(list); "
             "return {top: summary.top, bottom: summary.bottom, "
-            "bandTop: box.top + parseFloat(style.scrollPaddingTop), "
+            "bandTop: box.top + list.clientTop, "
             "bandBottom: box.bottom - parseFloat(style.scrollPaddingBottom)}; }"
         )
         assert (
@@ -6365,9 +6406,9 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     The covering panel and shortcut bar can occupy the same viewport pixels, but they are
     not peers: modality puts the panel above the scrim and makes the bar inert background.
     Treating their rectangles as a collision made every newline in the panel's composer
-    lift the unrelated bar by one line. The live walk status stays above that panel and
-    still reserves the list it can cover. Over a live page, the live bar yields the
-    panel's actual width."""
+    lift the unrelated bar by one line. A thread walk shows no position over that panel
+    and takes no room from its list. Over a live page, the live bar yields the panel's
+    actual width."""
     context = browser.new_context(
         viewport={"width": 400, "height": 900}, reduced_motion="reduce"
     )
@@ -6390,11 +6431,9 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
             const standing = document.activeElement?.closest(".lf-thread");
             return {shortcut_bar: rect(document.querySelector(".lf-shortcut-bar")),
                     foot: rect(document.querySelector(".lf-thread-panel-foot")),
-                    status: rect(document.querySelector(".lf-bottom-status")),
                     standingTitle: standing ? rect(document.activeElement) : null,
                     lineInert: document.querySelector(".lf-shortcut-bar").inert,
                     viewportHeight: innerHeight,
-                    listInlinePad: list.style.getPropertyValue("--lf-threads-foot"),
                     listPad: parseFloat(style.paddingBottom),
                     listScrollPad: parseFloat(style.scrollPaddingBottom)};
         }""")
@@ -6423,22 +6462,17 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     )
     assert multiline["listPad"] < 20 and multiline["listScrollPad"] < 20, multiline
 
-    # A thread walk introduces foreground status above the panel. Reach the last thread
-    # through the real keyboard route and prove its title lands clear of that status band.
-    # The open card itself fills the list, its free room reaching under the status.
+    # A thread walk over the panel puts no position over its list. Reach the last
+    # thread through the real keyboard route: the list keeps its whole height.
     field.evaluate("field => field.blur()")
     page.locator(".lf-threads").focus()
     for _ in range(6):
         page.keyboard.press("t")
         rendered(page)
-    expect(page.locator(".lf-bottom-status")).to_contain_text("Thread 6 of 6")
+    expect(page.locator(".lf-bottom-status")).to_be_hidden()
     walked = boxes()
-    assert walked["listPad"] >= 20 and walked["listScrollPad"] >= 20, walked
-    assert walked["listInlinePad"], walked
+    assert walked["listPad"] < 20 and walked["listScrollPad"] < 20, walked
     assert walked["standingTitle"], walked
-    assert walked["standingTitle"]["bottom"] <= walked["status"]["top"], (
-        f"the last walked thread landed under its live status: {walked}"
-    )
 
     # Over a live page, the bar is live page chrome and stops at the panel's edge.
     resized(page, 1200, 900)

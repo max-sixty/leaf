@@ -138,7 +138,6 @@ def quote_reanchors(
             from leaf.workflows import canonical_workflows
 
             workflows = canonical_workflows(
-                [],
                 threads,
                 frozen_thread_reading(events, previous.registry),
                 page=previous,

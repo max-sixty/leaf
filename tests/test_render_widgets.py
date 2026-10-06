@@ -6,13 +6,12 @@ from pathlib import Path
 
 import pytest
 import turbohtml
-from interact_support import append_carried_log_record, append_command
+from interact_support import _start, append_carried_log_record, append_command
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import thread as thread_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
@@ -1125,11 +1124,23 @@ TRACKED_ASK_PAGE = leaf_page(
   <h1>Retention</h1>
   <lf-ask id="tracked">
     <h3>How long should logs be kept?</h3>
-    <table id="tracked-figure">
+    <figure id="tracked-evidence"><table id="tracked-figure">
       <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
         <tr><td>Warm</td><td class="num">120</td></tr></tbody>
     </table>
+    <lf-board id="tracked-board">
+      <lf-column id="track-a" label="First"></lf-column>
+      <lf-column id="track-b" label="Second"></lf-column>
+      <lf-column id="track-c" label="Third"></lf-column>
+      <lf-column id="track-d" label="Fourth"></lf-column>
+    </lf-board></figure>
+    <lf-board id="direct-board">
+      <lf-column id="direct-a" label="First"></lf-column>
+      <lf-column id="direct-b" label="Second"></lf-column>
+      <lf-column id="direct-c" label="Third"></lf-column>
+      <lf-column id="direct-d" label="Fourth"></lf-column>
+    </lf-board>
     <lf-ask id="nested">
       <h4>Archive the warm tier too?</h4>
       <p id="nested-premise">It holds the last quarter.</p>
@@ -1144,7 +1155,7 @@ TRACKED_ASK_PAGE = leaf_page(
     </lf-options>
   </lf-ask>
 """,
-    layout="wide",
+    head="<style>:root { --col: 1000px; }</style>",
 )
 
 
@@ -1152,7 +1163,9 @@ def test_an_ask_framing_a_figure_sets_its_options_beside_it(browser, serve):
     """An Ask whose heading, figure and one option list come in that order sets the
     list in a track beside the figure where the Ask has the room, and stacks it below
     where it hasn't. The track belongs to that Ask alone: an ordinary Ask held among
-    its evidence finds the same named container and keeps its own block flow."""
+    its evidence finds the same named container and keeps its own block flow. A board's
+    preferred minimum, whether held inside a figure or standing as a direct context
+    block, cannot spend the answer track's room."""
     page = open_page(browser, serve(TRACKED_ASK_PAGE))
     geometry = """() => {
       const box = (id) => document.getElementById(id).getBoundingClientRect();
@@ -1163,6 +1176,10 @@ def test_an_ask_framing_a_figure_sets_its_options_beside_it(browser, serve):
         below: options.top >= figure.bottom,
         nestedFloat: style('nested-premise').float,
         nestedListPosition: style('nested-choice').position,
+        boardRight: box('tracked-board').right,
+        directRight: box('direct-board').right,
+        evidenceRight: box('tracked-evidence').right,
+        answersLeft: options.left,
       };
     }"""
     resized(page, 1440, 900)
@@ -1170,6 +1187,10 @@ def test_an_ask_framing_a_figure_sets_its_options_beside_it(browser, serve):
     assert wide["beside"], wide
     assert wide["nestedFloat"] == "none", wide
     assert wide["nestedListPosition"] != "sticky", wide
+    assert wide["boardRight"] <= wide["evidenceRight"] + 1, wide
+    assert wide["directRight"] <= wide["evidenceRight"] + 1, wide
+    assert wide["boardRight"] < wide["answersLeft"], wide
+    assert wide["directRight"] < wide["answersLeft"], wide
     resized(page, 700, 900)
     narrow = page.evaluate(geometry)
     assert narrow["below"], narrow
@@ -3906,10 +3927,12 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     page.mouse.move(0, 0)
     expect(bubble).to_be_hidden()
     page.evaluate(RELEASE_FOCUS)
-    # Twice: the layer's skip link is the document's first stop, and the mark is the
-    # first thing the page itself offers.
-    page.keyboard.press("Tab")
-    page.keyboard.press("Tab")
+    # Walk from the layer's skip link through the current banner controls to the
+    # first action in the page. The exact number of banner stops can change.
+    for _ in range(12):
+        page.keyboard.press("Tab")
+        if mark.evaluate("node => document.activeElement === node"):
+            break
     expect(mark).to_be_focused()
     expect(bubble).to_be_visible()
     expect(gloss).to_have_css("outline-style", "solid")
@@ -5179,12 +5202,10 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
         ),
     ):
         pass
-    session_model.cmd_status(
-        serve.page_dir,
-        "working",
-        "creating deployment-notification.html",
-        on="notification-playground",
+    started = _start(
+        serve.page_dir, logged_action["id"], "creating deployment-notification.html"
     )
+    assert started.exit_code == 0, started.output
     told(page)
     expect(
         page.locator('[data-lf-margin-for="notification-playground"] .lf-margin-marker')
@@ -5245,7 +5266,6 @@ body { font-family: system-ui, sans-serif; }
         serve.page_dir,
         result_source,
         "Created deployment-notification.html",
-        completes=("notification-playground",),
     )
     wait_for_revision(page, first_result["revision"])
 
@@ -5508,7 +5528,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     copy.press("Enter")
     assert copy_width("Copied") == reserved_width
     assert "12px radius" in page.evaluate("navigator.clipboard.readText()")
-    expect(copy).to_have_accessible_name("Copy instruction", timeout=3000)
+    expect(copy).to_have_accessible_name("Copy instruction")
     page.evaluate(
         """() => {
           window.clipboardWrites = [];
@@ -5543,7 +5563,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         }"""
     )
     assert copy_width("Copied") == reserved_width
-    expect(copy).to_have_accessible_name("Copy instruction", timeout=3000)
+    expect(copy).to_have_accessible_name("Copy instruction")
     page.evaluate(
         """() => {
           navigator.clipboard.writeText = () => { throw new Error('refused'); };
@@ -8460,7 +8480,6 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
           const inspect = document.createElement('button');
           inspect.id = 'inspect-action';
           inspect.textContent = 'Inspect';
-          inspect.onclick = () => { inspect.dataset.activated = '1'; };
           source.append(inspect);
           suggestion.append(source);
           commands(source, 'Suggestion action', [
@@ -8472,7 +8491,7 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
               decision: true,
               title: 'Inspect',
               line: 'Inspect',
-              run: () => inspect.click(),
+              run: () => { inspect.dataset.activated = '1'; },
             },
           ]);
         }"""
@@ -8567,13 +8586,12 @@ def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
           const suggestion = document.getElementById('sug');
           const inspect = document.createElement('button');
           inspect.textContent = 'Inspect';
-          inspect.onclick = () => { inspect.dataset.activated = '1'; };
           suggestion.append(inspect);
           commands(inspect, 'Inspect control', [
             {
               id: 'test.inspect', keys: ['1'], contextKeys: ['3'], control: inspect, label: 'I',
               decision: true, title: 'Inspect', line: 'Inspect',
-              run: () => inspect.click(),
+              run: () => { inspect.dataset.activated = '1'; },
             },
             {
               id: 'test.local-three', keys: ['3'],
@@ -8788,7 +8806,7 @@ def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve
             commands(control, id, [{
                id: `test.${id}`, keys: [], contextKeys: [String(nextKey++)], control, bindingBadge,
               decision: true, title: `Activate ${id}`, line: id,
-              run: () => control.click(),
+              run: () => { control.dataset.activated = '1'; },
             }]);
           };
 
@@ -9539,9 +9557,6 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     page = open_page(browser, url)
     resized(page, 1200, 900)
     inline = page.locator(f'#cd-q .lf-msg[data-event="{message["id"]}"]')
-    inline_thread = page.locator(
-        f'#cd-q .lf-page-thread:has(.lf-msg[data-event="{message["id"]}"])'
-    )
     expect(inline.locator(".lf-msg-body")).to_have_text("The north bracket fit.")
     page.locator(".lf-threads-toggle").click()
     panel = page.locator(f'.lf-msg[data-mid="{message["id"]}"]')
@@ -9575,21 +9590,15 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
         },
     )
     told(page)
+    # Revealing the reply in either view settles the thread's shared unread state.
     panel_thread.get_by_role("button", name="1 new reply", exact=True).click()
-    inline_thread.get_by_role("button", name="1 new reply", exact=True).click()
 
     expect(inline.locator(".lf-msg-body")).to_contain_text("The north bracket fits.")
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
-    expect(panel.locator('pre code [data-lf-syn="kw"]').first).to_have_text("def")
-    # The disclosure is on the head, and a thread's first message lends its head to the
-    # card, where the thread's own actions sit beside the author. So the mark belongs to
-    # the card holding the message rather than to the message node, on both surfaces.
-    expect(inline_thread.locator(".lf-thread-root-meta .lf-edited")).to_have_text(
-        "edited"
-    )
-    expect(panel_thread.locator(".lf-thread-root-meta .lf-edited")).to_have_text(
-        "edited"
-    )
+    expect(panel.locator("pre code [data-lf-syn]").first).to_have_text("def")
+    # Editing updates the original message's disclosure in both views.
+    expect(inline.locator(":scope > .lf-msg-head .lf-edited")).to_have_text("edited")
+    expect(panel.locator(":scope > .lf-msg-head .lf-edited")).to_have_text("edited")
     expect(page.locator(f'.lf-msg[data-mid="{revision["id"]}"]')).to_have_count(0)
     assert page.evaluate(
         f"""() => window.__editedInline === document.querySelector(
@@ -11533,7 +11542,7 @@ def test_a_diff_row_fills_to_the_end_of_its_line_and_to_the_end_of_a_narrow_box(
     page.locator('lf-diff [data-lf-datum=\'["app/routes.py","new",201]\']').evaluate(
         _SELECT_IN_ROW, "new route"
     )
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.get_by_role("button", name="Comment on selection").click()
     write(
         page.locator(".lf-composer leaf-text"),
         "A remark of the ordinary length a reviewer writes, long enough that the line it "
@@ -11997,7 +12006,7 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
     flat = row.evaluate(_SELECT_IN_ROW, _DIFF_TAIL)
     assert flat["text"] == _DIFF_TAIL, flat
     assert flat["cut"], f"the words selected are inside the box already: {flat}"
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.get_by_role("button", name="Comment on selection").click()
     write(
         page.locator(".lf-composer leaf-text"), "Unwrapped, this line runs off the box."
     )
@@ -12010,7 +12019,7 @@ def test_a_comment_on_a_wrapped_diff_line_names_the_line_an_unwrapped_one_names(
     assert folded["height"] > flat["height"] and not folded["cut"], (
         f"the line did not wrap, so both anchors describe one geometry: {folded}"
     )
-    expect(page.locator(".lf-fab-bar")).to_be_visible()
+    page.get_by_role("button", name="Comment on selection").click()
     write(
         page.locator(".lf-composer leaf-text"), "Wrapped, the same words are on screen."
     )

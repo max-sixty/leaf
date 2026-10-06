@@ -1,7 +1,12 @@
 import { rememberWriting } from "../drafts.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { keeps, keepsHidden, keepsText } from "../keeps.js";
-import { advertisesKeys, submitBindings, submitLabel } from "../keyboard/bindings.js";
+import {
+  advertisesKeys,
+  answers,
+  submitBindings,
+  submitLabel,
+} from "../keyboard/bindings.js";
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
 import { notice } from "../notifications.js";
 import { iconElement } from "../icons.js";
@@ -243,23 +248,41 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       rememberWriting(ta);
       ta.focus({ preventScroll: true });
     };
-    // ⌘Z takes back what the user did last. The field's own undo holds only the words, so
-    // the box counts the strokes drawn since the user last typed: while there are any, the
-    // press takes back the latest of them, and once they are gone it walks the words'
-    // history again, which holds everything typed before them.
-    let strokesSeen = 0;
-    let strokesWhenTyped = 0;
+    // ⌘Z takes back what the user did last, and the field's own undo holds only the words.
+    // So the box keeps the words as they stood when each stroke was drawn: while they
+    // stand so now, the latest stroke is the latest change and the press takes it back;
+    // once the user has typed, the press walks the words' history, and when that history
+    // has brought them back to how the latest stroke found them, the next press takes
+    // that stroke. Words that change and change back are no change.
+    let wordsAtStroke = [];
     let draftSeen;
-    const strokeIsLatest = () => strokesSeen > strokesWhenTyped;
-    if (drawing) ta.yieldsUndo = strokeIsLatest;
+    const strokeIsLatest = () =>
+      wordsAtStroke.length > 0 && wordsAtStroke.at(-1) === ta.value;
+    // A press is decided once, as it arrives: the field's history answers it before the
+    // page's keys do, and an undo of the words that brings them back to how the latest
+    // stroke found them must not let the same press take that stroke too.
+    let pressDecided = null;
+    if (drawing) {
+      ta.addEventListener(
+        "keydown",
+        (event) => {
+          if (!answers("Mod+z", event)) return;
+          pressDecided = strokeIsLatest();
+          setTimeout(() => (pressDecided = null));
+        },
+        { capture: true },
+      );
+      ta.yieldsUndo = () => pressDecided ?? strokeIsLatest();
+    }
     const renderMedia = () => {
       const drawn = drawing?.read() ?? null;
-      strokesSeen = drawn?.strokes.length ?? 0;
-      // What was typed in another draft is no change to this one.
+      const strokes = drawn?.strokes.length ?? 0;
+      // Another draft's words say nothing about this one's strokes.
       const draft = drawing?.draft();
-      if (draft !== draftSeen) strokesWhenTyped = 0;
+      if (draft !== draftSeen) wordsAtStroke = [];
       draftSeen = draft;
-      strokesWhenTyped = Math.min(strokesWhenTyped, strokesSeen);
+      wordsAtStroke = wordsAtStroke.slice(0, strokes);
+      while (wordsAtStroke.length < strokes) wordsAtStroke.push(ta.value);
       mediaShelf.present(
         Object.freeze({
           drawing: drawn,
@@ -289,7 +312,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // Writing the value starts the words' history afresh, so none of them is later
       // than any stroke.
       ta.value = restored.text;
-      strokesWhenTyped = 0;
+      wordsAtStroke = [];
       renderMedia();
     };
     hydrate(ta.value);
@@ -394,7 +417,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       }
     };
     ta.addEventListener("input", () => {
-      strokesWhenTyped = strokesSeen;
       draftChanged();
       // A box a thread or seat holds keeps its controls in view as it grows
       // (`followBoxGrowth`). On the user's own keystrokes and nothing else: a send settling
@@ -480,8 +502,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
               id: "draw.undo",
               keys: ["Mod+z"],
               title: "undo stroke",
-              description: "Take back the drawing's last stroke, until you type",
-              when: strokeIsLatest,
+              description:
+                "Take back the drawing's last stroke while it is the latest change",
+              when: () => pressDecided ?? strokeIsLatest(),
               run: () => drawing.undoStroke(),
             },
           ]

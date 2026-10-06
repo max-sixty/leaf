@@ -150,11 +150,14 @@ for (const type of ["pointerdown", "wheel", "touchstart", "focusin"])
 for (const type of ["pointerup", "pointercancel"])
   addEventListener(type, () => (pressing = false), { capture: true });
 export const recentReadingRegion = () => readingRegion(recentRegionId);
+// A region the user can no longer see, such as the list of a panel they closed, is not
+// where they are reading, however recently they acted in it.
 export const userReadingRegion = () => {
   const at = deepFocus();
   const region = readingRegionFor(at);
   if (region || under(at, pageRoot())) return region;
-  return recentReadingRegion();
+  const recent = recentReadingRegion();
+  return recent && !hidden(recent) ? recent : undefined;
 };
 
 // The deepest region whose body actually contains this node. A region's host includes

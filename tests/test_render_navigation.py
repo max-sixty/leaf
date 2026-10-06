@@ -214,11 +214,15 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     page.wait_for_function(f"() => ({tops})()[1] > 0")
     scroll_settled(page, "#right-reading > :not(header, footer)")
     assert page.evaluate(tops)[0] == left
-    # Escape still takes the user off a control, with no stop of its own on body.
+    # Escape still takes the user off a control, with no stop of its own on body, and
+    # lands them on what they are reading in the pane they stood in: the page outside
+    # the panes holds only its header, and landing there left `u` with nothing to move.
     page.locator("#left-head").focus()
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
-    assert page.evaluate(reading) is None
+    assert page.evaluate(reading) == "left-reading"
+    page.keyboard.press("u")
+    page.wait_for_function(f"() => ({tops})()[0] < {left}")
 
 
 def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, serve):
@@ -288,6 +292,42 @@ def test_covering_panel_keeps_focus_on_a_nested_reading_region(browser, serve):
     page.keyboard.press("d")
     page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
     assert nested.evaluate("box => box.scrollTop") == nested_position
+
+
+def test_beside_the_thread_panel_focus_stays_in_sight_and_named(browser, serve):
+    """Where Threads leaves the page live beside it, it stands over part of a workspace,
+    and focus still reached what it covers: Tab walked onto the pane under it, and a
+    comment box opened there, each out of sight. Focus arriving on page content the
+    panel covers clears it, as travel to a hidden destination does; the focus a showing
+    panel hands back to the control that opened it is no arrival. The panel and a thread
+    card on the page, which a send or a walk can stand the user on, each carry a name."""
+    page = open_page(browser, serve(READING_REGIONS_PAGE))
+    resized(page, 800, 900)
+    panel = page.get_by_role("dialog", name="Threads", exact=True)
+
+    # Opened from a control it then stands over, the panel takes the user in and stays.
+    page.locator("#right-head").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(panel).to_be_visible()
+    expect(panel).not_to_have_attribute("aria-modal", "true")
+    expect(page.locator(".lf-threads")).to_be_focused()
+
+    page.locator("#left-foot").focus()
+    expect(panel).to_be_visible()
+    page.keyboard.press("Tab")
+    expect(page.locator("#right-head")).to_be_focused()
+    expect(panel).to_be_hidden()
+
+    page.keyboard.press("/")
+    page.keyboard.type("Left start")
+    page.keyboard.press("Enter")
+    page.keyboard.press("c")
+    page.keyboard.type("Is this landmark stable?")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-page-thread")).to_have_accessible_name(
+        "Thread, Is this landmark stable?"
+    )
 
 
 def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):

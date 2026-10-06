@@ -473,6 +473,13 @@ export class ThreadView {
     keeps(this.node, panel ? "data-id" : "data-thread", model.id);
     keeps(this.node, "data-resolved", model.resolved);
     keeps(this.node, "data-attempt", model.attempt || null);
+    // A page, outlet or margin card is itself where a send or a walk stands the user, so
+    // it carries the thread's name; a panel card is named by its summary, which takes
+    // the focus there.
+    if (!panel) {
+      keeps(this.node, "role", this.node.localName === "details" ? null : "group");
+      keeps(this.node, "aria-label", `Thread, ${model.summary.topic}`);
+    }
     if (model.surface === "outlet" && this.#outletReplyShown !== reply) {
       this.node.toggleAttribute("open", reply);
       this.#outletReplyShown = reply;

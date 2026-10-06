@@ -21,6 +21,8 @@
 
    Travel asks this owner to clear whatever surface hides a destination (`clearFor`),
    so every trip that promises to show one closes the same surfaces by the same rule.
+   Focus arriving on the page is such a trip, however it arrived: a beside-standing
+   surface clears for page content it stands over rather than hold focus out of sight.
 
    A surface that stands under the bottom bar, as a drawer does (its list ends above the
    band's stated height), keeps that band over it in the covering posture too: the band
@@ -182,9 +184,19 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     hide,
     arrival = "mount",
   }) {
-    if (!key || !surface?.id || !scroller || !focus || !show || !hide)
+    // Named for assistive technology as well as by id: in the covering posture this
+    // owner makes the surface a modal dialog, and a dialog needs a name.
+    if (
+      !key ||
+      !surface?.id ||
+      !(surface.hasAttribute("aria-label") || surface.hasAttribute("aria-labelledby")) ||
+      !scroller ||
+      !focus ||
+      !show ||
+      !hide
+    )
       throw new Error(
-        "leaf: an auxiliary surface needs a key, named surface, scroller, focus destination, and visibility callbacks",
+        "leaf: an auxiliary surface needs a key, an id and an accessible name, a scroller, a focus destination, and visibility callbacks",
       );
     if (controllers.has(key))
       throw new Error(`leaf: duplicate auxiliary surface ${key}`);
@@ -294,8 +306,24 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
       true,
     );
     document.addEventListener("focusin", (event) => {
+      // Beside the page, focus arriving on page content the surface stands over is a
+      // destination the user cannot see, whether Tab or a composer opening put it there,
+      // so the surface clears for it as it does for travel. Focus coming back out of the
+      // surface is not an arrival: a non-modal dialog takes focus as it shows, and its
+      // owner hands it straight back to whoever held it (thread-panel.js).
+      if (!active) {
+        const selected = controllers.get(selectedKey);
+        if (
+          selected &&
+          selected !== arriving &&
+          !selected.covers() &&
+          !chromeRoot.contains(event.target) &&
+          !(event.relatedTarget && selected.surface.contains(event.relatedTarget))
+        )
+          clearFor(event.target);
+        return;
+      }
       if (
-        !active ||
         placingFocus ||
         active.surface.contains(event.target) ||
         nativeLayerContains(event.target)

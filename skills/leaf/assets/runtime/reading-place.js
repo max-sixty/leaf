@@ -44,6 +44,7 @@ import {
   readingRegionFor,
   readingRegions,
   shownRegionBounds,
+  userReadingRegion,
 } from "./reading-regions.js";
 import { followingItsEnd } from "./bounds.js";
 import { moveScrollerBy, pageScroller, scrollToEnd } from "./scrolling.js";
@@ -114,8 +115,12 @@ export function* blocksOnScreen(region = null, blocks = textBlocks()) {
   }
 }
 // The first visible block in the user's reading region, for a walk's origin,
-// alignment when nothing is selected, and the keyboard reference's hand-back.
-export const readingBlock = (region = null) =>
+// alignment when nothing is selected, and the keyboard reference's hand-back. Asked
+// with no region, it is the region the user is reading in (`userReadingRegion`), which
+// is what d/u scroll: in a workspace whose panes bound themselves the page outside them
+// holds only its header, and a let-go that landed there would leave the pane the user
+// was reading for the top of the page.
+export const readingBlock = (region = userReadingRegion()) =>
   blocksOnScreen(region, textBlocks(region?.body)).next().value?.[0] ?? null;
 
 // The quote and the section it's searched in come from the same block, or the search is

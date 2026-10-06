@@ -1022,7 +1022,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* Status shares the title row. Its width may change the title's ellipsis,
      but never the header height or the conversation below it. */
   .lf-thread-meta { grid-column: 2; grid-row: 1; display: flex; align-items: baseline;
-    gap: 8px; min-width: 0; max-width: 150px; overflow: hidden;
+    gap: 8px; min-width: 0; max-width: 160px; overflow: hidden;
     font: 400 11px/14px var(--sans); }
   .lf-thread-draft { color: var(--muted); font-size: 10px; white-space: nowrap; }
   .lf-thread-unread { color: var(--accent); font-size: 10px;

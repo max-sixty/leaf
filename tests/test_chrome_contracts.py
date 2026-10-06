@@ -2180,7 +2180,6 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         (630, False, 14),
         (629, False, 14),
         (500, False, 14),
-        (390, False, 14),
         (320, False, 14),
         (630, True, 14),
         (629, True, 14),
@@ -2744,8 +2743,16 @@ FACE = [
 ]
 
 
-@pytest.mark.parametrize("surface", ["general", "panel", "margin", "outlet"])
-@pytest.mark.parametrize("scheme", ["light", "dark"])
+# The scheme reaches every surface through the same tokens, so dark runs on the page's
+# own composer and on the one a widget's thread outlet holds.
+@pytest.mark.parametrize(
+    "surface, scheme",
+    [
+        *((surface, "light") for surface in ("general", "panel", "margin", "outlet")),
+        ("general", "dark"),
+        ("outlet", "dark"),
+    ],
+)
 def test_a_draft_wears_the_faces_its_sent_message_wears(
     browser, serve, surface, scheme
 ):

@@ -6,7 +6,8 @@ against that immutable set;
 no historical runtime, source patch or baseline build is involved. Appearance is
 compared on macOS only: fonts and antialiasing differ by OS, and a Linux image could
 be made only on CI's own runner (TODO.md, "Development velocity"). Elsewhere the
-journey and its delivery assertions still run and keep their images as evidence.
+journey and its delivery assertions still run and keep their images as evidence,
+except in the dark cases, whose colour scheme changes only pixels.
 A profile names the macOS version, architecture and locked Chromium version, and a
 missing profile fails: browser upgrades require deliberately reviewed captures.
 Existing fetch-assets warms the same cache as every other asset reader.
@@ -27,8 +28,8 @@ cannot conceal placement changes.
 
 First insertion has an immediate words/busy/opacity observer before stabilized
 screenshots. Refusal's exact feedback and native visibility are observed at mutation;
-its real expiry precedes the restored-draft capture. Transient notice styling is
-outside the pixel oracle and retains its ordinary rendered lifecycle tests. Capture
+its expiry, on the advanced timer clock, precedes the restored-draft capture. Transient
+notice styling is outside the pixel oracle and retains its ordinary rendered lifecycle tests. Capture
 hides only editor carets, preserving draft words, focus and selection. Eight bounded
 cases cover general, panel, margin, inline diff, dark and narrow appearances;
 they do not claim all thread states. Existing news/storage tests remain separate.

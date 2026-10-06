@@ -214,7 +214,9 @@ type(<number>))`, as `lf-shot` does).
 How wide the page is, and how its blocks are arranged, is the page's choice, made with a
 Layout class or its own CSS (`page-authoring.md`, "Layouts"); a package's element fills
 the box it is given, and its `x-space` states the width it prefers, which a page may
-override.
+override. Declare `column` for an element whose content is read as lines of text, such
+as a list of choices or a timeline, so on a wide page it keeps the measure the prose
+around it keeps instead of stretching its rows across the page.
 A widget that needs a minimum width to stay usable, such as a board's columns at a
 readable size, states it as `min-inline-size` capped by the box it stands in:
 `min(<its floor>, 100cqi, var(--lf-box-cap, 100vw))`. `100cqi` measures the nearest size

@@ -15,6 +15,9 @@ import { shrunkLabelReading } from "./words.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
+// A block the theme grows past the column (layouts.css). A block allocated `column`
+// keeps the measure as text does, so these checks read it as ordinary flow.
+const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
 
 // The page's own margin residents, without Leaf's rail: that holds only markers and
 // never moves the column. Both a sweep sample and its breakpoint refinement read the
@@ -235,7 +238,7 @@ function marginReading(main) {
     // pointer events keep them from occupying the margin until it opens.
     if (
       !el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) ||
-      el.hasAttribute("data-lf-space")
+      el.matches(BREAKOUT)
     )
       return false;
     const style = getComputedStyle(el);
@@ -309,7 +312,7 @@ export function misplacedBoxes() {
   // scrolled, `overflow-x: auto` having caught every descendant a line above.
   const insideWide = (el) => {
     for (let a = el.parentElement; a && a !== main; a = a.parentElement)
-      if (a.hasAttribute("data-lf-space")) return a;
+      if (a.matches(BREAKOUT)) return a;
     return null;
   };
   // What a wide widget may not escape, whatever the page has room for: the nearest
@@ -340,7 +343,7 @@ export function misplacedBoxes() {
   };
   const over = new Map();
   for (const el of main.querySelectorAll("*")) {
-    const wide = el.hasAttribute("data-lf-space");
+    const wide = el.matches(BREAKOUT);
     // A wide widget is asked whatever it stands in, where everything else is excused
     // by a scroll container above it. The excuse is about the column — a box inside a
     // scroller is drawn only as far as the scroller reaches, so it cannot spill onto
@@ -415,7 +418,7 @@ export function misplacedBoxes() {
   // maintains. A resident is whatever `marginReading` finds standing past the column, so
   // a project hanging its own furniture out there is covered without declaring anything
   // to this pass.
-  for (const el of main.querySelectorAll("[data-lf-space]")) {
+  for (const el of main.querySelectorAll(BREAKOUT)) {
     if (!el.checkVisibility()) continue;
     const b = el.getBoundingClientRect();
     const hit = residents.find((r) => {

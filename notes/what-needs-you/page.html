@@ -510,13 +510,76 @@
             </p>
           </section>
 
+          <section id="bar-names">
+            <h2>A name for each side, since whose it is matters most</h2>
+            <p>
+              “Tasks: 3” doesn't say whether the three are on you or on Claude. The
+              model keeps one record for both, a task with an <code>owner</code>, and
+              that stays the word in the code and in <code>leaf task</code>. What the
+              page shows needs two words instead, one per side, so a count never stands
+              without saying whose it is.
+            </p>
+            <p>What can be on each side today:</p>
+            <ul>
+              <li>
+                <strong>On you:</strong> an Ask, to decide; a question in a thread, to
+                answer; a task the agent puts on you, to do, such as trying a build on
+                your phone (<code>--on user</code>); and a move to send again after it
+                failed.
+              </li>
+              <li>
+                <strong>On Claude:</strong> a reply it owes you, the move it has in
+                hand, and its own tasks.
+              </li>
+            </ul>
+            <lf-ask id="names-pick">
+              <h3 id="names-pick-heading">What should each side be called?</h3>
+              <p>
+                The top bar's door shows your side's name and count, and the panel opens
+                under that name, with Claude's side and Done below it.
+              </p>
+              <lf-options id="names-pick-options" choose>
+                <lf-option id="names-decisions"
+                  ><strong>Decisions, and Claude's tasks</strong> The door reads
+                  “Decisions: 3”. Task then always means work Claude owes, so the two
+                  words also say who does what: you decide, and Claude does. This
+                  matches how you set it up: Claude controls the tasks and asks you when
+                  it needs your sign-off. Recommended. Two kinds on your side aren't
+                  decisions: a task to do, such as trying the build, and a move to send
+                  again. The agent can ask for the first as a decision instead (“Does
+                  the build work on your phone?”), and a failed send can keep its own
+                  Resend row under Decisions.</lf-option
+                >
+                <lf-option id="names-needs-you"
+                  ><strong>Needs you, and Claude's tasks</strong> The door reads “Needs
+                  you: 3”, the page's own name for the idea. It covers all four kinds on
+                  your side, but it's a phrase rather than a noun: “3 need you” reads
+                  fine, while a heading that says “Needs you” is less clear.</lf-option
+                >
+                <lf-option id="names-gtd"
+                  ><strong>To do, and Waiting for</strong> Getting Things Done's pair of
+                  lists: your next actions, and what you've handed to someone else and
+                  are waiting on. Both are named from your side, which suits a page you
+                  read. But “To do” and “task” are near synonyms, so the two sides read
+                  as the same kind of thing, and “Waiting for: 2” needs “Claude” to say
+                  on whom.</lf-option
+                >
+                <lf-option id="names-turns"
+                  ><strong>Your turn, and Claude's turn</strong> The conversation's
+                  words: whose move it is. They fit threads and questions best and a
+                  task the worst, and “Your turn: 3” is an odd count.</lf-option
+                >
+              </lf-options>
+            </lf-ask>
+          </section>
+
           <section id="bar-options">
             <lf-ask id="bar-pick">
               <h3 id="bar-pick-heading">Which top bar?</h3>
               <p>
-                Each sketch shows the top bar with the queue panel open, renamed Tasks,
-                the word you use for it. The Threads door and panel stay as they are
-                today in every option.
+                Each sketch shows the top bar with the queue panel open. The sketches
+                still call it Tasks; the name you pick above replaces that. The Threads
+                door and panel stay as they are today in every option.
               </p>
               <lf-options id="bar-pick-options" choose>
                 <lf-option id="bar-baseline"

@@ -1055,12 +1055,35 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     later absolute value lands first and the deferred earlier value overwrites it
     when the box closes. An unrelated board move proves the poll saw the same
     batch while the editor was open, without making the test depend on time.
+    Reconnecting the same editor restores its local deferral before semantic catchup.
     """
     page = open_page(browser, serve(JOURNEY_V1))
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
     editor = draft.locator("leaf-text")
     write(editor, "Local unsent words.")
+
+    draft.evaluate(
+        """node => {
+          window.__lfEditingDraft = {
+            node, parent: node.parentNode, next: node.nextSibling,
+            editor: node.querySelector('leaf-text'),
+          };
+          node.remove();
+        }"""
+    )
+    # The fixture deliberately removes the editor's subject. Consume that allowed
+    # disappearance at the frame where the words watcher observes the removal.
+    one_frame(page)
+    consume_browser_errors(page, "typed words left the screen without a key or press")
+    page.evaluate(
+        """() => {
+          const {node, parent, next} = window.__lfEditingDraft;
+          parent.insertBefore(node, next);
+        }"""
+    )
+    assert editor.evaluate("node => node === window.__lfEditingDraft.editor")
+    editor.focus()
 
     d = serve.page_dir
     for text in ("Foreign first edit.", "Foreign committed words."):

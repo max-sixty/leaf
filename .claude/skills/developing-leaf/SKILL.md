@@ -128,11 +128,23 @@ uv run playwright show-trace --host 127.0.0.1 --port 0 \
   .tmp/recordings/NAME/worktree/trace.zip
 ```
 
-When showing a timeline in Leaf, place a direct link to the same recording in the
-running Trace Viewer beside its controls. The viewer supplies action details,
-Before/Action/After DOM snapshots, source, console and network inspection; Leaf
-supplies the anchored discussion. Keep both previews running and verify that the
+When showing a timeline in Leaf, select the optional `playwright` package and
+read its author instructions. Bind `lf-trace` to the original archive's imported
+`playwright-trace` source; that contract's producer instructions own the import
+command. The widget combines action checkpoints and optional intermediate frames
+in one chronological timeline, with comments on images and saved accessibility
+elements, and a direct link to the
+same recording in the running Trace Viewer. The viewer supplies DOM, source,
+console and network inspection. Keep both previews running and verify that the
 viewer URL reaches the user's browser before handing it over.
+
+For an important result, perform the input and use a Playwright expectation to
+establish the intended browser state. Review the successful expectation's After
+checkpoint; returning from the input alone does not prove an asynchronous update
+finished. Native tracing groups name those operations without adding captures.
+Add `--checkpoint-images` alongside `--record` when the review needs native PNG images
+at those checkpoints. Taking them adds capture work and briefly hides the live
+caret, so omit it when ordinary motion and caret behavior are the evidence.
 
 `uv run leaf-dev stills` compares HEAD with the merge base with `main` and crops
 each changed catalogue state into a before/after pair. Commit first, since it
@@ -140,9 +152,15 @@ compares commits. Include pages at rest and states reached by interaction,
 including focus states where layout can cover a focus ring. Add missing states
 to `STATES` rather than driving them by hand.
 
-For every difference a still can show, the handoff carries one sentence and
-matched before/after screenshots, embedded in the reply or as one `lf-shot`; a
-live preview may accompany the pair but does not replace it. For an
+For every difference a still can show, the handoff is a Leaf page holding an
+`lf-shot` of that difference, from the crops `leaf-dev stills` writes, with a
+sentence saying what changed; the reply links the page. A live preview may
+accompany the pairs but does not replace them. Several captured states often show
+the same difference. Check them all, show the difference once, in the state where
+it reads most clearly, and say in a line which other states repeat it, since the
+user reads every pair and a repeat tells them nothing new. A dark-scheme or phone
+pair belongs only where the change looks different there, as a change to a colour
+or theme token does in the dark scheme. For an
 interaction-only change, serve both versions ("Compare checkout versions" below),
 keep both previews live, and hand off the labeled URL pair with the action that
 reveals the difference. Exercise the same journey in both at the same fragment,
@@ -194,20 +212,11 @@ Worker, container limits, credential proxy or Docker), `wrangler` for the built
 site through the local Worker, or a website origin. A run on this machine spends
 the harness's login.
 
-Use CI for Linux-specific evidence and the complete Worker/container boundary:
-pull requests run the site build, dry-run deploy, and `verify-site wrangler`, and
-`publish-site` verifies that boundary before deployment. Start Docker locally
-only to reproduce a concrete failure at that boundary. When debugging hosted-agent
-delivery through it and `OPENAI_API_KEY` is exported, run:
-
-```bash
-npm ci --prefix <root>/worker
-npm run build --prefix <root>/worker
-uv run --project <root> leaf-dev journey wrangler
-```
-
-The `publish-site` workflow's journey against the deployed release is the only
-production reading.
+`tests/AGENTS.md`, "Run what the change needs", owns the CI delivery checks and
+when to reproduce a Worker/container failure locally. `worker/README.md`, "Local
+development", owns that reproduction setup. The `publish-site` workflow verifies
+the complete boundary before deployment; its journey against the deployed release
+is the only production reading.
 
 ## Test a terminal Codex task
 
@@ -224,6 +233,17 @@ For a change to preview startup or lifetime, add `--preview`. It starts the
 canonical user preview in each task, checks the keyed URL across those turns,
 and interrupts its isolated server between turns to prove that the preview
 restores both the address and working feedback without a source edit.
+
+## Test a Pi session
+
+`uv run --project <root> leaf-dev verify-pi-task` runs a real Pi session, the
+version `dev/pi/` pins, with this working tree installed as its Pi package and the
+host's Codex login as its only login. It checks each comment is answered once, a
+comment during a run is answered in that run, Escape closes the turn without waking
+Pi again, and quitting ends the session's claim. Run it after a change to
+`hooks/pi.ts`, `PiHarness`, `hooks.py`, or the watch between turns in `session.py`;
+the suite drives the extension with a stand-in for Pi, and only this run shows what
+Pi itself does.
 
 ## Compare checkout versions
 
@@ -319,10 +339,10 @@ if Worktrunk asks to approve the project commands, ask the user to run
 
 ## Land a change
 
-Thread appearance changes run `tests/test_render_thread_snapshots.py`, which compares
-images on macOS only, so run it on a Mac before landing; a pull request's Linux CI runs
-its journey without comparing. Review the failure's captured images before accepting an intentional
-change; `dev/leaf_dev/thread_snapshots.py` owns the pinned-image capture and acceptance workflow.
+Thread appearance changes run `tests/test_render_thread_snapshots.py` on macOS
+before landing. Linux CI runs the same delivery journey without comparing images.
+Review captured Mac images before accepting an intentional change;
+`dev/leaf_dev/thread_snapshots.py` owns capture and acceptance.
 
 A red gate is the branch's to fix. A pull request's `test` job and the local
 pre-merge `tests` run the broad selection and the nightly tests the branch edits;

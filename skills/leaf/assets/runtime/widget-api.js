@@ -45,8 +45,8 @@ export { answersWithin } from "./asks/answer.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
   threadBox,
-  consumeThreads,
-  consumePageThreads,
+  placeThreads,
+  placePageThreads,
   consumeAnnotations,
   mountThreadViews,
   threadActions,

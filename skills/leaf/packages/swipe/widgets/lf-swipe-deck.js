@@ -64,7 +64,6 @@ customElements.define(
     #returning = new Set();
     #painted = null;
     #keysAvailable = null;
-    #stop = null;
     #controller = null;
     #resumeProjection = null;
 
@@ -72,14 +71,12 @@ customElements.define(
       if (once(this)) {
         this.#structure();
         if (!quoted(this)) this.#wire();
+        this.#controller = widgetController(this);
+        this.#controller.subscribe(this.#render);
       }
-      this.#controller ??= widgetController(this);
-      this.#stop ??= this.#controller.subscribe(this.#render);
     }
 
     disconnectedCallback() {
-      this.#stop?.();
-      this.#stop = null;
       this.#painted = null;
       this.#keysAvailable = null;
       this.#restorePointer();

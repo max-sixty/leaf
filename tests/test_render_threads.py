@@ -768,18 +768,13 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     """A checkpoint may cover the root turn without hiding thread actions."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Start with the measured constraint.")
-    reply = append_agent_reply(serve.page_dir, root, "The constraint still applies.")
+    reply = thread_model.cmd_reply(
+        serve.page_dir, root, "The constraint still applies.", None, for_event=root
+    )
     append_agent_reply(serve.page_dir, root, "The later result remains visible.")
     summary = summarize_thread(
         serve.page_dir, root, reply["id"], "The constraint was confirmed."
     )
-    append_carried_log_record(
-        serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
-    )
-    append_carried_log_record(
-        serve.page_dir, {"kind": "unresolve", "author": "user", "parent": root}
-    )
-
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -788,11 +783,18 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
     expect(card.get_by_role("button", name="Resolve thread")).to_be_visible()
     expect(card.get_by_role("button", name="Close thread")).to_have_count(0)
-    root_meta = card.locator(":scope > .lf-thread-content > .lf-thread-root-meta")
-    expect(root_meta).to_contain_text("You")
-    assert root_meta.evaluate("node => !node.closest('.lf-summary-originals')"), (
-        "root metadata and thread actions entered the collapsible originals"
+    controls = card.locator(":scope > .lf-thread-content > .lf-thread-controls")
+    assert controls.evaluate("node => !node.closest('.lf-summary-originals')"), (
+        "thread actions entered the collapsible originals"
     )
+    root_message = checkpoint.locator(f'.lf-msg[data-mid="{root}"]')
+    expect(root_message.locator(":scope > .lf-msg-head")).to_be_hidden()
+    expect(root_message.locator(":scope > .lf-msg-body")).to_be_hidden()
+    checkpoint.locator(".lf-summary-expand").click()
+    expect(root_message.locator(":scope > .lf-msg-head")).to_be_visible()
+    expect(root_message.locator(":scope > .lf-msg-body")).to_be_visible()
+    expect(card.get_by_role("button", name="Resolve thread")).to_be_visible()
+    checkpoint.locator(".lf-summary-expand").click()
     resolve = card.get_by_role("button", name="Resolve thread")
     resolve.focus()
     append_carried_log_record(
@@ -1851,9 +1853,9 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(
     expect(shelf.locator("img")).to_have_count(4)
     rendered(page)
     field_box = field.bounding_box()
-    more_box = page.locator(".lf-response-more").bounding_box()
-    assert field_box["x"] + field_box["width"] <= more_box["x"]
-    assert more_box["x"] + more_box["width"] <= width
+    shelf_box = shelf.bounding_box()
+    assert shelf_box["x"] + shelf_box["width"] <= field_box["x"]
+    assert field_box["x"] + field_box["width"] <= width
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("close — draft kept")
     layout = shelf.evaluate(
         """element => ({
@@ -9552,3 +9554,65 @@ def test_a_scaled_floating_draft_keeps_its_room_when_its_passage_scrolls_away(
     assert banner_bottom + 6 <= after["y"] + 0.1, (before, after)
     assert after["y"] + after["height"] <= 592.1, (before, after)
     assert after["width"] <= before["width"] + 0.1, (before, after)
+
+
+@pytest.mark.parametrize("surface", ["composer", "composer-widget", "composer-panel"])
+def test_pending_message_headers_match_their_bodies(browser, serve, surface):
+    """Delivery follows complete messages, including in a shadow-root thread.
+
+    Hold both user messages before admission, then admit each separately. Headers
+    and bodies must share each message's delivery paint through both transitions.
+    """
+    page, _box, send, _after, reply = pressed_send_surface(browser, serve, surface)
+    held = []
+
+    def hold(route):
+        if route.request.post_data_json.get("kind") in {"comment", "reply"}:
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/event", hold)
+    send.click()
+    holding(page, held, 1, "the unconfirmed root comment")
+    expect(reply).to_be_visible()
+    write(reply, "A second unconfirmed message.")
+    page.keyboard.press("Enter")
+    rendered(page)
+    region = (
+        page.locator("lf-diff .lf-page-thread")
+        if surface == "composer-widget"
+        else page.locator(".lf-margin-preview .lf-page-thread")
+        if surface == "composer"
+        else page.locator(".lf-threads > .lf-thread", has_text="Sent from the box.")
+    )
+    expect(region.locator(".lf-msg")).to_have_count(2)
+    assert region.locator(".lf-msg-head").evaluate_all(
+        "heads => heads.every(head => head.parentElement.matches('.lf-msg'))"
+    ), "a message header was moved outside its message"
+
+    def reading():
+        return region.evaluate(
+            """root => {
+              const opacity = node => {
+                let value = 1;
+                for (; node && node !== root; node = node.parentElement)
+                  value *= Number(getComputedStyle(node).opacity);
+                return value;
+              };
+              return {
+                headers: [...root.querySelectorAll('.lf-msg-head')].map(opacity),
+                bodies: [...root.querySelectorAll('.lf-msg-body')].map(opacity),
+              };
+            }"""
+        )
+
+    assert reading() == {"headers": [0.5, 0.5], "bodies": [0.5, 0.5]}
+    held.pop().continue_()
+    holding(page, held, 1, "the reply following its admitted root")
+    rendered(page)
+    assert reading() == {"headers": [1, 0.5], "bodies": [1, 0.5]}
+    held.pop().continue_()
+    page.unroute("**/api/event", hold)
+    round_trip(page)
+    assert reading() == {"headers": [1, 1], "bodies": [1, 1]}

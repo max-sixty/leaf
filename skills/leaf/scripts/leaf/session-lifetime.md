@@ -461,11 +461,17 @@ thread store or response policy.
 `server start` prepares the service in a detached process. A claimed handoff
 prepares delivery before any page acquisition: Codex holds its adapter-start lock
 until the serving producer commits the claim, so a newly ready carrier cannot
-retire for lack of pages during that handoff. The carrier's receipt recovery
-waits on the same lock: a start that begins a new session generation leaves the
-page's claim inactive until it publishes the new one, and a receipt refused in that
-gap would retire an accepted batch without advancing the page's cursor, so its
-input would be delivered again. An existing direct wait is honored.
+retire for lack of pages during that handoff. Whatever the carrier judges against
+page ownership waits on the same lock: its receipt recovery, and on each connect an
+App Server connection's reading of the task's turns back, which accepts deliveries,
+takes their receipts and commits their answers. A start that begins a new session
+generation leaves the page's claim inactive until it publishes the new one. A
+receipt refused in that gap would retire an accepted batch without advancing the
+page's cursor, so its input would be delivered again, and an answer refused there
+would never reach the page. The connection's readiness is part of the start
+holding the lock, so it reports itself ready once App Server resumes the task, and
+applies what the resume read back, in arrival order, only after taking the lock.
+An existing direct wait is honored.
 `server run` prepares the same delivery before binding in the foreground. Standing
 and temporary serves prepare no delivery. `leaf codex start` prepares the adapter
 under its start lock and then publishes the page claim, without serving.

@@ -3655,6 +3655,7 @@ def test_app_server_client_stays_subscribed_between_ordinary_codex_turns(
     request.addfinalizer(observer.stop)
 
     observer.start()
+    assert observer.connected.wait(STATED_TIMEOUT), "the observer never resumed"
     first_turn.set()
     wait_for(
         lambda: len(clears),
@@ -3737,8 +3738,9 @@ def test_app_server_observer_connects_over_a_private_unix_socket(
     request.addfinalizer(observer.stop)
 
     # `start` returns only once the observer has resumed the task, and raises
-    # otherwise, so reaching here is the readiness signal.
+    # otherwise; `connected` says it has applied what it read back.
     observer.start()
+    assert observer.connected.wait(STATED_TIMEOUT), "the observer never resumed"
     assert updates == []
     assert clears == [("codex-thread", None)]
     observer.stop()
@@ -3795,6 +3797,7 @@ def test_app_server_observer_restores_the_resumed_turns_waiting_kind(
     request.addfinalizer(observer.stop)
 
     observer.start()
+    assert observer.connected.wait(STATED_TIMEOUT), "the observer never resumed"
     assert updates == [("codex-thread", "turn-live", {"kind": "awaiting_approval"})]
     assert clears == []
     observer.stop()
@@ -4915,12 +4918,16 @@ def test_reconnect_closes_a_completed_stream_binding(page_dir):
 
 @pytest.fixture
 def task_connection(request):
-    """Start a real subscribed task connection, retiring it even on failure."""
+    """Start a real subscribed task connection, retiring it even on failure, once it
+    has read the task back."""
 
     def start(endpoint):
         connection = codex_adapter_model.TaskConnection(endpoint, "codex-thread")
         request.addfinalizer(connection.stop)
         connection.start()
+        assert connection.connected.wait(STATED_TIMEOUT), (
+            "the task connection never read the task back"
+        )
         return connection
 
     return start
@@ -5310,7 +5317,7 @@ def test_an_active_task_whose_turn_is_not_named_records_no_turn(monkeypatch):
     take_stream_activity(monkeypatch, updates, [])
     sent = []
 
-    def send(_socket, _method, _request_id, params):
+    def send(_socket, _method, _request_id, params, _read=None):
         sent.append(params)
         return {"thread": {"id": "codex-thread", "status": {"type": "active"}}}
 
@@ -10526,6 +10533,149 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
         assert [json.loads(line) for line in log.read_text().splitlines()] == [
             ["queue", "--help"]
         ]
+    finally:
+        declare_idle(page)
+        with service_model.PageTransaction(page) as transaction:
+            transaction.release_claim()
+    wait_for(
+        lambda: codex_adapter_model.adapter_is_live("codex-thread"),
+        lambda live: not live,
+        failure="the Codex adapter stayed live after releasing its page",
+    )
+
+
+def test_codex_app_server_restart_finishes_an_accepted_batch_without_starting_it_again(
+    codex_claimed_page, app_server, under_codex, codex_env, tmp_path
+):
+    """The App Server twin of the queue case above. The restarted adapter reads back
+    the turn that took the delivery only once the new claim exists, so the batch's
+    receipt and the turn's final answer both land on the page, and the comment is
+    not started a second time."""
+    page = codex_claimed_page
+    # The turn's answer is a reply, which needs a valid page to land on.
+    source = re.sub(r"\s*<lf-diagram.*?</lf-diagram>", "", PAGE, flags=re.DOTALL)
+    (page / "index.html").write_text(source, encoding="utf-8")
+    publish(page)
+    program, _log = fake_codex_cli(tmp_path)
+    append_carried_log_record(
+        page,
+        {"kind": "comment", "id": "accepted", "author": "user", "text": "hi"},
+    )
+    delivered = events_model.read_events(page)[-1]
+    session_model.cmd_waiting(page, "comment on the prototype")
+    with service_model.PageTransaction(page) as transaction:
+        reading = session_model.PageTick(
+            page,
+            transaction.status,
+            [delivered],
+            True,
+            "watching",
+            False,
+            None,
+            transaction,
+        )
+        assert codex_adapter_model.capture_batch("codex-thread", reading)
+    record_path, record = current_codex_record("codex-thread")
+    prepared = codex_model.offer_delivery(record_path, record, "app-server")
+    record = files_model.read_json(record_path)
+    record.update(state="accepted", transport={"phase": "opened", "turn": "taken"})
+    codex_model.write_record(record_path, record)
+    starts = []
+
+    def handle(socket):
+        for raw in socket:
+            request = json.loads(raw)
+            method = request.get("method")
+            if method == "initialize":
+                socket.send(json.dumps({"id": request["id"], "result": {}}))
+            elif method == "thread/resume":
+                turns = [
+                    {
+                        "id": "taken",
+                        "status": "completed",
+                        "items": [
+                            _delivery_item(prepared.payload),
+                            {
+                                "id": "answer",
+                                "type": "agentMessage",
+                                "phase": "final_answer",
+                                "text": "Answered before the restart",
+                            },
+                        ],
+                    }
+                ]
+                socket.send(
+                    json.dumps(
+                        {
+                            "id": request["id"],
+                            "result": {
+                                "thread": {
+                                    "id": "codex-thread",
+                                    "status": {"type": "idle"},
+                                    "turns": turns,
+                                }
+                            },
+                        }
+                    )
+                )
+            elif method == "thread/turns/list":
+                socket.send(
+                    json.dumps(
+                        {
+                            "id": request["id"],
+                            "result": {"data": [], "nextCursor": None},
+                        }
+                    )
+                )
+            elif method == "turn/start":
+                starts.append(request)
+                socket.send(
+                    json.dumps(
+                        {"id": request["id"], "result": {"turn": {"id": "again"}}}
+                    )
+                )
+
+    endpoint = app_server(handle)
+    finished = tmp_path / "codex-start-finished"
+    started = under_codex(
+        shlex.join(
+            [
+                *LEAF_COMMAND,
+                "codex",
+                "start",
+                str(page),
+                "--codex-path",
+                str(program),
+                "--app-server",
+                endpoint,
+            ]
+        ),
+        codex_env | {"CODEX_THREAD_ID": "codex-thread"},
+        finished=finished,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    release_codex_command(page, started, finished)
+    out, err = started.communicate(timeout=STATED_TIMEOUT)
+    assert started.returncode == 0, f"{out}{err}"
+
+    try:
+        wait_for(
+            lambda: [
+                event["text"]
+                for event in events_model.read_events(page)
+                if event["kind"] == "reply"
+            ],
+            lambda replies: replies == ["Answered before the restart"],
+            failure="the restarted turn's answer did not reach the page",
+        )
+        wait_for(
+            lambda: files_model.read_json(page / "cursor.json"),
+            lambda cursor: cursor == {"seq": delivered["seq"]},
+            failure="the accepted delivery cursor was not recovered",
+        )
+        assert starts == []
     finally:
         declare_idle(page)
         with service_model.PageTransaction(page) as transaction:

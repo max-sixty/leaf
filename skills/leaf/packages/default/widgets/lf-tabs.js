@@ -206,6 +206,12 @@ customElements.define(
           listWalkPosition([...this.#buttons.values()], document.activeElement),
         );
       };
+      // Across the row, back is the way the names run from: left in a left-to-right
+      // page and right in a right-to-left one, where the first tab stands at the right.
+      const [back, ahead] =
+        getComputedStyle(this).direction === "rtl"
+          ? ["ArrowRight", "ArrowLeft"]
+          : ["ArrowLeft", "ArrowRight"];
       commands(strip, "On a tab", [
         {
           id: "tab.activate",
@@ -230,16 +236,14 @@ customElements.define(
                   { id: "tab.down", binding: "ArrowDown", title: "Next tab" },
                 ]
               : []),
-            { id: "tab.previous", binding: "ArrowLeft", title: "Previous tab" },
-            { id: "tab.next", binding: "ArrowRight", title: "Next tab" },
+            { id: "tab.previous", binding: back, title: "Previous tab" },
+            { id: "tab.next", binding: ahead, title: "Next tab" },
           ],
           title: "walk the tabs",
           repeat: true,
           run: (binding) =>
             walk((at, n) =>
-              ["ArrowRight", "ArrowDown"].includes(binding)
-                ? (at + 1) % n
-                : (at - 1 + n) % n,
+              [ahead, "ArrowDown"].includes(binding) ? (at + 1) % n : (at - 1 + n) % n,
             ),
         },
         {

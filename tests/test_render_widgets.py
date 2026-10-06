@@ -1072,7 +1072,9 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
         "Long strips",
         '<h1 id="title">Strips</h1><section id="framed-section">'
         f'<lf-tabs id="framed">{views("framed", False)}</lf-tabs></section>'
-        f'<lf-tabs id="queue" list="side">{views("queue", True)}</lf-tabs>',
+        f'<lf-tabs id="queue" list="side">{views("queue", True)}</lf-tabs>'
+        f'<section id="rtl-section" dir="rtl"><lf-tabs id="rtl">{views("rtl", False)}'
+        "</lf-tabs></section>",
     )
     page = open_page(browser, serve(source))
     resized(page, 1200, 900)
@@ -1118,6 +1120,15 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
         page.keyboard.press("ArrowLeft")
     expect(framed.nth(7)).to_have_attribute("aria-selected", "true")
     page.wait_for_function(shown, arg=["framed", 2])
+
+    # In a right-to-left strip the names run from the right, so ArrowLeft is ahead.
+    rtl = page.locator("#rtl").get_by_role("tab")
+    rtl.first.focus()
+    page.keyboard.press("ArrowLeft")
+    expect(rtl.nth(1)).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(shown, arg=["rtl", 1])
+    page.keyboard.press("ArrowRight")
+    expect(rtl.first).to_have_attribute("aria-selected", "true")
 
 
 def test_root_tab_targets_remain_global(browser, serve):

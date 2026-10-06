@@ -2,9 +2,9 @@
 
    Every unsent composition persists:
 
-   - the general comment box, including an attached page drawing;
+   - the general comment box;
    - each thread reply;
-   - the selection composer, including its anchor and mode;
+   - the selection composer, including its anchor, mode and drawing;
    - a thread's first message and replies;
    - an `lf-draft` edit.
 
@@ -642,6 +642,13 @@ export function watchDraft(
     document.removeEventListener(DRAFT_NEWS, update);
     if (editor) draftEditors.delete(editor);
   };
+}
+// News of every draft whose context starts with `prefix`, for a reader of a whole kind
+// of draft rather than one box's.
+export function watchDrafts(prefix, callback) {
+  const update = (ev) => ev.detail.ctx.startsWith(prefix) && callback(ev.detail.ctx);
+  document.addEventListener(DRAFT_NEWS, update);
+  return () => document.removeEventListener(DRAFT_NEWS, update);
 }
 addEventListener("storage", (ev) => {
   const prefix = whereDraft("").key;

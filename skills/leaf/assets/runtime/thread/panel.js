@@ -1,29 +1,17 @@
-/* The thread panel's general composer and its one draft/drawing authority, and the keys
-   the Threads list itself answers.
+/* The thread panel's general composer, and the keys the Threads list itself answers.
 
    Standing in the panel is where its focus is, not merely that it is open: the Threads
    button is the banner's, so opening by pointer leaves the user outside, and `g T`, `t`,
    Tab or a click on a thread is what puts them in. The thread scope draws one step further
    in, so its rows shadow these. Every page has this scope: the general box stands and
    takes words from the first paint — the offline banner says a comment will not send, not
-   that there is nowhere to write it. */
-import { validDrawing } from "../composing/drawing-record.js";
-import {
-  loadDraft,
-  loadDraftPayload,
-  mirrorDraft,
-  saveDraft,
-  sendMessage,
-  watchDraft,
-  rememberWriting,
-} from "../drafts.js";
+   that there is nowhere to write it. A drawing belongs to an element's comment, never to
+   this box (composing/drawing.js). */
+import { loadDraft, mirrorDraft, saveDraft, sendMessage } from "../drafts.js";
 import { focused, keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
-
-const drawingIn = (payload) =>
-  validDrawing(payload?.drawing) ? payload.drawing : null;
 
 export function createPanelComposer({
   elements: {
@@ -45,36 +33,12 @@ export function createPanelComposer({
   stepThread,
   firstUnread,
   unreadCount,
-  paintDrawings,
 }) {
   let sync = () => {};
   let stopMirroringDraft = () => {};
-  let stopWatchingDraft = () => {};
-  let generalDrawing = drawingIn(loadDraftPayload("general"));
   const generalHint = () =>
-    designModeActive() && !generalDrawing
-      ? "Comment on the design"
-      : "Comment on the page";
+    designModeActive() ? "Comment on the design" : "Comment on the page";
   const syncGeneral = () => sync();
-  const pageComposerDrawing = () => generalDrawing;
-
-  function saveGeneralDraft(text = sync.value()) {
-    return saveDraft(
-      "general",
-      text,
-      generalDrawing ? { drawing: generalDrawing } : undefined,
-    );
-  }
-
-  function openPageDrawing(drawing) {
-    generalDrawing = drawing;
-    saveGeneralDraft();
-    rememberWriting(generalInput);
-    setPanel(true);
-    generalInput.focus({ preventScroll: true });
-    sync();
-    paintDrawings();
-  }
 
   async function mount() {
     closeBtn.onclick = () => setPanel(false);
@@ -84,15 +48,11 @@ export function createPanelComposer({
       accessibleName: generalHint,
       sends: "send",
       sendBtn: generalSend,
-      hasContent: (raw) => Boolean(raw || generalDrawing),
-      save: saveGeneralDraft,
+      save: (text) => saveDraft("general", text),
       send: async (_text, raw, owns) => {
-        const sent = await sendMessage("general", owns, (attempt, payload) => {
-          const event = { attempt };
-          if (raw) event.text = raw;
-          const drawing = drawingIn(payload);
-          if (designModeActive() && !drawing) event.about = "design";
-          if (drawing) event.drawing = drawing;
+        const sent = await sendMessage("general", owns, (attempt) => {
+          const event = { attempt, text: raw };
+          if (designModeActive()) event.about = "design";
           return createPageComment(event);
         });
         if (!sent) return;
@@ -107,11 +67,6 @@ export function createPanelComposer({
         input: () => generalInput,
         open: () => setPanel(true),
       }),
-    });
-    stopWatchingDraft = watchDraft("general", (_value, payload) => {
-      generalDrawing = drawingIn(payload);
-      sync();
-      paintDrawings();
     });
     await findInput.updateComplete;
     declareFindBoxKeys();
@@ -214,13 +169,10 @@ export function createPanelComposer({
 
   return {
     syncGeneral,
-    pageComposerDrawing,
-    openPageDrawing,
     mount,
     dispose: () => {
       stopPanelScope();
       stopMirroringDraft();
-      stopWatchingDraft();
     },
   };
 }

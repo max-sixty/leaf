@@ -107,7 +107,7 @@ def test_a_task_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     state = state_json(page_dir)
     assert state["queues"]["on_agent"] == []
     assert state["tasks"] == []
-    # The browser is served the ended task beside the open ones, for the Queue panel's
+    # The browser is served the ended task beside the open ones, for the Questions panel's
     # Done list, with its outcome.
     served = full_state(page_dir, events_model.read_events(page_dir))
     assert served["browser"]["tasks"] == []
@@ -280,7 +280,7 @@ def test_a_question_ends_at_the_reaction_that_settles_it(page_dir):
 def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     """A thread whose reply failed is one item on the user, named by the thread, and a
     question the agent then leaves in it makes it that question rather than a second
-    item: `a` stops at a thread once."""
+    item: `q` stops at a thread once."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -584,7 +584,7 @@ def asking(page_dir):
 
 
 def done(page_dir, task: str) -> tuple[int, dict]:
-    """The user's Done on `task`, posted as the Queue panel posts it."""
+    """The user's Done on `task`, posted as the Questions panel posts it."""
     return endpoint_model.accept_event(
         page_dir, {"kind": "task_end", "task": task, "outcome": "done"}, dict
     )

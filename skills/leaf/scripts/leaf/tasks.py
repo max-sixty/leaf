@@ -314,7 +314,7 @@ def page_tasks(
     answers it in the thread, settles it with a reaction, or the agent ends it with a
     `task_end` in `ends`. An answered question is done, its outcome the user's move
     that answered it (`_answer`, reading reactions by `tokens`, the registry's
-    `$reactions.tokens`), so the Queue panel lists it with the other ended tasks."""
+    `$reactions.tokens`), so the Questions panel lists it with the other ended tasks."""
     standing, ended = ask_tasks(thread_asks)
     held = {task["id"] for task in log}
     for thread in threads:

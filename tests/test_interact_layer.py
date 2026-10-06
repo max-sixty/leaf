@@ -1659,7 +1659,6 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     the root state they write to the stylesheet that reads it, and the surfaces' default
     widths to the runtime owners that hold them."""
     assets = schema_model.ASSETS
-    drawers = (assets / "runtime" / "drawers.js").read_text()
     bootstrap = (assets / "runtime" / "bootstrap.js").read_text()
     prepaint = (assets / "runtime" / "prepaint.js").read_text()
     theme = (assets / "theme.css").read_text()
@@ -1673,16 +1672,18 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     def constant(pattern, source):
         return re.search(pattern, source, re.MULTILINE).group(1)
 
+    # The right edge's width, which Threads and Questions share, is the one a restored
+    # surface beside the page stands at before the runtime runs. The Leaves drawer
+    # covers the page, so no prepaint reads its width.
     layout = (assets / "runtime" / "chrome-layout.js").read_text()
     panel_prop = constant(r'^const THREAD_PANEL_PROP = "([^"]+)";', layout)
-    drawer_prop = constant(r'^export const DRAWER_SLOT_PROP = "([^"]+)";', drawers)
     panel_default = constant(r"^const THREAD_PANEL_W = (\d+);", layout)
-    drawer_default = constant(r"^const DRAWER_SLOT_W = (\d+);", drawers)
-    for literal in (
-        f"var({panel_prop}, {panel_default}px)",
-        f"var({drawer_prop}, {drawer_default}px)",
-    ):
-        assert literal in theme
+    literal = f"var({panel_prop}, {panel_default}px)"
+    assert literal in theme
+    assert (
+        'body[data-lf-auxiliary-surface="queue"] {\n'
+        f"    --lf-auxiliary-width: {literal};"
+    ) in theme
 
 
 def test_layer_identity_distinguishes_content_from_a_vendoring_epoch(tmp_path):

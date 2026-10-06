@@ -9,7 +9,7 @@
  *
  * Three seats partition the run, and geometry never changes the partition:
  *
- * - `row`: Approval and Threads, the page's standing reading loop.
+ * - `row`: Approval, Questions and Threads, the page's standing reading loop.
  * - `menu`: every secondary action, in one stable seat behind More.
  * - `gesture`: the next step of something the user is doing right now, such as
  *   commenting on the words a touch just selected, or a finger's way out of the mode it
@@ -36,7 +36,6 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   layer: 30,
   leaves: 40,
   latest: 50,
-  queue: 60,
   map: 70,
   // The page's commands a finger reaches here rather than by key (touch-controls.js),
   // among themselves in the shortcut line's order.
@@ -44,6 +43,8 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   blanket: 80,
   versions: 90,
   approval: 100,
+  // Questions and Threads are the two doors to the one side panel, side by side.
+  queue: 105,
   threads: 110,
   // The way out of the mode or picker the user stands in, under a finger.
   steps: 120,

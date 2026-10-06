@@ -569,6 +569,7 @@ const queueWalk = createQueueWalk({
 const queue = createQueuePanel({
   arriveAtItem: queueWalk.arriveAtItem,
   endTask: queueWalk.endTask,
+  next: queueWalk.next,
   announce,
 });
 
@@ -772,6 +773,7 @@ if (window.frameElement?.hasAttribute("data-lf-contained")) {
 }
 drawers = createDrawers({
   doors: { queue: [queueCounts] },
+  sideEdge: layout.commentsEdge,
   landEdge: layout.landEdge,
   auxiliarySurfaces,
   closePreview: app.overlay?.closePreview,

@@ -432,7 +432,7 @@ class _AskReducer:
         # Admission stamps `meaning.answer` only while `x-awaits.when` holds
         # (`answering_action`, event_meaning.py), and `settled` turns it off, so the
         # re-pick replaces a stamped action with an unstamped one and this reading
-        # loses the Ask, and with it the done task the Queue panel lists for it.
+        # loses the Ask, and with it the done task the Questions panel lists for it.
         unit = record["attrs"].get("id")
         return any(
             "answer" in (held[0].get("meaning") or {})
@@ -454,7 +454,7 @@ class _AskReducer:
                 active.append(record)
                 continue
             # This "decided" reading also keeps the Ask's task listed as done, under
-            # the Queue panel's Done (`tasks.ask_tasks`).
+            # the Questions panel's Done (`tasks.ask_tasks`).
             if self.exists[id(record)] and self._answered_by_user(record):
                 active.append(record)
                 continue

@@ -12,11 +12,11 @@
    otherwise reads `document.activeElement` directly. `markHere` paints one `--focus-ring`
    around the semantic ask or control that contains focus. The ring is derived on
    each paint; it does not store the queue walk's position or move either reading surface.
-   An explicit Ask arrival reveals its matching Queue panel row; ordinary focus and
+   An explicit Ask arrival reveals its matching Questions panel row; ordinary focus and
    refresh preserve the place the user has chosen in that list.
 
-   The ring is therefore paintable on an ask the `a`/`A` queue walk will not step to.
-   The Queue panel lists an answered one under Done (queue-panel.js): the walk is the
+   The ring is therefore paintable on an ask the `q`/`Q` queue walk will not step to.
+   The Questions panel lists an answered one under Done (queue-panel.js): the walk is the
    user's worklist, while the panel also keeps the route back to each answered Ask. The
    Escape rung still reads focus rather than either list, so the way out is the one it
    always has.
@@ -43,8 +43,8 @@
    list of ask tags. Where a source is nested in an `x-ask-surface` region, the Ask is
    the region: its heading, context, and evidence are the ask the user is being sent
    to, while the source remains the owner of the answer, which `askAnswers` (answer.js)
-   reads for the Queue panel's Done rows. Every arrival at an Ask, from `a`, a Queue
-   panel row or a Page Map entry, travels through the one ask-arrival function
+   reads for the Questions panel's Done rows. Every arrival at an Ask, from `q`, a
+   Questions panel row or a Page Map entry, travels through the one ask-arrival function
    (`arriveAtAsk`), so they agree about focus, reveal, and arrival placement.
 
    An arrival stands the user on the ask, which is the element the scroll has just
@@ -311,8 +311,8 @@ export function createAskView({
   // their focus rested on — a second thread on the child rather than the next line of their
   // own. The agent's reply put both back. Nothing the user did moved either. An
   // answered ask leaves both worklists but stays in the active inventory: the
-  // Queue panel's Done rows can return the user to it, and standing there restores the same numeric
-  // action route so they can revise the recorded answer.
+  // Questions panel's Done rows can return the user to it, and standing there restores
+  // the same numeric action route so they can revise the recorded answer.
   //
   // Document focus rather than the inner control: a control staged in a shadow tree
   // retargets to its host, and the host is the place in the document this wants.
@@ -397,7 +397,7 @@ export function createAskView({
   // ask itself, and the fallback answers the wrapper any page can still style boxless
   // in a line, the same way the thread's mark does (paintAnchors).
   //
-  // The Queue panel's row for the ask is a second surface showing this one fact, so it
+  // The Questions panel's row for the ask is a second surface showing this one fact, so it
   // is painted from this one reading rather than from a mark the panel keeps for itself —
   // and the ring is the chrome's as much as the page's (the [data-lf-ask] rule in the
   // stylesheet is written against the attribute, not against the page), so wearing the
@@ -588,7 +588,7 @@ export function createAskView({
   }
 
   // Standing on one ask: what a and Shift+a do once the queue walk has decided on an Ask
-  // (queue-walk.js), what a Queue panel row does, and what a Page Map entry does having
+  // (queue-walk.js), what a Questions panel row does, and what a Page Map entry does having
   // been told outright. One
   // function because it is one act — a second would be a second answer to "how do I put
   // the user on an ask", and the two would drift the first time either the reveal or the

@@ -47,7 +47,7 @@ assert:
 - type: llm-rubric
   metric: judgment
   value: |
-    Read the HTML fragment as a user who presses `a`, which puts the `lf-ask`'s
+    Read the HTML fragment as a user who presses `q`, which puts the `lf-ask`'s
     heading at the top of the screen with everything above it out of view. Pass only
     if all of these hold:
     1. There is one `lf-ask` whose first child is a heading stating the question.

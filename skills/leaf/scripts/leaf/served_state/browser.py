@@ -269,7 +269,7 @@ def browser_state(
     # (`tasks.page_tasks`): the agent's open ones as the activity fold aged them, the
     # rest of the log's, and the user's that the threads' Asks and questions hold. With
     # the shown view's Ask tasks (`served_state.document`), the open ones are what the
-    # two queues select from, and the ended ones are what the browser's Queue panel
+    # two queues select from, and the ended ones are what the browser's Questions panel
     # lists as done (`runtime/queues.js`, `selectDone`).
     aged = {task["id"]: task for task in activity.pop("tasks")}
     log = [

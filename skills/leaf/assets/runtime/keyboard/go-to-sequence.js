@@ -15,7 +15,7 @@
    `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
    an edge of the list; `g p` returns focus to the page while leaving open surfaces
    standing. Uppercase mnemonics remain named
-   global destinations: `g T` Threads, `g Q` the Queue, `g L` All leaves, `g M` the searchable
+   global destinations: `g T` Threads, `g Q` Questions, `g L` All leaves, `g M` the searchable
    Page Map and `g V` Versions. A named
    panel destination toggles that panel, matching its visible control. Completing one that
    opens a surface leaves the user in that surface, whose own Escape step is the way out
@@ -201,8 +201,11 @@ export function createGoToSequence({
       id: "navigation.drawer.queue",
       key: "Shift+q",
       description: () =>
-        currentDrawer() === "queue" ? "Close the Queue panel" : "Go to the Queue panel",
-      title: () => (currentDrawer() === "queue" ? "close Queue panel" : "Queue panel"),
+        currentDrawer() === "queue"
+          ? "Close the Questions panel"
+          : "Go to the Questions panel",
+      title: () =>
+        currentDrawer() === "queue" ? "close Questions panel" : "Questions panel",
       control: () => queueBtn,
       when: () => queueOffered(),
       go: () => {

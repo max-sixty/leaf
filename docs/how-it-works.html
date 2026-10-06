@@ -626,7 +626,7 @@ flowchart LR
   end
   subgraph Reads["Where you read it"]
     Thread["the thread"]
-    Queue["the Queue panel"]
+    Queue["the Questions panel"]
     Versions["the page and its versions menu"]
     Widget["the widget"]
     Banner["the banner, tab icon and Leaves drawer"]
@@ -683,16 +683,16 @@ flowchart LR
               <li id="updates-written-awaits">
                 <strong><code>leaf thread reply … --awaits</code></strong> A question
                 for you, which is a task on you until you answer it. The thread reads
-                <em>On you to answer</em>, and the question joins your side of the Queue
-                panel.
+                <em>On you to answer</em>, and the question joins your Questions, in the
+                Questions panel.
               </li>
               <li id="updates-written-on-you">
                 <strong><code>leaf task open … --on user</code></strong> Something the
                 agent needs you to do that no question or widget answers, such as trying
-                a build, as a task on your side of the Queue panel, where
-                <code>a</code> reaches it. Its <em>Done</em>, on its row or
-                <kbd>x</kbd> where <code>a</code> lands, ends it and tells the agent. A
-                question in a thread has no Done: your reply answers it.
+                a build, as a To do under your Questions, where <code>q</code> reaches
+                it. Its <em>Done</em>, on its row or <kbd>x</kbd> where
+                <code>q</code> lands, ends it and tells the agent. A question in a
+                thread has no Done: your reply answers it.
               </li>
               <li id="updates-written-comment">
                 <strong
@@ -2047,8 +2047,8 @@ flowchart TD
             <p id="chrome-surfaces-what">
               A thread card opens in the margin beside its marker. Where the margin is
               narrower than the card, the card overlaps the edge of the text. The
-              Threads panel and the Queue panel open over the page's edges, one at a
-              time.
+              Threads panel and the Questions panel open over the page's right edge, one
+              at a time, and the Leaves drawer over its left.
             </p>
 
             <div class="panels" id="chrome-figure">
@@ -2157,7 +2157,8 @@ flowchart TD
               <figure id="chrome-surfaces">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
-                    The Queue panel and the Threads panel open over the page's edges
+                    The Threads or Questions panel opens over the page's right edge, the
+                    Leaves drawer over its left
                   </title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="18" rx="5" />
@@ -2192,25 +2193,29 @@ flowchart TD
                     height="4"
                     rx="2"
                   />
-                  <g id="chrome-queue-panel">
+                  <g id="chrome-leaves-drawer">
                     <rect class="over" x="6" y="24" width="72" height="112" rx="5" />
-                    <text class="strong" x="42" y="44" text-anchor="middle">Queue</text>
-                    <text class="strong" x="42" y="58" text-anchor="middle">panel</text>
+                    <text class="strong" x="42" y="44" text-anchor="middle">
+                      Leaves
+                    </text>
+                    <text class="strong" x="42" y="58" text-anchor="middle">
+                      drawer
+                    </text>
                   </g>
                   <g id="chrome-threads-panel">
                     <rect class="over" x="152" y="24" width="82" height="112" rx="5" />
                     <text class="strong" x="193" y="44" text-anchor="middle">
-                      Threads
+                      Threads or
                     </text>
                     <text class="strong" x="193" y="58" text-anchor="middle">
-                      panel
+                      Questions
                     </text>
                   </g>
                 </svg>
                 <figcaption id="cap-chrome-surfaces">
-                  <strong>Panels over the page</strong>The Queue panel and the Threads
-                  panel open over the page's edges, one at a time. The page keeps its
-                  width underneath.
+                  <strong>Panels over the page</strong>The Threads and Questions panels
+                  share the right edge, one at a time, and the Leaves drawer opens on
+                  the left. The page keeps its width underneath.
                 </figcaption>
               </figure>
               <figure id="chrome-card">

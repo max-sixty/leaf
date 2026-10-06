@@ -267,7 +267,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     expect(result).to_have_text("0")
 
     # The question context forwards the widget's declaration without an Ask allocator.
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#question")).to_be_focused()
     expect(badge).to_be_visible()
     expect(badge).to_have_text("1")
@@ -572,7 +572,7 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
         ),
     )
     result = page.locator("#probe output")
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#question")).to_be_focused()
     expect(
         page.locator('.lf-shortcut-bar [data-lf-command-ids~="probe.action-1"]')
@@ -684,7 +684,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         ),
     )
     result = page.locator("#probe output")
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#question")).to_be_focused()
     rendered(page)
     routes = page.evaluate(
@@ -779,7 +779,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
             )
         page.keyboard.press("Escape")
         if standing == "outside":
-            page.keyboard.press("a")
+            page.keyboard.press("q")
             expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("1")
     expect(result).to_have_text("Applied 1")
@@ -825,7 +825,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         ),
     )
     result = page.locator("#probe output")
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("F8")
     expect(result).to_have_text("Applied 1")
@@ -968,7 +968,7 @@ def test_route_corner_hint_overrides_the_rows_face_in_ask_and_widget(browser, se
     chip = page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
     result = page.locator("#probe output")
 
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#question")).to_be_focused()
     expect(chip).to_have_text("1")
     expect(chip).to_be_visible()
@@ -2413,7 +2413,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     # The complete real action set, wherever the fold has put each of them: what this is
     # about is the pressure that set puts on the sentence beside it.
     on_the_row = page.evaluate(BANNER_ORDER)
-    for wanted in ("All leaves", "Queue", "Accept all", "v1", "Approve version"):
+    for wanted in ("All leaves", "Questions", "Accept all", "v1", "Approve version"):
         assert any(wanted in name for name in on_the_row), (
             f"{wanted} was not on the row, so the fixture is short of the crowding this "
             f"test is about: {on_the_row}"
@@ -3736,7 +3736,8 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
 
     # At the product's 320px floor the comment sheet has no possible width to move
     # through, so it offers no inert separator. A user standing on the grip lands on
-    # its surviving close control before it disappears; the narrower drawer still moves.
+    # its surviving close control before it disappears. The Questions panel stands on
+    # the same edge at the same floor, so its grip is gone there too.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     comments_edge = page.locator(".lf-thread-panel > .lf-edge")
@@ -3772,7 +3773,6 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         == width_before
     )
 
-    # The drawer still has range at 320px, and its grip finishes sliding on screen.
     page.get_by_role("button", name="Close threads").click()
     panel_settled(page, open=False)
     banner_control(page, ".lf-queue").click()
@@ -3780,17 +3780,13 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
     expect(page.locator(".lf-queue-panel")).to_have_class(re.compile(r"\bopen\b"))
     page_at_rest(page)
     narrow_decisions = edge_geometry(".lf-queue-panel", ".lf-queue-panel > .lf-edge")
-    assert not narrow_decisions["edge"]["hidden"]
-    assert narrow_decisions["edge"]["left"] >= -0.1, narrow_decisions
-    assert narrow_decisions["edge"]["right"] <= narrow_decisions["viewport"] + 0.1, (
-        narrow_decisions
-    )
+    assert narrow_decisions["edge"]["hidden"], narrow_decisions
     page.keyboard.press("Escape")
     expect(page.locator(".lf-queue-panel")).not_to_have_class(re.compile(r"\bopen\b"))
 
-    # Exercise both mirrored owners in different layout postures. A swipe beside the
-    # visible grip scrolls its list without moving the boundary; a horizontal drag on
-    # the grip does move it and releases the sizing posture.
+    # Exercise both panels the right edge holds, in different layout postures. A swipe
+    # beside the visible grip scrolls its list without moving the boundary; a horizontal
+    # drag on the grip does move it and releases the sizing posture.
     for (
         name,
         width,
@@ -3816,7 +3812,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
             ".lf-queue-panel",
             ".lf-queue-panel > .lf-edge",
             ".lf-queue-panel .lf-drawer-list",
-            -36,
+            36,
         ),
     ):
         resized(page, width, 800)
@@ -3835,10 +3831,7 @@ def test_coarse_pointer_resize_reach_stays_reachable_without_trapping_scroll(
         assert edge["width"] >= 43.9 and edge["height"] >= 43.9, reading
         assert edge["left"] >= -0.1
         assert edge["right"] <= reading["viewport"] + 0.1
-        if name == "comments":
-            assert edge["left"] >= reading["contentEdge"] - 0.1, reading
-        else:
-            assert edge["right"] <= reading["contentEdge"] + 0.1, reading
+        assert edge["left"] >= reading["contentEdge"] - 0.1, reading
         assert abs(reading["lineCenter"] - reading["seamCenter"]) <= 0.6, (
             f"the {name} grip's line left the panel seam: {reading}"
         )
@@ -4260,10 +4253,10 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     sentence's, not the empty banner's. As the sentence the agent declares grows, the
     press grows rightward into the room the controls leave, and nothing else on the banner
     moves; once that room runs out its words truncate rather than push More. Approval and
-    the queue counts stay whole throughout. At 390 the status has a row of its own, so
-    the sentence's room is that whole row: an ordinary sentence of the agent's shows
-    whole there, where the counts sharing its row had cut it to a word. Approval fills
-    the run's row there, so the counts give way rather than truncate it."""
+    the agent's Tasks count stay whole throughout. At 390 the status has a row of its own,
+    so the sentence's room is that whole row: an ordinary sentence of the agent's shows
+    whole there, where the count sharing its row had cut it to a word. Approval fills
+    the run's row there, so the count gives way rather than truncate it."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -4287,9 +4280,11 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     assert short["right"] < short["roomRight"] - 60, (
         f"a short status press still spans the banner's free room: {short}"
     )
-    # The page's suggestions wait on the user, and the page task the status runs on
-    # waits on the agent, so the counts stand beside the status.
-    expect(page.locator(".lf-status-queues")).to_have_text("3 on you · 1 on Agent")
+    # The page's suggestions wait on the user, on their Questions door, and the page
+    # task the status runs on waits on the agent, so its Tasks count stands beside the
+    # status.
+    expect(page.locator(".lf-queue")).to_have_text("Questions: 3")
+    expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
     page.evaluate(DEFINE_BOXES)
     beside = page.evaluate(
         BANNER_WATCH, f":is({NEIGHBOUR}, .lf-status-queues):not(.lf-status-button)"
@@ -4328,15 +4323,18 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
 
 
 def test_the_counts_lead_a_phone_s_second_row_where_the_run_leaves_room(browser, serve):
-    """On a phone the status sentence has the first row, and the queue counts lead the
-    second, under the sentence's start, where the run leaves them room whole. A finger's
-    search steps fill that row, so the counts give way to them rather than cut a step,
-    and come back where they stood once the search closes."""
+    """On a phone the status sentence has the first row, and the agent's Tasks count
+    leads the second, under the sentence's start, where the run leaves it room whole. A
+    finger's search steps share that row, and the count stands whole beside them without
+    cutting a step, where it stood once the search closes."""
     context = browser.new_context(
         viewport={"width": 390, "height": 800}, has_touch=True, is_mobile=True
     )
-    page = open_page(browser, serve(SUGGESTION_PAGE), context=context)
-    expect(page.locator(".lf-status-queues")).to_have_text("3 on you")
+    url = serve(SUGGESTION_PAGE)
+    # A comment the agent owes a reply, so there is a Tasks count to stand there.
+    panel_comment(serve.page_dir, "Is the feeder sized right?")
+    page = open_page(browser, url, context=context)
+    expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
     page_at_rest(page)
     resting = page.evaluate(STATUS_COUNTS)
     assert resting["drawn"] and resting["inBanner"] and not resting["inert"], resting
@@ -4352,7 +4350,9 @@ def test_the_counts_lead_a_phone_s_second_row_where_the_run_leaves_room(browser,
     ).to_be_visible()
     page_at_rest(page)
     searching = page.evaluate(STATUS_COUNTS)
-    assert not searching["drawn"] and searching["inert"], searching
+    # "Tasks: 1" is short enough to stand whole beside the steps, touching none of them.
+    assert searching["drawn"] and not searching["inert"], searching
+    assert searching["inBanner"] and not searching["overlaps"], searching
     clipped = page.evaluate(BANNER_ROWS)["clipped"]
     assert not clipped, f"the search steps were cut off: {clipped}"
 
@@ -4478,7 +4478,7 @@ def test_the_band_stays_over_the_covering_leaves_drawer(browser, serve, other_le
     the Leaves drawer, which always covers the page, is no exception: the band states the
     keys the drawer answers and stays over it and its scrim, its More control live. The
     covering drawer used to stand over the band, hiding the hints it painted for the drawer
-    ("open it in a tab", "close leaves") under the drawer and the scrim, where the Asks
+    ("open it in a tab", "close Leaves") under the drawer and the scrim, where the Asks
     drawer, standing beside the page, left them in view."""
     page = open_page(browser, serve(LONG_PAGE))
     resized(page, 1440, 900)
@@ -4487,7 +4487,7 @@ def test_the_band_stays_over_the_covering_leaves_drawer(browser, serve, other_le
     page.keyboard.press("Shift+l")
     drawer = page.locator(".lf-others-panel")
     expect(drawer).to_have_attribute("aria-modal", "true")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close leaves")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close Leaves")
     reading = page.evaluate(
         """() => {
           const band = document.querySelector('.lf-shortcut-bar');
@@ -4551,7 +4551,7 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
                }"""
         )
 
-    order = ["others", "latest", "queue", "version", "signoff", "comments"]
+    order = ["others", "latest", "version", "signoff", "queue", "comments"]
     for width in (1200, 390, 320):
         resized(page, width, 900)
         assert actions() == order
@@ -5603,13 +5603,13 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
         "focusInside": True,
     }, f"the updated document escaped its covering auxiliary surface: {state}"
 
-    page.get_by_role("button", name="Close queue").click()
+    page.get_by_role("button", name="Close questions").click()
     expect(page.locator(".lf-queue-panel")).not_to_have_class(re.compile(r"\bopen\b"))
     assert not page.locator("main").evaluate("el => el.inert")
 
 
 def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, serve):
-    """The Queue panel gets the covering auxiliary surface contract rather than a drawer-specific
+    """The Questions panel gets the covering auxiliary surface contract rather than a drawer-specific
     focus trap. Its exact Ask and reading place survive both responsive crossings, its
     reading keys move its own list, and closing returns to its door without moving the
     document behind it."""
@@ -5636,7 +5636,7 @@ def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, se
     for _ in range(rows.count() + 3):
         page.keyboard.press("Tab")
         assert drawer.evaluate("el => el.contains(document.activeElement)"), (
-            "Tab reached a control behind the covering Queue panel"
+            "Tab reached a control behind the covering Questions panel"
         )
 
     list_box.evaluate("el => el.scrollTop = 0")
@@ -5678,7 +5678,8 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
     Pointer entry starts in the list rather than on its dismissal furniture. The banner
     controls are inert while a drawer covers the document, so they cannot be the only
     pointer route out. Closing either drawer returns focus to the control that opened it,
-    ready to reopen the same drawer.
+    ready to reopen the same drawer: the Questions door on the banner's row, and More for
+    Leaves, folded behind it.
     """
     page = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 500, 640)
@@ -5687,9 +5688,15 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
         "el => Boolean(el.closest('.lf-banner-menu'))"
     ), "the fixture did not fold Leaves behind the banner menu"
 
-    for selector, panel, name, first_destination in (
-        (".lf-queue", ".lf-queue-panel", "queue", ".lf-queue-row"),
-        (".lf-others", ".lf-others-panel", "leaves", "a.lf-others-row"),
+    for selector, panel, name, first_destination, door_back in (
+        (".lf-queue", ".lf-queue-panel", "questions", ".lf-queue-row", ".lf-queue"),
+        (
+            ".lf-others",
+            ".lf-others-panel",
+            "leaves",
+            "a.lf-others-row",
+            ".lf-banner-more",
+        ),
     ):
         door = banner_control(page, selector)
         door.click()
@@ -5701,7 +5708,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
 
         page.get_by_role("button", name=f"Close {name}").click()
         expect(drawer).not_to_have_class(re.compile(r"\bopen\b"))
-        expect(page.locator(".lf-banner-more")).to_be_focused()
+        expect(page.locator(door_back)).to_be_focused()
         assert not page.locator("main").evaluate("el => el.inert")
 
 
@@ -5843,7 +5850,7 @@ def test_threads_covering_a_page_holds_while_its_lock_takes_the_scrollbar(
 
 def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     """Auxiliary placement does not retire a live return; closing its surface does. The
-    Queue panel is the surface that crosses between covering and beside."""
+    Questions panel is the surface that crosses between covering and beside."""
     page = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 500, 640)
     origin = page.locator("main .lf-pick").first
@@ -5868,7 +5875,7 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+q")
-    page.get_by_role("button", name="Close queue").click()
+    page.get_by_role("button", name="Close questions").click()
     expect(drawer).not_to_have_class(opened)
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body"), (
@@ -7342,7 +7349,7 @@ RING_CASES = (
     # shows a token nobody has pressed only while it is open, so a walk of the panel
     # that never opens one stands on the trigger and nothing under it.
     ("a reaction palette", (), {"ship-review": ((".lf-react", "chip"),)}),
-    ("the Queue panel", (), {"ship-review": ((".lf-queue-row", "queue-row"),)}),
+    ("the Questions panel", (), {"ship-review": ((".lf-queue-row", "queue-row"),)}),
     ("the leaves drawer", ("g", "Shift+l"), {"corpus": ((None, "others-row"),)}),
     ("page status", (), {"corpus": ((None, "status-detail"),)}),
     # The menu's own route after the key that opens it: an open lands on the version being
@@ -7446,7 +7453,7 @@ RING_SCOPE_SURFACE = {
     # frame and shows only for an anchor.
     "target hints": (".lf-target-picker-hint.lf-current", None),
     "the response bar": (".lf-fab-bar .lf-composer[data-lf-open]", None),
-    "the Queue panel": (".lf-queue-panel.open", ".lf-queue"),
+    "the Questions panel": (".lf-queue-panel.open", ".lf-queue"),
     "the leaves drawer": (".lf-others-panel.open", ".lf-others"),
     "the versions menu": (".lf-version-menu:popover-open", None),
     "the command reference": (".lf-command-reference.open", None),
@@ -7455,7 +7462,7 @@ RING_SCOPE_SURFACE = {
 }
 RING_SCOPE_OPENER = {
     "an inline response": "#pr-exact-patch .lf-diff-file-comment",
-    "the Queue panel": ".lf-queue",
+    "the Questions panel": ".lf-queue",
     "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
     "the Page Map dialog": ".lf-page-map-toggle",
     "a reaction palette": ".lf-react-strip > .lf-react-trigger",

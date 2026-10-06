@@ -3583,7 +3583,7 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 
 
 def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser, serve):
-    """The Queue row's standing mark may repaint without returning to its focused Ask."""
+    """The Questions row's standing mark may repaint without returning to its focused Ask."""
     questions = "".join(
         f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
         f'<lf-options id="options-{index}" choose>'
@@ -3618,7 +3618,7 @@ def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser,
     assert drawer.evaluate("list => list.scrollTop") == reading
     expect(page.locator("#ask-0")).to_be_focused()
 
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#ask-1")).to_be_focused()
     scroll_settled(page, list_selector)
     assert drawer.evaluate("list => list.scrollTop") < reading
@@ -3626,7 +3626,7 @@ def test_ask_repaints_keep_the_queues_reading_until_an_explicit_arrival(browser,
     assert row.locator(".lf-queue-title").evaluate(
         "words => words.getBoundingClientRect().top >= "
         "words.closest('.lf-drawer-list').getBoundingClientRect().top"
-    ), "explicit Ask navigation still reveals its matching Queue row"
+    ), "explicit Ask navigation still reveals its matching Questions row"
 
 
 @pytest.mark.parametrize("newer_reading", [False, True])
@@ -4044,7 +4044,7 @@ def test_a_revision_that_restates_an_ask_leaves_the_user_standing_in_it(browser,
     page = open_page(browser, live_url(version_url))
     decision = page.locator("#lk-decision")
 
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(decision).to_be_focused()
     (serve.page_dir / "index.html").write_text(LIVE_KEYS_ASK_REWRITTEN)
     told(page)
@@ -4362,7 +4362,7 @@ customElements.define('page-counter', class extends HTMLElement {
         "</head>", module.replace("count 0", "count 10") + "</head>"
     )
     page = open_page(browser, live_url(serve(first)))
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#lk-decision")).to_be_focused()
     original_document = page.evaluate("performance.timeOrigin")
 
@@ -4623,7 +4623,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     The passage they were reading did; where the walk had got to was a variable in a
     module the navigation threw away, so it did not, and the user was demoted without
     a word from the most exact reading of where they stand to the coarsest. Standing on
-    the third of four Asks when v2 landed, they pressed `a` and were handed the third
+    the third of four Asks when v2 landed, they pressed `q` and were handed the third
     again — after looking slightly back above that Ask, the block at the top of the
     window is somewhere they had already walked past.
 
@@ -4639,7 +4639,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     resized(page, 900, 400)
 
     for ask in ASKS_IN_ORDER[:3]:
-        page.keyboard.press("a")
+        page.keyboard.press("q")
         expect(page.locator(f"#{ask}")).to_have_attribute("data-lf-ask", "1")
     scroll_settled(page)
 
@@ -4665,7 +4665,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
         const earlier = document.getElementById('refill-now').getBoundingClientRect();
         return earlier.bottom > 42 && earlier.bottom <= decision.top;
     }"""), "the user is at the top of the window, where either reading would do"
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 
 
@@ -4739,7 +4739,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     the decision rather than in the control, so there the decision's own ring is the one."""
     page = open_page(browser, serve(ASKS_PAGE))
     question = page.locator("#live-question-decision")
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(question).to_have_attribute("data-lf-ask", "1")
     arrival_ring = question.evaluate(RING)
     assert arrival_ring == [
@@ -4770,7 +4770,7 @@ def test_the_ring_says_where_the_user_is_standing(browser, serve):
     #
     # Reached with real presses, because :focus-visible answers the input device and a
     # control focused from script wears no ring for any reading to compare.
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     suggestion = page.locator("#sug-refill")
     expect(suggestion).to_have_attribute("data-lf-ask", "1")
     accept = suggestion_control(page, "sug-refill", "accept")
@@ -4862,7 +4862,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
         },
     )
     page = open_page(browser, url)
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#live-question-decision[data-lf-ask]")).to_have_count(1)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("let go")
     # And the reference says the same press in its own words. It said "Back out one
@@ -4886,9 +4886,9 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
 
     # The directional walk reads the user's current visible place after Escape.
     # Reenter the first Ask from there, then move to the next one.
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#live-question-decision")).to_be_focused()
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#sug-refill[data-lf-ask]")).to_have_count(1)
     walked_item = page.locator('[data-lf-margin-for="sug-refill"]')
     expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
@@ -4899,7 +4899,7 @@ def test_escape_lets_go_of_the_ask_the_user_is_standing_on(browser, serve):
     # focus transition, whose focusout and focusin both fire inside focus().
     walked_item.locator(":scope > .lf-margin-more").click()
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_visible()
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#t-baffles-decision[data-lf-ask]")).to_have_count(1)
     expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
@@ -5019,7 +5019,7 @@ def test_the_ask_walk_follows_registry_declarations(browser, serve):
         "t-baffles-decision",
         "t-bath-decision",
     ]:
-        page.keyboard.press("a")
+        page.keyboard.press("q")
         expect(page.locator(f"#{expected}")).to_have_attribute("data-lf-ask", "1")
 
 
@@ -7830,7 +7830,7 @@ def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
 
 def test_a_thread_question_asks_until_answered(browser, serve):
     """A question in a thread is one of the page's asks — an obligation for the user
-        wherever it stands — and `a` reaches it. A single-answer group
+        wherever it stands — and `q` reaches it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each
     reach the agent live, so only its Done press closes it, as an `answer` action
     x-awaits.answered names for a `multiple` group. The thread's own reply box is the words'
@@ -7847,7 +7847,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     page = open_page(browser, url)
     expect_asks_answered(page, "0/2")
 
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     # The arrival stands on the question's own region; its picks are the next Tab stops.
     expect(page.locator("#tq-one-decision")).to_be_focused()
@@ -7966,7 +7966,7 @@ def test_a_thread_question_asks_until_answered(browser, serve):
     # thread-local reply route explicit.
     page.locator(".lf-thread:has(#tq-one) .lf-thread-summary").click()
     page.locator("#tq-one .lf-pick").first.focus()
-    # The address toggles the panel it names, so from the panel `a` opened the first
+    # The address toggles the panel it names, so from the panel `q` opened the first
     # completion closes it and the second is the arrival on the open thread.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -8006,7 +8006,7 @@ def test_a_thread_answer_is_not_repainted_after_its_undo_arrives_with_it(
     url = serve(REPLY_HOST_PAGE)
     append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     held = []
     page.route("**/api/event", lambda route: _hold_gesture(route, held))
     done = page.locator("#tq-set .lf-done")
@@ -8043,7 +8043,7 @@ def test_a_refused_thread_choice_restores_its_frozen_markup(browser, serve):
     url = serve(REPLY_HOST_PAGE)
     append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     held = []
     page.route("**/api/event", lambda route: _hold_gesture(route, held))
@@ -8077,7 +8077,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     url = serve(REPLY_HOST_PAGE)
     append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     page.locator("#tq-logs").click()
     round_trip(page)
     page.locator("#tq-set .lf-done").click()
@@ -8120,7 +8120,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
     url = serve(REPLY_HOST_PAGE)
     append_carried_log_record(serve.page_dir, THREAD_ASKS[1])
     page = open_page(browser, url)
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     held = []
     page.route("**/api/event", lambda route: _hold_gesture(route, held))
     with page.expect_request(_gesture_request):
@@ -8174,9 +8174,9 @@ def test_a_done_press_answers_optimistically_and_only_once(browser, serve):
     for event in THREAD_ASKS:
         append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#tq-set-decision")).to_be_focused()
     done = page.locator("#tq-set .lf-done")
     held = []

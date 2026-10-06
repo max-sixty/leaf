@@ -406,7 +406,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
   instructions don't yet say when that is. Trigger: an agent ends a task as done that
   the user wanted to see first.
-- **Let the user edit items in the Queue panel.** The user's only edit today is Done
+- **Let the user edit items in the Questions panel.** The user's only edit today is Done
   on a task the agent put on them, so dropping a task, renaming it or ending one of the
   agent's means asking in a thread. Editing the row directly in the panel would record the user's change as
   their own move. Trigger: a user writes a comment only to close or adjust an item.

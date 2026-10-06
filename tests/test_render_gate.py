@@ -34,7 +34,6 @@ from leaf.validation import compatibility as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ASKS_PAGE,
     CHANGE_SHAPES_PAGE,
     PANEL_PAGE,
     panel_comment,
@@ -54,6 +53,7 @@ from render_cases_layout import (
     LOOSE_SCROLLER_PAGE,
     NOTE_BESIDE_A_CHANGE,
     OVER_ITS_CONTAINER,
+    QUESTIONS,
     RESIZE_LOOP_EVENT,
     SCROLLED_CONTAINER,
     SHADOW_HOST_PAGE,
@@ -68,6 +68,7 @@ from render_cases_layout import (
     banner_control,
     draw_edge,
     edge_settled,
+    edge_world,
     geometry,
     motions,
     moved_at,
@@ -3230,7 +3231,7 @@ SURFACES = {
     "go-to": (["g"], None),
     "thread card": (["t"], '.lf-threads-toggle:text-matches("Threads: [1-9]")'),
     "threads panel": (["g", "Shift+t"], None),
-    "queue panel": (["g", "Shift+q"], ".lf-btn.lf-queue"),
+    "questions panel": (["g", "Shift+q"], ".lf-btn.lf-queue"),
     "leaves drawer": (["g", "Shift+l"], ".lf-btn.lf-others"),
     "page map": (["g", "Shift+m"], None),
     "versions menu": (["g", "Shift+v"], None),
@@ -4916,7 +4917,7 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
 
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
-def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
+def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge, request):
     """A thread about a table wants room a thread about a sentence does not,
     and a drawer of long names wants room a drawer of short ones does not; only the user
     looking at one knows which this is. So each region's edge is a thing they take hold
@@ -4925,6 +4926,7 @@ def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     Then the same edge from the keyboard, because a user who is not holding a pointer is
     still reading the same page, and then a reload, because a width set once and lost on
     the next version is a width they would have to set on every revision."""
+    edge_world(request, edge)
     page = open_page(browser, serve(edge.html(), comments=edge.comments))
     edge.stand(page)
     edge_settled(page, edge)
@@ -4969,10 +4971,13 @@ def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     )
 
 
-@pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
 @pytest.mark.parametrize("pointer", ["mouse", "touch", "touch-cancel"])
-def test_dragging_an_edge_preserves_user_state(browser, serve, edge, pointer):
-    """Resizing owns its gesture, leaving drafts, selections, and arrow keys intact."""
+def test_dragging_an_edge_preserves_user_state(browser, serve, pointer):
+    """Resizing owns its gesture, leaving drafts, selections, and arrow keys intact.
+
+    On the right edge, the one that leaves the page live beside it: the left one's Leaves
+    drawer covers the page, so there is no draft or selection beside it to keep."""
+    edge = EDGES[0]
     context = browser.new_context(
         viewport={"width": 1400, "height": 900}, has_touch=pointer != "mouse"
     )
@@ -5076,8 +5081,9 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, edge, pointer):
 
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
-def test_edge_resizing_belongs_to_one_primary_pointer(browser, serve, edge):
+def test_edge_resizing_belongs_to_one_primary_pointer(browser, serve, edge, request):
     """Other buttons, outside presses, and a second touch cannot take a resize."""
+    edge_world(request, edge)
     context = browser.new_context(
         viewport={"width": 1400, "height": 900}, has_touch=True
     )
@@ -5098,7 +5104,9 @@ def test_edge_resizing_belongs_to_one_primary_pointer(browser, serve, edge):
     assert geometry(page, edge)["width"] == before
     page.mouse.up(button="right")
 
-    page.mouse.move(x - 150 if edge.side == "right" else x + 150, y)
+    # A press that starts inside the region, which is open on either edge: past a
+    # covering drawer it would land on the scrim, which puts the drawer away.
+    page.mouse.move(x + 150 if edge.side == "right" else x - 150, y)
     page.mouse.down()
     page.mouse.move(x, y)
     page.mouse.up()
@@ -5136,7 +5144,7 @@ def test_edge_resizing_belongs_to_one_primary_pointer(browser, serve, edge):
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
 def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
-    browser, serve, edge
+    browser, serve, edge, request
 ):
     """A region may take the window and no more, and one that leaves no usable page
     beside it covers the page rather than taking a strip from it. A window that shrinks
@@ -5148,6 +5156,7 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     they came back to, which is the failure this reading is here to catch — the third
     geometry below is the whole of it."""
     narrow, stands = edge.squeeze
+    edge_world(request, edge)
     page = open_page(browser, serve(edge.html(), comments=edge.comments))
     edge.stand(page)
     edge_settled(page, edge)
@@ -5178,35 +5187,35 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     )
 
 
-def test_both_drawers_stand_on_the_one_edge_the_user_drew(browser, serve, other_leaf):
-    """Leaves and decisions are the same furniture at two scopes, one at a time on one side of
-    the window, so the width is the side's rather than either drawer's. A user who drew
-    the edge out to read long names has drawn the edge, and finding the other drawer back
-    at its default would be one fact kept in two places — which is what a width per drawer
-    would have been, and what the shared property is instead.
-
-    The `other_leaf` fixture is the whole reason there is a second drawer to swap to: a
-    drawer of one — the page the user is already on — is not worth a control, so without
-    a neighbour `g L` is unavailable."""
-    page = open_page(browser, serve(ASKS_PAGE))
-    drawers = EDGES[1]
-    drawers.stand(page)
-    edge_settled(page, drawers)
-    draw_edge(page, drawers, 160)
+def test_threads_and_questions_stand_on_the_one_edge_the_user_drew(browser, serve):
+    """Threads and Questions are two views of one side panel, one at a time on the right
+    of the window, so the width is the side's rather than either panel's. A user who drew
+    the edge out to read a long question has drawn the edge, and finding Threads back at
+    its default would be one fact kept in two places — which is what a width per panel
+    would have been, and what the shared property is instead. The handle names the side
+    panel it sizes, whichever view stands."""
+    page = open_page(browser, serve(QUESTIONS.html(), comments=1))
+    QUESTIONS.stand(page)
+    edge_settled(page, QUESTIONS)
+    handle = page.locator(f"{QUESTIONS.region} .lf-edge")
+    expect(handle).to_have_attribute("aria-label", "Side panel width")
+    draw_edge(page, QUESTIONS, 160)
+    drawn = geometry(page, QUESTIONS)
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+l")
-    expect(page.locator(".lf-others-panel")).to_be_visible()
-    page.wait_for_function(
-        "() => document.querySelector('.lf-others-panel').getAnimations().length === 0"
+    page.keyboard.press("Shift+t")
+    threads = EDGES[0]
+    edge_settled(page, threads)
+    expect(page.locator(QUESTIONS.region)).to_be_hidden()
+    expect(page.locator(f"{threads.region} .lf-edge")).to_have_attribute(
+        "aria-label", "Side panel width"
     )
-    leaves = page.evaluate(
-        "() => document.querySelector('.lf-others-panel').getBoundingClientRect().width"
-    )
+    panel = geometry(page, threads)
     page.close()
 
-    assert round(leaves) == drawers.wide + 160, (
-        f"the second drawer came up at a width the user had already moved: {leaves}"
+    assert drawn["width"] == QUESTIONS.wide + 160, f"the drag did not land: {drawn}"
+    assert panel["width"] == drawn["width"], (
+        f"Threads came up at a width the user had already moved: {panel}"
     )
 
 

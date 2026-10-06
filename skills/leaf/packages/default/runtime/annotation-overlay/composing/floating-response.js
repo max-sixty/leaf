@@ -38,12 +38,12 @@ import {
   reachableRoom,
 } from "../comment-placement.js";
 import { pointBand } from "/runtime/pointed-place.js";
+import { rightCover } from "/runtime/geometry.js";
 import { keeps, layoutPx } from "/runtime/keeps.js";
 
 export function createFloatingResponsePlacement({
   nodes: { bar: fabBar, input: fabInput },
   response,
-  panel,
   panelIsOpen,
   threadsBox,
   positioned,
@@ -53,7 +53,7 @@ export function createFloatingResponsePlacement({
   scrollToRange,
 }) {
   const floatBoundary = (region = null) =>
-    commentBoundary({ region, right: panel.open ? panel.offsetLeft : Infinity });
+    commentBoundary({ region, right: rightCover() });
   // The side the bar holds and its inline start, by the rule the thread card it becomes
   // stands by too (comment-placement.js).
   const fabPlacement = commentPlacement();

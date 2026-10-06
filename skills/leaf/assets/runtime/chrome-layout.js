@@ -23,9 +23,10 @@
 // may be one an agent sent, since a widget in a message is scrolled by the panel's own
 // list and by nothing else. Threads and drawers are alternate auxiliary surfaces, so only
 // one stands at a time, over the page and taking no width from it. Leaves always covers
-// the page. Threads and the Queue drawer cover it only where they would leave less than a
-// usable page beside them, one rule for both (`standsBeside`, auxiliary-surfaces.js;
-// `--lf-auxiliary-beside`, theme.css); elsewhere the page beside them stays live.
+// the page. Threads and Questions, which share the right edge and its width, cover it
+// only where they would leave less than a usable page beside them, one rule for both
+// (`standsBeside`, auxiliary-surfaces.js; `--lf-auxiliary-beside`, theme.css); elsewhere
+// the page beside them stays live.
 // Auxiliary modality is a shared inert boundary outside this geometry owner; the
 // reference and Page Map keep native `showModal()`. `--lf-room` and
 // `--lf-sidebar-posture` are CSS-owned readings resolved on `main`, which is the named
@@ -39,6 +40,7 @@ import { sizeObserver } from "./rendering.js";
 import { drawnEdge } from "./drawn-edge.js";
 import { overlapsAcross } from "./rect.js";
 import { standsBeside } from "./auxiliary-surfaces.js";
+import { rightCover } from "./geometry.js";
 import { scheduleResidency } from "./content-layout.js";
 import { syncLayoutRegion } from "./reading-regions.js";
 
@@ -93,14 +95,14 @@ export function createChromeLayout({
     const panelRoom = (panelLive ? commentsEdge.width() : 0) + "px";
     shortcutBarEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
     bottomStatusEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
-    // Over a live page the panel stands over the page's right margin at any window short
-    // of about 1700px, and over the pins at the column's edge at the same widths. The
-    // markers are still drawn, under the panel; what says the user lost them is a margin
-    // row the panel's edge reaches. Where one does, the banner offers the Page Map in
-    // their place, as it does where the markers are pins (chrome.css).
-    // Where the panel stands, not where its slide has carried it this frame: offsetLeft
-    // ignores the slide's transform.
-    const panelLeft = panelLive ? panel.offsetLeft : Infinity;
+    // Over a live page the right edge's surface, Threads or Questions, stands over the
+    // page's right margin at any window short of about 1700px, and over the pins at the
+    // column's edge at the same widths. The markers are still drawn, under the surface;
+    // what says the user lost them is a margin row the surface's edge reaches. Where one
+    // does, the banner offers the Page Map in their place, as it does where the markers
+    // are pins (chrome.css). Where the surface stands, not where its slide has carried
+    // it this frame: offsetLeft ignores the slide's transform.
+    const panelLeft = standsBeside() ? rightCover() : Infinity;
     const railCovered = [
       ...document.querySelectorAll(".lf-margin-projection .lf-margin-cluster"),
     ].some(
@@ -206,7 +208,8 @@ export function createChromeLayout({
     layoutSizes.observe(bottomStatusEl);
   }
 
-  // The thread panel's edge, on the right, and the drawer panel's, on the left. Each keeps
+  // The side panel's edge, on the right, which Threads and Questions share, and the
+  // Leaves drawer's, on the left. Each keeps
   // the user's choice in their own store rather than the tab's, because where a user
   // keeps their threads, and how much of the page they will give a drawer, is the
   // chrome they arrange and expect to find arranged wherever they are reading (see
@@ -221,7 +224,7 @@ export function createChromeLayout({
   }
   const commentsEdge = drawnEdge({
     side: "right",
-    noun: "thread panel",
+    noun: "side panel",
     wide: THREAD_PANEL_W,
     min: THREAD_PANEL_MIN,
     prop: THREAD_PANEL_PROP,

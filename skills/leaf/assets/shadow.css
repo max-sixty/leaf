@@ -510,7 +510,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-react.lf-response-action:not([aria-pressed="true"]) { background: var(--card); }
 .lf-react[aria-busy="true"] { opacity: .55; }
 /* A reaction's word, while a press on it is held or the keyboard stands on it
-   (reactions.js, `holdToRead`): the finger's and the keyboard's reading of a face that is
+   (held-word.js): the finger's and the keyboard's reading of a face that is
    otherwise one glyph. The word is the choice's own name, so it says what the accessible
    name says, and it stands above the choice, where the finger pressing it does not cover
    it. The press owns the gesture, so it neither scrolls nor opens the platform's

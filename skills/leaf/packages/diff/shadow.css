@@ -43,6 +43,43 @@
 .lf-diff-head .lf-diff-base { flex: none; max-width: 100%; overflow: hidden;
                               text-overflow: ellipsis; }
 .lf-diff-head > .lf-diff-stat { flex: none; }
+/* The whole path, while the keyboard stands on the row or a press is held on it
+   (held-word.js), since the path's title shows only to a pointer resting on it. It is
+   drawn in a box under the row, over the rows the row names, so nothing moves and the
+   row keeps its stated height. Under the row, the box stays clear of the banner when
+   the row is pinned, and of a finger pressing the row from below. It wraps after the
+   path's slashes (`data-path`, lf-diff.js) and ends at the row's end. A press shows it
+   only once held, so a click or a tap that folds the file does not flash it. The row and
+   the file's frame clip what they hold, so both let it out while it shows, and the
+   row rounds its own corners where the frame's clip rounded them. */
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary { position: relative; }
+.lf-diff-fold:has(> .lf-diff-head:is([data-lf-held-word], :focus-visible,
+                                     .lf-focus-visible)) { overflow: visible; }
+:scope:host(.lf-rendered) :where(.lf-diff-file) > details
+  > summary:is([data-lf-held-word], :focus-visible, .lf-focus-visible) {
+                                     overflow: visible;
+                                     border-start-start-radius: calc(var(--r) - 1px);
+                                     border-start-end-radius: calc(var(--r) - 1px); }
+.lf-diff-fold:not([open]) > .lf-diff-head:is([data-lf-held-word], :focus-visible,
+                                              .lf-focus-visible) {
+                                     border-radius: calc(var(--r) - 1px); }
+.lf-diff-head:is([data-lf-held-word], :focus-visible, .lf-focus-visible)
+  > .lf-diff-path::after {
+                                     content: attr(data-path) / ""; position: absolute;
+                                     z-index: 3; inset-block-start: calc(100% + 4px);
+                                     padding: 4px 7px; border-radius: 4px;
+                                     background: var(--ink); color: var(--paper);
+                                     box-shadow: 0 2px 8px var(--shade);
+                                     white-space: normal; overflow-wrap: anywhere;
+                                     pointer-events: none; }
+.lf-diff-head[data-lf-held-word]:not(:focus-visible, .lf-focus-visible)
+  > .lf-diff-path::after { animation: lf-diff-held-word 1ms 300ms backwards; }
+@keyframes lf-diff-held-word { from { visibility: hidden; } }
+/* A finger's press on the row reads its path rather than selecting it or opening the
+   platform's long-press menu. */
+@media (pointer: coarse) {
+  .lf-diff-head { -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+}
 /* The row leaves the bar of presses its column, the bar's width and 14px between it
    and the path. */
 .lf-diff-file:has(> .lf-diff-file-actions > *) > .lf-diff-fold > .lf-diff-head {

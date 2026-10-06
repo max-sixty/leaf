@@ -12267,7 +12267,8 @@ def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
 
 def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, serve):
     """The space reserved above a landed row clears its sticky file header. The
-    basename remains readable on a phone; the title retains the complete path."""
+    basename remains readable on a phone; the title retains the complete path, and
+    WebKit draws the whole path a row says while the keyboard stands on it."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config.md"
     patch = (
         f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
@@ -12292,7 +12293,7 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, s
             .querySelector('summary');
         const path = head.querySelector('.lf-diff-path');
         const base = path.querySelector('.lf-diff-base');
-        return {
+        const reading = {
             height: head.getBoundingClientRect().height,
             reserved: parseFloat(getComputedStyle(
                 head.parentElement.querySelector('[data-line]')
@@ -12301,11 +12302,112 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, s
             base: base.textContent,
             baseCut: base.scrollWidth > base.clientWidth,
         };
+        return reading;
+    }"""
+    )
+    page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
+    page.locator("lf-diff .lf-diff-head").focus()
+    said = page.locator("lf-diff .lf-diff-path").evaluate(
+        """path => {
+        const word = getComputedStyle(path, '::after');
+        return [word.content.replace(/\\u200b/g, ''), parseFloat(word.width)];
     }"""
     )
     assert head["height"] == pytest.approx(head["reserved"], abs=0.5), head
     assert head["base"] == "config.md" and not head["baseCut"], head
     assert head["title"] == path, head
+    assert path in said[0] and said[1] > 0, said
+
+
+def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
+    browser, serve
+):
+    """A file's row gives way from its folders, and its title reaches only a pointer
+    resting on it. The keyboard standing on the row, and a finger held on it, read the
+    whole path in a box under the row, a folded file's too. Releasing the hold folds
+    the file, as a tap does, and a tap shows nothing."""
+    path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/nested/file.md"
+    patch = (
+        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Phone header",
+                '<h1>Review</h1><lf-diff id="patch"><pre>' + patch + "</pre></lf-diff>",
+            )
+        ),
+        context=context,
+    )
+    page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
+    head = page.locator("lf-diff .lf-diff-head")
+    read = """head => {
+        const word = getComputedStyle(head.querySelector('.lf-diff-path'), '::after');
+        const fold = head.parentElement;
+        return {
+            open: fold.open,
+            word: word.content === 'none' ? null
+                : word.content.replace(/\\u200b/g, ''),
+            shown: word.visibility === 'visible',
+            below: parseFloat(word.top) >= head.getBoundingClientRect().height,
+            fits: parseFloat(word.left) + parseFloat(word.width)
+                <= head.getBoundingClientRect().width + 0.5,
+            clipped: getComputedStyle(fold).overflow !== 'visible'
+                && !fold.open,
+        };
+    }"""
+    whole = f'"{path}" / ""'
+    assert head.evaluate(read)["word"] is None
+
+    page.keyboard.press("Shift")  # keyboard modality, so the focus below is visible
+    head.focus()
+    standing = head.evaluate(read)
+    assert standing == {
+        "open": True,
+        "word": whole,
+        "shown": True,
+        "below": True,
+        "fits": True,
+        "clipped": False,
+    }, standing
+    page.keyboard.press("Enter")
+    assert head.evaluate(read) == {**standing, "open": False}
+    page.keyboard.press("Enter")
+    head.evaluate("head => head.blur()")
+
+    cdp = context.new_cdp_session(page)
+    box = head.bounding_box()
+    point = {"x": round(box["x"] + box["width"] / 2), "y": round(box["y"] + 10)}
+
+    def touch(kind):
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {"type": kind, "touchPoints": [point] if kind != "touchEnd" else []},
+        )
+
+    touch("touchStart")
+    rendered(page)
+    expect(head).to_have_attribute("data-lf-held-word", "")
+    page.wait_for_function(
+        """() => getComputedStyle(document.querySelector('lf-diff').shadowRoot
+            .querySelector('.lf-diff-path'), '::after').visibility === 'visible'"""
+    )
+    held = head.evaluate(read)
+    assert held["word"] == whole and held["open"], held
+    touch("touchEnd")
+    rendered(page)
+    assert head.evaluate(read)["open"] is False, "the release folds the file"
+    assert head.evaluate(read)["word"] is None
+
+    page.touchscreen.tap(point["x"], point["y"])
+    rendered(page)
+    assert head.evaluate(read)["open"] is True, "a tap unfolds it"
+    assert head.evaluate(read)["word"] is None
 
 
 # A page-authored driver that points at a code block's lines through its declared `for`,

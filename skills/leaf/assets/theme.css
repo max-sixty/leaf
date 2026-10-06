@@ -1546,7 +1546,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   transition-delay: 90ms;
 }
 /* A reaction held under a press says its word at once, as a keyboard destination does
-   below (reactions.js, holdToRead). */
+   below (held-word.js). */
 .lf-margin-entry[data-lf-held-word] > .lf-margin-entry-label {
   opacity: 1; visibility: visible; transform: translateY(0); transition: none;
 }

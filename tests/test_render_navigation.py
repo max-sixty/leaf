@@ -3456,7 +3456,8 @@ def test_a_finger_ends_a_task_on_you_from_the_banner_row(browser, serve):
     row = page.locator(".lf-banner-actions")
     done = row.get_by_role("button", name="Done", exact=True)
     expect(done).to_have_count(0)
-    page.locator(".lf-status-queues").tap()
+    page.get_by_role("button", name="More page controls", exact=True).tap()
+    page.locator(".lf-banner-menu > .lf-queue").tap()
     panel = page.locator(".lf-queue-panel")
     panel.locator(".lf-queue-row", has_text="Check the notes").tap()
     expect(page.locator("#notes")).to_be_focused()
@@ -3464,6 +3465,7 @@ def test_a_finger_ends_a_task_on_you_from_the_banner_row(browser, serve):
     with sending(page, "the Done step"):
         done.tap()
     expect(page.locator(".lf-status-queues")).to_have_text("1 on you")
+    expect(page.locator(".lf-status-queues")).to_be_hidden()
     assert events_model.read_events(serve.page_dir)[-1]["task"] == task["id"]
     expect(done).to_have_count(0)
 
@@ -11210,7 +11212,10 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
               dispatchEvent(new Event('resize'));
             }"""
     )
-    expect(page.locator(".lf-notice")).to_be_visible()
+    expect(page.locator(".lf-banner-status .lf-status-notice")).to_have_text(
+        "Saved — sent"
+    )
+    expect(page.locator(".lf-banner-status .lf-status-notice")).to_be_visible()
     assert (
         page.evaluate("() => getComputedStyle(document.body).paddingBottom") == "0px"
     ), "a transient notice reserved document space"

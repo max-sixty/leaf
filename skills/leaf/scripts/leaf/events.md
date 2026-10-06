@@ -49,11 +49,12 @@ data projection generates, stays with its runtime owner. An automatic transition
 cannot invent a replacement passage or detach a thread: a reply makes those choices.
 
 A `drawing` is up to 32 freehand strokes (`strokes`, each a list of points) attached to
-an ordinary comment, and may be that comment's only content. Its first stroke decides
-whether it anchors on an element or on the page, and with it the browser records `box`
-and `says`; the drawing's clause in `$events.handling.comment` tells the agent how
-to read them. The browser also records `viewport`, the layout viewport's width and
-height, and `scheme`, `light` or `dark`, the window the drawing was made in. The
+an ordinary comment, and may be that comment's only content. The browser anchors it on
+the element its first stroke starts on or nearest, and records that element's `box` and
+the words the ink stands over as `says`; the door still admits a drawing with no anchor,
+whose offsets start at the page's top-left corner. The drawing's clause in
+`$events.handling.comment` tells the agent how to read them. The browser also records
+`viewport`, the layout viewport's width and height, and `scheme`, `light` or `dark`, the window the drawing was made in. The
 browser reads all of these off the rendered page, which holds words and geometry no
 file reading can produce, so the door bounds their shape, the stroke count and 500
 characters of `says`, and does not re-read them. Leaf derives the drawing's frame and

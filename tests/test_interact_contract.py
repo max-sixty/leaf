@@ -4062,18 +4062,18 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     snapshot.check(yaml_document(header, recorded))
 
 
-CARRIER_WALKTHROUGH = """\
-What each carrier hands the agent for one comment
-===================================================
+ROUTE_WALKTHROUGH = """\
+What each route hands the agent for one comment
+=================================================
 
 A test records this file; nobody writes it by hand. The lines starting with `#`
 explain it, and everything else is the recorded data. The run below serves the
 page from test_each_case_of_an_event_is_told_what_the_snapshot_shows, posts the
 same comment ("why here?" on "moves to Tuesdays") through POST /api/event, and
-then lets each of Leaf's four carriers deliver it. Only ids, times and the
+then lets each of Leaf's four routes deliver it. Only ids, times and the
 page's path are pinned, so the file stays the same from run to run.
 
-A carrier is the route that takes new user input to the agent's task:
+A route is how new user input reaches the agent's task:
 
   leaf wait          The agent runs `leaf wait` in the background. It prints
                      the delivery as JSON and exits, and the harness hands that
@@ -4081,7 +4081,7 @@ A carrier is the route that takes new user input to the agent's task:
                      it. The agent acknowledges the delivery itself, with
                      `leaf wait --ack <delivery-id>`, and answers with
                      `leaf thread reply`. A Codex task running without Leaf's
-                     adapter uses this carrier, and so does a bare shell.
+                     adapter uses this route, and so does a bare shell.
   Claude Code hook   The agent keeps `leaf wait` running in the background, and
                      under Claude Code it prints one line naming the page and
                      exits, which opens a turn. Leaf's prompt hook runs as that
@@ -4100,14 +4100,14 @@ A carrier is the route that takes new user input to the agent's task:
                      turn's opening and final messages as the reply. Leaf
                      acknowledges the delivery once it enters that turn.
                      leaf.page's hosted agent and a `leaf codex launch`
-                     terminal use this carrier.
+                     terminal use this route.
 
-Each carrier freezes a delivery of its own. The envelope's shape is the same on
-all four, and it names its `carrier`. Two things differ, each stated once:
-`acknowledge` says how the agent confirms the delivery, or is null where the
-carrier confirmed it; and the comment's `answer` is a `reply`, for `leaf thread reply`,
-except on App Server, where it is a `turn` the turn's own messages write. The
-`handling` follows from the answer, so each agent is told only its own route.
+Each route freezes a delivery of its own. The envelope's shape is the same on
+all four. Two things differ, each stated once: `acknowledge` says how the agent
+confirms the delivery, or is null where the route confirmed it; and the
+comment's `answer` is a `reply`, for `leaf thread reply`, except on App Server,
+where it is a `turn` the turn's own messages write. The `handling` follows from
+the answer, so each agent is told only its own route.
 The agent's standing instructions (its harness contract, and on leaf.page the
 developer instructions) are not part of a delivery; test_website_server records
 leaf.page's.
@@ -4115,7 +4115,7 @@ leaf.page's.
 What this file records
 ----------------------
 
-One top-level key per carrier, holding exactly what reaches the agent's task:
+One top-level key per route, holding exactly what reaches the agent's task:
 
   leaf wait:         its output, from a bare shell.
   Claude Code hook:  the line the wait prints, and the prompt hook's
@@ -4131,21 +4131,21 @@ One top-level key per carrier, holding exactly what reaches the agent's task:
 JSON is shown as YAML, and each clause in a batch's `handling` as wrapped prose,
 so the four read side by side. Every text is exactly what the agent receives.
 
-After changing what a carrier sends, re-record this file and review the diff:
+After changing what a route sends, re-record this file and review the diff:
 
-  uv run pytest --regtest-reset -n0 tests/test_interact_contract.py::test_each_carrier_hands_the_agent_what_the_snapshot_shows"""
+  uv run pytest --regtest-reset -n0 tests/test_interact_contract.py::test_each_route_hands_the_agent_what_the_snapshot_shows"""
 
 
-def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
+def test_each_route_hands_the_agent_what_the_snapshot_shows(
     snapshot, page_dir, server, capsys, monkeypatch
 ):
     """The snapshot is the page a developer reads to compare what one comment puts
-    in front of the agent on each carrier: `leaf wait`, Claude Code's hooks, the
+    in front of the agent on each route: `leaf wait`, Claude Code's hooks, the
     Codex queue's pointer and the delivery it names, and the Codex App Server
     turn. These captures confirm nothing, so each sees the same pending input. Each
-    is taken from the code that carrier runs, after one real POST, so a change to
-    any carrier's framing or to a delivery's contents shows up as a diff under the
-    carrier it reaches."""
+    is taken from the code that route runs, after one real POST, so a change to
+    any route's framing or to a delivery's contents shows up as a diff under the
+    route it reaches."""
     (page_dir / "index.html").write_text(WALKTHROUGH_PAGE)
     publish(page_dir)
     posted = {
@@ -4177,7 +4177,9 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
             transaction,
             service_model.unacknowledged(transaction.events, transaction.cursor),
         )
-    queued = codex_model.offer_delivery(path, files_model.read_json(path), "queue")
+    queued = codex_model.offer_delivery(
+        path, files_model.read_json(path), turn_replies=False
+    )
     delivery_model.cmd_delivery_read(queued.payload["id"])
     read = capsys.readouterr().out
 
@@ -4237,7 +4239,7 @@ def test_each_carrier_hands_the_agent_what_the_snapshot_shows(
     started["toolOutput"]["output"] = readable(started["toolOutput"]["output"])
     snapshot.check(
         yaml_document(
-            CARRIER_WALKTHROUGH,
+            ROUTE_WALKTHROUGH,
             {
                 "leaf wait": {"output": readable(waited)},
                 "Claude Code hook": {

@@ -360,7 +360,6 @@ def delivery_json(reading: PageTick, harness: Harness | None) -> str:
 
     payload = freeze_delivery(
         [batch_data(reading.page_dir, reading.transaction, reading.batch)],
-        carrier="wait",
         acknowledge=wait_acknowledgement(harness),
     )
     return json.dumps(payload, ensure_ascii=False)

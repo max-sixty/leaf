@@ -175,6 +175,30 @@ button.lf-media-open { cursor: zoom-in; }
   border-radius: var(--r); background: var(--card); color: var(--ink); font: inherit;
   line-height: 17px; cursor: pointer; box-shadow: 0 1px 4px var(--shade); }
 .lf-composer-media-remove:is(:hover, :focus-visible) { border-color: var(--accent); }
+/* A drawing the draft carries is one tile: its own ink fitted to a thumbnail, then the
+   stroke undo and the removal, each a full-height press inside the tile's edge rather
+   than a corner badge an overflowing strip would cut. */
+.lf-composer-drawing { display: flex; align-items: stretch; box-sizing: border-box;
+  border: 1px solid var(--border-2); border-radius: var(--r);
+  background: var(--paper); overflow: hidden; }
+.lf-composer-drawing > .lf-composer-media-open { padding: 4px;
+  box-sizing: border-box; border: 0; border-radius: 0; }
+.lf-composer-drawing > .lf-composer-media-open > svg { display: block; width: 100%;
+  height: 100%; overflow: visible; }
+.lf-composer-drawing > .lf-composer-media-open path { fill: none;
+  stroke: var(--accent); stroke-width: 2px; stroke-linecap: round;
+  stroke-linejoin: round; }
+.lf-composer-drawing > .lf-composer-media-open { align-self: center; }
+.lf-composer-drawing > button { flex: none; display: grid; place-items: center;
+  inline-size: max(26px, var(--aim-floor)); min-block-size: var(--aim-floor);
+  padding: 0; border: 0;
+  border-inline-start: 1px solid var(--border-2); background: transparent;
+  color: var(--ink-2); cursor: pointer; }
+.lf-composer-drawing > button:hover { color: var(--accent); background: var(--chip); }
+.lf-composer-drawing > button:is(:focus-visible, .lf-focus-visible) {
+  outline: var(--focus-ring); --lf-focus-ring: composer-drawing;
+  outline-offset: calc(-1 * var(--focus-ring-w)); }
+.lf-composer-drawing > button > svg { inline-size: 14px; block-size: 14px; }
 /* Sent media can live in chrome-owned threads or page-owned widget threads.
    Scale the complete image in both surfaces; a tall capture must not become the whole
    thread, and nothing is cropped. */
@@ -1106,18 +1130,20 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      HeldNews holds arrivals where growing the transcript would move the reply. */
   .lf-thread-compact > .lf-thread-reply { margin: 0; padding: 12px var(--lf-thread-inset);
     position: sticky; bottom: var(--focus-ring-room); z-index: var(--lf-thread-title-z); }
-  /* The pinned row covers the turns that scroll under it, so a landing on any of them,
-     a Tab or a jump, stops above it with its ring clear, as `scroll-margin-top` stops
-     one below the title: the row's height (`--lf-thread-reply-h`, thread-card.js), the
-     ring's room the row stands above the list's content box, and the ring's room above
-     the row; the list's scroll padding is the room below the content box. The row
-     itself takes none. The caret lives in it, and a
-     cover the caret stands in makes the browser scroll on every key. */
-  :is(.lf-threads > .lf-thread-compact:has(> .lf-thread-reply)
-        > :not(.lf-thread-summary, .lf-thread-reply),
-      .lf-threads > .lf-thread-compact:has(> .lf-thread-reply)
-        > :not(.lf-thread-summary, .lf-thread-reply) *) {
-    scroll-margin-bottom: calc(var(--lf-thread-reply-h, 0px) + 2 * var(--focus-ring-room)); }
+  /* The pinned row is a sticky footer (theme.css, at `--lf-bottom`) over the turns
+     that scroll under it: its height (`--lf-thread-reply-h`, thread-card.js) and the
+     ring's room it stands above the list's content box. The runtime's reading of what
+     is on screen leaves that band out (geometry.js, `footerInset`), so a turn under it
+     has not been seen, and a landing on any of them, a Tab or a jump, stops above it
+     with its ring clear, as `scroll-margin-top` stops one below the title; the list's
+     scroll padding is the room below the content box. The row itself takes none. The
+     caret lives in it, and a cover the caret stands in makes the browser scroll on
+     every key. */
+  .lf-threads > .lf-thread-compact:has(> .lf-thread-reply) > .lf-thread-content {
+    --lf-bottom: calc(var(--lf-thread-reply-h, 0px) + var(--focus-ring-room)); }
+  :is(.lf-threads > .lf-thread-compact > .lf-thread-content,
+      .lf-threads > .lf-thread-compact > .lf-thread-content *) {
+    scroll-margin-bottom: calc(var(--lf-bottom) + var(--focus-ring-room)); }
   .lf-thread-compact > .lf-thread-reply::after { content: ""; position: absolute;
     inset-inline: 0; inset-block-start: 100%;
     block-size: calc(2 * var(--focus-ring-room));
@@ -1360,8 +1386,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     pointer-events: none; }
   .lf-drawing-mark path { fill: none; stroke: var(--mark-ink); stroke-width: 3px;
     stroke-linecap: round; stroke-linejoin: round; }
-  .lf-drawing-mark:is(.lf-drawing-active, .lf-drawing-pending) path {
+  .lf-drawing-mark:is(.lf-drawing-active, .lf-drawing-pending, .lf-drawing-parked) path {
     stroke: var(--accent); }
+  /* Unsent ink whose composer is put away stays on the page, dashed as a draft set
+     aside, apart from the drawing the open composer carries. */
+  .lf-drawing-mark.lf-drawing-parked path { stroke-dasharray: 7 6; }
   .lf-composer { display: none; }
   .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
     display: none !important; }
@@ -1448,7 +1477,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-command-reference-command[data-lf-selected="true"] { background: var(--chip); }
   .lf-command-reference-command:focus-visible { outline: var(--focus-ring);
     --lf-focus-ring: help-command; outline-offset: 1px; }
-  .lf-command-reference-command[data-lf-available="false"] { color: var(--muted); }
   .lf-page-map-toggle { display: none; }
   .lf-page-map-head { display: flex; align-items: center; gap: 8px; }
   .lf-page-map-head > strong { flex: 1; }

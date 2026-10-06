@@ -248,6 +248,12 @@ let panelComposer;
 let selectionComposer;
 let responseSurface;
 let drawing;
+// A composer's own controls for the drawing its draft holds, which the drawing
+// controller answers.
+const drawingEdits = {
+  undoStroke: (anchor) => drawing.undoStroke(anchor),
+  remove: (anchor) => drawing.removeDrawing(anchor),
+};
 let aim;
 let targets;
 let reactions;
@@ -416,7 +422,6 @@ app = mountApplication({
   reportPageError,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),
-  pageComposerDrawing: () => panelComposer.pageComposerDrawing(),
   wireInput: inputs.wireInput,
   anchorPlacement,
   anchorPaint,
@@ -588,7 +593,6 @@ panelComposer = createPanelComposer({
   stepThread: (...args) => navigation.stepThread(...args),
   firstUnread: () => app.read.firstUnread(),
   unreadCount: () => app.read.unreadCount(),
-  paintDrawings: drawingPaint.paint,
 });
 selectionComposer = createSelectionComposer({
   panelIsOpen,
@@ -612,6 +616,7 @@ selectionComposer = createSelectionComposer({
   landSent: landing.landSent,
   refreshThread: app.refreshThread,
   wireInput: inputs.wireInput,
+  drawingEdits,
 });
 const passageSelection = createPassageSelection({
   restore: anchorTravel.restoreSelection,
@@ -689,20 +694,20 @@ targets = createTargetPicker({
   armChanged: () => aim.armChanged(),
 });
 drawing = createDrawingController({
-  anchors: { aimTargetAt, resolveAnchor, pendingAt: anchorPlacement.pendingAt },
+  anchors: { aimTargetAt, resolveAnchor },
   pageGeometry: { refreshAim: pageGeometry.refreshAim },
   pointer: pointerAt,
   visibleTargets: targets.visibleTargets,
-  pageDrawing: panelComposer.pageComposerDrawing,
   anchoredDrawing: selectionComposer.draftDrawing,
-  composerDraft: () => ({
-    open: composerOpen,
-    anchor: pendingAnchor,
-    drawing: pendingDrawing,
-  }),
+  heldDrawings: selectionComposer.heldDrawings,
+  watchHeldDrawings: selectionComposer.watchHeldDrawings,
+  draftKey: selectionComposer.draftKey,
   openAnchoredDrawing: (anchor, drawing) =>
     selectionComposer.openComposer(anchor, "", { carry: true, drawing }),
-  openPageDrawing: panelComposer.openPageDrawing,
+  replaceDrawing: (anchor, drawing) => {
+    selectionComposer.setDraftDrawing(anchor, drawing);
+    drawingPaint.paint();
+  },
   setDesignMode: designMode.setActive,
   closeTargetPicker: targets.closeTargetPicker,
   closeReactionMode: () => reactions.setReact(false),

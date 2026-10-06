@@ -8915,7 +8915,7 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     assert contextual_versions.count() > 0
     # Number keys delegate to native version rows. Once the modal dismisses the
     # menu, the reference still names those routes but offers no action for them.
-    expect(contextual_versions.first).to_contain_text("open v")
+    expect(contextual_versions.first).to_contain_text("Open v")
     expect(
         reference.locator(
             '.lf-command-reference-command[data-lf-command^="version.open-v"]'
@@ -12752,7 +12752,7 @@ def test_the_key_line_names_the_selected_comment_and_its_other_responses(
     expect(line).to_contain_text("comment on the page")
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(help_el).to_contain_text("comment on the page")
+    expect(help_el).to_contain_text("Comment on the page")
     page.keyboard.press("Escape")
 
     # A real selection keeps the browser selection until Comment explicitly enters its
@@ -13020,7 +13020,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).to_be_visible()
     # Nothing is selected and the user is standing nowhere, so c's own row names the
     # page comment it enters. Threads navigation remains the separate g T command.
-    expect(help_el).to_contain_text("comment on the page")
+    expect(help_el).to_contain_text("Comment on the page")
     # The sequence's section stands on every page — the edges need no list — but holds
     # no row for a list this page hasn't got. Each row says the whole press from the
     # standing page rather than asking its heading to supply the first g.

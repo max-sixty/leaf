@@ -1753,8 +1753,11 @@ def test_gesture_close_does_not_own_future_or_local_motion(browser, fault):
     )
 
 
-@pytest.mark.parametrize("destination", ["window", "page"])
-@pytest.mark.parametrize("guard_mode", ["typing", "passive"])
+# Input attribution and the plane moved to are independent, so each guard mode is
+# paired with one destination rather than crossed with both.
+@pytest.mark.parametrize(
+    "guard_mode, destination", [("typing", "window"), ("passive", "page")]
+)
 @pytest.mark.parametrize("fault", ["", "holder_x", "holder_y", "child_x", "child_y"])
 def test_real_floating_plane_retains_local_motion(
     browser, serve, fault, guard_mode, destination

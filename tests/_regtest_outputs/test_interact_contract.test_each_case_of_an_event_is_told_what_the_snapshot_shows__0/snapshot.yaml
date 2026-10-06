@@ -136,7 +136,6 @@
 #        "format": "leaf-delivery-v3",
 #        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
-#        "carrier": "hook",
 #        "acknowledge": null,
 #        "batches": [
 #          {

@@ -4491,7 +4491,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     expect(page.locator(".lf-command-reference")).to_contain_text("Earlier version")
     expect(page.locator(".lf-command-reference")).to_contain_text("Latest version")
     expect(page.locator(".lf-command-reference")).to_contain_text("Earliest version")
-    expect(page.locator(".lf-command-reference")).to_contain_text("open v1")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Open v1")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
     expect(menu).to_be_hidden()
@@ -4923,7 +4923,7 @@ def test_a_row_the_platform_activates_names_both_of_its_keys(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_contain_text("⏎ / space")
-    expect(page.locator(".lf-command-reference")).to_contain_text("open that version")
+    expect(page.locator(".lf-command-reference")).to_contain_text("Open that version")
     page.keyboard.press("Escape")
 
     # And the key the row had been leaving unnamed does what the row now says it does,
@@ -5070,7 +5070,7 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
     # walk it saves.
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(help_el).to_contain_text("open the current page")
+    expect(help_el).to_contain_text("Open the current page")
     page.keyboard.press("Escape")
 
     # The first press opens and goes nowhere. A whole tick passes before the reading,
@@ -5099,7 +5099,7 @@ def test_the_current_page_has_a_menu_local_key(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     expect(help_el).to_be_visible()
-    expect(help_el).to_contain_text("open the current page")
+    expect(help_el).to_contain_text("Open the current page")
 
 
 def test_comparison_selection_moves_before_its_documents_finish_loading(browser, serve):

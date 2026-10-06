@@ -132,7 +132,13 @@ def test_snapshot_comparison_saves_evidence_without_opening_a_viewer(
         assert saved.getpixel((0, 0)) == (0, 0, 0)
 
 
-@pytest.mark.parametrize("case", CASES, ids=lambda case: case.name)
+# A colour scheme changes only pixels, so where no image is compared its cases would
+# repeat the light journey.
+@pytest.mark.parametrize(
+    "case",
+    [case for case in CASES if COMPARED or case.scheme == "light"],
+    ids=lambda case: case.name,
+)
 def test_message_delivery_appearance_and_first_frame(
     browser, serve, image_snapshot, request, case, monkeypatch, thread_expected_store
 ):
@@ -221,18 +227,13 @@ def test_accept_publishes_only_a_successful_unchanged_capture(
     monkeypatch.setattr(thread_snapshots, "expected_store", lambda: baseline)
     runner = CliRunner()
     published = []
-    accepted_pins = []
     monkeypatch.setattr(
         leaf_assets,
         "stage",
         lambda *args, **kwargs: published.append((args, kwargs)) or tmp_path,
     )
     monkeypatch.setattr(
-        leaf_assets,
-        "publish",
-        lambda *args, **kwargs: (
-            accepted_pins.append(kwargs) or "reviewed-assets-revision"
-        ),
+        leaf_assets, "publish", lambda *args: "reviewed-assets-revision"
     )
     assert runner.invoke(accept, [str(directory)]).exit_code != 0
     assert published == []
@@ -267,8 +268,10 @@ def test_accept_publishes_only_a_successful_unchanged_capture(
         for path in baseline.rglob("*")
         if path.is_file() and path.relative_to(baseline).parts[0] != profile
     }
-    assert options == {"replace_tree": True}
-    assert accepted_pins == [{"revision_key": "thread_snapshots_revision"}]
+    assert options == {
+        "replace_tree": True,
+        "revision_key": "thread_snapshots_revision",
+    }
     published.clear()
     image = next((directory / profile).glob("*.png"))
     image.write_bytes(image.read_bytes() + b"changed")

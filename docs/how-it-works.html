@@ -1579,7 +1579,10 @@ flowchart TD
               stays in place. The block's width is one of these values:
             </p>
             <ul id="column-widths">
-              <li id="width-column"><code>column</code> is the text measure.</li>
+              <li id="width-column">
+                <code>column</code> is the text measure. On a wide page, a
+                <code>column</code> block starts at the same left edge as the text.
+              </li>
               <li id="width-wide">
                 <code>wide</code> is up to 1080px. Every wide block uses this one width,
                 so wide blocks on a page line up with each other.
@@ -1591,11 +1594,11 @@ flowchart TD
             </ul>
             <p id="column-widths-declared">
               Each widget declares a default in the <a href="/registry/">registry</a>,
-              such as <code>wide</code> for <code>lf-board</code> and
-              <code>available</code> for <code>lf-diagram</code>. A
-              <code>data-width</code> attribute on any block sets a width or overrides
-              the default. Where one margin is narrower than the other, the block takes
-              more from the wider side.
+              such as <code>column</code> for <code>lf-options</code>,
+              <code>wide</code> for <code>lf-board</code> and <code>available</code> for
+              <code>lf-diagram</code>. A <code>data-width</code> attribute on any block
+              sets a width or overrides the default. Where one margin is narrower than
+              the other, the block takes more from the wider side.
             </p>
 
             <figure class="fig small" id="vocabulary-attribute">

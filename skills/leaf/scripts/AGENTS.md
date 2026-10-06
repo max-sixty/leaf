@@ -45,6 +45,8 @@ subpackage's initializer is only a marker, never a second API.
 - `delivery`, `session`, `hooks`, `hook_carrier`, `harness`: the delivery envelope
   and its receipt, status and the `leaf wait` watch, the harness hooks' entry, the
   prompt and Stop hooks as a session's carrier, and harness declarations;
+- `reconnect`: outage eligibility and once-per-outage notices, published under
+  the ownership, service, and session lifecycle locks;
 - `codex_state`: Codex delivery eligibility and shared delivery serialization paths;
 - `codex`, `codex_adapter`: Codex delivery records and App Server turn folds, and
   the detached carrier behind `leaf codex start`;

@@ -337,7 +337,7 @@ aim = createAim({
   drawModeActive: () => drawing.drawModeActive(),
   designMode,
   targetPicker: {
-    active: () => targets.pointerChoosing(),
+    active: () => targets.choosing(),
     choose: (...args) => targets.chooseTarget(...args),
   },
 });
@@ -686,6 +686,7 @@ targets = createTargetPicker({
   updateFab: responseSurface.updateFab,
   fabAnchorAt: responseSurface.fabAnchorAt,
   pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
+  armChanged: () => aim.armChanged(),
 });
 drawing = createDrawingController({
   anchors: { aimTargetAt, resolveAnchor, pendingAt: anchorPlacement.pendingAt },
@@ -859,8 +860,8 @@ if (!offlineInteractive) {
     pageSearchSurface,
     ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
     drawingPaint.layer,
-    targetPaint.targetTraceBox,
-    targetPaint.aimBox,
+    targetPaint.targetTraceLayer,
+    targetPaint.aimLayer,
     fabBar,
     liveEl,
     mediaViewer,

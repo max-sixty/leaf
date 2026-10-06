@@ -16,12 +16,22 @@ The input is a subject to present, or a delivery from a page already handed
 over: a named `leaf_delivery` tool output, a `leaf-delivery` element, or the
 envelope a `leaf wait` printed. A delivery starts at step 5 below; do
 not initialize or hand the page over again. With no subject in `$ARGUMENTS`,
-present the work already under discussion. Leaf's writing instructions supply
-defaults only; any user-specific instructions on tone, structure, depth, or format
-take precedence. When the user states a preference meant for every page, save it
-in your harness's memory, where later sessions will read it; Leaf keeps none.
+present the work already under discussion.
 
 $ARGUMENTS
+
+## Core principles
+
+- **Responsive.** Being responsive to the user is your first priority, ahead of
+  the work itself.
+- **Playable.** The user sees at a glance what each view wants of them, and every
+  state offers a move.
+- **Visual.** The page shows its subject in pictures and controls, and uses words
+  for what they cannot say.
+- **Current.** The page states what is true now, so a returning user finds each
+  outcome in place.
+- **Personalized.** The user's word decides the page's content and presentation;
+  Leaf's defaults apply only where they have said nothing.
 
 ## Operate
 
@@ -78,6 +88,13 @@ directory explicitly; export or copy anything that must outlive the page directo
 From the first hand-over on, include the page's exact URL in each turn's final
 response. Intermediate progress updates do not repeat it.
 
+## Stay responsive
+
+A message with no sign that you have it reads as ignored, so when input arrives,
+show the user at once that you have it and what you will do, or answer it when it
+needs no work. Give work that would hold up the next message to background workers;
+you keep the page. `references/conversation-loop.md` says how.
+
 ## Leaf soul
 
 Using Leaf should feel like playing a game: the user sees what the page wants
@@ -124,12 +141,10 @@ whole page and revise the affected content, title, headings, and order. Follow
 in place and remove superseded claims; the `page stamp` changelog and event log
 keep the history. Save freely and stamp meaningful checkpoints.
 
-Keep the user informed before starting work. Answer incoming input before
-continuing other work, including the work it requests, and write each step's
-status before starting it. Keep the watcher running and delegate work longer
-than a few minutes to background workers, so new comments can steer the next
-step. You retain the page while they run. Follow `references/conversation-loop.md`
-for status surfaces, timing, and worker access.
+## Follow the user's preferences
+
+When the user states a preference meant for every page, save it in your harness's
+memory, where later sessions will read it; Leaf keeps none.
 
 ## Improve Leaf through use
 

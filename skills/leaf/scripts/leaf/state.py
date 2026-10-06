@@ -20,6 +20,7 @@ import json
 import os
 import secrets
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -72,7 +73,7 @@ def require_cross_process_locking() -> None:
 
 
 @contextlib.contextmanager
-def flocked(path: Path):
+def flocked(path: Path, *, deadline: float | None = None):
     """An exclusive lock held while the block runs — the one serialization
     primitive here. The log serializes appends, cursor and status updates, and
     claim and delivery transitions. Stable purpose locks serialize contract or service
@@ -91,18 +92,38 @@ def flocked(path: Path):
     Every acquired descriptor is checked
     against its path, since a shared-path replacement while a taker waits must
     never let it enter a transaction on an inode other takers can no longer find.
-    This also covers a page replaced with a new event log."""
+    This also covers a page replaced with a new event log.
+
+    A `deadline`, a `time.monotonic()` reading, bounds the wait: a lock not taken
+    by then raises TimeoutError, for a taker that must finish by a harness's
+    deadline more than it must take the lock."""
     require_cross_process_locking()
     mode = "r+b" if path.name == EVENTS_FILE else "a+b"
     while True:
         with open(path, mode) as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
+            acquire(f, path, deadline)
             if still_named(f.fileno(), path):
                 try:
                     yield f
                 finally:
                     fcntl.flock(f, fcntl.LOCK_UN)
                 return
+
+
+def acquire(f, path: Path, deadline: float | None) -> None:
+    """Take `f`'s exclusive lock before `deadline` where one is given
+    (`flocked`); a deadline already past takes no lock at all."""
+    if deadline is None:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        return
+    while True:
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"{path} could not be acquired before the deadline")
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except BlockingIOError:
+            time.sleep(0.01)
 
 
 def still_named(held: int, path: Path) -> bool:

@@ -878,11 +878,12 @@ def test_every_suggestion_activation_dismisses_a_standing_selection(
 
 
 def test_the_floating_response_bar_has_one_compact_face(browser, serve):
-    """The input-first field and its reaction ellipsis read as one floating surface.
+    """The input-first field and the other responses it unfolds read as one floating
+    surface.
 
     The field is longer because it accepts words, but its type, border, colour, and
-    elevation belong to the same compact family as the adjacent press. Its radius stays
-    finite so it can grow into a multiline field without becoming a capsule."""
+    elevation belong to the same compact family as the presses beneath it. Its radius
+    stays finite so it can grow into a multiline field without becoming a capsule."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     box = page.locator("#replace").bounding_box()
     select(
@@ -901,9 +902,10 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
             "border-top-width", "border-top-style",
             "background-color"].map(p => [p, s.getPropertyValue(p)])); }"""
     raised = page.locator(".lf-fab-input").evaluate(family)
-    adjacent = page.locator(".lf-fab-bar .lf-response-more").evaluate(family)
+    page.keyboard.press("e")
+    adjacent = page.locator(".lf-fab-bar .lf-fab-suggest").evaluate(family)
     assert raised == adjacent, (
-        "the floating field and ellipsis are drawn differently:\n  "
+        "the floating field and its other responses are drawn differently:\n  "
         + "\n  ".join(
             f"{k}: {raised[k]!r} vs {adjacent[k]!r}"
             for k in raised
@@ -1498,12 +1500,32 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
             leaf_page(
                 "Code link",
                 '<h1 id="destination">Destination</h1>'
-                '<pre id="source"><code>See <a id="code-link" href="#destination">details</a></code></pre>',
+                '<pre id="source"><code>See <a id="code-link" href="#destination">details</a></code></pre>'
+                '<div id="scroller" style="height:80px;overflow:auto">'
+                '<div style="height:200px"></div>'
+                '<pre id="clipped"><code>Below the inner viewport.</code></pre></div>',
             )
         )
     )
-    page = open_page(browser, url)
+    page = open_page(
+        browser,
+        url,
+        init_script="""new MutationObserver(() => {
+          if (window.copyAtPresentation !== undefined ||
+              !document.body?.hasAttribute('data-lf-presented')) return;
+          window.copyAtPresentation = [...document.querySelectorAll('.lf-code-copy')]
+            .filter(node => node.getClientRects().length).length;
+        }).observe(document, {subtree:true, attributes:true,
+          attributeFilter:['data-lf-presented']});""",
+    )
+    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(2)
+    assert page.evaluate("window.copyAtPresentation") == 1
+    page.evaluate(
+        "window.detachedCodeSource = document.querySelector('#source'); detachedCodeSource.remove()"
+    )
     expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(1)
+    page.evaluate("document.querySelector('main').append(detachedCodeSource)")
+    expect(page.locator(".lf-chrome > .lf-code-copy")).to_have_count(2)
     page.locator("#source").focus()
     page.keyboard.press("Tab")
     expect(page.locator("#code-link")).to_be_focused()
@@ -1513,8 +1535,10 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
 
 @pytest.mark.parametrize("holder", ["disclosure", "tab"])
 def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, holder):
-    """Chrome copy controls leave with hidden code and return ready for a finger."""
-    source = '<pre id="source"><code>copy this source</code></pre>'
+    """Hidden and distant sources take no anchored control layout; Copy still works."""
+    source = '<pre id="source"><code>copy this source</code></pre>' + "".join(
+        f"<pre><code>example {index}</code></pre>" for index in range(99)
+    )
     contents = (
         "<details><summary>Code</summary>" + source + "</details>"
         if holder == "disclosure"
@@ -1533,10 +1557,17 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
         permissions=["clipboard-read", "clipboard-write"],
     )
     page = open_page(browser, url, context=context)
-    control = page.locator(".lf-chrome > .lf-code-copy")
-    expect(control).to_have_count(1)
+    controls = page.locator(".lf-chrome > .lf-code-copy")
+    expect(controls).to_have_count(100)
+    control = controls.first
     expect(page.locator("#source")).to_be_hidden()
     expect(control).not_to_be_in_viewport()
+    assert (
+        controls.evaluate_all(
+            "nodes => nodes.filter(node => node.getClientRects().length).length"
+        )
+        == 0
+    )
 
     opener = (
         page.locator("summary")
@@ -1552,6 +1583,13 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     rendered(page)
     expect(page.locator("#source")).to_be_visible()
     expect(control).to_be_in_viewport()
+    assert (
+        0
+        < controls.evaluate_all(
+            "nodes => nodes.filter(node => node.getClientRects().length).length"
+        )
+        < 100
+    )
     button = control.get_by_role("button")
     button.tap()
     expect(button).to_have_accessible_name("Code copied")
@@ -1576,9 +1614,10 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
 ):
     """Copy uses source, including whitespace, rather than rendered annotations.
 
-    A numbered widget and both ordinary block shapes share the same gesture. The
-    control stays reachable beside horizontally scrolling code, and a revision
-    updates its source or removes it with its block without duplicating controls.
+    A numbered widget and both ordinary block shapes share the same gesture.
+    The retained widget's Copy returns after a hidden widget is detached and
+    reconnected. The control stays reachable beside horizontally scrolling code,
+    and a revision updates its source or removes it without duplicating controls.
     """
     colored = '\n  print("' + "long source " * 30 + '")\t\n'
     suffix = "VISIBLE_END"
@@ -1705,7 +1744,18 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     copy("#plain", document_controls.nth(1), plain, keyboard=True)
     page.keyboard.press("Tab")
     expect(page.locator("#after-copy")).to_be_focused()
-    copy("#numbered > pre", page.locator("#numbered > .lf-code-copy"), widget)
+    widget_copy = page.locator("#numbered > .lf-code-copy")
+    page.evaluate("document.querySelector('#numbered').style.display = 'none'")
+    expect(widget_copy).to_have_css("display", "none")
+    page.evaluate(
+        "window.detachedCodeWidget = document.querySelector('#numbered'); detachedCodeWidget.remove()"
+    )
+    rendered(page)
+    page.evaluate("""() => {
+      document.querySelector('#draft').before(detachedCodeWidget);
+      detachedCodeWidget.style.removeProperty('display');
+    }""")
+    copy("#numbered > pre", widget_copy, widget)
 
     pre = page.locator("#colored")
     pre.scroll_into_view_if_needed()
@@ -5863,8 +5913,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     expect(thread.locator("leaf-text")).to_be_visible()
 
     # News updates the root's workflow line in both views, in place.
-    inline_status = thread.locator(":scope > .lf-thread-root-meta .lf-msg-sending")
-    panel_status = panel_thread.locator(".lf-thread-root-meta .lf-msg-sending")
+    inline_status = thread.locator(
+        ":scope > .lf-thread-transcript > .lf-msg:first-child > .lf-msg-head .lf-msg-sending"
+    )
+    panel_status = panel_thread.locator(
+        ".lf-thread-transcript > .lf-msg:first-child > .lf-msg-head .lf-msg-sending"
+    )
     expect(inline_status).to_have_text("Sent")
     expect(panel_status).to_have_text("Sent")
     inline_status.evaluate("node => { node.dataset.identityProbe = 'inline'; }")

@@ -495,21 +495,12 @@ def delivery() -> None:
     """Handle transport-independent Leaf deliveries."""
 
 
-@delivery.command("ack", short_help="Confirm one delivery you have read in full.")
-@click.argument("delivery_id", metavar="DELIVERY_ID")
-def delivery_ack(delivery_id: str) -> None:
-    """Confirm DELIVERY_ID once all of it is in your context, so the user's moves
-    read Picked up. Confirm nothing whose output was cut off; `leaf wait --ack`
-    confirms the same way and then waits for the next delivery."""
-    from leaf.delivery import receive_delivery
-
-    receive_delivery(delivery_id)
-
-
 @delivery.command("read", short_help="Read one immutable delivery envelope.")
 @click.argument("delivery_id", metavar="DELIVERY_ID")
 def delivery_read(delivery_id: str) -> None:
-    """Print DELIVERY_ID with its complete batches and response requirements."""
+    """Print DELIVERY_ID with its complete batches and response requirements. Where
+    a harness's hook offered it to this session as a pointer, reading it confirms
+    it, so the user's moves read Picked up."""
     from leaf.delivery import cmd_delivery_read
 
     cmd_delivery_read(delivery_id)

@@ -29,6 +29,7 @@ from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
 
+import psutil
 import pytest
 import yaml
 from click.testing import CliRunner
@@ -259,11 +260,11 @@ STATED_TIMEOUT = 60
 """How long a pure-Python wait gives another thread or process to state its fact.
 
 The deadline separates a product that never states the fact from a machine that
-has not reached it yet, so it is generous rather than tight. Two workers share
-one runner's cores with a browser, and a stretch of ordinary work there runs
-many times slower than it does on an unloaded host: a wait sized as a small
-multiple of the unloaded duration reddens `main` on the runs where the other
-worker happens to be driving Chrome. On a local host at load 230 over 18 cores,
+has not reached it yet, so it is generous rather than tight. Several workers
+share one runner's cores with their browsers, and a stretch of ordinary work there
+runs many times slower than it does on an unloaded host: a wait sized as a small
+multiple of the unloaded duration reddens `main` on the runs where another worker
+happens to be driving Chrome. On a local host at load 230 over 18 cores,
 two concurrent `page init`s took up to 25s and three `leaf codex start`
 commands 20s. `SERVED_TIMEOUT_MS` is the browser side's counterpart.
 
@@ -1571,9 +1572,10 @@ def codex_program(tmp_path_factory):
     name. The name has to be the executable's own, because what a process reports
     is what the kernel loaded — a `#!` script and a symlink both wear the
     interpreter's, and a copy of /bin/sh is killed on sight on macOS, where that
-    binary's signature is the system's."""
+    binary's signature is the system's. A framework Python's sys.executable is
+    a launcher that re-execs Python.app, so copy the running binary itself."""
     program = tmp_path_factory.mktemp("codex-program") / "codex"
-    shutil.copy(sys.executable, program)
+    shutil.copy(psutil.Process().exe(), program)
     return program
 
 
@@ -2032,15 +2034,13 @@ SnapshotHandlerRegistry.add_handler(
 
 
 def consume_pending_input(session_id):
-    """A test reader takes a complete envelope and explicitly confirms it."""
+    """Hand the session its pending input as a hook does inline: one complete
+    envelope, confirmed as it is handed over."""
     from leaf import delivery
-    from leaf.hook_carrier import hook_acknowledgement
 
     batches = delivery.pending_batches(session_id)
     if not batches:
         return None
-    payload = delivery.freeze_delivery(
-        batches, carrier="hook", acknowledge=hook_acknowledgement
-    )
-    delivery.receive(payload, session_id)
+    payload = delivery.freeze_delivery(batches, carrier="hook")
+    delivery.receive_held(payload, session_id)
     return payload

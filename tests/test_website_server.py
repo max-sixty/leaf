@@ -355,7 +355,7 @@ def test_the_website_harness_delivers_into_the_existing_codex_thread(
     )
     reserved = []
     monkeypatch.setattr(
-        "leaf.codex.reserve_delivery_reply",
+        "leaf.thread.reserve_delivery_reply",
         lambda *args: reserved.append(args),
     )
     requests = []
@@ -1220,7 +1220,6 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
     # the status to the harness.
     instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
     assert "Leave the page's status to the harness" in instructions
-    assert "leaf page check" not in instructions
 
 
 def test_a_timed_out_app_server_is_stopped_before_startup_retries(
@@ -2897,7 +2896,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     told(page)
     rendered(page)
     thread = page.locator(f'.lf-threads > [data-id="{comment["id"]}"]')
-    metadata = thread.locator(".lf-thread-root-meta > .lf-msg-head")
+    metadata = thread.locator(
+        ".lf-thread-transcript > .lf-msg:first-child > .lf-msg-head"
+    )
     expect(metadata.locator(".lf-msg-sending")).to_have_count(1)
     news = thread.locator(".lf-thread-news")
     expect(news).to_be_visible()
@@ -3026,7 +3027,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
     def unopenable(*_args):
         raise OSError("the page could not be opened")
 
-    monkeypatch.setattr(leaf_codex.DeliveryReply, "_set_state", unopenable)
+    monkeypatch.setattr("leaf.thread.DeliveryReply._set_state", unopenable)
     with pytest.raises(OSError, match="could not be opened"):
         turn.commit({"id": "app-server-turn", "status": "completed", "items": []})
 
@@ -4637,9 +4638,9 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
             "message": {"content": [{"type": "thinking", "thinking": ""}]},
             "received_at": at(2.0),
         },
-        call(4.0, ("ack", "leaf delivery ack d1"), ("read", "cat threads.md")),
+        call(4.0, ("start", "leaf task start . c1 x"), ("read", "cat threads.md")),
         result(4.1, "read"),
-        result(5.0, "ack"),
+        result(5.0, "start"),
         call(7.0, ("edit", "leaf page check .")),
         result(8.0, "edit"),
         call(12.0, ("reply", "leaf thread reply . --for test-comment")),
@@ -4651,7 +4652,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
             "phase": "tool",
             "startMs": 4000,
             "ms": 1000,
-            "calls": ["leaf delivery ack d1", "cat threads.md"],
+            "calls": ["leaf task start . c1 x", "cat threads.md"],
         },
         {"phase": "model", "startMs": 5000, "ms": 2000},
         {"phase": "tool", "startMs": 7000, "ms": 1000, "calls": ["leaf page check ."]},

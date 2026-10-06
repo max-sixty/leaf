@@ -52,9 +52,11 @@ A short case is one prompt with native assertions: `vars.prompt` carries the
 request, and `assert` holds `regex`, `llm-rubric` or JavaScript assertions. The
 runner prepends a line telling the agent to use the Leaf skill. The agent may only
 read (Claude Code's Skill and Read tools; Codex's read-only sandbox), so a prompt
-that needs a page asks for its HTML in the reply. The leading comment records where
-the case came from and what it measured, `metadata.purpose` the behavior it pins,
-and `metadata.tags` its area.
+that needs a page asks for its HTML in the reply, and one that grades what the
+agent would do asks for the commands it would run. Opus 5.5's safeguards refuse a
+prompt asking for its tool calls with their JSON input. The leading comment records
+where the case came from and what it measured, `metadata.purpose` the behavior it
+pins, and `metadata.tags` its area.
 
 A complete task instead names `metadata.executor`, a `leaf_dev` module, and
 `metadata.scenario`, a key of that module's `CASES`. The executor builds fixtures, runs the agent

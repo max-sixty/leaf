@@ -1124,11 +1124,23 @@ TRACKED_ASK_PAGE = leaf_page(
   <h1>Retention</h1>
   <lf-ask id="tracked">
     <h3>How long should logs be kept?</h3>
-    <table id="tracked-figure">
+    <figure id="tracked-evidence"><table id="tracked-figure">
       <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
         <tr><td>Warm</td><td class="num">120</td></tr></tbody>
     </table>
+    <lf-board id="tracked-board">
+      <lf-column id="track-a" label="First"></lf-column>
+      <lf-column id="track-b" label="Second"></lf-column>
+      <lf-column id="track-c" label="Third"></lf-column>
+      <lf-column id="track-d" label="Fourth"></lf-column>
+    </lf-board></figure>
+    <lf-board id="direct-board">
+      <lf-column id="direct-a" label="First"></lf-column>
+      <lf-column id="direct-b" label="Second"></lf-column>
+      <lf-column id="direct-c" label="Third"></lf-column>
+      <lf-column id="direct-d" label="Fourth"></lf-column>
+    </lf-board>
     <lf-ask id="nested">
       <h4>Archive the warm tier too?</h4>
       <p id="nested-premise">It holds the last quarter.</p>
@@ -1143,7 +1155,7 @@ TRACKED_ASK_PAGE = leaf_page(
     </lf-options>
   </lf-ask>
 """,
-    layout="wide",
+    head="<style>:root { --col: 1000px; }</style>",
 )
 
 
@@ -1151,7 +1163,9 @@ def test_an_ask_framing_a_figure_sets_its_options_beside_it(browser, serve):
     """An Ask whose heading, figure and one option list come in that order sets the
     list in a track beside the figure where the Ask has the room, and stacks it below
     where it hasn't. The track belongs to that Ask alone: an ordinary Ask held among
-    its evidence finds the same named container and keeps its own block flow."""
+    its evidence finds the same named container and keeps its own block flow. A board's
+    preferred minimum, whether held inside a figure or standing as a direct context
+    block, cannot spend the answer track's room."""
     page = open_page(browser, serve(TRACKED_ASK_PAGE))
     geometry = """() => {
       const box = (id) => document.getElementById(id).getBoundingClientRect();
@@ -1162,6 +1176,10 @@ def test_an_ask_framing_a_figure_sets_its_options_beside_it(browser, serve):
         below: options.top >= figure.bottom,
         nestedFloat: style('nested-premise').float,
         nestedListPosition: style('nested-choice').position,
+        boardRight: box('tracked-board').right,
+        directRight: box('direct-board').right,
+        evidenceRight: box('tracked-evidence').right,
+        answersLeft: options.left,
       };
     }"""
     resized(page, 1440, 900)
@@ -1169,6 +1187,10 @@ def test_an_ask_framing_a_figure_sets_its_options_beside_it(browser, serve):
     assert wide["beside"], wide
     assert wide["nestedFloat"] == "none", wide
     assert wide["nestedListPosition"] != "sticky", wide
+    assert wide["boardRight"] <= wide["evidenceRight"] + 1, wide
+    assert wide["directRight"] <= wide["evidenceRight"] + 1, wide
+    assert wide["boardRight"] < wide["answersLeft"], wide
+    assert wide["directRight"] < wide["answersLeft"], wide
     resized(page, 700, 900)
     narrow = page.evaluate(geometry)
     assert narrow["below"], narrow
@@ -9535,9 +9557,6 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     page = open_page(browser, url)
     resized(page, 1200, 900)
     inline = page.locator(f'#cd-q .lf-msg[data-event="{message["id"]}"]')
-    inline_thread = page.locator(
-        f'#cd-q .lf-page-thread:has(.lf-msg[data-event="{message["id"]}"])'
-    )
     expect(inline.locator(".lf-msg-body")).to_have_text("The north bracket fit.")
     page.locator(".lf-threads-toggle").click()
     panel = page.locator(f'.lf-msg[data-mid="{message["id"]}"]')
@@ -9577,15 +9596,9 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
     expect(inline.locator(".lf-msg-body")).to_contain_text("The north bracket fits.")
     expect(panel.locator(".lf-msg-text")).to_contain_text("The north bracket fits.")
     expect(panel.locator("pre code [data-lf-syn]").first).to_have_text("def")
-    # The disclosure is on the head, and a thread's first message lends its head to the
-    # card, where the thread's own actions sit beside the author. So the mark belongs to
-    # the card holding the message rather than to the message node, on both surfaces.
-    expect(inline_thread.locator(".lf-thread-root-meta .lf-edited")).to_have_text(
-        "edited"
-    )
-    expect(panel_thread.locator(".lf-thread-root-meta .lf-edited")).to_have_text(
-        "edited"
-    )
+    # Editing updates the original message's disclosure in both views.
+    expect(inline.locator(":scope > .lf-msg-head .lf-edited")).to_have_text("edited")
+    expect(panel.locator(":scope > .lf-msg-head .lf-edited")).to_have_text("edited")
     expect(page.locator(f'.lf-msg[data-mid="{revision["id"]}"]')).to_have_count(0)
     assert page.evaluate(
         f"""() => window.__editedInline === document.querySelector(

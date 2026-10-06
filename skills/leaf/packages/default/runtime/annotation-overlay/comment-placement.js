@@ -77,9 +77,7 @@
    drafting, the latest turn and the draft's words; a surface with no turns, the
    comment box, never asks, and its free edges grow as floating.js holds them. The held
    edge is also the one floating.js stands the surface by, so the browser grows it from
-   there. A turn that joins at the foot grows the card in the layout that draws it, and
-   the placement that answers it comes after that layout, so the caller asks first
-   (`joinsAtFoot`) and stands the card by its foot.
+   there.
 
    Every box here is a client rectangle. Floating UI works in the surface's positioning
    space, which a transformed ancestor scales, so each length crosses by the reference's
@@ -303,22 +301,6 @@ export function commentPlacement() {
     held = null;
     reading = null;
   };
-  // A turn changes the transcript on one pass, then the card's own size changes its
-  // measurement on the next. Borrow the reply's line for that turn, keyed by the
-  // projected message's stable key so admitting a Send keeps the same hold. A later
-  // reading turn or a new edit releases it; an arriving turn while drafting borrows it
-  // anew, and a Send borrows it through the handoff out of the reply row.
-  const keepsReplyLine = ({ turned, drafting, latest, draftText }) => {
-    const newDraft = drafting && !held?.drafting;
-    const continuedDraft = drafting && draftText && draftText !== held?.draftText;
-    return Boolean(
-      latest &&
-      !newDraft &&
-      !continuedDraft &&
-      ((held?.replyTurn && held.replyTurn === latest.key) ||
-        (turned && (drafting || (held?.drafting && latest.author === "user")))),
-    );
-  };
   const line = (clear, row) =>
     side === "bottom"
       ? (clear?.bottom ?? row)
@@ -345,7 +327,20 @@ export function commentPlacement() {
       if (hold) held = { ...hold, transcript };
       if (fresh) held = null;
       const turned = held && Math.abs(transcript - held.transcript) > 0.5;
-      const keepReplyLine = keepsReplyLine({ turned, drafting, latest, draftText });
+      // A turn changes the transcript on one pass, then the card's own size changes
+      // its measurement on the next. Borrow the reply's line for that turn, keyed by
+      // the projected message's stable key so admitting a Send keeps the same hold. A
+      // later reading turn or a new edit releases it; an arriving turn while drafting
+      // borrows it anew, and a Send borrows it through the handoff out of the reply row.
+      const newDraft = drafting && !held?.drafting;
+      const continuedDraft = drafting && draftText && draftText !== held?.draftText;
+      const keepReplyLine = Boolean(
+        latest &&
+        !newDraft &&
+        !continuedDraft &&
+        ((held?.replyTurn && held.replyTurn === latest.key) ||
+          (turned && (drafting || (held?.drafting && latest.author === "user")))),
+      );
       reading = {
         transcript,
         drafting,
@@ -357,11 +352,6 @@ export function commentPlacement() {
       // top/foot reading, including the normal above-side and reply-line holds.
       return !hold && (keepReplyLine || (!drafting && side === "top")) ? "foot" : "top";
     },
-    // Whether the turn about to join the transcript holds the card by its foot, read
-    // before the turn is drawn, so the caller can stand the card by it first
-    // (floating.js, `hold`) and the turn grows the card up in the layout that adds it.
-    joinsAtFoot: ({ drafting, latest, draftText = "" }) =>
-      Boolean(held) && keepsReplyLine({ turned: true, drafting, latest, draftText }),
     // The held edge's offset for `options`' `hold`, and the height between the held
     // top and foot, which caps a held surface no shorter than it last stood.
     heldAt: (edge) => held && { [edge]: held[edge] },

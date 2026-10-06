@@ -8472,7 +8472,9 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
         }"""
     )
     if surface in {"card", "composer"}:
-        message = page.locator(".lf-margin-preview .lf-msg", has_text="Sent from the box.")
+        message = page.locator(
+            ".lf-margin-preview .lf-msg", has_text="Sent from the box."
+        )
         # Compare painted ground, rather than just the inherited computed colour:
         # a second translucent layer can have the same colour and paint darker.
         for time in [0, 600, 1199]:

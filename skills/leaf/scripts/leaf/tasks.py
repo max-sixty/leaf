@@ -68,6 +68,7 @@ repository depends on them.
 import sys
 from pathlib import Path
 
+from .asks import settles
 from .events import conversation_turns, is_reaction, note_settlements, taken_back
 
 OUTCOMES = ("done", "failed", "dropped")
@@ -295,7 +296,11 @@ def ask_tasks(asks: dict) -> tuple[list[dict], list[dict]]:
 
 
 def page_tasks(
-    log: list[dict], thread_asks: dict, threads: list[dict], ends: dict[str, dict]
+    log: list[dict],
+    thread_asks: dict,
+    threads: list[dict],
+    ends: dict[str, dict],
+    tokens: dict,
 ) -> tuple[list[dict], list[dict]]:
     """Every task the page holds beside the page version's own Asks
     (`ask_tasks`), as the open ones and the ended ones, each with its `owner`, how it
@@ -308,8 +313,8 @@ def page_tasks(
     user in prose is a task on the user under that turn's id, open until the user
     answers it in the thread, settles it with a reaction, or the agent ends it with a
     `task_end` in `ends`. An answered question is done, its outcome the user's move
-    that answered it (`_answer`), so the Queue panel lists it with the other ended
-    tasks."""
+    that answered it (`_answer`, reading reactions by `tokens`, the registry's
+    `$reactions.tokens`), so the Queue panel lists it with the other ended tasks."""
     standing, ended = ask_tasks(thread_asks)
     held = {task["id"] for task in log}
     for thread in threads:
@@ -319,7 +324,7 @@ def page_tasks(
                 outcome = None
             elif message["id"] in ends and message["id"] not in held:
                 outcome = ends[message["id"]]
-            elif message.get("awaits") and (answer := _answer(thread, message)):
+            elif message.get("awaits") and (answer := _answer(thread, message, tokens)):
                 outcome = {"state": "done", **_outcome(answer, None)}
             else:
                 continue
@@ -339,21 +344,22 @@ def page_tasks(
     return standing, ended
 
 
-def _answer(thread: dict, question: dict) -> dict | None:
+def _answer(thread: dict, question: dict, tokens: dict) -> dict | None:
     """The user's move that answered a question asked with `--awaits` and no longer
-    standing: their next turn in its thread, or their reaction on it. A question the
-    agent asked again before the user moved has none until the user answers the later
-    one, which answers both."""
+    standing: their next turn in its thread, or a reaction on it that settles it, by
+    the rule that takes it off them (`asks.settles`). A question the agent asked again
+    before the user moved has none until the user answers the later one, which
+    answers both."""
+    turns = conversation_turns(thread)
     return next(
         (
             message
             for message in thread["msgs"]
-            if message["author"] == "user"
-            and message["seq"] > question["seq"]
+            if message["seq"] > question["seq"]
             and (
-                message.get("parent") == question["id"]
+                settles(message, question["id"], tokens)
                 if is_reaction(message)
-                else message in conversation_turns(thread)
+                else message["author"] == "user" and message in turns
             )
         ),
         None,

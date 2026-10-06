@@ -18,6 +18,18 @@ def local_ask_entry(entry: dict) -> bool:
     return entry.get("x-awaits") is not None
 
 
+def settles(reaction: dict, turn: str, tokens: dict) -> bool:
+    """Whether a message is the user's reaction on the agent's `turn` with a token
+    the registry declares `settles` (`$reactions`), which answers the question that
+    turn asks as a reply would. `tokens` is `$reactions.tokens`."""
+    return (
+        is_reaction(reaction)
+        and reaction["author"] == "user"
+        and reaction.get("parent") == turn
+        and bool((tokens.get(reaction["token"]) or {}).get("settles"))
+    )
+
+
 def thread_awaits_user(
     thread_id: str,
     thread: dict,
@@ -55,11 +67,7 @@ def thread_awaits_user(
             any(awaiting.get(identity, False) for identity in asks) if asks else None
         )
         settled = message["id"] in ended or any(
-            is_reaction(reaction)
-            and reaction["author"] == "user"
-            and reaction.get("parent") == message["id"]
-            and (tokens.get(reaction["token"]) or {}).get("settles")
-            for reaction in thread["msgs"]
+            settles(reaction, message["id"], tokens) for reaction in thread["msgs"]
         )
         if message["kind"] != "reply":
             if structural is False:

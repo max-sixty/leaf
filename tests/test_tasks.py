@@ -230,6 +230,53 @@ def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir):
     )
 
 
+def test_a_question_ends_at_the_reaction_that_settles_it(page_dir):
+    """A reaction answers a question only when its token settles (`$reactions`): one
+    that doesn't leaves the question on the user, and the one that does is the
+    outcome the ended question records."""
+    publish(page_dir)
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Which colour?"},
+    )
+    question = written(
+        leaf(
+            "thread",
+            "reply",
+            page_dir,
+            "--for",
+            comment["id"],
+            "--text",
+            "Warm or cool?",
+            "--awaits",
+        )
+    )
+
+    def react(token):
+        return append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "user",
+                "revision": 1,
+                "parent": question["id"],
+                "token": token,
+            },
+        )
+
+    react("clarify")
+    assert question["id"] in [item["id"] for item in state_json(page_dir)["tasks"]]
+    keep = react("keep")
+    assert question["id"] not in [item["id"] for item in state_json(page_dir)["tasks"]]
+    served = full_state(page_dir, events_model.read_events(page_dir))
+    [answered] = [
+        task
+        for task in served["browser"]["ended_tasks"]
+        if task["id"] == question["id"]
+    ]
+    assert (answered["state"], answered["outcome"]["id"]) == ("done", keep["id"])
+
+
 def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     """A thread whose reply failed is one item on the user, named by the thread, and a
     question the agent then leaves in it makes it that question rather than a second

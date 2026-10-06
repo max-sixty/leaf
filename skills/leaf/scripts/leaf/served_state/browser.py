@@ -280,7 +280,11 @@ def browser_state(
         for task in canonical_tasks(events)
     ]
     tasks, ended_tasks = page_tasks(
-        log, thread["asks"], thread["threads"], task_ends(events)
+        log,
+        thread["asks"],
+        thread["threads"],
+        task_ends(events),
+        active_registry.get("$reactions", {}).get("tokens", {}),
     )
     _apply_thread_attention(
         thread["threads"],

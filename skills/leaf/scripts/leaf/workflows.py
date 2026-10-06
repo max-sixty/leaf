@@ -134,6 +134,7 @@ def admission_tasks(readings) -> list[dict]:
             for identity, held in threads.items()
         ],
         task_ends(events),
+        readings.registry.get("$reactions", {}).get("tokens", {}),
     )
     page_standing, page_ended = (
         ask_tasks(read_document(page, threads).asks) if page is not None else ([], [])

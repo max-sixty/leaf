@@ -1110,13 +1110,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      scroll padding is the room below the content box. The row itself takes none. The
      caret lives in it, and a cover the caret stands in makes the browser scroll on
      every key. */
-  .lf-threads > .lf-thread-compact:has(> .lf-thread-reply)
-      > :not(.lf-thread-summary, .lf-thread-reply) {
+  .lf-threads > .lf-thread-compact:has(> .lf-thread-reply) > .lf-thread-content {
     --lf-bottom: calc(var(--lf-thread-reply-h, 0px) + var(--focus-ring-room)); }
-  :is(.lf-threads > .lf-thread-compact:has(> .lf-thread-reply)
-        > :not(.lf-thread-summary, .lf-thread-reply),
-      .lf-threads > .lf-thread-compact:has(> .lf-thread-reply)
-        > :not(.lf-thread-summary, .lf-thread-reply) *) {
+  :is(.lf-threads > .lf-thread-compact > .lf-thread-content,
+      .lf-threads > .lf-thread-compact > .lf-thread-content *) {
     scroll-margin-bottom: calc(var(--lf-bottom) + var(--focus-ring-room)); }
   .lf-thread-compact > .lf-thread-reply::after { content: ""; position: absolute;
     inset-inline: 0; inset-block-start: 100%;

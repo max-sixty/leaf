@@ -5491,7 +5491,7 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     )
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
-    bar.locator(".lf-response-more").click()
+    page.keyboard.press("e")
     # The choices stay with the captured selection. The standing reaction that replaces
     # them must keep that same visual coordinate even though the durable section
     # coordinate belongs to the surrounding id-bearing section.

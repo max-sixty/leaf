@@ -1252,7 +1252,7 @@ def test_send_grows_thread_around_the_words(
             <= 1
         ), "Typing a short comment may grow its field, but must not carry it"
     if options:
-        page.locator(".lf-response-more").click()
+        page.keyboard.press("Tab")
         rendered(page)
         page.locator(".lf-fab-input").focus()
         rendered(page)

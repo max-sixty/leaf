@@ -111,6 +111,14 @@ has tried; settle that before building it.
   Threads and Approve off the row until it ends, Android's back gesture closes nothing
   (the Escape ladder could answer it), Draw mode blocks scrolling and zoom, and an
   `lf-draft` has no close that keeps the edit.
+- **Decide whether the response bar's reactions and Suggest need a pointer route.**
+  The floating comment bar shows no ellipsis (⋯), so its field spans the bar and a sent
+  message keeps the card's measure. Its other responses, Suggest and the emoji
+  reactions, open only by key: Tab from the field, or `e`. A mouse alone has no
+  route to them, and a finger has none at all. Decide whether to make them more
+  available, such as a banner control under a coarse pointer, a reaction row on the
+  sent card, or a control that keeps the field's measure
+  (`skills/leaf/assets/runtime/composing/selection.js`).
 - **Give the thread panel's touch grip its own space.** Reserve room for the grip
   and collapse inactive reply controls if more thread cards should fit.
 

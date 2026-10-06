@@ -830,8 +830,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           display: none; }
 .lf-fab-bar[data-lf-presentation="inline"].lf-response-open { flex-wrap: wrap; }
 .lf-fab-bar[data-lf-presentation="inline"].lf-response-open
-          > .lf-response-more { display: none !important; }
-.lf-fab-bar[data-lf-presentation="inline"].lf-response-open
           > .lf-response-options { display: inline-flex; align-items: center;
           flex-wrap: wrap; gap: 4px; max-width: 100%; }
 .lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media { display: flex;

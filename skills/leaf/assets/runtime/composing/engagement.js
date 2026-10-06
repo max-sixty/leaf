@@ -8,12 +8,7 @@ import { pageSelection } from "./capture.js";
 import { draftOf } from "./input.js";
 import { composerOpen } from "./selection.js";
 
-export function createEngagement({
-  hasPending,
-  fabAnchorAt,
-  targetPickerOpen,
-  pageComposerDrawing,
-}) {
+export function createEngagement({ hasPending, fabAnchorAt, targetPickerOpen }) {
   function unaccountedGesture() {
     return runtime.undoing || hasPending() || dragHeld();
   }
@@ -23,7 +18,6 @@ export function createEngagement({
     const replyDraft = replyCompositionHasDraft(active);
     return (
       composerOpen ||
-      Boolean(pageComposerDrawing()) ||
       targetPickerOpen() ||
       Boolean(fabAnchorAt()) ||
       Boolean(pageSelection()) ||

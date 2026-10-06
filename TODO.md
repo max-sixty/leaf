@@ -379,6 +379,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
   works the same wherever panes stand. Draw it as a playground before building it.
   Trigger: a user loses track of the active pane, or tabs through a pane to reach the
   next one.
+- **Expand everything waiting with a keypress.** A held notice, a collapsed summary,
+  and a folded card or section each open one at a time, with Enter or Space on it,
+  `g f` for a page's sections, or a `t` walk for a thread's held news. Nothing opens
+  them all at once, yet a page-level key spent on that alone seems wasteful. Think
+  about which surface should own it, such as one command on the panel. Trigger: a
+  user steps through notices one by one to catch up.
 - **#23 — Workspace persistence:** use repeated real tasks to decide whether
   users return and how much customization Leaf should own.
 - **Visual review beside Leaf:** coordinate a real browser target through the harness

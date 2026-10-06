@@ -1397,7 +1397,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
      * scrolls nothing of its own (below). The press's own face fades the names under
      * it into the strip's background, so the layer's edge fade is off. A finger or a
      * trackpad scrolls the strip itself, and an opened tab brings itself into view. */
-  .lf-tabstrip { display: flex; padding: 8px 8px 0;
+  .lf-tabstrip { display: flex; padding: 8px var(--lf-tabstrip-pad) 0;
+    --lf-tabstrip-pad: 8px;
     box-sizing: border-box; min-block-size: var(--lf-tabstrip-h);
     border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
     --lf-tabstrip-bg: var(--field);
@@ -1520,7 +1521,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
       gap: 2px;
       overflow-x: auto;
       overflow-y: hidden;
-      padding: 8px 8px 0;
+      padding: 8px var(--lf-tabstrip-pad) 0;
       border-inline-end: 0;
       border-bottom: 1px solid var(--border-2);
       border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
@@ -1573,14 +1574,17 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     z-index: 2;
     box-sizing: border-box;
     block-size: var(--lf-tabstrip-h);
-    padding: 8px 0 0;
     border-radius: 0;
+    --lf-tabstrip-pad: 0px;
     --lf-tabstrip-bg: var(--paper);
   }
     /* Each press stands at its edge without taking room in the row: a box no wider
      * than nothing, stuck to that edge, whose face lies over the names beside it and
      * fades into them. Its negative margin returns the strip's gap, so a press coming
-     * and going moves no name. */
+     * and going moves no name. It sticks at the strip's own edge rather than inside the
+     * strip's inline padding (`--lf-tabstrip-pad`), which a sticky box otherwise keeps
+     * clear, so no name shows unfaded beside the face and the face covers exactly the
+     * strip's `scroll-padding`. */
   .lf-tabstrip-scroll {
     display: none;
     position: sticky;
@@ -1590,11 +1594,11 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     align-self: stretch;
   }
   .lf-tabstrip-scroll[data-to="start"] {
-    inset-inline-start: 0;
+    inset-inline-start: calc(-1 * var(--lf-tabstrip-pad));
     margin-inline-end: -2px;
   }
   .lf-tabstrip-scroll[data-to="end"] {
-    inset-inline-end: 0;
+    inset-inline-end: calc(-1 * var(--lf-tabstrip-pad));
     margin-inline-start: -2px;
   }
   .lf-tabstrip-scroll > span {

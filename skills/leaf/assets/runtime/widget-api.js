@@ -104,6 +104,9 @@ export {
   differenceKind,
 } from "./image-difference.js";
 export { pageScroller } from "./scrolling.js";
+// A box that comes to declare a scroll after the runtime swept it, such as one a
+// container query turns into a row, owes the sweep its subtree (reach.js).
+export { reachScrollers } from "./reach.js";
 export { scrollIntoReadingBand } from "./landing-scroll.js";
 // The user's place as a landmark, and the history entries a widget adds.
 export { capturePlace, restorePlace } from "./reading-place.js";

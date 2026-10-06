@@ -99,8 +99,8 @@ response. Intermediate progress updates do not repeat it.
 
 A message with no sign that you have it reads as ignored, so when input arrives,
 post a line in its thread at once saying what you will do, before you read or edit
-anything, or answer it then when it needs no work. Give work that would
-hold up the next message to background workers; you keep the page.
+anything; a message that needs no work gets its answer at once instead. Give work
+that would hold up the next message to background workers; you keep the page.
 `references/conversation-loop.md`, "When to write" and "Long-running work", says
 how.
 

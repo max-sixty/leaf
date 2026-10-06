@@ -69,7 +69,13 @@ import sys
 from pathlib import Path
 
 from .asks import settles
-from .events import conversation_turns, is_reaction, note_settlements, taken_back
+from .events import (
+    conversation_turns,
+    exchange,
+    is_reaction,
+    note_settlements,
+    taken_back,
+)
 
 OUTCOMES = ("done", "failed", "dropped")
 
@@ -354,7 +360,7 @@ def _answer(thread: dict, question: dict, tokens: dict) -> dict | None:
     return next(
         (
             message
-            for message in thread["msgs"]
+            for message in exchange(thread)
             if message["seq"] > question["seq"]
             and (
                 settles(message, question["id"], tokens)

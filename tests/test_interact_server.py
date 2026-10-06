@@ -1723,11 +1723,10 @@ def test_server_round_trip(server, page_dir):
             "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
             "revision": 2,
         },
-        # Message revisions are agent-authored too. The browser cannot turn the
-        # user into the recorded author of another speaker's words.
+        # A revision names a message the log holds.
         {
             "kind": "edit",
-            "message": posted["id"],
+            "message": "no-such-message",
             "text": "rewritten in the browser",
         },
         ["not", "an", "object"],

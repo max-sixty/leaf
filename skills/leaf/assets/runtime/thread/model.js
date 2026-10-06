@@ -48,6 +48,14 @@ export function threadNames(threads) {
   return byName;
 }
 
+// A message whose words the user may rewrite: one of their own that the log holds, with
+// words to revise. A reaction or a bare drawing has none (`event_contracts._edit_error`).
+export const editable = (message) =>
+  message.author === "user" &&
+  !message.pending &&
+  !message.token &&
+  Boolean(message.text);
+
 export const bareReaction = (thread) => thread.bare_reaction;
 export const discussed = (thread) => !bareReaction(thread);
 // Which widget's seat a pending thread stands in, by the rule `seat_root` reads the log
@@ -77,8 +85,21 @@ const sending = (message) => ({
   workflow: message.id,
 });
 
-export function foldThreads(threads, messages, reactions, settlements, withdrawn) {
-  if (!messages.length && !reactions.length && !settlements.length && !withdrawn.size)
+export function foldThreads(
+  threads,
+  messages,
+  reactions,
+  settlements,
+  withdrawn,
+  edits = [],
+) {
+  if (
+    !messages.length &&
+    !reactions.length &&
+    !settlements.length &&
+    !withdrawn.size &&
+    !edits.length
+  )
     return threads;
   // A thread the user opened answers to two names for as long as this tab holds a
   // reply written against the first: the one this page gave it, and the one the log
@@ -106,6 +127,7 @@ export function foldThreads(threads, messages, reactions, settlements, withdrawn
       detached_from: null,
       rewritten_from: null,
       msgs: [root],
+      revisions: [],
       resolved: null,
       user_prompt: null,
       bare_reaction: reaction,
@@ -125,6 +147,21 @@ export function foldThreads(threads, messages, reactions, settlements, withdrawn
       thread.resolved = null;
       thread.attention = sending(reply);
     }
+  }
+  // An edit shows as its message's new words, and hands the thread to the agent as a
+  // reply would, under the edit's own pending id (`events.exchange`).
+  for (const edit of edits) {
+    const thread = byName.get(edit.message);
+    const at = thread?.msgs.findIndex((message) => message.id === edit.message) ?? -1;
+    if (at < 0) continue;
+    thread.msgs = thread.msgs.with(at, {
+      ...thread.msgs[at],
+      text: edit.text,
+      edited: { id: edit.id, ts: edit.ts, pending: true },
+    });
+    if (thread.root.id === edit.message) thread.root = thread.msgs[at];
+    thread.resolved = null;
+    thread.attention = sending(edit);
   }
   for (const thread of opened) {
     const said = spoken(thread);
@@ -272,11 +309,12 @@ export function readThreadRecords(
         unread: unreadMessages.has(message.id),
         key: message.attempt ?? message.id,
         body,
-        // The message's own input and the moves on widgets frozen into it, in the
-        // published order `strongestWorkflow` reads.
+        // The message's own inputs, its first words and each rewrite of them, and the
+        // moves on widgets frozen into it, in the published order `strongestWorkflow`
+        // reads.
         workflows: workflows.filter(
           (workflow) =>
-            workflow.input === message.id ||
+            workflow.message === message.id ||
             (workflow.subject.kind === "widget" && unitIds.has(workflow.subject.id)),
         ),
       };

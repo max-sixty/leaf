@@ -173,6 +173,7 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
     """Capture one complete ordered page batch, less what `freeze_delivery` writes
     for its route: the address of a thread reply, and the `handling` that follows
     from it."""
+    from .events import wording_before
     from .gesture_words import GestureWords, revisions_on_disk
     from .registry.reactions import described
     from .revision_artifact import active_enclosing
@@ -213,6 +214,10 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
         # does not read is not read for its words at all.
         if registry is not None and (says := words.says(event)):
             entry["says"] = says
+        if event["kind"] == "edit":
+            # The thread's digest already reads the new wording; the agent answering
+            # a revision needs to see what it replaced.
+            entry["was"] = wording_before(events, event)
         if (answer := responses.get(event["id"])) is not None:
             entry["answer"] = answer
         captured.append(entry)

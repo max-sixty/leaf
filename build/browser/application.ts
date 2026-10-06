@@ -101,6 +101,8 @@ interface LedgerEntry {
   projection: any;
   thread: any;
   message: any;
+  /** The user's rewrite of a message of theirs, as `foldThreads` draws it. */
+  edit: any;
   undoTarget: string | null;
   namedParent?: string;
   state: GestureState;
@@ -170,6 +172,8 @@ interface WireWorkflow {
   seq: number;
   revision: number | null;
   input: string | null;
+  /** The message a thread input shows on: its own, or the one an edit rewrote. */
+  message: string | null;
   subject: { kind: "thread" | "widget"; id: string };
   thread: string | null;
   holds_thread: boolean;
@@ -659,6 +663,7 @@ export function createSemanticApplication({
               .filter(({ event }) => event.kind === "undo")
               .map(({ event }) => event.undoes),
           ),
+          local.filter((entry) => entry.edit).map((entry) => entry.edit),
         )
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
@@ -686,6 +691,7 @@ export function createSemanticApplication({
     // markup froze the widget it moved; a page widget's stands in none.
     const threadOfEntry = (entry: any): string | null => {
       if (entry.message) return threadOf(entry.message);
+      if (entry.edit) return named.get(entry.edit.message)?.id ?? null;
       const held = document.descriptors.get(entry.event.widget)?.document;
       return held?.kind === "thread" ? (held.thread ?? null) : null;
     };
@@ -710,17 +716,18 @@ export function createSemanticApplication({
           }
         : thread;
     });
-    // A send this tab has not delivered, in the served workflow's shape. A message
-    // holds its thread as every thread input does; a widget move owes no answer until
-    // the server has read it, so it holds none.
+    // A send this tab has not delivered, in the served workflow's shape. A message, or
+    // an edit of one, holds its thread as every thread input does; a widget move owes no
+    // answer until the server has read it, so it holds none.
     const localWorkflow = (entry: any, rejected: boolean) => {
-      const message = entry.message;
+      const message = entry.message ?? entry.edit;
       const thread = threadOfEntry(entry);
       return {
         id: `${rejected ? "rejected" : "pending"}:${entry.event.attempt}`,
         revision: entry.event.revision ?? document.revision,
         seq: entry.order,
         input: message?.id ?? entry.localId,
+        message: entry.edit ? entry.edit.message : (message?.id ?? null),
         subject: message
           ? { kind: "thread", id: thread }
           : { kind: "widget", id: entry.event.widget },
@@ -750,7 +757,9 @@ export function createSemanticApplication({
     };
     const workflows = [
       ...(state ? state.workflows : []),
-      ...messages.map((entry) => localWorkflow(entry, false)),
+      ...local
+        .filter((entry) => entry.message || entry.edit)
+        .map((entry) => localWorkflow(entry, false)),
       ...refused.map((entry) => localWorkflow(entry, true)),
     ];
     const threads = readThreadRecords(
@@ -1102,6 +1111,18 @@ export function createSemanticApplication({
             projection,
             thread,
             message: isMessageEvent(event) ? thread : null,
+            edit:
+              event.kind === "edit"
+                ? {
+                    id: localId,
+                    kind: "edit",
+                    author: "user",
+                    attempt: event.attempt,
+                    message: event.message,
+                    text: event.text,
+                    ts: timestamp,
+                  }
+                : null,
             undoTarget: undoTarget?.event.attempt ?? null,
             state: "sending",
             admitted: null,

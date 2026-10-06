@@ -553,6 +553,35 @@ def _parent_error(event: dict, events: list) -> str | None:
     return None
 
 
+def _edit_error(event: dict, events: list) -> str | None:
+    """An edit revises the words of a message its own author wrote: the user's own,
+    or the posting agent session's. A reaction or a bare drawing has none to revise."""
+    if event["kind"] != "edit":
+        return None
+    name = event["message"]
+    target = next(
+        (
+            logged
+            for logged in events
+            if logged["kind"] in MESSAGE_KINDS and logged["id"] == name
+        ),
+        None,
+    )
+    if target is None:
+        return f"unknown message {name!r}"
+    if target["author"] != event["author"]:
+        return f"message {name!r} is not {event['author']}-authored"
+    if event["author"] == "agent":
+        owner = target.get("session")
+        if not owner:
+            return f"message {name!r} has no agent session identity"
+        if owner != event.get("session"):
+            return f"message {name!r} belongs to agent session {owner!r}"
+    if "text" not in target:
+        return f"message {name!r} has no words to revise"
+    return None
+
+
 def _thread_presentation_error(view, event: dict, events: list) -> str | None:
     if event["kind"] not in {"summary", "thread_title"}:
         return None
@@ -607,6 +636,7 @@ def admission_error(
         or _reaction_error(event, registry)
         or _anchored_comment_error(view, event, registry)
         or _parent_error(event, events)
+        or _edit_error(event, events)
         or _thread_presentation_error(view, event, events)
         or _reanchor_error(view, event, events)
         or read_contract_error(event, events)

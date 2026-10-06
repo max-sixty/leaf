@@ -41,13 +41,13 @@ CORRECTED = "Run the migration after deploying — it needs the new column."
 
 
 def test_summaries_replace_overlaps_and_edits_do_not_resurrect_them():
+    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
     messages = (
         {"kind": "comment", "text": "one"},
         {"kind": "reply", "parent": "e1", "text": "two"},
-        {"kind": "reply", "parent": "e2", "text": "three"},
+        {"kind": "reply", **identity, "parent": "e2", "text": "three"},
         {"kind": "reply", "parent": "e3", "text": "four"},
     )
-    identity = {"author": "agent", "agent": "Agent", "session": "session-1"}
     state = model.reading(
         HUB,
         (
@@ -118,9 +118,9 @@ def test_folds_without_summary_prose_keep_corrected_originals():
         HUB,
         (
             {"kind": "comment", "text": "one"},
-            {"kind": "reply", "parent": "e1", "text": "two"},
+            {"kind": "reply", **identity, "parent": "e1", "text": "two"},
             {"kind": "reply", "parent": "e1", "text": "three"},
-            {"kind": "reply", "parent": "e1", "text": "four"},
+            {"kind": "reply", **identity, "parent": "e1", "text": "four"},
             {
                 "kind": "summary",
                 **identity,

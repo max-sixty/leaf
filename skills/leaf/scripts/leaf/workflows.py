@@ -58,6 +58,7 @@ from .events import (
     build_threads,
     conversation_turns,
     standing_approvals,
+    turn_message,
     unanswered_turns,
 )
 from .projection import (
@@ -130,7 +131,12 @@ def admission_tasks(readings) -> list[dict]:
         [{**task, "thread": None} for task in canonical_tasks(events)],
         thread_asks,
         [
-            {"id": identity, "msgs": held["msgs"], "user_prompt": prompts.get(identity)}
+            {
+                "id": identity,
+                "msgs": held["msgs"],
+                "revisions": held["revisions"],
+                "user_prompt": prompts.get(identity),
+            }
             for identity, held in threads.items()
         ],
         task_ends(events),
@@ -364,6 +370,9 @@ def canonical_workflows(
         return {
             "id": source["id"],
             "input": source["id"],
+            # The message a thread input is said in, which shows its delivery: its
+            # own, or for a revision the message it rewrote (`events.turn_message`).
+            "message": turn_message(source) if target["kind"] == "thread" else None,
             "seq": source["seq"],
             "revision": source.get("revision"),
             "subject": target,
@@ -471,7 +480,7 @@ def canonical_workflows(
         ]
         answer = {
             "kind": "reply",
-            "to": response_address["id"],
+            "to": turn_message(response_address),
             "for": response_address["id"],
         }
         for source in unanswered_inputs:

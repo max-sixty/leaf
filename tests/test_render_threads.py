@@ -9716,3 +9716,70 @@ def test_pending_message_headers_match_their_bodies(browser, serve, surface):
     page.unroute("**/api/event", hold)
     round_trip(page)
     assert reading() == {"headers": [1, 1], "bodies": [1, 1]}
+
+
+def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
+    """A double click, or ↑ from the thread's empty reply box, opens the user's own
+    words in place; Enter sends the rewrite and Escape keeps the message as it was.
+
+    The rewrite draws on the message in the gesture, labelled edited, and reaches the
+    log as one `edit` naming the message. The agent's words offer no rewrite.
+    """
+    url = serve(THREAD_DIFF_PAGE)
+    d = serve.page_dir
+    mine = append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "id": "rewritten",
+            "author": "user",
+            "revision": 1,
+            "text": "Fit the north bracket.",
+            "anchor": {"section": "cd-q"},
+        },
+    )
+    append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Indexer",
+            "session": "worker-1",
+            "parent": mine["id"],
+            "responds": mine["id"],
+            "text": "Fitted.",
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    page.locator(".lf-threads-toggle").click()
+    thread = page.locator(f'.lf-thread:has(.lf-msg[data-mid="{mine["id"]}"])')
+    message = thread.locator(f'.lf-msg[data-mid="{mine["id"]}"]')
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
+    expect(thread.locator(".lf-msg.agent .lf-msg-edit")).to_have_count(0)
+
+    message.locator(".lf-msg-text").dblclick()
+    editor = message.locator(".lf-msg-editor leaf-text")
+    expect(editor).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("Fit the south bracket.")
+    page.keyboard.press("Enter")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the south bracket.")
+    expect(message.locator(".lf-edited")).to_have_text("edited")
+    round_trip(page)
+    edits = [e for e in events_model.read_events(d) if e["kind"] == "edit"]
+    assert [(e["author"], e["message"], e["text"]) for e in edits] == [
+        ("user", mine["id"], "Fit the south bracket.")
+    ]
+
+    reply = thread.locator(".lf-thread-reply leaf-text")
+    reply.focus()
+    page.keyboard.press("ArrowUp")
+    expect(editor).to_be_focused()
+    page.keyboard.type(" Or not.")
+    page.keyboard.press("Escape")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the south bracket.")
+    round_trip(page)
+    assert len([e for e in events_model.read_events(d) if e["kind"] == "edit"]) == 1

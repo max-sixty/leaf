@@ -21,6 +21,7 @@ const workflow = (id, stage, changes = {}) =>
     id,
     seq: 1,
     input: id,
+    message: id,
     subject: { kind: "thread", id: "root" },
     thread: "root",
     coordinate: ["thread", "root"],
@@ -222,6 +223,59 @@ test("a local prose answer clears accepted user attention until refusal", () => 
   assert.equal(awaitsAgent(record), true);
   assert.equal(awaitsUser({ ...record, attention: thread.attention }), true);
   assert.equal(awaitsAgent({ ...record, attention: thread.attention }), false);
+});
+
+test("a local rewrite shows on its message and hands a closed thread to the agent", () => {
+  const asked = {
+    id: "root",
+    kind: "comment",
+    author: "user",
+    text: "Chart 2024.",
+    ts: "then",
+  };
+  const answer = {
+    id: "answer",
+    kind: "reply",
+    parent: "root",
+    author: "agent",
+    agent: "Indexer",
+    text: "Charted.",
+    ts: "then",
+  };
+  const thread = servedThread([asked, answer], {
+    resolved: { id: "closed", kind: "resolve", author: "user" },
+  });
+  const rewrite = {
+    id: "pending:rewrite",
+    kind: "edit",
+    author: "user",
+    message: "root",
+    text: "Chart 2025.",
+    ts: "now",
+  };
+  const [folded] = foldThreads([thread], [], [], [], new Set(), [rewrite]);
+
+  const [record] = readThreadRecords(
+    [folded],
+    { revision: 1, descriptors: new Map(), messageBodies: new Map() },
+    new Map(),
+    [workflow("pending:rewrite", "sending", { message: "root" })],
+  );
+  assert.deepEqual(
+    record.msgs.map((message) => [message.body.text, Boolean(message.edited)]),
+    [
+      ["Chart 2025.", true],
+      ["Charted.", false],
+    ],
+  );
+  assert.equal(record.root.body.text, "Chart 2025.");
+  assert.deepEqual(
+    record.msgs.map((message) => message.workflows.map(({ id }) => id)),
+    [["pending:rewrite"], []],
+  );
+  assert.equal(record.resolved, null);
+  assert.equal(awaitsAgent(record), true);
+  assert.equal(thread.msgs[0].text, "Chart 2024.", "the served thread stays as served");
 });
 
 test("a frozen message widget keeps its exact workflow in the message and thread", () => {

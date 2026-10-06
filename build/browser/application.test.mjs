@@ -80,6 +80,7 @@ const threadWorkflow = (id, { thread = "root", input = thread, ...changes } = {}
   servedWorkflow({
     id,
     input,
+    message: input,
     subject: { kind: "thread", id: thread },
     thread,
     coordinate: ["thread", thread],

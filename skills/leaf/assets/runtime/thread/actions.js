@@ -4,6 +4,7 @@
    resolves the current message target and constructs the event. Core controls call
    these same commands. The application ledger remains the one optimistic and
    admission path, so a stale or unavailable command returns null. */
+import { editable } from "./model.js";
 import { readThreads } from "./state.js";
 import { reactionReading } from "./reaction-model.js";
 
@@ -26,6 +27,20 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
       kind: "reply",
       revision: currentRevision(),
       parent: thread.root.id,
+      text,
+      ...(attempt && { attempt }),
+    });
+  };
+
+  // The user rewriting a message of their own (`message-edit.js`). Words the message
+  // already says send nothing.
+  const edit = (key, messageId, text, { attempt } = {}) => {
+    if (typeof text !== "string") throw new TypeError("A message edit needs text");
+    const message = find(key)?.msgs.find((item) => item.id === messageId);
+    if (!message || !editable(message) || !text || text === message.text) return null;
+    return post({
+      kind: "edit",
+      message: messageId,
       text,
       ...(attempt && { attempt }),
     });
@@ -75,6 +90,7 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
 
   return Object.freeze({
     reply,
+    edit,
     resolve: (key, options) => settle(key, true, options),
     reopen: (key, options) => settle(key, false, options),
     toggleReaction,

@@ -1295,6 +1295,111 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     assert events_model.read_events(page_dir) == before_unidentified_edit
 
 
+def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
+    """The user rewriting their message speaks again, under the edit's id.
+
+    The thread shows the new wording in place of the old, and the agent owes it an
+    answer as it would a reply: addressed to the message the edit rewrote, delivered
+    with the wording it replaced, settled by a reply naming the edit, and reopening a
+    thread the user had closed. Only the words the user wrote are theirs to revise.
+    """
+    from leaf import delivery as delivery_model
+    from leaf.event_log import EventRefused
+
+    publish(page_dir)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+
+    def reply_for(event_id, text):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            ["thread", "reply", str(page_dir), "--for", event_id, "--text", text],
+        )
+        assert result.exit_code == 0, result.output
+        return json.loads(result.output)
+
+    def owed_answers():
+        state = state_json(page_dir)
+        standing = set(state["activity"]["obligations"])
+        return [
+            (item["input"], item["message"], item["answer"])
+            for item in state["workflows"]
+            if item["id"] in standing
+        ]
+
+    asked = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Chart 2024."},
+    )
+    answer = reply_for(asked["id"], "Charted 2024.")
+    assert owed_answers() == []
+
+    edit = append_command(
+        page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": asked["id"],
+            "text": "Chart 2025.",
+        },
+    )
+    assert edit["attention"] is True
+    assert owed_answers() == [
+        (
+            edit["id"],
+            asked["id"],
+            {"kind": "reply", "to": asked["id"], "for": edit["id"]},
+        )
+    ]
+    with service_model.PageTransaction(page_dir) as page:
+        stored = next(event for event in page.events if event["id"] == edit["id"])
+        delivered = delivery_model.freeze_delivery(
+            [delivery_model.batch_data(page_dir, page, [stored])]
+        )
+    [batch] = delivered["batches"]
+    [event] = batch["events"]
+    assert (event["text"], event["was"]) == ("Chart 2025.", "Chart 2024.")
+    assert any("rewrote" in batch["handling"][ref] for ref in event["handling"])
+    [thread] = batch["threads"]
+    assert [m["text"] for m in thread["messages"]] == ["Chart 2025.", "Charted 2024."]
+
+    settled = reply_for(edit["id"], "Charted 2025 instead.")
+    assert (settled["parent"], settled["responds"]) == (asked["id"], edit["id"])
+    assert owed_answers() == []
+
+    append_command(
+        page_dir, {"kind": "resolve", "author": "user", "parent": asked["id"]}
+    )
+    again = append_command(
+        page_dir,
+        {
+            "kind": "edit",
+            "author": "user",
+            "message": asked["id"],
+            "text": "Chart both.",
+        },
+    )
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["resolved"] is None
+    assert [item[0] for item in owed_answers()] == [again["id"]]
+
+    reaction = append_command(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": answer["id"], "token": "keep"},
+    )
+    before = events_model.read_events(page_dir)
+    for target, refusal in [
+        (answer["id"], "is not user-authored"),
+        (reaction["id"], "has no words to revise"),
+        ("no-such-message", "unknown message"),
+    ]:
+        with pytest.raises(EventRefused, match=refusal):
+            append_command(
+                page_dir,
+                {"kind": "edit", "author": "user", "message": target, "text": "x"},
+            )
+    assert events_model.read_events(page_dir) == before
+
+
 def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     page_dir, monkeypatch
 ):

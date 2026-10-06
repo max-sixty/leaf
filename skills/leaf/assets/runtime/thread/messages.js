@@ -19,7 +19,13 @@ import {
   renderedWords,
 } from "../markdown.js";
 import { reportPageError } from "../layer-client.js";
-import { isReaction, moved } from "./model.js";
+import { editable, isReaction, moved } from "./model.js";
+import {
+  MessageEditor,
+  editingMessage,
+  openMessageEdit,
+  watchMessageEdit,
+} from "./message-edit.js";
 import { tokenEntry } from "../registry.js";
 import {
   rememberAuthoredParents,
@@ -163,6 +169,7 @@ export function messageReading(
     timestamp: message.ts,
     age: ago(message.ts),
     edited: message.edited ? `Edited ${ago(message.edited.ts)}` : null,
+    editable: editable(message),
     failure: message.failure ?? null,
     pending: workflow?.stage === "sending",
     workflow,
@@ -193,6 +200,8 @@ export class MessageView {
   #dressed = false;
   #arrivalMotion = null;
   #header = document.createElement("div");
+  #editor = null;
+  #stopEditWatch = null;
 
   constructor(commands) {
     this.#commands = commands;
@@ -214,7 +223,28 @@ export class MessageView {
         this.node.dataset.lfGen = "1";
         this.node.dataset.lfOffer = "";
       }
+      // A double click on the user's own words opens them for rewriting, as the word
+      // under it would otherwise only be selected.
+      this.node.addEventListener("dblclick", (event) => {
+        if (event.target.closest?.(".lf-msg-editor")) return;
+        if (this.openEdit()) window.getSelection()?.removeAllRanges();
+      });
     }
+    // Every view of a message the user may rewrite draws the rewrite while one stands,
+    // wherever it was opened (`message-edit.js`).
+    if (model.editable && !this.#stopEditWatch)
+      this.#stopEditWatch = watchMessageEdit(model.id, () =>
+        this.#commands.edit.changed(),
+      );
+    const editing = model.editable && editingMessage(model.id);
+    if (editing && !this.#editor)
+      this.#editor = new MessageEditor(model.id, {
+        wireInput: this.#commands.reply.wireInput,
+        said: () => this.#model.body.text,
+        send: (text, options) =>
+          this.#commands.edit.send(this.#model.id, text, options),
+        land: () => this.#commands.edit.land(),
+      });
     keeps(this.#header, "data-lf-reflow", "text");
     if (prior && prior.author !== model.author)
       this.node.classList.toggle(prior.author, false);
@@ -261,6 +291,20 @@ export class MessageView {
               : nothing
           }
         </span>
+        ${
+          model.editable && !editing
+            ? html`<button
+                type="button"
+                class="lf-msg-edit lf-ui"
+                data-lf-gen="1"
+                data-lf-offer="button"
+                aria-label="Edit message"
+                @click=${() => this.openEdit()}
+              >
+                Edit
+              </button>`
+            : nothing
+        }
       `,
       this.#header,
     );
@@ -270,7 +314,7 @@ export class MessageView {
         <div
           class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
         >
-          ${this.#body(model.body)}
+          ${editing ? this.#editor.node : this.#body(model.body)}
           ${
             model.body.drawing
               ? html`<span class="lf-drawing-reference">Drawing comment</span>`
@@ -323,6 +367,17 @@ export class MessageView {
     return this.node;
   }
 
+  // Open the user's own words for rewriting here, with the caret after them. False where
+  // the message is not one they may rewrite.
+  openEdit() {
+    const model = this.#model;
+    if (!model?.editable) return false;
+    openMessageEdit(model.id, model.body.text);
+    this.#commands.edit.paint();
+    this.#editor?.focus();
+    return true;
+  }
+
   #body(body) {
     if (body.kind === "reaction")
       return html`<div class="lf-msg-text">
@@ -345,6 +400,10 @@ export class MessageView {
   retire() {
     this.#arrivalMotion?.cancel();
     this.#reaction?.retire();
+    this.#stopEditWatch?.();
+    this.#stopEditWatch = null;
+    this.#editor?.dispose();
+    this.#editor = null;
     this.#commands.read.forgetBody(this.node);
   }
 }

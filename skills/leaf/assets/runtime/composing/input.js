@@ -211,6 +211,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // takes back its last stroke and `remove` takes it off the draft. `draft` names
       // the draft the box stands on, for a box that moves between drafts.
       drawing = null,
+      // Keys this box answers beyond submitting, in its own scope, such as a rewrite's
+      // Escape that cancels it.
+      rows = [],
     },
   ) {
     const field = document.createElement("div");
@@ -509,6 +512,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
             },
           ]
         : []),
+      ...rows,
     ]);
     // A press on a submit control is the send key pressed from the box, so it leaves the
     // user where Enter does: in the box, for a box that stays to take more, or wherever the

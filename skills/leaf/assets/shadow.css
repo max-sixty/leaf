@@ -335,6 +335,16 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-seat-news { display: flex; align-items: center; box-sizing: border-box; }
 .lf-msg-head time { color: var(--muted-2); }
 .lf-msg-head .lf-edited { color: var(--muted-2); }
+/* The user's own message offers its rewrite at the head's end, in the meta's face. A
+   pointer that hovers finds it on the message it points at or a focus inside; a finger
+   sees it always. It keeps its box either way, so showing it moves nothing. */
+.lf-msg-head .lf-msg-edit { flex: none; margin-inline-start: auto; padding: 0;
+          border: 0; background: none; font: inherit; color: var(--muted-2);
+          cursor: pointer; }
+.lf-msg-head .lf-msg-edit:hover { color: var(--ink); }
+@media (hover: hover) {
+  .lf-msg:not(:hover, :focus-within) > .lf-msg-head .lf-msg-edit { opacity: 0; }
+}
 /* A thread projected inline uses the same receipt emphasis as the panel. */
 .lf-msg-head .lf-msg-failure { color: var(--warn-ink); font-weight: 600; }
 /* Prose faces reach the document and the layer's reading regions in declared
@@ -936,19 +946,22 @@ pre:hover + .lf-code-copy,
 /* A thread's reply is one field on every surface; its container decides where it stands.
    The wrapper wears the border and focus band around the editor and its Send action. */
 .lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
-.lf-thread-reply .lf-compose-field {
+/* A message's rewrite stands where its words did, in the reply's field. */
+.lf-msg-editor { display: block; margin-top: var(--sp-1); min-width: 0; }
+.lf-msg-editor > .lf-msg-edit-cancel { margin-top: var(--sp-1); }
+:is(.lf-thread-reply, .lf-msg-editor) .lf-compose-field {
           --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
           border: 1px solid var(--border-2);
           border-radius: 6px; background: var(--card); }
-.lf-thread-reply .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
+:is(.lf-thread-reply, .lf-msg-editor) .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
           outline: var(--focus-ring); --lf-focus-ring: text-box;
           outline-offset: 0; border-color: transparent; }
-.lf-thread-reply .lf-compose-field > leaf-text { display: block; min-width: 0;
+:is(.lf-thread-reply, .lf-msg-editor) .lf-compose-field > leaf-text { display: block; min-width: 0;
           padding: 8px var(--lf-compose-pad-inline-start);
           border: 0; border-radius: 0; background: transparent;
           color: var(--ink); font: var(--t-5)/1.5 var(--sans);
           max-height: 50vh; overflow-y: auto; }
-.lf-thread-reply .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+:is(.lf-thread-reply, .lf-msg-editor) .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
 
 .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
 .lf-msg-body.lf-suggest-body { white-space: pre-wrap; }

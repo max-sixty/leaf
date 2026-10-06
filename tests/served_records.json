@@ -42,6 +42,7 @@
         "attention": false
       }
     ],
+    "revisions": [],
     "resolved": null,
     "user_prompt": null,
     "bare_reaction": false,
@@ -53,6 +54,7 @@
   "workflow": {
     "id": "e4",
     "input": "e4",
+    "message": "e4",
     "seq": 4,
     "revision": 1,
     "subject": {
@@ -132,6 +134,7 @@
               "attention": false
             }
           ],
+          "revisions": [],
           "resolved": null,
           "user_prompt": {
             "message": "e2",
@@ -152,6 +155,7 @@
         {
           "id": "e3",
           "input": "e3",
+          "message": null,
           "seq": 3,
           "revision": 1,
           "subject": {
@@ -228,6 +232,7 @@
               "attention": false
             }
           ],
+          "revisions": [],
           "resolved": null,
           "user_prompt": {
             "message": "e2",
@@ -278,6 +283,7 @@
               "agent": null
             }
           ],
+          "revisions": [],
           "resolved": null,
           "user_prompt": null,
           "bare_reaction": false,
@@ -333,6 +339,7 @@
               "attention": false
             }
           ],
+          "revisions": [],
           "resolved": null,
           "user_prompt": null,
           "bare_reaction": false,
@@ -399,6 +406,7 @@
               "attention": false
             }
           ],
+          "revisions": [],
           "resolved": null,
           "user_prompt": null,
           "bare_reaction": false,
@@ -421,6 +429,7 @@
         {
           "id": "e9",
           "input": "e9",
+          "message": null,
           "seq": 9,
           "revision": 1,
           "subject": {
@@ -468,6 +477,7 @@
         {
           "id": "e7",
           "input": "e7",
+          "message": "e7",
           "seq": 7,
           "revision": 1,
           "subject": {
@@ -514,6 +524,7 @@
         {
           "id": "e3",
           "input": "e3",
+          "message": "e3",
           "seq": 3,
           "revision": 1,
           "subject": {

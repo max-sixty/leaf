@@ -8,6 +8,7 @@ from ..events import (
     conversation_turns,
     seat_root,
     standing_approvals,
+    turn_message,
     unanswered_agent_turn,
 )
 from ..projection import FrozenThreadReading, frozen_thread_reading
@@ -73,7 +74,7 @@ def browser_thread(
         protected = set()
         turns = conversation_turns(thread)
         if awaits_agent(thread):
-            protected.add(unanswered_agent_turn(thread)["id"])
+            protected.add(turn_message(unanswered_agent_turn(thread)))
         if awaits_user and turns:
             protected.add(turns[-1]["id"])
         ask_sources = {

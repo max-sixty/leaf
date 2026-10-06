@@ -202,6 +202,7 @@ export function mountApplication(dependencies) {
     } finally {
       try {
         if (entry.message) announce("Message sent");
+        if (entry.edit) announce("Message edited");
         paintKeys();
       } catch (error) {
         presentationError ??= error;

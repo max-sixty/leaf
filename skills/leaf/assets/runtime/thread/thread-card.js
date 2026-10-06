@@ -277,6 +277,7 @@ export class ThreadView {
   #reply = null;
   #replyShown = false;
   #draftFrame = 0;
+  #editFrame = 0;
   #outletReplyShown = null;
   #keys = new WeakSet();
   #settlements = new Map();
@@ -302,6 +303,16 @@ export class ThreadView {
     this.#messageCommands = {
       ...commands,
       reaction: { ...commands.reaction, pressed: () => this.#showNews() },
+      // A rewrite of one of the user's messages (`message-edit.js`): news of it from any
+      // view or tab repaints this one on the next frame, and the gesture that opens it
+      // here paints at once, so its editor can take the focus in the same press.
+      edit: {
+        changed: () => this.#scheduleRepaint(),
+        paint: () => this.repaint(),
+        send: (id, text, options) =>
+          commands.reply.actions.edit(this.#model.key, id, text, options),
+        land: () => commands.reply.landSent(this.node),
+      },
     };
     this.node = document.createElement(
       surface === "outlet" || surface === "panel" ? "details" : "div",
@@ -380,6 +391,25 @@ export class ThreadView {
   // never feed a held presentation back into the news owner's input.
   repaint() {
     this.present(this.#received);
+  }
+
+  // A draft change this view did not make, such as a rewrite opened in another view of
+  // the thread or another tab, draws on the next frame with whatever else changed.
+  #scheduleRepaint() {
+    this.#editFrame ||= nextRender(() => {
+      this.#editFrame = 0;
+      if (this.#received) this.repaint();
+    });
+  }
+
+  // The view of the user's latest words in this thread, which ↑ in the empty reply box
+  // opens for rewriting (`wireReply`): none while those words cannot be rewritten, such
+  // as a message still sending, rather than an older message of theirs.
+  #lastEditable() {
+    const message = this.#model?.messages.findLast(
+      (item) => item.author === "user" && item.body.kind !== "reaction",
+    );
+    return message?.editable ? (this.#messages.get(message.key) ?? null) : null;
   }
 
   // The last of the thread a reader can see, after which its news grows: a folded
@@ -1011,6 +1041,10 @@ export class ThreadView {
     const lifetime = wireReply(model.key, row, input, send, {
       ...this.#commands.reply,
       onChange: replyChanged,
+      editLast: {
+        available: () => Boolean(this.#lastEditable()),
+        open: () => this.#lastEditable()?.openEdit(),
+      },
     });
     if (!panel) return { node: row, dispose: lifetime.dispose };
     replyRowSizes.observe(row);

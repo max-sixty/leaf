@@ -90,7 +90,7 @@ import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
 
 // Whether this page's ledger holds a gesture of the user's on `thread`: one of its
-// messages, a reply or a settlement naming one, a move on a widget one of them holds, an
+// messages, a reply, a settlement or a rewrite naming one, a move on a widget one of them holds, an
 // undo of any of those, which stands where the gesture it takes back stood, or the
 // refusal that takes one back, which stays in the ledger until the reading it restores
 // is drawn. Their words from another tab, or a turn a seat first draws after the log
@@ -112,6 +112,7 @@ export function gesturedOn(thread) {
       attempts.has(event.attempt) ||
       messages.has(event.id) ||
       messages.has(event.parent) ||
+      messages.has(event.message) ||
       Boolean(
         event.widget &&
         messages.has(document.descriptors.get(event.widget)?.document.message),

@@ -62,9 +62,43 @@ def spoken_turns(thread: dict) -> list:
     return [m for m in thread["msgs"] if not is_reaction(m)]
 
 
+def exchange(thread: dict) -> list:
+    """A thread's messages and the user's revisions of them, in log order.
+
+    A user's `edit` is a turn of its own: it hands the thread to the agent as a reply
+    would, under the edit's id, while every surface shows it as the message's new
+    wording rather than a message beside it (`build_threads`, ``revisions``). An
+    agent's edit corrects its own words and hands nothing over, so it is no turn."""
+    return sorted([*thread["msgs"], *thread["revisions"]], key=lambda m: m["seq"])
+
+
 def conversation_turns(thread: dict) -> list:
-    """Spoken messages that participate in the exchange, excluding progress updates."""
-    return [message for message in spoken_turns(thread) if not message.get("ephemeral")]
+    """Spoken messages and user revisions that participate in the exchange, excluding
+    progress updates."""
+    return [
+        message
+        for message in exchange(thread)
+        if not is_reaction(message) and not message.get("ephemeral")
+    ]
+
+
+def wording_before(events: list, edit: dict) -> str:
+    """How the message `edit` revises read just before it: its own text, or the
+    latest edit of it earlier in the log."""
+    wording = None
+    for event in events:
+        if event["seq"] >= edit["seq"]:
+            break
+        if event["id"] == edit["message"] or (
+            event["kind"] == "edit" and event["message"] == edit["message"]
+        ):
+            wording = event["text"]
+    return wording
+
+
+def turn_message(turn: dict) -> str:
+    """The message a turn is shown as: a revision's message, else the turn's own."""
+    return turn["message"] if turn["kind"] == "edit" else turn["id"]
 
 
 def thread_replied_after(thread: dict, after: int) -> bool:
@@ -226,6 +260,9 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     version rewrote, until a reply chooses the thread's place again.
     A new spoken reply resumes the thread; reactions and failure receipts
     leave its closure standing. A later resolution closes it again.
+    ``revisions`` holds the user's edits in log order: each shows as its message's
+    wording and stands in the exchange as a turn of its own (`exchange`), so it
+    resumes the thread as a reply does.
 
     Each thread is keyed by, and carries as ``id``, the id of the message that
     opened it: the name every Ask, workflow, summary, and title uses for it.
@@ -266,6 +303,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 "detached_from": None,
                 "rewritten_from": None,
                 "msgs": [message],
+                "revisions": [],
                 "resolved": None,
             }
             threads[e["id"]] = thread
@@ -292,6 +330,12 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             if message := messages.get(e["message"]):
                 message["text"] = e["text"]
                 message["edited"] = {key: e[key] for key in ("id", "seq", "ts")}
+                # The user rewriting their words speaks again, as a reply would: the
+                # agent owes the new wording an answer, and a closed thread opens.
+                if e["author"] != "agent":
+                    thread = thread_for[e["message"]]
+                    thread["revisions"].append(dict(e))
+                    thread["resolved"] = None
             continue
         if e["kind"] == "reply":
             # A reply whose message the log lost opens the thread that message would
@@ -316,6 +360,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                     "detached_from": None,
                     "rewritten_from": None,
                     "msgs": [],
+                    "revisions": [],
                     "resolved": None,
                 }
                 threads[e["parent"]] = thread

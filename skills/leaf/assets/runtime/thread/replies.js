@@ -170,7 +170,7 @@ export function wireReply(
   row,
   input,
   send,
-  { actions, wireInput, landSent, onChange },
+  { actions, wireInput, landSent, onChange, editLast },
 ) {
   const draftCtx = replyContext(key);
   const composition = {
@@ -207,6 +207,19 @@ export function wireReply(
       landSent(closestAcross(input, THREAD));
       sendLanding(input, focused())();
     },
+    // ↑ from an empty box reaches back to the user's own last words in the thread, to
+    // rewrite them where they stand (`message-edit.js`). A box holding words keeps the
+    // key for its caret.
+    rows: [
+      {
+        id: "message.edit.last",
+        keys: ["ArrowUp"],
+        description: "Edit your last message in the thread",
+        title: "edit last message",
+        when: () => !sync.value() && editLast.available(),
+        run: () => editLast.open(),
+      },
+    ],
   });
   sync();
   // Construction supplies a mirror, not ownership: a hidden panel mirror cannot

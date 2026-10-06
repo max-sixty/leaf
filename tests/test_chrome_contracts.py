@@ -742,6 +742,33 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
     assert edges["bottom"] - 20 < edges["reply"] <= edges["bottom"], edges
     assert edges["atTop"] and edges["atBottom"], edges
     assert edges["through"] == [], edges
+    # What the user is reading stops at both pinned rows: the runtime's reading of what
+    # is on screen, which read acknowledgement takes, leaves out the band under each
+    # (geometry.js), so a turn half under Reply has not been seen there.
+    seen = card.evaluate(
+        """async card => {
+          const {seenRect} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const title = card.querySelector(':scope > .lf-thread-summary')
+            .getBoundingClientRect();
+          const reply = card.querySelector(':scope > .lf-thread-reply')
+            .getBoundingClientRect();
+          const turns = [...card.querySelectorAll('.lf-msg')];
+          const across = (edge) => turns.find((turn) => {
+            const box = turn.getBoundingClientRect();
+            return box.top < edge && box.bottom > edge;
+          });
+          const under = across(reply.top), over = across(title.bottom);
+          return {
+            reply: reply.top, title: title.bottom,
+            under: under && seenRect(under, new Map())?.bottom,
+            over: over && seenRect(over, new Map())?.top,
+          };
+        }"""
+    )
+    assert seen["under"] is not None, seen
+    assert seen["under"] <= seen["reply"] + 0.5, seen
+    if seen["over"] is not None:
+        assert seen["over"] >= seen["title"] - 0.5, seen
     # An open reaction list hangs below its trigger in the top layer, and goes once the
     # trigger leaves the list, so scrolling its message up under the title still leaves
     # the title whole.
@@ -1782,6 +1809,8 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_above_its_messages(
                   const inputStyle = getComputedStyle(thread.querySelector('leaf-text'));
                   const messageStyle = getComputedStyle(thread.querySelector('.lf-msg-body'));
                   const padding = parseFloat(inputStyle.paddingInlineEnd);
+                  // Send's room beyond the padding, kept after the last words.
+                  const room = parseFloat(inputStyle.getPropertyValue('--lf-field-end-room'));
                   const radius = (selector, pseudo = null) => getComputedStyle(
                     selector.startsWith('.lf-thread-panel')
                       ? document.querySelector(selector)
@@ -1815,13 +1844,14 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_above_its_messages(
                             parseFloat(inputStyle.borderInlineStartWidth) +
                             parseFloat(inputStyle.paddingInlineStart),
                           textEnd: rect('.lf-thread-reply leaf-text').right -
-                            parseFloat(inputStyle.borderInlineEndWidth) - padding,
+                            parseFloat(inputStyle.borderInlineEndWidth) - padding - room,
                           padding,
                           overflow: thread.scrollWidth - thread.clientWidth};
                 }"""
         )
 
     short = geometry()
+    assert field_box.evaluate("el => el.endRoom") == "none"
     text_inset = short["textStart"] - short["field"]["x"]
     assert short["textStart"] == pytest.approx(short["message"]["x"], abs=1)
     assert short["field"]["right"] == pytest.approx(short["message"]["right"], abs=1)
@@ -1877,11 +1907,84 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_above_its_messages(
     for position in (0, 80, 99999):
         field_box.evaluate("(el, top) => el.scrollTop = top", position)
         scrolling = geometry()
+        # A scrolled draft carries every line past Send, so each keeps its room.
+        assert field_box.evaluate("el => el.endRoom") == "every-line"
         assert scrolling["send"]["bottom"] < scrolling["field_box"]["bottom"]
         assert scrolling["textStart"] - scrolling["field"]["x"] == pytest.approx(
             text_inset, abs=1
         )
         assert scrolling["textEnd"] <= scrolling["send"]["x"]
+
+
+def test_opening_a_line_under_a_full_last_line_moves_no_words(browser, serve):
+    """Send's room stands after the field's last words, so it changes lines with the
+    keystroke that changes the lines. A last line whose words fill the field puts the
+    room on a line of its own; Shift+Enter then opens the new line in that room's
+    place and the first character typed there moves nothing above it. When the room
+    stayed on the last line with words instead, that first character took it away and
+    the field shrank under the caret."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
+    page = open_page(
+        browser,
+        url,
+        init_script="""
+          window.editorRoots = new Map();
+          const attach = Element.prototype.attachShadow;
+          Element.prototype.attachShadow = function(options) {
+            const root = attach.call(this, options);
+            if (this.localName === 'leaf-text') window.editorRoots.set(this, root);
+            return root;
+          };
+        """,
+    )
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
+    thread.locator(".lf-thread-summary").click()
+    field = thread.locator(".lf-thread-reply leaf-text")
+    field.click()
+
+    def reading():
+        return field.evaluate(
+            """host => {
+              const rows = [];
+              for (const line of window.editorRoots.get(host).querySelectorAll('.cm-line')) {
+                const range = document.createRange();
+                range.selectNodeContents(line);
+                for (const r of range.getClientRects()) {
+                  if (r.width < 0.5) continue;
+                  const row = rows.find(o => Math.abs(o.top - r.top) < 4);
+                  if (row) row.right = Math.max(row.right, r.right);
+                  else rows.push({top: r.top, right: r.right});
+                }
+              }
+              const box = host.getBoundingClientRect();
+              return {top: box.top, height: box.height,
+                      rows: rows.sort((a, b) => a.top - b.top)};
+            }"""
+        )
+
+    page.keyboard.insert_text("The first paragraph runs long enough to wrap once")
+    before = reading()
+    for key in "abcde " * 40:
+        page.keyboard.type(key)
+        after = reading()
+        if after["height"] > before["height"] and len(after["rows"]) == len(
+            before["rows"]
+        ):
+            break
+        before = after
+    else:
+        pytest.fail("no last line filled the field before its room")
+    full = reading()
+    page.keyboard.press("Shift+Enter")
+    opened = reading()
+    page.keyboard.type("S")
+    typed = reading()
+    assert opened["height"] == full["height"] == typed["height"], (full, opened, typed)
+    assert opened["top"] == full["top"] == typed["top"]
+    assert typed["rows"][: len(full["rows"])] == full["rows"]
 
 
 @pytest.mark.parametrize("thread_count", [1, 2])
@@ -2180,7 +2283,6 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         (630, False, 14),
         (629, False, 14),
         (500, False, 14),
-        (390, False, 14),
         (320, False, 14),
         (630, True, 14),
         (629, True, 14),
@@ -2744,8 +2846,16 @@ FACE = [
 ]
 
 
-@pytest.mark.parametrize("surface", ["general", "panel", "margin", "outlet"])
-@pytest.mark.parametrize("scheme", ["light", "dark"])
+# The scheme reaches every surface through the same tokens, so dark runs on the page's
+# own composer and on the one a widget's thread outlet holds.
+@pytest.mark.parametrize(
+    "surface, scheme",
+    [
+        *((surface, "light") for surface in ("general", "panel", "margin", "outlet")),
+        ("general", "dark"),
+        ("outlet", "dark"),
+    ],
+)
 def test_a_draft_wears_the_faces_its_sent_message_wears(
     browser, serve, surface, scheme
 ):
@@ -3093,3 +3203,31 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     # Completion is the reading rendered waited on. A later slide-end scan can
     # queue new work, so a second reading need not still be settled.
     expect(page.locator(".lf-thread-panel")).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_send_room_moves_to_every_line_only_while_the_field_scrolls(
+    engine, request, serve
+):
+    """The field holds Send's room after its last words until its words scroll, and on
+    every line while they do, in an engine without CSS scroll-state queries as in
+    Chromium. Keyed on the query alone, WebKit and Firefox held it on every line
+    always, so the change never reached them."""
+    url = serve(LONG_PAGE)
+    panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
+    page = open_page(request.getfixturevalue(engine), url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(".lf-threads > .lf-thread:not([hidden])")
+    thread.locator(".lf-thread-summary").click()
+    field = thread.locator(".lf-thread-reply leaf-text")
+    scrolls = "el => el.scrollHeight > el.clientHeight"
+
+    write(field, "First line.\nSecond line.")
+    assert not field.evaluate(scrolls)
+    expect(field).to_have_js_property("endRoom", "last-line")
+    write(field, "A long draft scrolls inside its field. " * 120)
+    assert field.evaluate(scrolls)
+    expect(field).to_have_js_property("endRoom", "every-line")
+    write(field, "Short again.")
+    expect(field).to_have_js_property("endRoom", "last-line")

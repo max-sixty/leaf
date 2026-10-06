@@ -71,7 +71,7 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     box-sizing: border-box;
     --lf-response-display: inline-grid;
     min-width: min-content;
-    grid-template-columns: minmax(var(--lf-response-min-width), 1fr) max-content;
+    grid-template-columns: minmax(var(--lf-response-min-width), 1fr);
     grid-template-rows: minmax(var(--lf-response-height), 1fr);
     grid-auto-rows: auto;
     align-items: end;
@@ -98,16 +98,28 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     min-height: var(--lf-response-height);
     grid-column: 1; grid-row: 1; align-self: stretch;
     grid-template-rows: minmax(0, 1fr); }
-  .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-response-more {
-    grid-column: 2; grid-row: 1; }
   .lf-fab-bar:not([data-lf-presentation="inline"]) > .lf-response-options {
     grid-column: 1 / -1; grid-row: 2; }
   .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden])) {
-    grid-template-columns: auto minmax(var(--lf-response-min-width), 1fr) max-content; }
+    grid-template-columns: auto minmax(var(--lf-response-min-width), 1fr); }
   .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden]))
     .lf-compose-field { grid-column: 2; }
-  .lf-fab-bar:not([data-lf-presentation="inline"]):has(.lf-composer-media:not([hidden]))
-    > .lf-response-more { grid-column: 3; }
+  /* A drawing's tile carries its undo and removal, more than the field's side of a
+     card-wide bar can spare under a finger, so a shelf holding one takes a row of its
+     own above the field. */
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(
+      .lf-composer-media:not([hidden]) > .lf-composer-drawing) {
+    grid-template-columns: minmax(var(--lf-response-min-width), 1fr);
+    grid-template-rows: auto minmax(var(--lf-response-height), 1fr); }
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(
+      .lf-composer-media:not([hidden]) > .lf-composer-drawing) .lf-composer-media {
+    grid-column: 1; grid-row: 1; justify-self: start; max-width: 100%; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(
+      .lf-composer-media:not([hidden]) > .lf-composer-drawing) .lf-compose-field {
+    grid-column: 1; grid-row: 2; }
+  .lf-fab-bar:not([data-lf-presentation="inline"]):has(
+      .lf-composer-media:not([hidden]) > .lf-composer-drawing) > .lf-response-options {
+    grid-row: 3; }
   .lf-visual-marks { display: contents; }
   /* Every projected state is a moment (anchor-paint.js), drawn as one accent contour;
      an action's target alone keeps the hairline. */
@@ -176,6 +188,16 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   }
   .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text > p:first-child { margin-top: 0; }
   .lf-margin-preview[data-lf-comment-frame] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text > p:last-child { margin-bottom: 0; }
+  /* The editor's room for Send, held where the editor held it when the words were sent
+     (text-field.js, `endRoom`): on every line, after the last words only — the last
+     paragraph of words, before any pasted images, or a suggestion's text — or, where
+     the draft ended on a blank line, nowhere. */
+  .lf-margin-preview[data-lf-comment-frame="every-line"] .lf-msg:first-of-type > .lf-msg-body {
+    padding-inline-end: calc(var(--lf-comment-text-pad-end) + var(--lf-comment-send-room)); }
+  .lf-margin-preview[data-lf-comment-frame="last-line"] .lf-msg:first-of-type > .lf-msg-body > .lf-msg-text
+    > p:is(:last-child, :has(+ p > .lf-message-media:only-child)):not(:has(> .lf-message-media:only-child))::after,
+  .lf-margin-preview[data-lf-comment-frame="last-line"] .lf-msg:first-of-type > .lf-suggest-body > .lf-msg-text::after {
+    content: ""; display: inline-block; inline-size: var(--lf-comment-send-room); }
   .lf-margin-preview-close { flex: none; }
   .lf-margin-preview-nav { display: flex; flex: none; align-items: center;
     gap: 0; color: var(--muted-2); font-size: 10px; }

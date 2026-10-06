@@ -193,7 +193,7 @@ turn/start:
   input: []
   toolOutput:
     name: leaf_delivery
-    output: '{"format":"leaf-delivery-v3","id":"00000001","created_at":1790096400.0,"carrier":"app-server","acknowledge":null,"batches":[{"page":"/page","through_seq":1,"threads":[{"id":"user-event","title":null,"anchor":null,"detached_from":null,"resolved":null,"elided":{"messages":0,"actions":0},"messages":[],"summaries":[],"actions":[]}],"handling":{"h1":"Your
+    output: '{"format":"leaf-delivery-v3","id":"00000001","created_at":1790096400.0,"acknowledge":null,"batches":[{"page":"/page","through_seq":1,"threads":[{"id":"user-event","title":null,"anchor":null,"detached_from":null,"resolved":null,"elided":{"messages":0,"actions":0},"messages":[],"summaries":[],"actions":[]}],"handling":{"h1":"Your
       turn''s first and final messages are the reply, and `leaf thread reply` refuses
       this event. Before your first tool call, open with a short message to the
       user: the answer, or what you are about to do. Leaf streams it into the thread

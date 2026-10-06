@@ -151,7 +151,9 @@ def refresh_previews() -> None:
     with tempfile.TemporaryDirectory(prefix="leaf-assets-") as raw:
         checkout = stage("examples", captures, Path(raw))
         site_build.build(
-            site_build.OUT, assets=checkout, source_markup=catalog_updates(checkout)
+            site_build.OUT,
+            assets=checkout.path,
+            source_markup=catalog_updates(checkout.path),
         )
         revision = publish(checkout, "Refresh generated example previews")
         click.echo(f"  max-sixty/leaf-assets@{revision}")

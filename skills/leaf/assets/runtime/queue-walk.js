@@ -243,7 +243,6 @@ export function createQueueWalk({
       },
     ],
     title: "Waiting on you",
-    description: "Next / previous Ask, thread or move to resend waiting on you",
     line: "on you",
     when: offered,
     repeat: true,

@@ -111,6 +111,14 @@ has tried; settle that before building it.
   Threads and Approve off the row until it ends, Android's back gesture closes nothing
   (the Escape ladder could answer it), Draw mode blocks scrolling and zoom, and an
   `lf-draft` has no close that keeps the edit.
+- **Decide whether the response bar's reactions and Suggest need a pointer route.**
+  The floating comment bar shows no ellipsis (⋯), so its field spans the bar and a sent
+  message keeps the card's measure. Its other responses, Suggest and the emoji
+  reactions, open only by key: Tab from the field, or `e`. A mouse alone has no
+  route to them, and a finger has none at all. Decide whether to make them more
+  available, such as a banner control under a coarse pointer, a reaction row on the
+  sent card, or a control that keeps the field's measure
+  (`skills/leaf/assets/runtime/composing/selection.js`).
 - **Give the thread panel's touch grip its own space.** Reserve room for the grip
   and collapse inactive reply controls if more thread cards should fit.
 
@@ -367,6 +375,15 @@ in the integration.
   in `notes/user-feedback-responsiveness.md`. Uploading a CI artifact needs no extra
   token but keeps 90 days; a file in `max-sixty/leaf-assets` keeps history but needs
   a token that can push there.
+- **Consider bundling the browser runtime.** A navigation loads about 220 JS modules
+  over HTTP/1.1's six connections. A prototype bundling `leaf.js` with esbuild cut a
+  widgetless page from 217 requests to 38 and its open from 332–483 ms to 238–258 ms,
+  roughly 10% of browser-test time. The bundle would hold `assets/runtime/` and Leaf's
+  own packages; custom packages stay unbuilt and import only `/runtime/widget-api.js`,
+  a bundle entry, which `page check` would then enforce, since any other runtime import
+  loads a second runtime. **Unconfirmed:** it needs automatic rebuilds on preview, test
+  and merge, since a committed bundle would conflict across concurrent runtime PRs.
+  Untested alternative: `modulepreload` hints.
 
 ## Etc
 
@@ -400,6 +417,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
   works the same wherever panes stand. Draw it as a playground before building it.
   Trigger: a user loses track of the active pane, or tabs through a pane to reach the
   next one.
+- **Expand everything waiting with a keypress.** A held notice, a collapsed summary,
+  and a folded card or section each open one at a time, with Enter or Space on it,
+  `g f` for a page's sections, or a `t` walk for a thread's held news. Nothing opens
+  them all at once, yet a page-level key spent on that alone seems wasteful. Think
+  about which surface should own it, such as one command on the panel. Trigger: a
+  user steps through notices one by one to catch up.
 - **#23 — Workspace persistence:** use repeated real tasks to decide whether
   users return and how much customization Leaf should own.
 - **Visual review beside Leaf:** coordinate a real browser target through the harness

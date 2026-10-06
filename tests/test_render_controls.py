@@ -8271,7 +8271,7 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
     page.keyboard.press("?")
     search = page.get_by_role("combobox", name="Search commands")
     search.fill("comment on the control")
-    command = page.get_by_role("button", name="comment on the control", exact=True)
+    command = page.get_by_role("button", name="Comment on the control", exact=True)
     expect(command).to_be_visible()
     expect(command).to_have_attribute("data-lf-available", "true")
     with held_frames(page):

@@ -1,10 +1,16 @@
 import { rememberWriting } from "../drafts.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { keeps, keepsHidden, keepsText } from "../keeps.js";
-import { advertisesKeys, submitBindings, submitLabel } from "../keyboard/bindings.js";
+import {
+  advertisesKeys,
+  answers,
+  submitBindings,
+  submitLabel,
+} from "../keyboard/bindings.js";
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
 import { notice } from "../notifications.js";
 import { iconElement } from "../icons.js";
+import { drawingThumbnail } from "./drawing-ink.js";
 import { LitElement, html } from "../../vendor/browser-runtime.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
@@ -44,6 +50,11 @@ const inputDrafts = new WeakMap();
 
 const MEDIA_SHELF_TAG = "leaf-pasted-media-shelf";
 
+// What the draft carries beside its words: the drawing a stroke attached, then each pasted
+// image. Each shows itself rather than its transport and each comes off with its own
+// control, so nothing rides along with a comment unseen or beyond the user's reach. The
+// drawing also takes back its last stroke here: the route a pointer or a finger has to
+// that, wherever the composer stands.
 class PastedMediaShelf extends LitElement {
   static properties = {
     model: { attribute: false },
@@ -51,47 +62,92 @@ class PastedMediaShelf extends LitElement {
 
   constructor() {
     super();
-    this.model = [];
-    this.removeMedia = null;
+    this.model = { drawing: null, media: [] };
+    this.actions = null;
+    this.undoIcon = iconElement("undo", "lf-action-icon");
+    this.removeIcon = iconElement("cross", "lf-action-icon");
+    // The picture is rebuilt only when the drawing changes, so a repaint that changes
+    // nothing about it leaves its node standing.
+    this.pictured = { drawing: null, node: null };
+  }
+
+  picture(drawing) {
+    if (drawing !== this.pictured.drawing)
+      this.pictured = { drawing, node: drawingThumbnail(drawing) };
+    return this.pictured.node;
   }
 
   createRenderRoot() {
     return this;
   }
 
-  present(model, removeMedia) {
+  present(model, actions) {
     this.model = model;
-    this.removeMedia = removeMedia;
+    this.actions = actions;
     this.performUpdate();
   }
 
   updated() {
-    keepsHidden(this, this.model.length === 0);
+    keepsHidden(this, !this.model.drawing && this.model.media.length === 0);
   }
 
   render() {
-    return this.model.map(
-      ({ index, url }) => html`
-        <span class="lf-composer-media-item">
-          <button
-            type="button"
-            class="lf-media-open lf-composer-media-open"
-            data-lf-media-url=${url}
-            aria-label=${`View pasted image ${index + 1}`}
-          >
-            <img src=${url} alt="" />
-          </button>
-          <button
-            type="button"
-            class="lf-composer-media-remove"
-            aria-label=${`Remove pasted image ${index + 1}`}
-            @click=${() => this.removeMedia(index)}
-          >
-            ×
-          </button>
-        </span>
-      `,
-    );
+    const { drawing, media } = this.model;
+    const strokes = drawing?.strokes.length ?? 0;
+    return [
+      drawing
+        ? html`
+            <span class="lf-composer-media-item lf-composer-drawing">
+              <span
+                class="lf-composer-media-open"
+                role="img"
+                aria-label=${`Drawing, ${strokes} ${strokes === 1 ? "stroke" : "strokes"}`}
+                >${this.picture(drawing)}</span
+              >
+              <button
+                type="button"
+                aria-label="Undo last stroke"
+                title="Undo last stroke"
+                @mousedown=${(event) => event.preventDefault()}
+                @click=${() => this.actions.undoStroke()}
+              >
+                ${this.undoIcon}
+              </button>
+              <button
+                type="button"
+                aria-label="Remove drawing"
+                title="Remove drawing"
+                @mousedown=${(event) => event.preventDefault()}
+                @click=${() => this.actions.removeDrawing()}
+              >
+                ${this.removeIcon}
+              </button>
+            </span>
+          `
+        : null,
+      media.map(
+        ({ index, url }) => html`
+          <span class="lf-composer-media-item">
+            <button
+              type="button"
+              class="lf-media-open lf-composer-media-open"
+              data-lf-media-url=${url}
+              aria-label=${`View pasted image ${index + 1}`}
+            >
+              <img src=${url} alt="" />
+            </button>
+            <button
+              type="button"
+              class="lf-composer-media-remove"
+              aria-label=${`Remove pasted image ${index + 1}`}
+              @click=${() => this.actions.removeMedia(index)}
+            >
+              ×
+            </button>
+          </span>
+        `,
+      ),
+    ];
   }
 }
 
@@ -151,6 +207,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       hasContent = (raw) => Boolean(raw),
       // The caller's own rendering of what the box holds, run in the box's paint.
       paint: paintOwn = () => {},
+      // A box whose draft can carry a drawing: `read` returns it or null, `undoStroke`
+      // takes back its last stroke and `remove` takes it off the draft. `draft` names
+      // the draft the box stands on, for a box that moves between drafts.
+      drawing = null,
     },
   ) {
     const field = document.createElement("div");
@@ -177,7 +237,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const mediaShelf = document.createElement(MEDIA_SHELF_TAG);
     mediaShelf.className = "lf-composer-media";
     mediaShelf.setAttribute("role", "group");
-    mediaShelf.setAttribute("aria-label", "Pasted images");
+    mediaShelf.setAttribute("aria-label", "Attachments");
     field.before(mediaShelf);
     let pastedMedia = [];
     const draftValue = () => writePastedMedia(ta.value, pastedMedia);
@@ -188,20 +248,71 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       rememberWriting(ta);
       ta.focus({ preventScroll: true });
     };
+    // ⌘Z takes back what the user did last, and the field's own undo holds only the words.
+    // So the box keeps the words as they stood when each stroke was drawn: while they
+    // stand so now, the latest stroke is the latest change and the press takes it back;
+    // once the user has typed, the press walks the words' history, and when that history
+    // has brought them back to how the latest stroke found them, the next press takes
+    // that stroke. Words that change and change back are no change.
+    let wordsAtStroke = [];
+    let draftSeen;
+    const strokeIsLatest = () =>
+      wordsAtStroke.length > 0 && wordsAtStroke.at(-1) === ta.value;
+    // A press is decided once, as it arrives: the field's history answers it before the
+    // page's keys do, and an undo of the words that brings them back to how the latest
+    // stroke found them must not let the same press take that stroke too.
+    let pressDecided = null;
+    if (drawing) {
+      ta.addEventListener(
+        "keydown",
+        (event) => {
+          if (!answers("Mod+z", event)) return;
+          pressDecided = strokeIsLatest();
+          setTimeout(() => (pressDecided = null));
+        },
+        { capture: true },
+      );
+      ta.yieldsUndo = () => pressDecided ?? strokeIsLatest();
+    }
     const renderMedia = () => {
+      const drawn = drawing?.read() ?? null;
+      const strokes = drawn?.strokes.length ?? 0;
+      // Another draft's words say nothing about this one's strokes.
+      const draft = drawing?.draft();
+      if (draft !== draftSeen) wordsAtStroke = [];
+      draftSeen = draft;
+      wordsAtStroke = wordsAtStroke.slice(0, strokes);
+      while (wordsAtStroke.length < strokes) wordsAtStroke.push(ta.value);
       mediaShelf.present(
-        Object.freeze(
-          pastedMedia.map((path, index) =>
+        Object.freeze({
+          drawing: drawn,
+          media: pastedMedia.map((path, index) =>
             Object.freeze({ index, url: scopedMediaUrl(path) }),
           ),
-        ),
-        removeMedia,
+        }),
+        {
+          removeMedia,
+          // A press that leaves the drawing keeps the user on the control, for the next
+          // stroke back; one that takes the drawing, and the control with it, returns
+          // them to the words.
+          undoStroke: () => {
+            drawing.undoStroke();
+            if (!drawing.read()) ta.focus({ preventScroll: true });
+          },
+          removeDrawing: () => {
+            drawing.remove();
+            ta.focus({ preventScroll: true });
+          },
+        },
       );
     };
     const hydrate = (value) => {
       const restored = readPastedMedia(value);
       pastedMedia = restored.paths;
+      // Writing the value starts the words' history afresh, so none of them is later
+      // than any stroke.
       ta.value = restored.text;
+      wordsAtStroke = [];
       renderMedia();
     };
     hydrate(ta.value);
@@ -258,6 +369,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       // A button whose visibility follows the draft must join the tab order before
       // the next key. The rest of its dressing can wait for the shared paint.
       paintOwn();
+      if (drawing) renderMedia();
       stale.add(ta);
       paintKeys();
     };
@@ -384,6 +496,19 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         title: sends,
         run: () => pressed(send),
       },
+      ...(drawing
+        ? [
+            {
+              id: "draw.undo",
+              keys: ["Mod+z"],
+              title: "undo stroke",
+              description:
+                "Take back the drawing's last stroke while it is the latest change",
+              when: () => pressDecided ?? strokeIsLatest(),
+              run: () => drawing.undoStroke(),
+            },
+          ]
+        : []),
     ]);
     // A press on a submit control is the send key pressed from the box, so it leaves the
     // user where Enter does: in the box, for a box that stays to take more, or wherever the

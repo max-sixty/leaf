@@ -759,6 +759,9 @@ html:not([data-lf-interactive]) [data-lf-prepaint] { display: none; }
   color: var(--muted); font: var(--t-6)/var(--lf-ui-lh) var(--sans); white-space: nowrap;
   border: 1px solid var(--rule); border-radius: var(--r); background: var(--card);
 }
+/* The room a text field keeps after its last words for the action standing in its
+   trailing corner (composing/text-field.js). Typed, so a reading resolves to a length. */
+@property --lf-field-end-room { syntax: "<length>"; inherits: true; initial-value: 0px; }
 /* The general leaf text box, in one rule. It is stated page-side like the rest of the
    shared vocabulary's faces (chrome.css), so a widget's own box that names the same
    property wins. The compact response field is excluded because it shares its complete
@@ -831,6 +834,12 @@ main {
  * screen takes the value at each element (geometry.js, `headerInset`). Registered so
  * that reading is a length. */
 @property --lf-top { syntax: "<length>"; inherits: true; initial-value: 0px; }
+/* The same for a box sticking at its scroller's foot: what it stands over takes its
+ * height and offset as `--lf-bottom`, and the runtime's reading of what is on screen
+ * leaves that band out too (geometry.js, `footerInset`). A long open thread's reply
+ * row is one (chrome.css). No box restarts it, since nothing inside what a footer
+ * stands over carries a footer of its own. */
+@property --lf-bottom { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --lf-free-l { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 @property --lf-free-r { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 /* Registered so the runtime reads each margin resident's width in pixels, whatever

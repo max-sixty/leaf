@@ -130,7 +130,6 @@ def woken(output: str, session: str | None = None) -> tuple[dict, dict, list[dic
     assert "has new input" in output, output
     payload = consume_pending_input(session or session_model.session_harness().session)
     assert payload["format"] == delivery_model.DELIVERY_FORMAT
-    assert payload["carrier"] == "hook"
     assert payload["acknowledge"] is None
     [batch] = payload["batches"]
     return payload, batch, batch["events"]
@@ -151,7 +150,7 @@ def printed(output: str) -> tuple[dict, dict, list[dict]]:
     (a bare shell, a Codex watcher): its reader confirms it with `wait --ack`."""
     payload = json.loads(output)
     assert payload["format"] == delivery_model.DELIVERY_FORMAT
-    assert payload["carrier"] == "wait"
+    assert payload["acknowledge"] is not None
     [batch] = payload["batches"]
     return payload, batch, batch["events"]
 
@@ -276,7 +275,7 @@ def freeze_events(page_dir: Path, events: list[dict]) -> dict:
             [stored[event["id"]] for event in events],
         )
     return delivery_model.freeze_delivery(
-        [batch], carrier="wait", acknowledge=session_model.wait_acknowledgement(None)
+        [batch], acknowledge=session_model.wait_acknowledgement(None)
     )
 
 
@@ -305,8 +304,8 @@ def test_delivery_ids_are_short_and_rerolled_under_the_store_lock(monkeypatch):
         return next(minted)
 
     monkeypatch.setattr(delivery_model.secrets, "token_hex", token_hex)
-    first = delivery_model.freeze_delivery([], carrier="wait", created_at=1)
-    second = delivery_model.freeze_delivery([], carrier="wait", created_at=2)
+    first = delivery_model.freeze_delivery([], created_at=1)
+    second = delivery_model.freeze_delivery([], created_at=2)
 
     assert widths == [4, 4, 4]
     assert (first["id"], second["id"]) == ("aaaaaaaa", "bbbbbbbb")
@@ -325,11 +324,11 @@ def test_codex_readdresses_a_collecting_record_if_its_delivery_id_collides(
             "collision-test", page_dir, transaction, transaction.events
         )
     assert path.stem == "aaaaaaaa"
-    delivery_model.freeze_delivery(
-        [], carrier="wait", delivery_id=path.stem, created_at=0
-    )
+    delivery_model.freeze_delivery([], delivery_id=path.stem, created_at=0)
 
-    prepared = codex_model.offer_delivery(path, files_model.read_json(path), "queue")
+    prepared = codex_model.offer_delivery(
+        path, files_model.read_json(path), turn_replies=False
+    )
 
     assert prepared.payload["id"] == "bbbbbbbb"
     assert prepared.record_path == path.with_name("bbbbbbbb.json")
@@ -4123,7 +4122,9 @@ def test_an_observed_queue_pointer_leaves_its_reply_to_leaf_reply(page_dir):
             transaction,
             service_model.unacknowledged(transaction.events, transaction.cursor),
         )
-    queued = codex_model.offer_delivery(path, files_model.read_json(path), "queue")
+    queued = codex_model.offer_delivery(
+        path, files_model.read_json(path), turn_replies=False
+    )
     [event] = queued.payload["batches"][0]["events"]
     assert event["answer"]["kind"] == "reply"
 
@@ -5853,7 +5854,7 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
             "handling-test", page_dir, transaction, transaction.events
         )
     payload = codex_model.offer_delivery(
-        queued, files_model.read_json(queued), "queue"
+        queued, files_model.read_json(queued), turn_replies=False
     ).payload
     [batch] = payload["batches"]
     assert [event["id"] for event in batch["events"]] == [
@@ -5902,7 +5903,7 @@ def test_codex_drops_a_record_whose_delivery_it_cannot_read(page_dir):
             "handling-test", page_dir, transaction, transaction.events
         )
     queue = files_model.read_json(path)
-    payload = codex_model.offer_delivery(path, queue, "queue").payload
+    payload = codex_model.offer_delivery(path, queue, turn_replies=False).payload
     payload["format"] = "leaf-delivery-v1"
     cleanup_model.write_json(delivery_model.delivery_path(payload["id"]), payload)
     with pytest.raises(RuntimeError, match="invalid envelope"):
@@ -7750,7 +7751,7 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
             batches.append(
                 delivery_model.batch_data(page, transaction, transaction.events)
             )
-    payload = delivery_model.freeze_delivery(batches, carrier="wait")
+    payload = delivery_model.freeze_delivery(batches)
     later = append_carried_log_record(
         other, {"kind": "comment", "author": "user", "text": "Later"}
     )
@@ -9223,7 +9224,7 @@ def test_a_bare_shell_receipt_rearms_every_page_in_its_delivery(
             batches.append(
                 delivery_model.batch_data(page, transaction, transaction.events)
             )
-    payload = delivery_model.freeze_delivery(batches, carrier="wait")
+    payload = delivery_model.freeze_delivery(batches)
     watching = spawn(
         [*LEAF_COMMAND, "wait", "--ack", payload["id"]],
         env=os.environ,
@@ -9344,7 +9345,7 @@ def test_codex_receipt_leaves_input_for_the_new_page_owner(page_dir):
         )
         assert codex_adapter_model.capture_batch("original", reading)
     epoch_path, epoch = current_codex_record("original")
-    codex_model.offer_delivery(epoch_path, epoch, "queue")
+    codex_model.offer_delivery(epoch_path, epoch, turn_replies=False)
     epoch.update(state="accepted", transport={"phase": "queued", "turn": None})
     codex_model.write_record(epoch_path, epoch)
     batch = epoch["batches"][0]
@@ -9475,7 +9476,7 @@ def test_a_reinitialized_page_does_not_starve_later_codex_receipts(tmp_path):
             )
             assert codex_adapter_model.capture_batch("codex-thread", reading)
     epoch_path, epoch = current_codex_record("codex-thread")
-    codex_model.offer_delivery(epoch_path, epoch, "queue")
+    codex_model.offer_delivery(epoch_path, epoch, turn_replies=False)
     epoch = files_model.read_json(epoch_path)
     epoch.update(state="accepted", transport={"phase": "queued", "turn": None})
     codex_model.write_record(epoch_path, epoch)
@@ -9542,7 +9543,7 @@ def test_a_receipted_codex_batch_ignores_a_reinitialized_page_cursor(
             )
             assert codex_adapter_model.capture_batch("codex-thread", reading)
     epoch_path, epoch = current_codex_record("codex-thread")
-    codex_model.offer_delivery(epoch_path, epoch, "queue")
+    codex_model.offer_delivery(epoch_path, epoch, turn_replies=False)
     epoch = files_model.read_json(epoch_path)
     epoch.update(state="accepted", transport={"phase": "queued", "turn": None})
     codex_model.write_record(epoch_path, epoch)
@@ -9891,7 +9892,7 @@ def test_app_server_deliveries_preserve_order_with_one_plain_reply_each(
         assert codex_adapter_model.capture_batch("codex-thread", reading)
     second_path, second = current_codex_record("codex-thread")
     second_payload = codex_model.offer_delivery(
-        second_path, second, "app-server"
+        second_path, second, turn_replies=True
     ).payload
     assert [
         event["id"] for batch in second_payload["batches"] for event in batch["events"]
@@ -9979,6 +9980,49 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     cleanup_model.close_session_turn("codex-thread", "user-turn")
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     assert not queued
+
+
+def test_codex_tool_hook_reads_a_quiet_page_without_the_page_model(
+    page_dir, codex_loop
+):
+    """Codex runs its tool hook after every tool call, so where the task's page holds
+    no new input the hook reads the claim, the log and the delivery records without
+    importing the page model and its validators, which cost about 70 ms of CPU a
+    call (measured on macOS). Input to deliver may import them."""
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "user-turn")
+    cleanup_model.open_session_turn("codex-thread", "user-turn")
+    program = """
+import json, sys
+from leaf.hooks import cmd_hook
+
+cmd_hook(
+    "codex",
+    {"hook_event_name": "PostToolUse", "session_id": "codex-thread", "turn_id": "user-turn"},
+)
+heavy = ("jsonschema", "markdown_it", "turbohtml")
+print(json.dumps(sorted(name for name in heavy if name in sys.modules)))
+"""
+
+    def hook():
+        done = subprocess.run(
+            [sys.executable, "-c", program],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=STATED_TIMEOUT,
+        )
+        *offered, imported = done.stdout.splitlines()
+        return offered, json.loads(imported)
+
+    assert hook() == ([], [])
+    # The same process does reach the page: a comment is offered to the turn.
+    append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Keep the existing layout"},
+    )
+    [offer], _ = hook()
+    assert json.loads(offer)["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
 
 
 def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
@@ -10351,9 +10395,9 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
     ] == ["second"]
 
 
-@pytest.mark.parametrize("carrier", ["hook", "app-server", "queue"])
+@pytest.mark.parametrize("transport", ["hook", "app-server", "queue"])
 def test_codex_acceptance_survives_interruption_before_page_receipt(
-    page_dir, codex_loop, monkeypatch, carrier
+    page_dir, codex_loop, monkeypatch, transport
 ):
     """Every transport commits acceptance before page IO, and recovery receipts it once."""
     codex_loop(page_dir)
@@ -10362,7 +10406,7 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Do not lose this"}
     )
-    if carrier == "hook":
+    if transport == "hook":
         leases_model.mark_step_hook("codex-thread")
     codex_model.offer_hook_delivery("codex-thread", "user-turn")
     [(path, _)] = codex_records("codex-thread")
@@ -10377,9 +10421,9 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
     with monkeypatch.context() as interrupted:
         interrupted.setattr(codex_model, "record_pickup", failed_pickup)
         with pytest.raises(OSError, match="receipt storage unavailable"):
-            if carrier == "hook":
+            if transport == "hook":
                 delivery_model.cmd_delivery_read(path.stem)
-            elif carrier == "app-server":
+            elif transport == "app-server":
                 observer = _observer()
                 assert observer._observe_lifecycle("user-turn")
                 observer._fold("user-turn", path.stem, follow=True)
@@ -10391,7 +10435,7 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
     assert accepted["state"] == "accepted"
     assert not accepted["batches"][0]["receipted"]
     assert service_model.read_cursor(page_dir) == 0
-    assert bool(queued) == (carrier == "queue")
+    assert bool(queued) == (transport == "queue")
     assert codex_adapter_model._recover_receipt("codex-thread")
     assert not codex_adapter_model._recover_receipt("codex-thread")
     assert not codex_records("codex-thread")
@@ -10402,7 +10446,7 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
     ]
     assert pickup["events"] == [comment["id"]]
     assert (pickup["phase"], pickup["turn"]) == (
-        ("queued", None) if carrier == "queue" else ("opened", "user-turn")
+        ("queued", None) if transport == "queue" else ("opened", "user-turn")
     )
 
 
@@ -10486,7 +10530,7 @@ def test_codex_restart_finishes_an_accepted_batch_without_queueing_again(
         )
         assert codex_adapter_model.capture_batch("codex-thread", reading)
     record_path, queue = current_codex_record("codex-thread")
-    codex_model.offer_delivery(record_path, queue, "queue")
+    codex_model.offer_delivery(record_path, queue, turn_replies=False)
     queue = files_model.read_json(record_path)
     queue.update(state="accepted", transport={"phase": "queued", "turn": None})
     codex_model.write_record(record_path, queue)
@@ -12629,7 +12673,7 @@ def test_input_too_large_for_the_turn_goes_as_a_pointer_its_read_confirms(
     read = CliRunner().invoke(cli_model.cli, ["delivery", "read", delivery_id])
     assert read.exit_code == 0, read.output
     pointer = json.loads(read.output)
-    assert (pointer["carrier"], pointer["acknowledge"]) == ("hook", None)
+    assert pointer["acknowledge"] is None
     [batch] = pointer["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     assert files_model.read_json(claimed / "cursor.json") == {
@@ -12655,7 +12699,6 @@ def test_a_wait_only_wakes_a_session_its_hooks_have_run_for(
 
     assert session_model.cmd_wait(page_dir) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["carrier"] == "wait"
     assert f"leaf wait --ack {payload['id']}" in payload["acknowledge"]
     assert [event["id"] for event in payload["batches"][0]["events"]] == [first["id"]]
     delivery_model.receive_delivery(payload["id"])
@@ -13131,7 +13174,6 @@ def test_claude_codes_hook_confirms_the_input_it_hands_over(claimed, capsys):
     leases_model.release_lease(lease)
     envelope = context.split("\n")[1]
     payload = json.loads(envelope)
-    assert payload["carrier"] == "hook"
     assert payload["acknowledge"] is None
     [batch] = payload["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
@@ -14746,7 +14788,7 @@ def test_prompt_combines_reconnect_notice_and_pending_user_delivery(claimed, cap
     payload = json.loads(context["additionalContext"].split("\n")[1])
     [batch] = payload["batches"]
     assert [event["id"] for event in batch["events"]] == [asked["id"]]
-    assert (payload["carrier"], payload["acknowledge"]) == ("hook", None)
+    assert payload["acknowledge"] is None
 
 
 def test_resume_needs_ownership_even_while_the_old_server_still_serves(claimed, capsys):
@@ -17967,7 +18009,7 @@ def test_a_rejected_started_fold_cannot_publish_initial_working_activity(
     _codex_delivery(page_dir)
     connection = _observer()
     path, record = codex_model.delivery_records("codex-thread")[0]
-    offered = codex_model.offer_delivery(path, record, "app-server")
+    offered = codex_model.offer_delivery(path, record, turn_replies=True)
     codex_model.write_record(offered.record_path, record)
     construct = connection._fold
     winner = {}

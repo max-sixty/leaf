@@ -431,8 +431,8 @@ def cmd_reply(
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
         if claimed_session is not None:
-            claim = page.active_claim
-            if claim is None or claim["id"] != claimed_session:
+            claim = page.claim_of(claimed_session)
+            if claim is None:
                 raise ReceiptRefused(
                     f"page is no longer claimed by session {claimed_session!r}"
                 )
@@ -733,10 +733,7 @@ def fail_answer(
     some turn already picked up to the writer following that turn.
     """
     with PageTransaction(page_dir) as page:
-        if (
-            claimed_session is not None
-            and (page.active_claim or {}).get("id") != claimed_session
-        ):
+        if claimed_session is not None and page.claim_of(claimed_session) is None:
             raise ReceiptRefused(
                 f"page is no longer claimed by session {claimed_session!r}"
             )
@@ -770,10 +767,7 @@ def _fail_markup_answer(
 ) -> dict | None:
     """Record a failed pickup of a page move, rechecking its answer under the lock."""
     with PageTransaction(page_dir) as page:
-        if (
-            claimed_session is not None
-            and (page.active_claim or {}).get("id") != claimed_session
-        ):
+        if claimed_session is not None and page.claim_of(claimed_session) is None:
             raise ReceiptRefused(
                 f"page is no longer claimed by session {claimed_session!r}"
             )

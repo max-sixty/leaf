@@ -365,10 +365,11 @@ export function controlNavigationKeys(node) {
 // user lands, since that is the whole of what the rung is for, and letting go of an Ask
 // names the act, since they were on the page all along.
 //
-// Where they land is the block they are reading, which is a reading of the current scroll
-// rather than a place remembered from before the press: a surface closing moves the page
-// under them, and what they can see when it has gone is the answer. Nothing is stored, so
-// no revision, repaint or reflow can strand it.
+// Where they land is the block they are reading in the page region they last acted in
+// (reading-regions.js, `pageReadingRegion`), which is a reading of that region's current
+// scroll rather than a place remembered from before the press: a surface closing moves
+// the page under them, and what they can see when it has gone is the answer. Only the
+// region is remembered, so no revision, repaint or reflow can strand the block.
 //
 // Focus and then blur, which is the pair and not either half. The focus moves the
 // browser's sequential focus navigation starting point to the block, so the user's next
@@ -379,9 +380,10 @@ export function controlNavigationKeys(node) {
 // `releaseFocus` is the other half of the pair and the top of the document is the point of
 // it: a page that has just arrived is not a page anybody has read yet, so its first Tab
 // belongs at the skip link rather than part-way through the prose that happens to be on
-// screen. It is also the fallback here, for a viewport holding nothing to land on — a
-// tall bounded region, a run of figures — where the honest answer is that the user has
-// no reading position for the browser to continue from.
+// screen. It is also the fallback here, for a page whose view holds nothing to land on,
+// such as a run of figures, where the honest answer is that the user has no reading
+// position for the browser to continue from. A region in that state still has one: the
+// declared reading lands on its body (reading-place.js, `landingPlace`).
 //
 // A surface covering the page makes it inert, so neither half of this reaches it: the
 // page is not somewhere the user can be while it is covered, and the surface is the

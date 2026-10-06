@@ -2159,9 +2159,9 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     url = serve(html)
     page = open_page(browser, url)
 
-    # Each control reserves its widest words in the face it wears in each band: the
-    # phone band's narrower inset takes the same words less its padding, and the desk's
-    # takes them back on return.
+    # Each control reserves its widest words in the face it wears in each band. A phone
+    # wears Threads as an icon and its count, with Approval behind More, and the desk
+    # takes its reservations back on return.
     button_widths = (
         "() => ['.lf-threads-toggle', '.lf-signoff'].map(selector => {"
         " const el = document.querySelector(selector); const style = getComputedStyle(el);"
@@ -2171,10 +2171,6 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     resized(page, 1200, 844)
     wide_widths = page.evaluate(button_widths)
     resized(page, 320, 844)
-    phone_widths = page.evaluate(button_widths)
-    assert phone_widths == pytest.approx(wide_widths, abs=1), (
-        f"the reserved words changed with the band: {wide_widths}, {phone_widths}"
-    )
     resized(page, 1200, 844)
     assert page.evaluate(button_widths) == pytest.approx(wide_widths, abs=1), (
         "button reservations did not return to their wide measurements after the "
@@ -2183,13 +2179,16 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
 
     def assert_primary_reach(width):
         resized(page, width, 844)
+        # A phone's one row holds the status, Threads and More; Approval leads More.
+        primary = ".lf-signoff" if width > 480 else ".lf-banner-more"
         boxes = page.evaluate(
-            """() => Object.fromEntries(
-              ['.lf-banner-status', '.lf-threads-toggle', '.lf-signoff'].map(selector => {
+            """(primary) => Object.fromEntries(
+              ['.lf-banner-status', '.lf-threads-toggle', primary].map(selector => {
                 const r = document.querySelector(selector).getBoundingClientRect();
                 return [selector, {left: r.left, right: r.right, width: r.width,
                                    top: r.top, bottom: r.bottom, height: r.height}];
-              }))"""
+              }))""",
+            primary,
         )
         for selector, box in boxes.items():
             assert box["width"] > 0 and box["height"] > 0, (
@@ -2201,7 +2200,7 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         # The narrow face a phone held upright wears: forty-pixel controls.
         if width <= 480:
             assert boxes[".lf-threads-toggle"]["height"] >= 40
-            assert boxes[".lf-signoff"]["height"] >= 40
+            assert boxes[".lf-banner-more"]["height"] >= 40
         assert root_overflow(page) == 0, (
             "the banner made the page itself scroll sideways"
         )
@@ -2214,8 +2213,8 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     for width in (320, 390, 768, 900, 1200):
         assert_primary_reach(width)
 
-    # The keyboard walks the row it can see and reaches the door standing at its start,
-    # and the reading loop is in front of the user without opening anything.
+    # The keyboard walks the row it can see, Threads and More, and Approval is the first
+    # control More opens to.
     resized(page, 320, 844)
     actions = page.locator(".lf-banner-actions")
     actions.evaluate("el => { el.tabIndex = -1; el.focus(); }")
@@ -2231,9 +2230,15 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         if here is None:
             break
         walk.append(here.split(" ").pop())
-    assert "lf-threads-toggle" in walk and "lf-signoff" in walk, (
+    assert walk[:2] == ["lf-threads-toggle", "lf-banner-more"], (
         f"a Tab walk across the phone row missed the reading loop: {walk}"
     )
+    page.locator(".lf-banner-more").focus()
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-banner-menu > :visible").first).to_have_class(
+        re.compile(r"\blf-signoff\b")
+    )
+    page.keyboard.press("Escape")
     ring_room = """el => {
       const toolbar = el.parentElement.getBoundingClientRect();
       const button = el.getBoundingClientRect();
@@ -2339,8 +2344,10 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
     # hidden ones puts an absent destination back between the user and a real one.
     expect(pinned.locator(".lf-page-map-toggle")).to_be_hidden()
     assert pinned.locator(".lf-page-map-toggle").evaluate("el => el.offsetWidth") == 0
+    # The page asks for sign-off, so on a phone More's dot may already stand for the
+    # approval behind it; its name says which news the dot carries.
     expect(pinned.locator(".lf-banner-more")).not_to_have_attribute(
-        "data-lf-news", re.compile(r".*")
+        "aria-label", re.compile(", new")
     )
     stamp_page(serve.page_dir, html, "two")
     expect(pinned.locator(".lf-latest-chip")).to_have_class(
@@ -2351,7 +2358,8 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
           const chip = document.querySelector('.lf-latest-chip');
           const door = document.querySelector('.lf-banner-more');
           return {onTheRow: chip.checkVisibility({visibilityProperty: true}),
-                  behindTheDoor: door.hasAttribute('data-lf-news'),
+                  behindTheDoor: door.hasAttribute('data-lf-news')
+                    && door.getAttribute('aria-label').includes(', new'),
                   doorName: door.getAttribute('aria-label'),
                   shown: chip.offsetWidth, needed: chip.scrollWidth};
         }"""
@@ -2370,7 +2378,8 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
           toolbar.showNews(chip, false);
           await Promise.resolve();
           const quiet = {
-            x: x(), door: door.checkVisibility(), news: door.hasAttribute('data-lf-news'),
+            x: x(), door: door.checkVisibility(),
+            news: door.getAttribute('aria-label').includes(', new'),
           };
           toolbar.showNews(chip, true);
           await Promise.resolve();
@@ -2675,7 +2684,8 @@ def test_banner_status_lit_owner_moves_one_native_surface_between_layouts(
                 '.lf-dot, .lf-status-text'
               ).length,
               dotParent: nodes.dot.parentElement.className,
-              textParent: nodes.text.parentElement.className,
+              // The words stand in one box with a passing notice, which moves whole.
+              textParent: nodes.text.parentElement.parentElement.className,
               detailParent: nodes.detail.parentElement === nodes.owner,
               detailOpen: nodes.detail.matches(':popover-open'),
               detailText: nodes.detail.textContent,
@@ -3096,7 +3106,9 @@ def test_the_versions_menu_uses_the_banner_panel_and_its_doors_edge(browser, ser
 
 
 def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other_leaf):
-    """A phone gets fixed primary seats and one keyboard-reachable secondary menu."""
+    """A phone's banner is one row, the status, Threads and More, and every other
+    control, Approval first, is one keyboard-reachable menu behind More, which wears a
+    dot while approval is open."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -3122,9 +3134,24 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     expect(more).to_be_visible()
     secondary = page.locator(".lf-banner-menu .lf-btn")
     assert secondary.count() > 0, "the fixture has no secondary menu to walk"
-    # The row keeps the reading loop and the door; everything else is behind it.
-    expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
+    # The row keeps Threads, its icon and count, and the door; everything else is
+    # behind it, led by Approval. The suggestions hold approval, so More wears no dot
+    # for it (test_more_wears_a_dot_while_a_press_would_approve).
+    expect(page.locator(".lf-banner-actions > :visible")).to_have_count(2)
     expect(page.locator(".lf-banner-actions > .lf-threads-toggle")).to_be_visible()
+    expect(page.locator(".lf-threads-toggle .lf-threads-icon")).to_be_visible()
+    expect(page.locator(".lf-threads-toggle .lf-threads-label")).to_be_hidden()
+    count = page.locator(".lf-threads-toggle").evaluate(
+        "control => getComputedStyle(control, '::before').content"
+    )
+    assert re.fullmatch(r'"\d+"', count), count
+    expect(page.locator(".lf-banner-menu > .lf-btn").first).to_have_class(
+        re.compile(r"\blf-signoff\b")
+    )
+    expect(more).not_to_have_attribute("aria-label", re.compile("approval"))
+    assert page.locator(".lf-banner").bounding_box()["height"] == pytest.approx(
+        52, abs=0.5
+    )
     # Every secondary control, from the keyboard, through that one door. The press is the
     # popover's own invoker, so the menu opens and puts the user on its first control
     # without anything here focusing it for them.
@@ -3155,6 +3182,15 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     for control in bulk.all():
         assert control.bounding_box()["width"] >= menu["width"] - 24
     assert root_overflow(page) == 0
+    # The suggestions hold approval, so More opens on the control after it, and
+    # Shift+Tab reaches Approval and the reason it refuses a press.
+    approval = page.locator(".lf-banner-menu > .lf-signoff")
+    expect(approval).to_have_attribute("aria-disabled", "true")
+    page.keyboard.press("Shift+Tab")
+    expect(approval).to_be_focused()
+    expect(approval).to_have_attribute("aria-description", re.compile(r"\S"))
+    page.keyboard.press("Tab")
+    want.remove("Approve version")
     reached = []
     for _ in range(len(want) * 3):
         here = page.evaluate(
@@ -3178,6 +3214,61 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     expect(page.locator(".lf-banner-menu")).to_be_hidden()
     expect(more).to_have_attribute("aria-expanded", "false")
     expect(more).to_be_focused()
+
+    # Crossing the phone width reseats the refused Approval, a Tab stop like any
+    # other, and focus goes with it: to the door while More is shut, and to Approval
+    # itself wherever it stands visible.
+    refused = page.locator(".lf-signoff")
+    resized(page, 1200, 800)
+    refused.focus()
+    resized(page, 390, 800)
+    expect(more).to_be_focused()
+    page.keyboard.press("Enter")
+    refused.focus()
+    resized(page, 1200, 800)
+    expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
+    expect(refused).to_be_focused()
+
+
+def test_more_wears_a_dot_while_a_press_would_approve(browser, serve):
+    """On a phone Approval stands behind More, and More wears its dot, named in its
+    accessible name, while a press there would approve. Approving takes the dot down
+    and taking the approval back puts it up again; on a desk Approval stands on the
+    row and More wears no dot for it."""
+    html = LONG_PAGE.replace(
+        "<title>long</title>",
+        '<title>long</title><meta name="lf-review" content="sign-off">',
+    )
+    page = open_page(browser, serve(html))
+    resized(page, 390, 800)
+    more = page.locator(".lf-banner-more")
+    approval = page.locator(".lf-signoff")
+    expect(more).to_have_attribute("data-lf-news", "")
+    expect(more).to_have_attribute("aria-label", "More page controls, approval open")
+    more.click()
+    expect(page.locator(".lf-banner-menu > :visible").first).to_have_class(
+        re.compile(r"\blf-signoff\b")
+    )
+    with sending(page, "the approval"):
+        approval.click()
+    expect(approval).to_have_text("✓ Version approved")
+    expect(more).not_to_have_attribute("data-lf-news", re.compile(".*"))
+    expect(more).to_have_attribute("aria-label", "More page controls")
+    page.keyboard.press("Escape")
+    undo(page)
+    expect(more).to_have_attribute("data-lf-news", "")
+
+    # Crossing the phone width reseats Approval, and focus goes with it, both ways,
+    # here with More open throughout.
+    more.click()
+    approval.focus()
+    resized(page, 1200, 800)
+    expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
+    expect(approval).to_be_focused()
+    expect(more).not_to_have_attribute("data-lf-news", re.compile(".*"))
+    resized(page, 390, 800)
+    expect(page.locator(".lf-banner-menu > .lf-signoff")).to_be_visible()
+    expect(approval).to_be_focused()
 
 
 # Where the banner's two parts stand, the height the theme states for it (the document's
@@ -3238,9 +3329,11 @@ def assert_banner_as_stated(read, wrapped):
         # Capability arrival cannot change this window's row allocation.
         (600, False, False, True),
         (600, False, True, True),
-        # The narrow window gives the run a row of its own at both widths.
-        (390, True, False, True),
-        (470, True, False, True),
+        # A phone held upright is one row: the status, Threads and More, with Approval
+        # behind More, so sign-off changes nothing there either.
+        (390, True, False, False),
+        (390, True, True, False),
+        (470, True, False, False),
     ],
 )
 def test_the_banner_rows_follow_the_window_independently_of_sign_off(
@@ -3556,11 +3649,14 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
         "the touch fixture never reached Leaf's coarse-pointer rules"
     )
 
-    primary = page.locator(".lf-threads-toggle, .lf-signoff")
+    # A phone's row holds Threads and More; Approval leads More.
+    primary = page.locator(".lf-threads-toggle, .lf-banner-more")
     expect(primary).to_have_count(2)
     for index in range(primary.count()):
         box = primary.nth(index).bounding_box()
-        assert box["height"] >= 43.9, f"a primary touch aim stayed at {box}"
+        assert box["width"] >= 43.9 and box["height"] >= 43.9, (
+            f"a primary touch aim stayed at {box}"
+        )
 
     page.locator(".lf-threads-toggle").tap()
     panel_settled(page)
@@ -4260,10 +4356,9 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     sentence's, not the empty banner's. As the sentence the agent declares grows, the
     press grows rightward into the room the controls leave, and nothing else on the banner
     moves; once that room runs out its words truncate rather than push More. Approval and
-    the queue counts stay whole throughout. At 390 the status has a row of its own, so
-    the sentence's room is that whole row: an ordinary sentence of the agent's shows
-    whole there, where the counts sharing its row had cut it to a word. Approval fills
-    the run's row there, so the counts give way rather than truncate it."""
+    the queue counts stay whole throughout. At 390 the status shares the phone's one row
+    with Threads and More, Approval stands behind More, and the counts give way to the
+    sentence, which keeps what the two controls leave."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -4284,7 +4379,8 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
 
     short = say("tests")
     assert short["shown"] >= short["needed"], short
-    assert short["right"] < short["roomRight"] - 60, (
+    # A press spanning the room would end at its edge; a phone's room is narrow.
+    assert short["right"] < short["roomRight"] - 20, (
         f"a short status press still spans the banner's free room: {short}"
     )
     # The page's suggestions wait on the user, and the page task the status runs on
@@ -4296,7 +4392,8 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     )
     assert any("lf-banner-more" in name for name in beside["names"]), beside["names"]
 
-    longer = say("running the browser suite")
+    # Longer, and still inside a phone's room beside Threads and More.
+    longer = say("running tests")
     assert longer["shown"] >= longer["needed"], longer
     assert (longer["left"], longer["top"]) == (short["left"], short["top"])
     assert longer["right"] > short["right"], (short, longer)
@@ -4310,10 +4407,14 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     assert endless["right"] <= endless["roomRight"] + 0.5, endless
     # The sentence gives up its room, and the counts never cut Approval: where they
     # are drawn they stand whole, inside the banner, clear of the status and every
-    # control, and otherwise the banner leaves them out whole.
+    # control, and on a phone's one row the banner leaves them out whole, with
+    # Approval behind More.
     counts = page.evaluate(STATUS_COUNTS)
-    assert counts["approval"], counts
-    assert counts["approval"]["shown"] >= counts["approval"]["needed"], counts
+    if counts_drawn:
+        assert counts["approval"], counts
+        assert counts["approval"]["shown"] >= counts["approval"]["needed"], counts
+    else:
+        assert counts["approval"] is None, counts
     assert counts["drawn"] == counts_drawn, counts
     # The counts are a press; one the banner does not draw takes no Tab stop.
     assert counts["inert"] != counts_drawn, counts
@@ -4327,13 +4428,14 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     )
 
 
-def test_the_counts_lead_a_phone_s_second_row_where_the_run_leaves_room(browser, serve):
-    """On a phone the status sentence has the first row, and the queue counts lead the
-    second, under the sentence's start, where the run leaves them room whole. A finger's
-    search steps fill that row, so the counts give way to them rather than cut a step,
-    and come back where they stood once the search closes."""
+def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve):
+    """Just wider than a phone held upright, the banner's status sentence has the first
+    row, and the queue counts lead the second, under the sentence's start, where the run
+    leaves them room whole. A finger's search steps fill that row, so the counts give
+    way to them rather than cut a step, and come back where they stood once the search
+    closes."""
     context = browser.new_context(
-        viewport={"width": 390, "height": 800}, has_touch=True, is_mobile=True
+        viewport={"width": 490, "height": 800}, has_touch=True, is_mobile=True
     )
     page = open_page(browser, serve(SUGGESTION_PAGE), context=context)
     expect(page.locator(".lf-status-queues")).to_have_text("3 on you")
@@ -4366,6 +4468,75 @@ def test_the_counts_lead_a_phone_s_second_row_where_the_run_leaves_room(browser,
         resting["left"],
         resting["top"],
     ), (resting, back)
+
+
+def test_a_phone_s_one_row_seats_a_finger_s_steps_and_leaves_the_counts_out(
+    browser, serve
+):
+    """On a phone the banner is one row and the queue counts stand down, inert, which
+    the status's disclosure still says. A finger's search steps take Threads' place on
+    that row whole, the status keeping what they leave, and the banner keeps its height
+    while they stand and after they go."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 800}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(SUGGESTION_PAGE), context=context)
+    expect(page.locator(".lf-status-detail")).to_contain_text("Waiting on you")
+    page_at_rest(page)
+    resting = page.evaluate(BANNER_ROWS)
+    assert_banner_as_stated(resting, wrapped=False)
+    counts = page.evaluate(STATUS_COUNTS)
+    assert not counts["drawn"] and counts["inert"], counts
+
+    page.keyboard.press("/")
+    page.keyboard.type("feeder")
+    expect(
+        page.locator(".lf-banner-actions > .lf-btn", has_text="Next")
+    ).to_be_visible()
+    page_at_rest(page)
+    searching = page.evaluate(BANNER_ROWS)
+    assert_banner_as_stated(searching, wrapped=False)
+    assert "Close search" in searching["controls"], searching
+    assert page.locator(".lf-status-button").bounding_box()["width"] > 0
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-banner-actions > .lf-btn", has_text="Next")).to_be_hidden()
+    page_at_rest(page)
+    back = page.evaluate(BANNER_ROWS)
+    assert back["main"] == pytest.approx(resting["main"], abs=0.5), (resting, back)
+
+
+def test_a_phone_shows_a_notice_in_the_banner_s_status_words(browser, serve):
+    """A phone's one place for brief news is the banner's status words: the notice
+    stands over them while it lasts and they return when it fades. The status press
+    keeps its own name meanwhile, since the live region has said the notice, and the
+    bottom status, which says it elsewhere, stays down."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 800}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(BOARD_PAGE), context=context)
+    words = page.locator(".lf-status-text")
+    notice = page.locator(".lf-banner .lf-status-notice")
+    press = page.locator(".lf-status-button")
+    expect(notice).to_be_hidden()
+    name = press.evaluate("press => press.innerText")
+    before = press.bounding_box()
+
+    board = page.locator("#sprint")
+    board.get_by_role("button", name="Move: Squirrel baffle — Todo").focus()
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Enter")
+    expect(notice).to_have_text("Moved to Done — sent")
+    expect(notice).to_be_visible()
+    expect(words).to_have_css("opacity", "0")
+    expect(page.locator(".lf-bottom-status")).to_be_hidden()
+    expect(page.locator(".lf-live")).to_have_text("Moved to Done — sent")
+    expect(press).to_have_accessible_name(name)
+    assert press.bounding_box()["x"] == pytest.approx(before["x"], abs=0.5)
+
+    expect(notice).to_be_hidden()
+    expect(words).to_have_css("opacity", "1")
 
 
 def test_a_recorded_move_is_acknowledged_in_the_status_and_nowhere_else(browser, serve):
@@ -4551,13 +4722,16 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
                }"""
         )
 
-    order = ["others", "latest", "queue", "version", "signoff", "comments"]
+    # A phone moves Approval to the head of More, off the row.
+    desk = ["others", "latest", "queue", "version", "signoff", "comments"]
+    phone = ["signoff", "others", "latest", "queue", "version", "comments"]
     for width in (1200, 390, 320):
         resized(page, width, 900)
-        assert actions() == order
+        assert actions() == (desk if width > 480 else phone)
         expect(page.locator(".lf-banner-menu > .lf-others")).to_have_count(1)
         expect(page.locator(".lf-banner-menu > .lf-version")).to_have_count(1)
-        expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
+        seat = ".lf-banner-actions" if width > 480 else ".lf-banner-menu"
+        expect(page.locator(f"{seat} > .lf-signoff")).to_have_count(1)
         expect(page.locator(".lf-banner-actions > .lf-threads-toggle")).to_be_visible()
         fit = page.evaluate(
             """() => { const actions = document.querySelector('.lf-banner-actions');

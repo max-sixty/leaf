@@ -151,7 +151,7 @@ import {
   capturePlace,
   hasLandmark,
   rawOffsetFits,
-  readingBlock,
+  pageReadingBlock,
   restorePlace,
   textBlocks,
 } from "./reading-place.js";
@@ -1617,7 +1617,7 @@ export function createVersionController({
     const active =
       regions.get(view.activeRegion) ??
       containingReadingRegionFor(focused()) ??
-      readingRegionFor(readingBlock());
+      readingRegionFor(pageReadingBlock());
     if (active) reveal(active.host, currentIntent);
     const restored = new Set();
     const activeReading = active && view.regions?.[active.id];

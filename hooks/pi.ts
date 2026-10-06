@@ -45,7 +45,7 @@ const HOOK_TIMEOUT_MS = 20_000;
 const SESSION_END_TIMEOUT_MS = 3_000;
 const CUSTOM_TYPE = "leaf";
 
-type Payload = { hook_event_name: string; session_id: string; stop_hook_active?: boolean };
+type Payload = { hook_event_name: string; session_id: string; stop_hook_active?: boolean; ended_at?: string };
 
 /** Run the launcher with `payload` on stdin, and resolve its stdout, or "" on
  * any failure. */
@@ -109,6 +109,8 @@ export default function leaf(pi: ExtensionAPI) {
 	 * since the session's wait lease admits one, and one from before would read
 	 * the closed turn as the Stop hook's ending. */
 	async function ensureWatch(interrupted: boolean) {
+		// The watch closes the turn after this returns, so it states when it ended.
+		const ended = new Date().toISOString();
 		if (!hasUI || disposed || (watch && !watch.interrupted && !interrupted)) return;
 		await stopWatch();
 		// A shutdown, or another start, may have come while the old one exited.
@@ -116,6 +118,7 @@ export default function leaf(pi: ExtensionAPI) {
 		const started = run(["hook", "--harness", "pi", "--watch"], {
 			hook_event_name: interrupted ? "Interrupt" : "Stop",
 			session_id: session,
+			ended_at: ended,
 		});
 		const current = { ...started, interrupted };
 		watch = current;

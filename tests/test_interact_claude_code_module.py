@@ -194,7 +194,7 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
     with the Interrupt payload, which closes the turn the delivery opened and
     wakes the session only for input arriving after it
     (`session.watch_between_turns`)."""
-    assert claude_code.watches.get(timeout=STATED_TIMEOUT) == "Stop"
+    assert claude_code.watches.get(timeout=STATED_TIMEOUT)["hook_event_name"] == "Stop"
     claude_code.start_turn()
     handed = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "during"}
@@ -204,7 +204,12 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
     assert [event["id"] for event in batch["events"]] == [handed["id"]]
 
     claude_code.end_turn(interrupted=True)
-    assert claude_code.watches.get(timeout=STATED_TIMEOUT) == "Interrupt"
+    interrupt = claude_code.watches.get(timeout=STATED_TIMEOUT)
+    # The watch closes the turn after the ending, so it states when that was.
+    assert (interrupt["hook_event_name"], "ended_at" in interrupt) == (
+        "Interrupt",
+        True,
+    )
     wait_for(
         lambda: cleanup_model.session_record(claude_code.session)["turn_closed"],
         bool,

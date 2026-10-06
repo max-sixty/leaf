@@ -40,7 +40,7 @@ import type { EngineInterface, Register } from 'claude-code'
 // hands over (`CONFIRM_WITHIN` in `hook_carrier.py`).
 const HOOK_TIMEOUT_MS = 20_000
 
-type Payload = { hook_event_name: string; session_id: string }
+type Payload = { hook_event_name: string; session_id: string; ended_at?: string }
 type Watch = {
   stop: () => Promise<unknown>
   done: Promise<string>
@@ -88,15 +88,19 @@ async function stopWatch() {
  * always starts afresh, since its watch closes the turn and looks at the logs
  * anew. A watch is replaced only once the one before it has exited, since the
  * session's wait lease admits one, and one from before would read the closed
- * turn as the Stop hook's ending. */
+ * turn as the Stop hook's ending. Without Claude Code's process the module keeps
+ * no watch, and leaves the turn's ending to the registrations beneath it. */
 async function ensureWatch($: EngineInterface, session: string, interrupted: boolean) {
-  if (watch && !watch.interrupted && !interrupted) return
+  // The watch closes the turn after this returns, so it states when it ended.
+  const ended = new Date().toISOString()
+  if (!claudePid || (watch && !watch.interrupted && !interrupted)) return
   await stopWatch()
   // Another ending may have started one while the old one exited.
   if (watch) return
   const payload: Payload = {
     hook_event_name: interrupted ? 'Interrupt' : 'Stop',
     session_id: session,
+    ended_at: ended,
   }
   const stream = $.process.spawn({
     argv: [launcher($), 'hook', '--harness', 'claude-code', '--watch'],

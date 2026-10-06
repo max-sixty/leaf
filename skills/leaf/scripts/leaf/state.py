@@ -395,14 +395,27 @@ def prompt_turn(session_id: str, turn_id: str | None = None) -> dict | None:
 
 
 def close_session_turn(
-    session_id: str, turn_id: str | None = None, *, expected: dict | None | object = ...
+    session_id: str,
+    turn_id: str | None = None,
+    *,
+    expected: dict | None | object = ...,
+    ended_at: str | None = None,
 ) -> bool:
+    """Close the session's turn. `ended_at` is when the harness saw the turn end,
+    for a close that reaches here later: a turn a prompt opened or renewed since
+    then is a newer one, which an unnamed close must not end."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if (
             record is None
             or record["ended"] is not None
             or (expected is not ... and record != expected)
+            or (
+                ended_at is not None
+                and record["turn_opened"] is not None
+                and datetime.fromisoformat(record["turn_opened"])
+                > datetime.fromisoformat(ended_at)
+            )
         ):
             return False
         return advance_turn(session_id, turn_id, running=False) is not None

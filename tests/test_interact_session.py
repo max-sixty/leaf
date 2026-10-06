@@ -9112,6 +9112,25 @@ def test_a_watch_at_an_interrupted_ending_wakes_only_for_later_input(
     assert not waiting.is_set()
 
 
+def test_a_late_interrupt_leaves_a_turn_opened_after_it_open(claimed):
+    """A carrier's watch closes an interrupted turn only after the carrier saw it
+    end, and a Claude Code or Pi turn has no id, so a prompt in between renews
+    the same turn. The Interrupt payload states when the turn ended, and a turn
+    opened or renewed since then is not closed by it."""
+    cleanup_model.prompt_turn("s1")
+    ended = cleanup_model.now_iso()
+    time.sleep(0.01)
+    cleanup_model.prompt_turn("s1")
+    interrupt = {"hook_event_name": "Interrupt", "session_id": "s1"}
+    hooks_model.cmd_hook("claude-code", {**interrupt, "ended_at": ended})
+    assert cleanup_model.session_record("s1")["turn_closed"] is None
+
+    hooks_model.cmd_hook(
+        "claude-code", {**interrupt, "ended_at": cleanup_model.now_iso()}
+    )
+    assert cleanup_model.session_record("s1")["turn_closed"] is not None
+
+
 def test_a_page_served_mid_wait_joins_the_running_watch(
     page_dir, tmp_path, monkeypatch, capsys
 ):

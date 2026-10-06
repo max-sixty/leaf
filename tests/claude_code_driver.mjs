@@ -8,7 +8,7 @@
 // `{"event", "result", "reached"}` once they resolve, `reached` being that input.
 // Every prompt the module submits prints as `{"submitted": <text>}` and every row
 // it appends as `{"appended": <text>}`, and every watch it starts as `{"watching":
-// <the payload's event>}`. The first line printed is `{"pid",
+// <its payload>}`. The first line printed is `{"pid",
 // "events"}`: the process the module's processes see as their parent, and the
 // events it hooks.
 import { spawn } from "node:child_process";
@@ -36,7 +36,7 @@ function start(argv, env, input) {
  * terminates the child, even while a read waits on it. */
 function stream(request) {
   if (request.argv.includes("--watch")) {
-    print({ watching: JSON.parse(request.input).hook_event_name });
+    print({ watching: JSON.parse(request.input) });
   }
   const child = start(request.argv, request.env, request.input);
   let output = "";

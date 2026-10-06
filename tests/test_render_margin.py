@@ -2755,12 +2755,13 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
 
+    # This test is arranging a second starting view, not exercising scroll motion.
+    # An earlier scrollend can resolve a smooth return before that return is done,
+    # leaving the next `g` press to race the old motion.
     page.evaluate(
-        """() => new Promise(resolve => {
-          addEventListener('scrollend', resolve, {once: true});
-          document.scrollingElement.scrollTo(0, 0);
-        })"""
+        "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
     )
+    scroll_settled(page)
     before_sheet = page.evaluate("() => document.scrollingElement.scrollTop")
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")

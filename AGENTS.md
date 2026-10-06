@@ -121,7 +121,8 @@ install the tracked tree whole.
 - `skills/leaf/references/`: contracts for page authors, package authors, and harnesses;
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
 - `hooks/`: each harness's registrations of the `leaf hook` entry: `hooks.json`
-  for Claude Code, `codex.json` for Codex, and `pi.ts`, the Pi extension;
+  for Claude Code, with `claude-code.ts`, the opt-in hooks module that keeps its
+  watch, `codex.json` for Codex, and `pi.ts`, the Pi extension;
 - `evals/`: cases a headless agent answers, scoring the shipped instructions;
 - `examples/`: the authored pages the site publishes and the render corpus;
 - `tests/`: the file, CLI, browser, and published-site boundaries, and in

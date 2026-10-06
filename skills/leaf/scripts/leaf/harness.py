@@ -54,7 +54,10 @@ class Harness:
       wake opens begins, and the other Stop hook put the input in the turn's
       context and confirm it (`hook_delivers`). A turn that ends without its Stop
       hooks, as an interrupt does, leaves nothing watching while the session lives
-      on, which is why this is the harness with a `nudge`.
+      on, which is why this is the harness with a `nudge`. With its option on,
+      Leaf's hooks module (`hooks/claude-code.ts`) keeps the watch in place of
+      that Stop hook, as Pi's extension does: it closes an interrupted turn
+      and goes on watching after it.
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
       the same points of a run and starts the same watch as each run settles, and
       starts the turn the watch wakes itself.
@@ -284,7 +287,9 @@ class ClaudeCodeHarness(EnvironmentHarness):
         the hook as on any other and the turn would hold until input came
         (measured at 2.1.286). A print session fed `--input-format stream-json`
         backgrounds it like an interactive one. Only the process's own argv
-        tells the two apart: the hook's input and environment are the same."""
+        tells the two apart: the hook's input and environment are the same.
+        Leaf's hooks module states CLAUDE_PID to the watch it keeps, so the same
+        reading holds there."""
         argv = process_argv(int(os.environ["CLAUDE_PID"])) or []
         printing = "-p" in argv or "--print" in argv
         streaming = "stream-json" in argv or "--input-format=stream-json" in argv

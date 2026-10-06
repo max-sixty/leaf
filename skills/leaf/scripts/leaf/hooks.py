@@ -154,8 +154,8 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
 
     It watches only while the session holds a page, and only where its harness
     watches between turns. A watch started with an Interrupt payload, as Pi's
-    extension starts one when an Escape settles a run, is a watch at an
-    interrupted ending."""
+    extension and Leaf's Claude Code hooks module start one when the user stops
+    a run, is a watch at an interrupted ending."""
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
         return None

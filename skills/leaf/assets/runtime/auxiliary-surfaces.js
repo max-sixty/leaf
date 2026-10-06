@@ -19,6 +19,12 @@
    page. Leaving that posture restores exactly the inert and role state it found; it
    does not rebuild, hide, or scroll either side.
 
+   Beside the page, the panels still dominate focus (Max, 2026-10-06): focus never lands
+   on page content a standing surface covers, and moving focus never closes or changes
+   the surface. This owner makes the content it covers inert for as long as it stands
+   beside the page, and nothing else, so Threads stands beside a full-width workspace
+   with the uncovered part of it live.
+
    Travel asks this owner to clear whatever surface hides a destination (`clearFor`),
    so every trip that promises to show one closes the same surfaces by the same rule.
 
@@ -54,7 +60,13 @@ export const standsBeside = () =>
     getComputedStyle(document.body).getPropertyValue("--lf-auxiliary-beside"),
   ) > 0;
 
-export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterChange }) {
+export function createAuxiliarySurfaces({
+  chromeRoot,
+  band,
+  syncLayout,
+  afterChange,
+  reachChanged,
+}) {
   const controllers = new Map();
   const scrim = document.createElement("div");
   scrim.className = "lf-auxiliary-scrim";
@@ -97,26 +109,89 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     return nodes;
   };
 
-  // The inert state each background node had before the boundary took it. The map
-  // belongs to the boundary rather than to a surface, so a node the next surface's
-  // boundary also takes stays inert through the handover instead of being restored and
-  // taken again.
-  const suspended = new Map();
-  const syncBackground = (controller) => {
-    const next = new Set(controller ? background(controller) : []);
-    for (const [node, inert] of suspended) {
+  // The inert state each node had before a boundary took it, restored exactly when the
+  // boundary lets it go. The covering boundary's map belongs to the boundary rather than
+  // to a surface, so a node the next surface's boundary also takes stays inert through
+  // the handover instead of being restored and taken again.
+  // Answers whether the set it holds changed.
+  const hold = (held, next) => {
+    let changed = false;
+    for (const [node, inert] of held) {
       if (next.has(node)) continue;
       node.toggleAttribute("inert", inert);
-      suspended.delete(node);
+      held.delete(node);
+      changed = true;
     }
     for (const node of next) {
-      if (!suspended.has(node)) suspended.set(node, node.inert);
+      if (held.has(node)) continue;
+      held.set(node, node.inert);
       node.toggleAttribute("inert", true);
+      changed = true;
     }
+    return changed;
   };
+  const suspended = new Map();
+  const syncBackground = (controller) =>
+    hold(suspended, new Set(controller ? background(controller) : []));
 
   const backgroundMutations = new MutationObserver(() => {
     if (active) syncBackground(active);
+  });
+
+  // Beside the page a surface still stands over part of it, and the panels dominate
+  // focus: focus never lands on page content a standing surface covers, and moving focus
+  // never closes or changes the surface. So page content it stands over by more than
+  // half its width, the measure `hides` (geometry.js) applies to a destination, is inert
+  // while it stands beside the page, and the rest stays live. The walk takes the
+  // outermost element so covered and goes inside one it only overlaps, so a workspace's
+  // rail under Threads goes whole and a line's last link goes alone. It reads border
+  // boxes alone, since it runs over the whole page whenever the page's content or the
+  // surface's place changes.
+  const footprint = new Map();
+  const coveredBy = (surface) => {
+    const left = surface.offsetLeft;
+    const right = left + surface.offsetWidth;
+    const covered = [];
+    const visit = (parent) => {
+      for (const child of [
+        ...parent.children,
+        ...(parent.shadowRoot?.children ?? []),
+      ]) {
+        const box = child.getBoundingClientRect();
+        if (!box.width && !box.height) {
+          visit(child);
+          continue;
+        }
+        const over = Math.min(box.right, right) - Math.max(box.left, left);
+        if (over <= 0) continue;
+        if (over > box.width / 2) covered.push(child);
+        else visit(child);
+      }
+    };
+    const page = document.querySelector("body > main");
+    if (page) visit(page);
+    return covered;
+  };
+  let footprintQueued = false;
+  // A surface moving changes which seats the user can reach, so the page is presented
+  // again (`reachChanged`) to move whatever stands in a seat it now covers or uncovers.
+  // Content arriving under a standing surface is presented already, so its own pass only
+  // holds the new footprint; presenting again there could replace what it just made inert.
+  const syncFootprint = ({ surfaceMoved = false } = {}) => {
+    footprintQueued = false;
+    const selected = controllers.get(selectedKey);
+    const beside = selected && selected !== arriving && !active ? selected : null;
+    if (beside)
+      pageMutations.observe(document.body, { childList: true, subtree: true });
+    else pageMutations.disconnect();
+    const changed = hold(footprint, new Set(beside ? coveredBy(beside.surface) : []));
+    if (changed && surfaceMoved) reachChanged();
+  };
+  const pageMutations = new MutationObserver((records) => {
+    if (footprintQueued || records.every(({ target }) => chromeRoot.contains(target)))
+      return;
+    footprintQueued = true;
+    nextRender(() => syncFootprint());
   });
 
   // Focus is moved in only from elsewhere in this document. Where the document holds no
@@ -223,6 +298,7 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
   function sync() {
     const selected = controllers.get(selectedKey);
     cover(selected && selected !== arriving && selected.covers() ? selected : null);
+    syncFootprint({ surfaceMoved: true });
   }
 
   function select(

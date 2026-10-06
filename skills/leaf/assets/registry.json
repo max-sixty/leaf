@@ -241,6 +241,10 @@
       "edit": [
         {
           "text": "The user rewrote their message `message` in place: `text` is how it reads now and `was` how it read before, and the thread shows only the new wording. Answer the message as it now reads. Where your earlier answer or work rested on what changed, say what that changes and redo the work it requires; where it changes nothing you did, say so."
+        },
+        {
+          "when": {"required": ["suggestion"], "properties": {"suggestion": {"const": true}}},
+          "text": "The message is a suggestion, so `text` is now the exact replacement it proposes. Apply it verbatim, or reply with your reason for declining."
         }
       ],
       "resolve": [

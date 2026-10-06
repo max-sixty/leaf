@@ -16,9 +16,11 @@ The hook confirms an inline envelope itself, as it hands it over, so the user's
 moves read Picked up without waiting on the model; the envelope's `acknowledge`
 is null. Two things could keep inline context from reaching the turn, and the
 hook rules out both before it confirms. A harness discards the output of a hook
-it times out, so the hook goes inline only while it is well inside its timeout
-(`CONFIRM_WITHIN`), and confirms only after publishing: stopped any earlier, it
-has confirmed nothing. Claude Code cuts context over a limit to a preview
+it times out, so the hook confirms only by a deadline well inside its timeout
+(`CONFIRM_WITHIN`): it goes inline only before it, confirms only after
+publishing, and leaves pending any page whose lock is still held at the deadline.
+Stopped before it confirms, it has confirmed nothing, and it never waits on a
+lock past the deadline into the harness's timeout. Claude Code cuts context over a limit to a preview
 (`HOOK_CONTEXT_LIMIT`), so a delivery that large goes as a pointer, and so does
 one the hook was too slow to confirm; the agent's `leaf delivery read` of a
 pointer is its receipt, as it is of the pointer Codex's tool hook offers. What remains is a turn that ends
@@ -261,11 +263,11 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
 HOOK_CONTEXT_LIMIT = 10_000
 
 
-# How long after it starts a hook may still confirm the delivery it hands over
-# inline. Every registration of the prompt and Stop hooks allows 20 s
-# (`hooks/hooks.json`, `hooks/pi.ts`), and the hook takes about 0.4 s. The other
-# half covers what this clock does not see: uv's start and the interpreter's
-# imports before it, and the receipt and exit after it.
+# How long after it starts a hook may still hand a delivery over inline and wait
+# for the locks that confirm it. Every registration of the prompt and Stop hooks
+# allows 20 s (`hooks/hooks.json`, `hooks/pi.ts`), and the hook takes about 0.4 s.
+# The other half covers what this clock does not see: uv's start and the
+# interpreter's imports before it, and the receipt's writes and exit after it.
 CONFIRM_WITHIN = 10.0
 
 
@@ -310,7 +312,8 @@ def carry_turn(
 ) -> bool | None:
     """Compose this lifecycle's page input, obligations, and reconnect context
     into the one hook output its harness reads, and confirm the delivery it
-    hands over inline. `started` is the hook's `time.monotonic()` as it began."""
+    hands over inline by `CONFIRM_WITHIN` after `started`, the hook's
+    `time.monotonic()` as it began."""
     expected = session_record(sid) if expected is ... else expected
     plans = read_plans(sid)
     if session_record(sid) != expected or any(
@@ -350,6 +353,7 @@ def carry_turn(
         else []
     )
     delivery = freeze_delivery(batches, carrier="hook") if batches else None
+    deadline = started + CONFIRM_WITHIN
     from .reconnect import publishing_notices
 
     with publishing_notices(reconnect_harness, sid, expected) as context:
@@ -358,7 +362,7 @@ def carry_turn(
         message, inline = render(
             delivery,
             [*context, *attention],
-            inline=time.monotonic() - started < CONFIRM_WITHIN,
+            inline=time.monotonic() < deadline,
         )
         if message:
             print(
@@ -366,4 +370,4 @@ def carry_turn(
                 flush=True,
             )
     if inline:
-        receive_held(delivery, sid)
+        receive_held(delivery, sid, deadline=deadline)

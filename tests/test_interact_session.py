@@ -17378,7 +17378,7 @@ def test_a_hook_confirms_only_what_it_has_already_published(
         )
     receive = hook_carrier_model.receive_held
 
-    def stopped_before_receipt(delivery, session_id):
+    def stopped_before_receipt(delivery, session_id, *, deadline):
         # Everything the harness reads is already out by the time receipt begins.
         envelope = json.loads(
             continued(json.loads(capsys.readouterr().out)).split("\n")[1]
@@ -17404,6 +17404,49 @@ def test_a_hook_confirms_only_what_it_has_already_published(
     )
     assert [len(batch["events"]) for batch in retry["batches"]] == [1, 1]
     assert all(events_model.read_cursor(page) > 0 for page in (claimed, sibling))
+
+
+def test_a_hook_waits_on_no_receipt_lock_past_its_deadline(
+    claimed, tmp_path, monkeypatch, capsys
+):
+    """A hook that waited on a page's lock into its harness's timeout would have
+    its output discarded after confirming the pages before it. So it waits for a
+    receipt's locks only until CONFIRM_WITHIN, and leaves a page still locked then
+    pending for a later delivery, having confirmed the rest it handed over."""
+    monkeypatch.setattr(hook_carrier_model, "CONFIRM_WITHIN", 2.0)
+    sibling = tmp_path / "sibling"  # after `claimed` in the walk's path order
+    vendoring_model.cmd_init(sibling)
+    service_model.claim_page(sibling)
+    capsys.readouterr()
+    for page in (claimed, sibling):
+        append_carried_log_record(
+            page, {"kind": "comment", "author": "user", "text": "Please answer"}
+        )
+    freeze = hook_carrier_model.freeze_delivery
+    held = service_model.PageTransaction(sibling)
+
+    def freeze_then_lock_sibling(batches, **kwargs):
+        delivery = freeze(batches, **kwargs)
+        held.__enter__()
+        return delivery
+
+    monkeypatch.setattr(hook_carrier_model, "freeze_delivery", freeze_then_lock_sibling)
+    try:
+        started = time.monotonic()
+        hooks_model.cmd_hook(
+            "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
+        )
+        assert time.monotonic() - started < 2 * hook_carrier_model.CONFIRM_WITHIN
+        envelope = json.loads(continued(capsys.readouterr().out).split("\n")[1])
+        assert [batch["page"] for batch in envelope["batches"]] == [
+            str(claimed.resolve()),
+            str(sibling.resolve()),
+        ]
+    finally:
+        held.__exit__(None, None, None)
+    assert events_model.read_cursor(claimed) > 0
+    assert events_model.read_cursor(sibling) == 0
+    assert not any(e["kind"] == "pickup" for e in events_model.read_events(sibling))
 
 
 def test_a_hook_too_slow_to_confirm_hands_over_a_pointer(claimed, monkeypatch, capsys):

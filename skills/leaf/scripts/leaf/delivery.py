@@ -446,7 +446,11 @@ def receive_batch(
     """
     # The page is already locked; keep lifecycle admission valid through pickup
     # and cursor commit. SessionEnd cannot cross between those writes.
-    with flocked(session_lock_path(session_id)) if session_id else nullcontext():
+    with (
+        flocked(session_lock_path(session_id), deadline=page.deadline)
+        if session_id
+        else nullcontext()
+    ):
         claim = page.active_claim
         if (claim["id"] if claim else None) != session_id:
             raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
@@ -483,27 +487,33 @@ def receive(payload: dict, session_id: str | None) -> list[Path]:
     return pages
 
 
-def receive_held(payload: dict, session_id: str) -> list[Path]:
+def receive_held(
+    payload: dict, session_id: str, *, deadline: float | None = None
+) -> list[Path]:
     """Confirm each batch of a delivery its carrier handed to `session_id`'s open
     turn, where the session still holds the batch's page.
 
     The carrier has already handed the delivery over, so a page that changed hands
     or went, or a turn that ended, refuses only its own batch: that input stays
-    pending, and a later delivery carries it."""
+    pending, and a later delivery carries it. So does a batch whose locks are still
+    held at `deadline`, for a carrier that must exit by then for its handover to
+    stand."""
     pages = []
     for batch in payload["batches"]:
         try:
-            pages.append(receive_one(batch, session_id))
-        except (FileNotFoundError, ReceiptRefused):
+            pages.append(receive_one(batch, session_id, deadline=deadline))
+        except (FileNotFoundError, ReceiptRefused, TimeoutError):
             continue
     return pages
 
 
-def receive_one(batch: dict, session_id: str | None) -> Path:
+def receive_one(
+    batch: dict, session_id: str | None, *, deadline: float | None = None
+) -> Path:
     """Confirm one consumer-read batch under its current page ownership."""
     page_dir = Path(batch["page"])
     with (
-        PageTransaction(page_dir) as page,
+        PageTransaction(page_dir, deadline=deadline) as page,
         receive_batch(page, batch, session_id=session_id) as events,
     ):
         turn = None

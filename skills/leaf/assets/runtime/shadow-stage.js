@@ -21,6 +21,7 @@ import {
   inBaseLayer,
   marksSheet,
 } from "./stylesheets.js";
+import { watchStandingIn } from "./focus.js";
 import { watchDisclosures } from "./keyboard/disclosure.js";
 import { watchLayers } from "./keyboard/layer-stack.js";
 import { setChildren } from "./dom-children.js";
@@ -56,9 +57,10 @@ export function shadowStage(host, nodes) {
   ];
   // A root is the one place the shortcut bar's watch cannot reach on its own: a `toggle`
   // from inside one is not composed, and a MutationObserver does not cross the
-  // boundary either.
+  // boundary either. A focus move inside it reaches the document as no event at all.
   watchDisclosures(root);
   watchLayers(root);
+  watchStandingIn(root);
   const style = document.createElement("style");
   style.textContent = SHADOW_STARTUP_CSS + shadowRules;
   // Fragment hydration can add a sheet while the user uses an existing control.

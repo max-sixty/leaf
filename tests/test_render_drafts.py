@@ -3718,6 +3718,11 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
         expect(field).to_have_js_property("value", words)
         assert field.evaluate("box => [box.selectionStart, box.selectionEnd]") == [5, 5]
         page.keyboard.press("Escape")
+        if surface == "panel":
+            # Escape ends the editing and lands on the card's title, a move within the
+            # thread, so the card still holds the resolution behind its notice.
+            expect(field).to_be_visible()
+            thread.get_by_role("button", name="Resolved", exact=True).click()
         expect(field).not_to_be_visible()
     elif resolution == "inactive-agent" and surface == "panel":
         # The open card holds the resolution behind its notice, words and all, until
@@ -3797,6 +3802,9 @@ def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
         expect(field).to_be_focused()
         expect(field).to_have_js_property("value", "")
         field.press("Escape")
+        if surface == "panel":
+            # The card holds the resolution behind its notice until the user asks.
+            thread.get_by_role("button", name="Resolved", exact=True).click()
         expect(field).not_to_be_visible()
         assert stored_draft_text(page, f"reply:{root['id']}") == ""
         return

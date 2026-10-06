@@ -15,7 +15,7 @@ test("a superseded answer leaves the newer placement's plane and spot", async ()
   const position = () =>
     placement.position(
       computePosition,
-      {},
+      { getBoundingClientRect: () => new DOMRect(10, 20, 50, 30) },
       { middleware: [] },
       ({ plane }) => plane,
       null,

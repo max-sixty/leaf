@@ -865,8 +865,9 @@ main {
 /* The column: the reading measure, and the one rule that sets it. Text keeps it wherever
  * it stands: a paragraph, a list item or a heading is never set wider than the column,
  * however wide the box around it. So does a block allocated the column
- * (`data-lf-space="column"`): a widget whose content is read as lines of text declares
- * it (`x-space: column`), and an occurrence asks for it with `data-width`. Both start at
+ * (`data-lf-space="column"`): a widget whose content is read as lines of text, or a box
+ * that frames prose (an Ask, a callout, which declares it as an idiom), declares it
+ * (`x-space: column`), and an occurrence asks for it with `data-width`. Both start at
  * their holder's start edge, so in a flow wider than the column (a wide page, a pane, a
  * sidebar Layout's body) the widget's box and the prose around it share one left edge
  * and one width. It caps the width and sets no margin, so a widget's own arrangement,
@@ -885,6 +886,19 @@ main {
   :where([data-lf-space="column"]) {
     box-sizing: border-box;
     --lf-reach: min(var(--col), var(--lf-room, 0px));
+  }
+  /* A box allocated the column widens to the widest allocation among its own blocks, so
+   * an Ask or a callout around a chart or table that declares `wide` or `available`
+   * frames that block rather than clipping it to the measure. On a column page the box
+   * stays in the column and the block breaks out of it (layouts.css); in a wider flow
+   * the box takes the room. Only its children count: a block inside one of them, such as
+   * a table in an option or a folded disclosure, is held to that child's width, so an
+   * option list keeps the measure whatever one option holds. */
+  :where([data-lf-space="column"]:has(> [data-lf-space="wide"])) {
+    max-inline-size: var(--wide);
+  }
+  :where([data-lf-space="column"]:has(> [data-lf-space="available"])) {
+    max-inline-size: none;
   }
   /* A bounded block scrolls within its stated height. A widget can assign that bound to
    * an inner reader instead, keeping its own caption outside the scroller. */

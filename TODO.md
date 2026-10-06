@@ -420,9 +420,9 @@ Revisit these when their stated trigger becomes real; they are not an active que
   ([What needs you](notes/what-needs-you/page.html#task-done)). The shipped
   instructions don't yet say when that is. Trigger: an agent ends a task as done that
   the user wanted to see first.
-- **Let the user edit items in the Queue panel.** Only the agent ends or changes a
-  task today, so marking one done, dropping it or renaming it means asking in a
-  thread. Editing the row directly in the panel would record the user's change as
+- **Let the user edit items in the Queue panel.** The user's only edit today is Done
+  on a task the agent put on them, so dropping a task, renaming it or ending one of the
+  agent's means asking in a thread. Editing the row directly in the panel would record the user's change as
   their own move. Trigger: a user writes a comment only to close or adjust an item.
 - **Multiplayer:** let several users share a page, each recorded as themselves.
   Every browser event is `author: "user"` today, so the log cannot say who moved,

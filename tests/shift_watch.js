@@ -32,6 +32,10 @@
 // no inferred translation credit. A floating owner's last-written held-edge point
 // declares page/window plane changes under the same subject, anchor and tenure;
 // its solver dimensions, not the holder's rendered displacement, supply that credit.
+// Observed page attachments in the window plane retain their carrying source offsets,
+// physical attachment point and written solver point. Source travel bounds physical
+// following, which bounds the solver's constrained movement. Only that written
+// movement is credited; extra holder/child movement still fails.
 //
 // Chrome's paint signal and landmark poses answer distinct questions. The ledger
 // retains samples that precede the source-associated frame window and is classified
@@ -1002,6 +1006,11 @@
     }
     return motion;
   };
+  const writtenPoint = (selection, axis) =>
+    selection.point[axis] -
+    (selection.edges[axis] === axis
+      ? 0
+      : selection.size[axis === "left" ? "width" : "height"]);
   const scrollMotion = (node, from, to) => {
     const motion = nativeScrollMotion(node, from, to);
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
@@ -1018,15 +1027,49 @@
             paintAt(node, from)?.position === "fixed" ||
             paintAt(node, to)?.position === "fixed",
         );
-      if (
+      const sameAttachment =
         was &&
         now &&
         !crossesFixed &&
         was.tenure === now.tenure &&
         was.subject === now.subject &&
-        was.anchor === now.anchor &&
-        was.plane !== now.plane
+        was.anchor === now.anchor;
+      if (
+        sameAttachment &&
+        was.plane === "window" &&
+        now.plane === "window" &&
+        was.scrollOffsets &&
+        now.scrollOffsets?.length === was.scrollOffsets.length &&
+        was.scrollOffsets.every(
+          (source, i) => source.source === now.scrollOffsets[i].source,
+        )
       ) {
+        const reach = { left: [0, 0], top: [0, 0] };
+        for (const [i, before] of was.scrollOffsets.entries()) {
+          const after = now.scrollOffsets[i];
+          if (before.left === after.left && before.top === after.top) continue;
+          const by = viewportScroll(before.source, from, {
+            left: before.left - after.left,
+            top: before.top - after.top,
+          });
+          for (const axis of ["left", "top"]) {
+            reach[axis][0] += Math.min(0, by[axis]);
+            reach[axis][1] += Math.max(0, by[axis]);
+          }
+        }
+        for (const axis of ["left", "top"]) {
+          const carried = now.reference[axis] - was.reference[axis];
+          const placed = writtenPoint(now, axis) - writtenPoint(was, axis);
+          if (
+            carried >= reach[axis][0] - 1 &&
+            carried <= reach[axis][1] + 1 &&
+            placed >= Math.min(0, carried) - 1 &&
+            placed <= Math.max(0, carried) + 1
+          )
+            motion[axis] += placed;
+        }
+      }
+      if (sameAttachment && was.plane !== now.plane) {
         // A selection's point is measured from its frame's box: the subject anchor's
         // in the page's plane, the holding region's in a region's, the window's in
         // the window's.
@@ -1035,15 +1078,10 @@
         const before = origin(was, poseAt(owner, from)),
           after = origin(now, to);
         if (before && after) {
-          for (const [axis, size, start] of [
-            ["left", "width", "left"],
-            ["top", "height", "top"],
-          ]) {
+          for (const axis of ["left", "top"]) {
             if (anchored[axis]) continue;
             const predicted = (selection, frame) =>
-              selection.point[axis] +
-              frame[axis] -
-              (selection.edges[axis] === start ? 0 : selection.size[size]);
+              writtenPoint(selection, axis) + frame[axis];
             motion[axis] += predicted(now, after) - predicted(was, before);
             anchored[axis] = true;
           }

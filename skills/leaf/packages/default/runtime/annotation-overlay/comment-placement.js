@@ -140,11 +140,14 @@ export function commentAttachment({ target, point = null, passage = null }) {
 
 // The clear box chooses the initial seat; quoted words carry that seat through
 // scrolling on every side, including under or over their stationary scrollport.
+// The physical attachment point accompanies the solver's clear-box proxy; the
+// mechanical selection retains that point with the scroll reading that measured it.
 export function commentReference(place, reference) {
   return {
     contextElement: place.element,
     contextNode: place.contextNode,
     geometry: place.geometry,
+    attachmentPoint: { left: place.column ?? place.extent.left, top: place.row },
     getBoundingClientRect: () => reference,
   };
 }

@@ -32,6 +32,11 @@
    existing focus owner only when that graph changes. The frame ignores pointer input;
    each surface's own CSS retains its interaction policy. Without the needed native
    capability, the existing observed placement path invalidates on scroll instead.
+   A page attachment solved in the window plane retains its physical attachment point,
+   carrying sources' measured scroll offsets, and written solver point. The physical
+   point may move less than those scrolls (a sticky boundary), and the solver may move
+   less than that point (a viewport constraint). Readers can distinguish both from
+   unrelated movement of the surface or its children.
    In a region's plane the box is anchored to the region's body, the box whose edges
    bound it, which the outer scrolls carry and the region's own scroll does not. The containing frame stays fixed,
    so native focus never scrolls the page under it.
@@ -63,7 +68,7 @@ import {
   scrollOrigins,
 } from "/runtime/scroll-motion.js";
 import { containingReadingRegionFor } from "/runtime/reading-regions.js";
-import { upFrom } from "/runtime/shadow.js";
+import { upFrom, renderedParent } from "/runtime/shadow.js";
 
 let floatingUiModule = null;
 export const floatingUi = () =>
@@ -75,7 +80,7 @@ afterPresentation(floatingUi);
 // that space. Nothing where a transform, filter, or containment between the box and the
 // body makes some box other than the viewport its containing block, since an anchor
 // outside that block cannot position it.
-const anchorAt = (reference) => ({
+const anchorAt = (reference, context, origins) => ({
   name: "anchorAt",
   async fn({ rects, elements, platform }) {
     if ((await platform.getOffsetParent(elements.floating)) !== window)
@@ -87,6 +92,9 @@ const anchorAt = (reference) => ({
           x: rects.reference.x - client.left,
           y: rects.reference.y - client.top,
         },
+        scrollOffsets: await referenceScrolls(context, origins, (element) =>
+          platform.getOffsetParent(element),
+        ),
       },
     };
   },
@@ -199,6 +207,27 @@ export function floatingGeometry(contexts) {
       if (anchor) anchors.set(anchor, anchor.getBoundingClientRect());
     }
   return { anchors, origins: scrollOrigins(contexts) };
+}
+
+// Scroll sources that carry the physical reference. A fixed descendant skips to
+// its containing block, as Floating UI resolves it, retaining that block's outer
+// scrolls and any inner scroll that carries words inside the fixed box itself.
+async function referenceScrolls(context, origins, getOffsetParent) {
+  const offsets = [];
+  for (let at = context; at;) {
+    if (at instanceof Element) {
+      const origin = origins.get(at);
+      if (origin && at !== context)
+        offsets.push(Object.freeze({ source: at, left: origin.x, top: origin.y }));
+      if (getComputedStyle(at).position === "fixed") {
+        const block = await getOffsetParent(at);
+        at = block === window ? null : block;
+        continue;
+      }
+    }
+    at = renderedParent(at);
+  }
+  return Object.freeze(offsets);
 }
 
 export function floatingPlacement({ floating, update }) {
@@ -334,21 +363,20 @@ export function floatingPlacement({ floating, update }) {
       const physical = physicalContext(context);
       const anchoring = CSS.supports("anchor-name", "--lf-anchor");
       const anchor = anchoring ? anchorFor(context) : null;
-      const client = anchor && reference.getBoundingClientRect();
+      const client = reference.getBoundingClientRect();
+      const point = reference.attachmentPoint ?? client;
       const geometry = reference.geometry ?? floatingGeometry([context]);
       const anchorBox = geometry.anchors.get(anchor);
       const { origins } = geometry;
       const { getOverflowAncestors } = await floatingUi();
       if (placement !== epoch) return null;
-      // Solver coordinates and native scroll origins are one measurement. A solve
-      // can finish after scrolling; freezing both makes its native attachment carry
-      // that intervening motion exactly once, regardless of when the solver reads.
-      const measured = anchor
-        ? {
-            contextElement: reference.contextElement ?? beside,
-            getBoundingClientRect: () => client,
-          }
-        : reference;
+      // Solver coordinates, physical attachment and scroll origins are one reading.
+      // Freezing it before asynchronous solving keeps native and observed placements
+      // consistent, regardless of when the solver reads.
+      const measured = {
+        contextElement: reference.contextElement ?? beside,
+        getBoundingClientRect: () => client,
+      };
       const carried = new Set(anchor ? getOverflowAncestors(anchor) : []);
       // Each scroller carries the box it holds next on the way in: the next scroller, or
       // the element the reference stands in.
@@ -383,7 +411,7 @@ export function floatingPlacement({ floating, update }) {
       const answer = await computePosition(measured, frame, {
         ...options,
         strategy: "fixed",
-        middleware: [...options.middleware, held, anchorAt(measured)],
+        middleware: [...options.middleware, held, anchorAt(measured, context, origins)],
       });
       if (placement !== epoch) return null;
       // An unchanged native graph keeps following while a solve is in flight. Retire
@@ -433,7 +461,18 @@ export function floatingPlacement({ floating, update }) {
       // anchorAt proves the solver's containing block is the window. Other
       // containing blocks have no declared prediction in this selection.
       placementProof = at
-        ? { subject: watched, anchor, frame: frameAnchor, plane, at }
+        ? {
+            subject: watched,
+            anchor,
+            frame: frameAnchor,
+            plane,
+            at,
+            reference: Object.freeze({ left: point.left, top: point.top }),
+            scrollOffsets:
+              wanted === "page" && plane === "window"
+                ? answer.middlewareData.anchorAt.scrollOffsets
+                : null,
+          }
         : null;
       return answer;
     },
@@ -447,7 +486,15 @@ export function floatingPlacement({ floating, update }) {
         return;
       }
       const { edges, width, height, block } = answer.middlewareData.held;
-      const { subject, anchor, frame: frameAnchor, plane, at } = placementProof;
+      const {
+        subject,
+        anchor,
+        frame: frameAnchor,
+        plane,
+        at,
+        scrollOffsets,
+        reference,
+      } = placementProof;
       const point = {};
       for (const [axis, start, coordinate, length, extent] of [
         ["left", "left", "x", width, block.width],
@@ -472,6 +519,8 @@ export function floatingPlacement({ floating, update }) {
           frame: frameAnchor,
           plane,
           tenure,
+          scrollOffsets,
+          reference,
           edges: Object.freeze({ left: edges.x, top: edges.y }),
           point: Object.freeze(point),
           size: Object.freeze({ width, height }),

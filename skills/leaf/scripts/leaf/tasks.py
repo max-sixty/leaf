@@ -68,7 +68,7 @@ repository depends on them.
 import sys
 from pathlib import Path
 
-from .events import note_settlements, taken_back
+from .events import conversation_turns, is_reaction, note_settlements, taken_back
 
 OUTCOMES = ("done", "failed", "dropped")
 
@@ -307,25 +307,29 @@ def page_tasks(
     the agent turn a thread's question stands on: a thread whose agent turn asks the
     user in prose is a task on the user under that turn's id, open until the user
     answers it in the thread, settles it with a reaction, or the agent ends it with a
-    `task_end` in `ends`."""
+    `task_end` in `ends`. An answered question is done, its outcome the user's move
+    that answered it (`_answer`), so the Queue panel lists it with the other ended
+    tasks."""
     standing, ended = ask_tasks(thread_asks)
     held = {task["id"] for task in log}
     for thread in threads:
+        prompt = thread["user_prompt"]
         for message in thread["msgs"]:
-            prompt = thread["user_prompt"]
             if prompt is not None and message["id"] == prompt["message"]:
-                state = "open"
+                outcome = None
             elif message["id"] in ends and message["id"] not in held:
-                state = "ended"
+                outcome = ends[message["id"]]
+            elif message.get("awaits") and (answer := _answer(thread, message)):
+                outcome = {"state": "done", **_outcome(answer, None)}
             else:
                 continue
             task = _derived(
                 message["id"],
                 {"kind": "thread", "id": thread["id"]},
                 thread["id"],
-                state,
+                "open",
                 ENDS_BY_REPLY,
-                ended=ends.get(message["id"]),
+                ended=outcome,
                 message=message,
             )
             (standing if task["state"] == "open" else ended).append(task)
@@ -333,6 +337,27 @@ def page_tasks(
         task = _log_task(task)
         (standing if task["state"] == "open" else ended).append(task)
     return standing, ended
+
+
+def _answer(thread: dict, question: dict) -> dict | None:
+    """The user's move that answered a question asked with `--awaits` and no longer
+    standing: their next turn in its thread, or their reaction on it. A question the
+    agent asked again before the user moved has none until the user answers the later
+    one, which answers both."""
+    return next(
+        (
+            message
+            for message in thread["msgs"]
+            if message["author"] == "user"
+            and message["seq"] > question["seq"]
+            and (
+                message.get("parent") == question["id"]
+                if is_reaction(message)
+                else message in conversation_turns(thread)
+            )
+        ),
+        None,
+    )
 
 
 def task_error(

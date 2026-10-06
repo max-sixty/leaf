@@ -217,6 +217,17 @@ def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir):
     assert kinds(state["queues"]["on_you"]) == asks
     assert question["id"] not in [task["id"] for task in state["tasks"]]
     assert [item["id"] for item in state["queues"]["on_agent"]] == [warm["id"]]
+    served = full_state(page_dir, events_model.read_events(page_dir))
+    [answered] = [
+        task
+        for task in served["browser"]["ended_tasks"]
+        if task["id"] == question["id"]
+    ]
+    assert (answered["state"], answered["ends"], answered["outcome"]["id"]) == (
+        "done",
+        "reply",
+        warm["id"],
+    )
 
 
 def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):

@@ -387,8 +387,9 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     in their shape before they decode. A widget declaring the structure its module will
     draw (`x-prepaint`) carries it as its first child, marked as delivery's, so the
     browser lays that structure out before the module runs, and one that first paints
-    as another widget will stand in it carries that widget's (`as`). Markup inside a
-    template is inert, and everything else in the source stays as written."""
+    as another widget will stand in it carries that widget's (`as`). An idiom declares
+    a mark by its selector, as a callout keeps the column. Markup inside a template is
+    inert, and everything else in the source stays as written."""
 
     def png(width, height):
         return Resource(
@@ -404,9 +405,12 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "lf-plot": {"x-height": 400},
         "lf-meter": {"x-prepaint": '<span class="lf-meter-face">0 left</span>'},
         "lf-gauge": {"x-prepaint": {"as": "lf-meter"}},
+        "$idioms": {"description": "Shapes.", ".callout": {"x-space": "column"}},
     }
     source = (
         "<!doctype html><html><head><title>T</title></head><body><main>"
+        '<aside class="callout warn" id="note">Paused.</aside>'
+        '<aside class="callout" id="chart-note" data-width="wide">Chart.</aside>'
         '<lf-zone id="queue" label="Queue"><div><lf-chip>new</lf-chip></div></lf-zone>'
         '<lf-board id="board" data-width="column"></lf-board>'
         '<lf-feed id="feed"></lf-feed><section id="wide" data-width="wide"></section>'
@@ -442,6 +446,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
     assert marks[("lf-chip", None)] == {"data-lf-inline": ""}
     assert marks[("lf-board", "board")] == {"data-lf-space": "column"}
+    assert marks[("aside", "note")] == {"data-lf-space": "column"}
+    assert marks[("aside", "chart-note")] == {"data-lf-space": "wide"}
     assert marks[("lf-feed", "feed")] == {"data-lf-bound": "end"}
     assert marks[("section", "wide")] == {"data-lf-space": "wide"}
     assert marks[("pre", None)] == {"data-lf-bound": "start"}
@@ -466,6 +472,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<span data-lf-prepaint data-lf-gen="1" class="lf-meter-face">0 left</span>', ""
     )
     for mark in (
+        ' data-lf-space="column"',
+        ' data-lf-space="wide"',
         ' data-lf-reading-role="pane"',
         ' data-lf-inline=""',
         ' data-lf-space="column"',

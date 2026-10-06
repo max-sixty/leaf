@@ -33,7 +33,9 @@
  * focus from the destination or delaying it. Reduced motion keeps the selected state
  * without the highlight; switching again or disconnecting cancels an unfinished cue.
  * Every tab's accessible name is its label; what else the tab shows describes it. A
- * side list's row adds the panel's `summary` under the name, and beside the name, once
+ * side list stands each run of neighbouring panels that share a `group` under a label
+ * of that group, which each of their tabs' descriptions names. A side list's row adds
+ * the panel's `summary` under the name, and beside the name, once
  * every Ask its panel holds is answered, a check with the answer's own words where the
  * panel holds one Ask, or the check alone where it holds several. So a queue shows how
  * far the user has worked through it, and an undo that reopens an Ask takes the check
@@ -143,7 +145,29 @@ customElements.define(
       strip.setAttribute("role", "tablist");
       if (side) strip.setAttribute("aria-orientation", "vertical");
       strip.append(this.#edge("start"));
-      for (const panel of panels) {
+      // A queue sorts its items by the panels' `group`: each run of neighbouring panels
+      // with one group, or with none, is a box of its own in the list, so the list
+      // draws where one run ends and the next begins. A grouped run opens with a label
+      // of its group, the page's words. The label is no tab, so the walk passes it by,
+      // and a tablist holds only tabs, so the run is no role and the label is hidden
+      // from assistive technology, which hears the group in each tab's description
+      // instead (`#marks`). Any other set holds its tabs in the strip itself.
+      let run = strip;
+      for (const [index, panel] of panels.entries()) {
+        const group = panel.getAttribute("group");
+        if (side && (!index || group !== panels[index - 1].getAttribute("group"))) {
+          run = document.createElement("div");
+          run.className = "lf-tab-run";
+          run.setAttribute("role", "none");
+          if (group) {
+            const label = document.createElement("span");
+            label.className = "lf-tab-group";
+            label.setAttribute("aria-hidden", "true");
+            relabel(label, group, { says: true });
+            run.append(label);
+          }
+          strip.append(run);
+        }
         const btn = selectableOffer("tab", "lf-tab-btn");
         btn.setAttribute("aria-controls", panel.id);
         const name = document.createElement("span");
@@ -176,7 +200,7 @@ customElements.define(
         chip.setAttribute("aria-hidden", "true");
         btn.append(chip);
         btn.onclick = () => this.#activate(panel, "ordinary");
-        strip.append(btn);
+        run.append(btn);
         this.#buttons.set(panel, btn);
         panel.setAttribute("role", "tabpanel");
         panel.setAttribute("aria-label", panel.getAttribute("label"));
@@ -318,7 +342,9 @@ customElements.define(
           keeps(slot, "data-lf-answered", answered ? "" : null);
           keepsText(slot.firstElementChild, answer);
         }
+        const group = this.#side && panel.getAttribute("group");
         const description = [
+          group && `${group} group`,
           panel.getAttribute("summary"),
           changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
           !answered
@@ -513,14 +539,27 @@ customElements.define(
     // stops clear of the edge's press, which the strip states as its inline
     // `scroll-padding` (the package theme). A strip runs past only where its one row
     // holds more names than it shows, which a side list's column never does.
+    // Where the row has room for it, the tab comes in with its run's label, so the
+    // name of the group the user opened stays beside it.
     #showTab(btn) {
       const strip = this.#strip;
       if (!btn || strip.scrollWidth <= strip.clientWidth) return;
       const room = strip.getBoundingClientRect();
-      const box = btn.getBoundingClientRect();
       const { scrollPaddingLeft, scrollPaddingRight } = getComputedStyle(strip);
       const left = room.left + (Number.parseFloat(scrollPaddingLeft) || 0);
       const right = room.right - (Number.parseFloat(scrollPaddingRight) || 0);
+      const tab = btn.getBoundingClientRect();
+      const label = btn.parentElement.querySelector(":scope > .lf-tab-group");
+      const named = label && label.getBoundingClientRect();
+      const box =
+        named &&
+        Math.max(named.right, tab.right) - Math.min(named.left, tab.left) <=
+          right - left
+          ? {
+              left: Math.min(named.left, tab.left),
+              right: Math.max(named.right, tab.right),
+            }
+          : tab;
       if (box.left < left) strip.scrollLeft -= left - box.left;
       else if (box.right > right) strip.scrollLeft += box.right - right;
     }

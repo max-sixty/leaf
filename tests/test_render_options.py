@@ -1154,13 +1154,13 @@ WIDE_ASK_PAGE = leaf_page(
 <h1>Where sessions live</h1>
 <div id="layout">
 <section id="body">
-<lf-ask id="cell-decision"><h2>Where should a session live?</h2>
+<lf-ask id="cell-decision" data-width="available"><h2>Where should a session live?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="cell-cards" choose>
   <lf-option id="cc-redis"><strong>Redis</strong> A store we already run.</lf-option>
   <lf-option id="cc-pg"><strong>Postgres</strong> One fewer moving part.</lf-option>
 </lf-options></lf-ask>
-<lf-ask id="rows-decision"><h2>Which jobs are worth starting?</h2>
+<lf-ask id="rows-decision" data-width="available"><h2>Which jobs are worth starting?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="cell-rows" choose multiple>
   <lf-option id="cr-drill">A revocation drill</lf-option>
@@ -1169,7 +1169,7 @@ WIDE_ASK_PAGE = leaf_page(
 </section>
 <section id="aside"><p>Beside the argument.</p></section>
 </div>
-<lf-ask id="page-decision"><h2>Who owns the migration?</h2>
+<lf-ask id="page-decision" data-width="available"><h2>Who owns the migration?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="page-cards" choose>
   <lf-option id="pc-platform"><strong>Platform</strong> They run the store.</lf-option>

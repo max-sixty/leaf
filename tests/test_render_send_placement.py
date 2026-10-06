@@ -42,6 +42,7 @@ from model_folds import leaf_page
 from PIL import Image, ImageDraw
 from playwright.sync_api import expect
 from render_harness import (
+    consume_browser_errors,
     judge_watches,
     open_page,
     pane_posture,
@@ -1664,8 +1665,9 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
     assert page.evaluate("detachPlacement()"), "the detached placement had no frame"
 
 
+@pytest.mark.parametrize("fault", ["", "holder", "child"])
 def test_a_comment_box_on_words_in_a_scroller_stands_without_scroll_timelines(
-    browser, serve
+    browser, serve, fault
 ):
     """Where the browser has no scroll timelines, as Firefox has none, the comment box
     for words in a scroller starts below its containing box in the window's plane,
@@ -1699,8 +1701,33 @@ def test_a_comment_box_on_words_in_a_scroller_stands_without_scroll_timelines(
     before, words_before = bar.bounding_box(), page.evaluate(words)
     page.mouse.move(below["x"] + 50, below["y"] + 50)
     page.mouse.wheel(0, 30)
+    expect(quote).to_have_js_property("scrollTop", 30)
     scroll_settled(page, "#quote")
     rendered(page)
     assert bar.bounding_box()["y"] - before["y"] == pytest.approx(
         page.evaluate(words)["y"] - words_before["y"], abs=1
     )
+    # A late scroll still owns its attachment's exact displacement after input
+    # has finished. Extra movement of either the holder or its child remains a fault.
+    judge_watches()
+    field = page.locator(".lf-fab-input")
+    field_before = field.bounding_box()
+    page.evaluate(
+        """fault => {
+          document.querySelector('#quote').scrollBy(0, 30);
+          if (fault) document.querySelector(fault === 'holder' ? '.lf-fab-bar' : '.lf-fab-input')
+            .style.transform = 'translateX(20px)';
+        }""",
+        fault,
+    )
+    scroll_settled(page, "#quote")
+    rendered(page)
+    assert bar.bounding_box()["y"] - before["y"] == pytest.approx(
+        page.evaluate(words)["y"] - words_before["y"], abs=1
+    )
+    assert field.bounding_box()["x"] - field_before["x"] == pytest.approx(
+        20 if fault else 0, abs=1
+    )
+    judge_watches()
+    if fault:
+        consume_browser_errors(page, "moved without input by (20,")

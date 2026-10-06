@@ -177,8 +177,9 @@ On `main`, every class but `layout-column` makes a wide page: every block, the t
 included, starts at one left edge and takes the page's width, while text, and a
 widget read as text such as an option list or a draft, keeps the reading measure. A
 wide, sidebar or tiles page is capped at the widest page and sets its title larger; a
-workspace takes the whole window and leaves its title to the theme. `layout-column` on a block keeps the measure but gives it no
-room to break out into, since that room is the page's.
+workspace takes the whole window and leaves its title to the theme. `layout-column`
+on a block keeps the measure but gives it no room to break out into, since that room
+is the page's.
 
 A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so
 an ordinary rule adjusts it — a different track share, a gap, an order — and a page
@@ -301,9 +302,9 @@ check` advises against one.
 An individual block or section may request a responsive allocation with
 `data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
 keeps the prose measure and starts where the prose does, including inside a wider
-section or on a wide page. `wide` uses the shared evidence width, `--wide`, in every Layout: past a column it grows to that
-width, and in a wider track or pane it holds to it at the track's start. A narrower
-frame still bounds it. `available` uses all room left by the page shell, frames,
+section or on a wide page. `wide` uses the shared evidence width, `--wide`, in every
+Layout: past a column it grows to that width, and in a wider track or pane it holds
+to it at the track's start. A narrower frame still bounds it. `available` uses all room left by the page shell, frames,
 chrome, and a margin resident that takes its side, such as a sidebar standing in the
 margin or the contents map's spine; the markers beside it then stand as pins on it, and
 it moves below a note hanging level with it. The occurrence overrides a

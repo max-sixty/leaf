@@ -13155,6 +13155,31 @@ def test_a_wait_only_wakes_a_session_its_hooks_have_run_for(
     assert not leases_model.hooks_ran("unhooked")
 
 
+def test_updated_claude_hook_reports_a_page_held_by_a_prior_build(claimed, capsys):
+    """A live session may retain a page claimed before lifecycle generations existed.
+
+    The new prompt and Stop hooks must give that session a recovery route when the
+    old claim cannot be used for delivery. Silence strands the user's input.
+    """
+    prior_claim = files_model.read_json(service_model.claim_path(claimed))
+    prior_claim.pop("generation")
+    prior_claim.pop("acquisition")
+    prior_claim.update(pid=os.getpid(), turn="old-turn", turn_closed=None)
+    cleanup_model.write_json(service_model.claim_path(claimed), prior_claim)
+    cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX).unlink()
+    append_carried_log_record(
+        claimed, {"kind": "comment", "author": "user", "text": "Still here"}
+    )
+
+    hooks_model.cmd_hook(
+        "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
+    )
+    prompt_output = capsys.readouterr().out
+    hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
+    stop_output = capsys.readouterr().out
+    assert str(claimed) in prompt_output + stop_output
+
+
 def test_the_state_payload_carries_the_clock_its_timestamps_were_written_by(page_dir):
     """Every ts a seat dates is written here, while the user's `Date.now()` is
     another machine's opinion. The payload states the writer's clock so the reading is

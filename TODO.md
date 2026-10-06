@@ -32,6 +32,11 @@ has tried; settle that before building it.
   behavior.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
   activity, selection, and reply editing in the implemented accordion.
+- **Name a Pi Thread promptly.** Claude Code and Codex pages and leaf.page name a
+  thread from the user's words a few seconds after they arrive (`thread_titles`).
+  `PiHarness` has no `title_generator`, so a Pi page's thread is named only by the
+  agent's reply. Give the page server a request on Pi's configured model, such as
+  a print-mode run with tools, extensions and hooks off, and measure it.
 - **Keep a long Thread's standing visible.** Summary checkpoints already condense
   older messages. Test a current one-line reading of what is decided and what remains
   open, distinct from a historical summary, and decide how a revision invalidates it.

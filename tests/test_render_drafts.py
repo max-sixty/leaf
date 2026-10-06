@@ -577,6 +577,24 @@ def test_observed_selection_offers_comment_without_replacing_the_editor(
     expect(field).to_have_js_property("value", words)
 
 
+def test_a_passages_comment_box_undoes_only_its_own_draft(browser, serve):
+    """The comment box moves from passage to passage, and its undo history belongs to
+    the draft it stands on: words typed and deleted on one passage are not what ⌘Z
+    brings into the next one's draft, even when both drafts read the same."""
+    page = open_page(browser, serve(LONG_PAGE))
+    field = page.locator(".lf-fab-input")
+    compose(page, "#p0")
+    page.keyboard.type("x")
+    page.keyboard.press("ArrowLeft")  # a caret move ends the typing's undo step
+    page.keyboard.press("End")
+    page.keyboard.press("Backspace")
+    expect(field).to_have_js_property("value", "")
+    compose(page, "#p1")
+    page.keyboard.press("ControlOrMeta+z")
+    page.keyboard.type("y")
+    expect(field).to_have_js_property("value", "y")
+
+
 def test_page_round_trip(browser, serve):
     """The loop the product is, driven through the real UI: select a passage and
     comment on it, drag a card to another column, rewrite a draft in place, then
@@ -3232,6 +3250,39 @@ def test_image_upload_completion_preserves_the_readers_focus_and_scroll(
     expect(page.locator(".lf-composer-media img")).to_have_count(1)
     assert page.evaluate("scrollY") == before
     assert page.evaluate("document.activeElement === window.uploadFocus")
+
+
+def test_a_picture_still_uploading_stays_out_of_the_next_passages_draft(browser, serve):
+    """The comment box moves to another passage while a pasted picture uploads. The
+    picture was the first passage's, so it does not land in the second one's draft, and
+    the user is told it was not added rather than finding it somewhere they did not put
+    it."""
+    held = []
+    controlled = primed(
+        browser,
+        lambda page: page.route("**/api/media", lambda route: held.append(route)),
+    )
+    page = open_page(controlled, serve(LONG_PAGE))
+    compose(page, "#p3")
+    box = page.locator(".lf-fab-input")
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
+    box.evaluate(
+        """(box, encoded) => {
+          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+          box.dispatchEvent(new ClipboardEvent('paste', {
+            bubbles: true, cancelable: true, clipboardData: transfer,
+          }));
+        }""",
+        base64.b64encode(pixels).decode(),
+    )
+    holding(page, held, 1, "the pasted image")
+    compose(page, "#p1")
+    held.pop().continue_()
+    expect(page.locator(".lf-notice")).to_contain_text("Image not added")
+    expect(box).not_to_have_attribute("aria-busy", "true")
+    expect(page.locator(".lf-composer-media img")).to_have_count(0)
 
 
 def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(

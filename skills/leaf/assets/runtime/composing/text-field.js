@@ -59,11 +59,9 @@
  *
  * Enter, Mod+Enter and Escape are not bound here. Leaf's key dispatcher owns them on the
  * document, and cancels the press it acts on; Shift+Enter inserts a line and continues
- * a list or quote. Mod+Z walks the words' history unless the owner's `yieldsUndo` says
- * the press is its own, as a composer's is while a stroke is its draft's latest change;
- * the press then reaches the dispatcher with the words untouched. An owner orders its
- * changes against the words by the history's own steps (`historyMark`), so words typed
- * and taken out again still count as a change.
+ * a list or quote. Mod+Z and Mod+Shift+Z walk one history: the words' edits, and the
+ * steps an owner records for what its draft holds beside them (`record`), such as a
+ * composer's drawing, each taken back or redone in the order it was made.
  *
  * The host is the textarea's scrollport. CodeMirror's content-sized inner scroller
  * never clips the words; the page sizes the host. When that room changes, the field
@@ -76,6 +74,7 @@
 import {
   EditorView,
   EditorState,
+  StateEffect,
   Compartment,
   Decoration,
   LanguageSupport,
@@ -85,7 +84,7 @@ import {
   standardKeymap,
   historyKeymap,
   isolateHistory,
-  undoDepth,
+  invertedEffects,
   markdownLanguage,
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
@@ -159,6 +158,10 @@ const fieldTheme = EditorView.theme({
   ".cm-content": { padding: "0", caretColor: "currentColor", minHeight: "1lh" },
   ".cm-line": { padding: "0" },
 });
+
+// A step an owner recorded in the words' history (`record`): `run` makes it happen when
+// the history reaches it, and `back` is the step the other way.
+const ownerStep = StateEffect.define();
 
 const hide = Decoration.replace({});
 const dim = Decoration.mark({ class: "lf-md-mark" });
@@ -389,9 +392,8 @@ class LeafText extends HTMLElement {
   #view = null;
   #root;
   #internals = null;
-  // Set by the box's owner: true while Mod+Z belongs to the owner rather than the words.
-  yieldsUndo = null;
   #editable = new Compartment();
+  #history = new Compartment();
   #attributes = new Compartment();
   #placeholderLayer = document.createElement("div");
   #placeholderText = document.createTextNode("");
@@ -482,7 +484,12 @@ class LeafText extends HTMLElement {
       doc: text,
       selection: { anchor: text.length },
       extensions: [
-        history(),
+        this.#history.of(history()),
+        invertedEffects.of((tr) =>
+          tr.effects
+            .filter((effect) => effect.is(ownerStep))
+            .map(({ value }) => ownerStep.of({ run: value.back, back: value.run })),
+        ),
         keymap.of([
           { key: "Shift-Enter", run: insertNewlineContinueMarkup },
           {
@@ -492,10 +499,6 @@ class LeafText extends HTMLElement {
           ...standardKeymap.filter(
             ({ key }) => key !== "Escape" && key !== "Enter" && key !== "Mod-Enter",
           ),
-          // A box whose draft holds more than its words can take undo for its owner
-          // while the owner's change is the latest (`yieldsUndo`): the words' history
-          // stands still and the press goes on to the owner's binding.
-          { key: "Mod-z", run: () => Boolean(this.yieldsUndo?.()) },
           ...historyKeymap,
         ]),
         new LanguageSupport(markdownLanguage),
@@ -534,9 +537,13 @@ class LeafText extends HTMLElement {
       parent: this.#frame,
       state: this.#model,
       // Every change to the words is the user's: the value setter replaces the state
-      // instead, and an owner's `historyMark` changes none.
+      // instead, and an owner's `record` changes none.
       dispatchTransactions: (transactions, view) => {
         view.update(transactions);
+        for (const tr of transactions)
+          if (tr.isUserEvent("undo") || tr.isUserEvent("redo"))
+            for (const effect of tr.effects)
+              if (effect.is(ownerStep)) effect.value.run();
         this.#paintEmpty();
         if (transactions.some((tr) => tr.docChanged))
           this.dispatchEvent(new Event("input", { bubbles: true }));
@@ -659,18 +666,23 @@ class LeafText extends HTMLElement {
     return this.#state.doc.toString();
   }
 
-  // How many steps the words' history can take back.
-  get historyDepth() {
-    return undoDepth(this.#state);
+  // Records a change the owner has just made outside the words as a step of the words'
+  // history, standing alone: taking the step back calls `undo`, redoing it calls `redo`.
+  record(undo, redo) {
+    this.#apply({
+      effects: ownerStep.of({ run: redo, back: undo }),
+      annotations: isolateHistory.of("full"),
+    });
   }
 
-  // Closes the words' current step and returns the history's depth, so that whatever
-  // is typed next is a step of its own: the depth stands at the mark again only once
-  // everything typed since has been taken back.
-  historyMark() {
-    this.#apply({ annotations: isolateHistory.of("after") });
-    return this.historyDepth;
+  // Forgets the history and keeps the words, the caret and the editor's DOM, for a box
+  // that takes up a draft as it stands. Dropping the history's field and adding it back
+  // starts it empty.
+  restartHistory() {
+    this.#apply({ effects: this.#history.reconfigure([]) });
+    this.#apply({ effects: this.#history.reconfigure(history()) });
   }
+
   set value(text) {
     text = String(text ?? "").replace(/\r\n?/g, "\n");
     if (text === this.value) return;

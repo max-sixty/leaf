@@ -196,17 +196,10 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
         within,
     )
     responses = current_responses(page_dir, events)
-    folded = build_threads(events, within).values()
     revisions = {
         revision["id"]: revision
-        for thread in folded
+        for thread in build_threads(events, within).values()
         for revision in thread["revisions"]
-    }
-    suggestions = {
-        message["id"]
-        for thread in folded
-        for message in thread["msgs"]
-        if message.get("suggestion")
     }
     by_id = {event["id"]: event for event in events}
     words = GestureWords(events, registry, revisions_on_disk(page_dir))
@@ -231,7 +224,7 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
             # a revision needs to see what it replaced, and whether those words are a
             # suggestion's exact replacement text.
             entry["was"] = revision["was"]
-            if revision["message"] in suggestions:
+            if by_id[revision["message"]].get("suggestion"):
                 entry["suggestion"] = True
         if (answer := responses.get(event["id"])) is not None:
             entry["answer"] = answer

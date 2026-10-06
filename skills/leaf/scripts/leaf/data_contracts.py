@@ -100,16 +100,22 @@ def declared_data_bindings(
     return bindings, seats, errors
 
 
-def _contract_semantics(registry: dict, contract: str) -> tuple[dict, dict | None]:
-    """The validation and record meaning of one contract.
+def _contract_semantics(
+    registry: dict, contract: str
+) -> tuple[dict, dict | None, frozenset[str]]:
+    """The validation, record and resource meaning of one contract.
 
     Descriptions and agent instructions may improve without changing what a source value
-    means to a pinned document. JSON Schema and the record declaration may not: an
+    means to a pinned document. Schema, record and resource declarations may not: an
     old document keeps consuming the page's replaceable current value through the
     registry captured with that document.
     """
     declaration = registry["$data"]["contracts"][contract]
-    return declaration["schema"], declaration.get("records")
+    return (
+        declaration["schema"],
+        declaration.get("records"),
+        frozenset(declaration.get("resources", [])),
+    )
 
 
 def merge_data_document_readings(
@@ -143,8 +149,8 @@ def merge_data_document_readings(
                 continue
             if source in semantics and semantics[source] != meaning:
                 errors.append(
-                    f"source {source!r} keeps contract {contract!r}, but its schema "
-                    f"or record declaration changes between {seats[source]} and "
+                    f"source {source!r} keeps contract {contract!r}, but its schema, "
+                    f"record declaration, or resources change between {seats[source]} and "
                     f"{seat}; use a new source id for the new meaning"
                 )
                 continue
@@ -204,8 +210,8 @@ def data_contract_transition_errors(
                 registry, contract
             ):
                 errors.append(
-                    f"source {source!r} contract {contract!r} changes its schema or "
-                    f"record declaration from {seats[source]}"
+                    f"source {source!r} contract {contract!r} changes its schema, "
+                    f"record declaration, or resources from {seats[source]}"
                 )
     return errors
 

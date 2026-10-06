@@ -525,8 +525,9 @@ own error.
 
 A source id keeps one contract for the lifetime of the page. `data clear` removes the
 current value and keeps the recorded contract, so the id is never released for a new
-meaning. Use a new source id for a new contract. Re-vendoring preserves each binding
-and refuses an incoming registry that would change a bound contract's schema.
+meaning. Use a new contract and a new source id for a new meaning. Re-vendoring
+preserves each binding and refuses an incoming registry that would change a bound
+contract's schema, record declaration, or resource selectors.
 `leaf page state PAGE` exposes the complete `data_bindings` inventory so a producer can
 discover the ids, contracts, widgets, and documents it needs without parsing markup.
 Every source value goes to every user of the page, including fields a module does not

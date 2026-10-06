@@ -4464,6 +4464,22 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
             state["data"]["sources"]["images"]["value"]["images"][0]["url"] == urls[1]
         )
 
+    # Selection unions URLs, so order and duplicate selectors preserve meaning.
+    registry["$data"]["contracts"]["test-data"]["resources"] = [
+        "optional",
+        "images[].url",
+        "optional",
+    ]
+    registry_path.write_text(json.dumps(registry))
+    reordered = revisioning_model.activate_source(page_dir)
+    assert reordered.error is None and reordered.created
+
+    # A selector change cannot silently discard media from an already bound source.
+    registry["$data"]["contracts"]["test-data"]["resources"] = ["other[].url"]
+    registry_path.write_text(json.dumps(registry))
+    refused = revisioning_model.activate_source(page_dir)
+    assert "record declaration, or resources change" in refused.error
+
 
 def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
     from leaf.validation.source import check_source

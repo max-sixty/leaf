@@ -264,9 +264,10 @@ height and where a switch lands wait on the workspace decision under Layout.
 
 ### Recorded interaction review
 
-Max's assessment (2026-10-05): "I'm not sure this is great." Keeping the Leaf
-timeline is undecided; we may use Playwright directly. Try the comment workflow
-before investing further in the integration.
+Max's assessment (2026-10-05): "I'm not sure this is great." Ship the optional
+Leaf timeline as a trial alongside Playwright's viewer. Keeping it is undecided;
+we may use Playwright directly. Try the comment workflow before investing further
+in the integration.
 
 - **Explore DOM selection if we keep the imported timeline.** The optional `playwright`
   package imports native actions, checkpoint images, captured frames and saved

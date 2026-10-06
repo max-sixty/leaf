@@ -25,7 +25,13 @@
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { repaint } from "./repaint.js";
-import { deepFocus, focusDestination, readCaret, releaseFocus } from "./focus.js";
+import {
+  deepFocus,
+  focusDestination,
+  readCaret,
+  releaseFocus,
+  returningFocus,
+} from "./focus.js";
 import { selectEnds } from "./passages.js";
 
 const EMPTY = Object.freeze([]);
@@ -155,8 +161,9 @@ export function bannerStanding() {
 }
 export function restoreBannerStanding(held) {
   opener = null;
+  // Handing the borrowed focus back is the menu's own return, not the user going there.
   if (held?.node?.isConnected && held.node !== document.body)
-    focusDestination(held.node, held.caret);
+    returningFocus(() => focusDestination(held.node, held.caret));
   else releaseFocus();
   if (held?.ends?.every(([node]) => node.isConnected)) selectEnds(...held.ends);
 }

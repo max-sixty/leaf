@@ -320,7 +320,7 @@ export class ThreadView {
     );
     this.#continuity = new ReplyContinuity(this.node);
     // A card draws what its hold releases at once, so an arrival lands on the thread
-    // as it now stands (`showHeld`).
+    // as it now stands (held-news.js).
     if (surface === "panel")
       this.#heldNews = new HeldNews(
         this.node,

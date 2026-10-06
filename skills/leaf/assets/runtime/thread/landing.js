@@ -592,7 +592,6 @@ export function createThreadLanding({
     {
       focus = "reply",
       flash = true,
-      carried = false,
       intent = retainUserIntent({
         source: focused(),
         available: () => threadsBox.isConnected,
@@ -601,7 +600,13 @@ export function createThreadLanding({
     } = {},
   ) => {
     if (!intent.handoff(() => setPanel(true))) return Promise.resolve(null);
-    if (!carried) showHeld(id);
+    // A message a held turn carries has no node to land on until its thread shows what
+    // it holds (held-news.js).
+    if (
+      focus === "message" &&
+      !threadsBox.querySelector(`.lf-msg[data-mid="${CSS.escape(id)}"]`)
+    )
+      showHeld(id);
     const ready = showThreadNow(id, focus, flash, revealThread, threadsBox, intent);
     // Pointer and keyboard routes deliberately discard this ticket. The thread
     // coordinator reports its one failure; the landing result keeps that rejection out

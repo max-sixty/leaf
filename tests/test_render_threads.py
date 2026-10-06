@@ -2994,9 +2994,9 @@ ASK_MARKUP = (
 
 @pytest.mark.parametrize("destination", ["message", "ask", "standing-ask"])
 def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination):
-    """A direct message visit and the Ask drawer can reach a held reply's contents.
-    Going to an Ask the thread already shows ("standing-ask") is an arrival at the
-    thread too, so the reply held after it shows."""
+    """A direct message visit and the Ask walk can reach a held reply's contents.
+    Walking from outside the thread to an Ask it already shows ("standing-ask") is an
+    arrival at the thread too, so the reply held after it shows."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Keep the discussion here.")
     if destination == "standing-ask":
@@ -3048,8 +3048,14 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
         expect(message).to_be_focused()
     else:
         # The Ask walk, not the drawer: opening the drawer covers the card, and a held
-        # reply nobody can see shows anyway.
-        page.keyboard.press("Escape")
+        # reply nobody can see shows anyway. The walk starts with the user standing
+        # nowhere, so it arrives at the thread; from its reply box it would be a move
+        # within the thread.
+        field.evaluate("field => field.blur()")
+        page.wait_for_function("document.activeElement === document.body")
+        expect(
+            thread.get_by_role("button", name="1 new reply", exact=True)
+        ).to_be_visible()
         page.keyboard.press("a")
         expect(thread.locator("#held-question")).to_be_focused()
     expect(message).to_be_visible()
@@ -3069,6 +3075,8 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
         (3, "widget", "back"),
         (1, None, "onto"),
         (3, None, "onto"),
+        (1, None, "return"),
+        (1, None, "pressed"),
     ],
 )
 def test_walking_to_a_thread_shows_the_replies_it_held(
@@ -3076,15 +3084,17 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
 ):
     """Replies held while their thread stood open in front of the user show once the
     user walks away and back to that thread with t/T. The walk away closes the card and
-    the walk back opens it, and an opening moves every card after it anyway, so the
-    card opens with what it held, landed where the newest reply shows. Walking onto
-    the same thread at the end of the list releases news without closing its card.
-    One reply fits
-    with the root; several require measuring the released transcript to land its end.
-    Disclosure itself draws that body before a delayed public proof, so a newer Tab
-    reaches its current controls and supersedes the older title's pending landing.
-    A released reply's widget reads its frozen baseline and takes a new choice while
-    that global proof is held; the later publication keeps the choice it sent."""
+    the walk back opens it, and an opening moves every card after it anyway, so the card
+    opens with what it held, landed where the newest reply shows. Pressing onto the
+    thread the user already stands in, at the end of the list, moves them nowhere, so
+    its news stays held; leaving the thread with Shift+Tab and walking back onto its
+    card, which stood open throughout ("return"), arrives there, and shows it, as a
+    press on its title from there does ("pressed"). One reply fits with the root;
+    several require measuring the released transcript to land its end. Disclosure itself
+    draws that body before a delayed public proof, so a newer Tab reaches its current
+    controls and supersedes the older title's pending landing. A released reply's widget
+    reads its frozen baseline and takes a new choice while that global proof is held;
+    the later publication keeps the choice it sent."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Keep the discussion here.")
     other = panel_comment(serve.page_dir, "A thread to walk to. " * 30)
@@ -3145,11 +3155,30 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
         # A closed card draws one title row, so it holds nothing back; its reply waits
         # unseen in the folded body.
         expect(message).to_be_hidden()
+    if walk in ("return", "pressed"):
+        page.keyboard.press("Shift+Tab")
+        page.wait_for_function(
+            "id => !document.activeElement?.closest?.(`[data-id='${id}']`)", arg=root
+        )
+        expect(thread).to_have_attribute("open", "")
+        if walk == "pressed":
+            summary.click()
+        else:
+            page.keyboard.press("t")
+        expect(summary).to_be_focused()
+        expect(message).to_be_visible()
+        expect(thread.locator(".lf-thread-news")).to_have_count(0)
+        return
     if new_input:
         rendered(page)
         hold_visible_thread_presentation(page, root)
     page.keyboard.press("Shift+t")
     expect(summary).to_be_focused()
+    if walk == "onto":
+        rendered(page)
+        expect(thread.get_by_role("button", name=notice, exact=True)).to_be_visible()
+        expect(message).to_have_count(0)
+        return
     expect(message).to_be_visible()
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
     if new_input:
@@ -3206,6 +3235,48 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
     one_frame(page)
     landing = message.evaluate(IN_LANDING_BAND)
     assert landing["inside"], landing
+
+
+def test_a_dialog_handing_the_user_back_to_a_thread_is_no_arrival(browser, serve):
+    """A layer that closes hands the user back to where they stood. The command
+    reference opened from a thread holding a reply, and closed with Escape, returns
+    them to the thread's title, which they never left, so the reply stays held behind
+    its notice."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Keep the discussion here.")
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    summary = thread.locator(".lf-thread-summary")
+    if thread.get_attribute("open") is None:
+        summary.click()
+    summary.focus()
+    reply = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "revision": 1,
+            "parent": root,
+            "text": "This answer arrived while the thread stood open.",
+        },
+    )
+    told(page)
+    notice = thread.get_by_role("button", name="1 new reply", exact=True)
+    expect(notice).to_be_visible()
+    # The first press opens the shortcut bar, the second the command reference.
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator("dialog:modal")
+    expect(reference).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(reference).to_have_count(0)
+    expect(summary).to_be_focused()
+    rendered(page)
+    expect(notice).to_be_visible()
+    expect(thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(0)
 
 
 def test_opening_message_reactions_does_not_reflow_the_thread_list(browser, serve):

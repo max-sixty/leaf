@@ -204,7 +204,6 @@ customElements.define(
         this.#buttons.set(panel, btn);
         panel.setAttribute("role", "tabpanel");
         panel.setAttribute("aria-label", panel.getAttribute("label"));
-        panel.tabIndex = 0; // a tabpanel of prose has no focusable content; Tab must still reach it
         // The browser found something inside (find-in-page, an anchor jump), or
         // the runtime is about to scroll a comment anchor into view: open up.
         panel.addEventListener("beforematch", () => this.#activate(panel, "reveal"));
@@ -405,6 +404,10 @@ customElements.define(
           replaceEntry(this.#locationFor(active));
         for (const [panel, btn] of this.#buttons) {
           keeps(panel, "hidden", panel === active ? null : HIDDEN);
+          // A tabpanel of prose has no focusable content, so Tab reaches the open
+          // panel itself. hidden="until-found" skips only what a panel holds, not
+          // the panel, so a closed one would still be a stop with nothing on screen.
+          keeps(panel, "tabindex", panel === active ? 0 : null);
           keeps(btn, "aria-selected", panel === active);
           keeps(btn, "tabindex", panel === active ? 0 : -1);
         }

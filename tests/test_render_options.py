@@ -2153,6 +2153,36 @@ def test_an_authored_multiple_pick_still_waits_for_done(browser, serve):
     expect_asks_answered(page, "1/3")
 
 
+def test_multiple_done_can_be_taken_back_after_an_empty_answer(browser, serve):
+    page = open_page(browser, serve(ASK_PAGE))
+    done = page.locator("#jobs .lf-done")
+
+    done.click()
+    round_trip(page)
+    expect(done).to_have_attribute("aria-pressed", "true")
+    expect(done).to_have_attribute("aria-label", "Take back Done: reopen this question")
+    expect_asks_answered(page, "1/3")
+
+    done.click()
+    round_trip(page)
+    expect(done).to_have_attribute("aria-pressed", "false")
+    expect(done).to_have_attribute("aria-label", "Done: my picks here are complete")
+    expect_asks_answered(page, "0/3")
+    events = events_model.read_events(serve.page_dir)
+    answers = [event for event in events if event.get("action") == "answer"]
+    assert len(answers) == 1 and answers[0]["detail"] == {}
+    assert [event["undoes"] for event in events if event["kind"] == "undo"] == [
+        answers[0]["id"]
+    ]
+
+    page.locator("#job-mounts").click()
+    round_trip(page)
+    done.click()
+    round_trip(page)
+    expect_asks_answered(page, "1/3")
+    expect(page.locator("#job-mounts")).to_have_attribute("chosen", "")
+
+
 def test_a_pick_states_the_whole_set(browser, serve):
     """`multiple` is the difference between "which of these" and "which one", and the
     action is the same shape either way: every picked option, absolutely, so replay is

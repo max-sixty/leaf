@@ -128,7 +128,9 @@ import {
   handBack,
   holdFocus,
   letGo,
+  onStanding,
   placeChrome,
+  pressLed,
 } from "/runtime/focus.js";
 import { TEXT_FIELD } from "/runtime/control-selectors.js";
 import { closeControl, el, offer } from "/runtime/widget-elements.js";
@@ -182,7 +184,7 @@ import { passageGeometry } from "/runtime/resolved-target.js";
 import { floatingPlacement, floatingUi } from "./floating.js";
 import { placeKeeper } from "/runtime/user-place.js";
 
-import { under } from "/runtime/shadow.js";
+import { hostIn, under } from "/runtime/shadow.js";
 import { retainUserIntent } from "/runtime/user-intent.js";
 import { threadFocusDestination } from "/runtime/thread/focus.js";
 import { showLatestTurn } from "/runtime/thread/reply-landing.js";
@@ -1210,18 +1212,58 @@ export function createMarginProjection({
     return found;
   }
   const reveal = (node) => revealHost(annotationsHidden() ? standingHost(node) : null);
-  document.addEventListener(
-    "focusin",
-    (event) => {
-      if (
-        revealed &&
-        !revealed.contains(event.target) &&
-        !(revealed.lfTarget && under(event.target, revealed.lfTarget))
-      )
-        revealHost(null);
-    },
-    { capture: true },
-  );
+  onStanding((node) => {
+    if (
+      node &&
+      revealed &&
+      !revealed.contains(node) &&
+      !(revealed.lfTarget && under(node, revealed.lfTarget))
+    )
+      revealHost(null);
+  });
+  // A cluster the user comes to stand in. Any arrival there outranks a pointer parked on
+  // the previous target, which real pointer movement can take back without a press. A
+  // step, Tab or Shift+Tab, onto one of its controls also opens what it offers: a folded
+  // cluster's toggle is its only control and stands after the actions it unfolds, so
+  // Tab arriving on it lands on the first of them, and Shift+Tab on the last.
+  function arriveAtCluster(host, node, cause, left) {
+    hoveredHost = null;
+    refreshHighlight();
+    const control = node.closest?.(".lf-margin-entry");
+    if (
+      cause !== "step" ||
+      settlingOptionsFocus ||
+      suppressingOptionsArrival ||
+      !control ||
+      !host.contains(control)
+    )
+      return;
+    const current = host.lfEntry;
+    const primary = current && choosePrimary(current);
+    const standsFoldedNow =
+      Boolean(current) &&
+      folded(current) &&
+      canFold(current, {
+        expandedKey: expandedOptionsKey,
+        expandedOwner: expandedOptionsOwner,
+      });
+    if (!current || !(standsFoldedNow || optionsOffered(current, primary))) return;
+    if (expandedOptionsKey === current.key && expandedOptionsOwner) return;
+    if (entryEngaged(current)) return;
+    const from = left && hostIn(left, host.getRootNode());
+    const back = Boolean(
+      from && host.compareDocumentPosition(from) & Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    setOptionsOpen(current, true, {
+      focusOption:
+        control === host.more ? (standsFoldedNow && !back ? "first" : "last") : null,
+    });
+  }
+  onStanding((node, cause, left) => {
+    if (!node) return;
+    for (const host of hosts.values())
+      if (host.contains(node)) return arriveAtCluster(host, node, cause, left);
+  });
   watchAnnotations((hidden) => {
     if (hidden) {
       const holding = closestAcross(document.activeElement, ".lf-margin-cluster");
@@ -1541,49 +1583,6 @@ export function createMarginProjection({
             focusOption: open ? "first" : null,
           });
         };
-        host.addEventListener("focusin", (event) => {
-          const control = event.target.closest?.(".lf-margin-entry");
-          if (
-            settlingOptionsFocus ||
-            suppressingOptionsArrival ||
-            !control ||
-            !host.contains(control) ||
-            !control.matches(":focus-visible")
-          )
-            return;
-          const current = host.lfEntry;
-          const primary = current && choosePrimary(current);
-          const standsFoldedNow =
-            Boolean(current) &&
-            folded(current) &&
-            canFold(current, {
-              expandedKey: expandedOptionsKey,
-              expandedOwner: expandedOptionsOwner,
-            });
-          if (!current || !(standsFoldedNow || optionsOffered(current, primary)))
-            return;
-          if (expandedOptionsKey === current.key && expandedOptionsOwner) return;
-          if (entryEngaged(current)) return;
-          // A folded cluster's toggle is its only control and stands after the actions it
-          // unfolds, so Tab arriving on it lands on the first of them, and Shift+Tab on
-          // the last.
-          const back =
-            event.relatedTarget instanceof Node &&
-            Boolean(
-              host.compareDocumentPosition(event.relatedTarget) &
-              Node.DOCUMENT_POSITION_FOLLOWING,
-            );
-          setOptionsOpen(current, true, {
-            focusOption:
-              control === more ? (standsFoldedNow && !back ? "first" : "last") : null,
-          });
-        });
-        host.addEventListener("focusin", () => {
-          // A new keyboard destination outranks a pointer parked on the previous
-          // target. Real pointer movement can take ownership back without a press.
-          hoveredHost = null;
-          refreshHighlight();
-        });
         host.addEventListener("focusout", () => nextRender(refreshHighlight));
         const takePointerOwnership = (event) => {
           const control = document
@@ -2307,6 +2306,10 @@ export function createMarginProjection({
   // an Ask's digits name them. It folds again when they stand anywhere else but in the
   // cluster itself, whose own focus then keeps it open (the host's `focusout`).
   let standingUnfolded = null;
+  // The arrivals below are the keyboard's: the user's latest input was a key, not a
+  // press (focus.js, `pressLed`), since a press asks only for what it lands on. A Tab is
+  // one, and so is any route a key began, or the runtime putting them back after one.
+  const byKeyboard = () => !pressLed();
   function unfoldStanding(active) {
     const host = active && closestAcross(active, "[data-lf-margin-for]");
     if (host?.lfEntry?.key === standingUnfolded) {
@@ -2317,8 +2320,7 @@ export function createMarginProjection({
       expandedKey: expandedOptionsKey,
       expandedOwner: expandedOptionsOwner,
     };
-    const place =
-      active && !host && active.matches(":focus-visible") && placeOf(active);
+    const place = active && !host && byKeyboard() && placeOf(active);
     const entry = place
       ? pageInventory.find(
           (candidate) =>
@@ -2360,7 +2362,7 @@ export function createMarginProjection({
     // Nothing closes, since the list stays whole wherever the user stands.
     if (panelIsOpen()) {
       const entry = host ? host.lfEntry : threadEntryAt(active);
-      if (entry && threadReading(entry) && active.matches(":focus-visible"))
+      if (entry && threadReading(entry) && byKeyboard())
         accompanyThread(threadIdsOf(entry));
       return;
     }
@@ -2374,8 +2376,7 @@ export function createMarginProjection({
       return;
     }
     if (previewOpen() && previewEntry?.key === entry.key) return;
-    if (active.matches(":focus-visible"))
-      openInlineThread(threadIdOf(entry), { unfold: false });
+    if (byKeyboard()) openInlineThread(threadIdOf(entry), { unfold: false });
     else if (previewOpen()) closePreview();
   }
   // Letting go of where the user stands leaves them standing nowhere, which takes the
@@ -2534,10 +2535,12 @@ export function createMarginProjection({
       if (moved.some((position, index) => position !== spokenPositions[index]))
         nameMarkers(moved);
     });
-    for (const event of ["pointerover", "focusin"])
-      document.addEventListener(event, scheduleMarginEntryLabels, { capture: true });
-    document.addEventListener("focusin", () => queueMicrotask(followStanding), {
+    document.addEventListener("pointerover", scheduleMarginEntryLabels, {
       capture: true,
+    });
+    onStanding(() => {
+      scheduleMarginEntryLabels();
+      queueMicrotask(followStanding);
     });
     // Ahead of the document, where a mode claims its presses before anyone else hears
     // them: whatever a press becomes, it is still the user's attention moving.

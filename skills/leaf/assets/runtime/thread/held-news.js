@@ -374,7 +374,9 @@ onStanding((node, cause) => {
   const arrived =
     id !== null &&
     id !== standing &&
-    (cause === "move" || (cause === "press" && title !== thread && node === title));
+    (cause === "move" ||
+      cause === "step" ||
+      (cause === "press" && title !== thread && node === title));
   standing = id;
   if (arrived) showHeld(id);
 });

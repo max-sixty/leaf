@@ -3198,9 +3198,13 @@ def test_keyboard_arrival_at_a_margin_entry_cluster_replaces_ellipsis_with_all_e
     more = item.locator(":scope > .lf-margin-more")
     options = item.locator(":scope > .lf-margin-options")
     expect(more).to_be_visible()
-    page.locator("#before-margin-entries").focus()
-    page.keyboard.press("Tab")
-    accept.focus()
+    # Tab on from the page's last stop into the margin layer; focus put there by script
+    # is no arrival.
+    page.locator("#after-margin-entries").focus()
+    for _ in range(12):
+        page.keyboard.press("Tab")
+        if accept.evaluate("node => node.matches(':focus')"):
+            break
 
     expect(accept).to_be_focused()
     expect(more).to_be_hidden()
@@ -3235,9 +3239,11 @@ def test_left_and_right_walk_the_revealed_margin_entry_cluster(browser, serve):
     item = page.locator('[data-lf-margin-for="sug-refill"]')
     accept = item.get_by_role("button", name=re.compile(r"Accept"))
     reject = item.get_by_role("button", name=re.compile(r"Reject"))
-    page.locator("#before-margin-entries").focus()
-    page.keyboard.press("Tab")
-    accept.focus()
+    page.locator("#after-margin-entries").focus()
+    for _ in range(12):
+        page.keyboard.press("Tab")
+        if accept.evaluate("node => node.matches(':focus')"):
+            break
 
     expect(accept).to_be_focused()
     page.keyboard.press("ArrowRight")
@@ -3707,7 +3713,11 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
         suggestion_item.locator(".lf-sug-accept .lf-margin-entry-label")
     ).to_be_visible()
     page.mouse.move(0, 0)
-    accept.focus()
+    # Shift+Tab back from the toggle is a keyboard arrival on Accept, which opens the
+    # cluster's options; focus put there by script is not.
+    more.focus()
+    page.keyboard.press("Shift+Tab")
+    expect(accept).to_be_focused()
     page.keyboard.press("e")
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)
 

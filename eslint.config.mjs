@@ -383,9 +383,69 @@ export const semanticStoreOwnershipRule = {
   },
 };
 
+// Where the user stands, and what moved them there, is focus.js's one reading
+// (`onStanding`). A `focusin` or `focusout` listener hears nothing of a move between two
+// nodes of one shadow tree beneath it, and a reader that tells the runtime's returns or
+// the keyboard's arrivals apart for itself answers a question focus.js already answers.
+// So the two event names appear nowhere else, in a listener, a list of event types, a
+// comparison or a Lit binding, and `focus` and `blur` are not heard on the document,
+// where capturing them would hear every element. An element's own `focus` or `blur`,
+// and the window's, which is the system's focus, are other questions. The option names,
+// by path from the repository root, the files that may still name a focus event, each
+// with the reason in the config that grants it.
+const standingRepoRoot = path.dirname(fileURLToPath(import.meta.url));
+const STANDING_MESSAGE =
+  "Read where the user stands from onStanding (runtime/focus.js): a focusin or focusout listener misses moves inside a shadow tree beneath it and guesses its own cause.";
+export const standingListenersRule = {
+  meta: {
+    type: "problem",
+    schema: [{ type: "object", additionalProperties: { type: "array" } }],
+  },
+  create(context) {
+    const file = path
+      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    const allowed = new Set(context.options[0]?.[file] ?? []);
+    const named = (node, type) => {
+      if (!allowed.has(type)) context.report({ node, message: STANDING_MESSAGE });
+    };
+    const documentReceiver = (callee) =>
+      callee.type === "MemberExpression" &&
+      callee.object.type === "Identifier" &&
+      callee.object.name === "document";
+    return {
+      Literal(node) {
+        if (node.value === "focusin" || node.value === "focusout")
+          named(node, node.value);
+      },
+      TemplateElement(node) {
+        for (const [, type] of node.value.raw.matchAll(/@(focusin|focusout)\s*=/gu))
+          named(node, type);
+      },
+      CallExpression(node) {
+        const { callee } = node;
+        const method =
+          callee.type === "MemberExpression" && !callee.computed
+            ? callee.property.name
+            : null;
+        const type = node.arguments[0];
+        if (
+          method === "addEventListener" &&
+          documentReceiver(callee) &&
+          type?.type === "Literal" &&
+          (type.value === "focus" || type.value === "blur")
+        )
+          named(node, type.value);
+      },
+    };
+  },
+};
+
 const architecturePlugin = {
   rules: {
     "semantic-store-ownership": semanticStoreOwnershipRule,
+    "standing-listeners": standingListenersRule,
     "root-state-ownership": {
       meta: { type: "problem", schema: [] },
       create(context) {
@@ -912,6 +972,35 @@ export default [
             (property) => ({ object, property, message: RENDERING_MESSAGE }),
           ),
         ),
+      ],
+    },
+  },
+  {
+    files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
+    ignores: ["skills/leaf/assets/vendor/**", "skills/leaf/packages/*/vendor/**"],
+    plugins: { architecture: architecturePlugin },
+    rules: {
+      "architecture/standing-listeners": [
+        "error",
+        {
+          // The owner of every focus event.
+          "skills/leaf/assets/runtime/focus.js": ["focusin", "focusout"],
+          // Records the raw events of a session for the interaction log; it reads no
+          // standing of its own.
+          "skills/leaf/assets/runtime/interaction-log.js": ["focusin", "focusout"],
+          // A reply row's own entry begins its composition. The box's host is in the
+          // row's tree, so entering its shadow tree reaches the row, and a move inside
+          // it is no new entry.
+          "skills/leaf/assets/runtime/thread/replies.js": ["focusin"],
+          // Whether focus is anywhere inside a cluster, or inside the card's reply row:
+          // leaving one closes what it opened. Their controls stand in their own tree.
+          "skills/leaf/packages/default/runtime/annotation-overlay/margin-projection.js":
+            ["focusout"],
+          // A widget's own subtree, whose controls stand in its tree: whether focus is
+          // within the gloss, and the contents link the user last stood on.
+          "skills/leaf/packages/default/widgets/lf-gloss.js": ["focusin", "focusout"],
+          "skills/leaf/packages/default/widgets/lf-toc.js": ["focusin"],
+        },
       ],
     },
   },

@@ -5208,9 +5208,10 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     # With room for its whole measure, the card clears both its words and its cluster,
     # which here is a pin standing on the block the thread is about and reaching past it.
     assert geometry["placement"] == "right", geometry
-    assert geometry["cardLeft"] >= max(
-        geometry["controlsRight"], geometry["targetRight"]
-    ) + 8 - 0.5, geometry
+    assert (
+        geometry["cardLeft"]
+        >= max(geometry["controlsRight"], geometry["targetRight"]) + 8 - 0.5
+    ), geometry
     assert geometry["cardWidth"] == pytest.approx(geometry["preferred"], abs=0.5), (
         geometry
     )

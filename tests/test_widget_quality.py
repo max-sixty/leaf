@@ -231,7 +231,7 @@ DIFF_EXAMPLE = json.loads(
 # the report's desktop width, read in a phone's window, where it also opens the column;
 # and at a desktop width closing a panel, whose frame trims the host's own margin. A
 # framed tab set and a side-list queue whose names run past a phone's width, each
-# reserving the one row its strip keeps.
+# reserving the one row its strip keeps, the queue's group labels included.
 FIRST_BOXES = {
     "draft-in-a-phone-column": (
         """
@@ -261,7 +261,8 @@ FIRST_BOXES = {
     "queue-in-a-phone": (
         '<lf-tabs id="queue" list="side">'
         + "".join(
-            f'<lf-tab id="item-{i}" label="Item {i}" summary="merge · {i} days old">'
+            f'<lf-tab id="item-{i}" label="Item {i}" summary="{i} days old" '
+            f'group="{"Merge" if i < 6 else "Close"}">'
             f'<p id="item-words-{i}">Item {i}.</p></lf-tab>'
             for i in range(12)
         )

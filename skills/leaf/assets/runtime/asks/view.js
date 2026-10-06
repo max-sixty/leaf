@@ -159,12 +159,11 @@ export function createAskView({
   // the Ask's thread and clearing the words searched for, is that key's or press's
   // doing, in its own turn.
   //
-  // Going to a thread's Ask, or answering it, takes the user to that thread, so the
-  // lookup first shows what the thread holds back (held-news.js), the Ask included where
-  // a held turn carries it; that release draws before `showHeld` returns.
+  // An Ask a held turn carries has no node until its thread shows what it holds
+  // (held-news.js), and that release draws before `showHeld` returns.
   const askNodes = (ask) => ({ target: askNode(ask), source: sourceNode(ask) });
   const reachAsk = (ask) => {
-    if (ask.thread) showHeld(ask.thread);
+    if (ask.thread && !askNode(ask)) showHeld(ask.thread);
     return askNodes(ask);
   };
   const unbuilt = (ask, { target, source }) => (!target || !source) && ask.thread;

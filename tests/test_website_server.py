@@ -44,6 +44,7 @@ from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
+from leaf.leases import take_lease, waiter_lease_path
 from leaf.machine import pid_alive
 from leaf.render_checks import rendered
 from leaf.revision_artifact import capture_artifact
@@ -2925,7 +2926,7 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
     ids=["click", "arrive", "elsewhere"],
 )
 def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
-    browser, serve, read_elsewhere, reveal
+    browser, serve, read_elsewhere, reveal, request
 ):
     """A resolve during a turn cannot hide its completed answer from Open Threads.
 
@@ -2952,6 +2953,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     )
     harness = website_server.WebsiteCodexHarness("codex")
     turn = hosted_follower(harness, page_dir, prepared)
+    watcher = take_lease(waiter_lease_path(page_dir, "hosted-thread"))
+    assert watcher is not None
+    request.addfinalizer(watcher.close)
     turn.begin()
     # Present the accepted turn before resolving it: coalescing these server writes
     # would never exercise a workflow receipt disappearing beside the news control.
@@ -2961,10 +2965,50 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     metadata = thread.locator(
         ".lf-thread-transcript > .lf-msg:first-child > .lf-msg-head"
     )
-    expect(metadata.locator(".lf-msg-sending")).to_have_count(1)
+
+    def held_header():
+        return metadata.evaluate("""head => {
+          const rect = selector => head.querySelector(selector).getBoundingClientRect();
+          const author = rect('b');
+          const time = rect('time');
+          const meta = rect('.lf-msg-meta');
+          const news = head.closest('.lf-thread').querySelector('.lf-thread-news')
+            .getBoundingClientRect();
+          return {authorX: author.x, timeX: time.x, metadataRight: meta.right,
+            newsLeft: news.left};
+        }""")
+
+    receipt = metadata.locator(".lf-msg-sending")
+    expect(receipt).to_have_text("Replying")
     news = thread.locator(".lf-thread-news")
     expect(news).to_be_visible()
     news_left = news.bounding_box()["x"]
+    held = held_header()
+    assert held["metadataRight"] <= held["newsLeft"], held
+
+    def receipt_words():
+        return receipt.evaluate("""node => {
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          return range.getBoundingClientRect().width;
+        }""")
+
+    receipt_width = receipt_words()
+    initial_receipt = receipt.inner_text()
+    assert receipt.evaluate("node => node.scrollWidth <= node.clientWidth")
+    # Losing the provider watcher changes Replying to the longer stale receipt
+    # while its answer still waits. The words spend their own retained box.
+    watcher.close()
+    told(page)
+    rendered(page)
+    expect(receipt).to_have_text("Update stale")
+    expect(receipt).to_have_attribute("title", "Update stale")
+    assert receipt_words() > receipt_width, (
+        initial_receipt,
+        receipt_width,
+        receipt_words(),
+    )
+    assert held_header() == held
     cmd_resolve(page_dir, comment["id"])
     told(page)
     rendered(page)
@@ -2976,6 +3020,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     expect(thread).to_be_visible()
     expect(metadata.locator(".lf-msg-sending")).to_have_count(0)
     assert news.bounding_box()["x"] == news_left
+    assert held_header() == held
     if read_elsewhere:
         write(box, "A separate thread")
         box.press("ControlOrMeta+Enter")
@@ -3018,6 +3063,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         # card stands as drawn, open, so the reopening is no news.
         expect(news).to_have_text("1 new reply")
         assert news.bounding_box()["x"] == news_left
+        assert held_header() == held
         expect(
             thread.locator(".lf-msg.agent").filter(has_text="deployment verified")
         ).to_have_count(0)

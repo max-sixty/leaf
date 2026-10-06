@@ -42,6 +42,7 @@ from model_folds import leaf_page
 from PIL import Image, ImageDraw
 from playwright.sync_api import expect
 from render_harness import (
+    consume_browser_errors,
     judge_watches,
     open_page,
     pane_posture,
@@ -1096,7 +1097,13 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
     else:
         assert before["y"] >= target.bounding_box()["y"], before
     box = target.bounding_box()
+    page.mouse.move(box["x"] + 100, box["y"] + 80)
+    page.mouse.wheel(20, 20)
+    scroll_settled(page, "#quote")
+    rendered(page)
     if renew_placement:
+        # A size/layout delivery may renew placement after native scrolling. It
+        # must retain the same attachment rather than publish a second origin.
         page.evaluate("""() => {
           window.attachmentFrames = [];
           window.recordAttachment = true;
@@ -1111,13 +1118,6 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
           };
           sample();
         }""")
-    page.mouse.move(box["x"] + 100, box["y"] + 80)
-    page.mouse.wheel(20, 20)
-    scroll_settled(page, "#quote")
-    rendered(page)
-    if renew_placement:
-        # A size/layout delivery may renew placement after native scrolling. It
-        # must retain the same attachment rather than publish a second origin.
         page.evaluate("""async () => {
           const {layoutMarginRows} = await window.__lfRuntimeImport(
             '/runtime/annotation-overlay/margin-layout.js');
@@ -1665,8 +1665,9 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
     assert page.evaluate("detachPlacement()"), "the detached placement had no frame"
 
 
+@pytest.mark.parametrize("fault", ["", "holder", "child"])
 def test_a_comment_box_on_words_in_a_scroller_stands_without_scroll_timelines(
-    browser, serve
+    browser, serve, fault
 ):
     """Where the browser has no scroll timelines, as Firefox has none, the comment box
     for words in a scroller starts below its containing box in the window's plane,
@@ -1678,7 +1679,7 @@ def test_a_comment_box_on_words_in_a_scroller_stands_without_scroll_timelines(
                 "Words in a scroller",
                 '<h1>Comments follow the words</h1><p id="quote">'
                 "The export keeps each tenant in an archive.<br>"
-                + "<span>More lines in this reading region.<br></span>" * 50
+                + "More lines in this reading region.<br>" * 50
                 + '</p><div style="height:1200px"></div>',
                 head="<style>#quote { height:120px; overflow:auto; }</style>",
             )
@@ -1700,8 +1701,33 @@ def test_a_comment_box_on_words_in_a_scroller_stands_without_scroll_timelines(
     before, words_before = bar.bounding_box(), page.evaluate(words)
     page.mouse.move(below["x"] + 50, below["y"] + 50)
     page.mouse.wheel(0, 30)
+    expect(quote).to_have_js_property("scrollTop", 30)
     scroll_settled(page, "#quote")
     rendered(page)
     assert bar.bounding_box()["y"] - before["y"] == pytest.approx(
         page.evaluate(words)["y"] - words_before["y"], abs=1
     )
+    # A late scroll still owns its attachment's exact displacement after input
+    # has finished. Extra movement of either the holder or its child remains a fault.
+    judge_watches()
+    field = page.locator(".lf-fab-input")
+    field_before = field.bounding_box()
+    page.evaluate(
+        """fault => {
+          document.querySelector('#quote').scrollBy(0, 30);
+          if (fault) document.querySelector(fault === 'holder' ? '.lf-fab-bar' : '.lf-fab-input')
+            .style.transform = 'translateX(20px)';
+        }""",
+        fault,
+    )
+    scroll_settled(page, "#quote")
+    rendered(page)
+    assert bar.bounding_box()["y"] - before["y"] == pytest.approx(
+        page.evaluate(words)["y"] - words_before["y"], abs=1
+    )
+    assert field.bounding_box()["x"] - field_before["x"] == pytest.approx(
+        20 if fault else 0, abs=1
+    )
+    judge_watches()
+    if fault:
+        consume_browser_errors(page, "moved without input by (20,")

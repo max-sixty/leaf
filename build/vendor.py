@@ -181,7 +181,7 @@ def build_codemirror(work: Path) -> list[Path]:
             " — https://codemirror.net */\n"
             'export { EditorView, keymap, Decoration, ViewPlugin } from "@codemirror/view";\n'
             'export { EditorState, Compartment } from "@codemirror/state";\n'
-            "export { history, standardKeymap, historyKeymap }"
+            "export { history, standardKeymap, historyKeymap, isolateHistory, undoDepth }"
             ' from "@codemirror/commands";\n'
             'export { LanguageSupport } from "@codemirror/language";\n'
             "export { markdownLanguage, insertNewlineContinueMarkup }"

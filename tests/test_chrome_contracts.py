@@ -1539,8 +1539,9 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
 
     The reader returns to the retained card and explicitly reopens its conversation
     to recover the saved draft. Another agent settlement keeps that actual editing
-    session. Clearing its words keeps that empty editor active; Escape ends editing
-    while the news-retained card stays put.
+    session. Clearing its words keeps that empty editor active; Escape ends editing,
+    a move within the thread, so the card holds the settlement behind its notice until
+    the user presses it, and stays put.
     """
     url = serve(LONG_PAGE, comments=16)
     first, second = [
@@ -1610,6 +1611,9 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
     expect(reply).to_have_js_property("value", "")
     assert after.bounding_box() == stood
     page.keyboard.press("Escape")
+    rendered(page)
+    expect(reply).to_be_visible()
+    card.get_by_role("button", name="Resolved", exact=True).click()
     rendered(page)
     expect(reply).to_have_count(0)
     expect(card).to_be_visible()
@@ -1760,15 +1764,15 @@ def test_resolved_thread_has_one_surface_and_reopens_from_its_title(
 
 @pytest.mark.parametrize("width", [320, 800])
 @pytest.mark.parametrize("scheme", ["light", "dark"])
-def test_a_thread_keeps_submit_in_its_field_and_resolve_above_its_messages(
+def test_a_thread_keeps_submit_in_its_field_and_resolve_beside_its_header(
     browser, serve, width, scheme
 ):
-    """Submit belongs to the field while Resolve has its own thread control row.
+    """Submit belongs to the field while Resolve shares the first message's line.
 
     Growing the field leaves Submit at its foot and Resolve fixed. The field
     puts its words on the messages' reading edge, and keeps their inset as the
     field grows and scrolls, leaving room for Submit in the same row.
-    Resolve stays above the transcript while each message keeps its author and time.
+    Resolve stays beside the first header while each message keeps its author and time.
     The same layout holds at narrow and wide panel widths in both palettes."""
     context = browser.new_context(
         viewport={"width": width, "height": 720}, color_scheme=scheme
@@ -1819,7 +1823,6 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_above_its_messages(
                                    height: own.height, right: own.right, bottom: own.bottom},
                           compose: rect('.lf-thread-reply'), field: rect('.lf-compose-field'),
                           field_box: rect('.lf-thread-reply leaf-text'),
-                          controls: rect('.lf-thread-controls'),
                           metadataActions: rect('.lf-thread-meta-actions'),
                           send: rect('.lf-thread-send'), resolve: rect('.lf-resolve'),
                           closeBorder: getComputedStyle(document.querySelector(
@@ -1864,7 +1867,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_above_its_messages(
     assert short["send"]["bottom"] < short["field_box"]["bottom"]
     assert short["textEnd"] <= short["send"]["x"]
     assert short["field"]["height"] < 50
-    assert short["resolve"]["y"] == pytest.approx(short["controls"]["y"], abs=1)
+    assert short["resolve"]["y"] == pytest.approx(short["header"]["y"], abs=1)
     assert short["metadataActions"]["right"] == pytest.approx(
         short["message"]["right"], abs=1
     )
@@ -1872,8 +1875,7 @@ def test_a_thread_keeps_submit_in_its_field_and_resolve_above_its_messages(
         short["metadataActions"]["right"], abs=1
     )
     assert short["author"]["x"] == pytest.approx(short["message"]["x"], abs=1)
-    assert short["resolve"]["bottom"] <= short["controls"]["bottom"] + 1
-    assert short["controls"]["bottom"] <= short["header"]["y"]
+    assert short["header"]["right"] <= short["resolve"]["x"]
     assert float(short["closeBorder"][:-2]) == 0
     assert float(short["resolveBorder"][:-2]) == 0
     assert float(short["sendBorder"][:-2]) == 0

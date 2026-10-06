@@ -2199,6 +2199,90 @@ def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
         assert root_overflow(page) == 0
 
 
+def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
+    browser, serve
+):
+    """On a wide page an Ask and a callout keep the prose's width and left edge, so the
+    Ask's ring and pin stand beside what it asks, as on a column page. One granted
+    `data-width`, or holding a block of its own that declares one, takes that room for
+    the evidence. On a column page the Ask stays in the column and its wide block breaks
+    out of it, as the block would from a section."""
+    table = '<table id="{id}-t" data-width="wide"><tr><td>p95</td></tr></table>'
+    ask = (
+        '<lf-ask id="{id}"{width}><h3>Ship it?</h3>{table}<lf-options id="{id}-o" '
+        'choose><lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-ask>'
+    )
+    body = (
+        '<p id="prose">Prose.</p>'
+        + ask.format(id="ask", width="", table="")
+        + ask.format(id="granted", width=' data-width="wide"', table="")
+        + ask.format(id="holds", width="", table=table.format(id="holds"))
+        + ask.format(
+            id="deep", width="", table=f"<figure>{table.format(id='deep')}</figure>"
+        )
+        + ask.format(
+            id="nest",
+            width="",
+            table=f'<aside class="callout">{table.format(id="nest")}</aside>',
+        )
+        + '<lf-options id="plain"><lf-option id="plain-a">Raise it '
+        + table.format(id="plain")
+        + "</lf-option></lf-options>"
+        + '<lf-ask id="member"><h3>Which?</h3><lf-options id="member-o" choose>'
+        + '<lf-option id="member-a">Raise it <aside class="callout">'
+        + table.format(id="member")
+        + "</aside></lf-option></lf-options></lf-ask>"
+        + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
+        + '<aside class="callout" id="granted-c" data-width="wide"><p>Wide.</p></aside>'
+        + '<lf-options id="list" choose><lf-option id="list-a">Leave it</lf-option>'
+        + f'<lf-option id="list-b">Raise it {table.format(id="list")}</lf-option>'
+        + "</lf-options>"
+    )
+    measure = """() => Object.fromEntries(
+      ['prose', 'ask', 'granted', 'granted-c', 'holds', 'holds-t', 'callout', 'list']
+        .map(id => {
+        const box = document.getElementById(id).getBoundingClientRect();
+        return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
+      }))"""
+    page = open_page(browser, serve(leaf_page("Wide flow", body, layout="wide")))
+    resized(page, 1726, 900)
+    at = page.evaluate(measure)
+    edge = at["prose"]["left"]
+    # An option list keeps the measure whatever one option holds: only a box's own
+    # blocks widen it.
+    for boxed in ("ask", "callout", "list"):
+        assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
+    # A granted callout's padding and border fall inside the wide measure.
+    for wide in ("granted", "granted-c", "holds"):
+        assert at[wide] == {"width": 1080, "left": edge}, (wide, at)
+    # The widened Ask has the room for its options track, so the table stands beside
+    # the list rather than at the measure.
+    assert at["holds-t"]["width"] > 720, at
+    # A wide block deeper in, inside a figure, or in a callout the Ask holds at the
+    # measure, is held there, and the render check says to give the Ask the width. One
+    # an option carries, directly or in a callout, is the list's member's to hold, and
+    # goes unnamed, since no width given to the list or its Ask would free it.
+    held = {
+        finding["at"]: finding["text"]
+        for finding in render_checks_model.evaluate_probe(page, "misplacedBoxes")
+        if finding["kind"] == "held"
+    }
+    assert set(held) == {"<table id=deep-t>", "<table id=nest-t>"}, held
+    assert "give <lf-ask id=nest> the data-width" in held["<table id=nest-t>"], held
+
+    column = open_page(browser, serve(leaf_page("Column", body)))
+    resized(column, 1726, 900)
+    at = column.evaluate(measure)
+    assert at["holds"]["width"] == at["prose"]["width"] == 720, at
+    assert at["holds-t"]["width"] == 1080, at
+    assert at["holds-t"]["left"] < at["prose"]["left"], at
+    assert not [
+        finding
+        for finding in render_checks_model.evaluate_probe(column, "misplacedBoxes")
+        if finding["kind"] == "held"
+    ]
+
+
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
     """The breakout rule widens a block by negative margins, which an auto-width box
     fills and a box with a width of its own does not. A sample is a table box with a

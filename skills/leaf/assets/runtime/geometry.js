@@ -736,6 +736,10 @@ export function hides(surface, where) {
   const covered = Math.min(right, column.right) - Math.max(left, column.left);
   return covered > (right - left) / 2;
 }
+// Whether any standing occluder hides `where`, by the same measure. A seat a panel stands
+// over is no place to put the user, since the panels dominate what focus reaches.
+export const underOccluder = (where) =>
+  [...occluders].some((surface) => hides(surface, where));
 // The element a destination is measured through: itself, or the element holding a
 // Range's start.
 export const placeHolder = (where) =>

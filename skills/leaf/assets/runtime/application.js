@@ -415,7 +415,6 @@ export function mountApplication(dependencies) {
         focus: false,
         travel: false,
         flash: false,
-        carried: true,
         intent,
       }),
     read,

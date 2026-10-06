@@ -106,6 +106,17 @@ const MANIFEST = {
       states: { "1": "/_leaf/state/registry.json" },
       title: "leaf registry keys",
     },
+    "/threads": {
+      assets: `/_leaf-release/${RELEASE}/threads`,
+      description: "Comments and replies in Leaf.",
+      directory: "_leaf/pages/threads",
+      image: "/media/0000000000000007.png",
+      kind: "product",
+      layer: LAYER,
+      state: "/_leaf/state/threads.json",
+      states: { "1": "/_leaf/state/threads.json" },
+      title: "Threads in Leaf",
+    },
   },
 };
 
@@ -212,6 +223,7 @@ describe("product-site delivery", () => {
     "/",
     "/how-it-works/",
     "/registry/",
+    "/threads/",
     "/examples/",
     "/examples/triage-board/",
     "/extending/",

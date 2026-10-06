@@ -124,7 +124,7 @@ export async function replyDestination(
     return Boolean(standing && replyAvailable(standing));
   });
   if (!mayReply()) return null;
-  const shown = await open(id, { focus: "reply", intent: mayReply, carried: true });
+  const shown = await open(id, { focus: "reply", intent: mayReply });
   const thread = shown instanceof Element ? closestAcross(shown, THREAD) : null;
   const control = thread && destination(thread);
   if (!control || focused() !== shown || !mayReply()) return null;

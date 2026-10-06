@@ -2,15 +2,21 @@
  * picker. Each claims a complete press before authored controls can act on it. */
 import { spell } from "../keyboard/bindings.js";
 import { pageCommand } from "../keyboard/register.js";
-import { pointerAt, pressIsKeyboardActivation } from "../pointer.js";
-import { elementFromPointAcross, inChrome, leafSurface } from "../passages.js";
+import { coarsePointer, pointerAt, pressIsKeyboardActivation } from "../pointer.js";
+import { elementFromPointAcross, inChrome } from "../passages.js";
 import { aimTargetAt } from "../anchor-resolution.js";
 import { pointInto } from "../pointed-place.js";
 
 // While ⌥ is held the page shows what a click would take — the item under
 // the pointer wears the aim's box (refreshAim), so the sequence
 // answers "which" before the click rather than asking the user to press and find out.
-// `aiming` is the state and the class is a rendering of it; nothing reads the class back.
+// `aiming` is the modifier's state and the class is a rendering of the page being armed;
+// nothing reads the class back.
+//
+// The target picker (`s`) arms the page the same way for as long as it stands: its hints
+// name targets for the keyboard, and the pointer takes any of them, or one between them,
+// as ⌥-click would. A click in the picker otherwise went to the page under the hints, a
+// link or a control, so the user's evident attempt to point became an activation.
 //
 // It comes off on blur as well as on keyup, because the sequence that switches windows takes
 // the keyup with it, and a page left armed under nobody's hand is a claim the user
@@ -29,7 +35,15 @@ export function createAim({
   // that priority in the aim's one public reading as well as its press claim: the promise
   // painted under the pointer and the gesture that follows must have the same owner.
   const aimIsAvailable = () => !designMode.active() && !drawModeActive();
-  const aimIsOn = () => aiming && aimIsAvailable();
+  // Whether the page is armed, given whether the modifier is held: the one reading the
+  // box and the press claim both derive from, so the box cannot promise what the press
+  // does not do. The cursor class (armChanged) reads the two sources without the mode
+  // gate, since Design and Draw state cursors of their own and a gated class would go
+  // stale when Design ends under a held key.
+  const armedBy = (held) => aimIsAvailable() && (held || targetPicker.active());
+  // The picker's promise under the pointer waits for a pointer that hovers: a finger's
+  // last tap, on the menu entry that opened the picker, is not where it stands.
+  const aimIsOn = () => armedBy(aiming) && (aiming || !coarsePointer.matches);
   // Modifier aim, declared once: the key listeners, the press guard (claimPress) and the
   // reference's row all read this object. It is the register's one row that is not a key —
   // a modifier held while the pointer clicks — so it binds nothing and carries no press, and
@@ -73,10 +87,14 @@ export function createAim({
     const point = target?.anchor.visual ? null : pointInto(target?.element, at);
     return target && { ...target, point };
   }
+  // The armed page's one writer, called when either source of the arm changes.
+  function armChanged() {
+    document.body.classList.toggle("lf-aiming", aiming || targetPicker.active());
+    refreshAim();
+  }
   function setAiming(on) {
     aiming = on;
-    document.body.classList.toggle("lf-aiming", on);
-    refreshAim();
+    armChanged();
   }
   const keyDown = (ev) => ev.key === AIM.modifier && setAiming(true);
   const keyUp = (ev) => ev.key === AIM.modifier && setAiming(false);
@@ -131,22 +149,31 @@ export function createAim({
     "click",
     "dblclick",
   ];
-  // The press Design mode or the aim has taken until the next one starts. Design is the
-  // input mode and therefore stands first while active; the modifier is an aim only when
-  // the page is not in that mode. A Design press remains claimed when target resolution
-  // finds nothing: that gap cannot turn back into an activation underneath the mode.
+  // The press Design mode or the armed page has taken until the next one starts. Design is
+  // the input mode and therefore stands first while active; the page is armed only when it
+  // is not in that mode. A claimed press stays claimed when target resolution finds
+  // nothing: that gap cannot turn back into an activation underneath the mode, and the
+  // picker stays open for the next press.
+  //
+  // `previousPress` is the claim of the press before, kept for the rest of a multi-click:
+  // a claimed press extends to its continuation, which is the same gesture. The picker's
+  // first click chooses and closes it, and ⌥ can come up between the two presses, so the
+  // second press finds nothing armed and would reach the page as a link followed or a word
+  // selected. Chromium counts clicks on mousedown but not on pointerdown, so that is where
+  // the continuation is recognised.
   let claimedPress = null;
+  let previousPress = null;
   function claimPress(ev) {
     // Made and dropped at the same moment, which is the start of a press: a drag already
     // under way when the key goes down keeps the events it is waiting for, and one that
     // ends after the aim's own press can still be ended.
     if (ev.type === "pointerdown") {
+      previousPress = claimedPress;
       // The node pressed, not the widget host a shadow tree retargets it to: a Leaf
       // surface a widget seats in its own shadow tree is only visible from inside.
       const pressed = ev.composedPath()[0];
       const designTarget = designMode.press(pressed);
-      const aim =
-        aimIsAvailable() && ev.getModifierState(AIM.modifier) && onPage(ev.target);
+      const armed = armedBy(ev.getModifierState(AIM.modifier)) && onPage(ev.target);
       // The item the outline is naming, through the reading that named it (aimedTarget,
       // which aimTarget and so the box itself go through) rather than through this event's own
       // target. Both are hit tests at the one place the pointer is, and asking twice is what
@@ -154,16 +181,17 @@ export function createAim({
       // builds its own, and where two boxes share an edge — every cell of a joined group,
       // which butt with no gap between them — nothing makes the two tie-break the same way.
       // A user ⌥-pressing on that seam was outlined one option and commented on the next.
-      const choosing = targetPicker.active() && !leafSurface(pressed);
-      claimedPress = choosing
-        ? { picker: pointedTarget(pressed) }
-        : designTarget
-          ? { designMode: designMode.target(pressed) }
-          : aim
-            ? { aim: aimedTarget() }
-            : null;
+      //
+      // Under the picker the press chooses, which closes the picker, rather than comments.
+      claimedPress = designTarget
+        ? { designMode: designMode.target(pressed) }
+        : armed
+          ? { aim: aimedTarget(), choosing: targetPicker.active() }
+          : null;
       if (claimedPress) standDown(ev.target);
     }
+    if (!claimedPress && ev.type === "mousedown" && ev.detail > 1 && previousPress)
+      claimedPress = { continuing: true };
     if (!claimedPress) return;
     // Keyboard activation belongs to the control it is on, whatever the last pointer
     // did, and every captured press mode reads that the one way (pointer.js).
@@ -174,7 +202,8 @@ export function createAim({
     if (ev.type === "mousedown" || ev.type === "click") ev.preventDefault();
     ev.stopPropagation();
     if (ev.type !== "click") return;
-    if (claimedPress.picker) targetPicker.choose(claimedPress.picker);
+    if (claimedPress.aim && claimedPress.choosing)
+      targetPicker.choose(claimedPress.aim);
     else if (claimedPress.aim) commentOnTarget(claimedPress.aim);
     else if (claimedPress.designMode) designMode.open(claimedPress.designMode);
   }
@@ -194,5 +223,5 @@ export function createAim({
       document.removeEventListener(type, claimPress, true);
   }
   pageCommand(AIM);
-  return { aimIsOn, aimedTarget, mount, destroy };
+  return { aimIsOn, aimedTarget, armChanged, mount, destroy };
 }

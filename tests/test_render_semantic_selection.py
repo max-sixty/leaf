@@ -20,6 +20,7 @@ from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
 )
 from render_harness import (
+    EXAMPLES,
     ROOT,
     leaf_page,
     open_page,
@@ -266,7 +267,8 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
 
 
-def test_desktop_target_hints_leave_plain_link_clicks_available(browser, serve):
+def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
+    """While `s` stands, the mouse shows and takes a target as Alt-click does."""
     page = open_page(
         browser,
         serve(
@@ -276,11 +278,41 @@ def test_desktop_target_hints_leave_plain_link_clicks_available(browser, serve):
             )
         ),
     )
+    link = page.get_by_role("link", name="Follow this link")
+    link.hover()
+    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
+    # Opened under a still mouse, the promise paints without waiting for a move.
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
-    page.get_by_role("link", name="Follow this link").click()
-    expect(page).to_have_url(re.compile(r"#elsewhere$"))
-    expect(page.locator(".lf-fab-input")).to_be_hidden()
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "link")
+    # The first click chooses and closes the picker; the second is the same gesture's.
+    link.dblclick()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
+    expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
+    assert not page.url.endswith("#elsewhere"), "the picker's press followed the link"
+
+
+def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, serve):
+    """Over a suggestion's ✓ Accept, the picker comments on the change, as Alt does."""
+    page = open_page(
+        browser, serve(next(p for p in EXAMPLES if p.stem == "release-notes"))
+    )
+    standing = len(events_model.read_events(serve.page_dir))
+    accept = page.locator(".lf-margin-cluster .lf-sug-accept").first
+    accept.scroll_into_view_if_needed()
+    accept.hover()
+    page.keyboard.press("s")
+    promised = page.locator(".lf-aim").get_attribute("data-for")
+    assert promised, "the picker painted no target over the margin row"
+    accept.click()
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    assert page.evaluate(DRAFT_MARK) == promised
+    assert not [
+        e
+        for e in events_model.read_events(serve.page_dir)[standing:]
+        if e["kind"] == "action"
+    ], "the picker's press accepted the suggestion"
 
 
 def test_select_element_obeys_covering_surfaces_and_pointer_modes(browser, serve):
@@ -803,7 +835,7 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     expect(select_command.locator("kbd")).to_have_text("s")
     expect(select_command.get_by_role("button")).to_have_text("select element")
     expect(select_command.locator(".lf-command-reference-description")).to_have_text(
-        "Choose an element by tapping it or typing its hint, then comment"
+        "Choose an element by pressing it or typing its hint, then comment"
     )
     page.keyboard.press("Escape")
     page.keyboard.press("/")

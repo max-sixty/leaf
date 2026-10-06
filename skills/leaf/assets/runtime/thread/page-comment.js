@@ -60,7 +60,7 @@ export function createPageComment({
   control.title = NAME;
   control.setAttribute("aria-expanded", "false");
   control.append(
-    iconElement("comment-add", "lf-page-comment-icon"),
+    iconElement("comment", "lf-page-comment-icon"),
     el("span", "lf-page-comment-label", NAME),
   );
 

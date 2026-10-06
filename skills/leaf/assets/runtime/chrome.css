@@ -637,10 +637,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* Comment on the page is a symbol on the row and its words behind More, where every
      row is words (thread/page-comment.js). */
   .lf-page-comment { anchor-name: --lf-page-comment; }
-  .lf-banner-actions > .lf-page-comment { display: inline-flex; align-items: center;
-    justify-content: center; padding-inline: 8px; }
-  .lf-page-comment-icon { flex: none; inline-size: 17px; block-size: 17px;
-    fill: none; stroke: currentColor; stroke-width: 1.5;
+  /* The symbol sits in a line box, as every other control's words do, so the row's
+     line-height padding gives it their height; a flex box would size to the icon and
+     fall short of the aim floor. It is Threads' icon at Threads' weight: on the desk
+     only this control draws it, and on a phone only Threads does. */
+  .lf-banner-actions > .lf-page-comment { padding-inline: 8px; }
+  .lf-page-comment-icon { display: inline-block; vertical-align: middle;
+    inline-size: 16px; block-size: 16px;
+    fill: none; stroke: currentColor; stroke-width: 1.6;
     stroke-linecap: round; stroke-linejoin: round; }
   .lf-banner-actions .lf-page-comment-label,
   .lf-banner-menu .lf-page-comment-icon { display: none; }

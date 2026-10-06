@@ -10058,7 +10058,9 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     expect(message.locator(".lf-msg-kept")).to_have_count(0)
     message.locator(".lf-msg-text").dblclick()
     expect(editor).to_have_js_property("value", "Fit the south bracket.")
-    # Opening and closing a rewrite with its words unchanged keeps nothing.
+    # Closing a rewrite whose words the message already says keeps nothing.
+    page.keyboard.type("x")
+    page.keyboard.press("Backspace")
     page.keyboard.press("Escape")
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(message.locator(".lf-msg-kept")).to_have_count(0)

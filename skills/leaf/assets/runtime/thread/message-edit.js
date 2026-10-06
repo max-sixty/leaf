@@ -33,6 +33,7 @@ import {
   saveDraft,
   sendDraft,
   tellDraft,
+  watchDraft,
 } from "../drafts.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { offer } from "../widget-elements.js";
@@ -68,6 +69,10 @@ export function openMessageEdit(id, view, panel) {
 
 // Whether the user closed a rewrite of `id` and kept its words for later.
 export const keptRewrite = (id) => !open.has(id) && draftHasContent(editContext(id));
+
+// Call `changed` on news of the words of a rewrite of `id`, from this tab or another.
+// Returns the unsubscribe.
+export const watchRewrite = (id, changed) => watchDraft(editContext(id), changed);
 
 // Open the rewrite of message `id` where `thread`, a drawn thread, shows it, and answer
 // the box its words are in: none where the thread does not draw that message as one the
@@ -143,7 +148,8 @@ export class MessageEditor {
           description:
             "Stop editing, keeping the message as it was and your words for later",
           title: "stop editing",
-          run: () => leave(false),
+          // Words the message already says are nothing to keep.
+          run: () => leave(this.input.value.trim() === said().trim()),
         },
       ],
     });

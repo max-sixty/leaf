@@ -27,6 +27,7 @@ import {
   keptRewrite,
   openMessageEdit,
   releaseMessageEdit,
+  watchRewrite,
 } from "./message-edit.js";
 import { tokenEntry } from "../registry.js";
 import {
@@ -203,6 +204,8 @@ export class MessageView {
   #arrivalMotion = null;
   #header = document.createElement("div");
   #editor = null;
+  #kept = false;
+  #stopKept = null;
 
   constructor(commands) {
     this.#commands = commands;
@@ -248,6 +251,13 @@ export class MessageView {
       this.#editor.dispose();
       this.#editor = null;
     }
+    // Whether the message says it holds kept words follows the draft, which another tab
+    // can change; a keystroke in the open editor changes no such answer.
+    this.#kept = model.editable && !editing && keptRewrite(model.id);
+    if (model.editable && !this.#stopKept)
+      this.#stopKept = watchRewrite(model.id, () => {
+        if (keptRewrite(this.#model.id) !== this.#kept) this.#commands.edit.paint();
+      });
     keeps(this.#header, "data-lf-reflow", "text");
     if (prior && prior.author !== model.author)
       this.node.classList.toggle(prior.author, false);
@@ -294,7 +304,7 @@ export class MessageView {
               : nothing
           }
           ${
-            model.editable && !editing && keptRewrite(model.id)
+            this.#kept
               ? html`<span
                   class="lf-msg-kept"
                   title="Your rewrite is kept; open it to save or cancel"
@@ -415,6 +425,8 @@ export class MessageView {
     if (this.#model) releaseMessageEdit(this.#model.id, this);
     this.#editor?.dispose();
     this.#editor = null;
+    this.#stopKept?.();
+    this.#stopKept = null;
     this.#commands.read.forgetBody(this.node);
   }
 }

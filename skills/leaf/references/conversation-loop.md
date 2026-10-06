@@ -93,9 +93,9 @@ nothing and needs no item.
 User input comes before the work in hand, in this order:
 
 1. Where the delivery's `acknowledge` names a receipt route, take it first, so the
-   user's moves read **Picked up**; every other carrier has confirmed receipt
-   already. Until you start an item, the banner can say only that you are working
-   on their update.
+   user's moves read **Picked up**; where it is `null`, your harness has confirmed
+   receipt already. Until you start an item, the banner can say only that you are
+   working on their update.
 2. Start each move that asks for work before starting the work. Each delivered
    event's `handling` clauses say how, with the reply carrying the result once it
    lands. A move that asks for no work, such as a question, is answered by its

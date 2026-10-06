@@ -805,9 +805,7 @@ def _offer_queued_delivery(
         prepared = None
         if unoffered is not None:
             path, record = unoffered
-            prepared = offer_delivery(
-                path, record, "queue" if connection is None else "app-server"
-            )
+            prepared = offer_delivery(path, record, turn_replies=connection is not None)
             if (record.get("transport") or {}).get("phase") != "starting":
                 record["transport"] = {
                     "phase": "queue" if connection is None else "app-server",

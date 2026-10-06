@@ -202,7 +202,6 @@ Leaf: /home/you/review has new input; Leaf's prompt hook puts it in your context
   "format": "leaf-delivery-v3",
   "id": "2d5bdcc4",
   "created_at": 1790100943.144468,
-  "carrier": "hook",
   "acknowledge": null,
   "batches": [
     {
@@ -382,18 +381,17 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
             <p id="stages-lede">
               The label beside a move you hand over climbs from Sending until an answer
               clears it, and Leaf moves it only on evidence it records. What that
-              evidence is depends on the carrier that brings the move to the agent,
-              which each delivery names in its <code>carrier</code> field. A stage its
-              carrier cannot prove is skipped.
+              evidence is depends on the route that brings the move to the agent. A
+              stage its route cannot prove is skipped.
             </p>
             <table id="stages-table">
               <thead>
                 <tr>
                   <th>Stage</th>
-                  <th><code>hook</code><br />Claude Code, Pi</th>
-                  <th><code>wait</code><br /><code>leaf wait</code> loop</th>
-                  <th><code>queue</code><br />Codex</th>
-                  <th><code>app-server</code><br />Codex App Server</th>
+                  <th>Claude Code, Pi<br />hooks</th>
+                  <th><code>leaf wait</code><br />loop</th>
+                  <th>Codex<br />tool hook or queue</th>
+                  <th>Codex<br />App Server turn</th>
                 </tr>
               </thead>
               <tbody>

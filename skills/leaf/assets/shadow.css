@@ -294,6 +294,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    field subtracts its border; messages and metadata take the full inset. */
 :root, .lf-page-thread, .lf-thread { --lf-thread-text-inset: 13px; }
 .lf-thread-transcript { min-width: 0; padding-inline: var(--lf-thread-text-inset) 0; }
+/* Conversation flow is separate from the outer flex body that retains reply room. */
+.lf-thread-content { display: flow-root; min-width: 0; }
 /* A semantic separator draws its boundary without sizing the transcript. */
 .lf-read-boundary { height: 0; }
 .lf-msg { margin: 16px 0 0; }
@@ -310,17 +312,20 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-msg-head b { flex: 0 1 auto; min-width: 0; overflow: hidden;
           text-overflow: ellipsis; font-size: var(--lf-msg-name-size);
           font-weight: 600; color: var(--ink); }
-/* Thread actions and held news keep a row outside the transcript. Neither delivery
-   nor a summary can dim or hide them; news takes only the space the actions leave. */
-.lf-thread-controls { display: grid; align-items: center; gap: var(--sp-2);
-          grid-template-columns: minmax(0, 1fr) max-content;
+/* Thread actions keep their owner outside message folds, but share the first
+   header's line. A float lets that header's flex box take the remaining width;
+   the body below it keeps the full reading width. The thread's flow root contains
+   the actions without narrowing the complete transcript. */
+.lf-thread-controls { float: right; display: flex; align-items: center; gap: var(--sp-2);
+          width: max-content; max-width: 100%; margin-inline-start: var(--sp-2);
           min-height: max(28px, var(--aim-floor));
-          padding-inline: var(--lf-thread-text-inset) 0;
           font-size: var(--t-6); }
+.lf-thread-controls + .lf-thread-transcript
+  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
+          min-height: max(28px, var(--aim-floor)); align-items: center; }
 .lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
           gap: 4px; margin-inline-start: auto; }
-.lf-thread-controls > .lf-thread-meta-actions { grid-column: 2; }
-.lf-thread-controls > .lf-thread-news { grid-column: 1; justify-self: start;
+.lf-thread-controls > .lf-thread-news { flex: 0 1 auto;
           max-width: 100%; overflow: hidden; text-overflow: ellipsis;
           white-space: nowrap; }
 /* What a seat holds while it would move the page under the reader (thread/held-news.js).

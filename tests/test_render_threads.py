@@ -82,6 +82,47 @@ pytestmark = pytest.mark.nightly
 OPEN_TITLE = ".lf-threads > .lf-thread:not([hidden])[open] > .lf-thread-summary"
 
 
+def test_panel_thread_actions_share_the_first_message_header(browser, serve):
+    """Independent thread actions take the first header's spare inline room.
+
+    Keeping a message's header inside it must not give Resolve an otherwise empty
+    row above it. The message body keeps the conversation's full reading width.
+    """
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "testing")
+    append_agent_reply(serve.page_dir, root, "Testing received successfully.")
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    focus_panel_thread(card)
+    for width in (1440, 390):
+        resized(page, width, 900)
+        rendered(page)
+        geometry = card.evaluate(
+            """card => {
+              const box = selector => card.querySelector(selector).getBoundingClientRect();
+              const title = box('.lf-thread-summary');
+              const head = box('.lf-msg-head');
+              const action = box('.lf-resolve');
+              const body = box('.lf-msg-body');
+              const center = box => box.top + box.height / 2;
+              return {
+                headerGap: head.top - title.bottom,
+                centers: [center(head), center(action)],
+                headRight: head.right, actionLeft: action.left,
+                bodyLeft: body.left, headLeft: head.left,
+                bodyRight: body.right, actionRight: action.right,
+              };
+            }"""
+        )
+        assert abs(geometry["centers"][0] - geometry["centers"][1]) < 1, geometry
+        assert 0 <= geometry["headerGap"] <= 12, geometry
+        assert geometry["headRight"] <= geometry["actionLeft"], geometry
+        assert geometry["bodyLeft"] == geometry["headLeft"], geometry
+        assert geometry["bodyRight"] >= geometry["actionRight"], geometry
+
+
 def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
@@ -9690,6 +9731,14 @@ def test_pending_message_headers_match_their_bodies(browser, serve, surface):
     assert region.locator(".lf-msg-head").evaluate_all(
         "heads => heads.every(head => head.parentElement.matches('.lf-msg'))"
     ), "a message header was moved outside its message"
+    assert region.evaluate(
+        """root => {
+          const head = root.querySelector('.lf-msg-head').getBoundingClientRect();
+          const action = root.querySelector('.lf-resolve').getBoundingClientRect();
+          const center = action.top + action.height / 2;
+          return head.top <= center && center <= head.bottom && head.right <= action.left;
+        }"""
+    ), "keeping the header inside its message gave thread actions a separate row"
 
     def reading():
         return region.evaluate(

@@ -3,7 +3,9 @@
    Every surface uses the same metadata, transcript, message and reply vocabulary.
    Containers own navigation and placement, including whether their transcript scrolls;
    shadow.css owns the conversation's appearance through widget shadow boundaries.
-   Thread controls stay outside the transcript's message and summary folds. MessageView
+   Conversation flow stays inside a content region, separate from the outer body's
+   retained reply space. A margin card instead allocates its own scrolling transcript
+   and overlay controls. Thread controls stay outside message and summary folds. MessageView
    owns each complete message, so no container extracts or reparents its header.
 
    Immutable descriptors contain generated presentation only. Retained native editors,
@@ -753,7 +755,11 @@ export class ThreadView {
               </summary>`
             : nothing
         }
-        ${panel ? html`<div class="lf-thread-content">${body}</div>` : body}
+        ${
+          model.surface === "margin"
+            ? body
+            : html`<div class="lf-thread-content">${body}</div>`
+        }
         ${replySlot ? (this.#continuity?.gap ?? nothing) : nothing}
         ${reply ? this.#reply.node : (this.#replyReservation ?? nothing)}
         ${

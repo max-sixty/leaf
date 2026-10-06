@@ -5203,7 +5203,7 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
             ':scope .lf-thread-meta-actions > .lf-resolve'
           ).getBoundingClientRect();
           const controls = el.querySelector(
-            ':scope > .lf-thread-controls'
+            ':scope > .lf-thread-content > .lf-thread-controls'
           ).getBoundingClientRect();
           const headNode = el.querySelector(
             ':scope .lf-msg > .lf-msg-head'
@@ -5218,7 +5218,8 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
                   controlTop: control.top, expectedTop: own.top + inset,
                   controlBottom: control.bottom, controlsTop: controls.top,
                   controlsBottom: controls.bottom, headTop: head.top,
-                  headBottom: head.bottom,
+                  headBottom: head.bottom, headRight: head.right,
+                  controlLeft: control.left,
                   authorBottom: author.bottom,
                   bodyTop: body.top,
                   bodyMargin: parseFloat(getComputedStyle(bodyNode).marginTop)};
@@ -5230,9 +5231,8 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
         placement["controlBottom"], abs=1
     )
     assert placement["controlBottom"] <= placement["controlsBottom"]
-    assert placement["controlsBottom"] <= placement["headTop"], (
-        f"thread controls overlap the first message: {placement}"
-    )
+    assert placement["headTop"] == pytest.approx(placement["controlsTop"], abs=1)
+    assert placement["headRight"] <= placement["controlLeft"], placement
     assert placement["bodyTop"] - placement["headBottom"] == pytest.approx(
         placement["bodyMargin"], abs=1
     ), f"the first inline message has extra space below its author: {placement}"

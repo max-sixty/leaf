@@ -1050,8 +1050,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      Sticky rows also paint over the conversation that scrolls beneath them. */
   .lf-thread-compact > :is(.lf-thread-summary, .lf-thread-reply) {
     background: var(--lf-thread-surface); }
-  .lf-thread-compact[open]:has(> .lf-thread-reply) > .lf-thread-content {
-    display: flex; flex-direction: column; }
   .lf-thread-summary { display: grid; flex: none;
     grid-template-columns: minmax(0, 1fr) minmax(0, max-content) auto;
     align-items: baseline; align-content: center; column-gap: 8px; width: 100%; block-size: var(--lf-thread-title-h); border: 0;
@@ -1100,8 +1098,16 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-thread-compact:not([open]) > .lf-thread-header-action { display: none; }
   /* The container supplies navigation and an inset; shadow.css owns the conversation. */
   .lf-thread-compact > .lf-thread-content > .lf-thread-head { margin: 12px var(--lf-thread-inset); }
-  .lf-thread-compact > .lf-thread-content > .lf-thread-controls { margin: 12px var(--lf-thread-inset) 0; }
-  .lf-thread-compact > .lf-thread-content > .lf-thread-transcript { flex: none; margin-inline: var(--lf-thread-inset); }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-controls {
+    max-width: calc(100% - 2 * var(--lf-thread-inset));
+    margin: 12px var(--lf-thread-inset) 0 var(--sp-2); }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-transcript {
+    margin: 12px var(--lf-thread-inset) 0; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-transcript
+    > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint) { margin-block-start: 0; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-transcript
+    > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint) .lf-summary-header {
+    min-height: max(28px, var(--aim-floor)); align-items: center; }
   /* A checkpoint is agent-written reading context, followed by the retained originals
      it covers. One disclosure beside that context controls the entire range. */
   .lf-thread-checkpoint { margin-block: 16px; }

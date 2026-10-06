@@ -552,49 +552,26 @@
 
           <section id="internal-name">
             <h2>A name for the shared record</h2>
-            <p>
-              Today one record, a <em>task</em>, holds both sides: it has an
-              <code>owner</code>, says how it <code>ends</code>, and stays open until it
-              does (<a href="#task">How it works</a>). With Task now meaning Claude's
-              side alone, the shared record needs another word. Renaming it also
-              untangles a second clash: “task” already means the harness's unit of work,
-              as in a <em>task claim</em> or a Codex task, which has nothing to do with
-              this record.
+            <p id="internal-decided">
+              <strong
+                >For now, <em>Task</em> on the page means Claude's side, and
+                <em>task</em> stays the name of the record both sides share.</strong
+              >
+              A record has an <code>owner</code>, says how it <code>ends</code>, and
+              stays open until it does (<a href="#task">How it works</a>); a decision on
+              you is a task whose owner is you. The code, the event log,
+              <code>leaf page state</code> and
+              <code>leaf task open --on user</code> keep the word, and renaming the
+              record is in <code>TODO.md</code>.
             </p>
             <p>
-              The words the agent and you read follow the page:
-              <code>leaf task</code> opens, starts and ends Claude's tasks, and a
-              decision on you comes from an Ask, a question with <code>--awaits</code>,
-              or <code>leaf decision open</code> in place of today's
-              <code>leaf task open --on user</code>. The shared word names the record in
-              the event log, in <code>leaf page state</code>, and in the code.
+              The word means two things now, and a third already: the harness's unit of
+              work, as in a <em>task claim</em> or a Codex task. The candidates for the
+              shared record were <em>obligation</em>, what its owner owes until it ends;
+              <em>commitment</em>, Winograd and Flores's word, which fits Claude's tasks
+              but not a decision Claude asked of you; and <em>item</em>, which a queue
+              already uses for moves that aren't records.
             </p>
-            <lf-ask id="internal-pick">
-              <h3 id="internal-pick-heading">
-                What should the shared record be called?
-              </h3>
-              <lf-options id="internal-pick-options" choose>
-                <lf-option id="internal-obligation"
-                  ><strong>Obligation</strong> What its owner owes until it ends: a
-                  decision you owe Claude, or work Claude owes you. It is the word the
-                  research already reached for (“resolve settled the obligation”), and
-                  nothing else in Leaf uses it. Recommended: it says the one thing every
-                  record has, an owner who owes it, and reads naturally on both
-                  sides.</lf-option
-                >
-                <lf-option id="internal-commitment"
-                  ><strong>Commitment</strong> Winograd and Flores's word: a request
-                  becomes the performer's commitment, which holds until they report it
-                  done. It fits Claude's tasks well, but a decision on you is something
-                  Claude asked of you rather than something you committed to.</lf-option
-                >
-                <lf-option id="internal-item"
-                  ><strong>Item</strong> Short and neutral, but a queue's items already
-                  include moves that aren't records, a reply owed or a send to retry, so
-                  the word would mean two things.</lf-option
-                >
-              </lf-options>
-            </lf-ask>
           </section>
 
           <section id="bar-options">

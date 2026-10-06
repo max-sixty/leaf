@@ -7433,15 +7433,6 @@ RING_CASES = (
                 (".lf-shotcap", "pressable"),
             ),
             "ship-review": ((".lf-reopen", "thread-action"),),
-        },
-    ),
-    # A workspace fills the window, so Threads beside it stands over its right pane, which
-    # takes no focus while the panel stands (auxiliary-surfaces.js); the pane's own ring is
-    # read with the panel shut.
-    (
-        "a pane body",
-        (),
-        {
             "wt-merge": (
                 ('[data-lf-reading-role="pane"] > [tabindex="0"]', "pane-body"),
             ),
@@ -7655,7 +7646,6 @@ RING_VIEWPORT = (1200, 900)
 # page-margin surfaces the panel replaces; the thread-list sample's `g T` is the door
 # under test, and now correctly toggles an already-open panel closed.
 RING_SCOPES_STARTING_WITHOUT_PANEL = {
-    "a pane body",
     "an inline response",
     "the thread list",
     "a walked thread",

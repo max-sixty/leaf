@@ -53,6 +53,20 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Asks,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
+- **Keep Tab off page content a panel beside the page covers.** Threads and the
+  Queue panel leave the page live beside them while standing over part of it. Max's rule
+  (2026-10-06): the panels dominate focus, so moving focus never closes or changes a
+  standing panel, focus never lands on page content a panel covers, and Threads still
+  stands beside a full-width workspace. A comment box already refuses a covered seat
+  (`underOccluder`, geometry.js). Tab still walks onto `annotation-workspace`'s rail
+  under Threads at 1440×900, and onto an Ask's option marks under the Queue panel at
+  1200px. Making what a panel covers inert was built and withdrawn: it left the visible
+  part of a partly covered element dead to clicks and selection, and focus still reached
+  chrome markers, sample frames, overflowing children and content an attribute revealed.
+  Decide between laying the page out in the width a panel leaves beside it, which
+  reverses "auxiliary surfaces never change the page's geometry"
+  (`skills/leaf/assets/AGENTS.md`), and Leaf owning Tab beside a panel, skipping stops
+  `hides` says it covers.
 
 ### Agent and author experience
 

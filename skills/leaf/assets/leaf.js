@@ -271,10 +271,11 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
     repaint();
     anchorPaint?.refreshHover();
   },
-  // A seat a standing surface covers, such as the annotation rail's composer, cannot take
-  // the user, and one the surface no longer covers can again: the page presents itself
-  // once more so whatever stands in a seat moves to one the user can reach.
-  reachChanged: () => app.invalidateDom(),
+  // A comment box seated where a surface now stands, or in its home in a surface now
+  // gone, moves to the seat the user can reach: presenting the page again seats it.
+  reachChanged: () => {
+    if (responseSurface.fabAnchorAt()) void app.invalidateDom();
+  },
 });
 const navigation = createNavigation({
   panelElements,

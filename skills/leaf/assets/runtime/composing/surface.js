@@ -60,7 +60,7 @@ import {
   registerBannerControl,
   showBannerControl,
 } from "../banner-toolbar.js";
-import { seenRect } from "../geometry.js";
+import { seenRect, underOccluder } from "../geometry.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import {
   targetElement,
@@ -182,7 +182,12 @@ export function createResponseSurface({
   let fabPositionWaiters = [];
   const fabFocused = () => (fabInlineOutlet ? focused() : document.activeElement);
 
-  const fabDrawn = () => drawn(composerOpen ? fabInput : fabBar);
+  // A seat a panel stands over cannot take the user even where it paints: the panels
+  // dominate what focus reaches, so the editor falls back to its home instead.
+  const fabDrawn = () => {
+    const editor = composerOpen ? fabInput : fabBar;
+    return drawn(editor) && !underOccluder(editor);
+  };
   const answerFabPosition = (positioned) => {
     // Physical completion cannot certify an editor hidden by its current seat.
     // Keep its waiters until a current placement commits it, or cancellation declines.

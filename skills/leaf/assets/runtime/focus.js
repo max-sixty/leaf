@@ -231,17 +231,8 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
   );
 // Drawn counts `visibility: hidden` as hidden: a node under it keeps focus for a frame
 // and then the browser blurs it to the body, as it does a node under `display: none`.
-// An inert node is out of reach the same way, such as page content a panel beside the
-// page stands over (auxiliary-surfaces.js), however it paints.
 export const drawn = (node) =>
-  node?.isConnected &&
-  node.checkVisibility({ visibilityProperty: true }) &&
-  !inertAround(node);
-function inertAround(node) {
-  for (let at = node; at; at = at.parentElement ?? at.getRootNode().host)
-    if (at.inert) return true;
-  return false;
-}
+  node?.isConnected && node.checkVisibility({ visibilityProperty: true });
 // The node a change took out from under a user who now stands nowhere: where they last
 // stood, while it is no longer drawn.
 const dropped = () => {

@@ -237,9 +237,11 @@ class DoneControl extends LitElement {
       class="lf-btn lf-done lf-ui"
       data-lf-gen="1"
       data-lf-offer="button"
-      aria-label=${this.answered
-        ? "Take back Done: reopen this question"
-        : "Done: my picks here are complete"}
+      aria-label=${
+        this.answered
+          ? "Take back Done: reopen this question"
+          : "Done: my picks here are complete"
+      }
       aria-pressed=${String(this.answered)}
     >
       <span

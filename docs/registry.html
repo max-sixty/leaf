@@ -838,16 +838,17 @@
                   Full contract
                 </summary>
                 <p>
-                  Its module subscribes through consumeThreads, selects Threads from the
-                  public collection, and places them in its own outlets. The returned
-                  handle can open Comment from one of the widget's projected elements.
-                  Leaf owns anchors, drafts, response modes, submission, Thread
-                  rendering, reply and reaction state, settlement, focus, receipts, and
-                  margin-projection fallback. A placement claims that active composer or
-                  Thread locally for the current reconciliation; unloaded, filtered,
-                  collapsed, outdated, or otherwise undisplayable datums receive no
-                  placement and remain in the global Threads index plus the ordinary
-                  fallback.
+                  Its module registers through placeThreads, receives one ordered batch
+                  of admitted exact targets, and returns matching outlet Elements or
+                  null. Core maps those outlets to their Threads or the active composer
+                  and commits their placement and lifetime. The returned handle can open
+                  Comment from one of the widget's projected elements. Leaf owns
+                  anchors, drafts, response modes, submission, Thread rendering, reply
+                  and reaction state, settlement, focus, receipts, and margin-projection
+                  fallback. A placement claims that active composer or Thread locally
+                  for the current reconciliation; unloaded, filtered, collapsed,
+                  outdated, or otherwise undisplayable datums receive no placement and
+                  remain in the global Threads index plus the ordinary fallback.
                 </p>
               </details>
             </div>

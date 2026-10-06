@@ -11,7 +11,7 @@ import {
   countAreas,
   describeDifference,
   compoundReadingRegionId,
-  consumeThreads,
+  placeThreads,
   failSoft,
   holdFocus,
   keeps,
@@ -125,7 +125,8 @@ customElements.define(
     #title = null;
 
     connectedCallback() {
-      if (once(this)) this.#buildLayout();
+      const firstConnection = once(this);
+      if (firstConnection) this.#buildLayout();
       this.#stopEvidence ??= registerReadingRegion({
         id: compoundReadingRegionId(this, "evidence"),
         host: this.#evidenceHost,
@@ -137,23 +138,14 @@ customElements.define(
       for (const stage of this.querySelectorAll(".lf-vr-shot-host"))
         this.#sizes.observe(stage);
       window.addEventListener("resize", this.#onResize);
-      this.#threadSurface ??= consumeThreads(this, (collection, surfaces) => {
-        for (const thread of collection.threads) {
-          if (thread.anchor?.section !== this.id || !thread.anchor.datum) continue;
-          const target = surfaces.target(thread.key);
-          const outlet = target && this.#threadOutlet(target);
-          if (outlet) surfaces.place(thread.key, outlet);
-        }
-        const outlet = surfaces.composition && this.#threadOutlet(surfaces.composition);
-        if (outlet) surfaces.placeComposition(outlet);
-      });
-      this.stopActions ??= this.#controller.subscribe(() => this.#paintAvailability());
+      this.#threadSurface ??= placeThreads(this, (targets) =>
+        targets.map((target) => this.#threadOutlet(target)),
+      );
+      if (firstConnection) this.#controller.subscribe(() => this.#paintAvailability());
       this.stopWatching ??= watchData(this, "run", (snapshot) => this.#show(snapshot));
     }
 
     disconnectedCallback() {
-      this.stopActions?.();
-      this.stopActions = null;
       this.stopWatching?.();
       this.stopWatching = null;
       this.#threadSurface?.unregister();

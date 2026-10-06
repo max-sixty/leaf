@@ -1,6 +1,6 @@
 # Added when an Ask came to keep the prose's width on a wide page as in a column: the
-# Ask framing a playground has to be granted the page's room for its stage. Three
-# Claude Code trials: base 0/3, candidate 3/3.
+# Ask framing a playground has to be granted the page's room for its stage. Claude
+# Code: base 0/3 and 0/2, candidate 3/3 and 2/2, across two wordings.
 description: playground-ask-takes-the-room
 metadata:
   purpose: 'Playground: the Ask framing a playground on a wide page takes data-width="available".'

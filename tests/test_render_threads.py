@@ -123,6 +123,91 @@ def test_panel_thread_actions_share_the_first_message_header(browser, serve):
         assert geometry["bodyRight"] >= geometry["actionRight"], geometry
 
 
+@pytest.mark.watch_shifts
+def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
+    """Held news keeps metadata, body and both independent actions still.
+
+    A long agent name fills the desktop header. Narrowing the viewport while its
+    replies wait must remeasure the retained metadata allocation, leaving the notice
+    reachable beside the root message's reaction and the thread's Resolve action.
+    """
+    url = serve(PANEL_PAGE)
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Codex reviewing the presentation and interaction of the shared thread controls",
+            "revision": 1,
+            "text": "Which jobs should start first?",
+        },
+    )["id"]
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    focus_panel_thread(thread)
+    message = thread.locator(".lf-msg").first
+    message.hover()
+    reaction = message.locator(".lf-react-trigger")
+    expect(reaction).to_be_visible()
+    rendered(page)
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
+
+    def geometry():
+        return thread.evaluate("""thread => {
+          const first = thread.querySelector('.lf-msg');
+          const rect = selector => {
+            const r = first.querySelector(selector).getBoundingClientRect();
+            return {x: r.x, y: r.y, width: r.width, height: r.height};
+          };
+          const r = thread.querySelector('.lf-resolve').getBoundingClientRect();
+          return {author: rect('.lf-msg-head b'), time: rect('.lf-msg-head time'),
+            body: rect('.lf-msg-body'), reaction: rect('.lf-react-trigger'),
+            resolve: {x: r.x, y: r.y, width: r.width, height: r.height}};
+        }""")
+
+    before = geometry()
+    notice_box = None
+    for number in (1, 2):
+        append_agent_reply(serve.page_dir, root, f"Held answer {number}.")
+        told(page)
+        rendered(page)
+        news = thread.locator(".lf-thread-news")
+        expect(news).to_be_visible()
+        expect(thread.locator(".lf-msg")).to_have_count(1)
+        assert geometry() == before
+        if notice_box is None:
+            notice_box = news.bounding_box()
+        else:
+            assert news.bounding_box() == notice_box
+
+    resized(page, 360, 900)
+    rendered(page)
+    expect(news).to_have_attribute("title", "2 new replies")
+    allocation = news.evaluate("""news => {
+      const thread = news.closest('.lf-thread');
+      const notice = news.getBoundingClientRect();
+      const reaction = thread.querySelector('.lf-msg .lf-react-trigger').getBoundingClientRect();
+      const resolve = thread.querySelector('.lf-resolve').getBoundingClientRect();
+      const hit = news.getRootNode().elementFromPoint(
+        notice.left + notice.width / 2, notice.top + notice.height / 2);
+      return {width: notice.width, hit: news.contains(hit),
+        noticeRight: notice.right, reactionLeft: reaction.left,
+        reactionRight: reaction.right, resolveLeft: resolve.left};
+    }""")
+    assert allocation["width"] >= 28, allocation
+    assert allocation["hit"], allocation
+    assert allocation["noticeRight"] <= allocation["reactionLeft"], allocation
+    assert allocation["reactionRight"] <= allocation["resolveLeft"], allocation
+    news.click()
+    expect(thread.locator(".lf-msg")).to_have_count(3)
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+
+
 def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)
@@ -823,9 +908,16 @@ def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
     expect(message).to_be_focused()
 
 
-def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
+@pytest.mark.parametrize(
+    ("width", "touch", "count"), [(1440, False, 2), (320, True, 10)]
+)
+def test_a_root_summary_keeps_thread_actions_outside_its_fold(
+    browser, serve, width, touch, count
+):
     """A checkpoint may cover the root turn without hiding thread actions.
 
+    A narrow touch header wraps its disclosure while keeping its context label
+    readable and Resolve centred beside the complete header.
     An edit that retracts the checkpoint waits behind the card's notice while the user
     reads it, and drawn once they have scrolled away, leaves them on Resolve."""
     url = serve(PANEL_PAGE)
@@ -833,14 +925,26 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     reply = thread_model.cmd_reply(
         serve.page_dir, root, "The constraint still applies.", None, for_event=root
     )
+    end = reply["id"]
+    for number in range(count - 2):
+        end = append_agent_reply(serve.page_dir, root, f"Earlier detail {number}.")[
+            "id"
+        ]
     append_agent_reply(serve.page_dir, root, "The later result remains visible.")
     for number in range(12):
         panel_comment(serve.page_dir, f"A later thread, number {number}.")
     summary = summarize_thread(
-        serve.page_dir, root, reply["id"], "The constraint was confirmed."
+        serve.page_dir, root, end, "The constraint was confirmed."
     )
-    page = open_page(browser, url)
-    resized(page, 1440, 600)
+    context = browser.new_context(
+        viewport={"width": width, "height": 600}, has_touch=touch, is_mobile=touch
+    )
+    page = open_page(browser, url, context=context)
+    resized(page, width, 600)
+
+    def activate(control):
+        control.tap() if touch else control.click()
+
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     card = page.locator(f'.lf-thread[data-id="{root}"]')
@@ -848,6 +952,22 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
         card.locator(":scope > .lf-thread-summary").click()
     checkpoint = card.locator(f'[data-summary-id="{summary["id"]}"]')
     expect(card.get_by_role("button", name="Resolve thread")).to_be_visible()
+    alignment = card.evaluate("""card => {
+      const headerNode = card.querySelector('.lf-summary-header');
+      const header = headerNode.getBoundingClientRect();
+      const labelNode = headerNode.querySelector('.lf-summary-label');
+      const label = labelNode.getBoundingClientRect();
+      const disclosure = headerNode.querySelector('.lf-summary-expand').getBoundingClientRect();
+      const resolve = card.querySelector('.lf-resolve').getBoundingClientRect();
+      return {headerCenter: header.top + header.height / 2,
+        resolveCenter: resolve.top + resolve.height / 2,
+        labelLines: label.height / parseFloat(getComputedStyle(labelNode).lineHeight),
+        disclosureRight: disclosure.right,
+        contentRight: header.right - parseFloat(getComputedStyle(headerNode).paddingInlineEnd)};
+    }""")
+    assert abs(alignment["headerCenter"] - alignment["resolveCenter"]) < 1, alignment
+    assert alignment["labelLines"] <= 1.1, alignment
+    assert alignment["disclosureRight"] <= alignment["contentRight"] + 0.5, alignment
     expect(card.get_by_role("button", name="Close thread")).to_have_count(0)
     controls = card.locator(":scope > .lf-thread-content > .lf-thread-controls")
     assert controls.evaluate("node => !node.closest('.lf-summary-originals')"), (
@@ -856,11 +976,11 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     root_message = checkpoint.locator(f'.lf-msg[data-mid="{root}"]')
     expect(root_message.locator(":scope > .lf-msg-head")).to_be_hidden()
     expect(root_message.locator(":scope > .lf-msg-body")).to_be_hidden()
-    checkpoint.locator(".lf-summary-expand").click()
+    activate(checkpoint.locator(".lf-summary-expand"))
     expect(root_message.locator(":scope > .lf-msg-head")).to_be_visible()
     expect(root_message.locator(":scope > .lf-msg-body")).to_be_visible()
     expect(card.get_by_role("button", name="Resolve thread")).to_be_visible()
-    checkpoint.locator(".lf-summary-expand").click()
+    activate(checkpoint.locator(".lf-summary-expand"))
     resolve = card.get_by_role("button", name="Resolve thread")
     resolve.focus()
 
@@ -882,6 +1002,10 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(browser, serve):
     expect(card.locator(".lf-thread-news")).to_have_count(0)
     expect(checkpoint).to_have_count(0)
     expect(resolve).to_be_focused()
+
+    with sending(page, "resolve after the root summary is retracted"):
+        activate(resolve)
+    expect(card).to_be_hidden()
 
 
 def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(

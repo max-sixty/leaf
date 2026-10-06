@@ -27,6 +27,8 @@ import { overlaps, overlapsAcross, union, clippingAxes } from "./rect.js";
    - `seenRect` for whether, and how much of, something is in front of the user, and
      `whenOffScreen` to hear when all of something has left the window;
    - `clippedRect` for an element's box the caller has adjusted;
+   - `pagePlaneRect` for the same box in the document plane, which the window does
+     not cut;
    - `paintClips` for what cuts paint standing over an element, each cut in the plane
      of the box it belongs to;
    - `clippedContents` when the subject has no element box of its own.
@@ -518,28 +520,10 @@ export function paintClips(item, box, clips, aboveSurfaces) {
   const plane = walk.fixed ? "window" : "page";
   const root = item.ownerDocument.scrollingElement;
   const hidden = { plane, window: { left: 0, top: 0, right: 0, bottom: 0 }, bands: [] };
-  let window = null;
-  let shown = box;
-  for (const { box: cut, band, axes, covered } of walk.cuts) {
-    if (!band) return hidden;
-    // The root's band is the window's, which cuts only below a header stuck over it.
-    if (cut === root && covered) window = band;
-    const edges =
-      cut === root
-        ? {
-            left: -Infinity,
-            top: covered ? band.top : -Infinity,
-            right: Infinity,
-            bottom: Infinity,
-          }
-        : band;
-    shown = {
-      left: axes.x ? Math.max(shown.left, edges.left) : shown.left,
-      top: axes.y ? Math.max(shown.top, edges.top) : shown.top,
-      right: axes.x ? Math.min(shown.right, edges.right) : shown.right,
-      bottom: axes.y ? Math.min(shown.bottom, edges.bottom) : shown.bottom,
-    };
-  }
+  let shown = cutBy(box, walk.cuts, root, false);
+  if (!shown) return hidden;
+  // The root's band is the window's, which cuts only below a header stuck over it.
+  let window = walk.cuts.find(({ box: cut, covered }) => cut === root && covered)?.band;
   for (const { surface, box: over, level } of aboveSurfaces
     ? standingOccluders(clips)
     : []) {
@@ -560,34 +544,55 @@ export function paintClips(item, box, clips, aboveSurfaces) {
   }
   return {
     plane,
-    window,
+    window: window ?? null,
     bands: walk.cuts.filter(({ box: cut }) => cut !== root).reverse(),
   };
 }
+// The same walk for a box drawn in the document plane, which a root scroll carries with
+// the page: the page's own boxes cut it, and the window does not, so a box scrolled off
+// screen keeps its place for a reader asking how far away it stands.
+export const pagePlaneRect = (box, item, clips) =>
+  clipped(box, item, clips, false, false);
 // The same walk for a box measured from what an element holds: a Range inside it. The
 // holder's own band stands over its contents, where it says nothing about the holder's
 // own box, so text scrolled out of the `pre` it sits in directly is text nobody sees.
 export const clippedContents = (box, holder, clips) =>
   clipped(box, holder, clips, true);
-function clipped(box, item, clips, held) {
-  let left = Math.max(box.left, 0),
-    top = Math.max(box.top, 0),
-    right = Math.min(box.right, innerWidth),
-    bottom = Math.min(box.bottom, innerHeight);
-  for (const { band, axes } of clipWalk(item, clips, held).cuts) {
+function clipped(box, item, clips, held, inWindow = true) {
+  const root = item.ownerDocument.scrollingElement;
+  const shown = cutBy(box, clipWalk(item, clips, held).cuts, root, inWindow);
+  return shown && occluded(shown, item, clips);
+}
+// `box` less the bands of `cuts`, each on the axes it clips, or null where they leave
+// none of it. In the window's plane the window cuts it; in the page's plane the root's
+// band is the window, which cuts nothing there, and only a header stuck over its top
+// does.
+function cutBy(box, cuts, root, inWindow) {
+  let left = inWindow ? Math.max(box.left, 0) : box.left,
+    top = inWindow ? Math.max(box.top, 0) : box.top,
+    right = inWindow ? Math.min(box.right, innerWidth) : box.right,
+    bottom = inWindow ? Math.min(box.bottom, innerHeight) : box.bottom;
+  for (const { box: cut, band, axes, covered } of cuts) {
     if (!band) return null;
+    const edges =
+      !inWindow && cut === root
+        ? {
+            left: -Infinity,
+            top: covered ? band.top : -Infinity,
+            right: Infinity,
+            bottom: Infinity,
+          }
+        : band;
     if (axes.x) {
-      left = Math.max(left, band.left);
-      right = Math.min(right, band.right);
+      left = Math.max(left, edges.left);
+      right = Math.min(right, edges.right);
     }
     if (axes.y) {
-      top = Math.max(top, band.top);
-      bottom = Math.min(bottom, band.bottom);
+      top = Math.max(top, edges.top);
+      bottom = Math.min(bottom, edges.bottom);
     }
   }
-  return right > left && bottom > top
-    ? occluded({ left, top, right, bottom }, item, clips)
-    : null;
+  return right > left && bottom > top ? { left, top, right, bottom } : null;
 }
 // The clips standing over an item, innermost first: each ancestor whose band cuts it,
 // with that band less the headers stuck over it, and whether a fixed box among the item's

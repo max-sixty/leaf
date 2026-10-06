@@ -878,11 +878,12 @@ def test_every_suggestion_activation_dismisses_a_standing_selection(
 
 
 def test_the_floating_response_bar_has_one_compact_face(browser, serve):
-    """The input-first field and its reaction ellipsis read as one floating surface.
+    """The input-first field and the other responses it unfolds read as one floating
+    surface.
 
     The field is longer because it accepts words, but its type, border, colour, and
-    elevation belong to the same compact family as the adjacent press. Its radius stays
-    finite so it can grow into a multiline field without becoming a capsule."""
+    elevation belong to the same compact family as the presses beneath it. Its radius
+    stays finite so it can grow into a multiline field without becoming a capsule."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
     box = page.locator("#replace").bounding_box()
     select(
@@ -901,9 +902,10 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
             "border-top-width", "border-top-style",
             "background-color"].map(p => [p, s.getPropertyValue(p)])); }"""
     raised = page.locator(".lf-fab-input").evaluate(family)
-    adjacent = page.locator(".lf-fab-bar .lf-response-more").evaluate(family)
+    page.keyboard.press("e")
+    adjacent = page.locator(".lf-fab-bar .lf-fab-suggest").evaluate(family)
     assert raised == adjacent, (
-        "the floating field and ellipsis are drawn differently:\n  "
+        "the floating field and its other responses are drawn differently:\n  "
         + "\n  ".join(
             f"{k}: {raised[k]!r} vs {adjacent[k]!r}"
             for k in raised

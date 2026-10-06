@@ -37,6 +37,7 @@ import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { takesLetters } from "../focus.js";
+import { coarsePointer } from "../pointer.js";
 import { repaint } from "../repaint.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
@@ -50,9 +51,14 @@ import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
 
 // The floating field immediately accepts a comment on the target the user named.
-// Its ellipsis unfolds every other response the target offers. The field is the
-// group's stable primary control; reaction vocabulary changes the choices, not the
-// disclosure or the field's place.
+// Tab from the field, `e`, or on a coarse pointer the ellipsis, unfolds every other
+// response the target offers. The field is the group's stable primary control; reaction
+// vocabulary changes the choices, not the disclosure or the field's place.
+//
+// A fine pointer gets no ellipsis: the field spans the bar, so a sent message keeps the
+// card's whole measure rather than ending a button's width short of its Reply field.
+// Its keys open the choices. A finger has no keys, so a coarse pointer keeps the
+// ellipsis as its route to Suggest and the reactions (keyboard/AGENTS.md, "Touch routes").
 // One affordance, raised only where the user has already pointed: a native text
 // selection or an explicit Comment target gesture on an item or visual part.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
@@ -311,8 +317,8 @@ export function createSelectionComposer({
     );
   }
 
-  // More has the same contract as a target's margin disclosure: replace the ellipsis
-  // with the remaining local actions and keep the group's primary control in place.
+  // The other responses have the same contract as a target's margin disclosure: unfold
+  // the remaining local actions and keep the group's primary control in place.
   // The composer supplies a field instead of a primary margin entry, so it owns this layout
   // adapter rather than borrowing the margin's target aggregation and spill machinery.
   const focusResponseOption = (focus) => {
@@ -344,9 +350,9 @@ export function createSelectionComposer({
     if (place && fabAnchorAt()) showFab(fabAnchorAt());
     if (next && focus) focusResponseOption(focus);
     else if (!next && returnFocus) {
-      (composerOpen && fabInput.checkVisibility() ? fabInput : fabMore).focus({
-        preventScroll: true,
-      });
+      [fabInput, fabMore, fab]
+        .find((control) => control.checkVisibility())
+        ?.focus({ preventScroll: true });
     }
     paintKeys();
     return next;
@@ -361,7 +367,10 @@ export function createSelectionComposer({
         (!composerOpen || (!pendingAbout && !pendingDrawing))
       ),
     );
-    keepsHidden(fabMore, !anchor || !responseOptionsAvailable());
+    keepsHidden(
+      fabMore,
+      !anchor || !responseOptionsAvailable() || !coarsePointer.matches,
+    );
     if (responseOptionsOpen && !responseOptionsAvailable())
       setResponseOptions(false, { place: false });
   }
@@ -620,6 +629,7 @@ export function createSelectionComposer({
 
   function mount() {
     declareResponseOptionKeys();
+    coarsePointer.addEventListener("change", () => syncResponseOptions());
     syncComposer = wireInput(composerInput, {
       hint: () =>
         suggestCheck.checked

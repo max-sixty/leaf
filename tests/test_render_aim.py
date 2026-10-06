@@ -3159,17 +3159,32 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     surface.click(position={"x": 20, "y": 20})
     expect(mark).to_be_visible()
     host_box = host.bounding_box()
-    mark_box = mark.bounding_box()
-    assert mark_box["x"] >= host_box["x"]
-    assert mark_box["x"] + mark_box["width"] <= host_box["x"] + host_box["width"]
+    shown = page.evaluate(SHOWN_PAINT, ".lf-visual-mark")
+    assert shown["left"] >= host_box["x"]
+    assert shown["right"] <= host_box["x"] + host_box["width"]
 
     page.keyboard.down("Alt")
     aim = page.locator(".lf-aim")
     expect(aim).to_have_attribute("data-for", "wide-surface")
-    aim_box = aim.bounding_box()
-    assert aim_box["x"] >= host_box["x"]
-    assert aim_box["x"] + aim_box["width"] <= host_box["x"] + host_box["width"]
+    shown = page.evaluate(SHOWN_PAINT, ".lf-aim")
+    assert shown["left"] >= host_box["x"]
+    assert shown["right"] <= host_box["x"] + host_box["width"]
     page.keyboard.up("Alt")
+
+
+# What of a paint box shows across: its box, cut by each frame round it that clips across
+# (target-paint-geometry.js, `paintStand`).
+SHOWN_PAINT = """(selector) => {
+  const paint = document.querySelector(selector);
+  let { left, right } = paint.getBoundingClientRect();
+  for (let frame = paint.parentElement; frame; frame = frame.parentElement)
+    if (frame.matches('.lf-paint-frame') && getComputedStyle(frame).overflowX === 'clip') {
+      const cut = frame.getBoundingClientRect();
+      left = Math.max(left, cut.left);
+      right = Math.min(right, cut.right);
+    }
+  return { left, right };
+}"""
 
 
 def test_a_visual_part_mark_follows_its_drawn_svg_shape(browser, serve):
@@ -3623,10 +3638,9 @@ def test_the_aims_box_is_what_the_page_shows_of_the_element(browser, serve):
     edges = page.evaluate("""() => {
         const group = document.getElementById("rows").getBoundingClientRect();
         const row = document.getElementById("row-ship").getBoundingClientRect();
-        const box = document.querySelector(".lf-aim").getBoundingClientRect();
-        return { box: box.right, shown: Math.min(row.right, group.right),
-                 raw: row.right };
+        return { shown: Math.min(row.right, group.right), raw: row.right };
     }""")
+    edges["box"] = page.evaluate(SHOWN_PAINT, ".lf-aim")["right"]
     assert abs(edges["box"] - edges["shown"]) < 1, (
         f"the box ends at {edges['box']} where the page shows the row to "
         f"{edges['shown']} (its unclipped box runs to {edges['raw']}): a clip the "

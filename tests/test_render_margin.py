@@ -9087,8 +9087,6 @@ def test_a_card_a_panes_edge_holds_stays_put_as_the_pane_scrolls(browser, serve)
     writes = scroll_writes(
         page, (5, 5, -5, 5), scroller="document.getElementById('pane-body')"
     )
-    # The target's trace, drawn from its box as the pane clips it, still follows the
-    # pane's scroll; this test is about the card.
     assert [w for w in writes if "lf-margin-preview" in w["target"]] == [], writes
     assert page.evaluate(reading)["card"] == pytest.approx(before["card"], abs=0.5)
     before = page.evaluate(reading)
@@ -9158,6 +9156,64 @@ def test_a_card_an_outer_panes_edge_holds_stands_in_that_panes_plane(browser, se
     )
     assert [w for w in writes if "lf-margin-preview" in w["target"]] == [], writes
     assert page.evaluate(reading)["card"] == pytest.approx(before["card"], abs=0.5)
+
+
+def test_the_paint_over_a_target_in_panes_rides_each_panes_scroll(browser, serve):
+    """The trace and the mark drawn over an element inside nested scrolling panes stand
+    in frames cut to each pane's band, each moved by the scroll of the pane holding it
+    (target-paint-geometry.js, `paintStand`). A scroll of either pane writes nothing to
+    them and leaves them over the element. Drawn in the document's plane from the
+    element's box as the panes cut it, they were rewritten on every scroll step, a frame
+    behind the words."""
+    comment = {**COMMENT_ON_ASK, "anchor": {"section": "pane-sec"}}
+    page = open_page(browser, serve(NESTED_PANE_PAGE, events=[comment]))
+    resized(page, 1440, 900)
+    page.evaluate(
+        """() => {
+          const pane = document.getElementById('pane-body');
+          const inner = document.getElementById('inner');
+          const box = (node) => node.getBoundingClientRect();
+          pane.scrollTop += box(inner).top - box(pane).top - 10;
+          const sec = document.getElementById('pane-sec');
+          inner.scrollTop += box(sec).top - box(inner).top - 20;
+        }"""
+    )
+    rendered(page)
+    page.locator('[data-lf-margin-for="pane-sec"] .lf-margin-marker').click()
+    for paint in (".lf-target-trace", ".lf-visual-mark-here"):
+        expect(page.locator(paint)).to_be_visible()
+    offsets = """() => {
+      const target = document.getElementById('pane-sec').getBoundingClientRect();
+      return ['.lf-target-trace', '.lf-visual-mark-here'].map((paint) => {
+        const box = document.querySelector(paint).getBoundingClientRect();
+        return [box.left - target.left, box.top - target.top, box.width, box.height];
+      }).flat();
+    }"""
+    at = page.evaluate(offsets)
+    for scroller in ("inner", "pane-body"):
+        writes = scroll_writes(
+            page,
+            (5, 5, -5, 5),
+            scroller=f"document.getElementById('{scroller}')",
+        )
+        painted = [
+            w
+            for w in writes
+            if re.search(r"lf-(target-trace|visual-mark|paint)", w["target"])
+        ]
+        assert painted == [], (scroller, painted)
+        assert page.evaluate(offsets) == pytest.approx(at, abs=0.5), scroller
+    # Words arriving below the element lengthen what the inner block can scroll through,
+    # and tell the paint nothing, which stays on the element, as does the scroll that
+    # follows.
+    page.evaluate(
+        """() => document.getElementById('inner')
+          .insertAdjacentHTML('beforeend', '<p>Arrived.</p>'.repeat(30))"""
+    )
+    rendered(page)
+    assert page.evaluate(offsets) == pytest.approx(at, abs=0.5)
+    scroll_writes(page, (5, 5), scroller="document.getElementById('inner')")
+    assert page.evaluate(offsets) == pytest.approx(at, abs=0.5)
 
 
 def test_a_scroll_that_carries_the_response_bar_writes_nothing(browser, serve):

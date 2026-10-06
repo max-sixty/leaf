@@ -152,14 +152,15 @@ compares commits. Include pages at rest and states reached by interaction,
 including focus states where layout can cover a focus ring. Add missing states
 to `STATES` rather than driving them by hand.
 
-For every difference a still can show, the handoff carries one sentence and
-matched before/after screenshots, embedded in the reply or as one `lf-shot`; a
-live preview may accompany the pair but does not replace it. Several captured
-states often show the same difference. Check them all, show the difference once,
-in the state where it reads most clearly, and say in a line which other states
-repeat it, since the user reads every pair and a repeat tells them nothing new. A
-dark-scheme or phone pair belongs only where the change looks different there, as
-a change to a colour or theme token does in the dark scheme. For an
+For every difference a still can show, the handoff is a Leaf page holding an
+`lf-shot` of that difference, from the crops `leaf-dev stills` writes, with a
+sentence saying what changed; the reply links the page. A live preview may
+accompany the pairs but does not replace them. Several captured states often show
+the same difference. Check them all, show the difference once, in the state where
+it reads most clearly, and say in a line which other states repeat it, since the
+user reads every pair and a repeat tells them nothing new. A dark-scheme or phone
+pair belongs only where the change looks different there, as a change to a colour
+or theme token does in the dark scheme. For an
 interaction-only change, serve both versions ("Compare checkout versions" below),
 keep both previews live, and hand off the labeled URL pair with the action that
 reveals the difference. Exercise the same journey in both at the same fragment,

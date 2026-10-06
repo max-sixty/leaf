@@ -55,7 +55,8 @@ import { afterPresentation } from "/runtime/presentation.js";
 import { keeps, layoutPx as px, atLayoutPrecision } from "/runtime/keeps.js";
 import { anchorElement, anchorName } from "/runtime/anchor-names.js";
 import { holdFocus } from "/runtime/focus.js";
-import { shownBand, scrollAxes } from "/runtime/geometry.js";
+import { shownBand } from "/runtime/geometry.js";
+import { followScroll, scrollFollows, scrollMotions } from "/runtime/scroll-motion.js";
 import { containingReadingRegionFor } from "/runtime/reading-regions.js";
 import { upFrom } from "/runtime/shadow.js";
 
@@ -271,8 +272,7 @@ export function floatingPlacement({ floating, update }) {
     holdsHome: (home) =>
       frame !== floating && frame.parentElement === home && frame.contains(floating),
     nativeAvailable: () =>
-      CSS.supports("anchor-name", "--lf-anchor") &&
-      typeof window.ScrollTimeline === "function",
+      CSS.supports("anchor-name", "--lf-anchor") && scrollFollows(),
     follows: () => placementProof?.plane === "page",
     begin: () => ++epoch,
     current: (placement) => placement === epoch,
@@ -303,26 +303,17 @@ export function floatingPlacement({ floating, update }) {
           }
         : reference;
       const carried = new Set(anchor ? getOverflowAncestors(anchor) : []);
-      const motions = [];
-      if (context)
-        for (const source of getOverflowAncestors(context)) {
-          if (!(source instanceof Element) || carried.has(source)) continue;
-          const axes = scrollAxes(source);
-          for (const [axis, scroll, extent] of [
-            ["x", source.scrollLeft, source.scrollWidth - source.clientWidth],
-            ["y", source.scrollTop, source.scrollHeight - source.clientHeight],
-          ])
-            if (extent)
-              motions.push({
-                source,
-                axis,
-                scroll,
-                extent,
-                vector: axes[axis],
-              });
-        }
-      const canFollow =
-        anchor && (!motions.length || typeof window.ScrollTimeline === "function");
+      // Each scroller carries the box it holds next on the way in: the next scroller, or
+      // the element the reference stands in.
+      const sources = context
+        ? getOverflowAncestors(context).filter(
+            (source) => source instanceof Element && !carried.has(source),
+          )
+        : [];
+      const motions = sources.flatMap((source, i) =>
+        scrollMotions(source, sources[i - 1] ?? physical),
+      );
+      const canFollow = anchor && (!motions.length || scrollFollows());
       motionFrame(canFollow ? motions : []);
       const answer = await computePosition(measured, frame, {
         ...options,
@@ -368,21 +359,9 @@ export function floatingPlacement({ floating, update }) {
         };
       }
       if (plane === "page")
-        motions.forEach(({ source, axis, scroll, extent, vector }, i) => {
-          const value = (amount) =>
-            `translate(${amount * vector.x}px, ${amount * vector.y}px)`;
-          scrollAnimations.push(
-            layers[i].animate(
-              [{ transform: value(scroll) }, { transform: value(scroll - extent) }],
-              {
-                timeline: new window.ScrollTimeline({ source, axis }),
-                duration: "auto",
-                fill: "both",
-                composite: "replace",
-              },
-            ),
-          );
-        });
+        scrollAnimations = motions.map((motion, i) =>
+          followScroll(layers[i], motion, motion.scroll),
+        );
       stand = frameAnchor ? anchoredAt(frameAnchor, at) : placedAt;
       // anchorAt proves the solver's containing block is the window. Other
       // containing blocks have no declared prediction in this selection.

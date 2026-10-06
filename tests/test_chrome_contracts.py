@@ -742,6 +742,33 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
     assert edges["bottom"] - 20 < edges["reply"] <= edges["bottom"], edges
     assert edges["atTop"] and edges["atBottom"], edges
     assert edges["through"] == [], edges
+    # What the user is reading stops at both pinned rows: the runtime's reading of what
+    # is on screen, which read acknowledgement takes, leaves out the band under each
+    # (geometry.js), so a turn half under Reply has not been seen there.
+    seen = card.evaluate(
+        """async card => {
+          const {seenRect} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const title = card.querySelector(':scope > .lf-thread-summary')
+            .getBoundingClientRect();
+          const reply = card.querySelector(':scope > .lf-thread-reply')
+            .getBoundingClientRect();
+          const turns = [...card.querySelectorAll('.lf-msg')];
+          const across = (edge) => turns.find((turn) => {
+            const box = turn.getBoundingClientRect();
+            return box.top < edge && box.bottom > edge;
+          });
+          const under = across(reply.top), over = across(title.bottom);
+          return {
+            reply: reply.top, title: title.bottom,
+            under: under && seenRect(under, new Map())?.bottom,
+            over: over && seenRect(over, new Map())?.top,
+          };
+        }"""
+    )
+    assert seen["under"] is not None, seen
+    assert seen["under"] <= seen["reply"] + 0.5, seen
+    if seen["over"] is not None:
+        assert seen["over"] >= seen["title"] - 0.5, seen
     # An open reaction list hangs below its trigger in the top layer, and goes once the
     # trigger leaves the list, so scrolling its message up under the title still leaves
     # the title whole.

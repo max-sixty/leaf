@@ -1429,6 +1429,54 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     assert events_model.read_events(page_dir) == before
 
 
+def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkeypatch):
+    """The newest exchange stays verbatim when the user rewrites its words.
+
+    A long thread's digest suggests folding all but its last two messages; rewriting
+    the newest user message is a turn the agent owes, and it moves no message into
+    that range."""
+    from leaf.revision_artifact import active_enclosing
+    from leaf.thread_context import batch_threads
+
+    publish(page_dir)
+    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    opened = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "U1"},
+    )
+    said = opened
+    for n in (1, 2, 3):
+        result = CliRunner().invoke(
+            cli_model.cli,
+            ["thread", "reply", str(page_dir), "--for", said["id"], "--text", f"A{n}"],
+        )
+        assert result.exit_code == 0, result.output
+        if n < 3:
+            said = append_command(
+                page_dir,
+                {
+                    "kind": "reply",
+                    "author": "user",
+                    "parent": opened["id"],
+                    "text": f"U{n + 1}",
+                },
+            )
+
+    def suggested(event):
+        with service_model.PageTransaction(page_dir) as page:
+            [digest] = batch_threads(page.events, [event], active_enclosing(page_dir))
+            text = {item["id"]: item.get("text") for item in page.events}
+        hint = digest["summary_hint"]
+        return text[hint["from"]], text[hint["through"]]
+
+    assert suggested(said) == ("U1", "A2")
+    rewrite = append_command(
+        page_dir,
+        {"kind": "edit", "author": "user", "message": said["id"], "text": "U3 again"},
+    )
+    assert suggested(rewrite) == ("U1", "A2")
+
+
 def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     page_dir, monkeypatch
 ):

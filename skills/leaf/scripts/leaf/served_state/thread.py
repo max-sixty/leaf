@@ -5,7 +5,7 @@ from ..events import (
     active_summaries,
     awaits_agent,
     bare_reaction,
-    message_turns,
+    conversation_turns,
     seat_root,
     standing_approvals,
     turn_message,
@@ -72,11 +72,11 @@ def browser_thread(
             ended,
         )
         protected = set()
+        turns = conversation_turns(thread)
         if awaits_agent(thread):
             protected.add(turn_message(unanswered_agent_turn(thread)))
-        # The words a question stands on are messages; a rewrite since names none.
-        if awaits_user and (said := message_turns(thread)):
-            protected.add(said[-1]["id"])
+        if awaits_user and turns:
+            protected.add(turns[-1]["id"])
         ask_sources = {
             ask["source"] for ask in asks["unanswered"] if ask["thread"] == thread_id
         }

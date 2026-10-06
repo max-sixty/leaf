@@ -57,6 +57,7 @@ from .document_reading import read_document
 from .events import (
     build_threads,
     conversation_turns,
+    exchange,
     standing_approvals,
     turn_message,
     unanswered_turns,
@@ -447,7 +448,7 @@ def canonical_workflows(
 
     workflows = []
     for thread_id, thread in threads.items():
-        turns = conversation_turns(thread)
+        turns = exchange(thread)
         if thread["resolved"]:
             continue
         target = {"kind": "thread", "id": thread_id}

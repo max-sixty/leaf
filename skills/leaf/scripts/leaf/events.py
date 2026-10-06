@@ -62,32 +62,23 @@ def spoken_turns(thread: dict) -> list:
     return [m for m in thread["msgs"] if not is_reaction(m)]
 
 
-def exchange(thread: dict) -> list:
-    """A thread's messages and the user's revisions of them, in log order.
-
-    A user's `edit` is a turn of its own: it hands the thread to the agent as a reply
-    would, under the edit's id, while every surface shows it as the message's new
-    wording rather than a message beside it (`build_threads`, ``revisions``). An
-    agent's edit corrects its own words and hands nothing over, so it is no turn."""
-    return sorted([*thread["msgs"], *thread["revisions"]], key=lambda m: m["seq"])
-
-
-def message_turns(thread: dict) -> list:
-    """The thread's spoken messages that participate in the exchange, where their
-    words stand. A question asked after a message is answered by the user's words
-    after it, so a rewrite of an earlier message, though a turn the agent owes, answers
-    no question asked since (`asks`, `tasks`)."""
+def conversation_turns(thread: dict) -> list:
+    """Spoken messages that participate in the exchange, excluding progress updates."""
     return [message for message in spoken_turns(thread) if not message.get("ephemeral")]
 
 
-def conversation_turns(thread: dict) -> list:
-    """Spoken messages and user revisions that participate in the exchange, excluding
-    progress updates."""
-    return [
-        message
-        for message in exchange(thread)
-        if not is_reaction(message) and not message.get("ephemeral")
-    ]
+def exchange(thread: dict) -> list:
+    """The conversation's turns and the user's revisions of its messages, in log order.
+
+    A user's `edit` hands the thread to the agent as a reply would, under the edit's
+    id, while every surface shows it as the message's new wording rather than a
+    message beside it (`build_threads`, ``revisions``). So only who owes the next word
+    reads it (`unanswered_turns`, `workflows`); what a thread says, and what a question
+    asked since a message waits on, read the messages (`conversation_turns`). An
+    agent's edit corrects its own words and hands nothing over, so it is no turn."""
+    return sorted(
+        [*conversation_turns(thread), *thread["revisions"]], key=lambda m: m["seq"]
+    )
 
 
 def turn_message(turn: dict) -> str:
@@ -547,8 +538,9 @@ def unanswered_turns(thread: dict) -> list[dict]:
     Turns, not marks: a reaction is a mark on a message rather than a word in the
     thread, so an `ok` the user puts on the agent's answer does not hand the thread
     back, and a reaction nobody has replied to is no thread at all. Resolution does
-    not enter here; `awaits_agent` adds it."""
-    turns = conversation_turns(thread)
+    not enter here; `awaits_agent` adds it. A user's revision is a turn here
+    (`exchange`)."""
+    turns = exchange(thread)
     floor = -1
     newest_before = None
     for index, message in enumerate(turns):

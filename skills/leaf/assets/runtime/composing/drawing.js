@@ -45,6 +45,7 @@ import {
 } from "../passages.js";
 import { anchoringIsReady, sectionOf } from "../anchor-resolution.js";
 import { coarsePointer, pressIsKeyboardActivation } from "../pointer.js";
+import { under } from "../shadow.js";
 import { shownScheme } from "../color-scheme.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
 import {
@@ -225,7 +226,7 @@ export function createDrawingController({
             !close.some(
               (other) =>
                 other.target.element !== target.element &&
-                target.element.contains(other.target.element),
+                under(other.target.element, target.element),
             ),
         )
         .sort((a, b) => a.distance - b.distance)[0]?.target ?? null

@@ -285,12 +285,16 @@ def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
     page.keyboard.press("s")
     expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
     expect(page.locator(".lf-aim")).to_have_attribute("data-for", "link")
+    # A middle press is armed too: it opens no tab and chooses nothing, so the picker stands.
+    link.click(button="middle")
+    expect(page.locator(".lf-target-picker-hint")).not_to_have_count(0)
     # The first click chooses and closes the picker; the second is the same gesture's.
     link.dblclick()
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
     expect(page.locator(".lf-aim[data-for]")).to_have_count(0)
     assert not page.url.endswith("#elsewhere"), "the picker's press followed the link"
+    assert page.context.pages == [page], "the picker's middle press opened the link"
 
 
 def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, serve):

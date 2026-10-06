@@ -140,13 +140,15 @@ export function createAim({
   // A press is its down, its up and the click they make, a double press one event more, and
   // the aim takes every one of them: which a widget listens on is not something the runtime
   // can know, and lf-draft opens its editor on the click rather than on either mousedown,
-  // for reasons of its own.
+  // for reasons of its own. A press of another button ends in auxclick rather than click,
+  // and a link opens its new tab there, so the claim takes that too and acts on nothing.
   const PRESS_EVENTS = [
     "pointerdown",
     "mousedown",
     "pointerup",
     "mouseup",
     "click",
+    "auxclick",
     "dblclick",
   ];
   // The press Design mode or the armed page has taken until the next one starts. Design is
@@ -199,7 +201,7 @@ export function createAim({
     // Not on pointerdown, whose cancellation takes the mouse events with it — the click this
     // aim ends on included. On mousedown, which is where the selection, the focus and a
     // native drag would start, and on the click, since ⌥ on a link is a download.
-    if (ev.type === "mousedown" || ev.type === "click") ev.preventDefault();
+    if (["mousedown", "click", "auxclick"].includes(ev.type)) ev.preventDefault();
     ev.stopPropagation();
     if (ev.type !== "click") return;
     if (claimedPress.aim && claimedPress.choosing)

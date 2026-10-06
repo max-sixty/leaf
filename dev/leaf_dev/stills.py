@@ -133,8 +133,9 @@ def composer(page: Page) -> None:
     page.mouse.down()
     page.mouse.move(box["x"] + 200, y, steps=8)
     page.mouse.up()
-    # Under a finger a selection offers Comment in the banner rather than a field.
-    if page.get_by_role("button", name="Comment on selection").is_visible():
+    # Under a finger a selection offers Comment in the banner rather than a field. It
+    # arrives on a later frame, so the pointer decides, not whether it is there yet.
+    if page.evaluate("matchMedia('(pointer: coarse)').matches"):
         page.get_by_role("button", name="Comment on selection").click()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer leaf-text").focus()

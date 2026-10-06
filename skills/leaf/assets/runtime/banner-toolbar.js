@@ -188,10 +188,17 @@ function paintControl(entry) {
   entry.control.style.visibility = visible(entry) ? "" : "hidden";
 }
 
+// Lit reseats a control by moving its node, and a moved node drops focus. Focus goes
+// on standing on the control where it went, or on the door that reaches it.
 function paint() {
+  const held = [...controls.values()].find(
+    (entry) => document.activeElement === entry.focusTarget,
+  );
   render(rowTemplate(), bannerActions);
   render(menuTemplate(), overflowMenu);
   for (const entry of controls.values()) paintControl(entry);
+  if (!held || document.activeElement === held.focusTarget) return;
+  (focusable(held) ? held.focusTarget : overflowBtn).focus({ preventScroll: true });
 }
 
 const focusable = (entry) =>
@@ -211,24 +218,18 @@ overflowMenu.addEventListener("toggle", (event) => {
 
 // A reading-loop control a phone moves behind More leads it, so the row More's dot
 // stands for is the first one the door opens to.
+const offTheRow = (entry) => perFace(entry) && entry.seat.desk === "row";
 function seatControls() {
   const run = ordered();
   row = run.filter((entry) => seatOf(entry) !== "menu");
   const behind = run.filter((entry) => seatOf(entry) === "menu");
-  menu = [...behind.filter(perFace), ...behind.filter((entry) => !perFace(entry))];
+  menu = [...behind.filter(offTheRow), ...behind.filter((entry) => !offTheRow(entry))];
 }
 
-// Crossing the phone width moves a per-face control between the row and More. One
-// focused there goes on standing where it went: on the row it is still focused, and
-// behind More focus moves to the door that reaches it.
+// Crossing the phone width moves a per-face control between the row and More.
 phone.addEventListener("change", () => {
-  const held = [...controls.values()].find(
-    (entry) => perFace(entry) && document.activeElement === entry.focusTarget,
-  );
   seatControls();
   paint();
-  if (held && menu.includes(held) && !overflowMenu.matches(":popover-open"))
-    overflowBtn.focus({ preventScroll: true });
 });
 
 function replaceEntry(prior, next) {

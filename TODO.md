@@ -108,7 +108,7 @@ has tried; settle that before building it.
   marker's label and its status (Sent, Stalled); the diff's line "+"; and the
   latest-edit error, a dead passage's reason, a disabled More entry's reason, and the
   compare state. A finger also lacks exits a key has: a mode's or search's steps take
-  Threads and Approve off the row until it ends, Android's back gesture closes nothing
+  Threads off the row until it ends, Android's back gesture closes nothing
   (the Escape ladder could answer it), Draw mode blocks scrolling and zoom, and an
   `lf-draft` has no close that keeps the edit.
 - **Decide whether the response bar's reactions and Suggest need a pointer route.**

@@ -41,24 +41,20 @@ export const dot = bannerStatus.dot;
 export const queueCounts = bannerStatus.queues;
 
 // Threads reads "Threads: 3" on a desk and, on a phone's one row, a thread icon with its
-// count (chrome.css); the accessible name is the same words on both.
+// count, which chrome.css draws from `data-lf-count`; the accessible name is the same
+// words on both. The desk's words stay one run of text, so they draw as they always have.
 export const toggleBtn = el("button", "lf-btn lf-auxiliary-toggle lf-threads-toggle");
-const threadsCount = el("span", "lf-threads-count");
-const threadsColon = el("span", "lf-threads-word", ": ");
-toggleBtn.append(
-  iconElement("comment", "lf-threads-icon"),
-  el("span", "lf-threads-word", "Threads"),
-  threadsColon,
-  threadsCount,
-);
+const threadsLabel = el("span", "lf-threads-label", "Threads");
+toggleBtn.append(iconElement("comment", "lf-threads-icon"), threadsLabel);
 toggleBtn.title = "Show or hide the thread panel";
 toggleBtn.setAttribute("aria-expanded", "false");
 let openThreads = null;
 let unreadThreads = 0;
 function paintThreadCounts() {
+  const label = openThreads === null ? "Threads" : `Threads: ${openThreads}`;
   const accessible = openThreads === null ? "Threads" : `Open threads: ${openThreads}`;
-  keeps(threadsColon, "hidden", openThreads === null ? "" : null);
-  keepsText(threadsCount, openThreads === null ? "" : String(openThreads));
+  keepsText(threadsLabel, label);
+  keeps(toggleBtn, "data-lf-count", openThreads === null ? null : String(openThreads));
   toggleBtn.toggleAttribute("data-unread-threads", unreadThreads > 0);
   const unread = unreadThreads
     ? `${unreadThreads} unread ${unreadThreads === 1 ? "thread" : "threads"}`

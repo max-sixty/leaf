@@ -2154,10 +2154,7 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     door = page.locator(".lf-banner-more")
     _publish(serve.page_dir, 3, html, "reworded the suggestion again")
     told(page)
-    # The page asks for sign-off, so the name may also carry the approval behind More.
-    expect(door).to_have_attribute(
-        "aria-label", re.compile(r"^More page controls, (approval open, )?new$")
-    )
+    expect(door).to_have_attribute("aria-label", "More page controls, new")
     accent = token_colour(page, "--accent")
     face = door.evaluate(
         "d => ({dot: getComputedStyle(d, '::after').backgroundColor,"

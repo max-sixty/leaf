@@ -517,12 +517,16 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-status-button > .lf-status-words { order: 1; }
   /* The words and a passing notice share one box, so the notice taking the words' place
      on a phone moves nothing; the words stay in it, unpainted, as the press's name. */
-  .lf-status-words { display: grid; grid-template-columns: minmax(0, auto); min-width: 0; }
+  .lf-status-words { display: grid; grid-template-columns: minmax(0, auto); min-width: 0;
+    align-items: center; }
   .lf-status-words > * { grid-area: 1 / 1; }
+  /* A notice may take two lines of the row, which holds them, since a refusal's reason
+     is a sentence the user has to read whole; past two it ends in an ellipsis. */
   .lf-status-notice { display: none; min-width: 0; overflow: hidden;
-    text-overflow: ellipsis; white-space: nowrap; line-height: 1.35; color: var(--ink); }
+    -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+    white-space: normal; overflow-wrap: anywhere; line-height: 1.25; color: var(--ink); }
   @container style(--lf-notice-seat: banner) {
-    .lf-banner-status[data-lf-notice] .lf-status-notice { display: block; }
+    .lf-banner-status[data-lf-notice] .lf-status-notice { display: -webkit-box; }
     .lf-banner-status[data-lf-notice] .lf-status-text { opacity: 0; }
   }
   /* The queue counts are page facts, like the Threads count, so they stand apart from
@@ -1832,9 +1836,15 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     /* Threads is its icon and its count. The count holds room for three digits, which
        the desk's reservation holds as words, so a count changing moves nothing. */
     .lf-banner-actions > .lf-threads-toggle { width: auto; gap: 4px; padding-inline: 6px; }
-    .lf-threads-toggle > .lf-threads-icon { display: block; }
-    .lf-threads-toggle > .lf-threads-word { display: none; }
-    .lf-threads-count { min-width: 3ch; text-align: start; font-variant-numeric: tabular-nums; }
+    .lf-threads-toggle > .lf-threads-icon { display: block; order: -1; }
+    .lf-threads-toggle > .lf-threads-label { display: none; }
+    .lf-threads-toggle::before { content: attr(data-lf-count); min-width: 3ch;
+      text-align: start; font-variant-numeric: tabular-nums; }
+    /* Unread marks the icon's corner, as a badge does, rather than the box's, which
+       stands beside More and read as More's dot. */
+    .lf-threads-toggle[data-unread-threads]::after {
+      inset-block-start: calc(50% - 11px); inset-inline-end: auto;
+      inset-inline-start: calc(6px + 16px - 4px); }
   }
   @media screen and (width <= 840px) {
     /* The sheet the Map opens in stands over the whole window and is sized to it, so

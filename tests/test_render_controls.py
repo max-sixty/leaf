@@ -3114,9 +3114,11 @@ def test_a_phone_banner_keeps_fixed_primary_and_menu_seats(browser, serve, other
     expect(page.locator(".lf-banner-actions > :visible")).to_have_count(2)
     expect(page.locator(".lf-banner-actions > .lf-threads-toggle")).to_be_visible()
     expect(page.locator(".lf-threads-toggle .lf-threads-icon")).to_be_visible()
-    expect(page.locator(".lf-threads-toggle .lf-threads-count")).to_have_text(
-        re.compile(r"^\d+$")
+    expect(page.locator(".lf-threads-toggle .lf-threads-label")).to_be_hidden()
+    count = page.locator(".lf-threads-toggle").evaluate(
+        "control => getComputedStyle(control, '::before').content"
     )
+    assert re.fullmatch(r'"\d+"', count), count
     expect(page.locator(".lf-banner-menu > .lf-btn").first).to_have_class(
         re.compile(r"\blf-signoff\b")
     )
@@ -3216,9 +3218,17 @@ def test_more_wears_a_dot_while_a_press_would_approve(browser, serve):
     undo(page)
     expect(more).to_have_attribute("data-lf-news", "")
 
+    # Crossing the phone width reseats Approval, and focus goes with it, both ways,
+    # here with More open throughout.
+    more.click()
+    approval.focus()
     resized(page, 1200, 800)
     expect(page.locator(".lf-banner-actions > .lf-signoff")).to_be_visible()
+    expect(approval).to_be_focused()
     expect(more).not_to_have_attribute("data-lf-news", re.compile(".*"))
+    resized(page, 390, 800)
+    expect(page.locator(".lf-banner-menu > .lf-signoff")).to_be_visible()
+    expect(approval).to_be_focused()
 
 
 # Where the banner's two parts stand, the height the theme states for it (the document's
@@ -4376,6 +4386,48 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
     assert not moved, "a status past its room pushed the banner:\n  " + "\n  ".join(
         moved
     )
+
+
+def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve):
+    """Just wider than a phone held upright, the banner's status sentence has the first
+    row, and the queue counts lead the second, under the sentence's start, where the run
+    leaves them room whole. A finger's search steps fill that row, so the counts give
+    way to them rather than cut a step, and come back where they stood once the search
+    closes."""
+    context = browser.new_context(
+        viewport={"width": 490, "height": 800}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(SUGGESTION_PAGE), context=context)
+    expect(page.locator(".lf-status-queues")).to_have_text("3 on you")
+    page_at_rest(page)
+    resting = page.evaluate(STATUS_COUNTS)
+    assert resting["drawn"] and resting["inBanner"] and not resting["inert"], resting
+    assert resting["shown"] >= resting["needed"] > 0, resting
+    assert not resting["overlaps"], resting
+    assert resting["left"] == pytest.approx(resting["statusLeft"], abs=1), resting
+    assert resting["top"] >= resting["statusBottom"] - 0.5, resting
+
+    page.keyboard.press("/")
+    page.keyboard.type("feeder")
+    expect(
+        page.locator(".lf-banner-actions > .lf-btn", has_text="Next")
+    ).to_be_visible()
+    page_at_rest(page)
+    searching = page.evaluate(STATUS_COUNTS)
+    assert not searching["drawn"] and searching["inert"], searching
+    clipped = page.evaluate(BANNER_ROWS)["clipped"]
+    assert not clipped, f"the search steps were cut off: {clipped}"
+
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-banner-actions > .lf-btn", has_text="Next")).to_be_hidden()
+    page_at_rest(page)
+    back = page.evaluate(STATUS_COUNTS)
+    assert (back["drawn"], back["inert"], back["left"], back["top"]) == (
+        True,
+        False,
+        resting["left"],
+        resting["top"],
+    ), (resting, back)
 
 
 def test_a_phone_s_one_row_seats_a_finger_s_steps_and_leaves_the_counts_out(

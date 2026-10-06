@@ -22,9 +22,9 @@ import { reportPageError } from "../layer-client.js";
 import { editable, isReaction, moved } from "./model.js";
 import {
   MessageEditor,
-  editingMessage,
+  holdsMessageEdit,
   openMessageEdit,
-  watchMessageEdit,
+  releaseMessageEdit,
 } from "./message-edit.js";
 import { tokenEntry } from "../registry.js";
 import {
@@ -201,7 +201,6 @@ export class MessageView {
   #arrivalMotion = null;
   #header = document.createElement("div");
   #editor = null;
-  #stopEditWatch = null;
 
   constructor(commands) {
     this.#commands = commands;
@@ -230,21 +229,22 @@ export class MessageView {
         if (this.openEdit()) window.getSelection()?.removeAllRanges();
       });
     }
-    // Every view of a message the user may rewrite draws the rewrite while one stands,
-    // wherever it was opened (`message-edit.js`).
-    if (model.editable && !this.#stopEditWatch)
-      this.#stopEditWatch = watchMessageEdit(model.id, () =>
-        this.#commands.edit.changed(),
-      );
-    const editing = model.editable && editingMessage(model.id);
+    // The view the user opened the rewrite in draws its editor (`message-edit.js`); a
+    // closed editor goes with its subscription and keys.
+    const editing = model.editable && holdsMessageEdit(model.id, this);
     if (editing && !this.#editor)
-      this.#editor = new MessageEditor(model.id, {
+      this.#editor = new MessageEditor(model.id, this, {
         wireInput: this.#commands.reply.wireInput,
         said: () => this.#model.body.text,
         send: (text, options) =>
           this.#commands.edit.send(this.#model.id, text, options),
         land: () => this.#commands.edit.land(),
+        paint: () => this.#commands.edit.paint(),
       });
+    if (!editing && this.#editor) {
+      this.#editor.dispose();
+      this.#editor = null;
+    }
     keeps(this.#header, "data-lf-reflow", "text");
     if (prior && prior.author !== model.author)
       this.node.classList.toggle(prior.author, false);
@@ -372,7 +372,7 @@ export class MessageView {
   openEdit() {
     const model = this.#model;
     if (!model?.editable) return false;
-    openMessageEdit(model.id, model.body.text);
+    openMessageEdit(model.id, model.body.text, this);
     this.#commands.edit.paint();
     this.#editor?.focus();
     return true;
@@ -400,8 +400,7 @@ export class MessageView {
   retire() {
     this.#arrivalMotion?.cancel();
     this.#reaction?.retire();
-    this.#stopEditWatch?.();
-    this.#stopEditWatch = null;
+    if (this.#model) releaseMessageEdit(this.#model.id, this);
     this.#editor?.dispose();
     this.#editor = null;
     this.#commands.read.forgetBody(this.node);

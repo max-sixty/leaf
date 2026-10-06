@@ -335,12 +335,16 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-seat-news { display: flex; align-items: center; box-sizing: border-box; }
 .lf-msg-head time { color: var(--muted-2); }
 .lf-msg-head .lf-edited { color: var(--muted-2); }
-/* The user's own message offers its rewrite at the head's end, in the meta's face. A
-   pointer that hovers finds it on the message it points at or a focus inside; a finger
-   sees it always. It keeps its box either way, so showing it moves nothing. */
-.lf-msg-head .lf-msg-edit { flex: none; margin-inline-start: auto; padding: 0;
+/* The user's own message offers its rewrite after its meta, in the meta's face, so it
+   reads as the message's and not as one of the controls a card's head row carries at
+   its end. A pointer that hovers finds it on the message it points at or a focus
+   inside; a finger sees it always. It keeps its box either way, so showing it moves
+   nothing. */
+.lf-msg-head .lf-msg-edit { flex: none; padding: 0;
           border: 0; background: none; font: inherit; color: var(--muted-2);
           cursor: pointer; }
+.lf-msg-head .lf-msg-edit::before { content: "\00b7"; margin-inline-end: 6px;
+          color: var(--muted-2); }
 .lf-msg-head .lf-msg-edit:hover { color: var(--ink); }
 @media (hover: hover) {
   .lf-msg:not(:hover, :focus-within) > .lf-msg-head .lf-msg-edit { opacity: 0; }

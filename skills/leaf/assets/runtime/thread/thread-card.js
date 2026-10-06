@@ -277,7 +277,6 @@ export class ThreadView {
   #reply = null;
   #replyShown = false;
   #draftFrame = 0;
-  #editFrame = 0;
   #outletReplyShown = null;
   #keys = new WeakSet();
   #settlements = new Map();
@@ -303,11 +302,9 @@ export class ThreadView {
     this.#messageCommands = {
       ...commands,
       reaction: { ...commands.reaction, pressed: () => this.#showNews() },
-      // A rewrite of one of the user's messages (`message-edit.js`): news of it from any
-      // view or tab repaints this one on the next frame, and the gesture that opens it
-      // here paints at once, so its editor can take the focus in the same press.
+      // A rewrite of one of the user's messages (`message-edit.js`). Opening or closing
+      // it paints at once, so its editor takes or gives back the focus in the same press.
       edit: {
-        changed: () => this.#scheduleRepaint(),
         paint: () => this.repaint(),
         send: (id, text, options) =>
           commands.reply.actions.edit(this.#model.key, id, text, options),
@@ -391,15 +388,6 @@ export class ThreadView {
   // never feed a held presentation back into the news owner's input.
   repaint() {
     this.present(this.#received);
-  }
-
-  // A draft change this view did not make, such as a rewrite opened in another view of
-  // the thread or another tab, draws on the next frame with whatever else changed.
-  #scheduleRepaint() {
-    this.#editFrame ||= nextRender(() => {
-      this.#editFrame = 0;
-      if (this.#received) this.repaint();
-    });
   }
 
   // The view of the user's latest words in this thread, which ↑ in the empty reply box

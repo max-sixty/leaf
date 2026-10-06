@@ -82,20 +82,6 @@ def conversation_turns(thread: dict) -> list:
     ]
 
 
-def wording_before(events: list, edit: dict) -> str:
-    """How the message `edit` revises read just before it: its own text, or the
-    latest edit of it earlier in the log."""
-    wording = None
-    for event in events:
-        if event["seq"] >= edit["seq"]:
-            break
-        if event["id"] == edit["message"] or (
-            event["kind"] == "edit" and event["message"] == edit["message"]
-        ):
-            wording = event["text"]
-    return wording
-
-
 def turn_message(turn: dict) -> str:
     """The message a turn is shown as: a revision's message, else the turn's own."""
     return turn["message"] if turn["kind"] == "edit" else turn["id"]
@@ -260,9 +246,9 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     version rewrote, until a reply chooses the thread's place again.
     A new spoken reply resumes the thread; reactions and failure receipts
     leave its closure standing. A later resolution closes it again.
-    ``revisions`` holds the user's edits in log order: each shows as its message's
-    wording and stands in the exchange as a turn of its own (`exchange`), so it
-    resumes the thread as a reply does.
+    ``revisions`` holds the user's edits in log order, each with ``was``, the words
+    it replaced: each shows as its message's wording and stands in the exchange as a
+    turn of its own (`exchange`), so it resumes the thread as a reply does.
 
     Each thread is keyed by, and carries as ``id``, the id of the message that
     opened it: the name every Ask, workflow, summary, and title uses for it.
@@ -328,14 +314,16 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             continue
         if e["kind"] == "edit":
             if message := messages.get(e["message"]):
-                message["text"] = e["text"]
-                message["edited"] = {key: e[key] for key in ("id", "seq", "ts")}
                 # The user rewriting their words speaks again, as a reply would: the
-                # agent owes the new wording an answer, and a closed thread opens.
+                # agent owes the new wording an answer, and a closed thread opens. The
+                # revision keeps the words it replaced, which answers already given
+                # were about.
                 if e["author"] != "agent":
                     thread = thread_for[e["message"]]
-                    thread["revisions"].append(dict(e))
+                    thread["revisions"].append({**e, "was": message["text"]})
                     thread["resolved"] = None
+                message["text"] = e["text"]
+                message["edited"] = {key: e[key] for key in ("id", "seq", "ts")}
             continue
         if e["kind"] == "reply":
             # A reply whose message the log lost opens the thread that message would

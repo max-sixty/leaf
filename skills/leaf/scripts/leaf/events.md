@@ -275,11 +275,14 @@ them:
   in the log with its id, timestamp, author, thread position, and anchor; the panel,
   wait digests, and the transcript fold the latest text onto it and label it edited.
 - An agent's `edit` corrects its words and hands nothing over. A user's `edit` is a
-  turn: the fold keeps it in the thread's `revisions` and `events.exchange` places it
-  among the messages by its own id, so it reopens a resolved thread and owes an answer
-  as a reply would. That answer names the edit as `responds` and the rewritten
-  message as its parent (`workflows`, `turn_message`), and its delivery carries `was`,
-  the text the edit replaced, since the thread's digest reads the new text.
+  turn: the fold keeps it in the thread's `revisions`, with `was`, the text it
+  replaced, and `events.exchange` places it among the messages by its own id, so it
+  reopens a resolved thread and owes an answer as a reply would. That answer names
+  the edit as `responds` and the rewritten message as its parent (`workflows`,
+  `turn_message`). Its delivery carries `was`, since the thread's digest reads the new
+  text. A rewrite of an earlier message is still the thread's newest turn, so it hands
+  the thread to the agent even past a question the agent asked since, as any user
+  reply that leaves the question unanswered does.
 - `thread_title` names an existing thread with a nonblank, single-line
   plain-text title of at most 80 characters. The latest title is projected separately
   from messages into browser state and agent context; an unnamed thread has

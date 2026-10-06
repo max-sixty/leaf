@@ -9720,10 +9720,12 @@ def test_pending_message_headers_match_their_bodies(browser, serve, surface):
 
 def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     """A double click, or ↑ from the thread's empty reply box, opens the user's own
-    words in place; Enter sends the rewrite and Escape keeps the message as it was.
+    words in place. Enter sends the rewrite; Escape keeps the message as it was and the
+    words for the next opening, and Cancel discards them.
 
     The rewrite draws on the message in the gesture, labelled edited, and reaches the
-    log as one `edit` naming the message. The agent's words offer no rewrite.
+    log as one `edit` naming the message. The agent's words offer no rewrite, and the
+    same message in the page's seat stays as it reads while the panel edits it.
     """
     url = serve(THREAD_DIFF_PAGE)
     d = serve.page_dir
@@ -9761,6 +9763,9 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     message.locator(".lf-msg-text").dblclick()
     editor = message.locator(".lf-msg-editor leaf-text")
     expect(editor).to_be_focused()
+    seat = page.locator(f'#cd-q .lf-msg[data-event="{mine["id"]}"]')
+    expect(seat.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
+    expect(seat.locator(".lf-msg-editor")).to_have_count(0)
     page.keyboard.press("ControlOrMeta+a")
     page.keyboard.type("Fit the south bracket.")
     page.keyboard.press("Enter")
@@ -9781,5 +9786,12 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     page.keyboard.press("Escape")
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the south bracket.")
+    message.locator(".lf-msg-text").dblclick()
+    expect(editor).to_have_js_property("value", "Fit the south bracket. Or not.")
+    message.get_by_role("button", name="Cancel").click()
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    message.locator(".lf-msg-text").dblclick()
+    expect(editor).to_have_js_property("value", "Fit the south bracket.")
+    page.keyboard.press("Escape")
     round_trip(page)
     assert len([e for e in events_model.read_events(d) if e["kind"] == "edit"]) == 1

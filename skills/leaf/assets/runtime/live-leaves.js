@@ -132,19 +132,27 @@ function renderOthersNow(state) {
     state === null
       ? []
       : state.others.filter((entry) => entry.activity.kind !== "closed");
+  // A neighbour's row is its page, keyed by `page_key`, and its link is wherever that
+  // page is served now. A server restarted on another port keeps the row, and the focus
+  // on it, where they were; only the destination changes.
   const wanted = state
     ? [
-        { key: "self", title: document.title, entry: state },
-        ...others.map((entry) => ({ key: entry.url, title: entry.title, entry })),
+        { key: "self", href: null, title: document.title, entry: state },
+        ...others.map((entry) => ({
+          key: entry.page_key,
+          href: entry.url,
+          title: entry.title,
+          entry,
+        })),
       ]
     : [];
   rows = Object.freeze(
-    wanted.map(({ key, title, entry }) => {
+    wanted.map(({ key, href, title, entry }) => {
       const { tone, line } = rowPresence(entry);
       return Object.freeze({
         key,
         self: key === "self",
-        href: key === "self" ? null : key,
+        href,
         title,
         tone,
         line,

@@ -214,6 +214,12 @@ def option_long(page: Page) -> None:
     )
 
 
+def options_in_pane(page: Page) -> None:
+    """An Ask's option list in a workspace pane, under the paragraphs it answers."""
+    page.get_by_text("Checkout p99 latency", exact=True).click()
+    page.locator("#ar-latency-decision > lf-options").scroll_into_view_if_needed()
+
+
 def card_grabbed(page: Page) -> None:
     """A board card grabbed by keyboard and carried one column left."""
     page.keyboard.press("Tab")
@@ -304,6 +310,21 @@ def code_copy_by_keyboard(page: Page) -> None:
     page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
 
 
+def diff_path_by_keyboard(page: Page) -> None:
+    """A folded diff file's row under the keyboard, saying the whole path its row cuts
+    short at the folders."""
+    heads = page.locator("#pr-exact-patch .lf-diff-head")
+    cut = heads.evaluate_all(
+        "heads => heads.findIndex((head) => {"
+        " const dir = head.querySelector('.lf-diff-dir');"
+        " return dir && dir.scrollWidth > dir.clientWidth; })"
+    )
+    head = heads.nth(cut)
+    head.scroll_into_view_if_needed()
+    page.keyboard.press("Shift")
+    head.focus()
+
+
 def code_source_by_touch(page: Page) -> None:
     """Reading code by touch, with the corner control disclosed away."""
     code_note(page)
@@ -392,6 +413,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         panel_reply_long,
         page_comment_long,
         option_long,
+        options_in_pane,
         card_grabbed,
         code_note,
         theme_hierarchy,
@@ -399,6 +421,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         multiline_passage,
         code_copy_by_pointer,
         code_copy_by_keyboard,
+        diff_path_by_keyboard,
         code_source_by_touch,
         pane_focused,
         aim_cut_by_pane,
@@ -531,7 +554,18 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
+    State(
+        "alert-queue-touch", "alert-review", at_rest, viewport=(390, 844), touch=True
+    ),
     State("alert-option-long", "alert-review", option_long),
+    State("alert-options-in-pane", "alert-review", options_in_pane),
+    State(
+        "alert-options-in-pane-touch",
+        "alert-review",
+        options_in_pane,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State(
         "alert-option-long-touch",
         "alert-review",
@@ -550,6 +584,12 @@ STATES = (
         code_note,
         viewport=(390, 844),
         touch=True,
+    ),
+    State(
+        "walkthrough-path-keyboard",
+        "pr-walkthrough",
+        diff_path_by_keyboard,
+        viewport=(390, 844),
     ),
     State(
         "walkthrough-source-touch",

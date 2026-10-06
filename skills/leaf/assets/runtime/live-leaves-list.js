@@ -3,8 +3,10 @@
    The caller derives one immutable model for the control's presence and words and the
    keyed drawer rows. The native control remains the banner toolbar and drawer owner's stable
    node; a retained face paints inside it. This owner registers each native link's
-   command scope once, preserves a surviving link and its focus through reordering, and
-   moves focus to a neighbouring link or the drawer when the focused page disappears.
+   command scope once and keys each link by its page rather than its address. A surviving
+   link keeps its node and focus through reordering and through its server restarting at
+   a new address; when the focused page disappears, focus moves to a neighbouring link or
+   the drawer.
    Each assigned reading opens one Leaves presentation region before either face
    schedules an update. A failed update restores both committed faces before the
    coordinator reports and settles the attempt. */
@@ -21,6 +23,7 @@ import { RetainedFace, RowFocus } from "./retained-face.js";
 const TAG = "lf-leaves-list";
 const FACE_TAG = "lf-leaves-banner-face";
 const LINK = "a.lf-others-row";
+const ROW = "data-lf-row";
 const EMPTY_ROWS = Object.freeze([]);
 const EMPTY_MODEL = Object.freeze({
   offered: false,
@@ -67,8 +70,8 @@ class LiveLeavesList extends RetainedFace {
   #face = null;
   #focus = new RowFocus(this, {
     rows: LINK,
-    key: "href",
-    keys: (model) => model.rows.filter((row) => !row.self).map((row) => row.href),
+    key: ROW,
+    keys: (model) => model.rows.filter((row) => !row.self).map((row) => row.key),
   });
   #generation = 0;
   #handle = null;
@@ -183,6 +186,7 @@ class LiveLeavesList extends RetainedFace {
             </div>`
           : html`<a
               class="lf-others-row"
+              data-lf-row=${row.key}
               href=${row.href}
               target="_blank"
               rel="noopener"

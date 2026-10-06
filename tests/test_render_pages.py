@@ -2032,7 +2032,10 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
 def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     """One authored width contract applies to native and package blocks. An occurrence
     wins over a package default, and column remains the prose measure when nested in a
-    wider section rather than inheriting its containing block's allocation."""
+    wider section rather than inheriting its containing block's allocation. There a
+    column block, authored or declared by its widget (lf-options), starts at the
+    section's edge as the section's text does, rather than centred in the room. A board
+    allocated the column keeps to it even where its four columns' minimum is wider."""
     source = leaf_page(
         "Authored block widths",
         """
@@ -2042,9 +2045,14 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
   <table id="table" data-width="available"><thead><tr><th>Case</th><th>Result</th></tr></thead>
     <tbody><tr><td>Native table</td><td>Uses its authored allocation.</td></tr></tbody></table>
   <p id="nested-column" data-width="column">Narrow prose within wide evidence.</p>
+  <p id="nested-prose">Prose within wide evidence.</p>
+  <lf-options id="options" choose><lf-option id="option">One</lf-option></lf-options>
 </section>
 <lf-board id="board" data-width="column">
   <lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column>
+  <lf-column id="doing" label="Doing"></lf-column>
+  <lf-column id="review" label="Review"></lf-column>
+  <lf-column id="done" label="Done"></lf-column>
 </lf-board>
 """,
     )
@@ -2052,7 +2060,8 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     resized(page, 1726, 900)
     at = page.evaluate("""() => {
       const result = {};
-      for (const id of ['prose', 'wide', 'table', 'nested-column', 'board']) {
+      for (const id of ['prose', 'wide', 'table', 'nested-column', 'nested-prose',
+                        'options', 'board']) {
         const el = document.getElementById(id), box = el.getBoundingClientRect();
         result[id] = {width: box.width, left: box.left,
           space: el.getAttribute('data-lf-space'), role: el.getAttribute('role')};
@@ -2064,8 +2073,11 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     assert at["board"]["space"] == "column"
     assert at["wide"]["width"] > at["prose"]["width"]
     assert at["table"]["width"] == pytest.approx(at["wide"]["width"], abs=1)
-    assert at["nested-column"]["width"] == pytest.approx(at["prose"]["width"], abs=1)
-    assert at["nested-column"]["left"] > at["wide"]["left"]
+    assert at["options"]["space"] == "column"
+    assert at["wide"]["left"] < at["prose"]["left"]
+    for column in ("nested-column", "nested-prose", "options"):
+        assert at[column]["width"] == pytest.approx(at["prose"]["width"], abs=1)
+        assert at[column]["left"] == pytest.approx(at["wide"]["left"], abs=1)
     assert at["board"]["width"] == pytest.approx(at["prose"]["width"], abs=1)
     assert page.locator("#table").evaluate("el => el.tagName") == "TABLE"
     assert root_overflow(page) == 0

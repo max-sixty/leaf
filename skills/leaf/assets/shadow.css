@@ -510,7 +510,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-react.lf-response-action:not([aria-pressed="true"]) { background: var(--card); }
 .lf-react[aria-busy="true"] { opacity: .55; }
 /* A reaction's word, while a press on it is held or the keyboard stands on it
-   (reactions.js, `holdToRead`): the finger's and the keyboard's reading of a face that is
+   (held-word.js): the finger's and the keyboard's reading of a face that is
    otherwise one glyph. The word is the choice's own name, so it says what the accessible
    name says, and it stands above the choice, where the finger pressing it does not cover
    it. The press owns the gesture, so it neither scrolls nor opens the platform's
@@ -611,6 +611,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * every declared tree, and a diff's lines scroll in one. No offsets: relative moves
  * nothing. */
 [data-lf-holds] { position: relative; }
+/* A box that scrolls starts the sticky-header slot again at its own top (theme.css, at
+ * `--lf-top`), whoever made it scroll: reachScrollers marks it. At no specificity, so a
+ * box that states where its own slot starts keeps that. */
+:where([data-lf-scrolls]) { --lf-top: 0px; }
 /* The layer's marks for a box that shows less than it holds across (reachScrollers, for
  * why the sweep and not a rule beside each overflow decides who wears them). Scrolling
  * is the honest answer when the room ran short, and on a platform drawing overlay

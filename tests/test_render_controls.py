@@ -2,6 +2,8 @@
 
 import os
 import re
+import socket
+from urllib.parse import urlsplit
 
 import pytest
 from browser_sources import browser_function
@@ -11,14 +13,17 @@ from interact_support import (
     declare_work,
     end_work,
     record_claim,
+    wait_for,
     working,
 )
 from leaf import event_log as events_model
+from leaf import hosting as hosting_model
 from leaf import leases as leases_model
+from leaf import presence as presence_model
 from leaf import service as service_model
 from leaf import state as cleanup_model
 from leaf.render_checks import rendered, wait_until_ready
-from leaf.schema import ELEMENT_ID
+from leaf.schema import ELEMENT_ID, SERVICE_FILE
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -73,6 +78,7 @@ from render_harness import (
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     SHELL_BOX,
+    CutOff,
     Traffic,
     _traffic,
     _until,
@@ -4800,6 +4806,62 @@ def test_leaves_keep_focus_through_reordering_and_choose_a_neighbour_on_removal(
     opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
 
 
+def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
+    browser, serve, other_leaf, one_user
+):
+    """A row is the page it names, and its link is wherever that page is served now. A
+    neighbour whose server restarts on another port keeps its row and the focus on it,
+    and Enter opens the page at the new address. Keyed by address, the restart read as
+    one page leaving and another arriving: the focused link was removed and focus fell
+    back to the drawer."""
+    old_url, other_dir = other_leaf
+    page = open_page(browser, serve(LONG_PAGE), context=one_user)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+l")
+    row = page.locator("a.lf-others-row")
+    expect(row).to_have_count(1)
+    row.focus()
+    page.evaluate("window.focusedLeaf = document.activeElement")
+
+    # The page hears nothing from the old server stopping until the new one has
+    # published its row, so its next reading moves the neighbour from one address to
+    # the other.
+    reads = CutOff().hold(page)
+    _until(
+        page,
+        lambda traffic: traffic.asked == traffic.heard,
+        "heard every state read it asked before the cut",
+    )
+    # The recovery a taken port's refusal names: with the service record deleted, the
+    # restarted server derives its address again, and binds past the port still taken.
+    hosting_model.cmd_stop(other_dir)
+    (other_dir / SERVICE_FILE).unlink()
+    with socket.create_server(("127.0.0.1", urlsplit(old_url).port)):
+        new_url = hosting_model.start_server(
+            other_dir, standing=True, harness=None
+        ).url.split("?")[0]
+    assert urlsplit(new_url).port != urlsplit(old_url).port
+    wait_for(
+        lambda: [entry["url"] for entry in presence_model.other_leaves(serve.page_dir)],
+        lambda urls: [url.split("?")[0] for url in urls] == [new_url],
+        failure="the restarted neighbour never published its row",
+    )
+    reads.restore()
+    told(
+        page,
+        until=lambda state: (
+            [entry["url"].split("?")[0] for entry in state["others"]] == [new_url]
+        ),
+    )
+
+    destination = row.get_attribute("href")
+    assert destination is not None and destination.startswith(f"{new_url}?t=")
+    assert page.evaluate(
+        "focusedLeaf === document.activeElement && focusedLeaf.isConnected"
+    ), "the restarted page's row lost its node or its focus"
+    opened_tab(page, destination, lambda: page.keyboard.press("Enter"))
+
+
 def test_a_removed_leaf_hands_focus_on_without_revealing_the_old_reading(
     browser, serve, other_leaf
 ):
@@ -7598,9 +7660,23 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             url = url.replace(f"/v{current_version}.html", f"/v{next_version}.html")
         page = open_page(browser, url)
         if name == "wt-merge":
-            # Its pane body earns a keyboard stop only while it has content to scroll,
-            # which at the workspace's working density it has under 600px of window.
+            # The shipped steps now contain buttons, so the scrollable body needs no
+            # stop of its own. Make this ring specimen prose-only; it still overflows
+            # and must then lend the body a keyboard stop and its pane ring.
             resized(page, 1200, 600)
+            page.locator("#merge-steps-pane button").evaluate_all(
+                "buttons => buttons.forEach(button => "
+                "button.replaceWith(document.createTextNode(button.textContent)))"
+            )
+            page.evaluate(
+                """async () => {
+                  const { reachScrollers } = await window.__lfRuntimeImport(
+                    '/runtime/reach.js'
+                  );
+                  reachScrollers(document.body);
+                }"""
+            )
+            expect(page.locator('#merge-steps-pane > [tabindex="0"]')).to_have_count(1)
         if name == "release-notes":
             # Ordinary element marks need a focusable sample for their conditional ring.
             page.locator("main p").first.evaluate(
@@ -7693,6 +7769,12 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             for key in keys:
                 page.keyboard.press(key)
                 rendered(page)
+            if scope == "a landed diff line":
+                # Opening a collapsed file and loading its hunk finish after the key
+                # handler returns. Read the ring once the walk has actually landed.
+                expect(
+                    page.locator("#pr-exact-patch [data-content] > [data-line]:focus")
+                ).to_have_count(1)
             page_at_rest(page)
             surface, offers = RING_SCOPE_SURFACE.get(scope, (None, None))
             if surface and (offers is None or offered(page, offers)):

@@ -43,11 +43,6 @@ instructions above.
   sequence, the walk position) to the banner. The bar is how a desktop user learns the
   keys without asking. A middle path keeps the hints at the foot and moves the status
   into the banner.
-- **Two gaps in the sticky headers.** A box the theme makes scroll starts `--lf-top`
-  again; one an author makes scroll does not, so an `lf-diff` inside it pins its file
-  header that far below the box's top. And a diff's file header is one line whose path
-  gives way from its folders, with the whole path in its title, which a keyboard user
-  focusing the header does not see.
 
 ## Evidence
 

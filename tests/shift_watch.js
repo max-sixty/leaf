@@ -20,7 +20,10 @@
 // own subtree; their continued lifetime never owns unrelated page movement.
 // News starts passive rendering except the first frame shared with the gesture.
 // A typing field is observed at beforeinput, independently of Chrome's clipped or
-// shadowed source rectangles. Motion
+// shadowed source rectangles. Its subject, protected reading/control/declared-region
+// ancestors and visibly painted holders retain their poses. Transparent
+// coordinate carriers have no independent pose to protect: a compensated carrier
+// rebase can leave every painted subject stationary. Motion
 // already running on its ancestors belongs to the gesture that began that motion.
 // Continuing translation is credited from sampled animated property values, not
 // the ancestor's whole box: independent movement of it or its children still fails.
@@ -211,6 +214,33 @@
   };
   const boxes = (nodes) =>
     new Map([...nodes].map((node) => [node, node.getBoundingClientRect()]));
+  // A field's painted holder is a surface in its own right. Pure coordinate
+  // containers paint no box; their children keep their independently protected
+  // controls and reading landmarks even when carrier coordinates are rebased.
+  const paintsBox = (style) =>
+    (style.backgroundColor !== "transparent" &&
+      !/^rgba\([^,]+,[^,]+,[^,]+,\s*0\)$/.test(style.backgroundColor) &&
+      !/\/\s*0\)$/.test(style.backgroundColor)) ||
+    style.backgroundImage !== "none" ||
+    style.boxShadow !== "none" ||
+    ["Top", "Right", "Bottom", "Left"].some(
+      (edge) =>
+        !["none", "hidden"].includes(style[`border${edge}Style`]) &&
+        parseFloat(style[`border${edge}Width`]) > 0,
+    ) ||
+    (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0);
+  const paintedHolder = (node) =>
+    paintsBox(getComputedStyle(node)) ||
+    ["::before", "::after"].some((pseudo) => {
+      const style = getComputedStyle(node, pseudo);
+      return (
+        style.display !== "none" &&
+        style.visibility === "visible" &&
+        style.opacity !== "0" &&
+        !["none", "normal"].includes(style.content) &&
+        (style.content !== '\"\"' || paintsBox(style))
+      );
+    });
   // Every shadow root, a closed one included, so a reading reaches every element.
   const roots = new Set();
   const attachShadow = Element.prototype.attachShadow;
@@ -727,7 +757,18 @@
       begin(start, {
         field,
         at,
-        found: boxes(holding),
+        found: boxes(
+          holding.filter((node) => {
+            const paint = paintAt(node, at);
+            return (
+              node === field ||
+              paint.reading ||
+              paint.control ||
+              paint.reflow ||
+              paintedHolder(node)
+            );
+          }),
+        ),
         moving: holding
           .flatMap((node) => node.getAnimations())
           .filter((animation) => animation.playState === "running" && moves(animation)),

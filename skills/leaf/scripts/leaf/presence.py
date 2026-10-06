@@ -35,7 +35,7 @@ from .service import (
     read_status,
     unacknowledged,
 )
-from .state import now_iso
+from .state import now_iso, page_key
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -115,6 +115,11 @@ def other_leaves(page_dir: Path) -> list:
     Each candidate costs its server lease/service and one disposable row read.
     Never open another page's log, document, or projection. A row belongs to
     the server incarnation that computed it; absent or older rows stay absent.
+
+    Each entry names its page by `page_key`, the identity the page's own state-home
+    records already use, and links it by `url`. The two are separate because a page
+    outlives its server: a restart may serve the same page at a new port, which
+    changes where the row leads and not which page it is.
     """
     from .server_rows import read_row
 
@@ -133,7 +138,9 @@ def other_leaves(page_dir: Path) -> list:
                 continue
             row = read_row(candidate, info)
             if row is not None:
-                others.append({**row, "url": info["url"]})
+                others.append(
+                    {**row, "page_key": page_key(candidate), "url": info["url"]}
+                )
         except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
             continue
     return sorted(others, key=lambda entry: entry["title"].lower())

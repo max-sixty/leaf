@@ -1,4 +1,5 @@
-/* Keyboard reachability and continuation paint for scrollable page and shadow content. */
+/* Keyboard reachability, containment, the sticky-header slot, and continuation paint for
+   scrollable page and shadow content. */
 
 import { wearsLentStop } from "./focus.js";
 import { TAB_STOP, TEXT_BOX } from "./control-selectors.js";
@@ -153,7 +154,7 @@ export function reachReadingScroller(el) {
 }
 
 function paintReadingReach(el) {
-  if (!downwards.has(el)) return;
+  if (!downwards.has(el) || unpainted(el)) return;
   const style = getComputedStyle(el);
   const scrolls = /^(auto|scroll)$/.test(style.overflowY);
   el.toggleAttribute(
@@ -211,13 +212,40 @@ function sweep(root) {
   walk(root);
 }
 
+// And a box that scrolls is the scroller for whatever sticks inside it, so it starts the
+// sticky-header slot `--lf-top` again at its own top (theme.css, at `--lf-top`). Without
+// that, a diff's file header in it pinned the banner's height below the box's top.
+// Marked here, from the composed box, for the same reason as the containment above: an
+// author's scroller, made by a page rule, an inline style or a script, restarts on the
+// same terms as a package's and the theme's own. The mark ([data-lf-scrolls],
+// shadow.css) restarts the slot at no specificity, so a box that states its own start
+// keeps it (a workspace pane's body starts at minus its top padding). The root, whose
+// slot starts at the banner, is never swept. Two scrolling boxes keep the slot they
+// met. A text box holds nothing. A sticking box reads the slot for its own `top`, so a
+// restart there would stick the box itself at 0, behind the banner; a sticking box
+// that scrolls headers restarts the slot for them itself (a column's sidebar,
+// layouts.css). Read again whenever layout moves the box, like the stop: a box that
+// stops scrolling at another width stops restarting the slot, or its headers would pin
+// behind the banner.
+const slots = new Set();
+const SCROLLS = /^(auto|scroll)$/;
+function paintSlot(el, style = getComputedStyle(el)) {
+  const restarts =
+    style.position !== "sticky" &&
+    !el.matches(TEXT_BOX) &&
+    (SCROLLS.test(style.overflowX) || SCROLLS.test(style.overflowY));
+  el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrolls, restarts);
+  if (!restarts) slots.delete(el);
+  else if (!slots.has(el)) {
+    slots.add(el);
+    watchReach(el);
+  }
+}
+
 function classify(el) {
   const style = getComputedStyle(el);
-  if (
-    !/^(auto|scroll)$/.test(style.overflowX) &&
-    !/^(auto|scroll)$/.test(style.overflowY)
-  )
-    return;
+  if (!SCROLLS.test(style.overflowX) && !SCROLLS.test(style.overflowY)) return;
+  paintSlot(el, style);
   // Not a text box, which scrolls its own value and can hold nothing laid out inside
   // it: the mark would claim containment of a box that contains nothing. Written once,
   // because the attribute is observed (design.js) and this runs on every panel
@@ -297,7 +325,11 @@ const depth = (el) => {
   return levels;
 };
 const watched = (el) =>
-  mayScroll.has(el) || sideways.has(el) || downwards.has(el) || waiting.has(el);
+  mayScroll.has(el) ||
+  sideways.has(el) ||
+  downwards.has(el) ||
+  slots.has(el) ||
+  waiting.has(el);
 // Re-read each candidate after layout moves it. A user who widens the window is owed
 // the stop's removal as much as its arrival: a box that fits carries nothing to scroll
 // to, and a tab stop on it is a press that goes nowhere. The candidate sets keep the
@@ -310,7 +342,7 @@ const reachSizes = sizeObserver(() => paintReach());
 // is a promise of more with nothing behind it. scrollLeft follows the inline direction:
 // it starts at zero and becomes negative in a right-to-left scroller.
 function paintSidewaysReach(el) {
-  if (!sideways.has(el)) return;
+  if (!sideways.has(el) || unpainted(el)) return;
   const style = getComputedStyle(el);
   const scrolls =
     /^(auto|scroll)$/.test(style.overflowX) && el.scrollWidth > el.clientWidth + 1;
@@ -326,13 +358,15 @@ function gone(el) {
   mayScroll.delete(el);
   if (sideways.delete(el)) el.removeEventListener("scroll", sidewaysScrolled);
   downwards.delete(el);
+  slots.delete(el);
   waiting.delete(el);
   unwatchReach(el);
   return true;
 }
-// A box that comes to stand in skipped content keeps what it last wore until it is drawn
-// again: measuring it would force that content's style, and a box on no screen is no
-// stop and shows no edge.
+// A box that stands in skipped content keeps what it last wore until it is drawn: measuring
+// it would force that content's style, and a box on no screen is no stop and shows no
+// edge. The reading and sideways edge paints ask it themselves, since a reading region
+// is painted as it registers, and a block can register in a hidden panel (bounds.js).
 const unpainted = (el) => gone(el) || skipped(el);
 function paintReach() {
   for (const el of waiting) if (!unpainted(el)) sweep(el);
@@ -348,8 +382,9 @@ function paintReach() {
     else if (el.getAttribute("tabindex") === "0")
       keeps(el, "tabindex", wearsLentStop(el) ? -1 : authored);
   }
-  for (const el of sideways) if (!unpainted(el)) paintSidewaysReach(el);
-  for (const el of downwards) if (!unpainted(el)) paintReadingReach(el);
+  for (const el of sideways) paintSidewaysReach(el);
+  for (const el of downwards) paintReadingReach(el);
+  for (const el of slots) if (!unpainted(el)) paintSlot(el);
 }
 // A widget can rearrange descendants without changing its outer box. ResizeObserver
 // cannot hear that case; the layer's shared geometry signal can, and one repaint updates

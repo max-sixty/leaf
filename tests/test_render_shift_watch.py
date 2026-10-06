@@ -64,6 +64,49 @@ def test_typing_may_grow_its_field(browser):
     judge_watches()
 
 
+@pytest.mark.parametrize(
+    "compensate,holder",
+    [(True, "inert"), (False, "inert"), (True, "region"), (True, "painted")],
+)
+def test_typing_protects_subjects_through_a_coordinate_carrier_rebase(
+    browser, compensate, holder
+):
+    """Carrier coordinates are disposable; controls and declared regions are not."""
+    page = browser.new_page()
+    declared = 'data-lf-reflow="controls"' if holder == "region" else ""
+    background = (
+        "background:white;border:1px solid black;box-shadow:0 1px 3px #888"
+        if holder == "painted"
+        else ""
+    )
+    page.goto(
+        "data:text/html,"
+        + quote(f"""<!doctype html><body style="margin:0">
+<div id="carrier" {declared} style="position:relative;width:300px;height:100px;{background}">
+  <div id="inside" style="position:relative"><textarea id="field" rows="1"></textarea></div>
+</div><script>
+  field.addEventListener('beforeinput', () => {{
+    carrier.style.left = '20px';
+    inside.style.left = '{-20 if compensate else 0}px';
+  }});
+</script></body>""")
+    )
+    paint(page)
+    read = """() => Object.fromEntries(['carrier','field'].map(id =>
+      [id, document.getElementById(id).getBoundingClientRect().x]))"""
+    before = page.evaluate(read)
+    page.locator("#field").fill("a")
+    paint(page)
+    after = page.evaluate(read)
+    assert after["carrier"] - before["carrier"] == 20
+    assert after["field"] - before["field"] == (0 if compensate else 20)
+    judge_watches()
+    if not compensate:
+        consume_browser_errors(page, "typing in textarea#field moved textarea#field")
+    elif holder != "inert":
+        consume_browser_errors(page, "typing in textarea#field moved div#carrier")
+
+
 @pytest.mark.parametrize("distance", [6, 40])
 def test_a_shift_without_input_fails(browser, distance):
     page = field_page(browser)

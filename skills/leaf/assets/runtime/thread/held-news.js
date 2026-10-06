@@ -88,7 +88,6 @@ import { allThreads } from "./state.js";
 import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
-import { replyPinned } from "./reply-landing.js";
 
 // Whether this page's ledger holds a gesture of the user's on `thread`: one of its
 // messages, a reply or a settlement naming one, a move on a widget one of them holds, an
@@ -236,7 +235,7 @@ function withheld(was, now) {
 
 // Whether growth after `node` would move what the user sees: the node's foot stands
 // inside every box that scrolls it. A node not drawn has no foot to grow from.
-function growthAfterIsSeen(node) {
+export function growthAfterIsSeen(node) {
   const { bottom, height } = node?.getBoundingClientRect() ?? {};
   if (!height) return false;
   for (const box of scrollersOf(node)) {
@@ -249,7 +248,7 @@ function growthAfterIsSeen(node) {
 // Whether growth inside `nodes`, wherever in them it starts, would move what the user
 // sees: some of them stands inside every box that scrolls it. Growth wholly above the
 // screen goes into what scroll anchoring holds, and wholly below it moves nothing seen.
-function growthInsideIsSeen(nodes) {
+export function growthInsideIsSeen(nodes) {
   return nodes.some((node) => {
     const { top, bottom, height } = node.getBoundingClientRect();
     if (!height) return false;
@@ -428,7 +427,7 @@ export class HeldNews {
           was && shown && !this.#released.has(thread.key)
             ? difference(was, thread)
             : null;
-        if (!held || gestured(thread.key) || !this.#moves(thread.key, held))
+        if (!held || gestured(thread.key) || !this.#view(thread.key)?.newsMoves(held))
           return { ...thread, news: null };
         this.#holds.add(thread.key);
         // What the news changes stands as drawn. A held reopening's notice stands
@@ -462,36 +461,6 @@ export class HeldNews {
           }
         : null;
     return Object.freeze({ ...reading, threads: Object.freeze(threads), news });
-  }
-
-  // Whether drawing `held` would move what the reader reads: growth after a message it
-  // changes, or after the thread's foot, where a message joins it or its settlement
-  // changes what follows its messages, would be seen, or a message or checkpoint a
-  // summary's change redraws, or the row a settlement swaps, shows. A reply actually
-  // pinned to its scrollport takes growth at the thread's end by scrolling, a turn
-  // joining it or its last turn growing, though not a change above that end, nor a
-  // settlement, which takes the reply away or brings it. A short thread's sticky row
-  // still stands in flow and has no such space to give.
-  #moves(key, { news, changed, folds }) {
-    const view = this.#view(key);
-    if (!view) return false;
-    const pinned = replyPinned(view.node.querySelector(":scope > .lf-thread-reply"));
-    const followed = pinned && !news.settled ? view.foot : null;
-    return (
-      [
-        ...[...changed].map((message) => view.messageNode(message)),
-        (news.appended || news.settled) && view.foot,
-      ].some((node) => node && node !== followed && growthAfterIsSeen(node)) ||
-      growthInsideIsSeen(
-        [
-          ...folds.messages.map((message) => view.messageNode(message)),
-          ...folds.summaries.map((summary) => view.summaryNode(summary)),
-        ].filter(Boolean),
-      ) ||
-      Boolean(
-        news.settled && view.settlementRow && growthInsideIsSeen([view.settlementRow]),
-      )
-    );
   }
 
   // Shows what the seat holds of the thread `id`: its news, or, where the seat holds the

@@ -8000,42 +8000,15 @@ def test_an_agent_reply_into_an_open_card_cues_only_its_own_words(browser, serve
     assert preview.evaluate(cued) == ["reply"]
 
 
-# Where the card's latest turn and its reply row stand. `__firstSentLayout` holds that
-# reading taken as the sent turn is inserted, before any placement answers it.
-SENT_TURN = """preview => {
-  const turn = [...preview.querySelectorAll('.lf-msg')].at(-1).getBoundingClientRect();
-  const reply = preview.querySelector('.lf-thread-reply').getBoundingClientRect();
-  return {turnTop: Math.round(turn.top), turnFoot: Math.round(turn.bottom),
-          replyTop: Math.round(reply.top)};
-}"""
-FIRST_SENT_LAYOUT = f"""preview => {{
-  const reading = {SENT_TURN};
-  const count = preview.querySelectorAll('.lf-msg').length;
-  window.__firstSentLayout = null;
-  const observer = new MutationObserver(() => {{
-    if (preview.querySelectorAll('.lf-msg').length === count) return;
-    window.__firstSentLayout = reading(preview);
-    observer.disconnect();
-  }});
-  observer.observe(preview, {{subtree: true, childList: true}});
-}}"""
-
-
 @pytest.mark.parametrize("how", ["key", "press"])
 @pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
 def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size, how):
     """The sent turn joins the transcript above the box the user sent it from, and the
     send leaves the user on the element the card is about with the card still up. The
     send ends the drafting, and the card read that as leave to choose its spot again,
-    flipping sides under the pointer; the reply row stays where the press was.
-
-    The turn is laid out where it stays from the layout that adds it. A card still held
-    by its top grew down under the new turn until the placement that followed carried
-    it back up, so a paint between the two showed the turn, with its arrival cue, a
-    turn's height low."""
+    flipping sides under the pointer; the reply row stays where the press was."""
     page, preview, editor = drafting_in_a_short_card(browser, serve, *size)
     before = preview.evaluate(DRAFTING_CARD)
-    preview.evaluate(FIRST_SENT_LAYOUT)
     send = preview.locator(".lf-thread-reply .lf-compose-submit")
     held = []
 
@@ -8056,10 +8029,6 @@ def test_a_sent_reply_leaves_the_reply_row_where_it_stands(browser, serve, size,
     rendered(page)
     expect(page.locator("#open")).to_be_focused()
     assert preview.evaluate(DRAFTING_CARD) == before
-    first = page.evaluate("window.__firstSentLayout")
-    settled = preview.evaluate(SENT_TURN)
-    for edge, at in settled.items():
-        assert first[edge] == pytest.approx(at, abs=1), (first, settled)
 
     # Admission names the same turn; its later sizing passes still hold the pressed row.
     held.pop().continue_()

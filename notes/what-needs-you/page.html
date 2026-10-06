@@ -263,9 +263,9 @@
             <h2>Steps 1 to 5 and the Queue panel are on main</h2>
             <p id="direction">
               The code for queues and tasks is marked experimental, so later agents
-              change it freely. Next is making the top bar and the keys treat Tasks and
-              Threads alike (<a href="#bar-today">Top bar and keys</a>), then step 7.
-              Step 6 isn't needed for now.
+              change it freely. Next is making the top bar and the keys treat Decisions
+              and Threads alike (<a href="#bar-today">Top bar and keys</a>), then step
+              7. Step 6 isn't needed for now.
             </p>
             <table id="plan-step-list" data-width="wide">
               <thead>
@@ -512,12 +512,19 @@
 
           <section id="bar-names">
             <h2>A name for each side, since whose it is matters most</h2>
+            <p id="names-decided">
+              <strong
+                >You picked <em>Decisions</em> for what's on you and <em>Tasks</em> for
+                what's on Claude.</strong
+              >
+              The door reads “Decisions: 3”, and Task on the page always means work
+              Claude owes. That leaves the record both sides share, today also called a
+              task, needing a name of its own (<a href="#internal-name">below</a>).
+            </p>
             <p>
-              “Tasks: 3” doesn't say whether the three are on you or on Claude. The
-              model keeps one record for both, a task with an <code>owner</code>, and
-              that stays the word in the code and in <code>leaf task</code>. What the
-              page shows needs two words instead, one per side, so a count never stands
-              without saying whose it is.
+              “Tasks: 3” didn't say whether the three were on you or on Claude. What the
+              page shows needs two words, one per side, so a count never stands without
+              saying whose it is.
             </p>
             <p>What can be on each side today:</p>
             <ul>
@@ -532,42 +539,59 @@
                 hand, and its own tasks.
               </li>
             </ul>
-            <lf-ask id="names-pick">
-              <h3 id="names-pick-heading">What should each side be called?</h3>
-              <p>
-                The top bar's door shows your side's name and count, and the panel opens
-                under that name, with Claude's side and Done below it.
-              </p>
-              <lf-options id="names-pick-options" choose>
-                <lf-option id="names-decisions"
-                  ><strong>Decisions, and Claude's tasks</strong> The door reads
-                  “Decisions: 3”. Task then always means work Claude owes, so the two
-                  words also say who does what: you decide, and Claude does. This
-                  matches how you set it up: Claude controls the tasks and asks you when
-                  it needs your sign-off. Recommended. Two kinds on your side aren't
-                  decisions: a task to do, such as trying the build, and a move to send
-                  again. The agent can ask for the first as a decision instead (“Does
-                  the build work on your phone?”), and a failed send can keep its own
-                  Resend row under Decisions.</lf-option
+            <p>
+              Two kinds on your side aren't decisions: a task to do, such as trying a
+              build, and a move to send again. Claude can ask for the first as a
+              decision (“Does the build work on your phone?”), and a failed send keeps
+              its own Resend row under Decisions. The other pairs weighed were
+              <em>Needs you</em> (a phrase, which reads poorly as a heading),
+              <em>To do</em> and <em>Waiting for</em> (near synonyms of task), and
+              <em>Your turn</em> and <em>Claude's turn</em> (an odd thing to count).
+            </p>
+          </section>
+
+          <section id="internal-name">
+            <h2>A name for the shared record</h2>
+            <p>
+              Today one record, a <em>task</em>, holds both sides: it has an
+              <code>owner</code>, says how it <code>ends</code>, and stays open until it
+              does (<a href="#task">How it works</a>). With Task now meaning Claude's
+              side alone, the shared record needs another word. Renaming it also
+              untangles a second clash: “task” already means the harness's unit of work,
+              as in a <em>task claim</em> or a Codex task, which has nothing to do with
+              this record.
+            </p>
+            <p>
+              The words the agent and you read follow the page:
+              <code>leaf task</code> opens, starts and ends Claude's tasks, and a
+              decision on you comes from an Ask, a question with <code>--awaits</code>,
+              or <code>leaf decision open</code> in place of today's
+              <code>leaf task open --on user</code>. The shared word names the record in
+              the event log, in <code>leaf page state</code>, and in the code.
+            </p>
+            <lf-ask id="internal-pick">
+              <h3 id="internal-pick-heading">
+                What should the shared record be called?
+              </h3>
+              <lf-options id="internal-pick-options" choose>
+                <lf-option id="internal-obligation"
+                  ><strong>Obligation</strong> What its owner owes until it ends: a
+                  decision you owe Claude, or work Claude owes you. It is the word the
+                  research already reached for (“resolve settled the obligation”), and
+                  nothing else in Leaf uses it. Recommended: it says the one thing every
+                  record has, an owner who owes it, and reads naturally on both
+                  sides.</lf-option
                 >
-                <lf-option id="names-needs-you"
-                  ><strong>Needs you, and Claude's tasks</strong> The door reads “Needs
-                  you: 3”, the page's own name for the idea. It covers all four kinds on
-                  your side, but it's a phrase rather than a noun: “3 need you” reads
-                  fine, while a heading that says “Needs you” is less clear.</lf-option
+                <lf-option id="internal-commitment"
+                  ><strong>Commitment</strong> Winograd and Flores's word: a request
+                  becomes the performer's commitment, which holds until they report it
+                  done. It fits Claude's tasks well, but a decision on you is something
+                  Claude asked of you rather than something you committed to.</lf-option
                 >
-                <lf-option id="names-gtd"
-                  ><strong>To do, and Waiting for</strong> Getting Things Done's pair of
-                  lists: your next actions, and what you've handed to someone else and
-                  are waiting on. Both are named from your side, which suits a page you
-                  read. But “To do” and “task” are near synonyms, so the two sides read
-                  as the same kind of thing, and “Waiting for: 2” needs “Claude” to say
-                  on whom.</lf-option
-                >
-                <lf-option id="names-turns"
-                  ><strong>Your turn, and Claude's turn</strong> The conversation's
-                  words: whose move it is. They fit threads and questions best and a
-                  task the worst, and “Your turn: 3” is an odd count.</lf-option
+                <lf-option id="internal-item"
+                  ><strong>Item</strong> Short and neutral, but a queue's items already
+                  include moves that aren't records, a reply owed or a send to retry, so
+                  the word would mean two things.</lf-option
                 >
               </lf-options>
             </lf-ask>
@@ -578,8 +602,8 @@
               <h3 id="bar-pick-heading">Which top bar?</h3>
               <p>
                 Each sketch shows the top bar with the queue panel open. The sketches
-                still call it Tasks; the name you pick above replaces that. The Threads
-                door and panel stay as they are today in every option.
+                name it Decisions, as you picked above. The Threads door and panel stay
+                as they are today in every option.
               </p>
               <lf-options id="bar-pick-options" choose>
                 <lf-option id="bar-baseline"
@@ -616,16 +640,16 @@
                 </lf-option>
                 <lf-option id="bar-sides"
                   ><strong>Matching doors, each over its panel</strong> The counts
-                  become a Tasks door with the Threads door's face: a label and a count,
-                  tinted and underlined while open, and a <kbd>g</kbd> <kbd>A</kbd> chip
-                  when you press <kbd>g</kbd>. It moves to the left, beside the status,
-                  over the panel it opens. Its count is what's on you, as the Threads
-                  count is the open threads. What's on Claude joins the status, which is
-                  already about Claude.
+                  become a Decisions door with the Threads door's face: a label and a
+                  count, tinted and underlined while open, and a <kbd>g</kbd>
+                  <kbd>A</kbd> chip when you press <kbd>g</kbd>. It moves to the left,
+                  beside the status, over the panel it opens. Its count is what's on
+                  you, as the Threads count is the open threads. What's on Claude joins
+                  the status, which is already about Claude.
                   <div class="sketch tb" aria-hidden="true">
                     <div class="tb-bar">
-                      <span>🍃 Claude away · 2 to do</span
-                      ><span class="tb-door tb-on">Tasks: 3</span
+                      <span>🍃 Claude away · 2 tasks</span
+                      ><span class="tb-door tb-on">Decisions: 3</span
                       ><span class="tb-push"></span
                       ><span class="tb-door">Threads: 3<i class="tb-dot"></i></span
                       ><span class="tb-more">⋯</span>
@@ -633,10 +657,10 @@
                     <div class="tb-body">
                       <div class="tb-panel tb-left">
                         <div class="tb-head">
-                          <span>Tasks</span><span class="tb-btn">Next on you</span
+                          <span>Decisions</span><span class="tb-btn">Next on you</span
                           ><span class="sk-x">×</span>
                         </div>
-                        <p class="tb-count">3 on you · 2 on Claude</p>
+                        <p class="tb-count">3 decisions · Claude has 2 tasks</p>
                         <ul class="sk-rows">
                           <li>
                             <span class="sk-kind">Ask</span
@@ -654,18 +678,18 @@
                 </lf-option>
                 <lf-option id="bar-right"
                   ><strong>Matching doors, both panels on the right</strong> The same
-                  Tasks door, beside the Threads door at the right, and the Tasks panel
-                  opens on the right edge where the Threads panel does. Pressing the
-                  other door swaps one panel for the other in place, so the two read as
-                  two views of one side panel. The left edge keeps only the Leaves
-                  drawer. Recommended: since only one panel is ever open, a shared edge
-                  costs nothing, and it makes the doors and panels match in place as
-                  well as in face. It is also the larger change, because the Queue panel
-                  is built as a left drawer today.
+                  Decisions door, beside the Threads door at the right, and the
+                  Decisions panel opens on the right edge where the Threads panel does.
+                  Pressing the other door swaps one panel for the other in place, so the
+                  two read as two views of one side panel. The left edge keeps only the
+                  Leaves drawer. Recommended: since only one panel is ever open, a
+                  shared edge costs nothing, and it makes the doors and panels match in
+                  place as well as in face. It is also the larger change, because the
+                  Queue panel is built as a left drawer today.
                   <div class="sketch tb" aria-hidden="true">
                     <div class="tb-bar">
-                      <span>🍃 Claude away · 2 to do</span><span class="tb-push"></span
-                      ><span class="tb-door tb-on">Tasks: 3</span
+                      <span>🍃 Claude away · 2 tasks</span><span class="tb-push"></span
+                      ><span class="tb-door tb-on">Decisions: 3</span
                       ><span class="tb-door">Threads: 3<i class="tb-dot"></i></span
                       ><span class="tb-more">⋯</span>
                     </div>
@@ -673,10 +697,10 @@
                       <div class="tb-page">The page</div>
                       <div class="tb-panel tb-right">
                         <div class="tb-head">
-                          <span>Tasks</span><span class="tb-btn">Next on you</span
+                          <span>Decisions</span><span class="tb-btn">Next on you</span
                           ><span class="sk-x">×</span>
                         </div>
-                        <p class="tb-count">3 on you · 2 on Claude</p>
+                        <p class="tb-count">3 decisions · Claude has 2 tasks</p>
                         <ul class="sk-rows">
                           <li>
                             <span class="sk-kind">Ask</span
@@ -699,24 +723,24 @@
             <h2>The keys pair each panel with its walk</h2>
             <p>
               Whichever top bar you pick, the keys change in the same way, so
-              <kbd>t</kbd> is to Threads what <kbd>a</kbd> is to Tasks:
+              <kbd>t</kbd> is to Threads what <kbd>a</kbd> is to Decisions:
             </p>
             <ul>
               <li>
-                <kbd>g</kbd> <kbd>A</kbd> opens Tasks, as <kbd>g</kbd>
+                <kbd>g</kbd> <kbd>A</kbd> opens Decisions, as <kbd>g</kbd>
                 <kbd>T</kbd> opens Threads; <kbd>g</kbd> <kbd>Q</kbd> goes.
               </li>
               <li>
-                The Tasks head gets a Next on you button (<kbd>a</kbd>), as the Threads
-                head has Next unread (<kbd>u</kbd>).
+                The Decisions head gets a Next on you button (<kbd>a</kbd>), as the
+                Threads head has Next unread (<kbd>u</kbd>).
               </li>
               <li>
                 <kbd>↑</kbd> and <kbd>↓</kbd> step through rows in the Threads panel
                 too. <kbd>t</kbd> and <kbd>T</kbd> keep working there.
               </li>
               <li>
-                The panel is called Tasks everywhere you read its name: its head, the
-                control in More, and the key bar.
+                The panel is called Decisions everywhere you read its name: its head,
+                the control in More, and the key bar.
               </li>
             </ul>
           </section>

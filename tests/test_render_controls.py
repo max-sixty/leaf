@@ -117,6 +117,7 @@ def test_merge_film_steps_have_a_keyboard_route(browser, serve):
             break
     assert page.evaluate("document.activeElement?.closest('li')?.id") == "step-setup"
     expect(page.locator("#step-setup button")).to_be_focused()
+    expect(page.locator("#step-setup button:focus-visible")).to_have_count(1)
 
     for key in ("Space", "Enter"):
         page.locator("#merge-film").evaluate("film => film.seek(1e9)")

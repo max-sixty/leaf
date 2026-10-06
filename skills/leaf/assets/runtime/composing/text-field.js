@@ -61,7 +61,9 @@
  * document, and cancels the press it acts on; Shift+Enter inserts a line and continues
  * a list or quote. Mod+Z walks the words' history unless the owner's `yieldsUndo` says
  * the press is its own, as a composer's is while a stroke is its draft's latest change;
- * the press then reaches the dispatcher with the words untouched.
+ * the press then reaches the dispatcher with the words untouched. An owner orders its
+ * changes against the words by the history's own steps (`historyMark`), so words typed
+ * and taken out again still count as a change.
  *
  * The host is the textarea's scrollport. CodeMirror's content-sized inner scroller
  * never clips the words; the page sizes the host. When that room changes, the field
@@ -82,6 +84,8 @@ import {
   history,
   standardKeymap,
   historyKeymap,
+  isolateHistory,
+  undoDepth,
   markdownLanguage,
   insertNewlineContinueMarkup,
 } from "../../vendor/codemirror.esm.js";
@@ -529,7 +533,8 @@ class LeafText extends HTMLElement {
       root: this.#root,
       parent: this.#frame,
       state: this.#model,
-      // Every transaction is the user's: the value setter replaces the state instead.
+      // Every change to the words is the user's: the value setter replaces the state
+      // instead, and an owner's `historyMark` changes none.
       dispatchTransactions: (transactions, view) => {
         view.update(transactions);
         this.#paintEmpty();
@@ -652,6 +657,19 @@ class LeafText extends HTMLElement {
 
   get value() {
     return this.#state.doc.toString();
+  }
+
+  // How many steps the words' history can take back.
+  get historyDepth() {
+    return undoDepth(this.#state);
+  }
+
+  // Closes the words' current step and returns the history's depth, so that whatever
+  // is typed next is a step of its own: the depth stands at the mark again only once
+  // everything typed since has been taken back.
+  historyMark() {
+    this.#apply({ annotations: isolateHistory.of("after") });
+    return this.historyDepth;
   }
   set value(text) {
     text = String(text ?? "").replace(/\r\n?/g, "\n");

@@ -513,6 +513,19 @@ const publicationWords = (published) => [
   "Install Leaf",
 ];
 
+// The moves an open turn picked up, by kind: a comment in a thread, or an answer to an
+// Ask. A lone move is the user's own; several are counted.
+function pickedUpWords({ comments, answers }) {
+  if (comments + answers === 1) return comments ? "your comment" : "your answer";
+  const counted = (count, noun) => `${count} ${noun}${count === 1 ? "" : "s"}`;
+  return [
+    comments && counted(comments, "comment"),
+    answers && counted(answers, "answer"),
+  ]
+    .filter(Boolean)
+    .join(" and ");
+}
+
 // Both levels of wording follow server-owned activity. Short summaries retain the
 // actionable distinction: working, listening, away, or nobody holding the page. How many
 // moves are waiting or saved is the disclosure's; the row counts what waits on each
@@ -543,16 +556,17 @@ function statusWords({
   // reading this row must not give.
   //
   // Until the agent writes that sentence, what Leaf knows is which of the user's
-  // moves its open turn took up, so the row names them rather than standing on a
-  // bare "working", and the disclosure says the agent's own words are still to come.
+  // moves its open turn picked up, so the row names them, in the words of their
+  // Picked up stage, rather than standing on a bare "working", and the disclosure
+  // says the agent's own words are still to come.
   if (kind === "working") {
-    const held = handling === 1 ? "your move" : `your ${handling} moves`;
-    const said = detail ? " — " + detail : handling ? " — on " + held : "";
+    const picked = pickedUpWords(handling);
+    const said = detail ? " — " + detail : picked ? " — picked up " + picked : "";
     return [
       `${agent} ${work}${age && age !== JUST_NOW ? " · " + age : ""}${said}`,
-      detail || !handling
+      detail || !picked
         ? `${agent} is ${work}${said}`
-        : `${agent} is ${work} on ${held}, and hasn't said what it is doing yet`,
+        : `${agent} picked up ${picked} and hasn't said what it's doing yet`,
     ];
   }
   // A declared request tells the user what to do. Preserve it on the row when
@@ -671,7 +685,10 @@ function renderStatusNow(state) {
       : checkedIn,
     shortDate: facts.left ? `${agent}’s turn ended ${facts.silentSince}` : checkedIn,
     detail,
-    handling: activity.counts.handling,
+    handling: {
+      comments: activity.counts.handling_comments,
+      answers: activity.counts.handling - activity.counts.handling_comments,
+    },
     kind,
     listening: facts.listening,
     overdue: activity.counts.overdue,

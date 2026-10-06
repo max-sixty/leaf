@@ -16,8 +16,9 @@
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (version.js) across revisions and reading-region shifts, a root tab set
  * (lf-tabs) for each of its views. The browser keeps a history entry's own offset
- * (history.js). `readingBlock` is the block the user is on, for the questions that ask
- * where a walk starts.
+ * (history.js). `readingBlock` is the first block on screen in one region or the page;
+ * `pageReadingBlock` is the block the user is reading, where a walk starts, and
+ * `landingPlace` is where a let-go puts them.
  */
 import {
   clippedContents,
@@ -44,6 +45,7 @@ import {
   readingRegionFor,
   readingRegions,
   shownRegionBounds,
+  pageReadingRegion,
 } from "./reading-regions.js";
 import { followingItsEnd } from "./bounds.js";
 import { moveScrollerBy, pageScroller, scrollToEnd } from "./scrolling.js";
@@ -113,10 +115,33 @@ export function* blocksOnScreen(region = null, blocks = textBlocks()) {
       yield [block, rect];
   }
 }
-// The first visible block in the user's reading region, for a walk's origin,
-// alignment when nothing is selected, and the keyboard reference's hand-back.
+// The first visible block in a reading region, or with none given in the page outside
+// the regions that bound themselves, for alignment when nothing is selected.
 export const readingBlock = (region = null) =>
   blocksOnScreen(region, textBlocks(region?.body)).next().value?.[0] ?? null;
+
+// The block the user is reading on the page, for a walk's origin, the keyboard
+// reference's hand-back and a let-go's landing: in the page region they last acted in
+// (`pageReadingRegion`), or, where that region shows none, in the region carrying it, and
+// so on out to the page. In a workspace whose panes bound themselves, the page outside
+// them holds only its header, so a reading that started there left the pane the user
+// was reading for the top of the page. With `bodies`, a region on screen that shows no
+// text block (a figure, a widget) answers with its own body, so a landing there keeps
+// the user in that region rather than on the document's body, which names the page.
+function pageReading({ bodies }) {
+  for (
+    let region = pageReadingRegion();
+    region;
+    region = readingRegionFor(region.host.parentElement)
+  ) {
+    const block = readingBlock(region);
+    if (block) return block;
+    if (bodies && shownRegionBounds(region)) return region.body;
+  }
+  return readingBlock();
+}
+export const pageReadingBlock = () => pageReading({ bodies: false });
+export const landingPlace = () => pageReading({ bodies: true });
 
 // The quote and the section it's searched in come from the same block, or the search is
 // filtered to a section the text isn't in and can only ever fail — restore then falls back

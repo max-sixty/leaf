@@ -412,7 +412,9 @@ def end_session(session_id: str) -> None:
     """End one generation with no page discovery or page-lock acquisition.
 
     Claims referencing it become inactive by this one atomic write. A later
-    synchronous prompt or claim creates a new generation and cannot revive them.
+    synchronous prompt or claim creates a new generation and cannot revive them,
+    though while that generation runs the session may still record on such a page
+    what its task took or answered there (`service.claim_names_session`).
     Capability files are observations, not lifecycle authority, and retire here.
     """
     if not session_id:

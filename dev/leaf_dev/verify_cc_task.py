@@ -22,8 +22,9 @@ The journey, in order:
 - `escape`: Escape during a shell command ends the turn; a comment posted
   afterwards opens a turn that answers it;
 - `woken`: a comment posted during a shell command wakes the watch, and Escape
-  ends that turn before it reads the comment; a comment posted afterwards is
-  answered, and so is the first, carried by the next prompt;
+  ends that turn while the command still runs, before the turn reads the comment;
+  a comment posted afterwards is answered, and so is the first, carried by the
+  next prompt;
 - `quit`: `/exit` ends the session, so its claim on the page is inactive and its
   watch has ended.
 
@@ -40,8 +41,8 @@ Escape also prints whether it left the turn open, a watch running, and what the
 page's banner read. That is the reading that compares the two carriers.
 
 It needs tmux, and spends a few model turns on the host's Claude Code login, so CI
-does not run it. The session's screen, Claude Code's debug log and the page's log
-stay in a run directory under `.tmp/verify-cc/`. The session's home, page and state
+does not run it. The session's screen at the end of each step, Claude Code's debug
+log and the page's log stay in a run directory under `.tmp/verify-cc/`. The session's home, page and state
 home live in a temporary directory, removed when every check passes and kept, with
 its path printed, when one fails.
 """
@@ -68,8 +69,8 @@ from leaf.state import session_record
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     MODELS,
+    claude_environment,
     claude_home,
-    environment,
     extract_payload,
     run_directory,
     run_leaf,
@@ -103,22 +104,32 @@ class ClaudeCode:
     ) -> None:
         self.pane = f"leaf-verify-cc-{os.getpid()}"
         self.exited, self.kept = root / "exited", run / "screen.txt"
-        # The script states the whole environment, so it stays with the session's
-        # home rather than with the evidence.
+        self.session: str | None = None
+        # The environment's values reach the pane through tmux, so no file holds
+        # them; the script names them, and drops whatever else the tmux server's
+        # own environment adds.
         script = root / "claude.sh"
-        assignments = " ".join(f"{k}={shlex.quote(v)}" for k, v in env.items())
         script.write_text(
             f"cd {shlex.quote(str(cwd))}\n"
-            f"env -i {assignments} {shlex.join(argv)} 2> {run / 'stderr.txt'}\n"
-            f"echo $? > {self.exited}\n"
+            # Claude Code reads its directory from the shell's PWD.
+            f"keep=' {' '.join(env)} PWD '\n"
+            "for name in $(compgen -e); do\n"
+            '  [[ $keep == *" $name "* ]] || unset "$name" 2> /dev/null\n'
+            "done\n"
+            f"{shlex.join(argv)} 2> {shlex.quote(str(run / 'stderr.txt'))}\n"
+            f"echo $? > {shlex.quote(str(self.exited))}\n"
         )
+        assignments = [arg for item in env.items() for arg in ("-e", "=".join(item))]
         self.tmux("new-session", "-d", "-s", self.pane, "-x", "200", "-y", "50",
-                  "-c", str(cwd), f"bash {script}")  # fmt: skip
-        self.until(
-            lambda: "? for shortcuts" in self.screen() or "❯" in self.screen(),
-            "Claude Code did not start",
-        )
-        self.session: str | None = None
+                  "-c", str(cwd), *assignments, f"bash {shlex.quote(str(script))}")  # fmt: skip
+        try:
+            self.until(
+                lambda: "? for shortcuts" in self.screen() or "❯" in self.screen(),
+                "Claude Code did not start",
+            )
+        except BaseException:
+            self.close()
+            raise
 
     def tmux(self, *args: str) -> str:
         return subprocess.run(
@@ -128,10 +139,12 @@ class ClaudeCode:
     def screen(self) -> str:
         return self.tmux("capture-pane", "-p", "-t", self.pane)
 
-    def keep(self) -> None:
-        """Keep all the pane has shown, which goes with it once Claude Code exits."""
+    def keep(self, label: str) -> None:
+        """Add the pane's screen to the evidence. Claude Code clears what scrolls
+        off, so each step keeps its own."""
         if shown := self.tmux("capture-pane", "-p", "-S", "-", "-t", self.pane):
-            self.kept.write_text(shown)
+            with self.kept.open("a") as kept:
+                kept.write(f"──── {label} ────\n{shown}\n")
 
     def say(self, text: str) -> None:
         """Type one prompt and send it."""
@@ -240,6 +253,7 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
             f"{name}: passed in {time.monotonic() - started:.0f} s"
             + "".join(f"\n  {detail}" for detail in details)
         )
+        cc.keep(name)
 
     def after_escape(name: str) -> str:
         """What an Escape left: required with the hooks module, reported without."""
@@ -304,10 +318,31 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
     started = time.monotonic()
     cc.say(USER_TURN)
     cc.until(cc.sleeping, "woken: the user's turn did not start its command")
+    turn = page_claim(page)["turn"]
     post(page, "woken")
-    cc.until(lambda: not watched(), "woken: the watch did not wake on the comment", 60)
+
+    def pickups() -> list[dict]:
+        posted_id = comment_id(page, "woken")
+        return [
+            event
+            for event in read_events(page)
+            if event["kind"] == "pickup" and posted_id in event["events"]
+        ]
+
+    # The watch has woken, and the hooks module has handed the comment to the turn,
+    # which reads it only once its command ends.
+    cc.until(
+        lambda: not watched() and (pickups() or not module),
+        "woken: the watch did not wake on the comment",
+        60,
+    )
+    require(cc.sleeping(), "woken: the command ended before Escape")
     cc.escape()
     escaped = after_escape("woken")
+    first = pickups()[:1]
+    escaped += ", the comment was first picked up in " + (
+        "the stopped turn" if first and first[0]["turn"] == turn else "a later turn"
+    )
     before = nudged()
     post(page, "after-wake")
     cc.until(
@@ -321,7 +356,6 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
     step("woken", started, "woken", "after-wake", before=before, escaped=escaped)
 
     started = time.monotonic()
-    cc.keep()
     cc.say("/exit")
     cc.until(cc.exited.exists, "quit: Claude Code did not exit", 60)
     require(
@@ -378,13 +412,7 @@ def verify_cc_task(hooks_module: bool) -> None:
     # home and state home the session writes, and every child inherits them, never
     # the session running this.
     inherited = dict(os.environ)
-    isolated = environment(
-        HOME=str(home),
-        XDG_STATE_HOME=str(state),
-        UV_CACHE_DIR=os.environ.get("UV_CACHE_DIR", str(Path.home() / ".cache/uv")),
-        CLAUDE_CODE_DISABLE_AUTO_MEMORY="1",
-        TERM="tmux-256color",
-    )
+    isolated = claude_environment(home, XDG_STATE_HOME=str(state), TERM="tmux-256color")
     os.environ.clear()
     os.environ.update(isolated)
     passed = False
@@ -394,7 +422,8 @@ def verify_cc_task(hooks_module: bool) -> None:
         try:
             journey(cc, page, state, hooks_module)
         finally:
-            cc.keep()
+            # A failed step's screen; once Claude Code exits there is none.
+            cc.keep("end")
             cc.close()
             run_leaf(ROOT, state, "server", "stop", str(page))
             shutil.copy(page / "events.jsonl", run / "events.jsonl")

@@ -318,6 +318,20 @@ def claude_home(path: Path) -> Path:
     return path
 
 
+def claude_environment(home: Path, **extra: str) -> dict[str, str]:
+    """The environment of a Claude Code child under `home` (`claude_home`): its
+    config is the home's, never one `CLAUDE_CONFIG_DIR` names, and it shares the
+    host's uv cache and keeps no memory."""
+    env = environment(
+        HOME=str(home),
+        UV_CACHE_DIR=os.environ.get("UV_CACHE_DIR", str(Path.home() / ".cache/uv")),
+        CLAUDE_CODE_DISABLE_AUTO_MEMORY="1",
+        **extra,
+    )
+    env.pop("CLAUDE_CONFIG_DIR", None)
+    return env
+
+
 def scratch() -> Path:
     """A fresh directory for a child's cwd, outside any repository."""
     return Path(tempfile.mkdtemp(prefix="leaf-eval-"))
@@ -337,14 +351,7 @@ def claude_child(
         "--permission-mode", "bypassPermissions", "--output-format", "stream-json",
         "--verbose", *(arg for d in dirs for arg in ("--add-dir", str(d))),
     ]  # fmt: skip
-    child_env = environment(
-        HOME=str(home),
-        UV_CACHE_DIR=os.environ.get("UV_CACHE_DIR", str(Path.home() / ".cache/uv")),
-        CLAUDE_CODE_DISABLE_AUTO_MEMORY="1",
-        TMPDIR=str(cwd / "tmp"),
-        **(env or {}),
-    )
-    child_env.pop("CLAUDE_CONFIG_DIR", None)
+    child_env = claude_environment(home, TMPDIR=str(cwd / "tmp"), **(env or {}))
     return {"args": command, "cwd": cwd, "env": child_env}
 
 

@@ -635,7 +635,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-banner-menu .lf-btn.on {
     background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
   /* Comment on the page is a symbol on the row and its words behind More, where every
-     row is words (thread/page-comment-card.js). */
+     row is words (thread/page-comment.js). */
   .lf-page-comment { anchor-name: --lf-page-comment; }
   .lf-banner-actions > .lf-page-comment { display: inline-flex; align-items: center;
     justify-content: center; padding-inline: 8px; }

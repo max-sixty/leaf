@@ -580,8 +580,10 @@ export function createWritingResume({ revealReply, arriveEditor }) {
   };
 }
 
-// A subscription owns its editor's context and lifetime. Each context has one root
-// editor; replies explicitly declare mirrors and land through their thread owner.
+// A subscription owns its editor's context and lifetime. A context's root editors are
+// the boxes it is written in directly, of which the one shown takes the caret back
+// after a revision: one for most, two for the page's own draft (thread/page-comment.js).
+// Replies explicitly declare mirrors and land through their thread owner.
 // A revision carries mechanical editing, never another copy of the draft's words.
 export function captureDraftEditing(input = focused()) {
   const editor = [...draftEditors].find((view) => editorInput(view) === input);

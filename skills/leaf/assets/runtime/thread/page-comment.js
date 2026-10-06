@@ -32,6 +32,7 @@ import {
 } from "../drafts.js";
 import { FLASH_MS, motion } from "../motion.js";
 import { keys } from "../keyboard/scopes.js";
+import { commandShortcut } from "../keyboard/control-keys.js";
 import { keeps } from "../keeps.js";
 import {
   BANNER_CONTROL_RANK,
@@ -99,10 +100,8 @@ export function createPageComment({
   };
   // The control's press is the same `open` as `c`, or a second press putting the card
   // away; opened with the control as its source, the card does not count a press on the
-  // control as one outside it. Behind More, the press takes the menu down first, so the
-  // card is not More's child.
+  // control as one outside it.
   control.addEventListener("click", () => {
-    dismissBannerControls();
     if (cardIsOpen()) card.hidePopover();
     else open();
   });
@@ -114,6 +113,9 @@ export function createPageComment({
   });
 
   function showCard() {
+    // More comes down first, whichever route opens the card, so the card is never More's
+    // child that closing More would take with it.
+    dismissBannerControls();
     if (!cardIsOpen()) {
       // Opened from the control's own place, so Escape hands the user to the control
       // whether a press or a key opened it: the door where the control stands, More's on
@@ -160,6 +162,11 @@ export function createPageComment({
   const stops = [];
   function mount(chromeRoot) {
     chromeRoot.append(card);
+    // `c` reaches this control's press from wherever nothing else is commented on,
+    // which is everywhere the control can be pressed, so its name carries the key.
+    // Not a `control` on the `c` row: that row answers for every destination, and a
+    // control it named would make it wait on this one.
+    control.title = `${NAME} (${commandShortcut("comment.create")})`;
     for (const box of [panelBox, input]) box.value = loadDraft("general") ?? "";
     syncs.push(
       // The message renderer cues the send; revealing its thread only lands it.
@@ -173,8 +180,13 @@ export function createPageComment({
           [{ backgroundColor: "var(--hi-tint)" }, { backgroundColor: "transparent" }],
           FLASH_MS,
         );
+        // A refusal can come long after the send, while delivery retries. The card opens
+        // again on the words only where the user still stands where the send left them;
+        // anywhere else it would take their keys, and the words wait in the draft for
+        // the control, `c` or Resume writing.
         void Promise.resolve(flight).then((accepted) => {
-          if (!accepted && !panelIsOpen()) showCard();
+          const still = [control, document.body, null].includes(document.activeElement);
+          if (!accepted && still && !panelIsOpen()) showCard();
         });
       }),
     );
@@ -188,9 +200,7 @@ export function createPageComment({
             : {
                 where: input,
                 input: () => input,
-                open: () => {
-                  if (!cardIsOpen()) card.showPopover({ source: control });
-                },
+                open: showCard,
               },
       }),
     );

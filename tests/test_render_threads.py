@@ -1754,6 +1754,7 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     box = card.locator("leaf-text")
     toggle = page.locator(".lf-threads-toggle")
     is_open = "node => node.matches(':popover-open')"
+    expect(control).to_have_attribute("title", "Comment on the page (c)")
 
     control.click()
     assert card.evaluate(is_open)
@@ -1847,6 +1848,15 @@ def test_comment_on_the_page_stands_in_more_on_a_phone(browser, serve):
     expect(card.locator("leaf-text")).to_be_focused()
     box = card.bounding_box()
     assert round(box["x"]) == 8 and round(box["width"]) == 390 - 16, box
+
+    # `c` with More open takes More down too, rather than opening the card inside it.
+    page.keyboard.press("Escape")
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    page.keyboard.press("c")
+    assert card.evaluate("node => node.matches(':popover-open')")
+    assert not page.locator(".lf-banner-menu").evaluate(
+        "node => node.matches(':popover-open')"
+    )
 
 
 def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(

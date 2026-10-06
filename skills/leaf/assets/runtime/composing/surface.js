@@ -1258,7 +1258,7 @@ export function createResponseSurface({
       };
     // The banner's Comment on the page goes to the same box: the card it hangs from
     // itself, or Threads' general box while Threads is open
-    // (thread/page-comment-card.js).
+    // (thread/page-comment.js).
     return {
       ...commenting("page"),
       box: pageComment.box(),

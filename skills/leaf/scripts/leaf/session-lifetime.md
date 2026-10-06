@@ -20,8 +20,8 @@ second fold.
 | the turn ending this page nudged its session after | `messaged_ending` in the page's claim record: the turn id and its close stamp, or for an interrupted turn its last opening | browser-event admission, once the harness's nudge lands | a later ending, a close under a new id or an interrupt after a new prompt renewed the same one, differs |
 | wait lease | `waiter.lock`, or `sessions/<session>.wait` for a harness session | the live `leaf wait` process, or Claude Code's background Stop hook watching between turns (`leaf hook --harness claude-code --watch`), holding an exclusive kernel lock on a stable file; file existence does not prove liveness | descriptor close or process exit, including a crash |
 | the harness runs Leaf's hooks for this session | `sessions/<session>.hooks` | every Leaf hook the harness runs for the session | removed by its SessionEnd hook |
-| acknowledgement cursor | `cursor.json` | whichever carrier confirms the complete delivery reached its durable consumer: the reader of a complete Claude Code hook delivery via `leaf delivery ack`, `leaf wait --ack` after a printed one, or the Codex adapter | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
-| pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, the reader confirming a complete Claude Code hook delivery, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
+| acknowledgement cursor | `cursor.json` | whichever carrier confirms the complete delivery reached its durable consumer: a Claude Code or Pi hook once it has published an inline delivery, the session's `leaf delivery read` of a hook's pointer, `leaf wait --ack` after a printed one, or the Codex adapter | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
+| pickup transition | a `pickup` event in `events.jsonl` | an unobserved carrier records `queued` when Codex accepts a batch; whichever carrier puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, a hook's or a pointer read's confirmation of a Claude Code or Pi hook delivery, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
 | page claim: unique acquisition, session generation, display name, harness, page freshness | `~/.local/state/leaf/claims/<page>` | `server start` from an agent harness; references the session lifetime publication | `released` is set, the referenced generation ended or was replaced, or the shared harness lifetime is gone: the pid, the background job's directory, or — for a harness that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab stops its freshness reads and stops renewing |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
 | Codex delivery record | `sessions/<session>.deliveries/` in the state home | the detached adapter or an embedded App Server harness | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted; a record, live or archived, goes at the next scan that finds its pages all gone: its own task's reading, its next archiving, or any Codex adapter's retirement, which scans every task's records and removes a directory it empties |
@@ -195,12 +195,17 @@ response debt and carrier facts feed Stop policy before harness formatting; prom
 pickup is an explicit transition and rechecks that debt remains unsettled.
 Every hook effect checks its captured session generation and revision, including
 no-ID and same-ID prompt renewal. The complete context is published and flushed
-under that epoch guard. Hook stdout cannot prove receipt, since a harness timeout
-discards it. Every hook envelope names `leaf delivery ack`; its reader confirms
-only once every batch is in context. Receipt then revalidates current ownership
-and exact event identities under page→session locks held through pickup and
-cursor commit. Receipt observes an open turn and cannot open or replace one. Input stays pending if
-context is lost, whether the envelope was inline or a large pointer. Provider callbacks
+under that epoch guard. A harness discards the output of a hook it times out,
+and Claude Code cuts a large context to a preview, so the hook confirms an inline
+delivery only after publishing it, and only while it is well inside its timeout
+(`hook_carrier.CONFIRM_WITHIN`); otherwise, and for a delivery too large for the
+context, it hands over a pointer whose `leaf delivery read` in the session is the
+receipt. Every hook envelope's `acknowledge` is null. Receipt then revalidates
+current ownership and exact event identities under page→session locks held
+through pickup and cursor commit, batch by batch, so a page the session no longer
+holds keeps its input pending. Receipt observes an open turn and cannot open or
+replace one. Input stays pending if a hook is stopped before it confirms, or a
+pointer is never read. Provider callbacks
 can only bind an unknown turn or match the known one; an App Server start result
 introduces a new identity only by comparing the epoch captured before its request.
 The subscribed observer captures its epoch before resume and advances that token

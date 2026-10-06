@@ -231,17 +231,19 @@ def claim_records(session_id: str | None = None) -> list:
 
 
 class PageTransaction:
-    """One page transition serialized by its append-only log."""
+    """One page transition serialized by its append-only log. A `deadline`
+    bounds the wait for the log's lock (`flocked`)."""
 
-    def __init__(self, page_dir: Path):
+    def __init__(self, page_dir: Path, *, deadline: float | None = None):
         self.page_dir = page_dir.resolve()
+        self.deadline = deadline
         self._lock = None
         self._log = None
         self._events = None
 
     def __enter__(self):
         self._events = None
-        self._lock = flocked(self.page_dir / EVENTS_FILE)
+        self._lock = flocked(self.page_dir / EVENTS_FILE, deadline=self.deadline)
         self._log = self._lock.__enter__()
         try:
             from leaf.revisioning import finish_publications

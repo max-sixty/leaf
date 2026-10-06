@@ -42,6 +42,7 @@ requires-python = ">=3.10"
 dependencies = [
   "anyio>=4.10",
   "click>=8",
+  "jmespath>=1",
   "jsonschema>=4",
   "markdown-it-py>=4",
   "packaging>=22",

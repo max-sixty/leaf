@@ -4407,6 +4407,80 @@ def test_neighbour_discovery_sees_a_page_made_in_one_clock_tick(page_dir, monkey
     assert (pages / "second").resolve() in presence_model.neighbor_candidates()
 
 
+def test_a_snapshot_holds_declared_data_media_with_the_current_value(
+    page_dir, tmp_path
+):
+    """A replaced feed changes media without rewriting immutable revision inputs."""
+    declare_data_input(page_dir, "images", {"type": "object"}, activate=False)
+    registry_path = page_dir / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    registry["$data"]["contracts"]["test-data"]["resources"] = [
+        "images[].url",
+        "optional",
+    ]
+    registry_path.write_text(json.dumps(registry))
+    publish(page_dir)
+    active = files_model.active_descriptor(page_dir, event_model.read_events(page_dir))
+    artifact = artifact_model.read_artifact(page_dir, active["revision"])
+    before = artifact.manifest
+    first = tmp_path / "first.svg"
+    second = tmp_path / "second.svg"
+    first.write_text('<svg xmlns="http://www.w3.org/2000/svg"><text>First</text></svg>')
+    second.write_text(first.read_text().replace("First", "Second"))
+    urls = [item[1] for item in media_model.cmd_media(page_dir, [first, second])]
+    data_model.cmd_data_set(page_dir, "images", {"images": [{"url": urls[0]}]})
+    data_model.cmd_data_set(
+        page_dir,
+        "images",
+        {
+            "images": [{"url": urls[1]}, {"url": "https://outside.invalid/image.png"}],
+            "prose": "/media/missing.png",
+        },
+    )
+    with pytest.raises(data_model.DataError, match="canonical /media/"):
+        data_model.cmd_data_set(
+            page_dir, "images", {"images": [{"url": "/media/../secret"}]}
+        )
+    with pytest.raises(data_model.DataError, match="must select URL strings"):
+        data_model.cmd_data_set(page_dir, "images", {"images": [{"url": 123}]})
+    snapshot = page_snapshot_model.capture_page_snapshot(
+        page_dir,
+        artifact_model.read_revision(page_dir, active["revision"]).document,
+        active,
+    )
+    assert set(snapshot.data_resources) == {urls[1]}
+    assert snapshot.data_resources[urls[1]].data == second.read_bytes()
+    assert artifact_model.read_artifact(page_dir, active["revision"]).manifest == before
+    assert urls[1] not in artifact.resources
+    # The preview serves the bytes captured with its data, even after a later write.
+    (page_dir / urls[1].lstrip("/")).write_text("Changed after capture")
+    data_model.cmd_data_set(page_dir, "images", {"images": [{"url": urls[0]}]})
+    with hosting_model.TemporaryPageServer(
+        page_dir, token=TOKEN, page_options={"page_snapshot": snapshot}
+    ) as preview:
+        assert fetch(preview.origin + urls[1])[1] == second.read_bytes()
+        state = json.loads(fetch(preview.origin + "/api/state")[1])
+        assert (
+            state["data"]["sources"]["images"]["value"]["images"][0]["url"] == urls[1]
+        )
+
+    # Selection unions URLs, so order and duplicate selectors preserve meaning.
+    registry["$data"]["contracts"]["test-data"]["resources"] = [
+        "optional",
+        "images[].url",
+        "optional",
+    ]
+    registry_path.write_text(json.dumps(registry))
+    reordered = revisioning_model.activate_source(page_dir)
+    assert reordered.error is None and reordered.created
+
+    # A selector change cannot silently discard media from an already bound source.
+    registry["$data"]["contracts"]["test-data"]["resources"] = ["other[].url"]
+    registry_path.write_text(json.dumps(registry))
+    refused = revisioning_model.activate_source(page_dir)
+    assert "record declaration, or resources change" in refused.error
+
+
 def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):
     from leaf.validation.source import check_source
 

@@ -40,7 +40,7 @@ import type { EngineInterface, Register } from 'claude-code'
 // hands over (`CONFIRM_WITHIN` in `hook_carrier.py`).
 const HOOK_TIMEOUT_MS = 20_000
 
-type Payload = { hook_event_name: string; session_id: string; ended_at?: string }
+type Payload = { hook_event_name: string; session_id: string; ended_at?: number }
 type Watch = {
   stop: () => Promise<unknown>
   done: Promise<string>
@@ -91,8 +91,9 @@ async function stopWatch() {
  * turn as the Stop hook's ending. Without Claude Code's process the module keeps
  * no watch, and leaves the turn's ending to the registrations beneath it. */
 async function ensureWatch($: EngineInterface, session: string, interrupted: boolean) {
-  // The watch closes the turn after this returns, so it states when it ended.
-  const ended = new Date().toISOString()
+  // The watch closes the turn after this returns, so it states when it ended,
+  // in POSIX seconds.
+  const ended = Date.now() / 1000
   if (!claudePid || (watch && !watch.interrupted && !interrupted)) return
   await stopWatch()
   // Another ending may have started one while the old one exited.

@@ -12,8 +12,9 @@ leave receipt to the agent's actual delivery read.
 The payload names the session and turn: hook subprocesses need not have the tool
 process's environment. Stop or Interrupt closes that observed turn, including a
 turn not yet claimed by any page; a newer prompt protects its own epoch. A payload
-that names no turn can state when the turn ended (`ended_at`), as a carrier's
-Interrupt does, and then leaves a turn opened or renewed since open.
+that names no turn can state when the turn ended (`ended_at`, in POSIX seconds),
+as a carrier's Interrupt does, and then leaves a turn opened or renewed since
+open.
 
 Hooks with no retained claim avoid page reading. Page-owning prompt and Stop hooks
 reach `hook_carrier`; Codex's tool hook reaches the delivery records in `codex`;

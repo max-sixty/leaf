@@ -399,11 +399,11 @@ def close_session_turn(
     turn_id: str | None = None,
     *,
     expected: dict | None | object = ...,
-    ended_at: str | None = None,
+    ended_at: float | None = None,
 ) -> bool:
-    """Close the session's turn. `ended_at` is when the harness saw the turn end,
-    for a close that reaches here later: a turn a prompt opened or renewed since
-    then is a newer one, which an unnamed close must not end."""
+    """Close the session's turn. `ended_at` is when the harness saw the turn end, in
+    POSIX seconds, for a close that reaches here later: a turn a prompt opened or
+    renewed since then is a newer one, which an unnamed close must not end."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if (
@@ -413,8 +413,7 @@ def close_session_turn(
             or (
                 ended_at is not None
                 and record["turn_opened"] is not None
-                and datetime.fromisoformat(record["turn_opened"])
-                > datetime.fromisoformat(ended_at)
+                and datetime.fromisoformat(record["turn_opened"]).timestamp() > ended_at
             )
         ):
             return False

@@ -9118,16 +9118,14 @@ def test_a_late_interrupt_leaves_a_turn_opened_after_it_open(claimed):
     the same turn. The Interrupt payload states when the turn ended, and a turn
     opened or renewed since then is not closed by it."""
     cleanup_model.prompt_turn("s1")
-    ended = cleanup_model.now_iso()
+    ended = time.time()
     time.sleep(0.01)
     cleanup_model.prompt_turn("s1")
     interrupt = {"hook_event_name": "Interrupt", "session_id": "s1"}
     hooks_model.cmd_hook("claude-code", {**interrupt, "ended_at": ended})
     assert cleanup_model.session_record("s1")["turn_closed"] is None
 
-    hooks_model.cmd_hook(
-        "claude-code", {**interrupt, "ended_at": cleanup_model.now_iso()}
-    )
+    hooks_model.cmd_hook("claude-code", {**interrupt, "ended_at": time.time()})
     assert cleanup_model.session_record("s1")["turn_closed"] is not None
 
 

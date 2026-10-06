@@ -339,9 +339,12 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
     require(cc.sleeping(), "woken: the command ended before Escape")
     cc.escape()
     escaped = after_escape("woken")
-    first = pickups()[:1]
-    escaped += ", the comment was first picked up in " + (
-        "the stopped turn" if first and first[0]["turn"] == turn else "a later turn"
+    # Nothing new has arrived, so no turn follows the Escape: the comment the
+    # stopped turn was handed waits for the next one.
+    require(
+        page_claim(page)["turn"] == turn
+        and all(event["turn"] == turn for event in pickups()),
+        "woken: a turn started after Escape with no new input",
     )
     before = nudged()
     post(page, "after-wake")

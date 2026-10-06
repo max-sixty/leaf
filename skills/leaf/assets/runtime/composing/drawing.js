@@ -60,8 +60,8 @@ const MIN_DISTANCE = 2;
 const MIN_GESTURE = 4;
 const PRESS_EVENTS = ["mousedown", "mouseup", "click", "dblclick"];
 const UNDO_STROKE = ["z", "Mod+z"];
-// How much further than the nearest target a smaller one may stand and still be the
-// one a stroke in empty space was drawn by.
+// How much further than the nearest target one it holds may stand and still be the one
+// a stroke in empty space was drawn by.
 const NEAR_ENOUGH = 24;
 
 const rounded = (value) => Number(value.toFixed(4));
@@ -202,26 +202,34 @@ export function createDrawingController({
     repaint();
   }
 
-  // The target on screen nearest a point outside every target: level with it in the
-  // margin before anything above or below it, then the nearest across. A container is
-  // never further than what it holds, so among the targets about as near as the nearest
-  // on each axis, the smallest is the particular thing the stroke was drawn by.
+  // The target on screen nearest a point outside every target. A container is never
+  // further than what it holds, so among the targets about as near as the nearest, one
+  // holding another gives way to it, and the nearest of the rest is the particular thing
+  // the stroke was drawn by.
   function targetNearest({ x, y }) {
-    let near = visibleTargets()
+    const near = visibleTargets()
       .filter(({ rect }) => rect?.width && rect?.height)
       .map((target) => ({
         target,
-        area: target.rect.width * target.rect.height,
-        down: Math.max(target.rect.top - y, 0, y - target.rect.bottom),
-        across: Math.max(target.rect.left - x, 0, x - target.rect.right),
+        distance: Math.hypot(
+          Math.max(target.rect.left - x, 0, x - target.rect.right),
+          Math.max(target.rect.top - y, 0, y - target.rect.bottom),
+        ),
       }));
-    for (const axis of ["down", "across"]) {
-      const nearest = Math.min(...near.map((candidate) => candidate[axis]));
-      // Level is exact: a block a line above is not level with a stroke beside the next.
-      const slack = nearest ? NEAR_ENOUGH : 0;
-      near = near.filter((candidate) => candidate[axis] <= nearest + slack);
-    }
-    return near.sort((a, b) => a.area - b.area)[0]?.target ?? null;
+    const nearest = Math.min(...near.map(({ distance }) => distance));
+    const close = near.filter(({ distance }) => distance <= nearest + NEAR_ENOUGH);
+    return (
+      close
+        .filter(
+          ({ target }) =>
+            !close.some(
+              (other) =>
+                other.target.element !== target.element &&
+                target.element.contains(other.target.element),
+            ),
+        )
+        .sort((a, b) => a.distance - b.distance)[0]?.target ?? null
+    );
   }
 
   function targetAtPointer() {
@@ -280,20 +288,13 @@ export function createDrawingController({
   // The drawing's geometry, and the size of the box its offsets were drawn in, which is
   // what places a mark on a picture that has no words. The window is read with the box,
   // so the two describe the same layout: the one the agent's picture of the comment lays
-  // the page out in again. `at` is where that box stood in the anchor's section, which
-  // outlives the element a data revision replaces, and which the draft keeps for itself.
-  function drawingOf(strokes, box, anchor) {
+  // the page out in again.
+  function drawingOf(strokes, box) {
     const { clientWidth, clientHeight } = document.documentElement;
-    const section = sectionOf(anchor);
-    const frame = section && shownBox(section);
     return {
       format: DRAWING_FORMAT,
       strokes,
       box: [rounded(box.width), rounded(box.height)],
-      ...(frame?.width &&
-        frame?.height && {
-          at: [rounded(box.left - frame.left), rounded(box.top - frame.top)],
-        }),
       viewport: [clientWidth, clientHeight],
       scheme: shownScheme(),
     };
@@ -301,9 +302,18 @@ export function createDrawingController({
 
   // What the drawing stands over is read as each stroke lifts or is taken back, over
   // every stroke it then holds: the reading walks the page's text, and the geometry above
-  // is rebuilt on every frame of a stroke.
+  // is rebuilt on every frame of a stroke. So is `at`, where the box stands in the
+  // anchor's section, which outlives the element a data revision replaces.
   function captured(strokes, box, anchor) {
-    const drawing = drawingOf(strokes, box, anchor);
+    const section = sectionOf(anchor);
+    const frame = section && shownBox(section);
+    const drawing = {
+      ...drawingOf(strokes, box),
+      ...(frame?.width &&
+        frame?.height && {
+          at: [rounded(box.left - frame.left), rounded(box.top - frame.top)],
+        }),
+    };
     const said = wordsUnder(
       drawing.strokes.flat().map(([x, y]) => [box.left + x, box.top + y]),
     );
@@ -441,7 +451,8 @@ export function createDrawingController({
   // while its ink stands on the page, or else the drawing an open composer carries. A
   // composer's own undo takes from its own draft.
   function undoTarget() {
-    if (lastDrawn && heldDrawing(lastDrawn.anchor)) return lastDrawn;
+    const held = lastDrawn && heldDrawing(lastDrawn.anchor);
+    if (held && inkFrame(lastDrawn.anchor, held)) return lastDrawn;
     const open = heldDrawings().find((held) => held.open);
     return open ? { anchor: open.anchor } : null;
   }
@@ -516,11 +527,7 @@ export function createDrawingController({
   function activeDrawing() {
     if (!stroke || stroke.points.length < 2) return null;
     return {
-      drawing: drawingOf(
-        strokesWith(heldDrawing(stroke.anchor), stroke),
-        stroke.box,
-        stroke.anchor,
-      ),
+      drawing: drawingOf(strokesWith(heldDrawing(stroke.anchor), stroke), stroke.box),
       target: stroke.target,
       className: "lf-drawing-active",
     };
@@ -543,25 +550,30 @@ export function createDrawingController({
     return detached.get(held);
   }
 
-  // Every unsent drawing but the one `drawing` is adding to, which that stroke draws. A
-  // drawing whose element has gone stands parked in its section, where the element stood.
+  // Where a draft's ink stands: on its element, or parked in its section where the
+  // element stood once a revision took the element away; null where the section has gone
+  // too, which leaves the ink nowhere to be drawn and Draw mode's undo nothing to aim at.
+  function inkFrame(anchor, held) {
+    const target = targetOf(anchor);
+    if (target) return { target, drawing: held, detached: false };
+    const section = held.at && sectionOf(anchor);
+    return section
+      ? { target: section, drawing: inSection(held), detached: true }
+      : null;
+  }
+
+  // Every unsent drawing but the one `drawing` is adding to, which that stroke draws.
   function draftDrawings(drawing) {
     const drawings = [];
     for (const { anchor, drawing: held, open } of heldDrawings()) {
       if (drawing && sameDraft(anchor, drawing.anchor)) continue;
-      const target = targetOf(anchor);
-      const section = !target && held.at && sectionOf(anchor);
-      if (target)
+      const frame = inkFrame(anchor, held);
+      if (frame)
         drawings.push({
-          drawing: held,
-          target,
-          className: open ? "lf-drawing-pending" : "lf-drawing-parked",
-        });
-      else if (section)
-        drawings.push({
-          drawing: inSection(held),
-          target: section,
-          className: "lf-drawing-parked",
+          drawing: frame.drawing,
+          target: frame.target,
+          className:
+            open && !frame.detached ? "lf-drawing-pending" : "lf-drawing-parked",
         });
     }
     return drawings;

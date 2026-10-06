@@ -37,6 +37,7 @@ from render_cases_interaction import (
     ASKS_PAGE,
     CHANGE_SHAPES_PAGE,
     PANEL_PAGE,
+    panel_comment,
 )
 from render_cases_layout import (
     AUTHORED_LINES_PAGE,
@@ -3942,6 +3943,68 @@ def test_a_table_too_wide_to_wrap_scrolls_inside_the_column(browser, serve):
     assert root_overflow(page) == 0
     page.close()
     assert render_gate_model.render_version(browser, url).failures == []
+
+
+def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
+    browser, serve
+):
+    """macOS draws an overlay scrollbar over a scroller's own block end and widens it to
+    a 15px track under the pointer, so a thread's code block, 8px of padding under its
+    last line, lost half that line to the bar the moment the user reached for it. A code
+    block or table that scrolls sideways keeps 15px clear under its last line, and the
+    room costs it none of its width: a block child dropped the code block's inline-end
+    padding from what it scrolls, enough to stop a block that overflowed by less than
+    that and loop. One that fits keeps its padding, with no bar to make room for."""
+    url = serve(WIDE_TABLE_PAGE)
+    wide = "word " * 60
+    panel_comment(
+        serve.page_dir,
+        f"A wide block:\n\n```\n{wide}\n{wide}\n```\n\nAnd one that fits:\n\n"
+        "```\nshort\n```",
+        {"section": "p"},
+        author="agent",
+    )
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    measured = page.evaluate(
+        """() => {
+        // From the last line of words to the inside of the box's lower border.
+        const clear = (box) => {
+            const walk = document.createTreeWalker(box, NodeFilter.SHOW_TEXT);
+            let last = -Infinity;
+            for (let node; (node = walk.nextNode());) {
+                if (!node.data.trim()) continue;
+                const range = document.createRange();
+                range.selectNodeContents(node);
+                for (const r of range.getClientRects()) last = Math.max(last, r.bottom);
+            }
+            const s = getComputedStyle(box);
+            return Math.round(box.getBoundingClientRect().bottom
+                - parseFloat(s.borderBottomWidth) - last);
+        };
+        const read = (box) => ({ scrolls: box.scrollWidth > box.clientWidth,
+                                 clear: clear(box) });
+        const [wide, fits] = document.querySelectorAll('.lf-threads .lf-msg-body pre');
+        const reading = { table: read(document.querySelector('#sessions')),
+                          wide: read(wide), fits: read(fits),
+                          fitsPad: parseFloat(getComputedStyle(fits).paddingBottom),
+                          width: wide.scrollWidth };
+        const bare = document.createElement('style');
+        bare.textContent = 'pre::after { display: none !important }';
+        document.head.append(bare);
+        reading.bareWidth = wide.scrollWidth;
+        bare.remove();
+        return reading;
+    }"""
+    )
+    for name in ("table", "wide"):
+        assert measured[name]["scrolls"], f"the {name} fits, so it proves nothing"
+        assert measured[name]["clear"] >= 15, measured
+    assert not measured["fits"]["scrolls"], measured
+    assert measured["width"] == measured["bareWidth"], measured
+    assert measured["fits"]["clear"] <= measured["fitsPad"] + 3, measured
+    page.close()
 
 
 FRAMED_TABLES_PAGE = leaf_page(

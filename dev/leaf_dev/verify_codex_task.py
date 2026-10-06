@@ -23,7 +23,8 @@ The journey, in order:
 - `restart`: with the adapter killed, the user's next turn ends with the agent having
   started it again, and a comment posted afterwards is answered.
 
-After each step every comment posted so far has exactly one reply and a pickup, and
+After each step every comment posted so far has exactly one reply and a pickup, its
+thread was named by the page server's own title request (`thread_titles`), and
 the page's claim names the task's last turn, closed. The claim's turn is App Server's
 id for that turn, so the prompt hook and the adapter agree on one identity, and a
 turn that ended stays closed. During the user's own turn the claim names that turn.
@@ -49,11 +50,12 @@ from pathlib import Path
 
 import click
 import psutil
-from leaf.codex_adapter import private_app_server
+from leaf.codex import private_app_server
 from leaf.event_log import read_events
-from leaf.leases import adapter_is_live, lock_is_held
+from leaf.leases import adapter_is_live, lock_is_held, titles_log
 from leaf.server import running_server
 from leaf.service import page_claim
+from leaf.thread_titles import TIMEOUT
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -94,10 +96,39 @@ def adapter_processes(codex: str) -> list[psutil.Process]:
     ]
 
 
+def page_server_title(session: str, thread: str) -> dict | None:
+    """The page server's record of the title it generated for `thread`, waiting as
+    long as the request may take, or None where it made none."""
+    log = titles_log(session)
+    deadline = time.monotonic() + TIMEOUT
+    while True:
+        records = log.read_text().splitlines() if log.exists() else []
+        for line in records:
+            record = json.loads(line)
+            if (record["event"], record["thread"]) == (
+                "thread_title_generated",
+                thread,
+            ):
+                return record
+        if time.monotonic() > deadline:
+            return None
+        time.sleep(0.5)
+
+
 def check(page: Path, task: Task, posted: list[str]) -> None:
-    """What holds between steps (`settled`), and the claim's turn being the task's
-    last."""
+    """What holds between steps (`settled`), each comment's thread titled by the page
+    server, and the claim's turn being the task's last."""
     claim = settled(page, task.thread, posted)
+    if posted:
+        record = page_server_title(task.thread, comment_id(page, posted[-1]))
+        require(
+            record is not None,
+            f"the page server did not title comment `{posted[-1]}`'s thread",
+        )
+        click.echo(
+            f"  titled in {record['durationMs']} ms, "
+            f"{record['inputTokens']} input tokens"
+        )
     require(
         claim["turn"] == task.started[-1],
         f"the claim names turn {claim['turn']}, not the task's last turn "

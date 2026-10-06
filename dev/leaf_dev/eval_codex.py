@@ -15,7 +15,7 @@ import time
 from collections import deque
 from pathlib import Path
 
-from leaf.codex_adapter import private_app_server
+from leaf.codex import private_app_server
 from websockets.exceptions import ConnectionClosed
 
 from leaf_dev.codex_task import Task, install_plugin

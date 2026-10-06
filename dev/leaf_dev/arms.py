@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import Self
 
 import click
-from leaf.codex_adapter import APP_SERVER_ENV
+from leaf.codex import APP_SERVER_ENV
 from leaf.harness import IDENTITY_VARIABLES
 
 from leaf_dev import ROOT

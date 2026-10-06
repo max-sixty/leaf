@@ -8,16 +8,23 @@ import { runtime, runtimeResource } from "./context.js";
 import {
   BANNER_CONTROL_RANK,
   bannerActions,
+  markBannerControl,
   registerBannerControl,
   showBannerControl,
   showNews,
 } from "./banner-toolbar.js";
+import { iconElement } from "./icons.js";
 import { latestChip, versionBtn } from "./version-picker.js";
 import { othersBtn, queueBtn } from "./drawers.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { repaint } from "./repaint.js";
 import { sizeObserver } from "./rendering.js";
-import { announce, notice } from "./notifications.js";
+import {
+  announce,
+  notice,
+  noticeReading,
+  registerNoticePresentation,
+} from "./notifications.js";
 import { watchProjection } from "./projection-watch.js";
 import { createBannerApprovalFace } from "./banner-approval.js";
 import { createBannerStatusView } from "./banner-status-view.js";
@@ -28,23 +35,30 @@ export const banner = el("header", "lf-ui lf-banner");
 banner.id = "lf-banner";
 declareBanner(banner);
 const bannerStatus = createBannerStatusView(repaint);
+registerNoticePresentation(() => bannerStatus.presentNotice(noticeReading()));
 export const dot = bannerStatus.dot;
 // The queue counts, which open the Queue panel they count (drawers.js).
 export const queueCounts = bannerStatus.queues;
 
-export const toggleBtn = el(
-  "button",
-  "lf-btn lf-auxiliary-toggle lf-threads-toggle",
-  "Threads",
+// Threads reads "Threads: 3" on a desk and, on a phone's one row, a thread icon with its
+// count (chrome.css); the accessible name is the same words on both.
+export const toggleBtn = el("button", "lf-btn lf-auxiliary-toggle lf-threads-toggle");
+const threadsCount = el("span", "lf-threads-count");
+const threadsColon = el("span", "lf-threads-word", ": ");
+toggleBtn.append(
+  iconElement("comment", "lf-threads-icon"),
+  el("span", "lf-threads-word", "Threads"),
+  threadsColon,
+  threadsCount,
 );
 toggleBtn.title = "Show or hide the thread panel";
 toggleBtn.setAttribute("aria-expanded", "false");
 let openThreads = null;
 let unreadThreads = 0;
 function paintThreadCounts() {
-  const label = openThreads === null ? "Threads" : `Threads: ${openThreads}`;
   const accessible = openThreads === null ? "Threads" : `Open threads: ${openThreads}`;
-  keepsText(toggleBtn, label);
+  keeps(threadsColon, "hidden", openThreads === null ? "" : null);
+  keepsText(threadsCount, openThreads === null ? "" : String(openThreads));
   toggleBtn.toggleAttribute("data-unread-threads", unreadThreads > 0);
   const unread = unreadThreads
     ? `${unreadThreads} unread ${unreadThreads === 1 ? "thread" : "threads"}`
@@ -84,7 +98,7 @@ registerBannerControl({
   control: latestChip,
   rank: BANNER_CONTROL_RANK.latest,
   conditional: true,
-  urgent: true,
+  urgent: "new",
 });
 registerBannerControl({
   key: "queue",
@@ -101,7 +115,7 @@ registerBannerControl({
   key: "approval",
   control: approveBtn,
   rank: BANNER_CONTROL_RANK.approval,
-  seat: "row",
+  seat: { desk: "row", phone: "menu" },
   present: false,
 });
 registerBannerControl({
@@ -245,7 +259,8 @@ let saidActionableWork;
 // count, and stand apart from the sentence so the agent's words changing never carries
 // them. On one row they end the status's room, which gives up its words to the ellipsis
 // first; where the banner takes two rows, the sentence has the first to itself and the
-// counts lead the second, ahead of the controls (chrome.css). Their box is reserved for
+// counts lead the second, ahead of the controls, and a phone's one row leaves them to the
+// disclosure (chrome.css). Their box is reserved for
 // the counts they usually reach, as the Threads control is for "Threads: 999", and only
 // grows, so a count changing moves none of their words. They are read from the
 // application's publication rather than the state answer: a reply the user sends leaves
@@ -715,14 +730,16 @@ export function mountBanner({ approveVersion, paintApproval }) {
   for (const control of [queueBtn, othersBtn]) showNews(control, false);
   banner.append(bannerStatus, bannerStatus.queues, bannerActions);
   // On two rows the counts stand on the second line only where the run leaves them
-  // room whole, else on a third the banner does not draw (chrome.css). A press there is
-  // a stop nobody can see, so undrawn counts are inert; the Queue control in More and
-  // the status's disclosure still reach what they say.
+  // room whole, else on a third the banner does not draw, and a phone's one row leaves
+  // them out (chrome.css). A press there is a stop nobody can see, so undrawn counts are
+  // inert; the Queue control in More and the status's disclosure still reach what they
+  // say.
   const counts = bannerStatus.queues;
   const seatCounts = sizeObserver(() => {
     const drawn =
+      counts.checkVisibility() &&
       counts.getBoundingClientRect().bottom <=
-      banner.getBoundingClientRect().bottom + 0.5;
+        banner.getBoundingClientRect().bottom + 0.5;
     keeps(counts, "inert", drawn ? null : "");
   });
   for (const box of [banner, bannerActions, counts]) seatCounts.observe(box);
@@ -805,5 +822,9 @@ export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals)
       title: reason ?? "Approve this work; the page stays open for follow-up",
     }),
   );
+  // Approval is open while a press would approve this version, and behind More, on a
+  // phone, that puts More's dot up. A refused press does not: the dot comes up when the
+  // last Ask holding approval is answered, which is when the user can act on it.
+  markBannerControl(approveBtn, reason === null ? "approval open" : null);
   repaint();
 }

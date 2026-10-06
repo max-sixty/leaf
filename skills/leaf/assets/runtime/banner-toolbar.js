@@ -7,10 +7,12 @@
  * native controls are retained islands: their own owners keep commands, words, and
  * local state while this owner retains the same nodes in its two Lit lists.
  *
- * Three seats partition the run, and geometry never changes the partition:
+ * Three seats partition the run, and measured geometry never changes the partition:
  *
- * - `row`: Approval and Threads, the page's standing reading loop.
- * - `menu`: every secondary action, in one stable seat behind More.
+ * - `row`: Threads, and on a desk Approval, the page's standing reading loop.
+ * - `menu`: every secondary action, in one stable seat behind More. On a phone
+ *   Approval joins them, so the banner keeps one row: the status in words, Threads and
+ *   More. More wears its news dot while the approval behind it is still open.
  * - `gesture`: the next step of something the user is doing right now, such as
  *   commenting on the words a touch just selected, or a finger's way out of the mode it
  *   stands in. It exists only while that gesture or mode holds it, and it is the one
@@ -21,6 +23,10 @@
  *   steps stand at a time, and the higher rank is the nearer gesture: words selected
  *   inside a mode or a search are what the user is doing now, and the mode's steps
  *   return once the selection goes.
+ *
+ * A contribution whose seat differs by face names one per face (`{ desk, phone }`). The
+ * face is the window's, the same query that gives the banner its phone face in theme.css
+ * and chrome.css, so the partition changes only when the window crosses that width.
  */
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
@@ -56,11 +62,18 @@ overflowMenu.setAttribute("popover", "auto");
 overflowMenu.setAttribute("role", "group");
 overflowMenu.setAttribute("aria-label", "More page controls");
 
+const SEATS = ["row", "menu", "gesture"];
+// The banner's phone face; theme.css and chrome.css state the same query.
+const phone = matchMedia("screen and (width <= 480px)");
+
 const controls = new Map();
 let sequence = 0;
 let row = EMPTY;
 let menu = EMPTY;
 
+const perFace = (entry) => typeof entry.seat !== "string";
+const seatOf = (entry) =>
+  perFace(entry) ? entry.seat[phone.matches ? "phone" : "desk"] : entry.seat;
 const ordered = () =>
   [...controls.values()].sort(
     (left, right) => left.rank - right.rank || left.sequence - right.sequence,
@@ -71,20 +84,25 @@ const onOffer = (entry) => entry.present && (!entry.conditional || entry.offered
 const nearestGesture = () =>
   Math.max(
     ...row
-      .filter((entry) => entry.seat === "gesture" && onOffer(entry))
+      .filter((entry) => seatOf(entry) === "gesture" && onOffer(entry))
       .map((e) => e.rank),
   );
 const visible = (entry) => {
   if (!onOffer(entry)) return false;
-  if (entry.seat === "row") return nearestGesture() === -Infinity;
-  return entry.seat !== "gesture" || entry.rank === nearestGesture();
+  if (seatOf(entry) === "row") return nearestGesture() === -Infinity;
+  return seatOf(entry) !== "gesture" || entry.rank === nearestGesture();
 };
 
 // The door is part of the row's template, so Lit writes its state only where it moved.
+// Its name says what its dot stands for: each urgent control behind it names its news.
 function rowTemplate() {
   const open = overflowMenu.matches(":popover-open");
-  const news = menu.some((entry) => entry.urgent && visible(entry));
-  const name = news ? "More page controls, new" : "More page controls";
+  const news = [
+    ...new Set(
+      menu.filter((entry) => entry.urgent && visible(entry)).map((e) => e.urgent),
+    ),
+  ];
+  const name = ["More page controls", ...news].join(", ");
   // Keep the native invoker standing until its open popover has closed. A semantic
   // update can retire the last visible item while the user is inside it; closing then
   // lets paint remove the empty door.
@@ -100,7 +118,7 @@ function rowTemplate() {
       aria-expanded=${String(open)}
       aria-label=${name}
       title=${name}
-      ?data-lf-news=${news}
+      ?data-lf-news=${news.length > 0}
       ?hidden=${!open && !menu.some(visible)}
     >
       ⋯
@@ -191,11 +209,27 @@ overflowMenu.addEventListener("toggle", (event) => {
   repaint();
 });
 
+// A reading-loop control a phone moves behind More leads it, so the row More's dot
+// stands for is the first one the door opens to.
 function seatControls() {
   const run = ordered();
-  row = run.filter((entry) => entry.seat !== "menu");
-  menu = run.filter((entry) => entry.seat === "menu");
+  row = run.filter((entry) => seatOf(entry) !== "menu");
+  const behind = run.filter((entry) => seatOf(entry) === "menu");
+  menu = [...behind.filter(perFace), ...behind.filter((entry) => !perFace(entry))];
 }
+
+// Crossing the phone width moves a per-face control between the row and More. One
+// focused there goes on standing where it went: on the row it is still focused, and
+// behind More focus moves to the door that reaches it.
+phone.addEventListener("change", () => {
+  const held = [...controls.values()].find(
+    (entry) => perFace(entry) && document.activeElement === entry.focusTarget,
+  );
+  seatControls();
+  paint();
+  if (held && menu.includes(held) && !overflowMenu.matches(":popover-open"))
+    overflowBtn.focus({ preventScroll: true });
+});
 
 function replaceEntry(prior, next) {
   controls.set(next.control, next);
@@ -213,16 +247,17 @@ export function registerBannerControl({
   conditional = false,
   present = true,
   offered = !conditional,
-  urgent = false,
+  urgent = null,
 }) {
+  const seats = typeof seat === "string" ? [seat] : [seat?.desk, seat?.phone];
   if (
     !key ||
     !(control instanceof Element) ||
     !Number.isFinite(rank) ||
-    !["row", "menu", "gesture"].includes(seat)
+    !seats.every((each) => SEATS.includes(each))
   )
     throw new TypeError(
-      "A banner control needs a key, native control, numeric rank, and row, menu, or gesture seat",
+      "A banner control needs a key, native control, numeric rank, and row, menu, or gesture seat, or one for each of desk and phone",
     );
   const byKey = [...controls.values()].find((entry) => entry.key === key);
   if (byKey && byKey.control !== control)
@@ -241,12 +276,24 @@ export function registerBannerControl({
       conditional: Boolean(conditional),
       present: Boolean(present),
       offered: Boolean(offered),
-      urgent: Boolean(urgent),
+      urgent,
     }),
   );
   seatControls();
   paint();
   return control;
+}
+
+/**
+ * Say whether a control's news is urgent, which puts More's dot up while the control
+ * stands behind it. `urgent` is the words More's name adds for it, or null.
+ */
+export function markBannerControl(control, urgent) {
+  const prior = controls.get(control);
+  if (!prior) throw new TypeError("Banner control is not registered");
+  if (prior.urgent === urgent) return;
+  replaceEntry(prior, Object.freeze({ ...prior, urgent }));
+  paint();
 }
 
 /** Show or hide one retained contribution without changing its registered identity. */
@@ -276,7 +323,7 @@ export function showBannerControls(changes) {
   if (!moved.length) return;
   const loopFocus = row.find(
     (candidate) =>
-      candidate.seat !== "menu" && document.activeElement === candidate.focusTarget,
+      seatOf(candidate) !== "menu" && document.activeElement === candidate.focusTarget,
   );
   for (const { prior, entry } of moved) replaceEntry(prior, entry);
   paint();

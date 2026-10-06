@@ -133,11 +133,6 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Give the phone banner one row.** Decided, not built
-  ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
-  short with an ellipsis, with a passing notice taking that slot for a few seconds;
-  then Threads as an icon with its count; then More. Approve moves into More, which
-  wears a dot while approval is open.
 - **Recompose `alert-review` as a screen.** It is the worked workspace example, and at
   1200×900 `page check --render` advises that its detail pane runs 6890px past its
   region (nine Asks stacked in one scroller) and its queue 104px. A page a reader moves

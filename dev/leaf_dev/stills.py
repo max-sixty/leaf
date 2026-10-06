@@ -340,6 +340,12 @@ def element_thread(page: Page) -> None:
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
 
 
+def more_menu(page: Page) -> None:
+    """The banner's More, opened: on a phone it leads with Approval."""
+    page.locator(".lf-banner-more").click()
+    page.locator(".lf-banner-menu").wait_for()
+
+
 def versions_menu(page: Page) -> None:
     """The Versions menu, opened from More: a row for each version, with its note."""
     page.locator(".lf-banner-more").click()
@@ -403,6 +409,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         pane_focused,
         aim_cut_by_pane,
         element_thread,
+        more_menu,
         versions_menu,
         go_to,
         widget_inline_hints,
@@ -477,6 +484,10 @@ STATES = (
     State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
+    State("plan-touch", "review-a-plan", at_rest, viewport=(390, 844), touch=True),
+    State(
+        "plan-more-touch", "review-a-plan", more_menu, viewport=(390, 844), touch=True
+    ),
     State(
         "plan-versions-touch",
         "review-a-plan",

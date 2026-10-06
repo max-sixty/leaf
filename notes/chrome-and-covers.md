@@ -32,10 +32,6 @@ instructions above.
 
 ## Still open
 
-- **The phone banner,** decided and not built: one 53px row holding the status in
-  words, cut short with an ellipsis, with a passing notice taking that slot for a few
-  seconds; then Threads as an icon with its count; then More. Approve moves into More,
-  which wears a dot while approval is open.
 - **The desktop bottom bar,** undecided. Removing it deletes `--lf-bottom-bar-h` and
   its readers (`theme.css`, whose `--lf-view-height` the contents map reads,
   `chrome.css`, `shortcut-bar.js`), `declareBottomBar`, and the bottom edge in

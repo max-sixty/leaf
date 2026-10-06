@@ -127,12 +127,12 @@
       <lf-tabs id="how">
         <lf-tab id="loop" label="Loop">
           <section id="wake">
-            <h2>Your feedback goes back to the agent</h2>
+            <h2>The loop</h2>
             <p id="loop-lede">
               Leaf serves the agent's page beside an append-only event log, and your
               browser combines the two into the current document, your choices, and
-              every thread. What you do there goes back to the agent session that owns
-              the page.
+              every thread. Your comments, picks, and drags go back to the agent session
+              that owns the page.
             </p>
 
             <lf-diagram
@@ -148,24 +148,146 @@ sequenceDiagram
   Agent-&gt;&gt;Leaf: authored files · commands
   Leaf-&gt;&gt;Browser: page + current state
   Browser-&gt;&gt;Leaf: comments · drags · picks
-  Leaf-&gt;&gt;Agent: the harness's carrier brings the event batch
+  Leaf-&gt;&gt;Agent: the harness delivers the event batch
 </pre>
             </lf-diagram>
           </section>
 
-          <section id="you">
-            <h2>What you see after you send</h2>
-            <p id="you-send">
-              Select a passage and comment on it, pick an option, or drag a card. The
-              page shows your move at once, and a label beside it follows the agent's
-              side: <em>Sent</em> once the server has it, <em>Picked up</em> once the
-              agent's turn has taken it, and <em>Working</em> once the agent names the
-              work your move asks for. The label clears when a reply or revision answers
-              the move. A move still at Sent after two minutes reads
-              <em>Waiting for pickup</em>, because nothing has taken it.
-              <a href="#updates-observed-heading">Updates</a> lists every label, and
-              <a href="#stages">what proves each stage</a> says what moves it under each
-              harness.
+          <section id="stages">
+            <h2>Stages of a move</h2>
+            <p id="stages-lede">
+              Select a passage and comment on it, pick an option, or drag a card, and
+              the page shows your move at once. A label beside the move then shows how
+              far the agent has got with it, and clears when a reply or a revision
+              answers it. Leaf changes the label only on evidence it records, and each
+              harness reports different steps, so each column lists the evidence that
+              harness gives. A dash marks a stage the harness never reports, and the
+              label skips it.
+            </p>
+            <table id="stages-table">
+              <thead>
+                <tr>
+                  <th>Label</th>
+                  <th>Claude Code, Pi</th>
+                  <th><code>leaf wait</code> loop</th>
+                  <th>Codex</th>
+                  <th>Codex App Server</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="stages-sending">
+                  <td>Sending</td>
+                  <td colspan="4">
+                    Your browser is still sending the move to the server.
+                  </td>
+                </tr>
+                <tr id="stages-sent">
+                  <td>Sent</td>
+                  <td colspan="4">
+                    The server checked the move and added it to the page's event log.
+                  </td>
+                </tr>
+                <tr id="stages-queued">
+                  <td>Queued</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>
+                    Codex accepted the move's delivery as the task's next message.
+                  </td>
+                  <td>—</td>
+                </tr>
+                <tr id="stages-picked">
+                  <td>Picked up</td>
+                  <td>
+                    The prompt or Stop hook put the delivery in the agent's turn, or the
+                    agent read the pointer the hook put there with
+                    <code>leaf delivery read</code>.
+                  </td>
+                  <td>
+                    The agent's next <code>leaf wait --ack</code> confirmed the delivery
+                    the last wait printed.
+                  </td>
+                  <td>
+                    The turn that the queued message opens began, or the agent read the
+                    delivery mid-turn with <code>leaf delivery read</code>.
+                  </td>
+                  <td>
+                    App Server opened the turn that Leaf started with the delivery.
+                  </td>
+                </tr>
+                <tr id="stages-working">
+                  <td>Working</td>
+                  <td colspan="4">
+                    The agent started the move with <code>leaf task start</code>, which
+                    names the work in one line, or started a task on the move's widget.
+                  </td>
+                </tr>
+                <tr id="stages-replying">
+                  <td>Replying</td>
+                  <td colspan="3">—</td>
+                  <td>The turn's answer is streaming into the thread.</td>
+                </tr>
+                <tr id="stages-answered">
+                  <td>Answered (label clears)</td>
+                  <td colspan="3">
+                    The agent replied with <code>leaf thread reply --for</code>, or
+                    published a version whose markup records the move.
+                  </td>
+                  <td>
+                    The turn ended with a final message, which Leaf posts as the
+                    thread's reply, or the agent published a version whose markup
+                    records the move.
+                  </td>
+                </tr>
+                <tr id="stages-pickup-late">
+                  <td>Waiting for pickup</td>
+                  <td colspan="4">
+                    The move is still Sent two minutes after you sent it.
+                  </td>
+                </tr>
+                <tr id="stages-ended">
+                  <td>Turn ended</td>
+                  <td colspan="4">
+                    The turn that picked up the move ended, or was interrupted, before
+                    the agent answered it.
+                  </td>
+                </tr>
+                <tr id="stages-stale">
+                  <td>Update stale</td>
+                  <td colspan="4">
+                    The agent's start on the move is 15 minutes old, or the turn that
+                    wrote it ended more than two minutes ago, and the agent has not
+                    started the move again since. A Picked up move reads the same once
+                    nothing shows its turn still running (no status, start, or step for
+                    15 minutes), or once the agent is in a later turn. On Codex App
+                    Server, so does a Replying move whose stream disconnects.
+                  </td>
+                </tr>
+                <tr id="stages-interrupted">
+                  <td>Interrupted</td>
+                  <td colspan="3">—</td>
+                  <td>App Server stopped the turn before it answered.</td>
+                </tr>
+                <tr id="stages-failed">
+                  <td>Not answered</td>
+                  <td colspan="4">
+                    The harness gave up on the move: its turn failed, or Leaf could not
+                    confirm that the delivery reached a turn. The leaf.page website and
+                    the Codex adapter record this.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p id="stages-owed">
+              A comment, or a reply in a thread, needs a reply in that thread. An answer
+              to an Ask needs a version whose markup records it. Resolving a thread,
+              editing a draft, and moving a card need no answer, though the agent still
+              reads them with the rest of the delivery. The label on a draft edit or a
+              card move clears once a version records or replaces the change; in a
+              widget inside a thread message, it clears once the agent next writes in
+              that thread or the thread is resolved. In an Ask with a Done button, a
+              pick has no label until you press Done, because the Ask is not answered
+              until then.
             </p>
           </section>
 
@@ -326,172 +448,52 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
               each event's <code>handling</code> says what that kind of feedback asks
               for. The agent answers in the comment's thread and revises
               <code>index.html</code>. A valid save goes live at once; the agent stamps
-              it as v2 once the revision is worth pointing at.
+              it as v2 when it wants the revision listed with a note in the versions
+              menu.
             </p>
           </section>
 
           <section id="delivery">
-            <h2>Each harness delivers the same envelope</h2>
+            <h2>Delivery to the agent</h2>
             <p id="wait-trick">
-              In Claude Code, a Leaf hook watches in the background from the end of each
-              turn and wakes the agent when feedback arrives, and Leaf's prompt hook
-              puts it in the turn the wake opens; feedback that arrives as a turn ends
-              goes into that turn through the Stop hook. In Codex a detached adapter
-              queues it as the task's next message, or, where Leaf is a client of the
-              task's Codex App Server, starts a turn with it. Every route carries a
-              delivery of the same shape, which names the route and says who
-              acknowledges it. The harness owns delivery, so an open page does not prove
-              that an agent received your comments.
+              In Claude Code, a Leaf hook watches the page in the background from the
+              end of each turn and wakes the agent when you send a move, and Leaf's
+              prompt hook puts the move into the turn that opens. In Codex, a detached
+              adapter queues the move as the task's next message or, where Leaf is a
+              client of the task's Codex App Server, starts a turn with it. Every route
+              hands the agent a delivery of the same shape, which says who confirms
+              receipt.
             </p>
-            <p id="receipt-work-response-lede">
-              Leaf tracks each move's receipt, work, and response separately:
-            </p>
-            <ul id="receipt-work-response">
-              <li id="wait-ack">
-                <strong>Receipt</strong>: which input reached the agent. Claude Code's
-                hooks put the envelope into the turn, inline or as a pointer. A hook
-                confirms an inline envelope itself, once it has published it well inside
-                its timeout, since a timeout would discard its output; the agent's
-                <code>leaf delivery read &lt;delivery-id&gt;</code> confirms a pointer,
-                which the hook hands over instead when the input is too large for the
-                turn's context or the hook ran too slowly to confirm it. A Codex task
-                running its own wait gets the envelope printed and confirms it with
-                <code>leaf wait --ack &lt;delivery-id&gt;</code>; printed output can be
-                lost or cut off, so unconfirmed events stay available to the next wait.
-                The Codex adapter acknowledges what it carries, and the agent follows
-                the adapter's route rather than starting a competing wait.
-              </li>
-              <li id="work-evidence">
-                <strong>Work</strong>: what the agent is doing. A move that asks for an
-                answer, delivered into the agent's running turn, makes the banner read
-                <em>Claude working — on your update</em> until the agent says what it is
-                doing. <code>leaf task start</code> takes the move in hand with a line
-                naming the operation, which makes that move's label read Working.
-              </li>
-              <li id="response-evidence">
-                <strong>Response</strong>: what settled the move: a reply in its thread
-                or a revision. Receipt and work leave it open. Once it is answered, the
-                agent names your next move with a waiting status.
-              </li>
-            </ul>
-          </section>
-
-          <section id="stages">
-            <h2>What proves each stage of your move</h2>
-            <p id="stages-lede">
-              The label beside a move you hand over climbs from Sending until an answer
-              clears it, and Leaf moves it only on evidence it records. What that
-              evidence is depends on the route that brings the move to the agent. A
-              stage its route cannot prove is skipped.
-            </p>
-            <table id="stages-table">
-              <thead>
-                <tr>
-                  <th>Stage</th>
-                  <th>Claude Code, Pi<br />hooks</th>
-                  <th><code>leaf wait</code><br />loop</th>
-                  <th>Codex<br />tool hook or queue</th>
-                  <th>Codex<br />App Server turn</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr id="stages-sending">
-                  <td>Sending</td>
-                  <td colspan="4">Your browser is still posting the move.</td>
-                </tr>
-                <tr id="stages-sent">
-                  <td>Sent</td>
-                  <td colspan="4">
-                    The server validated the move and appended it to the event log.
-                  </td>
-                </tr>
-                <tr id="stages-queued">
-                  <td>Queued</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td>
-                    Codex's queue accepted the delivery's pointer as the task's next
-                    message.
-                  </td>
-                  <td>—</td>
-                </tr>
-                <tr id="stages-picked">
-                  <td>Picked up</td>
-                  <td>
-                    The prompt or Stop hook puts the envelope in the agent's turn, or
-                    the agent reads the pointer it put there with
-                    <code>leaf delivery read</code>.
-                  </td>
-                  <td>
-                    The agent's next <code>leaf wait --ack</code> confirms the envelope
-                    the last wait printed.
-                  </td>
-                  <td>
-                    The agent reads the pointer the tool hook offered mid-turn with
-                    <code>leaf delivery read</code>, or the queued message's turn
-                    begins.
-                  </td>
-                  <td>App Server opens the turn Leaf started with the delivery.</td>
-                </tr>
-                <tr id="stages-working">
-                  <td>Working</td>
-                  <td colspan="4">
-                    The agent names the work with <code>leaf task start</code> on the
-                    move, or on a task over the move's widget.
-                  </td>
-                </tr>
-                <tr id="stages-replying">
-                  <td>Replying</td>
-                  <td colspan="3">—</td>
-                  <td>The turn's answer streams into the thread.</td>
-                </tr>
-                <tr id="stages-answered">
-                  <td>Answered</td>
-                  <td colspan="3">
-                    A reply with <code>leaf thread reply --for</code>, or a version
-                    whose markup records the move.
-                  </td>
-                  <td>
-                    The turn's final message, which Leaf writes as the thread's reply,
-                    or a version whose markup records the move.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p id="stages-owed">
-              What answers a move depends on the move. A comment, or a reply in a
-              thread, is owed a reply there. An answer to an Ask is owed a version whose
-              markup records it. Resolving a thread, editing a draft, or moving a card
-              owes nothing, though the agent still reads it with the rest of the
-              delivery. A draft edit or a card move keeps its label until a version
-              records it or supersedes it; in a widget frozen into a thread, until the
-              agent next speaks in that thread or the thread is resolved. A move you
-              have not finished, such as a pick before the Done its Ask waits for, has
-              not been handed over yet and has no label.
-            </p>
-            <p id="stages-conditions">
-              When the evidence behind a stage lapses, the label says so rather than
-              going on claiming it: <em>Waiting for pickup</em> for a move still Sent
-              after two minutes, <em>Turn ended</em> when the turn that picked it up
-              ended without answering, <em>Update stale</em> when a start or a pickup
-              goes unrenewed, and <em>Interrupted</em> or <em>Not answered</em> when the
-              harness stopped the turn or reported that it failed.
-              <a href="#updates-observed-heading">Updates</a> lists every label.
+            <p id="wait-ack">
+              The harness does the delivering, so Leaf records a move as received only
+              when the agent or the harness confirms it. A harness discards the output
+              of a hook it times out, so a hook confirms a delivery it puts in the turn
+              only once it has published it, well inside that timeout. When the delivery
+              is too large for the turn's context, or the hook ran too slowly to confirm
+              it, the hook hands over a pointer instead, and the agent's
+              <code>leaf delivery read &lt;delivery-id&gt;</code> confirms it. A Codex
+              task running its own wait confirms with
+              <code>leaf wait --ack &lt;delivery-id&gt;</code>; printed output can be
+              lost or cut off, so until then the events stay available to the next wait.
+              The Codex adapter confirms each delivery itself, so the agent starts no
+              <code>leaf wait</code> of its own.
+              <a href="#stages-picked">Stages of a move</a> shows what sets Picked up
+              under each harness.
             </p>
           </section>
 
           <section id="turn-end">
-            <h2>When the agent's turn can end</h2>
+            <h2>What the Stop hook checks</h2>
             <p id="turn-end-hook">
-              When the agent ends a turn, Leaf checks the pages its session holds before
-              letting it go, and keeps the turn going only for a move it
-              <a href="#stages-owed">owes an answer</a>, or a page left unwatched. Leaf
-              puts the reason in the agent's context, and Claude Code shows it as
-              additional context from the Stop hook, not as an error. Leaf reminds once
-              for the same debt: a turn that ends again over it is let go, and the next
-              turn begins with the owed move in its context. A move owed an answer that
-              arrives as the turn ends goes into that turn; one that owes nothing waits
-              for the watcher.
+              When the agent ends a turn, Leaf's Stop hook checks the pages its session
+              holds. It keeps the turn going if a delivered move still
+              <a href="#stages-owed">needs an answer</a> or a page will go unwatched,
+              and puts the reason in the agent's context; Claude Code shows the reason
+              as additional context from the Stop hook rather than as an error. Leaf
+              gives a reason once. When the agent ends the turn again, Leaf lets it end
+              unless a new move that needs an answer has arrived, which it hands into
+              the turn. A move that needs no answer waits for the next turn, or goes in
+              with whatever else keeps this turn going.
             </p>
             <lf-diagram
               id="turn-end-check"
@@ -500,13 +502,13 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
             >
               <pre>
 flowchart TD
-  Stop(["the agent ends its turn"]) --&gt; New(["input owed an answer arrived?"])
+  Stop(["the agent ends its turn"]) --&gt; New(["a move that needs an answer arrived?"])
   New -- yes --&gt; Hand["Leaf hands it into this turn"]
   New -- no --&gt; Again(["Leaf kept this turn going already?"])
   Again -- yes --&gt; Ends["the turn ends"]
   Again -- no --&gt; Owed(["a delivered move unanswered?"])
   Owed -- yes --&gt; Claimed(["this turn started it?"])
-  Claimed -- no --&gt; Remind["Leaf names what is owed; the turn goes on"]
+  Claimed -- no --&gt; Remind["Leaf names the reason; the turn goes on"]
   Claimed -- yes --&gt; Watched(["a watcher runs, or the page is closed?"])
   Owed -- no --&gt; Watched
   Watched -- no --&gt; Remind
@@ -521,38 +523,32 @@ flowchart TD
             </lf-diagram>
             <ul id="turn-end-rules">
               <li id="turn-end-claim">
-                <strong>A start answers for its turn.</strong> Work longer than a few
-                minutes runs in background workers, and their results wake the agent in
-                a later turn. So a move the agent started in this turn with
-                <code>leaf task start</code> lets the turn end: the move reads Working,
-                with the start's line beside it. The start holds only for the turn that
-                wrote it. The next turn answers the move or starts it again, and two
-                minutes after an unrenewed start's turn ends, the banner says the turn
-                ended.
+                <strong>A move started in this turn lets the turn end.</strong> Leaf
+                tells the agent to run work longer than a few minutes in background
+                workers, whose results wake it in a later turn, so a move the agent
+                started with <code>leaf task start</code> during this turn does not keep
+                the turn going. The move reads Working, with the agent's line beside it.
+                The next turn answers the move or starts it again; otherwise the move
+                soon reads <a href="#stages-stale">Update stale</a>.
               </li>
               <li id="turn-end-watch">
-                <strong>A page between turns is watched or closed.</strong> Without
-                Claude Code's watch hook, a <code>leaf wait</code> or Codex's adapter,
-                what you send next reaches the agent only when Leaf messages its session
-                or something else wakes it. A developer's preview owes no watcher.
-              </li>
-              <li id="turn-end-idle">
-                <strong>Closing answers nothing.</strong>
-                <code>leaf status … idle</code> refuses while any delivered move is
-                unanswered, started or not, and while any task the agent opened is still
-                open.
+                <strong>Between turns, a page needs a watcher.</strong> Without Claude
+                Code's or Pi's watch hook, a <code>leaf wait</code>, or Codex's adapter,
+                your next move waits in the event log until the agent's next turn; in
+                Claude Code, Leaf starts that turn by messaging the session. A closed
+                page or a developer's preview needs no watcher.
               </li>
             </ul>
           </section>
 
           <section id="agent">
-            <h2>A command never edits the document</h2>
+            <h2>The document and the event log</h2>
             <p id="agent-split">
               The agent writes the document to <code>index.html</code>. Replies,
               comments, and version notes go through the <code>leaf</code> command,
-              which appends them to the <a href="/event-log/">event log</a>. Browser
-              gestures enter through the same validation and append boundary, giving
-              every event a stable identity and order.
+              which appends them to the <a href="/event-log/">event log</a>. Your moves
+              are checked and appended to the same log, so every event has a stable id
+              and one order.
             </p>
             <p id="agent-render">
               The browser redraws when the server announces a change: replies appear in
@@ -712,78 +708,10 @@ flowchart LR
 
             <h3 id="updates-observed-heading">Written by Leaf beside your input</h3>
             <p id="updates-observed-lede">
-              Beside each comment, pick, or drag, a label follows your input through the
-              agent's turn. The label clears once a reply or revision answers it.
-            </p>
-            <table id="updates-observed">
-              <thead>
-                <tr>
-                  <th>Label</th>
-                  <th>What Leaf knows</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr id="updates-observed-sending">
-                  <td>Sending</td>
-                  <td>Your browser is still sending it to the server.</td>
-                </tr>
-                <tr id="updates-observed-sent">
-                  <td>Sent</td>
-                  <td>The server has your input.</td>
-                </tr>
-                <tr id="updates-observed-queued">
-                  <td>Queued</td>
-                  <td>The agent's harness queued it for the agent's next turn.</td>
-                </tr>
-                <tr id="updates-observed-picked">
-                  <td>Picked up</td>
-                  <td>The agent's turn has taken it.</td>
-                </tr>
-                <tr id="updates-observed-working">
-                  <td>Working</td>
-                  <td>
-                    The agent started this input with <code>leaf task start</code>.
-                  </td>
-                </tr>
-                <tr id="updates-observed-replying">
-                  <td>Replying</td>
-                  <td>The answer is streaming into the thread.</td>
-                </tr>
-                <tr id="updates-observed-pickup-late">
-                  <td>Waiting for pickup</td>
-                  <td>Two minutes after sending, nothing has taken it.</td>
-                </tr>
-                <tr id="updates-observed-ended">
-                  <td>Turn ended</td>
-                  <td>
-                    The turn that picked it up ended, or was interrupted, before the
-                    agent answered it.
-                  </td>
-                </tr>
-                <tr id="updates-observed-stale">
-                  <td>Update stale</td>
-                  <td>
-                    The agent's start on it went a quarter of an hour without renewal,
-                    or two minutes past the end of the turn that wrote it. A pickup
-                    reads the same once nothing has renewed its turn for a quarter of an
-                    hour, and a streamed reply once its connection drops.
-                  </td>
-                </tr>
-                <tr id="updates-observed-failed">
-                  <td>Interrupted, Not answered</td>
-                  <td>
-                    The harness stopped the turn, or reported that it failed, before it
-                    answered.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <p id="updates-observed-harnesses">
-              A label the agent's harness does not report never appears. Queued comes
-              from Codex's own queue. Replying, Interrupted, and Codex's step readings
-              need Leaf connected to the task's Codex App Server, and Not answered needs
-              a harness that records its failures, as the leaf.page website's does.
-              Claude Code tells Leaf when a turn ended and when it waits on a dialog.
+              Beside each comment, pick, or drag, Leaf shows a label that follows your
+              move through the agent's turn and clears once a reply or a revision
+              answers it. <a href="#stages">Stages of a move</a> lists every label and
+              what sets it under each harness.
             </p>
           </section>
 
@@ -807,8 +735,8 @@ flowchart LR
                 to background workers, so the agent stays free to answer your next
                 comment. Its start names what is still running, beside the move the work
                 answers, and it starts the move again when a worker reports (<a
-                  href="#turn-end"
-                  >when the agent's turn can end</a
+                  href="#turn-end-claim"
+                  >what the Stop hook checks</a
                 >).
               </li>
               <li id="updates-on-handoff">
@@ -907,9 +835,10 @@ flowchart TD
                 <tr id="updates-reading-steps">
                   <td>Codex thinking, Codex using a tool, Claude waiting for you</td>
                   <td>
-                    The harness reported what the session is doing now. Waiting for you,
-                    for input, or for approval means the agent waits on you in its own
-                    window, and the page announces it.
+                    The harness reported what the session is doing now: Codex through
+                    its App Server, Claude Code through its session state. Waiting for
+                    you, for input, or for approval means the agent waits on you in its
+                    own window, and the page announces it.
                   </td>
                 </tr>
                 <tr id="updates-reading-awaits">

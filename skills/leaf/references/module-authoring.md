@@ -239,9 +239,8 @@ The rows' `scroll-margin-top` has a landing on a row, native or the runtime's, a
 below the header. The runtime reads what passes under it as off screen from `--lf-top`,
 for read acknowledgement, arrival checks, and chrome placement, so nothing is declared.
 The stacked value goes on a box that does not itself scroll, since the runtime reads a
-box that scrolls where it stands. The runtime starts `--lf-top` again at `0px` on each
-box it finds scrolling when the box arrives. A box that starts scrolling only later, past
-some width, states `--lf-top: 0px` itself in the rule that makes it scroll.
+box that scrolls where it stands. A box a package makes scroll starts `--lf-top` again
+at `0px`, on the box that scrolls and only there.
 
 A box a package makes scroll text sideways carries the class `lf-text-scroller`. An
 overlay scrollbar paints over the box's lower edge and widens under the pointer, so while

@@ -431,9 +431,7 @@
      * (`--lf-top`, theme.css): at its own top edge. The theme's answer, the banner's
      * height, is the window's, whose scroller the banner covers; a pane's scrollport
      * starts below the banner already, so that offset pinned a diff's file name 42px
-     * down while the rows it names scrolled past above it. Stated here rather than left
-     * to the runtime's mark for a box that scrolls, since these boxes scroll only past
-     * this width and the runtime finds a box scrolling when the box arrives. */
+     * down while the rows it names scrolled past above it. */
     main.layout-workspace > :not(header, footer, [data-lf-reading-role="pane"]) {
       overflow: auto;
       --lf-top: 0px;

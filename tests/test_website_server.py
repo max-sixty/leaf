@@ -355,7 +355,7 @@ def test_the_website_harness_delivers_into_the_existing_codex_thread(
     )
     reserved = []
     monkeypatch.setattr(
-        "leaf.codex.reserve_delivery_reply",
+        "leaf.thread.reserve_delivery_reply",
         lambda *args: reserved.append(args),
     )
     requests = []
@@ -3028,7 +3028,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
     def unopenable(*_args):
         raise OSError("the page could not be opened")
 
-    monkeypatch.setattr(leaf_codex.DeliveryReply, "_set_state", unopenable)
+    monkeypatch.setattr("leaf.thread.DeliveryReply._set_state", unopenable)
     with pytest.raises(OSError, match="could not be opened"):
         turn.commit({"id": "app-server-turn", "status": "completed", "items": []})
 

@@ -9987,6 +9987,49 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     assert not queued
 
 
+def test_codex_tool_hook_reads_a_quiet_page_without_the_page_model(
+    page_dir, codex_loop
+):
+    """Codex runs its tool hook after every tool call, so where the task's page holds
+    no new input the hook reads the claim, the log and the delivery records without
+    importing the page model and its validators, which cost about 70 ms of CPU a
+    call (measured on macOS). Input to deliver may import them."""
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "user-turn")
+    cleanup_model.open_session_turn("codex-thread", "user-turn")
+    program = """
+import json, sys
+from leaf.hooks import cmd_hook
+
+cmd_hook(
+    "codex",
+    {"hook_event_name": "PostToolUse", "session_id": "codex-thread", "turn_id": "user-turn"},
+)
+heavy = ("jsonschema", "markdown_it", "turbohtml")
+print(json.dumps(sorted(name for name in heavy if name in sys.modules)))
+"""
+
+    def hook():
+        done = subprocess.run(
+            [sys.executable, "-c", program],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=STATED_TIMEOUT,
+        )
+        *offered, imported = done.stdout.splitlines()
+        return offered, json.loads(imported)
+
+    assert hook() == ([], [])
+    # The same process does reach the page: a comment is offered to the turn.
+    append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "text": "Keep the existing layout"},
+    )
+    [offer], _ = hook()
+    assert json.loads(offer)["hookSpecificOutput"]["hookEventName"] == "PostToolUse"
+
+
 def test_a_page_claimed_mid_turn_keeps_its_first_comment_for_the_tool_hook(
     page_dir, codex_loop, capsys, monkeypatch
 ):

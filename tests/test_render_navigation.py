@@ -415,6 +415,70 @@ def test_the_thread_panel_and_a_page_thread_carry_names(browser, serve):
     )
 
 
+def test_a_comment_box_opens_where_a_panel_beside_the_page_leaves_it_in_sight(
+    browser, serve
+):
+    """The panels dominate what focus reaches (Max, 2026-10-06). With Threads open
+    beside `annotation-workspace`, `c` on a selection opened the comment box in the
+    annotation rail under the panel, so the user typed into a box they could not see. A
+    seat the panel stands over is refused, and the box opens in its home in the panel's
+    foot; closing the panel uncovers the rail, and the box returns to it rather than
+    standing hidden with the panel. Drawing the panel's edge over an open box moves it
+    the same way."""
+    workspace = next(p for p in EXAMPLES if p.stem == "annotation-workspace")
+    page = open_page(browser, serve(workspace))
+    resized(page, 1440, 900)
+    panel = page.get_by_role("dialog", name="Threads", exact=True)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(panel).to_be_visible()
+    page.keyboard.press("g")
+    page.keyboard.press("p")
+    page.keyboard.press("/")
+    page.keyboard.type("third block")
+    page.keyboard.press("Enter")
+    page.keyboard.press("c")
+    composer = page.locator("leaf-text.lf-fab-input")
+    expect(composer).to_be_focused()
+    expect(panel.locator("leaf-text.lf-fab-input")).to_be_visible()
+    expect(panel).to_be_visible()
+
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(panel).to_be_hidden()
+    expect(page.locator("#aw-conversations leaf-text.lf-fab-input")).to_be_visible()
+
+    # Drawing the panel's edge over a box already open moves it too.
+    walkthrough = next(p for p in EXAMPLES if p.stem == "pr-walkthrough")
+    page = open_page(browser, serve(walkthrough))
+    resized(page, 1440, 900)
+    panel = page.get_by_role("dialog", name="Threads", exact=True)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(panel).to_be_visible()
+    opener = page.locator("#pr-exact-patch .lf-diff-file-comment").first
+    opener.scroll_into_view_if_needed()
+    opener.click()
+    page.keyboard.type("draft words")
+    box = page.locator("leaf-text.lf-fab-input")
+    expect(page.locator("#pr-exact-patch leaf-text.lf-fab-input")).to_be_focused()
+    page_at_rest(page)
+    edge = panel.locator(".lf-edge").first.bounding_box()
+    middle = edge["y"] + edge["height"] / 2
+    page.mouse.move(edge["x"] + edge["width"] / 2, middle)
+    page.mouse.down()
+    # Slowly, so the box moves home and back toward its seat on frames between.
+    page.mouse.move(440, middle, steps=30)
+    page.mouse.up()
+    page_at_rest(page)
+    assert page.locator("#pr-exact-patch leaf-text.lf-fab-input").count() == 0
+    assert box.evaluate("box => box.value") == "draft words"
+    assert box.evaluate(
+        "box => box.getBoundingClientRect().right <="
+        " document.querySelector('.lf-thread-panel').getBoundingClientRect().left"
+    )
+
+
 def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     left = page.locator("#left-reading > :not(header, footer)")

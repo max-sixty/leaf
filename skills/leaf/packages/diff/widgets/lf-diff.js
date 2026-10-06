@@ -42,6 +42,7 @@ import {
   scrollIntoReadingBand,
   setChildren,
   shadowStage,
+  sizeObserver,
   notice,
   widgetController,
   watchData,
@@ -212,14 +213,33 @@ function pathNode(className, path) {
   return node;
 }
 
+// A row wears `data-path-cut` while it cuts its path short. Whether it does changes only
+// with the width of a part of the path, the folders or the name (the window, the face,
+// the press beside it), so each part's size is watched rather than polled. A part is
+// cut where its words run past its box, measured by a Range to the layout unit:
+// `scrollWidth` rounds to whole pixels, and the ellipsis is drawn for a fraction of one.
+const runsPast = (part) => {
+  const words = new Range();
+  words.selectNodeContents(part);
+  return words.getBoundingClientRect().width > part.getBoundingClientRect().width;
+};
+function watchPathCut(summary, named) {
+  const parts = [...named.children];
+  const sizes = sizeObserver(() =>
+    summary.toggleAttribute("data-path-cut", parts.some(runsPast)),
+  );
+  for (const part of parts) sizes.observe(part);
+}
+
 function summaryNode(file, open) {
   const details = document.createElement("details");
   details.className = "lf-diff-fold";
   details.open = open;
   // The row's path gives way from its folders, and its title reaches only a pointer
-  // resting on it, so the row says the whole path while the keyboard stands on it or a
-  // press is held on it (held-word.js, shadow.css). It says `data-path`: the path with a
-  // zero-width space after each slash, since generated content takes no <wbr>.
+  // resting on it, so a row that cuts its path short says the whole path while the
+  // keyboard stands on it or a press is held on it (held-word.js, shadow.css). It says
+  // `data-path`: the path with a zero-width space after each slash, since generated
+  // content takes no <wbr>.
   const summary = document.createElement("summary");
   summary.className = `lf-diff-head ${HOLDS_WORD}`;
   const path = file.name || "(unnamed file)";
@@ -232,6 +252,7 @@ function summaryNode(file, open) {
   const named = pathNode("lf-diff-path", path);
   named.dataset.path = path.replaceAll("/", "/\u200b");
   summary.append(named, stat);
+  watchPathCut(summary, named);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",

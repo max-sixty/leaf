@@ -44,30 +44,34 @@
                               text-overflow: ellipsis; }
 .lf-diff-head > .lf-diff-stat { flex: none; }
 /* The whole path, while the keyboard stands on the row or a press is held on it
-   (held-word.js), since the path's title shows only to a pointer resting on it. It is
-   drawn in a box under the row, over the rows the row names, so nothing moves and the
-   row keeps its stated height. Under the row, the box stays clear of the banner when
-   the row is pinned, and of a finger pressing the row from below. It wraps after the
-   path's slashes (`data-path`, lf-diff.js) and ends at the row's end. A press shows it
-   only once held, so a click or a tap that folds the file does not flash it. The row and
-   the file's frame clip what they hold, so both let it out while it shows, and the
-   row rounds its own corners where the frame's clip rounded them. The file stands over
-   the files after it meanwhile, whose rows and presses would otherwise cover a folded
-   file's box, and keeps its own press over its row. */
+   (held-word.js), since the path's title shows only to a pointer resting on it. Only a
+   row that cuts its path short says it (`data-path-cut`, lf-diff.js), since a path the
+   row shows whole would read twice. It is drawn in a box under the row, over the rows
+   the row names, so nothing moves and the row keeps its stated height. Under the row,
+   the box stays clear of the banner when the row is pinned, and of a finger pressing
+   the row from below. It wraps after the path's slashes (`data-path`, lf-diff.js) and
+   ends at the row's end. A press shows it only once held, so a click or a tap that
+   folds the file does not flash it. The row and the file's frame clip what they hold,
+   so both let it out while it shows, and the row rounds its own corners where the
+   frame's clip rounded them. The file stands over the files after it meanwhile, whose
+   rows and presses would otherwise cover a folded file's box, and keeps its own press
+   over its row. */
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary { position: relative; }
-.lf-diff-file:has(> .lf-diff-fold > .lf-diff-head:is([data-lf-held-word], :focus-visible,
-                                                      .lf-focus-visible)) { z-index: 4; }
-.lf-diff-fold:has(> .lf-diff-head:is([data-lf-held-word], :focus-visible,
-                                     .lf-focus-visible)) { overflow: visible; }
+.lf-diff-file:has(> .lf-diff-fold > .lf-diff-head[data-path-cut]:is([data-lf-held-word],
+                                                   :focus-visible, .lf-focus-visible)) {
+                                     z-index: 4; }
+.lf-diff-fold:has(> .lf-diff-head[data-path-cut]:is([data-lf-held-word], :focus-visible,
+                                                    .lf-focus-visible)) {
+                                     overflow: visible; }
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details
-  > summary:is([data-lf-held-word], :focus-visible, .lf-focus-visible) {
+  > summary[data-path-cut]:is([data-lf-held-word], :focus-visible, .lf-focus-visible) {
                                      overflow: visible;
                                      border-start-start-radius: calc(var(--r) - 1px);
                                      border-start-end-radius: calc(var(--r) - 1px); }
-.lf-diff-fold:not([open]) > .lf-diff-head:is([data-lf-held-word], :focus-visible,
-                                              .lf-focus-visible) {
+.lf-diff-fold:not([open])
+  > .lf-diff-head[data-path-cut]:is([data-lf-held-word], :focus-visible, .lf-focus-visible) {
                                      border-radius: calc(var(--r) - 1px); }
-.lf-diff-head:is([data-lf-held-word], :focus-visible, .lf-focus-visible)
+.lf-diff-head[data-path-cut]:is([data-lf-held-word], :focus-visible, .lf-focus-visible)
   > .lf-diff-path::after {
                                      content: attr(data-path) / ""; position: absolute;
                                      z-index: 3; inset-block-start: calc(100% + 4px);

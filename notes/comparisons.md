@@ -138,9 +138,6 @@ following are the baseline, not proposed additions.
   resolved threads. Page and widget tasks may have no thread, so Queue remains
   their result route. This displays the logged outcome rather than creating
   independent evidence of completion.
-- **#5 — Stable neighbor retention.** Reuse `state.page_key` for neighbor rows
-  and focus instead of URL; retain fresh-server checks and URL destinations.
-  A present row changing endpoint must retain identity and activate the new URL.
 - **#6 — Canonical task selectors and list/board experiment.** Workbench's
   heading-driven board and [Sfora's map](https://www.sfora.ai/features/boards)
   were operated, without persistence proof. Leaf's Queue already consumes

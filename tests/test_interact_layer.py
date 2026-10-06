@@ -2560,7 +2560,8 @@ def test_an_idiom_declares_only_a_mark_the_document_paints(tmp_path, monkeypatch
             json.dumps({"$idioms": {selector: {"description": "d", **declaration}}})
         )
         return CliRunner().invoke(
-            cli_model.cli, ["page", "init", "--package", "./.leaf", str(tmp_path / page)]
+            cli_model.cli,
+            ["page", "init", "--package", "./.leaf", str(tmp_path / page)],
         )
 
     assert init(".hazard", {"x-space": "column"}, "room").exit_code == 0

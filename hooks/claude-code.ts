@@ -19,7 +19,9 @@
  *   at its next step. The appended row joins the session's transcript at once,
  *   and stays there through an Escape (measured at 2.1.291), so the hook's
  *   confirmation holds: the input is in the session's context. Claude Code
- *   shows neither that row nor the prompt hook's context in the terminal;
+ *   shows neither that row nor the prompt hook's context in the terminal. A
+ *   wake while a turn's Stop hooks run waits for them, since Leaf's hands over
+ *   what is pending and decides whether the turn goes on;
  * - a delivery Leaf's Stop hook hands over as a turn ends, which Claude Code
  *   would print in full, goes into the session the same way, and the turn goes
  *   on with one line in its place.
@@ -64,8 +66,10 @@ type Watch = {
 // Claude Code's process, read as the session starts.
 let claudePid = ''
 let watch: Watch | undefined
-// Whether a main-loop turn is going, from its start until its Stop hooks run.
+// Whether a main-loop turn is going, from its start until its Stop hooks let it end.
 let running = false
+// The Stop hooks of a turn now ending, while they run.
+let stopping: Promise<unknown> | undefined
 
 function environment(session: string) {
   return { CLAUDE_CODE_SESSION_ID: session, CLAUDE_PID: claudePid }
@@ -136,6 +140,18 @@ async function ensureWatch($: EngineInterface, session: string, interrupted: boo
   void done.then(woke => wake($, session, current, woke))
 }
 
+/** Whether the turn goes on, once any Stop hooks now running have returned. They
+ * hand over the input pending as they run, and decide whether the turn goes on,
+ * so a wake waits for them rather than carrying that input beside them. */
+async function turnGoesOn() {
+  while (stopping) await stopping.catch(() => undefined)
+  return running
+}
+
+function append($: EngineInterface, text: string) {
+  return $.session.append({ message: { type: 'user', content: [{ type: 'text', text }] } })
+}
+
 async function wake($: EngineInterface, session: string, ended: Watch, woke: string) {
   if (watch !== ended) return
   watch = undefined
@@ -144,18 +160,14 @@ async function wake($: EngineInterface, session: string, ended: Watch, woke: str
     // Claude Code refuses a plugin's prompt that starts with `/`, as the watch's
     // line, a page's path, does.
     const prompt = `Leaf: ${woke}`
-    if (running) {
+    if (await turnGoesOn()) {
       const context = await hook($, { hook_event_name: 'UserPromptSubmit', session_id: session })
-      // The turn may have ended while the hook ran, and an idle session reads an
-      // appended row only at its next turn. The prompt that starts one has its
-      // prompt hook carry the handed input back as a move still owed its answer.
-      // TODO: that prompt names the input only as moves owed their answer, so a
-      // turn that ends while the hook runs drops the delivery the hook already
-      // recorded as picked up. Appending `context` before submitting would keep it.
-      if (running) {
-        await $.session.append({
-          message: { type: 'user', content: [{ type: 'text', text: context ?? prompt }] },
-        })
+      // The hook has confirmed what it hands over, so that goes into the session
+      // even where the turn ended while the hook ran: an idle session reads an
+      // appended row at its next turn, which the prompt below starts.
+      if (context) await append($, context)
+      if (await turnGoesOn()) {
+        if (!context) await append($, prompt)
         return
       }
     }
@@ -182,32 +194,39 @@ export const register: Register = (on, options) => {
     return next(e)
   })
 
-  on('classic.Stop', async ($, e, next) => {
-    running = false
-    // Without Claude Code's process the watch cannot run, so the registration
-    // beneath keeps it.
-    const result = await next(claudePid ? Object.assign({}, e, { leaf_watch: 'module' }) : e)
-    const contexts = result.additionalContext ?? []
-    // Claude Code prints a Stop hook's context in the terminal, so a delivery
-    // Leaf's Stop hook hands over goes into the session as an appended row,
-    // which it does not show, and the turn goes on with one line.
-    const shown: string[] = []
-    for (const context of contexts) {
-      if (!context.startsWith(INLINE_DELIVERY)) {
-        shown.push(context)
-        continue
+  on('classic.Stop', ($, e, next) => {
+    const ending = (async () => {
+      // Without Claude Code's process the watch cannot run, so the registration
+      // beneath keeps it.
+      const result = await next(claudePid ? Object.assign({}, e, { leaf_watch: 'module' }) : e)
+      const contexts = result.additionalContext ?? []
+      // Claude Code prints a Stop hook's context in the terminal, so a delivery
+      // Leaf's Stop hook hands over goes into the session as an appended row,
+      // which it does not show, and the turn goes on with one line.
+      const shown: string[] = []
+      for (const context of contexts) {
+        if (!context.startsWith(INLINE_DELIVERY)) {
+          shown.push(context)
+          continue
+        }
+        try {
+          await append($, context)
+          shown.push(DELIVERED)
+        } catch (error) {
+          $.ui.log(`Leaf: the Stop hook's delivery was not appended: ${error}`, { to: 'debug' })
+          shown.push(context)
+        }
       }
-      try {
-        await $.session.append({ message: { type: 'user', content: [{ type: 'text', text: context }] } })
-        shown.push(DELIVERED)
-      } catch (error) {
-        $.ui.log(`Leaf: the Stop hook's delivery was not appended: ${error}`, { to: 'debug' })
-        shown.push(context)
-      }
+      // A Stop hook's context keeps the turn going.
+      running = shown.length > 0 || result.block !== undefined
+      return contexts.length ? Object.assign({}, result, { additionalContext: shown }) : result
+    })()
+    stopping = ending
+    const settled = () => {
+      if (stopping === ending) stopping = undefined
     }
-    // A Stop hook's context keeps the turn going.
-    running = shown.length > 0 || result.block !== undefined
-    return contexts.length ? Object.assign({}, result, { additionalContext: shown }) : result
+    ending.then(settled, settled)
+    return ending
   })
 
   on('turn.complete', async ($, e, next) => {

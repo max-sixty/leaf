@@ -67,15 +67,26 @@ class ClaudeCode:
         """The next prompt the module submits or row it appends."""
         return self.sent.get(timeout=3 * STATED_TIMEOUT)
 
+    def send(
+        self,
+        event: str,
+        e: dict | None = None,
+        answer: dict | None = None,
+        delay: int = 0,
+    ) -> None:
+        """Start one event through the module, whose hooks beneath answer after
+        `delay` ms, with `answer` where it is given."""
+        line = {"emit": event, "e": e or {}, "answer": answer, "delay": delay}
+        self.process.stdin.write(json.dumps(line) + "\n")
+        self.process.stdin.flush()
+
     def emit(
         self, event: str, e: dict | None = None, answer: dict | None = None
     ) -> dict:
         """Run one event through the module, and return what its hooks returned
         and the input they passed on to the hooks beneath, which answer with
         `answer` where it is given."""
-        line = {"emit": event, "e": e or {}, "answer": answer}
-        self.process.stdin.write(json.dumps(line) + "\n")
-        self.process.stdin.flush()
+        self.send(event, e, answer)
         answer = self.read()
         assert answer["event"] == event, answer
         return answer
@@ -268,3 +279,27 @@ def test_the_module_keeps_a_stop_hooks_delivery_out_of_the_terminal(
     assert [event["id"] for event in batch["events"]] == [pending["id"]]
     [shown] = result["additionalContext"]
     assert hook_carrier_model.INLINE_DELIVERY not in shown
+
+
+def test_a_wake_during_the_stop_hooks_waits_for_them(page_dir, claude_code):
+    """Leaf's Stop hook hands over the input pending as it runs, and decides
+    whether the turn goes on. A watch that wakes while a turn's Stop hooks run
+    waits for them, so the input has one carrier: here they let the turn end, and
+    only then does the module submit its prompt."""
+    claude_code.start_turn()
+    payload = {"hook_event_name": "Stop", "session_id": claude_code.session}
+    claude_code.send("classic.Stop", payload, delay=3000)
+    assert claude_code.read() == {"holding": "classic.Stop"}
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "during Stop"}
+    )
+    wait_for(
+        lambda: not leases_model.wait_is_live(None, claude_code.session),
+        bool,
+        failure="the watch did not wake while the Stop hooks ran",
+    )
+    assert claude_code.read()["event"] == "classic.Stop"
+    assert claude_code.sent.empty()
+    assert claude_code.message()["submitted"].startswith(
+        f"Leaf: {page_dir} has new input"
+    )

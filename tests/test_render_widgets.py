@@ -1342,6 +1342,33 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     expect(rtl.first).to_have_attribute("aria-selected", "true")
 
 
+def test_tab_reaches_the_open_panel_and_no_closed_one(browser, serve):
+    """Tab from the open tab lands on its panel, whose prose holds nothing focusable,
+    and never on a closed panel. hidden="until-found" skips what a closed panel holds
+    but not the panel, so each one that kept its own stop put a zero-height stop in
+    the walk: a queue of thirteen items took thirteen invisible presses to leave."""
+    views = "".join(
+        f'<lf-tab id="item-{i}" label="Item {i}"><p>Item {i} is prose.</p></lf-tab>'
+        for i in range(4)
+    )
+    source = leaf_page(
+        "Queue walk",
+        f'<h1 id="title">Queue</h1><lf-tabs id="queue" list="side">{views}</lf-tabs>'
+        '<p><button id="after">After the queue</button></p>',
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1200, 900)
+    tabs = page.locator("#queue").get_by_role("tab")
+
+    for opened in (0, 2):
+        tabs.nth(opened).click()
+        expect(tabs.nth(opened)).to_be_focused()
+        page.keyboard.press("Tab")
+        expect(page.locator(f"#item-{opened}")).to_be_focused()
+        page.keyboard.press("Tab")
+        expect(page.locator("#after")).to_be_focused()
+
+
 def test_root_tab_targets_remain_global(browser, serve):
     """Ask travel crosses hidden tabs."""
     url = serve(ROOT_TABS_PAGE)

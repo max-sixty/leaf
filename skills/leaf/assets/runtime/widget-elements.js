@@ -105,7 +105,8 @@ export function el(tag, cls, text) {
 // content-visibility, and the theme's display:block outranks the boolean
 // [hidden] rule) — without beforematch, fall back to plain boolean hidden,
 // which the theme hides itself; the widget still collapses and reopens, ⌘F
-// just can't see in.
+// just can't see in. content-visibility skips only what the element holds: one
+// that is itself a tab stop stays one while hidden, so its widget withdraws it.
 export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 
 // The user's hand on a widget, in the layer's own word: a drag the log has not taken

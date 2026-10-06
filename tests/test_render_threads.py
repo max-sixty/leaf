@@ -8707,12 +8707,12 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
               node.textContent.includes('Sent from the box.')
             );
             if (!message) return;
+            observer.disconnect();
             const cue = message.getAnimations().find(animation =>
-              animation.effect.getKeyframes().some(frame => frame.backgroundColor)
+              animation.effect.getKeyframes().some(frame => frame['--lf-msg-arrival'])
             );
             window.__sendPaint = {cue: Boolean(cue), message};
             if (cue) { cue.pause(); cue.currentTime = 0; }
-            observer.disconnect();
           });
           observer.observe(root, {subtree: true, childList: true, attributes: true});
         }""",
@@ -8752,7 +8752,8 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
           const thread = message.closest('.lf-thread, .lf-page-thread');
           return !thread.getAnimations({subtree: true}).some(animation =>
             animation.effect.target !== message &&
-            animation.effect.getKeyframes().some(frame => frame.background || frame.backgroundColor)
+            animation.effect.getKeyframes().some(frame =>
+              frame.background || frame.backgroundColor || frame['--lf-msg-arrival'])
           );
         }"""
     ), "the surrounding card flashed on admission"
@@ -8761,6 +8762,78 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
     )
     one_frame(page)
     assert page.evaluate("() => window.__sendPaint.message.getAnimations().length") == 0
+
+
+def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
+    firefox_browser, serve
+):
+    """A natural send fades its sticky author and words together in actual frames.
+
+    Pausing the animation or repeatedly reading styles invalidates Firefox's paint
+    and conceals a stale inherited background. Native screencast frames observe its
+    ordinary compositor path, including the receipt repaint, without those reads.
+    """
+    page, _box, send, _after, _reply = pressed_send_surface(
+        firefox_browser, serve, "card"
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    page.evaluate(
+        """() => {
+          window.__sendFlash = new Promise((resolve, reject) => {
+            const root = document.querySelector('.lf-margin-preview');
+            const observer = new MutationObserver(() => {
+              const message = [...root.querySelectorAll('.lf-msg')].find(node =>
+                node.textContent.includes('Sent from the box.'));
+              if (!message) return;
+              observer.disconnect();
+              const cue = message.getAnimations()[0];
+              if (!cue) {
+                reject(new Error('the sent message has no arrival cue'));
+                return;
+              }
+              cue.finished.then(() => {
+                const head = message.querySelector('.lf-msg-head').getBoundingClientRect();
+                const body = message.querySelector('.lf-msg-body').getBoundingClientRect();
+                const x = head.left + head.width * 0.7;
+                resolve({head: [x, head.top + 3], body: [x, body.bottom - 3]});
+              }, reject);
+            });
+            observer.observe(root, {subtree: true, childList: true});
+          });
+        }"""
+    )
+    frames = []
+    with page.screencast.start(
+        on_frame=lambda frame: frames.append(frame),
+        quality=100,
+        size=page.viewport_size,
+    ):
+        send.click()
+        points = page.evaluate("() => window.__sendFlash")
+    readings = []
+    for frame in frames:
+        pixels = Image.open(io.BytesIO(frame["data"])).convert("RGB")
+        colours = {
+            name: pixels.getpixel(tuple(round(coordinate) for coordinate in point))
+            for name, point in points.items()
+        }
+        readings.append(colours)
+    # The light card fades from yellow (#fff8c5) to paper. Require an actual
+    # sequence of intermediate colours: a discrete jump, or the constant .5
+    # pending opacity blending yellow with paper, must not pass as a fade.
+    fading = [
+        reading
+        for reading in readings
+        if reading["body"][0] > 245 and 205 < reading["body"][2] < 240
+    ]
+    assert fading, readings
+    blues = {reading["body"][2] for reading in fading}
+    assert len(blues) >= 3 and max(blues) - min(blues) >= 12, fading
+    assert all(
+        max(abs(a - b) for a, b in zip(reading["head"], reading["body"], strict=True))
+        <= 3  # Native JPEG rounding of otherwise uniform ground.
+        for reading in fading
+    ), fading
 
 
 @pytest.mark.parametrize(

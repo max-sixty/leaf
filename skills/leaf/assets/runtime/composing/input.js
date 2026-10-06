@@ -1,14 +1,9 @@
 import { rememberWriting } from "../drafts.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { keeps, keepsHidden, keepsText } from "../keeps.js";
-import {
-  advertisesKeys,
-  answers,
-  submitBindings,
-  submitLabel,
-} from "../keyboard/bindings.js";
+import { advertisesKeys, submitBindings, submitLabel } from "../keyboard/bindings.js";
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
-import { notice } from "../notifications.js";
+import { announce, notice } from "../notifications.js";
 import { iconElement } from "../icons.js";
 import { drawingThumbnail } from "./drawing-ink.js";
 import { LitElement, html } from "../../vendor/browser-runtime.js";
@@ -207,9 +202,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       hasContent = (raw) => Boolean(raw),
       // The caller's own rendering of what the box holds, run in the box's paint.
       paint: paintOwn = () => {},
-      // A box whose draft can carry a drawing: `read` returns it or null, `undoStroke`
-      // takes back its last stroke and `remove` takes it off the draft. `draft` names
-      // the draft the box stands on, for a box that moves between drafts.
+      // A box whose draft can carry a drawing: `read` returns it or null, `replace` puts
+      // another in its place (null takes it off), `undoStroke` takes back its last stroke
+      // and `remove` takes it off the draft.
       drawing = null,
     },
   ) {
@@ -248,40 +243,52 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       rememberWriting(ta);
       ta.focus({ preventScroll: true });
     };
-    // ⌘Z takes back what the user did last, and the field's own undo holds only the words.
-    // So the box marks the words' history as each stroke is drawn: while it stands at the
-    // latest stroke's mark, that stroke is the latest change and the press takes it back;
-    // once the user has typed, the press walks the words' history, and when that history
-    // has come back to the mark, the next press takes that stroke.
-    let historyAtStroke = [];
-    let draftSeen;
-    const strokeIsLatest = () =>
-      historyAtStroke.length > 0 && historyAtStroke.at(-1) === ta.historyDepth;
-    // A press is decided once, as it arrives: the field's history answers it before the
-    // page's keys do, and an undo of the words that brings the history back to the latest
-    // stroke's mark must not let the same press take that stroke too.
-    let pressDecided = null;
-    if (drawing) {
-      ta.addEventListener(
-        "keydown",
-        (event) => {
-          if (!answers("Mod+z", event)) return;
-          pressDecided = strokeIsLatest();
-          setTimeout(() => (pressDecided = null));
-        },
-        { capture: true },
+    // ⌘Z and ⌘⇧Z walk the whole draft in the order it changed. The words have the field's
+    // own history, and each change to what the shelf holds beside them takes a step in
+    // that history, whichever control made it: a stroke, a press on the shelf, Draw
+    // mode's undo, a pasted image. A step is one part of the shelf, the drawing or the
+    // images, and taking it back or redoing it puts that part as it stood. What reaches
+    // the box from outside is where its history stands rather than a step in it: a draft
+    // loaded whole (`hydrate`), or one the box takes up afresh (`sync.arrive`), so no step
+    // reaches across drafts or takes back another tab's change.
+    let shelfSeen = null;
+    let arrivals = 0;
+    // Another tab's copy of the same drawing is a different object holding the same one.
+    const sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
+    const putDrawing = (drawn) => {
+      shelfSeen = { ...shelfSeen, drawing: drawn };
+      drawing.replace(drawn);
+      const strokes = drawn?.strokes.length ?? 0;
+      announce(
+        strokes
+          ? `Drawing, ${strokes} stroke${strokes === 1 ? "" : "s"}.`
+          : "No drawing.",
       );
-      ta.yieldsUndo = () => pressDecided ?? strokeIsLatest();
-    }
+    };
+    const putMedia = (media) => {
+      shelfSeen = { ...shelfSeen, media };
+      pastedMedia = [...media];
+      renderMedia();
+      draftChanged();
+    };
     const renderMedia = () => {
       const drawn = drawing?.read() ?? null;
-      const strokes = drawn?.strokes.length ?? 0;
-      // Another draft's words say nothing about this one's strokes.
-      const draft = drawing?.draft();
-      if (draft !== draftSeen) historyAtStroke = [];
-      draftSeen = draft;
-      historyAtStroke = historyAtStroke.slice(0, strokes);
-      while (historyAtStroke.length < strokes) historyAtStroke.push(ta.historyMark());
+      const media = [...pastedMedia];
+      if (shelfSeen && !sameDrawing(drawn, shelfSeen.drawing)) {
+        const before = shelfSeen.drawing;
+        ta.record(
+          () => putDrawing(before),
+          () => putDrawing(drawn),
+        );
+      }
+      if (shelfSeen && media.join("\n") !== shelfSeen.media.join("\n")) {
+        const before = shelfSeen.media;
+        ta.record(
+          () => putMedia(before),
+          () => putMedia(media),
+        );
+      }
+      shelfSeen = { drawing: drawn, media };
       mediaShelf.present(
         Object.freeze({
           drawing: drawn,
@@ -308,10 +315,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const hydrate = (value) => {
       const restored = readPastedMedia(value);
       pastedMedia = restored.paths;
-      // Writing the value starts the words' history afresh, so none of them is later
-      // than any stroke.
       ta.value = restored.text;
-      historyAtStroke = [];
+      ta.restartHistory();
+      shelfSeen = null;
       renderMedia();
     };
     hydrate(ta.value);
@@ -385,6 +391,14 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const sync = () => refresh();
     sync.value = draftValue;
     sync.hasMedia = () => pastedMedia.length > 0;
+    // The box takes up the draft it now stands on as it is, with a history of its own:
+    // another draft, or this one as another tab left it. The caller's next paint shows
+    // it, and shows any change made to it since as a step of that history.
+    sync.arrive = () => {
+      arrivals += 1;
+      ta.restartHistory();
+      shelfSeen = { drawing: drawing?.read() ?? null, media: [...pastedMedia] };
+    };
     // The one way a draft enters from outside: the complete value, words and image Markdown
     // together, as the store holds it. Writing .value moves a focused caret to its end, so a
     // value the box already holds is left where it is — which is what lets another tab's
@@ -459,9 +473,16 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         notice(
           images.length === 1 ? "Adding image…" : `Adding ${images.length} images…`,
         );
+        const pastedAt = arrivals;
         try {
           const paths = await Promise.all(images.map((image) => uploadMedia(image)));
           if (paths.some((path) => path === null)) return;
+          // A box that took up another draft while the picture uploaded is no longer the
+          // draft it was pasted into, and the picture is not this one's.
+          if (arrivals !== pastedAt) {
+            notice("Image not added — the comment moved before it finished uploading");
+            return;
+          }
           pastedMedia.push(...paths);
           renderMedia();
           draftChanged();
@@ -495,19 +516,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         title: sends,
         run: () => pressed(send),
       },
-      ...(drawing
-        ? [
-            {
-              id: "draw.undo",
-              keys: ["Mod+z"],
-              title: "undo stroke",
-              description:
-                "Take back the drawing's last stroke while it is the latest change",
-              when: () => pressDecided ?? strokeIsLatest(),
-              run: () => drawing.undoStroke(),
-            },
-          ]
-        : []),
     ]);
     // A press on a submit control is the send key pressed from the box, so it leaves the
     // user where Enter does: in the box, for a box that stays to take more, or wherever the

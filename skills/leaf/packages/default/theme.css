@@ -1023,8 +1023,10 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 }
 
 /* lf-milestones / lf-milestone: a rail of status dots. The rail and dots are
- * CSS; the chip row (`when`, `tags`) is built by the lf-milestone upgrade. */
-:scope:is(lf-milestones) { display: block; margin: 14px 0 14px 8px; }
+ * CSS; the chip row (`when`, `tags`) is built by the lf-milestone upgrade. The rail's
+ * inset is padding, so it stays inside the column the list keeps (`x-space`), as
+ * lf-chronology's does. */
+:scope:is(lf-milestones) { display: block; margin: 14px 0; padding-inline-start: 8px; }
 :scope:is(lf-milestone) { display: block; position: relative; padding: 0 0 16px 26px;
                border-left: 2px solid var(--rule); --lf-block-frame: 1; }
 :scope:is(lf-milestone):last-child { border-left-color: transparent; padding-bottom: 2px; }
@@ -1064,7 +1066,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 
 /* lf-chronology / lf-chronology-entry: a chronology on a rail. The dot is ::after, absolute,
  * colored by kind; the time label is the `at` attribute, said above the title. */
-:scope:is(lf-chronology) { display: block; margin: 14px 0 14px 8px; }
+:scope:is(lf-chronology) { display: block; margin: 14px 0; padding-inline-start: 8px; }
 :scope:is(lf-chronology-entry) { display: block; position: relative; padding: 0 0 16px 26px;
            border-left: 2px solid var(--rule); --lf-block-frame: 1; }
 :scope:is(lf-chronology-entry):last-child { border-left-color: transparent; padding-bottom: 2px; }

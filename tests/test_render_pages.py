@@ -2034,7 +2034,8 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     wins over a package default, and column remains the prose measure when nested in a
     wider section rather than inheriting its containing block's allocation. There a
     column block, authored or declared by its widget (lf-options), starts at the
-    section's edge as the section's text does, rather than centred in the room."""
+    section's edge as the section's text does, rather than centred in the room. A board
+    allocated the column keeps to it even where its four columns' minimum is wider."""
     source = leaf_page(
         "Authored block widths",
         """
@@ -2049,6 +2050,9 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
 </section>
 <lf-board id="board" data-width="column">
   <lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column>
+  <lf-column id="doing" label="Doing"></lf-column>
+  <lf-column id="review" label="Review"></lf-column>
+  <lf-column id="done" label="Done"></lf-column>
 </lf-board>
 """,
     )

@@ -4004,7 +4004,6 @@ def test_a_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar(
     assert not measured["fits"]["scrolls"], measured
     assert measured["width"] == measured["bareWidth"], measured
     assert measured["fits"]["clear"] <= measured["fitsPad"] + 3, measured
-    page.close()
 
 
 FRAMED_TABLES_PAGE = leaf_page(

@@ -431,18 +431,24 @@ export function misplacedBoxes() {
     box.getBoundingClientRect().width <=
       parseFloat(getComputedStyle(box).getPropertyValue("--col")) + 1;
   const allocated = (el) => el.parentElement.closest("[data-lf-space]");
+  // Whether `outer` holds `inner` as one of its own blocks: only plain markup between
+  // them, none of it a widget's member or a box that draws a frame.
+  const plainly = (inner, outer) => {
+    for (let a = inner.parentElement; a !== outer; a = a.parentElement)
+      if (a.localName.includes("-") || draws(a)) return false;
+    return true;
+  };
   for (const el of main.querySelectorAll(BREAKOUT)) {
     if (!el.checkVisibility()) continue;
-    const box = allocated(el);
-    if (!box || !atMeasure(box)) continue;
-    let plain = true;
-    for (let a = el.parentElement; a !== box; a = a.parentElement)
-      plain &&= !a.localName.includes("-");
-    const frame = framing(el);
-    if (!plain || (frame && frame !== box && box.contains(frame))) continue;
-    if (el.getBoundingClientRect().width > box.getBoundingClientRect().width + 1) continue;
-    let outer = box;
-    while (allocated(outer) && atMeasure(allocated(outer))) outer = allocated(outer);
+    let outer = allocated(el);
+    if (!outer || !atMeasure(outer) || !plainly(el, outer)) continue;
+    if (el.getBoundingClientRect().width > outer.getBoundingClientRect().width + 1)
+      continue;
+    let up = allocated(outer);
+    for (; up && atMeasure(up) && plainly(outer, up); up = allocated(outer)) outer = up;
+    // A box held at the measure by one it is not plainly inside is that box's member,
+    // which holds it on its own terms, so no width given to either would free it.
+    if (up && atMeasure(up)) continue;
     if (content(outer.parentElement) > outer.getBoundingClientRect().width + 1)
       report(
         el,

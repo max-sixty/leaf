@@ -85,7 +85,7 @@
 import { shownBand, whenOffScreen } from "../geometry.js";
 import { scrollersOf } from "../reading-regions.js";
 import { offer } from "../widget-elements.js";
-import { keepsText, layoutPx } from "../keeps.js";
+import { keeps, keepsText, layoutPx } from "../keeps.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread, threadFocusStop } from "./focus.js";
@@ -313,6 +313,7 @@ export function newsNotice(header = false) {
     node,
     set(news) {
       keepsText(node, news.label);
+      keeps(node, "title", news.label);
       if (!header) {
         node.classList.toggle("lf-outline-chip", !news.reopened);
         for (const face of ["lf-btn", "lf-thread-action"])

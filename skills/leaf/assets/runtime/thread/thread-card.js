@@ -3,8 +3,16 @@
    Every surface uses the same metadata, transcript, message and reply vocabulary.
    Containers own navigation and placement, including whether their transcript scrolls;
    shadow.css owns the conversation's appearance through widget shadow boundaries.
-   Thread controls stay outside the transcript's message and summary folds. MessageView
+   Conversation flow stays inside a content region, separate from the outer body's
+   retained reply space. A margin card instead allocates its own scrolling transcript
+   and overlay controls. Thread controls stay outside message and summary folds. MessageView
    owns each complete message, so no container extracts or reparents its header.
+   Independent controls overlay its first header line. That line reserves a notice's
+   minimum hit area from its first paint; the metadata edge measured before news
+   arrives is retained while it waits, including when its workflow receipt goes.
+   Each message header text item keeps its allocated width while news waits, so a later
+   receipt grows only inside its own clipped box. The first notice may use spare
+   room for its new receipt without moving the author or time already standing.
 
    Immutable descriptors contain generated presentation only. Retained native editors,
    margin controls and frozen message widgets keep their mechanical lifetime outside
@@ -20,8 +28,8 @@ import { html, render, repeat, nothing } from "../../vendor/browser-runtime.js";
 import { turns, threadKey, threadSummary } from "./model.js";
 import { anchorLabel, MessageView, messageReading } from "./messages.js";
 import { reactionReading } from "./reaction-model.js";
-import { offer, reachedForWords } from "../widget-elements.js";
-import { keeps, keepsHidden } from "../keeps.js";
+import { offer, reachedForWords, measure, reserve } from "../widget-elements.js";
+import { keeps, keepsHidden, layoutPx } from "../keeps.js";
 import { keys, focused } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { wireReply, replyIsEditing, replyAvailable, dismissReply } from "./replies.js";
@@ -33,7 +41,7 @@ import { focusThread, threadFocusStop } from "./focus.js";
 import { renderMarkdown } from "../markdown.js";
 import { summaryRanges, unreadBoundaries } from "./summary-ranges.js";
 import { threadAttention } from "./workflow.js";
-import { seenRect } from "../geometry.js";
+import { seenRect, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollThreadIntoView, replyPinned } from "./reply-landing.js";
@@ -294,6 +302,10 @@ export class ThreadView {
   #heldNews = null;
   #replyReservation = null;
   #received = null;
+  #headerSlot = null;
+  #newsReserved = false;
+  #observedHeader = null;
+  #headerSizes = sizeObserver(() => this.#retainHeaderSlot());
 
   constructor(surface, commands) {
     this.#commands = commands;
@@ -520,6 +532,9 @@ export class ThreadView {
       model = Object.freeze(
         this.#heldNews.hold({ threads: [model] }, { row: false }).threads[0],
       );
+    // Capture the standing words only when news starts waiting, before its update
+    // removes a receipt. This allocation lives with the held view, not its reading.
+    if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
     const bodyPlace = this.#continuity?.before();
     const restoreFocus = holdFocus(this.node);
     const standing = focused();
@@ -712,6 +727,7 @@ export class ThreadView {
             </header>`
           : nothing
       }
+      <div class="lf-thread-transcript">${transcript}</div>
       ${
         threadActions
           ? marginControls
@@ -721,7 +737,6 @@ export class ThreadView {
               </div>`
           : nothing
       }
-      <div class="lf-thread-transcript">${transcript}</div>
     `;
     render(
       html`
@@ -753,7 +768,11 @@ export class ThreadView {
               </summary>`
             : nothing
         }
-        ${panel ? html`<div class="lf-thread-content">${body}</div>` : body}
+        ${
+          model.surface === "margin"
+            ? body
+            : html`<div class="lf-thread-content">${body}</div>`
+        }
         ${replySlot ? (this.#continuity?.gap ?? nothing) : nothing}
         ${reply ? this.#reply.node : (this.#replyReservation ?? nothing)}
         ${
@@ -769,6 +788,9 @@ export class ThreadView {
       `,
       this.node,
     );
+    if (!marginControls && model.news)
+      measure(this.node, () => this.#retainHeaderSlot());
+    else this.#releaseHeaderSlot();
     this.#continuity?.after(bodyPlace);
     this.#wireKeys();
     // A summary gathering the message the user stands on moves it; a page thread whose
@@ -781,6 +803,116 @@ export class ThreadView {
             this.#commands.landInThread(this.node.querySelector(SAY_BOX) ?? this.node),
     );
     return this.node;
+  }
+
+  #releaseHeaderSlot() {
+    if (this.#observedHeader) this.#headerSizes.unobserve(this.#observedHeader);
+    this.#observedHeader = null;
+    this.#releaseHeaderItems();
+    this.#newsReserved = false;
+  }
+
+  #releaseHeaderItems() {
+    for (const { node } of this.#headerSlot?.items ?? []) {
+      node.classList.toggle("lf-held-header-item", false);
+      node.style.removeProperty("--lf-held-header-width");
+    }
+    this.#headerSlot = null;
+  }
+
+  #retainHeaderSlot({ observe = true } = {}) {
+    if (observe && !this.#model?.news) {
+      this.#releaseHeaderSlot();
+      return;
+    }
+    const content = this.node.querySelector(":scope > .lf-thread-content");
+    const controls = content?.querySelector(":scope > .lf-thread-controls");
+    const first = content?.querySelector(
+      ":scope > .lf-thread-transcript > :nth-child(1 of .lf-msg, .lf-thread-checkpoint)",
+    );
+    const header =
+      first?.querySelector(":scope > .lf-summary-checkpoint > .lf-summary-header") ??
+      first?.querySelector(":scope > .lf-msg-head");
+    if (!controls || !header) {
+      this.#releaseHeaderSlot();
+      return;
+    }
+    const box = header.getBoundingClientRect();
+    if (!box.width) return;
+    const allocates = header.classList.contains("lf-msg-head");
+    if (observe && this.#observedHeader !== header) {
+      if (this.#observedHeader) this.#headerSizes.unobserve(this.#observedHeader);
+      this.#headerSizes.observe(header);
+      this.#observedHeader = header;
+    }
+    if (
+      this.#headerSlot?.header !== header ||
+      this.#headerSlot.boxWidth !== box.width ||
+      !this.#model?.news
+    ) {
+      // A new width is a user reflow. Read its unconstrained allocation on an
+      // invisible copy, as reserve does, without transient writes to real words.
+      const resizing = allocates && this.#headerSlot?.header === header;
+      let reading = header;
+      if (resizing) {
+        reading = header.cloneNode(true);
+        Object.assign(reading.style, {
+          position: "absolute",
+          visibility: "hidden",
+          inlineSize: layoutPx(box.width),
+          margin: "0",
+          anchorName: "none",
+        });
+        for (const node of reading.children) {
+          node.classList.toggle("lf-held-header-item", false);
+          node.style.removeProperty("--lf-held-header-width");
+        }
+        header.after(reading);
+      } else this.#releaseHeaderItems();
+      const widths = [...reading.children].map(
+        (node) => node.getBoundingClientRect().width,
+      );
+      if (resizing) reading.remove();
+      const items = [...header.children].map((node, index) => ({
+        node,
+        width: widths[index],
+      }));
+      this.#headerSlot = { header, items, boxWidth: box.width, held: observe };
+      for (const { node, width } of allocates ? items : []) {
+        // Keep the author's standing width before the first held render, while
+        // its receipt can still take unused room on that first presentation.
+        if (!observe && node.classList.contains("lf-msg-meta")) continue;
+        node.classList.toggle("lf-held-header-item", true);
+        node.style.setProperty("--lf-held-header-width", layoutPx(width));
+      }
+    }
+    if (observe && !this.#headerSlot.held) {
+      for (const item of allocates ? this.#headerSlot.items : []) {
+        if (item.node.classList.contains("lf-msg-meta"))
+          item.width = Math.max(item.width, item.node.getBoundingClientRect().width);
+        item.node.classList.toggle("lf-held-header-item", true);
+        item.node.style.setProperty("--lf-held-header-width", layoutPx(item.width));
+      }
+      this.#headerSlot.held = true;
+    }
+    const right = Math.max(
+      box.left,
+      ...this.#headerSlot.items.map(({ node }) => node.getBoundingClientRect().right),
+    );
+    controls.style.setProperty("--lf-thread-news-start", layoutPx(right - box.left));
+    if (this.#model.news) {
+      if (!this.#newsReserved) {
+        reserve(this.#news.node, [this.#model.news.label]);
+        this.#newsReserved = true;
+      }
+      const line = controls.getBoundingClientRect();
+      const shown = shownRect(controls, new Map());
+      if (shown)
+        controls.style.setProperty(
+          "--lf-thread-news-visible-end",
+          layoutPx(Math.max(0, shown.right - line.left)),
+        );
+    } else this.#newsReserved = false;
   }
 
   #marginControlsRowOf(content) {
@@ -1097,6 +1229,7 @@ export class ThreadView {
   }
 
   dispose() {
+    this.#releaseHeaderSlot();
     if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
     this.#heldNews?.dispose();
     this.#continuity?.release();

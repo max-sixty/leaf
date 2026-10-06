@@ -826,9 +826,9 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
         for_event=root,
     )
     told(page)
-    news = thread.locator(":scope > .lf-thread-controls").get_by_role(
-        "button", name="1 new reply"
-    )
+    news = thread.locator(
+        ":scope > .lf-thread-content > .lf-thread-controls"
+    ).get_by_role("button", name="1 new reply")
     expect(news).to_be_visible()
     expect(thread.locator(".lf-msg")).to_have_count(1)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
@@ -900,9 +900,9 @@ def test_a_walk_to_a_thread_a_diff_line_holds_lands_in_its_outlet(browser, serve
         },
     )["id"]
     told(page)
-    news = thread.locator(":scope > .lf-thread-controls").get_by_role(
-        "button", name="1 new thread"
-    )
+    news = thread.locator(
+        ":scope > .lf-thread-content > .lf-thread-controls"
+    ).get_by_role("button", name="1 new thread")
     expect(news).to_be_visible()
     landed = page.locator(f'lf-diff .lf-page-thread[data-thread="{second}"]')
     expect(landed).to_have_count(0)
@@ -986,9 +986,9 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
             )["id"]
         )
         told(page)
-    news = thread.locator(":scope > .lf-thread-controls").get_by_role(
-        "button", name="2 new replies"
-    )
+    news = thread.locator(
+        ":scope > .lf-thread-content > .lf-thread-controls"
+    ).get_by_role("button", name="2 new replies")
     expect(news).to_be_visible()
     expect(thread.locator(".lf-msg")).to_have_count(1)
     assert _box_height(thread) == pytest.approx(height, abs=0.5)
@@ -1251,7 +1251,7 @@ def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_foll
     row = (
         seat.locator(":scope > .lf-seat-news")
         if beside == "box"
-        else threads.first.locator(":scope > .lf-thread-controls")
+        else threads.first.locator(":scope > .lf-thread-content > .lf-thread-controls")
     )
     news = row.get_by_role("button", name="1 new thread")
     expect(news).to_be_visible()

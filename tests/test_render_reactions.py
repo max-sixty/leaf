@@ -2587,11 +2587,11 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
 
 
 def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, serve):
-    """A remote resolve takes away the strip whose list is open without a pointer or
-    focus gesture in this tab: the thread's card stays where it stands, drawn resolved,
-    and a resolved thread's messages wear no strip. The detached list stops owning
-    digits, so a later key cannot react to a message that no longer offers it, and the
-    user stays on the thread they were in."""
+    """A remote resolve waits behind the open card's notice, so the strip whose list is
+    open stays. A digit there means what the strip drew, and a resolved thread offers
+    no reaction, so it sends nothing; as the user's gesture in the thread it shows the
+    resolution, whose messages wear no strip. The detached list stops owning digits,
+    and the user stays on the thread they were in."""
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
     page = open_page(browser, url)
@@ -2605,10 +2605,14 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
 
     thread_model.cmd_resolve(serve.page_dir, root)
     told(page)
+    expect(card.get_by_role("button", name="Resolved", exact=True)).to_be_visible()
+    expect(card).to_have_attribute("data-resolved", "false")
+    expect(strip).to_have_class(re.compile("lf-react-open"))
+    count = len(events_model.read_events(serve.page_dir))
+    page.keyboard.press("1")
     expect(card).to_have_attribute("data-resolved", "true")
     expect(page.locator(".lf-react-open")).to_have_count(0)
     expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
-    count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")
     page.wait_for_timeout(100)
     assert len(events_model.read_events(serve.page_dir)) == count

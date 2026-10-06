@@ -100,7 +100,7 @@ def test_sort_source_follows_the_initial_step_when_code_arrives_later(browser, s
         reduced_motion="reduce", viewport={"width": 1440, "height": 900}
     )
     held = []
-    context.route("**/vendor/highlight.esm.js", lambda route: held.append(route))
+    context.route("**/vendor/syntax.esm.js", lambda route: held.append(route))
     page = open_page(
         browser,
         serve(example),
@@ -1089,7 +1089,14 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     assert reply.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [5, 16, "backward"]
+    # The remote resolution waits behind the thread's notice while the focused
+    # draft is in view. The user can reveal it without losing their reply.
+    notice = thread.locator(".lf-thread-news")
+    expect(notice).to_have_text("Resolved")
+    expect(thread).to_have_attribute("data-resolved", "false")
+    notice.click()
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
+    expect(reply).to_have_js_property("value", "keep this inline reply")
 
 
 def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
@@ -1148,11 +1155,17 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     page.unroute("**/api/state*")
     nudge(page_dir)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    # The resolved card stays where the user is writing in it.
-    expect(page.locator(".lf-thread")).to_have_attribute("data-resolved", "true")
+    # The card keeps the user's editing place and holds the remote resolution
+    # behind a notice until they choose to show it.
+    thread = page.locator(".lf-thread")
+    expect(thread.locator(".lf-thread-news")).to_have_text("Resolved")
+    expect(thread).to_have_attribute("data-resolved", "false")
     expect(page.locator(".lf-thread leaf-text")).to_have_js_property(
         "value", "keep this unfinished reply"
     )
+    thread.locator(".lf-thread-news").click()
+    expect(thread).to_have_attribute("data-resolved", "true")
+    expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
 
 
 def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):

@@ -1881,6 +1881,23 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     expect(touch.locator("#numbered > .lf-code-copy")).to_have_css("opacity", "1")
 
 
+def test_code_copy_releases_only_its_own_scroll_stop(browser, serve):
+    source = "wide-source-" * 30
+    markup = f'<pre id="source"><code>{source}</code></pre>'
+    page = open_page(
+        browser,
+        live_url(serve(leaf_page("Code stop", markup))),
+    )
+    pre = page.locator("#source")
+    control = page.locator(".lf-chrome > .lf-code-copy")
+    expect(control).to_have_count(1)
+    assert pre.evaluate("el => el.scrollWidth > el.clientWidth")
+    pre.evaluate("(el, text) => el.replaceChildren(text)", source)
+    expect(control).to_have_count(0)
+    assert pre.evaluate("el => el.scrollWidth > el.clientWidth")
+    expect(pre).to_have_attribute("tabindex", "0")
+
+
 def test_a_block_rewritten_while_it_is_colored_keeps_its_new_text(browser, serve):
     """A second dressing pass that reaches a block whose tokens are still on their way
     leaves it to the pass in flight, so that pass colors the text the block holds when
@@ -1935,17 +1952,26 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         "() => document.querySelector('lf-code.lf-rendered') !== null"
     )
 
-    roles = page.evaluate("""() => {
+    colors = page.evaluate("""() => {
       const at = sel => [...document.querySelectorAll(sel + ' [data-lf-syn]')]
-        .map(e => [e.dataset.lfSyn, e.textContent]);
+        .map(e => [e.style.color, e.textContent, getComputedStyle(e).fontStyle]);
       return { widget: at('#walk-code'), plain: at('#walk pre > code'),
                undeclared: at('#plain-code') };
     }""")
-    assert ["kw", "def"] in roles["widget"] and ["fn", "bucket_key"] in roles["widget"]
-    assert {r for r, _ in roles["widget"]} >= {"kw", "st", "fn"}, roles["widget"]
-    assert ["cm", "# apply the migration, then run the marked suite"] in roles["plain"]
-    assert roles["undeclared"] == [], (
-        f"a lf-code with no language was colored anyway: {roles['undeclared']}"
+    assert ["var(--syn-keyword)", "def", "normal"] in colors["widget"]
+    assert ["var(--syn-name)", "bucket_key", "normal"] in colors["widget"]
+    assert {color for color, _, _ in colors["widget"]} >= {
+        "var(--syn-keyword)",
+        "var(--syn-string)",
+        "var(--syn-name)",
+    }, colors["widget"]
+    assert [
+        "var(--syn-comment)",
+        "# apply the migration, then run the marked suite",
+        "italic",
+    ] in colors["plain"]
+    assert colors["undeclared"] == [], (
+        f"a lf-code with no language was colored anyway: {colors['undeclared']}"
     )
 
     # The words each block holds, unchanged by the spans: what the file says is what the
@@ -2018,7 +2044,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     assert appearance["noteFont"] == appearance["sansFont"], appearance
     assert appearance["noteInset"] == {"left": 1, "right": 1}, appearance
 
-    # A quote across a token boundary — "upgrade" is plain, "head" is a keyword span.
+    # A quote spans the command name and its argument tokens.
     post_event(
         page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
@@ -2048,6 +2074,104 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     assert marked == "alembic upgrade head", f"the mark landed on {marked!r}"
 
 
+def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, serve):
+    """Commands, flags and quoted variables use one grammar across all code surfaces.
+
+    The file extension selects Bash in a diff; ordinary arguments and heredoc
+    bodies stay distinct from executable command names, without changing source.
+    """
+    source = 'leaf page check "$OUTPUT" --render && cat ./review # inspect\n'
+    url = serve(
+        leaf_page(
+            "shell",
+            f"""
+<h1 id="t">Shell commands</h1>
+<pre id="shell-plain"><code class="language-bash">{escape(source)}</code></pre>
+<lf-code id="shell-widget" language="bash"><pre>{escape(source)}</pre></lf-code>
+<lf-diff id="shell-diff"><pre>diff --git a/check.sh b/check.sh
+--- a/check.sh
++++ b/check.sh
+@@ -1 +1 @@
+-leaf page check ./review
++{escape(source)}</pre></lf-diff>
+""",
+        )
+    )
+    page = open_page(browser, url)
+    reading = page.evaluate("""() => {
+      const plain = document.querySelector('#shell-plain code');
+      const widget = document.querySelector('#shell-widget');
+      const diff = document.querySelector('#shell-diff').shadowRoot
+        .querySelector('[data-line][data-line-type="change-addition"]');
+      const colored = node => [...node.querySelectorAll('[data-lf-syn]')]
+        .map(token => ({style: token.style.color, text: token.textContent,
+          color: getComputedStyle(token).color,
+          fontStyle: getComputedStyle(token).fontStyle}));
+      return {plain: colored(plain), widget: colored(widget), diff: colored(diff),
+        source: plain.textContent, diffSource: diff.textContent};
+    }""")
+    assert reading["source"] == source
+    assert reading["diffSource"] == source.rstrip("\n")
+    for surface in ("plain", "widget", "diff"):
+        tokens = reading[surface]
+        for color, text in (
+            ("name", "leaf"),
+            ("keyword", "--render"),
+            ("type", "$OUTPUT"),
+        ):
+            assert any(
+                token["style"] == f"var(--syn-{color})" and text in token["text"]
+                for token in tokens
+            ), (surface, color, text, tokens)
+        assert any(
+            token["style"] == "var(--syn-string)" and "page" in token["text"]
+            for token in tokens
+        )
+        assert (
+            "".join(
+                token["text"]
+                for token in tokens
+                if token["style"] == "var(--syn-comment)"
+                and token["fontStyle"] == "italic"
+            ).strip()
+            == "# inspect"
+        ), (surface, tokens)
+        assert {token["color"] for token in tokens} == {
+            token["color"] for token in reading["plain"]
+        }, (surface, tokens)
+
+    # A palette override reaches the document and the diff's shadow tree directly,
+    # without running the grammar or replacing any token nodes.
+    inherited = page.evaluate("""() => lfUnwatched(() => {
+      const roots = [document.querySelector('#shell-plain'),
+        document.querySelector('#shell-widget'),
+        document.querySelector('#shell-diff').shadowRoot];
+      const tokens = roots.map(root => [...root.querySelectorAll('[data-lf-syn]')]
+        .find(token => token.textContent === 'leaf'));
+      const before = tokens.map(token => getComputedStyle(token).color);
+      document.documentElement.style.setProperty('--syn-name', '#a12345');
+      return {before, after: tokens.map(token => getComputedStyle(token).color),
+        connected: tokens.every(token => token.isConnected)};
+    })""")
+    assert inherited["connected"], inherited
+    assert inherited["after"] == ["rgb(161, 35, 69)"] * 3, inherited
+    assert all(color != "rgb(161, 35, 69)" for color in inherited["before"]), inherited
+
+    heredoc = page.evaluate("""async () => {
+      const { syntax } = await window.__lfRuntimeImport('/runtime/syntax.js');
+      return await syntax("cat <<'EOF'\\nleaf is literal text\\nEOF\\n", 'bash');
+    }""")
+    assert any(
+        token["style"].get("color") == "var(--syn-string)"
+        and "leaf is literal text" in token["text"]
+        for token in heredoc
+    )
+    assert not any(
+        token["style"].get("color") == "var(--syn-name)" and "leaf" in token["text"]
+        for token in heredoc
+    )
+
+
 def test_every_language_returns_the_source_it_was_given(browser, serve):
     """`syntax` promises the tokens partition the source exactly, and lf-code's line
     numbers, `hi`, and every note's `at` are counted off that partition — so a tokenizer
@@ -2063,6 +2187,10 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
     samples = [
         'def f(x):\n    """doc\n    <b>&amp;</b>\n    """\n    return f"{x!r}"  # ok\n',
         '# c\ncd x && ls -la | grep "a b" > /dev/null\n',
+        'leaf page check "$OUTPUT" --render\r\n\r\n# tail\r\n',
+        "\tleaf\rpage\r\ncheck ./review\n\n",
+        "cat <<'EOF'\nleaf is literal text\nEOF\n",
+        "",
         '{"a": [1, 2, {"b": null}], "c": "<>&"}\n',
         "@@ -1 +1 @@\n-a <b>\n+c &d\n",
         "TARGET_PICKER_SCOPE * FROM t WHERE a = 'x''y'; -- note\n",
@@ -2090,6 +2218,8 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
         """async (langs) => {
           const { parsePatchFiles, preloadDiffHTML } =
             await window.__lfRuntimeImport('/vendor/pierre-diffs.esm.js');
+          const { themeName } =
+            await window.__lfRuntimeImport('/vendor/syntax.esm.js');
           const source = [
             'diff --git a/example.txt b/example.txt',
             '--- a/example.txt',
@@ -2105,7 +2235,7 @@ def test_every_language_returns_the_source_it_was_given(browser, serve):
               file.lang = lang;
               const html = await preloadDiffHTML({
                 fileDiff: file,
-                options: {theme: {light: 'github-light', dark: 'github-dark'}},
+                options: {theme: themeName},
               });
               if (!html.includes('new')) bad.push([lang, 'rendered no source']);
             } catch (error) {
@@ -2151,8 +2281,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
           text: l.textContent,
           indicator: getComputedStyle(l, '::before').content,
           indicatorSelect: getComputedStyle(l, '::before').userSelect,
-          roles: [...l.querySelectorAll('[data-lf-syn]')]
-            .map(s => [s.dataset.lfSyn, s.textContent]),
+          colors: [...l.querySelectorAll('[data-lf-syn]')]
+            .map(s => [s.style.color, s.textContent, getComputedStyle(s).fontStyle]),
         })),
         separators: [...d.querySelectorAll('[data-separator]')].map(s => ({
           text: s.textContent.trim(),
@@ -2266,17 +2396,24 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert reading["backgroundIsSeparateFromPage"], reading
 
     py = by_path["gateway/limits.py"]
-    assert any(["kw", "if"] in line["roles"] for line in py), py
-    assert {r for line in py for r, _ in line["roles"]} >= {"kw", "st", "fn"}
+    assert any(
+        ["var(--syn-keyword)", "if", "normal"] in line["colors"] for line in py
+    ), py
+    assert {color for line in py for color, _, _ in line["colors"]} >= {
+        "var(--syn-keyword)",
+        "var(--syn-string)",
+        "var(--syn-name)",
+    }
 
-    # The docstring the second hunk rewrites: every line of it is string on both sides.
+    # Docstrings keep the theme's comment color and italic style on both sides.
     doc = [line for line in py if "Called on logout" in line["text"]]
     assert len(doc) == 2, [line["text"] for line in py]
     for line in doc:
-        assert {r for r, _ in line["roles"]} == {"st"}, line
-        assert "".join(t for _, t in line["roles"]) == line["text"], line
+        assert {color for color, _, _ in line["colors"]} == {"var(--syn-comment)"}, line
+        assert {style for _, _, style in line["colors"]} == {"italic"}, line
+        assert "".join(text for _, text, _ in line["colors"]) == line["text"], line
 
-    # The yaml key keeps its key role rather than tokenizing the deleted line as a list
+    # The yaml key keeps its theme color rather than tokenizing the deleted line as a list
     # item or the added line as an arbitrary string.
     yml = [
         line
@@ -2285,9 +2422,10 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     ]
     assert len(yml) == 2
     for line in yml:
-        assert any(role == "ty" and "burst" in text for role, text in line["roles"]), (
-            line
-        )
+        assert any(
+            color == "var(--syn-type)" and "burst" in text
+            for color, text, _ in line["colors"]
+        ), line
     assert {
         (line["kind"], line["indicator"], line["indicatorSelect"]) for line in yml
     } == {
@@ -2299,7 +2437,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     assert not any("No newline at end of file" in line["text"] for line in py)
 
     # No extension the table names: plain, the way a lf-code with no `language` is.
-    assert all(line["roles"] == [] for line in by_path["deploy/Dockerfile"]), by_path[
+    assert all(line["colors"] == [] for line in by_path["deploy/Dockerfile"]), by_path[
         "deploy/Dockerfile"
     ]
 
@@ -2330,7 +2468,7 @@ def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
 
     A changed line gets a full semantic background and a brighter inline span where
     Pierre can identify the changed words. The spans must preserve both source text and
-    Leaf's syntax roles, and a file with no declared language still gets the same diff
+    the syntax theme, and a file with no declared language still gets the same diff
     treatment without gaining invented syntax colour.
     """
     page = open_page(browser, serve(DIFF_PAGE))
@@ -2346,7 +2484,7 @@ def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
         text: line.textContent,
         marks: [...line.querySelectorAll('[data-diff-span]')].map(span => span.textContent),
         inked: [...line.querySelectorAll('[data-diff-span] [data-lf-syn]')]
-          .map(span => [span.dataset.lfSyn, span.textContent]),
+          .map(span => [span.style.color, span.textContent]),
         linePaint: getComputedStyle(line).backgroundColor,
         prePaint: getComputedStyle(line.closest('pre')).backgroundColor,
         markPaint: [...line.querySelectorAll('[data-diff-span]')].map(span => {
@@ -2373,8 +2511,8 @@ def test_a_changed_diff_line_marks_the_words_that_moved(browser, serve):
     after = changed("gateway/config.yaml", "change-addition", "burst: 40")
     assert before["marks"] and any("20" in mark for mark in before["marks"])
     assert after["marks"] and any("40" in mark for mark in after["marks"])
-    assert ["nu", "20"] in before["inked"]
-    assert ["nu", "40"] in after["inked"]
+    assert ["var(--syn-number)", "20"] in before["inked"]
+    assert ["var(--syn-number)", "40"] in after["inked"]
 
     changed_lines = [
         line

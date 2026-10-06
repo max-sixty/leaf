@@ -172,6 +172,7 @@ export { copyCodeBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";
 export { keepView, openingView, tabStore } from "./storage.js";
 export {
+  ensureSyntaxLanguage,
   highlightBlocks,
   langForPath,
   synNodes,

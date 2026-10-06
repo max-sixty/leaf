@@ -7617,9 +7617,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 file's own numbers with an elided row where it skips; Tree shows file
                 structure. Use “Copy code” on the right of either block below, or
                 <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard keeps the
-                code's whitespace and leaves out line numbers and Notes.
+                code's whitespace and leaves out line numbers and Notes. Bash separates
+                commands, arguments, and flags with the same syntax colors as a diff.
               </p>
-              <pre id="bg-plain-code"><code>leaf page check ./proposal
+              <pre
+                id="bg-plain-code"
+              ><code class="language-bash">leaf page check ./proposal --render
 leaf page stamp ./proposal --text "Ready for review"</code></pre>
               <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
                 <pre>

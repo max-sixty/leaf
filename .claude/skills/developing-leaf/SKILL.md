@@ -184,9 +184,9 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 ## Run the agent journey
 
 `uv run --project <root> leaf-dev journey TARGET` runs one user's journey in
-Chrome: on the triage board, it asks through Threads for a heading edit, a
-published revision and a reply, then checks the reply shows and a reload presents
-the revision. It prints how long each step took, the agent's steps on the page
+Chrome: on the triage board, it tells the agent through Threads that a release
+passed its checks and asks it to record that, leaving how to the agent, then checks
+a reply shows and a reload presents a revision naming the release. It prints how long each step took, the agent's steps on the page
 server's clock, so the same journey benchmarks every harness. TARGET is `cc` or
 `codex` for an isolated session of that harness running this working tree's
 plugin, `local` for the website's adapter against the host's Codex login (no
@@ -194,20 +194,11 @@ Worker, container limits, credential proxy or Docker), `wrangler` for the built
 site through the local Worker, or a website origin. A run on this machine spends
 the harness's login.
 
-Use CI for Linux-specific evidence and the complete Worker/container boundary:
-pull requests run the site build, dry-run deploy, and `verify-site wrangler`, and
-`publish-site` verifies that boundary before deployment. Start Docker locally
-only to reproduce a concrete failure at that boundary. When debugging hosted-agent
-delivery through it and `OPENAI_API_KEY` is exported, run:
-
-```bash
-npm ci --prefix <root>/worker
-npm run build --prefix <root>/worker
-uv run --project <root> leaf-dev journey wrangler
-```
-
-The `publish-site` workflow's journey against the deployed release is the only
-production reading.
+`tests/AGENTS.md`, "Run what the change needs", owns the CI delivery checks and
+when to reproduce a Worker/container failure locally. `worker/README.md`, "Local
+development", owns that reproduction setup. The `publish-site` workflow verifies
+the complete boundary before deployment; its journey against the deployed release
+is the only production reading.
 
 ## Test a terminal Codex task
 
@@ -319,10 +310,10 @@ if Worktrunk asks to approve the project commands, ask the user to run
 
 ## Land a change
 
-Thread appearance changes run `tests/test_render_thread_snapshots.py`, which compares
-images on macOS only, so run it on a Mac before landing; a pull request's Linux CI runs
-its journey without comparing. Review the failure's captured images before accepting an intentional
-change; `dev/leaf_dev/thread_snapshots.py` owns the pinned-image capture and acceptance workflow.
+Thread appearance changes run `tests/test_render_thread_snapshots.py` on macOS
+before landing. Linux CI runs the same delivery journey without comparing images.
+Review captured Mac images before accepting an intentional change;
+`dev/leaf_dev/thread_snapshots.py` owns capture and acceptance.
 
 A red gate is the branch's to fix. A pull request's `test` job and the local
 pre-merge `tests` run the broad selection and the nightly tests the branch edits;

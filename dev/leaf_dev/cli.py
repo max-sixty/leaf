@@ -28,6 +28,7 @@ COMMANDS = {
     "stills": "stills",
     "thread-snapshots": "thread_snapshots",
     "verify-codex-task": "verify_codex_task",
+    "verify-pi-task": "verify_pi_task",
     "verify-site": "verify_site",
 }
 

@@ -30,7 +30,7 @@ reaches a module by importing it from this package, never through `sys.path`,
   an A/B's pair of them, whose base defaults to the merge base with `main`
   (`base_ref`); pages served from an authored source on an arm; the machine's load
   average a timed command prints; the isolated `claude -p` children evals run; and
-  the throwaway Codex homes a Codex child runs under.
+  the throwaway Codex and Pi homes a Codex or Pi child runs under.
 - `page_fixtures.py` builds a page directory from an authored source;
   `example_data.py` reads the catalog, names, and each page's companions.
 - `browser.py` launches Chrome, and opens and settles a tab, the same way for every
@@ -46,6 +46,8 @@ reaches a module by importing it from this package, never through `sys.path`,
   API and return a JSON reading. `--record .tmp/recordings/NAME` saves `trace.zip`
   and `video.webm` per arm, even on a failed assertion. `--gif` adds a looping GIF
   for short journeys; `--actions` opts into visible click/key decorations.
+  `--checkpoint-images` adds native PNG images at action phases for checkpoint review;
+  taking them adds capture work and briefly hides the live caret.
   Recordings default to normal motion; `--motion reduce` reproduces that preference.
   Plain recording inserts no pauses. `--actions` is for demonstrations: Playwright
   waits 500 ms before each annotated input. Native video holds its final frame for
@@ -58,7 +60,9 @@ reaches a module by importing it from this package, never through `sys.path`,
   into a before/after pair in its own run directory under `.tmp/stills/`.
 - `leaf-dev thread-snapshots` owns reviewed message-delivery images in leaf-assets;
   `thread_snapshots.py` owns capture and acceptance. Its shared journey replaces
-  the former panel/card sent stills.
+  the former panel/card sent stills. Acceptance alone advances
+  `leaf-assets.json`'s `thread_snapshots_revision`; media publication advances
+  `revision`, so new demo assets cannot replace a runtime's reviewed expectations.
 - `suite.py` runs a selection of the suite in a checkout and reads each test's
   outcome from pytest's junit report, refusing a selection pytest would not run.
 - `leaf-dev flake NODEID...` runs tests from the working tree as 18 copies, six at a
@@ -105,12 +109,14 @@ in `leaf-assets.json` and the README's image URLs that name it.
   listener ports, temporary site, container build context and state, and retained
   logs under `.tmp/verify-site/run-*/`. `worker/README.md` owns hosted-agent
   diagnostics and the failure contract.
-- `leaf-dev journey TARGET` runs one user's journey, a heading edit asked through
-  Threads and answered with a revision and a reply, on any harness: `cc` or `codex`
+- `leaf-dev journey TARGET` runs one user's journey, a request through Threads to
+  record that a release passed its checks, answered with a revision and a reply, on
+  any harness: `cc` or `codex`
   on this working tree, `local` for the website's adapter, `wrangler`, or a website
   origin. It prints one JSON sample: the title, published revision and reply timed
   on the page server's clock from the comment's admission, and what only the browser
-  sees from the send. `publish-site` runs it against each release.
+  sees from the send; on `cc` or `codex`, also the agent's turn split into delivery,
+  model and tool phases. `publish-site` runs it against each release.
 - `worker/deploy-dev.sh` (`npm run deploy:dev --prefix worker`) deploys the checkout
   to the standing `leaf-website-dev` environment and verifies it. Production deploys
   only through `.github/workflows/publish-site.yaml`.
@@ -133,3 +139,14 @@ in `leaf-assets.json` and the README's image URLs that name it.
   closed. It spends the host's Codex login, so CI does not run it.
   `--preview` runs that journey through `leaf-dev preview --user`, also checking
   the retained keyed URL and feedback after automatic page-server recovery.
+
+## Pi
+
+- `leaf-dev verify-pi-task` runs a real Pi session in RPC mode with this working
+  tree installed as its Pi package. It posts comments while Pi is idle, during a
+  shell command, and after an Escape, and fails when a comment is not answered
+  exactly once, a comment posted during a run is not answered in that run, Escape
+  leaves the turn open or Pi running, or quitting leaves the session's claim
+  active. Pi is the version `dev/pi/package.json` pins, which only this command
+  installs, and its only login is a copy of the host's Codex login, so CI does not
+  run it.

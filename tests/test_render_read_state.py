@@ -777,7 +777,7 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
 ):
     """A reply landing in the diff thread the user had just written grew the thread at
     its foot, on screen, and everything after the diff moved down the page. It waits
-    behind a notice in the thread's head row, which appears without changing the
+    behind a notice in the thread's control row, which appears without changing the
     thread's height, and stays unread while none of it has shown. The keyboard reaches
     the notice from the thread and opens it, and the reply's body, drawn inside the
     widget's shadow tree, is read once shown. The browser fixture's shift watch holds
@@ -822,7 +822,7 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
         for_event=root,
     )
     told(page)
-    news = thread.locator(":scope > .lf-thread-root-meta").get_by_role(
+    news = thread.locator(":scope > .lf-thread-controls").get_by_role(
         "button", name="1 new reply"
     )
     expect(news).to_be_visible()
@@ -912,7 +912,7 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
             )["id"]
         )
         told(page)
-    news = thread.locator(":scope > .lf-thread-root-meta").get_by_role(
+    news = thread.locator(":scope > .lf-thread-controls").get_by_role(
         "button", name="2 new replies"
     )
     expect(news).to_be_visible()
@@ -1130,7 +1130,7 @@ def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_foll
 ):
     """A thread the agent starts in a seat lands at the seat's foot, and drawn at once
     it pushed the page after the seat down. It waits behind a notice in a row of fixed
-    size: the head row of the seat's last thread, or, in a seat that draws no thread, a
+    size: the control row of the seat's last thread, or, in a seat that draws no thread, a
     row standing in place of the first-message row at that row's height, since the row
     has no room beside its box. It shows when the user opens the notice from the
     keyboard, when they start a thread of their own, which shows after it, and when they
@@ -1164,7 +1164,7 @@ def test_a_thread_the_agent_starts_in_a_page_seat_waits_in_the_row_it_would_foll
     row = (
         seat.locator(":scope > .lf-seat-news")
         if beside == "box"
-        else threads.first.locator(":scope > .lf-thread-root-meta")
+        else threads.first.locator(":scope > .lf-thread-controls")
     )
     news = row.get_by_role("button", name="1 new thread")
     expect(news).to_be_visible()

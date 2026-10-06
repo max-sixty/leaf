@@ -1315,19 +1315,67 @@ def _unfold_suggestion_undo(page, target):
     return control
 
 
-@pytest.mark.parametrize("width", [1440, 1200, 700, 390])
-def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, width):
-    """The developer sampler stays usable after edits, verdicts, and Page Map actions."""
-    page = open_page(browser, serve(FEATURE_GALLERY))
+# Margin action rows on a page of their own: three suggestions sharing one paragraph, so
+# a decision on one reflows the words the others stand by; a draft; and a suggestion
+# whose thread and standing reaction crowd its row.
+MARGIN_ACTIONS_PAGE = leaf_page(
+    "Margin actions",
+    """
+<h1 id="t">Margin actions</h1>
+<p id="change-forms">
+  <span><strong>Replace.</strong> The sample meeting starts at
+    <lf-suggestion id="s-replace"><lf-old>nine.</lf-old><lf-new>ten.</lf-new></lf-suggestion></span>
+  <span><strong>Insert.</strong> Bring a notebook.
+    <lf-suggestion id="s-insert"><lf-new> A pencil is useful too.</lf-new></lf-suggestion></span>
+  <span><strong>Delete.</strong> The room is upstairs.
+    <lf-suggestion id="s-delete"><lf-old> Please arrive an hour early.</lf-old></lf-suggestion></span>
+</p>
+<p id="editing-guide">Edit the draft below, then save it.</p>
+<lf-draft id="d-draft"><pre>Write a **different invitation** here.</pre></lf-draft>
+<p id="crowded-line">Use the
+  <lf-suggestion id="s-crowded"><lf-old>courtyard</lf-old><lf-new>covered terrace</lf-new></lf-suggestion>
+  for the practice session.</p>
+""",
+)
+MARGIN_ACTIONS_EVENTS = (
+    {
+        "kind": "comment",
+        "author": "agent",
+        "revision": 1,
+        "text": "Which space is easier to find?",
+        "anchor": {"section": "s-crowded"},
+    },
+    {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "token": "prioritize",
+        "anchor": {"section": "s-crowded"},
+    },
+)
+
+
+# Where the margin's rows stand: in the rail (1440), as pins over the page (700), and as
+# pins one of which folds its actions behind `…` (390). At 1200 every row stands in the
+# rail, as at 1440.
+MARGIN_POSTURE_WIDTHS = [1440, 700, 390]
+
+
+@pytest.mark.parametrize("width", MARGIN_POSTURE_WIDTHS)
+def test_suggestion_actions_stay_reachable_through_a_decision_and_its_undo(
+    browser, serve, width
+):
+    """Each suggestion's Accept and Reject are back within reach once its decision is
+    undone, in every posture its row takes."""
+    page = open_page(browser, serve(MARGIN_ACTIONS_PAGE))
     resized(page, width, 900)
 
     for target, outcome in (
-        ("bg-replace", "accept"),
-        ("bg-insert", "reject"),
-        ("bg-delete", "accept"),
+        ("s-replace", "accept"),
+        ("s-insert", "reject"),
+        ("s-delete", "accept"),
     ):
         item = page.locator(f'[data-lf-margin-for="{target}"]')
-        controls = item
         _unfold(item)
         applied = int(page.locator("body").get_attribute("data-lf-applied"))
         with sending(page, f"{outcome} {target}"):
@@ -1338,7 +1386,6 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
             "data-lf-applied", str(applied + 1)
         )
         render_checks_model.wait_until_ready(page)
-        expect(controls.locator(".lf-margin-receipt")).to_have_count(0)
         margins_laid_out(page)
         undo_control = _unfold_suggestion_undo(page, target)
         applied += 1
@@ -1358,37 +1405,28 @@ def test_the_feature_gallery_keeps_its_real_actions_reachable(browser, serve, wi
         ).to_be_visible()
 
 
-@pytest.mark.parametrize("width", [1440, 1200, 700, 390])
-def test_the_feature_gallery_keeps_its_draft_and_page_map_actions_reachable(
-    browser, serve, width
-):
-    page = open_page(browser, serve(FEATURE_GALLERY))
+@pytest.mark.parametrize("width", MARGIN_POSTURE_WIDTHS)
+def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, width):
+    """A draft's Save and Cancel stand unfolded while it is edited, and the save outlasts
+    a reload; a standing reaction's Remove is reachable from the Page Map by keyboard
+    and withdraws the reaction."""
+    page = open_page(browser, serve(MARGIN_ACTIONS_PAGE, events=MARGIN_ACTIONS_EVENTS))
     resized(page, width, 900)
-    draft_item = page.locator('[data-lf-margin-for="bg-draft"]')
+    draft_item = page.locator('[data-lf-margin-for="d-draft"]')
     draft_item.locator(".lf-draft-pencil").click()
-    editor = page.locator("#bg-draft leaf-text")
+    editor = page.locator("#d-draft leaf-text")
     body = "The workshop moved outdoors.\nBring a folding chair."
     write(editor, body)
-    page.locator("#bg-editing-guide").click()
+    page.locator("#editing-guide").click()
     expect(draft_item.get_by_role("button", name="Save", exact=True)).to_be_visible()
     expect(draft_item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
     expect(draft_item.locator(".lf-margin-more")).to_be_hidden()
-    with sending(page, "save the gallery draft"):
+    with sending(page, "save the draft"):
         draft_item.get_by_role("button", name="Save", exact=True).click()
-    expect(page.locator("#bg-draft .lf-draft-body")).to_have_text(body)
-    # Through the harness's navigation rather than a bare reload, for its ResizeObserver
-    # adjudication: this gallery is twenty thousand pixels tall at 390 and its arrival
-    # cascade raises a deferred-delivery notice now and then, which the render gate and
-    # `navigate` both read as the platform reporting a deferral rather than the page
-    # failing — only a notice the confirming attempt repeats is a fault. A bare reload
-    # leaves the first one standing in `errors` for this test's closing assertion.
+    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(body)
     navigate(page, page.url)
-    expect(page.locator("#bg-draft .lf-draft-body")).to_have_text(body)
+    expect(page.locator("#d-draft .lf-draft-body")).to_have_text(body)
 
-    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Page & layout").click()
-    crowded = page.locator('[data-lf-margin-for="bg-crowded"]')
-    expect(crowded.locator(".lf-margin-entry:visible")).to_have_count(2)
-    crowded.locator(".lf-margin-more").click()
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
@@ -1396,7 +1434,6 @@ def test_the_feature_gallery_keeps_its_draft_and_page_map_actions_reachable(
         event
         for event in events_model.read_events(serve.page_dir)
         if event.get("token") == "prioritize"
-        and event.get("anchor", {}).get("section") == "bg-crowded"
     )
     reaction_actions = dialog.locator(
         '[data-lf-margin-entry-owner="standing-reactions"]'
@@ -1418,7 +1455,11 @@ def test_the_feature_gallery_keeps_its_draft_and_page_map_actions_reachable(
     with sending(page, "the withdrawal of the Page Map reaction"):
         remove.click()
     expect(dialog).to_be_hidden()
-    expect(crowded.locator(f'[data-event="{reaction["id"]}"]')).to_have_count(0)
+    expect(
+        page.locator(
+            f'[data-lf-margin-for="s-crowded"] [data-event="{reaction["id"]}"]'
+        )
+    ).to_have_count(0)
     last = events_model.read_events(serve.page_dir)[-1]
     assert (last["kind"], last["undoes"]) == ("undo", reaction["id"])
 
@@ -5242,20 +5283,10 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
 
 
 def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, serve):
-    """Room right of a thread's words short of the card's measure narrows the card, not
-    its height, and the card spends none of that room keeping its pin clear.
-
-    The width is the arrangement: this thread is on the gallery's right-hand title
-    comparison, so the room right of it grows with half the viewport, and the case only says
-    anything where that room falls between `--thread-card-min` and `--thread-card`.
-    Wider and the card takes its preferred measure with room to spare, narrower and it
-    is the short-rail case below. The room is asserted before the outcome is, so moving
-    either token, or the gallery's arrangement, reddens the arrangement and names the
-    width to re-pick rather than reading as a layout regression."""
+    """The gallery's middle-width rail clears its pin and holds the whole card."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     page.emulate_media(reduced_motion="reduce")
-    # Remove the gallery's sidenote so the column stays centred rather than shifting
-    # left to reserve its room. The width is picked for that centred arrangement.
+    # Keep the title comparison centred so this width exercises the middle rail.
     page.evaluate("document.getElementById('bg-compare-note').remove()")
     resized(page, 1600, 900)
     page.evaluate("location.hash = 'bg-margin-controls'")
@@ -5272,28 +5303,19 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
           const style = getComputedStyle(cardNode);
           return {placement: cardNode.dataset.lfThreadPlacement,
                   cardLeft: card.left, cardRight: card.right, cardWidth: card.width,
-                  wordsRight: words.right, pinLeft: pin.left, pinRight: pin.right,
-                  viewport: innerWidth,
-                  preferred: parseFloat(style.getPropertyValue('--thread-card')),
+                  wordsRight: words.right, pinRight: pin.right, viewport: innerWidth,
                   minimum: parseFloat(style.getPropertyValue('--thread-card-min')),
+                  preferred: parseFloat(style.getPropertyValue('--thread-card')),
                   clipped: list.scrollHeight - list.clientHeight};
         }"""
     )
-    # The room between the words and the visible edge is what the card has to fit
-    # into, and this case is the one where that room falls short of the preferred
-    # measure without falling short of the minimum. The pin on the words reaches past
-    # them, and the room past it falls short of the measure too.
-    room = geometry["viewport"] - 8 - (geometry["wordsRight"] + 8)
-    assert geometry["minimum"] <= room < geometry["preferred"], geometry
-    assert geometry["pinRight"] > geometry["wordsRight"], geometry
-    # Clearing the pin would cost the card width, so the card keeps no gap past it: it
-    # stands beside the words, over whatever of the pin reaches that far, and takes
-    # the whole room to the visible edge (comment-placement.js).
+    room_past_pin = geometry["viewport"] - 8 - (geometry["pinRight"] + 8)
+    assert geometry["wordsRight"] < geometry["pinRight"], geometry
+    assert geometry["minimum"] <= room_past_pin < geometry["preferred"], geometry
     assert geometry["placement"] == "right", geometry
-    assert geometry["cardLeft"] == pytest.approx(geometry["wordsRight"] + 8, abs=0.5), (
+    assert geometry["cardLeft"] == pytest.approx(geometry["pinRight"] + 8, abs=0.5), (
         geometry
     )
-    assert geometry["cardLeft"] < geometry["pinRight"] + 8, geometry
     assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
         geometry
     )

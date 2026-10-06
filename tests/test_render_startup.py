@@ -2127,8 +2127,9 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
     # replayed onto it, so what the press restores is the accept, not a blank slate.
     undo(page)
     expect(page.locator("#sug-fix")).to_have_attribute("data-lf-state", "accept")
-    # The undo is no gesture on the thread, so its card stays where it stands, closed.
-    expect(reopened).to_have_attribute("data-resolved", "true")
+    # The undo is no gesture on the thread, so its card stays where it stands, holding
+    # the resolution behind its notice.
+    expect(reopened.get_by_role("button", name="Resolved", exact=True)).to_be_visible()
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
     # What the log holds is the three gestures and not one word about the thread:
     # it was reopened and closed again by that log being read.
@@ -3549,10 +3550,10 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
     other_thread = page.locator(f'.lf-thread[data-id="{other}"]')
     held_workflow = held_thread.locator(
-        ":scope > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending"
+        f'.lf-msg[data-mid="{held}"] > .lf-msg-head .lf-msg-sending'
     )
     other_workflow = other_thread.locator(
-        ":scope > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending"
+        f'.lf-msg[data-mid="{other}"] > .lf-msg-head .lf-msg-sending'
     )
     expect(workflows).to_have_count(2)
     expect(held_workflow).to_have_text("Sent")
@@ -3669,9 +3670,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # the message, so it stands in the thread's corner and the row ends here.
     expect(held_thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
     assert held_workflow.evaluate(
-        "node => { const slot = node.closest('.lf-msg-workflow') ?? node; "
-        "return slot.parentElement.matches('.lf-msg-meta') "
-        "&& slot.previousElementSibling.matches('time'); }"
+        "node => node.parentElement.matches('.lf-msg-meta') "
+        "&& node.previousElementSibling.matches('time')"
     )
 
     # New words do not detach the claim from the comment that started the work.
@@ -3742,11 +3742,13 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(workflows).to_have_count(1)
 
     # A thread the user has closed asks nothing: its card, closed from another tab,
-    # stays where it stands and says it is resolved.
+    # stays where it stands, holding the resolution behind its notice, and its title
+    # no longer says the agent is working on it.
     append_carried_log_record(d, {"kind": "resolve", "author": "user", "parent": held})
     told(page)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    expect(held_thread.locator(".lf-thread-status")).to_have_text("Resolved")
+    expect(held_thread.locator(".lf-thread-news")).to_have_text("Resolved")
+    expect(held_thread.locator(".lf-thread-status")).to_have_count(0)
     expect(workflows).to_have_count(1)
 
     # Reopening restores the task, which no reply ends. Its start goes with the page
@@ -3790,7 +3792,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
 
     page.keyboard.press("c")
     workflow = page.locator(
-        f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending'
+        f'.lf-thread[data-id="{comment["id"]}"] .lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
     )
     expect(workflow).to_have_text("Picked up")
     # The gallery's own queues end the disclosure, after the activity it shares.
@@ -3868,7 +3870,7 @@ def test_an_unpicked_move_says_it_is_waiting_after_the_short_grace(browser, serv
     page = open_page(browser, url)
     page.keyboard.press("c")
     workflow = page.locator(
-        f'.lf-thread[data-id="{comment["id"]}"] > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending'
+        f'.lf-thread[data-id="{comment["id"]}"] .lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
     )
     expect(workflow).to_have_text("Waiting for pickup")
     expect(workflow).to_have_attribute("title", "Waiting for pickup")
@@ -3898,15 +3900,14 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
     page.keyboard.press("c")
     thread = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
     workflow = thread.locator(
-        ":scope > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending"
+        f'.lf-msg[data-mid="{comment["id"]}"] > .lf-msg-head .lf-msg-sending'
     )
     thread.locator(".lf-thread-summary").click()
     expect(workflow).to_be_visible()
     expect(workflow).to_have_text("Sent")
     assert workflow.evaluate(
-        "node => { const slot = node.closest('.lf-msg-workflow') ?? node; "
-        "return slot.parentElement.matches('.lf-msg-meta') "
-        "&& slot.previousElementSibling.matches('time'); }"
+        "node => node.parentElement.matches('.lf-msg-meta') "
+        "&& node.previousElementSibling.matches('time')"
     )
     expect(workflow.locator("time")).to_have_count(0)
     expect(thread.locator(":scope > .lf-msg-sending")).to_have_count(0)
@@ -3943,13 +3944,26 @@ def test_a_message_workflow_changes_phase_in_place_and_then_stands_still(
         "title",
         "Working · comparing the replacement against every narrow thread surface",
     )
-    assert workflow.evaluate(
+    header_reading = workflow.evaluate(
         """node => {
-          const head = node.parentElement;
-          return [...head.querySelectorAll(':scope > :is(b, time)')]
-            .every(part => getComputedStyle(part).flexShrink === '0');
+          const head = node.closest('.lf-msg-head');
+          const author = head.querySelector(':scope > b');
+          const metadata = head.querySelector(':scope > .lf-msg-meta');
+          const time = metadata.querySelector(':scope > time');
+          const contains = (outer, inner) => {
+            const bounds = outer.getBoundingClientRect();
+            const part = inner.getBoundingClientRect();
+            return part.width > 0 && part.height > 0
+              && part.left >= bounds.left - 0.5 && part.right <= bounds.right + 0.5;
+          };
+          return {
+            authorVisible: contains(head, author),
+            timeVisible: contains(head, time) && contains(metadata, time),
+            timeFixed: getComputedStyle(time).flexShrink === '0',
+          };
         }"""
-    ), "long status metadata can shrink the message author or timestamp"
+    )
+    assert all(header_reading.values()), header_reading
     ticked(page)
     ticked(page)
     expect(workflow).to_have_attribute("data-identity-probe", "kept")
@@ -3972,7 +3986,7 @@ def test_an_exact_workflow_reports_stale_work_beside_a_live_page_claim(
     page.keyboard.press("c")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     work_line = page.locator(
-        f'.lf-thread[data-id="{held}"] > .lf-thread-content > .lf-thread-root-meta .lf-msg-sending'
+        f'.lf-thread[data-id="{held}"] .lf-msg[data-mid="{held}"] > .lf-msg-head .lf-msg-sending'
     )
     work_button = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     held_thread = page.locator(f'.lf-thread[data-id="{held}"]')
@@ -4428,6 +4442,8 @@ customElements.define('lf-feed', class extends HTMLElement {
     "failure",
     [
         "outletFor",
+        "invalid-count",
+        "invalid-outlet",
         "unregister",
         "end-unregister",
         "disconnect",
@@ -4452,7 +4468,7 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     """An adapter failure cannot keep stale local views or stop the next widget.
 
     Each case is one way a surface stops holding its threads: its callback throws
-    (outletFor, after partial claims on the first datum), it unregisters outside or
+    (outletFor, after preparing the first datum), it unregisters outside or
     inside its callback, it leaves the page, its outlet moves out of it or off the
     page, it places nothing, or its datum goes while the callback awaits. Its threads
     fall back to the core surface with the unsent draft, and its picker lets go of the
@@ -4471,7 +4487,7 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
         "x-example": '<lf-test-surface id="surface-example"></lf-test-surface>',
     }
     module = """
-import {projectData, consumeThreads} from '/runtime/widget-api.js';
+import {projectData, placeThreads} from '/runtime/widget-api.js';
 customElements.define('lf-test-surface', class extends HTMLElement {
   connectedCallback() {
     projectData(this, ['first', 'second'], key => key, key => {
@@ -4484,15 +4500,13 @@ customElements.define('lf-test-surface', class extends HTMLElement {
       row.append(words, outlet);
       return row;
     });
-    this.surface = consumeThreads(this, async (collection, surfaces) => {
-      for (const thread of collection.threads) {
-        const target = surfaces.target(thread.key);
-        if (!target) continue;
+    this.surface = placeThreads(this, async (targets) => {
+      const outlets = targets.map((target) => {
         const {anchor, placement} = target;
         if (anchor.datum === 'second' && this.failure === 'outletFor')
           throw new Error('surface fixture: outletFor');
-        if (this.failure !== 'hidden') surfaces.place(thread.key, placement.datumElement.outlet);
-      }
+        return this.failure === 'hidden' ? null : placement.datumElement.outlet;
+      });
         if (this.failure === 'end-unregister') {
           this.failure = null;
           this.surface.unregister();
@@ -4508,6 +4522,9 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             row.remove();
           }
         }
+      if (this.failure === 'invalid-count') return outlets.slice(1);
+      if (this.failure === 'invalid-outlet') return outlets.map(() => undefined);
+      return outlets;
     });
   }
   fail(phase) {
@@ -4702,13 +4719,14 @@ customElements.define('lf-test-surface', class extends HTMLElement {
             "value", "Keep this unsent reply."
         )
         expect(markers).to_have_count(0)
-    # Only a throw and an outlet outside its owner are faults the page reports.
-    if failure in {"outletFor", "moved"}:
-        expected = (
-            "returned an outlet outside its presentation owner"
-            if failure == "moved"
-            else "surface fixture: outletFor"
-        )
+    # Invalid output is a failed preparation, never a partial successful claim.
+    if failure in {"outletFor", "moved", "invalid-count", "invalid-outlet"}:
+        expected = {
+            "outletFor": "surface fixture: outletFor",
+            "moved": "returned an outlet outside its presentation owner",
+            "invalid-count": "return one outlet or null per target",
+            "invalid-outlet": "A Thread outlet must be an Element or null",
+        }[failure]
         consume_browser_errors(page, expected)
 
 
@@ -5703,19 +5721,18 @@ def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve)
     )
     page = open_page(browser, url)
     page.evaluate("""async () => {
-      const {consumePageThreads} = await __lfRuntimeImport('/runtime/application.js');
+      const {placePageThreads} = await __lfRuntimeImport('/runtime/application.js');
       const rail = document.querySelector('#review');
       const outlets = new Map();
-      window.pageSurface = consumePageThreads(rail, (collection, surface) => {
-        for (const thread of collection.threads) {
-          if (!surface.target(thread.key)) continue;
+      window.pageSurface = placePageThreads(rail, (targets) => {
+        return targets.map(({thread}) => {
           let outlet = outlets.get(thread.key);
           if (!outlet) {
             outlet = document.createElement('div');
             outlet.dataset.lfGen='1'; rail.append(outlet); outlets.set(thread.key,outlet);
           }
-          surface.place(thread.key,outlet);
-        }
+          return outlet;
+        });
       });
     }""")
     thread = page.locator("#review .lf-page-thread")
@@ -5779,7 +5796,7 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
         "x-example": '<lf-test-seat id="sample"></lf-test-seat>',
     }
     module = """
-import {projectData, consumeThreads} from '/runtime/widget-api.js';
+import {projectData, placeThreads} from '/runtime/widget-api.js';
 customElements.define('lf-test-seat', class extends HTMLElement {
   connectedCallback() {
     projectData(this, ['row'], key => key, key => {
@@ -5789,12 +5806,9 @@ customElements.define('lf-test-seat', class extends HTMLElement {
     });
   }
   start() {
-    this.surface = consumeThreads(this, (collection, surface) => {
+    this.surface = placeThreads(this, (targets) => {
       if (this.fail) throw new Error('exact widget failed');
-      for (const thread of collection.threads) {
-        const target = surface.target(thread.key);
-        if (target) surface.place(thread.key, target.placement.datumElement.outlet);
-      }
+      return targets.map(target => target.placement.datumElement.outlet);
     });
   }
 });
@@ -5844,15 +5858,14 @@ customElements.define('lf-test-seat', class extends HTMLElement {
       };
       const rail = document.querySelector('#review');
       const outlets = new Map();
-      window.pageSurface = app.consumePageThreads(rail, (collection, surface) => {
+      window.pageSurface = app.placePageThreads(rail, (targets) => {
         if (window.failPage) throw new Error('required page failed');
-        for (const thread of collection.threads) {
-          if (!surface.target(thread.key)) continue;
+        return targets.map(({thread}) => {
           let outlet = outlets.get(thread.key);
           if (!outlet) { outlet = document.createElement('div');
             outlet.dataset.lfGen='1'; outlet.style.cssText='display:flow-root;height:250px;overflow:auto'; rail.append(outlet); outlets.set(thread.key,outlet); }
-          surface.place(thread.key, outlet);
-        }
+          return outlet;
+        });
       });
     }""")
     expect(page.locator("#review .lf-page-thread")).to_have_count(2)
@@ -5924,7 +5937,7 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
         "x-example": '<lf-test-seat id="seat"></lf-test-seat>',
     }
     module = """
-import {projectData,consumeThreads} from '/runtime/widget-api.js';
+import {projectData,placeThreads} from '/runtime/widget-api.js';
 customElements.define('lf-test-seat',class extends HTMLElement{
   connectedCallback(){
     this.style.cssText='display:block;height:360px;overflow:auto';
@@ -5934,12 +5947,8 @@ customElements.define('lf-test-seat',class extends HTMLElement{
       return row;
     });
     this.side='a';
-    this.surface=consumeThreads(this,(collection,surface)=>{
-      if(surface.composition)surface.placeComposition(this.querySelector("[data-lf-datum]")[this.side]);
-      for(const thread of collection.threads){
-        const target=surface.target(thread.key);if(target)surface.place(thread.key,target.placement.datumElement[this.side]);
-      }
-    });
+    this.surface=placeThreads(this,targets=>
+      targets.map(target=>target.placement.datumElement[this.side]));
   }
 });
 """
@@ -5976,11 +5985,9 @@ customElements.define('lf-test-seat',class extends HTMLElement{
     page.evaluate("""async()=>{
       const app=await __lfRuntimeImport('/runtime/application.js');window.refresh=app.refreshThread;
       const rail=document.querySelector('#rail'); const outlet=document.createElement('div');outlet.dataset.lfGen='1';rail.append(outlet);
-      window.pageSurface=app.consumePageThreads(rail,async(collection,surface)=>{
+      window.pageSurface=app.placePageThreads(rail,async(targets)=>{
         if(window.holdNext){window.holdNext=false;await new Promise(resolve=>window.releasePage=resolve);}
-        if(surface.composition)surface.placeComposition(outlet);
-        for(const thread of collection.threads)if(surface.target(thread.key))
-          surface.place(thread.key,window.invalid?document.querySelector('#foreign'):outlet);
+        return targets.map(()=>window.invalid?document.querySelector('#foreign'):outlet);
       });
     }""")
     expect(page.locator("#rail .lf-page-thread")).to_have_count(1)
@@ -6141,9 +6148,9 @@ def test_source_retired_during_required_panel_prepare_is_not_claimed(browser, se
     page.evaluate("""async()=>{
       const app=await __lfRuntimeImport('/runtime/application.js');
       const rail=document.querySelector('#rail');const outlet=document.createElement('div');outlet.dataset.lfGen='1';rail.append(outlet);
-      window.surface=app.consumePageThreads(rail,(collection,surface)=>{
-        window.offered=collection.threads.filter(t=>surface.target(t.key)).map(t=>t.id);
-        for(const t of collection.threads)if(surface.target(t.key))surface.place(t.key,outlet);
+      window.surface=app.placePageThreads(rail,targets=>{
+        window.offered=targets.map(({thread})=>thread.id);
+        return targets.map(()=>outlet);
       });
       document.querySelector('#retire').onclick=()=>{document.querySelector('#subject').id='retired';};
       await app.refreshThread();

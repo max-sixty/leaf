@@ -90,7 +90,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
                 else "`leaf wait` prints them."
             )
             sys.exit(
-                f"{pending} update{'s' if pending != 1 else ''} nobody has picked up, "
+                f"{pending} move{'s' if pending != 1 else ''} nobody has picked up, "
                 f"so the page cannot idle yet. {remedy}"
             )
         owed = blocking_obligations(

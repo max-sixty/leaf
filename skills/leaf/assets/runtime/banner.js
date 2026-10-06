@@ -128,7 +128,7 @@ const WORK_WORDS = {
   awaiting_user: "waiting for you",
   replying: "replying",
 };
-export const countUpdates = (count) => `${count} update${count === 1 ? "" : "s"}`;
+export const countMoves = (count) => `${count} move${count === 1 ? "" : "s"}`;
 // What the banner and the leaves drawer both read off one page's server-owned `activity`
 // before either words it. Each seat keeps its own sentences; a fact they share changes
 // here once:
@@ -138,12 +138,12 @@ export const countUpdates = (count) => `${count} update${count === 1 ? "" : "s"}
 //   for a dropped claim.
 // - `listening` is whether input is still on its way to the agent (pending or queued),
 //   which turns a listening page's standing request into "listening".
-// - `waiting` phrases the queued and pending updates, in that order.
+// - `waiting` phrases the queued and pending moves, in that order.
 export function activityFacts({ activity }) {
   const { counts } = activity;
   const waiting = [];
-  if (counts.queued) waiting.push(`${countUpdates(counts.queued)} queued`);
-  if (counts.pending) waiting.push(`${countUpdates(counts.pending)} waiting`);
+  if (counts.queued) waiting.push(`${countMoves(counts.queued)} queued`);
+  if (counts.pending) waiting.push(`${countMoves(counts.pending)} waiting`);
   return Object.freeze({
     tone: TONE[activity.kind],
     work: WORK_WORDS[activity.observed_kind] || "working",
@@ -503,7 +503,7 @@ const publicationWords = (published) => [
 
 // Both levels of wording follow server-owned activity. Short summaries retain the
 // actionable distinction: working, listening, away, or nobody holding the page. How many
-// updates are waiting or saved is the disclosure's; the row counts what waits on each
+// moves are waiting or saved is the disclosure's; the row counts what waits on each
 // side instead (`queueWords`).
 function statusWords({
   age,
@@ -531,10 +531,10 @@ function statusWords({
   // reading this row must not give.
   //
   // Until the agent writes that sentence, what Leaf knows is which of the user's
-  // updates its open turn took up, so the row names them rather than standing on a
+  // moves its open turn took up, so the row names them rather than standing on a
   // bare "working", and the disclosure says the agent's own words are still to come.
   if (kind === "working") {
-    const held = handling === 1 ? "your update" : `your ${handling} updates`;
+    const held = handling === 1 ? "your move" : `your ${handling} moves`;
     const said = detail ? " — " + detail : handling ? " — on " + held : "";
     return [
       `${agent} ${work}${age && age !== JUST_NOW ? " · " + age : ""}${said}`,
@@ -647,8 +647,8 @@ function renderStatusNow(state) {
   // What the user's words do meanwhile. The log takes them with nobody on the other
   // end; the only thing attendance changes is when they are read.
   const saved = activity.counts.total
-    ? `${activity.counts.total} update${activity.counts.total === 1 ? " is" : "s are"} saved.`
-    : "Your comments are saved.";
+    ? `${countMoves(activity.counts.total)} ${activity.counts.total === 1 ? "is" : "are"} saved.`
+    : "Your moves are saved.";
   const checkedIn = `${agent} last checked in ${facts.silentSince}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
   const [summary, text] = statusWords({

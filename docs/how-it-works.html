@@ -4,7 +4,7 @@
     <title>How leaf works</title>
     <meta
       name="description"
-      content="The mechanism behind leaf, one part per tab: the loop that carries your feedback to the agent, what a page is made of, how it is laid out, how revisions keep your decisions, where its data lives and how its state is derived, and how it is served."
+      content="The mechanism behind leaf, one part per tab: the loop that carries your comments and decisions to the agent, what a page is made of, how it is laid out, how revisions keep your decisions, where its data lives and how its state is derived, and how it is served."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
@@ -292,11 +292,11 @@ sequenceDiagram
           </section>
 
           <section id="loop-shell">
-            <h2>One turn, from the agent's side</h2>
+            <h2>A sample agent turn</h2>
             <p id="loop-shell-lede">
               This delivery comes from a page asking which of two ways to shed load when
               a queue backs up. Between turns a Leaf hook watches the page in the
-              background, so the agent ends its turn and is woken when input arrives.
+              background, so the agent ends its turn and is woken when you send a move.
             </p>
             <lf-sample
               id="loop-transcript-sample"
@@ -446,8 +446,8 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
             <p id="loop-shell-read">
               The batch carries a pick and a comment. The comment names the passage it
               was left on, so the agent receives the objection with its context, and
-              each event's <code>handling</code> says what that kind of feedback asks
-              for. The agent answers in the comment's thread and revises
+              each event's <code>handling</code> says what that kind of move asks for.
+              The agent answers in the comment's thread and revises
               <code>index.html</code>. A valid save goes live at once; the agent stamps
               it as v2 when it wants the revision listed with a note in the versions
               menu.
@@ -561,7 +561,7 @@ flowchart TD
 
         <lf-tab id="updates" label="Updates">
           <section id="updates-seats">
-            <h2>The agent says what it is doing before it does it</h2>
+            <h2>Reporting work in progress</h2>
             <p id="updates-lede">
               While an agent works on a page, it names what it has in hand: your move,
               or a task it opened, with one sentence naming the operation, written
@@ -578,7 +578,7 @@ flowchart TD
                 <strong>Picked up</strong> Leaf's hook puts your comment in the agent's
                 turn and confirms receipt. Your comment reads Picked up, and until the
                 agent writes its own words the banner reads
-                <em>Claude working — on your update</em>.
+                <em>Claude working — on your move</em>.
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-reply" at="5s" kind="intervention">
                 <strong>The work is named</strong> Before doing the work, the agent
@@ -603,12 +603,12 @@ flowchart TD
           </section>
 
           <section id="updates-map">
-            <h2>Every update, and where you read it</h2>
+            <h2>Updates and where they appear</h2>
             <p id="updates-map-lede">
               Some updates the agent writes with a command. The rest Leaf writes itself,
-              from what it can observe: how far your input has got, and whether the
-              agent's turn and watcher are still running. A start and the agent's turn
-              each show in two places.
+              from what it can observe: how far each of your moves has got, and whether
+              the agent's turn and watcher are still running. A start and the agent's
+              turn each show in two places.
             </p>
             <lf-diagram
               id="updates-diagram"
@@ -622,7 +622,7 @@ flowchart LR
     Stamp["agent: leaf page stamp"]
     Report["agent: leaf page report"]
     Status["agent: leaf task start · leaf status"]
-    Pickup["Leaf: how far your input got"]
+    Pickup["Leaf: how far your move got"]
     Turn["Leaf: the agent's turn and watcher"]
   end
   subgraph Reads["Where you read it"]
@@ -669,7 +669,7 @@ flowchart LR
               <li id="updates-written-idle">
                 <strong><code>leaf status … idle</code></strong> The agent has finished
                 with the page, and the banner reads <em>Leaf closed</em>. Leaf refuses
-                it while input of yours has not been picked up, a picked-up move still
+                it while a move of yours has not been picked up, a picked-up move still
                 has no answer, or a task the agent opened is still open.
               </li>
               <li id="updates-written-reply">
@@ -707,7 +707,7 @@ flowchart LR
               worker's progress.
             </p>
 
-            <h3 id="updates-observed-heading">Written by Leaf beside your input</h3>
+            <h3 id="updates-observed-heading">Labels beside your moves</h3>
             <p id="updates-observed-lede">
               Beside each comment, pick, or drag, Leaf shows a label that follows your
               move through the agent's turn and clears once a reply or a revision
@@ -717,13 +717,13 @@ flowchart LR
           </section>
 
           <section id="updates-when">
-            <h2>When the agent writes one</h2>
+            <h2>When the agent writes an update</h2>
             <ul id="updates-moments">
               <li id="updates-on-input">
-                <strong>When your input arrives.</strong> Your comment comes before the
-                work in hand: the agent names the work it asks for before starting it,
-                or answers at once when it asks for none. Each delivery repeats these
-                steps to the agent beside the events they apply to.
+                <strong>When your move arrives.</strong> Your move comes before the work
+                in hand: the agent names the work it asks for before starting it, or
+                answers at once when it asks for none. Each delivery repeats these steps
+                to the agent beside the events they apply to.
               </li>
               <li id="updates-on-phase">
                 <strong>When the work changes.</strong> A new subject, or a new phase
@@ -756,7 +756,7 @@ flowchart LR
           </section>
 
           <section id="updates-silence">
-            <h2>How Leaf decides what the banner says</h2>
+            <h2>Banner readings</h2>
             <p id="updates-silence-lede">
               The banner states only what Leaf can observe about the agent's session,
               the agent process that holds the page: whether it still runs, whether its
@@ -804,7 +804,7 @@ flowchart TD
   Taking -- yes --&gt; Stale(["stale start?"])
   Stale -- yes --&gt; Stalled["turn ended · last checked in"]
   Stale -- no --&gt; Listening["Claude awaits"]
-  Taking -- no --&gt; Stuck(["input stalled?"])
+  Taking -- no --&gt; Stuck(["a move stalled?"])
   Stuck -- yes --&gt; Nudge["Nudge Claude in terminal"]
   Stuck -- no --&gt; Away["Claude away"]
 </pre>
@@ -812,7 +812,7 @@ flowchart TD
             <p id="updates-believed">
               Work is believed when a start is still inside the rule above, when the
               harness reports a step for the running turn, or when a move that asks for
-              an answer was delivered into the running turn. Input has stalled when it
+              an answer was delivered into the running turn. A move has stalled when it
               stayed Sent for two minutes, or when the turn that picked it up ended
               without answering it. Once a working reading is about a minute old, the
               banner shows its age, as in
@@ -827,9 +827,9 @@ flowchart TD
               </thead>
               <tbody>
                 <tr id="updates-reading-held">
-                  <td>Claude working — on your update</td>
+                  <td>Claude working — on your move</td>
                   <td>
-                    The agent's running turn picked up your input and the agent has not
+                    The agent's running turn picked up your move and the agent has not
                     yet said what it is doing.
                   </td>
                 </tr>
@@ -846,7 +846,7 @@ flowchart TD
                   <td>Claude awaits — pick a layout</td>
                   <td>
                     The agent is taking input, and its last status says what it wants
-                    from you. While your input is on its way to the agent it reads
+                    from you. While your move is on its way to the agent it reads
                     <em>Claude listening · 1 waiting</em> instead.
                   </td>
                 </tr>
@@ -868,16 +868,16 @@ flowchart TD
                 <tr id="updates-reading-away">
                   <td>Claude away</td>
                   <td>
-                    Nothing is taking input. Your comments are saved and the agent's
-                    next turn picks them up; Leaf messages a Claude Code session when a
+                    Nothing is taking input. Your moves are saved and the agent's next
+                    turn picks them up; Leaf messages a Claude Code session when a
                     comment arrives after its turn ended.
                   </td>
                 </tr>
                 <tr id="updates-reading-nudge">
                   <td>Nudge Claude in terminal</td>
                   <td>
-                    Nothing is taking input, and your input has stalled. A message in
-                    the agent's terminal starts its next turn.
+                    Nothing is taking input, and your move has stalled. A message in the
+                    agent's terminal starts its next turn.
                   </td>
                 </tr>
                 <tr id="updates-reading-unheld">
@@ -895,7 +895,7 @@ flowchart TD
             </table>
           </section>
           <section id="updates-notices">
-            <h2>What the status line announces</h2>
+            <h2>Status line notices</h2>
             <p id="updates-notices-lede">
               News that arrives without you doing anything shows for a few seconds in
               the status line at the bottom of the page, and a screen reader hears the
@@ -948,7 +948,7 @@ flowchart TD
 
         <lf-tab id="revisions" label="Revisions">
           <section id="versions">
-            <h2>Every valid save is a revision</h2>
+            <h2>Revisions</h2>
             <p id="agent-versions">
               Each changed, valid save of <code>index.html</code> becomes an immutable
               revision, including the document and its local dependencies, and goes live
@@ -957,9 +957,9 @@ flowchart TD
               live address follows revisions, and a tab pinned to v1 stays there.
             </p>
             <p id="live-updates">
-              A live update waits while you are composing, dragging, or undoing, have a
-              gesture still on its way to the server, or have the version menu open, and
-              it keeps your reading position.
+              A new revision waits to replace the page while you are composing,
+              dragging, or undoing, have a move still on its way to the server, or have
+              the version menu open, and it keeps your reading position.
             </p>
             <p id="review-meta">
               A page that asks for approval declares
@@ -970,7 +970,7 @@ flowchart TD
           </section>
 
           <section id="gate">
-            <h2>Checked before it goes live</h2>
+            <h2>The check before a revision goes live</h2>
             <p>
               Before activating a revision or stamping a version, Leaf checks the
               source's structure, vocabulary, dependencies, and your standing decisions.
@@ -983,7 +983,7 @@ flowchart TD
           </section>
 
           <section id="edits">
-            <h2>Your choices survive revisions</h2>
+            <h2>Decisions across revisions</h2>
             <p id="edits-lede">
               Dragging a card or choosing an option records a structured action. The
               browser applies it immediately, the agent receives it alongside comments,
@@ -998,9 +998,9 @@ flowchart TD
               contradicts it is refused.
             </p>
             <p id="undo">
-              <code>z</code> withdraws your last undoable gesture; pressing it again
-              steps further back. The log records the withdrawal, and the browser
-              redraws the state without that gesture, so a reload gives the same result.
+              <code>z</code> withdraws your last undoable move; pressing it again steps
+              further back. The log records the withdrawal, and the browser redraws the
+              state without that move, so a reload gives the same result.
             </p>
             <p id="reactions">
               A reaction attaches brief feedback to a passage or agent reply without
@@ -1013,7 +1013,7 @@ flowchart TD
 
         <lf-tab id="page" label="Pages">
           <section id="pages">
-            <h2>What a page is made of</h2>
+            <h2>Parts of a page</h2>
             <p id="scaffold">
               An authored HTML document supplies the page's title, description, and
               content. Leaf adds the identity, theme, runtime, and canonical address
@@ -1060,7 +1060,7 @@ flowchart TD
           </section>
 
           <section id="widgets">
-            <h2>Widgets you can operate</h2>
+            <h2>Widgets</h2>
             <p id="dogfood">
               This page runs the plugin's own theme and widget modules. Each example
               sits in an <code>lf-sample</code>, the gutter that marks quoted material,
@@ -1147,7 +1147,7 @@ flowchart TD
           </section>
 
           <section id="layer">
-            <h2>Each page owns its layer</h2>
+            <h2>The page's layer</h2>
             <p>
               <code>page init</code> composes the kernel and selected packages into a
               checked layer in the page directory. Revisions capture the layer they use,
@@ -2331,12 +2331,12 @@ flowchart TD
 
         <lf-tab id="data" label="Data">
           <section id="data-home">
-            <h2>The page directory is the record</h2>
+            <h2>The page directory</h2>
             <p id="data-directory">
               Everything durable about a page lives in its directory. Copying the
               directory copies the page, its history, and every decision on it. There is
-              no database. Three stores hold what a page shows, each written its own
-              way:
+              no database. What a page shows is held in these stores, each written its
+              own way:
             </p>
             <lf-diagram
               id="data-flow"
@@ -2411,7 +2411,7 @@ flowchart TD
           </section>
 
           <section id="data-fold">
-            <h2>Current state is computed on every read</h2>
+            <h2>Computing current state</h2>
             <p id="data-fold-lede">
               Nothing stores the page's current state. The live revision's markup is
               where it starts, and the log records every change since. On each read, the
@@ -2425,14 +2425,14 @@ flowchart TD
               event against the verbs the page's layer declares and records what the
               action meant when it was taken. A later reader recovers that meaning from
               the record, even once the widget that sent it is gone. Nothing is removed
-              from the log: an undo is a new event that names the gesture it withdraws.
-              The <a href="/event-log/">event log reference</a> follows one pick and its
+              from the log: an undo is a new event that names the move it withdraws. The
+              <a href="/event-log/">event log reference</a> follows one pick and its
               undo through the log and the fold.
             </p>
           </section>
 
           <section id="data-sources">
-            <h2>External values are replaced, not logged</h2>
+            <h2>External data</h2>
             <p id="data-sources-lede">
               A value an agent or another process supplies, such as a benchmark result
               or a build's status, lives in one JSON file per source. The page's markup
@@ -2451,7 +2451,7 @@ flowchart TD
           </section>
 
           <section id="data-survives">
-            <h2>What each kind of data survives</h2>
+            <h2>Durability of each kind of data</h2>
             <p id="data-survives-lede">
               Where a thing is stored decides what can lose it. What reaches the page
               directory outlasts any tab or server; what stays in the browser stays in
@@ -2516,7 +2516,7 @@ flowchart TD
 
         <lf-tab id="serving" label="Serving">
           <section id="lifetime">
-            <h2>How long a server runs</h2>
+            <h2>Server lifetime</h2>
             <p id="wait-stateless">
               A server is only a way to reach the
               <a href="#data-home">page directory</a>. One started by an agent session
@@ -2527,7 +2527,7 @@ flowchart TD
           </section>
 
           <section id="local">
-            <h2>Served where you are</h2>
+            <h2>Serving address</h2>
             <p id="serving-address">
               Leaf serves on the session's SSH destination, or on loopback for a local
               session, where the URL opens only on the serving machine. The URL carries

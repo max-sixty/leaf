@@ -3,7 +3,7 @@ import { clocked } from "./presence.js";
 import { pagePresented } from "./presentation.js";
 import { liveLeavesList, drawerIsOpen, othersPanel } from "./drawers.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { activityFacts, countUpdates } from "./banner.js";
+import { activityFacts, countMoves } from "./banner.js";
 import { rowWalk } from "./walk-position.js";
 
 let others = [];
@@ -94,12 +94,12 @@ function rowPresence(entry) {
 // part of the account they can already read.
 const activityAccount = ({ counts }) => {
   const parts = [];
-  if (counts.active) parts.push(`${countUpdates(counts.active)} active`);
-  if (counts.handling) parts.push(`${countUpdates(counts.handling)} being handled`);
-  if (counts.queued) parts.push(`${countUpdates(counts.queued)} queued`);
+  if (counts.active) parts.push(`${countMoves(counts.active)} active`);
+  if (counts.handling) parts.push(`${countMoves(counts.handling)} being handled`);
+  if (counts.queued) parts.push(`${countMoves(counts.queued)} queued`);
   if (counts.picked_up)
-    parts.push(`${countUpdates(counts.picked_up)} picked up; turn ended`);
-  if (counts.pending) parts.push(`${countUpdates(counts.pending)} waiting`);
+    parts.push(`${countMoves(counts.picked_up)} picked up; turn ended`);
+  if (counts.pending) parts.push(`${countMoves(counts.pending)} waiting`);
   return parts.length ? parts.join("; ") : null;
 };
 

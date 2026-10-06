@@ -3169,7 +3169,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     text, dot = page.locator(".lf-status-detail"), page.locator(".lf-banner .lf-dot")
     summary = page.locator(".lf-status-text")
     UNHELD = (
-        "No session holds this page. 2 updates are saved."
+        "No session holds this page. 2 moves are saved."
         " It picks up again when a session does."
     )
 
@@ -3243,7 +3243,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(page.locator(".lf-status-queues")).to_have_text("2 on Claude")
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. 1 update waiting\."
+            r"^Claude is working — revising the plan \(.+\)\. 1 move waiting\."
             r" Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
         )
     )
@@ -3265,7 +3265,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(text).to_have_text(
         re.compile(
             r"^Claude is working — revising the plan \(.+\)\. "
-            r"1 update queued\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+            r"1 move queued\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3278,10 +3278,10 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
             transaction, [first_comment], phase="opened", session="s", turn="turn-1"
         )
     declare("waiting", "your read on the plan")
-    expect(summary).to_have_text("Claude working — on your update")
+    expect(summary).to_have_text("Claude working — on your move")
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working on your update, and hasn't said what it is doing yet"
+            r"^Claude is working on your move, and hasn't said what it is doing yet"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3307,7 +3307,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             re.compile(
                 r"^Claude is working — revising the plan \(.+\)\. "
-                r"1 update waiting\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+                r"1 move waiting\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3326,7 +3326,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             re.compile(
                 r"^Claude is using a tool — revising the plan \(.+\) · "
-                r"Running the tests\. 1 update waiting\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+                r"Running the tests\. 1 move waiting\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3349,7 +3349,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # remedy — nobody needs to touch a terminal for a comment to reach a live wait.
         declare("working", "revising the plan", quiet_for=20 * 60)
         expect(text).to_have_text(
-            "Claude last checked in 20m ago: revising the plan. 1 update is saved."
+            "Claude last checked in 20m ago: revising the plan. 1 move is saved."
             " Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
@@ -3366,7 +3366,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=6 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude left this when its turn ended 5m ago: revising the plan."
-            " 1 update is saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
+            " 1 move is saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -3379,7 +3379,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         declare("working", "revising the plan", quiet_for=5 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
             "Claude left this when its turn ended 5m ago: revising the plan."
-            " 1 update is saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
+            " 1 move is saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
 
         # A turn that has only just ended still holds it. An agent that ends its turn
@@ -3402,19 +3402,19 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # clipped, and a narrow window must not be why the decision goes unread.
         declare("waiting", "pick a storage engine")
         expect(text).to_have_text(
-            "Claude is listening — pick a storage engine. 1 update waiting."
+            "Claude is listening — pick a storage engine. 1 move waiting."
             " Waiting on Claude: 1 reply."
         )
         expect(page.locator(".lf-status-button")).to_have_attribute(
             "title",
-            "Claude is listening — pick a storage engine. 1 update waiting."
+            "Claude is listening — pick a storage engine. 1 move waiting."
             " Waiting on Claude: 1 reply.",
         )
 
     # No watcher, but Claude checked in moments ago, so it is between turns.
     declare("waiting")
     expect(text).to_have_text(
-        "Claude isn't watching right now. 1 update is saved."
+        "Claude isn't watching right now. 1 move is saved."
         " It picks them up next turn. Waiting on Claude: 1 reply."
     )
 
@@ -3425,7 +3425,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # message was sent it as it arrived.
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
-        "Claude isn't watching right now. 1 update is saved."
+        "Claude isn't watching right now. 1 move is saved."
         " It picks them up next turn. Waiting on Claude: 1 reply, 1 task (Work on the page)."
     )
     expect(dot).to_have_class(re.compile(r"\baway\b"))
@@ -3445,7 +3445,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
-        "Claude left this when its turn ended 5m ago. 2 updates are saved."
+        "Claude left this when its turn ended 5m ago. 2 moves are saved."
         " Nothing is answering them, so nudge it in the terminal."
         " Waiting on Claude: 2 replies, 1 task (Work on the page)."
     )
@@ -3585,12 +3585,12 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_attribute("data-identity-probe", "kept")
     expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working on your update, and hasn't said what it is doing yet"
-        " (just now). 1 update waiting. Waiting on Claude: 2 replies, 1 task"
+        "Claude is working on your move, and hasn't said what it is doing yet"
+        " (just now). 1 move waiting. Waiting on Claude: 2 replies, 1 task"
         " (Work on the page)."
     )
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
-        "Working · 1 update waiting"
+        "Working · 1 move waiting"
     )
 
     # The agent finishes the earlier task and waits on the user.
@@ -3602,8 +3602,8 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     told(page)
     expect(held_workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude is working on your update, and hasn't said what it is doing yet"
-        " (just now). 1 update waiting. Waiting on Claude: 2 replies."
+        "Claude is working on your move, and hasn't said what it is doing yet"
+        " (just now). 1 move waiting. Waiting on Claude: 2 replies."
     )
 
     with service_model.PageTransaction(d) as transaction:
@@ -3617,7 +3617,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # The turn ended with both updates still the agent's to answer, so they are overdue
     # and the remedy is the user's.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude last checked in just now. 2 updates are saved. "
+        "Claude last checked in just now. 2 moves are saved. "
         "Nothing is answering them, so nudge it in the terminal."
         " Waiting on Claude: 2 replies."
     )
@@ -3808,7 +3808,7 @@ def test_feature_gallery_workflow_and_banner_share_agent_activity(browser, serve
     expect(workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         re.compile(
-            r"^Claude is working on your update, and hasn't said what it is doing yet"
+            r"^Claude is working on your move, and hasn't said what it is doing yet"
             r" \(just now\)\. Waiting on you"
         )
     )

@@ -4,8 +4,9 @@
 # of the same envelope, a command this change removed. On Codex (3 runs per arm at
 # b9d22d31e) both arms ran no acknowledgement, so it has only guarded there: the
 # base reference's `leaf delivery ack` lost to the envelope's null `acknowledge`.
-# The Claude Code arm, the one the base wording targets, was refused by the model's
-# safeguards on every run of both arms, as was handoff-leaves-the-watch-to-leaf.
+# Opus 5.5's safeguards refused every Claude Code run while the prompt asked for each
+# tool call with its full JSON input. Asking for the commands instead, both arms
+# passed 3 of 3 against b9d22d31e, so it has only guarded on Claude Code too.
 description: claude-hook-delivery-needs-no-ack
 metadata:
   purpose: "A Claude hook delivery arrives confirmed: run no acknowledgement command, and name the move's work first."
@@ -16,8 +17,8 @@ vars:
     {"format":"leaf-delivery-v3","id":"dc81eabb","acknowledge":null,"batches":[{"page":"/tmp/review","through_seq":1,"threads":[],"handling":{},"events":[{"kind":"comment","id":"comment-a","seq":1,"author":"user","text":"Please revise the opening to name the owner.","answer":{"kind":"reply","to":"comment-a","for":"comment-a"},"threads":["comment-a"],"subject":{"kind":"thread","id":"comment-a"},"handling":[]}]}]}
 
     The page is already served. Read the Leaf instructions needed for your harness.
-    Only Skill and Read run here; write each other tool call you would make, with
-    its full JSON input, before starting the requested revision. Then end your answer.
+    Only Skill and Read run here, so write out, in order, each command you would run
+    before starting the requested revision. Then end your answer.
 assert:
 - type: javascript
   metric: reads-claude-code-harness
@@ -27,8 +28,8 @@ assert:
 - type: llm-rubric
   metric: judgment
   value: |
-    Pass only if no written tool call acknowledges or confirms the delivery
+    Pass only if no written command acknowledges or confirms the delivery
     (`leaf delivery ack`, `leaf wait --ack`, or `leaf delivery read`), and a written
-    call starts the comment's work with `leaf task start /tmp/review comment-a
-    "<a line>"` before any edit. Fail if a tool call starts `leaf wait`. Reading
+    command starts the comment's work with `leaf task start /tmp/review comment-a
+    "<a line>"` before any edit. Fail if a command starts `leaf wait`. Reading
     instructions or page state first is fine.

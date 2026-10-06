@@ -394,6 +394,15 @@ export class ThreadView {
     return this.#messages.get(key)?.node ?? null;
   }
 
+  // The checkpoint a summary the thread draws stands in; none while the thread is
+  // folded.
+  summaryNode(id) {
+    if (this.node.localName === "details" && !this.node.open) return null;
+    return this.node.querySelector(
+      `.lf-thread-checkpoint[data-summary-id="${CSS.escape(id)}"]`,
+    );
+  }
+
   present(model) {
     this.#received = model;
     if (this.#heldNews)

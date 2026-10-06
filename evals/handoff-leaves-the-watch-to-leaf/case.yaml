@@ -3,7 +3,9 @@
 # past the two-hour limit it puts on a background command. Replaces a case that
 # pinned the wait's `timeout`. Base at 12432f61c, whose reference has the model
 # start a background `leaf wait`, passed 0 of 4 runs that finished; the change 4 of
-# 4. Two runs in each arm ended on a model error and measured nothing.
+# 4. Two runs in each arm ended on a model error and measured nothing. Opus 5.5's
+# safeguards later refused every run while the prompt asked for each tool call with
+# its full JSON input; asking for the commands, base passed 0 of 3, the change 3 of 3.
 description: handoff-leaves-the-watch-to-leaf
 metadata:
   purpose: 'Claude Code reference: a handoff ends the turn with the URL and starts no `leaf wait`, since
@@ -18,9 +20,9 @@ vars:
     http://127.0.0.1:8123/?t=abc. Now hand it off, following the leaf skill for this
     harness; the user expects to comment a few hours from now.
 
-    Read whatever instructions you need. Only Skill and Read run here, so write out each
-    other tool call you would make before your closing message, as the tool's name
-    and its full JSON input, then give the closing message itself.
+    Read whatever instructions you need. Only Skill and Read run here, so write out, in
+    order, each command you would run before your closing message, then give the
+    closing message itself.
 assert:
 - type: javascript
   metric: loads-leaf
@@ -38,4 +40,4 @@ assert:
     Pass only if the reply hands the page over without starting any `leaf wait`
     (foreground or background, named or not) and its closing message gives the URL
     http://127.0.0.1:8123/?t=abc. Writing a `leaf status` is fine. Fail if any
-    written-out tool call runs `leaf wait`.
+    written-out command runs `leaf wait`.

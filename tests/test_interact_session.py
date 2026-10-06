@@ -14247,7 +14247,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     )
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
-    assert "1 move nobody has picked up" in refused.output
+    assert "1 event nobody has picked up" in refused.output
     # The claimant's harness names the remedy: Claude Code's hook carries them.
     assert "Leaf's hook puts them in your context" in refused.output
     assert service_model.read_status(claimed)["state"] != "idle"
@@ -14308,7 +14308,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     )
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
-    assert "1 move nobody has picked up" in refused.output
+    assert "1 event nobody has picked up" in refused.output
     cleanup_model.prompt_turn("s1")
     report = str(events_model.read_events(claimed)[-1]["seq"])
     assert (
@@ -14433,7 +14433,7 @@ cli_model.cli()
 
     out, err = process.communicate(timeout=STATED_TIMEOUT)
     assert process.returncode == 1, f"{out}{err}"
-    assert "1 move nobody has picked up" in err
+    assert "1 event nobody has picked up" in err
     assert files_model.read_json(page_dir / "status.json")["state"] == "waiting"
 
 

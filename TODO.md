@@ -32,14 +32,6 @@ has tried; settle that before building it.
   behavior.
 - **Keep the Thread hierarchy clear.** Check context, search, filters, agent
   activity, selection, and reply editing in the implemented accordion.
-- **Name a new Thread promptly everywhere.** A Claude Code page and an App Server
-  carrier (leaf.page and `leaf codex start`) title a thread from its opening
-  message in about 3 s (`thread_titles`). A Codex task Leaf reaches through `codex
-  queue` still titles on the agent's reply; give it the same request, through
-  `codex exec`. Worktrunk's `codex exec` command took 3.7–5 s and about 13k input
-  tokens per title here, and it leaves the user's MCP servers on, which the App
-  Server request turns off by name. A request at admission, as Claude Code's is,
-  would serve every harness once the page server can reach each one's model.
 - **Keep a long Thread's standing visible.** Summary checkpoints already condense
   older messages. Test a current one-line reading of what is decided and what remains
   open, distinct from a historical summary, and decide how a revision invalidates it.

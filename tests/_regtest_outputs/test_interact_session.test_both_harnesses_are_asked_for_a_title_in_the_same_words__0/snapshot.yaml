@@ -1,4 +1,4 @@
-# What Claude Code's page server runs, what it and an App Server carrier both send, and
+# What Claude Code's page server runs, what it and a Codex App Server both send, and
 # the App Server's titling thread, for a thread opened on a passage.
 
 command: [claude, -p, --no-session-persistence, --model=haiku, --tools=, --safe-mode, --setting-sources=user, --system-prompt, <system_prompt>, --json-schema, <schema>, --output-format, json]
@@ -51,6 +51,7 @@ app_server_thread:
       tool_suggest: false
       workspace_dependencies: false
       code_mode_host: false
+      hooks: false
       shell_tool: false
       sleep_tool: false
       unified_exec: false

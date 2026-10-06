@@ -184,9 +184,9 @@ class Harness:
         """How the page server names a thread a user opens on this session's page,
         as the comment is admitted (`thread_titles`), or None where it cannot.
 
-        Only a harness whose model any process on the machine can ask has one. An App
-        Server carrier names the thread instead, as it starts the turn answering
-        it, since the page server cannot reach that server."""
+        Only a harness whose model any process on the machine can ask has one. The
+        website's carrier names the thread instead, as the move opening it is
+        dispatched to it, since only it can reach the App Server it owns."""
         return None
 
     def live_turn(self) -> dict | None:
@@ -378,6 +378,15 @@ class CodexHarness(EnvironmentHarness):
     def process_pid(cls) -> int | None:
         """The nearest ancestor running the `codex` program (`lifetime`)."""
         return next((pid for pid, program in ancestry() if program == "codex"), None)
+
+    def title_generator(self) -> Callable[[str, Path], dict]:
+        """An App Server the page server starts for the request, whether `codex
+        queue` or the task's own App Server carries its turns: the queue reaches no
+        model, and the task's server would name the thread only once a running turn
+        let the next one start."""
+        from leaf.thread_titles import codex_title
+
+        return codex_title
 
     def ensure_delivery(self) -> None:
         with self.preparing_delivery():

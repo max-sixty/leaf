@@ -1,5 +1,6 @@
 """Watch, ownership, hook, and server-lifetime tests."""
 
+import contextlib
 import fcntl
 import http.client
 import http.cookiejar
@@ -1479,9 +1480,8 @@ def titling_app_server(app_server, answer: str) -> tuple[str, list[dict]]:
 
 def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_server):
     """A turn over App Server writes its reply with its own messages, so it has no
-    `--title` to name the thread with; the carrier names it beside the turn, from
-    the opening message and the passage it is on, and the delivery does not ask the
-    turn to."""
+    `--title` to name the thread with; the carrier names it from the opening message
+    and the passage it is on, and the delivery does not ask the turn to."""
     comment = append_carried_log_record(
         page_dir,
         {
@@ -1502,9 +1502,10 @@ def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_s
 
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
     records = []
-    thread_titles.name_untitled_threads(
+    thread_titles.name_thread(
         thread_titles.app_server_title(endpoint, "light-model"),
-        prepared.payload,
+        page_dir,
+        comment["id"],
         "hosted-thread",
         lambda event, **fields: records.append((event, fields)),
     )
@@ -1548,15 +1549,16 @@ def test_a_title_is_drawn_from_the_opening_message_not_the_latest(page_dir, app_
             "text": "also, thanks",
         },
     )
-    prepared = codex_model.prepare_codex_delivery(
+    codex_model.prepare_codex_delivery(
         page_dir,
         harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
     records = []
-    thread_titles.name_untitled_threads(
+    thread_titles.name_thread(
         thread_titles.app_server_title(endpoint, None),
-        prepared.payload,
+        page_dir,
+        comment["id"],
         "hosted-thread",
         lambda event, **fields: records.append((event, fields)),
     )
@@ -1568,36 +1570,46 @@ def test_a_title_is_drawn_from_the_opening_message_not_the_latest(page_dir, app_
     assert "thanks" not in text["text"]
 
 
-def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir, app_server):
+def test_a_generated_title_yields_to_one_the_agent_wrote_first(page_dir):
+    """A title that comes back after the agent named the thread is dropped, and a
+    thread the agent named is not asked about."""
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Tighten the intro"}
     )
-    prepared = codex_model.prepare_codex_delivery(
+    codex_model.prepare_codex_delivery(
         page_dir,
         harness_model.EmbeddedHarness("hosted-thread", "Leaf guide", os.getpid()),
     )
-    append_command(
-        page_dir,
-        {
-            "kind": "thread_title",
-            "author": "agent",
-            "agent": "Leaf guide",
-            "session": "hosted-thread",
-            "thread": comment["id"],
-            "title": "Intro",
-        },
-    )
-    endpoint, _ = titling_app_server(app_server, '{"title": "Shorter intro"}')
-    records = []
-    thread_titles.name_untitled_threads(
-        thread_titles.app_server_title(endpoint, None),
-        prepared.payload,
-        "hosted-thread",
-        lambda event, **fields: records.append((event, fields)),
-    )
-    wait_for(lambda: records, bool, failure="the title was never generated")
 
-    assert records[0][1]["written"] is False
+    def generate(request: str, target: Path) -> dict:
+        append_command(
+            page_dir,
+            {
+                "kind": "thread_title",
+                "author": "agent",
+                "agent": "Leaf guide",
+                "session": "hosted-thread",
+                "thread": comment["id"],
+                "title": "Intro",
+            },
+        )
+        return {"title": "Shorter intro"}
+
+    records = []
+    for _ in range(2):
+        thread_titles.name_thread(
+            generate,
+            page_dir,
+            comment["id"],
+            "hosted-thread",
+            lambda event, **fields: records.append((event, fields)),
+        )
+        for worker in threading.enumerate():
+            if worker.name == "leaf-thread-title":
+                worker.join(timeout=STATED_TIMEOUT)
+
+    [(event, fields)] = records
+    assert (event, fields["written"]) == ("thread_title_generated", False)
     titles = [
         e["title"]
         for e in events_model.read_events(page_dir)
@@ -1682,6 +1694,58 @@ def test_a_comment_on_a_claude_code_page_is_named_as_it_arrives(
     assert not log.exists()
 
 
+def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
+    page_dir, app_server, monkeypatch
+):
+    """A Codex task's turns may run through `codex queue`, which reaches no model, or
+    through an App Server that starts the next turn only once the running one ends;
+    either way its page server names the thread as the comment arrives, through an
+    App Server of its own that runs none of the user's hooks or MCP servers and
+    carries none of the session's identity."""
+    record_claim(page_dir, id="codex-thread", harness="codex", agent="Codex")
+    assert stamp(page_dir, "first").exit_code == 0
+    endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
+    servers = []
+
+    @contextlib.contextmanager
+    def title_server(executable, *, env):
+        servers.append((executable, env))
+        yield endpoint
+
+    monkeypatch.setattr(thread_titles, "private_app_server", title_server)
+    monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
+
+    status, body = endpoint_model.accept_event(
+        page_dir,
+        {
+            "kind": "comment",
+            "revision": 1,
+            "text": "Why does the export take a minute?",
+        },
+        dict,
+    )
+    assert status == 200, body
+    [title] = wait_for(
+        lambda: [
+            e for e in events_model.read_events(page_dir) if e["kind"] == "thread_title"
+        ],
+        bool,
+        failure="the thread was never named",
+    )
+    assert (title["title"], title["agent"], title["session"]) == (
+        "Export speed",
+        "Codex",
+        "codex-thread",
+    )
+    [(executable, env)] = servers
+    assert executable == shutil.which("codex")
+    assert "CODEX_THREAD_ID" not in env
+    [start] = [m for m in received if m.get("method") == "thread/start"]
+    assert start["params"]["config"]["features"]["hooks"] is False
+    assert start["params"]["config"]["mcp_servers"] == {"docs": {"enabled": False}}
+    assert "model" not in start["params"]
+
+
 def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
     """SessionEnd removes the session's titles log, and a request still waiting on
     the model when it runs finishes after that; it writes neither the title nor a
@@ -1712,7 +1776,7 @@ def test_a_title_request_that_outlives_its_session_leaves_no_log(claimed):
 def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
     page_dir, app_server, tmp_path, monkeypatch, snapshot
 ):
-    """Claude Code's `claude -p` and an App Server carrier are sent the same system
+    """Claude Code's `claude -p` and a Codex App Server are sent the same system
     prompt, request and answer schema; the snapshot is that request, verbatim."""
     comment = append_carried_log_record(
         page_dir,
@@ -1750,7 +1814,7 @@ def test_both_harnesses_are_asked_for_a_title_in_the_same_words(
     placeholders = {system_prompt: "<system_prompt>", json.dumps(schema): "<schema>"}
     snapshot.check(
         yaml_document(
-            "What Claude Code's page server runs, what it and an App Server carrier "
+            "What Claude Code's page server runs, what it and a Codex App Server "
             "both send, and\nthe App Server's titling thread, for a thread opened "
             "on a passage.",
             {
@@ -11664,6 +11728,7 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
             spawn,
             page,
             """\
+import contextlib
 import fcntl
 native_flock = fcntl.flock
 identity = Path(os.environ["PAGE"]).stat()
@@ -14615,6 +14680,7 @@ def test_reconnect_publication_and_task_activity_writer_cannot_lock_each_other_o
             },
         )
     common = """\
+import contextlib
 import fcntl
 import os
 from pathlib import Path

@@ -29,9 +29,12 @@ rather than here.
 """
 
 import json
+import os
 import subprocess
 import sys
+import tempfile
 import time
+from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -78,6 +81,9 @@ from .state import (
 )
 
 START_TIMEOUT = 20
+# Names the App Server a task runs on to the `leaf` commands it runs, so they hand
+# its pages to that server (`private_app_server`, `leaf codex start`).
+APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
 # The `config` of a thread Leaf starts, less what Codex loads by default and no such
 # thread uses: the skills list, plugin and app suggestions, other agents, memories,
 # browser and computer use, image generation and web search. Each is context the
@@ -194,6 +200,49 @@ def stop_app_server(process: subprocess.Popen) -> None:
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait(timeout=5)
+
+
+def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:
+    deadline = time.monotonic() + START_TIMEOUT
+    while time.monotonic() < deadline:
+        if path.exists():
+            return
+        if process.poll() is not None:
+            log.seek(0)
+            detail = log.read().decode(errors="replace").strip()
+            raise RuntimeError(detail or "Codex App Server exited before it was ready")
+        time.sleep(0.05)
+    raise RuntimeError("Codex App Server did not become ready")
+
+
+@contextmanager
+def private_app_server(
+    executable: str, *, env: dict[str, str] | None = None
+) -> Iterator[str]:
+    """Run one App Server on a Unix socket only this user can reach, and yield its
+    endpoint until the block ends and the server stops.
+
+    The server's environment names that endpoint as `LEAF_CODEX_APP_SERVER`, so a
+    task it runs hands its pages to this server when it serves them.
+    An eval may supply an isolated child environment without mutating this process.
+    """
+    with tempfile.TemporaryDirectory(prefix="leaf-codex-", dir="/tmp") as directory:
+        path = Path(directory) / "app-server.sock"
+        endpoint = f"unix://{path}"
+        with tempfile.TemporaryFile() as log:
+            server = subprocess.Popen(
+                [executable, "app-server", "--listen", endpoint],
+                env=(os.environ if env is None else env) | {APP_SERVER_ENV: endpoint},
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+            try:
+                _wait_for_app_server(path, server, log)
+                yield endpoint
+            finally:
+                stop_app_server(server)
 
 
 def retry_delay(failures: int) -> int:

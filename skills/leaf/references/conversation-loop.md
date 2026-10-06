@@ -104,7 +104,8 @@ User input comes before the work in hand, in this order:
    own work is done, so the banner describes the work that continues rather than
    the last step before the interruption.
 
-Then do the work.
+Then do the work, and reply once its revision passes `leaf page check`, the only
+check the main skill's "Operate", step 3, asks before a reply.
 
 ## Status and handoff
 

@@ -637,7 +637,8 @@ class LeafText extends HTMLElement {
   // last words, or `none` while its last line is blank. A sent message keeping the
   // draft's wrapping holds the same.
   get endRoom() {
-    if (parseFloat(getComputedStyle(this.#frame).paddingInlineEnd) > 0) return "every-line";
+    if (parseFloat(getComputedStyle(this.#frame).paddingInlineEnd) > 0)
+      return "every-line";
     return lastWithWords(this.#state) ? "last-line" : "none";
   }
 

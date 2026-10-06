@@ -363,11 +363,7 @@ export function createMarginProjection({
       body: null,
       stopRegion: null,
     };
-    keeps(
-      preview,
-      "data-lf-comment-frame",
-      previewMessageViewport && origin.endRoom,
-    );
+    keeps(preview, "data-lf-comment-frame", previewMessageViewport && origin.endRoom);
     const properties = {
       "--lf-comment-width": previewMessageViewport && `${origin.frame.width}px`,
       "--lf-comment-message-width":

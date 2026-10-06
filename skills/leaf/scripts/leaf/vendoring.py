@@ -42,10 +42,10 @@ from .schema import (
 from .service import PageTransaction, claim_path
 from .state import EVENTS_FILE, json_bytes
 from .structure import SourceDocument
-from .tasks import open_tasks
+from .tasks import log_tasks_open
 from .validation.compatibility import candidate_vocabulary_gaps
 from .validation.source import check_source
-from .work import widget_tasks_without_targets
+from .work import tasks_without_targets
 
 
 def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:
@@ -287,8 +287,8 @@ def _refuse_untargeted_work(page_dir: Path, events: list[dict], incoming: dict) 
         read_revision(page_dir, revision).under(incoming), events, revision
     )
     document = page.document
-    untargeted = widget_tasks_without_targets(
-        document, page.projection, open_tasks(events), incoming
+    untargeted = tasks_without_targets(
+        document, page.projection, log_tasks_open(events), incoming
     )
     if untargeted:
         sys.exit(

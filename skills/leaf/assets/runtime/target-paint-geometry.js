@@ -218,8 +218,12 @@ export function standOver(stand, placed, borderRadius) {
     const stood = stand.levels[i];
     motions.forEach((motion, j) => {
       if (sameMotion(motion, stood.motions[j])) return;
-      stood.animations[j].cancel();
-      stood.animations[j] = followScroll(stood.layers[j], motion, 0);
+      stood.animations[j] = followScroll(
+        stood.layers[j],
+        motion,
+        0,
+        stood.animations[j],
+      );
       stood.motions[j] = motion;
     });
   });
@@ -267,7 +271,7 @@ export function placement(surface, shaped, aboveSurfaces) {
     bottom: box.bottom + pad,
   };
   const clips = paintClips(surface, rect, new Map(), aboveSurfaces);
-  const follows = scrollFollows();
+  const follows = scrollFollows(surface);
   // Each level's motion follows the box it holds next: the next frame's, or the surface,
   // whose paint reaches past it by the room a shape's stroke takes.
   const held = [...clips.bands.map(({ box: holder }) => holder), surface];

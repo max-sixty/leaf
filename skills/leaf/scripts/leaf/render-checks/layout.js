@@ -15,6 +15,9 @@ import { shrunkLabelReading } from "./words.js";
 
 export const rootOverflow = () => pageScroller.scrollWidth - pageScroller.clientWidth;
 const at = (el) => (el === pageScroller ? "<root scrollport>" : element(el));
+// A block the theme grows past the column (layouts.css). A block allocated `column`
+// keeps the measure as text does, so these checks read it as ordinary flow.
+const BREAKOUT = '[data-lf-space]:not([data-lf-space="column"])';
 
 // The page's own margin residents, without Leaf's rail: that holds only markers and
 // never moves the column. Both a sweep sample and its breakpoint refinement read the
@@ -29,8 +32,8 @@ export function marginResidents() {
 // One settled-width geometry sample: the readings the gate reports across the width
 // sweep, each field read by its own consumer in render_gate/readings.py. Which findings
 // the gate answers for at every width is its choice, not a property of the reader:
-// strandedMargins and reachabilityReading also move with the width, and the gate
-// reports them only at the viewports it renders (validation.md). These readers are
+// reachabilityReading also moves with the width, and the gate reports it only at
+// the viewports it renders (validation.md). These readers are
 // synchronous and read-only: taking them in one browser turn preserves their findings
 // while removing the protocol round trips between fields. Resize and rendering
 // completion belong to the caller, so a sample neither advances the page nor waits for
@@ -53,7 +56,6 @@ export function columnGeometry() {
   return {
     overflow: rootOverflow(),
     misplaced: misplacedBoxes(),
-    stranded: strandedMargins(),
   };
 }
 
@@ -236,7 +238,7 @@ function marginReading(main) {
     // pointer events keep them from occupying the margin until it opens.
     if (
       !el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) ||
-      el.hasAttribute("data-lf-space")
+      el.matches(BREAKOUT)
     )
       return false;
     const style = getComputedStyle(el);
@@ -310,7 +312,7 @@ export function misplacedBoxes() {
   // scrolled, `overflow-x: auto` having caught every descendant a line above.
   const insideWide = (el) => {
     for (let a = el.parentElement; a && a !== main; a = a.parentElement)
-      if (a.hasAttribute("data-lf-space")) return a;
+      if (a.matches(BREAKOUT)) return a;
     return null;
   };
   // What a wide widget may not escape, whatever the page has room for: the nearest
@@ -341,7 +343,7 @@ export function misplacedBoxes() {
   };
   const over = new Map();
   for (const el of main.querySelectorAll("*")) {
-    const wide = el.hasAttribute("data-lf-space");
+    const wide = el.matches(BREAKOUT);
     // A wide widget is asked whatever it stands in, where everything else is excused
     // by a scroll container above it. The excuse is about the column — a box inside a
     // scroller is drawn only as far as the scroller reaches, so it cannot spill onto
@@ -416,7 +418,7 @@ export function misplacedBoxes() {
   // maintains. A resident is whatever `marginReading` finds standing past the column, so
   // a project hanging its own furniture out there is covered without declaring anything
   // to this pass.
-  for (const el of main.querySelectorAll("[data-lf-space]")) {
+  for (const el of main.querySelectorAll(BREAKOUT)) {
     if (!el.checkVisibility()) continue;
     const b = el.getBoundingClientRect();
     const hit = residents.find((r) => {
@@ -712,18 +714,4 @@ export function squeezedTables() {
     );
   }
   return found;
-}
-
-// A margin marker with nowhere to stand. The layout withholds a row whose anchor the
-// browser will not take — an element behind the page's own `anchor-scope`, say — and marks
-// it `data-lf-parked`, so the user has no marker for that element and the page has no
-// way to show its thread or its decision beside it. Only the page can fix it: anchor the
-// thread or the widget to an element in the page's flow.
-export function strandedMargins() {
-  return [...document.querySelectorAll(".lf-margin-cluster[data-lf-parked]")].map(
-    (row) =>
-      `the margin marker for ${row.lfTarget ? at(row.lfTarget) : row.dataset.lfMarginFor} ` +
-      "has nowhere to stand: its element sits where a marker cannot anchor to it " +
-      "(behind an anchor-scope, say), so the user sees no marker for it",
-  );
 }

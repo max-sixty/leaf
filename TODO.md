@@ -148,15 +148,6 @@ and its chrome coordinate.
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
   without asking, which is the trade to weigh ([plan](notes/chrome-and-covers.md)).
-- **Align a widget's column with the text's measure.** `lf-options` cards run 1294px
-  beside 720px paragraphs in a wide panel, because text keeps the measure (`theme.css`,
-  `:where(p, li, …) { max-inline-size: var(--col) }`) and a widget without `x-space`
-  takes the whole flow. Declaring the existing column allocation on `lf-options` is not
-  enough on its own: `schema.py` allows `x-space` only `wide` and `available`, and
-  `[data-lf-space="column"]` centres its box (`margin-inline: auto`) while text in a
-  wide flow starts at the left edge. The column allocation and the text measure have to
-  align the same way first; start-aligned in any flow wider than the column is the
-  reading that matches the prose.
 - **Let a page restyle Leaf's chrome on purpose.** A page's rules reach a widget's
   controls when they name the widget (`runtime/page-sheets.js`), but `chrome.css` is
   unlayered and adopted after the page's sheets, so a page rule naming a chrome class
@@ -364,6 +355,15 @@ in the integration.
   same container CI runs, the approach Playwright recommends (an arm64 image on a
   Mac matches CI only on an arm64 runner); or a hosted visual-review service that
   renders both sides itself.
+- **Keep the agent journey's samples.** `leaf-dev journey` prints one timed sample
+  per run, and `publish-site` runs it on every release, but only the machine that
+  ran it keeps the sample (`$XDG_STATE_HOME/leaf-dev/journey.jsonl`), so CI's
+  samples are lost and a slower title or reply shows only to whoever is watching.
+  Find a durable store that CI and local runs can both write to, with the Worker's
+  credential proxy in mind, and chart each step across releases against the targets
+  in `notes/user-feedback-responsiveness.md`. Uploading a CI artifact needs no extra
+  token but keeps 90 days; a file in `max-sixty/leaf-assets` keeps history but needs
+  a token that can push there.
 - **Consider bundling the browser runtime.** A navigation loads about 220 JS modules
   over HTTP/1.1's six connections. A prototype bundling `leaf.js` with esbuild cut a
   widgetless page from 217 requests to 38 and its open from 332–483 ms to 238–258 ms,

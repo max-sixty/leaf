@@ -22,8 +22,8 @@ turn the delivery opens speaks for it, as an App Server turn does: that turns th
 one thread reply the delivery owes into a `turn` answer, which the turn's own
 messages write, where every other route leaves it a `reply` for `leaf thread
 reply`. The envelope records the first and only the effect of the second: each
-event's `answer` is that same address, so its `handling` clauses follow from the
-answer rather than from the route.
+event's `answer` is that same address. Its delivered `handling` combines registry
+clauses for the event kind and for that answer kind.
 """
 
 import json

@@ -132,7 +132,13 @@ def test_snapshot_comparison_saves_evidence_without_opening_a_viewer(
         assert saved.getpixel((0, 0)) == (0, 0, 0)
 
 
-@pytest.mark.parametrize("case", CASES, ids=lambda case: case.name)
+# A colour scheme changes only pixels, so where no image is compared its cases would
+# repeat the light journey.
+@pytest.mark.parametrize(
+    "case",
+    [case for case in CASES if COMPARED or case.scheme == "light"],
+    ids=lambda case: case.name,
+)
 def test_message_delivery_appearance_and_first_frame(
     browser, serve, image_snapshot, request, case, monkeypatch, thread_expected_store
 ):

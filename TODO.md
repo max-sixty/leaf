@@ -94,6 +94,9 @@ has tried; settle that before building it.
 
 ### User continuity and mobile access
 
+- **Consider automatic Leaf recovery on resume.** Reuse the reconnect notice's
+  eligibility checks to restore serving, ownership, and feedback delivery, while
+  respecting explicit stops and transfers to another session.
 - **Verify the native phone reading journey.** Check the explicit selection-to-comment
   handoff and reproduce the interactive-reply crash on a real iPhone. Browser emulation
   covers element targeting, commenting, passage geometry, and viewport sizing, but cannot

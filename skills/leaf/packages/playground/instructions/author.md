@@ -13,8 +13,9 @@ instruction to the agent stand in a rail beside it, on the same `2fr 1fr` tracks
 wide page's body and rail, wherever it has 43.5rem; narrower, they stack. A preview that needs
 width, such as two candidates side by side, belongs on a wide page (`<main
 class="layout-wide">`), or on a workspace page (`<main class="layout-workspace density-working">`) whose
-body is the playground's Ask, where the stage grows to the window's height. Draw
-candidates directly on the stage without separate cards.
+body is the playground's Ask, where the stage grows to the window's height. An Ask
+keeps the prose's width on either page, so give the playground's Ask
+`data-width="available"`. Draw candidates directly on the stage without separate cards.
 
 The preview is the surface the user operates. An A/B comparison keeps both candidates
 mounted there with the same configuration and starting content. Candidates that stand
@@ -67,7 +68,7 @@ leaves out keeps the user's last value. Name the outcome—`Status strip`, not `
 In this comparison, `format` identifies which of the two candidates to build:
 
 ```html
-<lf-ask id="notification-ask">
+<lf-ask id="notification-ask" data-width="available">
   <h2>Which deployment notification should we build?</h2>
   <lf-playground id="notification-playground" submit-label="Create notification">
     <lf-playground-control name="format" label="Format" kind="choice" value="banner">

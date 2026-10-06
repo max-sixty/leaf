@@ -1231,15 +1231,18 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p class="eyebrow">list="side"</p>
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
-              The tab list stands left of the open item, each row its name and summary.
-              Walk it with the up and down arrows. Answer the first item's Ask and its
-              row shows a check and the option you picked, and undo takes them away;
-              narrow the window below the set's 36rem and the list becomes a row above
-              the item, its rows keeping only the check.
+              The tab list stands left of the open item, each row its name and summary,
+              and each run of rows sharing a <code>group</code> under its heading. Walk
+              it with the up and down arrows, which pass the headings by. Answer the
+              first item's Ask and its row shows a check and the option you picked, and
+              undo takes them away; narrow the window below the set's 36rem and the list
+              becomes a row above the item, with each group's name before its first row
+              and the rows keeping only the check.
             </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab
                 id="bg-side-4107"
+                group="Act today"
                 label="ESC-4107 · Northwind Labs"
                 summary="sev 1 · 9 h · suggested fix"
               >
@@ -1261,6 +1264,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </lf-tab>
               <lf-tab
                 id="bg-side-4114"
+                group="Act today"
                 label="ESC-4114 · Vela Analytics"
                 summary="sev 1 · 1 h · suggested escalate"
               >
@@ -1270,6 +1274,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </lf-tab>
               <lf-tab
                 id="bg-side-4108"
+                group="This week"
                 label="ESC-4108 · Hale &amp; Sons"
                 summary="sev 3 · 8 h · suggested close"
               >

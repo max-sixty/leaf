@@ -29,6 +29,7 @@ from contextlib import contextmanager
 from functools import cache
 from pathlib import Path
 
+import psutil
 import pytest
 import yaml
 from click.testing import CliRunner
@@ -1554,9 +1555,10 @@ def codex_program(tmp_path_factory):
     name. The name has to be the executable's own, because what a process reports
     is what the kernel loaded — a `#!` script and a symlink both wear the
     interpreter's, and a copy of /bin/sh is killed on sight on macOS, where that
-    binary's signature is the system's."""
+    binary's signature is the system's. A framework Python's sys.executable is
+    a launcher that re-execs Python.app, so copy the running binary itself."""
     program = tmp_path_factory.mktemp("codex-program") / "codex"
-    shutil.copy(sys.executable, program)
+    shutil.copy(psutil.Process().exe(), program)
     return program
 
 

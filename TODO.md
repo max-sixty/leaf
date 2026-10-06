@@ -94,6 +94,9 @@ has tried; settle that before building it.
 
 ### User continuity and mobile access
 
+- **Consider automatic Leaf recovery on resume.** Reuse the reconnect notice's
+  eligibility checks to restore serving, ownership, and feedback delivery, while
+  respecting explicit stops and transfers to another session.
 - **Verify the native phone reading journey.** Check the explicit selection-to-comment
   handoff and reproduce the interactive-reply crash on a real iPhone. Browser emulation
   covers element targeting, commenting, passage geometry, and viewport sizing, but cannot
@@ -108,6 +111,14 @@ has tried; settle that before building it.
   Threads and Approve off the row until it ends, Android's back gesture closes nothing
   (the Escape ladder could answer it), Draw mode blocks scrolling and zoom, and an
   `lf-draft` has no close that keeps the edit.
+- **Decide whether the response bar's reactions and Suggest need a pointer route.**
+  The floating comment bar shows no ellipsis (⋯), so its field spans the bar and a sent
+  message keeps the card's measure. Its other responses, Suggest and the emoji
+  reactions, open only by key: Tab from the field, or `e`. A mouse alone has no
+  route to them, and a finger has none at all. Decide whether to make them more
+  available, such as a banner control under a coarse pointer, a reaction row on the
+  sent card, or a control that keeps the field's measure
+  (`skills/leaf/assets/runtime/composing/selection.js`).
 - **Give the thread panel's touch grip its own space.** Reserve room for the grip
   and collapse inactive reply controls if more thread cards should fit.
 
@@ -267,12 +278,18 @@ height and where a switch lands wait on the workspace decision under Layout.
 
 ### Recorded interaction review
 
-- **Bring richer trace inspection into Leaf's commentable timeline.** Review a
-  recording through its actual actions, timestamps and captured frames, with
-  playback, scrubbing, Before/Action/After snapshots, source, console and network
-  context. Keep comments attached to the immutable recording and action or frame;
-  opening a thread restores that moment. Reuse Playwright's capture and inspection
-  capabilities, and keep a direct link to its full viewer beside the Leaf timeline.
+Max's assessment (2026-10-05): "I'm not sure this is great." Ship the optional
+Leaf timeline as a trial alongside Playwright's viewer. Keeping it is undecided;
+we may use Playwright directly. Try the comment workflow before investing further
+in the integration.
+
+- **Explore DOM selection if we keep the imported timeline.** The optional `playwright`
+  package imports native actions, checkpoint images, captured frames and saved
+  accessibility elements; following their comments restores the moment. Reuse
+  Playwright's DOM renderer to add arbitrary element and passage selection, with
+  comments scoped to the archive, action, phase and captured DOM identity. Preserve
+  the distinction between a DOM snapshot and a separately captured image. Keep
+  source, console and network inspection available through the full viewer.
 
 ### The agent's text interface
 
@@ -391,6 +408,12 @@ Revisit these when their stated trigger becomes real; they are not an active que
   works the same wherever panes stand. Draw it as a playground before building it.
   Trigger: a user loses track of the active pane, or tabs through a pane to reach the
   next one.
+- **Expand everything waiting with a keypress.** A held notice, a collapsed summary,
+  and a folded card or section each open one at a time, with Enter or Space on it,
+  `g f` for a page's sections, or a `t` walk for a thread's held news. Nothing opens
+  them all at once, yet a page-level key spent on that alone seems wasteful. Think
+  about which surface should own it, such as one command on the panel. Trigger: a
+  user steps through notices one by one to catch up.
 - **#23 — Workspace persistence:** use repeated real tasks to decide whether
   users return and how much customization Leaf should own.
 - **Visual review beside Leaf:** coordinate a real browser target through the harness

@@ -3,10 +3,12 @@
    News arriving without the user's send gesture may show a notice but does
    not move focus or scroll the panel. `notice` is the one visible surface for a
    moment's news — a recorded gesture, an arrived version, a refused send — and it
-   stands in the bottom status line in place of the current walk position, which returns
-   when the notice fades; the live region hears the same words. It is text rather than a
-   control: what a notice names, the banner's own buttons reach. There is no second
-   surface for news, so nothing floats in a corner to become a stale pointer target. */
+   stands in one seat at a time: the bottom status line, in place of the current walk
+   position, which returns when the notice fades, or on a phone the banner's status
+   words, which return the same way (chrome.css, `--lf-notice-seat`). The live region
+   hears the same words. It is text rather than a control: what a notice names, the
+   banner's own buttons reach. There is no second surface for news, so nothing floats in
+   a corner to become a stale pointer target. */
 import { nothing, render } from "../vendor/browser-runtime.js";
 
 import { el } from "./widget-elements.js";
@@ -27,28 +29,30 @@ const waitingBackground = [];
 let userContext = false;
 let userHoldTimer = 0;
 let noticePresentation = Object.freeze({ message: "", visible: false });
-let invalidateNoticePresentation = null;
+const noticePresenters = new Set();
 
 export const noticeReading = () => noticePresentation;
 export const noticeVisible = () => noticePresentation.visible;
 
-// The complete bottom-status renderer registers one synchronous invalidation door. A
-// notice acknowledges a gesture before its caller returns; routing this through the
-// shared frame repaint would turn that same-turn contract into eventual feedback. Taking
-// a notice down acknowledges nothing, so it is drawn at the end of the turn's script,
-// still before paint: a gesture that takes one notice down and puts the next up (a walk
-// beginning, then its acknowledgement) writes the notice once, to the one it put up.
+// Each seat that can draw the notice, the bottom status and the banner's status words,
+// registers one synchronous invalidation door, and the stylesheet shows the notice in
+// one of them. A notice acknowledges a gesture before its caller returns; routing this
+// through the shared frame repaint would turn that same-turn contract into eventual
+// feedback. Taking a notice down acknowledges nothing, so it is drawn at the end of the
+// turn's script, still before paint: a gesture that takes one notice down and puts the
+// next up (a walk beginning, then its acknowledgement) writes the notice once, to the
+// one it put up.
 export function registerNoticePresentation(invalidate) {
-  if (invalidateNoticePresentation)
-    throw new Error("The notice presentation already has an owner");
-  invalidateNoticePresentation = invalidate;
+  noticePresenters.add(invalidate);
 }
 
-const presentTakedown = () => invalidateNoticePresentation?.();
+const presentAll = () => {
+  for (const invalidate of noticePresenters) invalidate();
+};
 const presentNotice = (message, visible) => {
   noticePresentation = Object.freeze({ message, visible });
-  if (visible) invalidateNoticePresentation?.();
-  else afterScript(presentTakedown);
+  if (visible) presentAll();
+  else afterScript(presentAll);
 };
 
 export function announce(msg) {

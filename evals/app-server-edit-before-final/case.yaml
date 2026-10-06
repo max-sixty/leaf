@@ -1,0 +1,39 @@
+# Reconstructed from issue #1841 and a local hosted replay on 2026-10-05. Both
+# ended with invalid source and an automatic final reply rejected after the model
+# turn was over. The replay put authored content inside the empty lf-activity.
+# This is a guard, not a separating measurement: the read-only eval loads the
+# normal Leaf skill on both arms, while hosted disables it. The live hosted
+# journey separately checks execution with the hosted model and tool transcript.
+description: app-server-edit-before-final
+metadata:
+  purpose: 'App Server: a saved page edit is checked while the model can still correct it.'
+  tags:
+  - app-server
+  - revision
+vars:
+  prompt: |
+    You are the agent for a public leaf.page session, with its page directory as
+    your working directory. The harness started this turn from a leaf_delivery
+    whose only event owes a turn answer. The user's comment is: "Release a8fe0702
+    passed its deployment checks. Record that on the board, and tell me when it's
+    done." You already sent the opening message and saved an index.html edit
+    adding the release to the board. A shell read confirmed the hash is present.
+    The task follows references/harness-codex-app-server.md. The hosted harness
+    serves the page and handles its status, so run no server, watcher or status
+    operation. No checkpoint was requested.
+
+    Read the contract and write the remaining steps you would take before ending
+    the turn. Only reading instructions runs here; show any commands you would
+    run and then the final reply.
+assert:
+- type: javascript
+  metric: reads-app-server-contract
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/harness-codex-app-server\.md
+- type: regex
+  metric: checks-saved-edit
+  value: 'page check\s+\S+'
+- type: not-regex
+  metric: keeps-final-reply-owner
+  value: leaf thread reply

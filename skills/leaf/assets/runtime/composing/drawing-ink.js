@@ -61,6 +61,17 @@ function pathFor(data) {
   return path;
 }
 
+// The drawing as a picture of itself, fitted to whatever box holds it: what a composer
+// shows of the drawing its comment carries.
+export function drawingThumbnail(drawing) {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  const { x, y, width, height } = drawingFrame(drawing.strokes);
+  svg.setAttribute("viewBox", `${x} ${y} ${width} ${height}`);
+  svg.setAttribute("aria-hidden", "true");
+  svg.append(pathFor(pathData(drawing.strokes)));
+  return svg;
+}
+
 export function createDrawingInk({ drawings }) {
   // The draft or ordinary Thread is the accessible representation of its ink.
   const layer = el("div", "lf-ui lf-drawings lf-page-paint");

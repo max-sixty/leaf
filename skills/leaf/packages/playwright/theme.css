@@ -1,0 +1,75 @@
+/* The controls stay next to the evidence. Native images keep their recorded aspect
+ * ratio; the saved-element list is a separate semantic surface, never an overlay. */
+:scope:is(lf-trace) {
+  --lf-block-frame: 1;
+  display: flex;
+  flex-direction: column;
+  block-size: attr(data-lf-height px, 640px);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  box-sizing: border-box;
+  container-type: inline-size;
+  margin-block: var(--sp-4);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  padding: var(--sp-3);
+  background: var(--paper);
+  font: var(--t-5) / 1.45 var(--sans);
+  overflow-wrap: anywhere;
+}
+.lf-trace-body { flex: 1 1 auto; min-block-size: 0; min-inline-size: 0; overflow: auto; }
+.lf-trace-controls {
+  flex: none; min-inline-size: 0; inline-size: 100%; grid-template-columns: minmax(0, 1fr); display: grid; gap: var(--sp-2); }
+.lf-trace-choices { min-inline-size: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.lf-trace-select {
+  box-sizing: border-box;
+  min-block-size: 44px;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  flex: 1 1 10rem;
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--border-2);
+  border-radius: var(--r);
+  padding: 8px;
+}
+.lf-trace-viewer { min-block-size: 44px; display: inline-flex; align-items: center; }
+.lf-trace-stepper { min-inline-size: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--sp-2); }
+.lf-trace-previous, .lf-trace-next { min-block-size: 44px; padding-inline: 12px; }
+.lf-trace-slider { inline-size: 100%; min-inline-size: 0; min-block-size: 44px; margin: 0; accent-color: var(--accent); }
+.lf-trace-clock, .lf-trace-readout, .lf-trace-caption, .lf-trace-tree-clock { color: var(--muted); font-size: var(--t-6); font-variant-numeric: tabular-nums; }
+.lf-trace-clock { margin-block: var(--sp-2) 0; }
+.lf-trace-readout { margin-block: var(--sp-2); }
+.lf-trace-action { margin-block: var(--sp-2) 0; font-weight: 600; }
+.lf-trace-phase { margin-block: 4px var(--sp-2); font: 500 var(--t-5) / 1.4 var(--sans); font-variant-numeric: tabular-nums; }
+.lf-trace-error { color: var(--danger); }
+.lf-trace-images { min-inline-size: 0; }
+.lf-trace-image { margin: 0; }
+.lf-trace-image img { display: block; inline-size: attr(data-lf-image-width px); max-inline-size: 100%; block-size: auto; margin-inline: auto; border: 1px solid var(--border-2); box-sizing: border-box; }
+.lf-trace-caption { margin-block: 6px 0; }
+.lf-trace-missing-image { padding: var(--sp-4); border: 1px dashed var(--border-2); color: var(--muted); margin-block: 0; }
+.lf-trace-tree { margin-block-start: var(--sp-3); }
+.lf-trace-tree > summary { min-block-size: 44px; align-content: center; cursor: pointer; }
+.lf-trace-tree-clock { margin-block: var(--sp-2); }
+.lf-trace-nodes { margin: 0; padding-inline-start: 1.4em; }
+.lf-trace-node { padding-block: 6px; }
+.lf-trace-node-path { display: block; color: var(--muted); font-size: var(--t-6); }
+@container (max-width: 480px) {
+  .lf-trace-choices > .lf-trace-select { flex-basis: 100%; }
+  .lf-trace-stepper { gap: 6px; }
+}
+@media print {
+  :scope:is(lf-trace) { block-size: auto; }
+  .lf-trace-body { overflow: visible; }
+  .lf-trace-tree { display: block; }
+  .lf-trace-nodes { display: block; }
+}
+.lf-trace-frames-label {
+  min-block-size: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  cursor: pointer;
+}
+.lf-trace-frames { accent-color: var(--accent); }

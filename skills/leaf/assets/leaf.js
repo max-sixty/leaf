@@ -12,7 +12,7 @@ import {
 } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
-import { readingBlock } from "./runtime/reading-place.js";
+import { landingPlace } from "./runtime/reading-place.js";
 import { mountHistory } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
@@ -128,6 +128,7 @@ import {
 } from "./runtime/banner.js";
 
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
+import { holdToRead } from "./runtime/held-word.js";
 
 initializeServedDocument();
 keepPageRulesOffLayer();
@@ -248,6 +249,12 @@ let panelComposer;
 let selectionComposer;
 let responseSurface;
 let drawing;
+// A composer's own controls for the drawing its draft holds, which the drawing
+// controller answers.
+const drawingEdits = {
+  undoStroke: (anchor) => drawing.undoStroke(anchor),
+  remove: (anchor) => drawing.removeDrawing(anchor),
+};
 let aim;
 let targets;
 let reactions;
@@ -337,7 +344,7 @@ aim = createAim({
   drawModeActive: () => drawing.drawModeActive(),
   designMode,
   targetPicker: {
-    active: () => targets.pointerChoosing(),
+    active: () => targets.choosing(),
     choose: (...args) => targets.chooseTarget(...args),
   },
 });
@@ -416,7 +423,6 @@ app = mountApplication({
   reportPageError,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),
-  pageComposerDrawing: () => panelComposer.pageComposerDrawing(),
   wireInput: inputs.wireInput,
   anchorPlacement,
   anchorPaint,
@@ -505,7 +511,7 @@ if (offlineInteractive) applicationState.setHostAvailable(false);
 // Where a landing in the document goes, which is version continuity's reading of what is
 // on screen. Declared beside the let-go that uses it, for the same reason: the owner
 // stands by now and nothing has read the register yet.
-declareReading(readingBlock);
+declareReading(landingPlace);
 
 // And where it goes instead while a surface covers the page: the page is inert under one,
 // so the reading above cannot take the user and a step that let go would leave them
@@ -558,9 +564,11 @@ const queueWalk = createQueueWalk({
   arrive: anchorTravel.arrive,
   readableDestination: anchorTravel.readableDestination,
   announce,
+  post: (event) => app.post(event),
 });
 const queue = createQueuePanel({
   arriveAtItem: queueWalk.arriveAtItem,
+  endTask: queueWalk.endTask,
   announce,
 });
 
@@ -586,7 +594,6 @@ panelComposer = createPanelComposer({
   stepThread: (...args) => navigation.stepThread(...args),
   firstUnread: () => app.read.firstUnread(),
   unreadCount: () => app.read.unreadCount(),
-  paintDrawings: drawingPaint.paint,
 });
 selectionComposer = createSelectionComposer({
   panelIsOpen,
@@ -610,6 +617,7 @@ selectionComposer = createSelectionComposer({
   landSent: landing.landSent,
   refreshThread: app.refreshThread,
   wireInput: inputs.wireInput,
+  drawingEdits,
 });
 const passageSelection = createPassageSelection({
   restore: anchorTravel.restoreSelection,
@@ -684,22 +692,23 @@ targets = createTargetPicker({
   updateFab: responseSurface.updateFab,
   fabAnchorAt: responseSurface.fabAnchorAt,
   pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
+  armChanged: () => aim.armChanged(),
 });
 drawing = createDrawingController({
-  anchors: { aimTargetAt, resolveAnchor, pendingAt: anchorPlacement.pendingAt },
+  anchors: { aimTargetAt, resolveAnchor },
   pageGeometry: { refreshAim: pageGeometry.refreshAim },
   pointer: pointerAt,
   visibleTargets: targets.visibleTargets,
-  pageDrawing: panelComposer.pageComposerDrawing,
   anchoredDrawing: selectionComposer.draftDrawing,
-  composerDraft: () => ({
-    open: composerOpen,
-    anchor: pendingAnchor,
-    drawing: pendingDrawing,
-  }),
+  heldDrawings: selectionComposer.heldDrawings,
+  watchHeldDrawings: selectionComposer.watchHeldDrawings,
+  draftKey: selectionComposer.draftKey,
   openAnchoredDrawing: (anchor, drawing) =>
     selectionComposer.openComposer(anchor, "", { carry: true, drawing }),
-  openPageDrawing: panelComposer.openPageDrawing,
+  replaceDrawing: (anchor, drawing) => {
+    selectionComposer.setDraftDrawing(anchor, drawing);
+    drawingPaint.paint();
+  },
   setDesignMode: designMode.setActive,
   closeTargetPicker: targets.closeTargetPicker,
   closeReactionMode: () => reactions.setReact(false),
@@ -857,8 +866,8 @@ if (!offlineInteractive) {
     pageSearchSurface,
     ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
     drawingPaint.layer,
-    targetPaint.targetTraceBox,
-    targetPaint.aimBox,
+    targetPaint.targetTraceLayer,
+    targetPaint.aimLayer,
     fabBar,
     liveEl,
     mediaViewer,
@@ -884,6 +893,7 @@ if (!offlineInteractive) {
   await panelComposer.mount();
   selectionComposer.mount();
   responseSurface.mount();
+  holdToRead();
   reactions.mount();
   targets.mount();
   drawing.mount();
@@ -901,7 +911,6 @@ if (!offlineInteractive) {
   app.overlay?.mount();
   app.mountThread();
   app.mountRead();
-  threadListController.mountThreadList(panelIsOpen);
   wireThreadLanding(threadsBox);
   drawers.mountDrawers();
   threadPanelController.mountThreadPanel();

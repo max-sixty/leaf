@@ -50,6 +50,7 @@ from render_harness import (
     scroll_settled,
     select,
     sending,
+    write,
 )
 
 # One source line, so a phrase's offset in the source is its offset in the text node.
@@ -768,7 +769,10 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             )
         select(page, (box["x"] + 2, box["y"] + 10), (box["x"] + 150, box["y"] + 10))
         page.locator(".lf-fab-input").click()
-    page.locator(".lf-fab-input").type("Keep these words while the page leaves. " * 6)
+    field = page.locator(".lf-fab-input")
+    words = "Keep these words while the page leaves. " * 6
+    write(field, words)
+    expect(field).to_have_js_property("value", words)
     rendered(page)
     before_target = target.bounding_box()
     content_box = before_target
@@ -972,8 +976,8 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
         error.add_note(f"Original compositor frames and raw history: {evidence}")
         raise
 
+    expect(field).to_have_js_property("value", words)
     if region == "combined":
-        field = page.locator(".lf-fab-input")
         field.click()
         page.keyboard.press("ArrowLeft")
         page.keyboard.press("ArrowLeft")
@@ -1012,10 +1016,21 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
         )
 
 
-@pytest.mark.parametrize("consumer", ["editor", "thread"])
+@pytest.mark.parametrize(
+    "consumer,renew_placement,posture",
+    [
+        ("editor", False, "beside"),
+        ("thread", False, "beside"),
+        ("thread", True, "beside"),
+        ("reopened", True, "beside"),
+        ("editor", False, "across"),
+        ("thread", True, "across"),
+        ("reopened", True, "across"),
+    ],
+)
 @pytest.mark.parametrize("transform", ["scale(.8)", "scale(.8) rotate(10deg)"])
 def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
-    browser, serve, consumer, transform
+    browser, serve, consumer, transform, renew_placement, posture
 ):
     page = open_page(
         browser,
@@ -1027,13 +1042,19 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
                 "The export keeps each tenant in an archive.<br>"
                 + "<span>More lines in this reading region, with a long unwrapped reading line.<br></span>"
                 * 50
+                + (
+                    "<span>" + "A long unwrapped reading line. " * 20 + "</span>"
+                    if posture == "across"
+                    else ""
+                )
                 + '</p></div><div style="height:1200px"></div>',
                 head=f"<style>#scaled{{transform:{transform};transform-origin:left top}}"
-                "#quote{height:150px;width:420px;overflow:auto;white-space:nowrap}</style>",
+                f"#quote{{height:150px;width:{1000 if posture == 'across' else 420}px;"
+                "max-width:none;max-inline-size:none;overflow:auto;white-space:nowrap}</style>",
             )
         ),
     )
-    resized(page, 1200, 700)
+    resized(page, 1200, 900 if posture == "across" else 700)
     target = page.locator("#quote")
 
     def words():
@@ -1058,31 +1079,83 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
     page.keyboard.press("ArrowLeft")
     original = field.element_handle()
     draft = field.evaluate("node => ({value:node.value, caret:node.selectionStart})")
-    if consumer == "thread":
+    if consumer != "editor":
         page.keyboard.press("Enter")
         rendered(page)
         surface = page.locator(".lf-margin-preview:visible")
+        if consumer == "reopened":
+            page.keyboard.press("Escape")
+            page.locator(".lf-margin-marker").click()
+            rendered(page)
     else:
         surface = page.locator(".lf-fab-bar")
     expect(surface).to_be_visible()
     before, quote_before = surface.bounding_box(), words()
-    assert before["x"] > quote_before["right"], before
+    if posture == "beside":
+        assert before["x"] > quote_before["right"], before
+    else:
+        assert before["y"] >= target.bounding_box()["y"], before
     box = target.bounding_box()
+    if renew_placement:
+        page.evaluate("""() => {
+          window.attachmentFrames = [];
+          window.recordAttachment = true;
+          const sample = () => {
+            const node = document.querySelector('#quote');
+            const range = document.createRange();
+            range.setStart(node.childNodes[4], 0); range.setEnd(node.childNodes[4], 12);
+            const quote = range.getBoundingClientRect();
+            const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+            attachmentFrames.push({x:card.left-quote.left, y:card.top-quote.top});
+            if (recordAttachment) requestAnimationFrame(sample);
+          };
+          sample();
+        }""")
     page.mouse.move(box["x"] + 100, box["y"] + 80)
     page.mouse.wheel(20, 20)
     scroll_settled(page, "#quote")
     rendered(page)
+    if renew_placement:
+        # A size/layout delivery may renew placement after native scrolling. It
+        # must retain the same attachment rather than publish a second origin.
+        page.evaluate("""async () => {
+          const {layoutMarginRows} = await window.__lfRuntimeImport(
+            '/runtime/annotation-overlay/margin-layout.js');
+          layoutMarginRows();
+        }""")
+        rendered(page)
+        frames = page.evaluate("() => {recordAttachment=false;return attachmentFrames}")
+        assert len(frames) > 1
+        for frame in frames:
+            for axis in ["x", "y"]:
+                assert frame[axis] == pytest.approx(frames[0][axis], abs=1), frames
     after, quote_after = surface.bounding_box(), words()
     for axis in ["x", "y"]:
         assert after[axis] - before[axis] == pytest.approx(
             quote_after[axis] - quote_before[axis], abs=1
         ), (before, after, quote_before, quote_after)
-    if consumer == "thread":
+    if consumer != "editor":
         # The card's original controls still receive presses through inert carriers.
         reply = surface.get_by_role("textbox", name="Reply", exact=True)
         reply.click()
         expect(reply).to_be_focused()
         return
+    # Typing renews the editor's placement after native motion, before a window
+    # resize could discard its seat. Its growing frame retains the quoted line.
+    growth_start = surface.bounding_box()
+    expect(field).to_be_focused()
+    page.keyboard.insert_text(
+        "\nAnother line.\nA third line.\nA fourth line.\nA fifth line."
+    )
+    rendered(page)
+    growth_end = surface.bounding_box()
+    assert growth_end["height"] > growth_start["height"] + 10
+    for axis in ["x", "y"]:
+        assert growth_end[axis] == pytest.approx(growth_start[axis], abs=1), (
+            growth_start,
+            growth_end,
+        )
+    draft = field.evaluate("node => ({value:node.value, caret:node.selectionStart})")
     resized(page, 1100, 700)
     expect(field).to_be_focused()
     assert field.evaluate("(node, original) => node === original", original)
@@ -1252,7 +1325,7 @@ def test_send_grows_thread_around_the_words(
             <= 1
         ), "Typing a short comment may grow its field, but must not carry it"
     if options:
-        page.locator(".lf-response-more").click()
+        page.keyboard.press("Tab")
         rendered(page)
         page.locator(".lf-fab-input").focus()
         rendered(page)
@@ -1304,6 +1377,10 @@ def test_send_grows_thread_around_the_words(
       };
       window.sampling = requestAnimationFrame(sample);
     }""")
+    # Send's room stands beside every line under a finger and in a scrolled draft,
+    # and after the last words otherwise; the sent message holds it where the draft did.
+    held = field.evaluate("el => el.endRoom")
+    assert held == ("every-line" if touch or long is True else "last-line")
     with sending(page, "comment"):
         if touch:
             page.locator(".lf-fab-bar").get_by_role(
@@ -1312,7 +1389,7 @@ def test_send_grows_thread_around_the_words(
         else:
             page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
-    expect(card).to_have_attribute("data-lf-comment-frame", "")
+    expect(card).to_have_attribute("data-lf-comment-frame", held)
     rendered(page)
     wait_for(
         lambda: page.evaluate(
@@ -1351,7 +1428,7 @@ def test_send_grows_thread_around_the_words(
         resized(page, size[0] + 1, size[1])
         rendered(page)
         assert body.evaluate("el => el.scrollTop") == pytest.approx(retained, abs=1)
-        expect(card).to_have_attribute("data-lf-comment-frame", "")
+        expect(card).to_have_attribute("data-lf-comment-frame", held)
     if not long and not touch and not again and motion == "no-preference":
         card.locator('leaf-text[name="reply"]').click()
         page.keyboard.insert_text("The same placement works for a reply.")
@@ -1475,7 +1552,7 @@ def test_room_for_a_surface_uses_the_scrollports_visible_scale(browser, serve, s
 
 
 @pytest.mark.parametrize("source", ["document", "inner"])
-@pytest.mark.parametrize("read", ["before-scroll", "after-scroll"])
+@pytest.mark.parametrize("read", ["before-discovery", "before-scroll", "after-scroll"])
 @pytest.mark.parametrize("existing", [False, True])
 def test_native_attachment_measures_solver_and_scroll_origin_together(
     browser, serve, source, read, existing
@@ -1512,7 +1589,7 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
             contextNode: node, contextElement: paragraph,
             // Presenters can hand the owner a solved passage snapshot or a live
             // virtual reference; both share its scroll/anchor measurement boundary.
-            getBoundingClientRect: () => source === 'document'
+            getBoundingClientRect: () => source === 'document' || read === 'before-discovery'
               ? captured : range.getBoundingClientRect(),
           };
           const owner = floatingPlacement({floating: box, update: () => {}});
@@ -1534,13 +1611,19 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
           owner.begin();
           window.solve = owner.position(async (...args) => {
             window.solveEntered = true;
-            if (read === 'after-scroll') await gate;
+            if (read !== 'before-scroll') await gate;
             const answer = await ui.computePosition(...args);
             window.solveRead = true;
             if (read === 'before-scroll') await gate;
             return answer;
           }, reference, {placement:'right-start', middleware:[]}, () => 'page', paragraph)
             .then(answer => owner.stand(answer));
+          // A script may scroll in the turn that starts placement, before its
+          // dependency continuation discovers the native overflow sources.
+          if (read === 'before-discovery') {
+            if (source === 'inner') paragraph.scrollTop = 20;
+            else scrollTo(0, 20);
+          }
           window.attachmentReading = () => ({
             quote: range.getBoundingClientRect().toJSON(),
             box: box.getBoundingClientRect().toJSON(),
@@ -1580,3 +1663,45 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
     assert state["box"]["x"] == pytest.approx(state["quote"]["right"], abs=1), state
     assert state["box"]["y"] == pytest.approx(state["quote"]["top"], abs=1), state
     assert page.evaluate("detachPlacement()"), "the detached placement had no frame"
+
+
+def test_a_comment_box_on_words_in_a_scroller_stands_without_scroll_timelines(
+    browser, serve
+):
+    """Where the browser has no scroll timelines, as Firefox has none, the comment box
+    for words in a scroller starts below its containing box in the window's plane,
+    then follows the quoted words through observed placement."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Words in a scroller",
+                '<h1>Comments follow the words</h1><p id="quote">'
+                "The export keeps each tenant in an archive.<br>"
+                + "<span>More lines in this reading region.<br></span>" * 50
+                + '</p><div style="height:1200px"></div>',
+                head="<style>#quote { height:120px; overflow:auto; }</style>",
+            )
+        ),
+        init_script="delete window.ViewTimeline; delete window.ScrollTimeline;",
+    )
+    resized(page, 1200, 700)
+    words = """() => { const r = document.createRange();
+      r.selectNodeContents(document.getElementById('quote').firstChild);
+      return r.getBoundingClientRect().toJSON(); }"""
+    box = page.evaluate(words)
+    select(page, (box["x"] + 2, box["y"] + 8), (box["x"] + 150, box["y"] + 8))
+    page.locator(".lf-fab-input").click()
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-plane", "window")
+    quote = page.locator("#quote")
+    below = quote.bounding_box()
+    assert bar.bounding_box()["y"] >= below["y"] + below["height"]
+    before, words_before = bar.bounding_box(), page.evaluate(words)
+    page.mouse.move(below["x"] + 50, below["y"] + 50)
+    page.mouse.wheel(0, 30)
+    scroll_settled(page, "#quote")
+    rendered(page)
+    assert bar.bounding_box()["y"] - before["y"] == pytest.approx(
+        page.evaluate(words)["y"] - words_before["y"], abs=1
+    )

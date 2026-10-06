@@ -2,14 +2,13 @@
 
 ## One envelope on every transport
 
-Every carrier presents an immutable object of the same shape:
+Every route into your context presents an immutable object of the same shape:
 
 ```json
 {
   "format": "leaf-delivery-v3",
   "id": "a1b2c3d4",
   "created_at": 0,
-  "carrier": "wait",
   "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; …",
   "batches": [
     {
@@ -27,17 +26,16 @@ The id is eight lowercase hexadecimal characters and addresses this envelope in 
 machine's immutable delivery store.
 
 Some harnesses deliver it inline; others deliver a pointer that `leaf delivery read <id>`
-resolves to the same object. Your harness contract names which. The shape is the same on
-every carrier, and `carrier` names the one that delivered it: `wait` for `leaf
-wait`'s output, `hook` for the context a harness hook adds to the turn it opens,
-`queue` for a pointer Codex offers between steps or queues for a turn, `app-server` for a turn Leaf started. The envelope states receipt and response routes once:
+resolves to the same object. Your harness contract names which. The envelope states
+receipt and response routes once:
 
 - `acknowledge` says how to confirm receipt after the complete envelope is in
-  context. Follow that instruction, not a rule inferred from `carrier`. When it
-  is `null`, your harness confirms receipt; run no separate acknowledgement command.
-  Your harness contract explains its mechanism.
-- A thread reply's `answer` is `turn` on `app-server`, whose turn writes it with
-  its own messages, and `reply`, for `leaf thread reply`, everywhere else.
+  context. Follow that instruction. When it is `null`, your harness confirms
+  receipt; run no separate acknowledgement command. Your harness contract explains
+  its mechanism.
+- A thread reply's `answer` is `turn` where the delivery arrives in a turn Leaf
+  started over Codex App Server, which writes it with its own messages, and
+  `reply`, for `leaf thread reply`, everywhere else.
 
 Process every batch and every event.
 
@@ -74,9 +72,7 @@ retry key `attempt`, then adds these delivery readings:
 - `handling`, when present, lists clause ids in the batch's `handling` object,
   in the order to read them. That object gives each distinct instruction's text
   once; ids belong only to that batch. Follow every named clause for this event:
-  together they cover this event's case and the answer it owes. Leaf combines
-  the registry's event-kind `handling` and answer-kind `answering` instructions
-  into this one list before delivery.
+  together they cover this event's case and the answer it owes.
 
 The batch-level `threads` carry each thread's title (null until named),
 anchor, closure state, earlier messages, and standing gestures on sent widgets.
@@ -97,9 +93,9 @@ the covered originals, write the summary, and keep outcomes in the document.
 
 ## Delivery and acknowledgement
 
-Printing and hook completion are not receipt. Once every batch is in context,
-follow the envelope's `acknowledge` instruction. A reader-confirmed hook names
-`leaf delivery ack <id>`; a direct wait names the harness's next wait:
+Printing is not receipt. Once every batch of a printed delivery is in context,
+follow the envelope's `acknowledge` instruction, which names the harness's next
+wait:
 
 ```bash
 leaf wait --ack <delivery-id>
@@ -116,8 +112,9 @@ full log without acking it.
 
 Receipt and work have separate evidence. Confirming a direct delivery records its
 moves as **Picked up** in the current turn. Other harnesses record that opening when
-they observe the delivery entering a turn. Leaf derives overall page activity from
-that evidence. Starting the move with `leaf task start <page> <event-id>`
+they observe the delivery entering a turn: as a hook hands it over, as the agent
+reads a pointer with `leaf delivery read`, or as a turn Leaf started begins. Leaf
+derives overall page activity from that evidence. Starting the move with `leaf task start <page> <event-id>`
 ([conversation handoff](conversation-loop.md#when-to-write)) strengthens its
 receipt to **Working** while it remains outstanding. That neither acknowledges the
 delivery nor answers the move.

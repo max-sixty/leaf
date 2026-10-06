@@ -16,7 +16,9 @@
    - `routes` are optional stable subcommands when those bindings mean different things.
      The shortcut bar keeps the compact row; the command reference presents each route separately. A
      route may override `title`, `description`, `line` and `label` for the case where a nearer scope shadows only
-     its sibling binding.
+     its sibling binding. A route without a description of its own lists under the
+     row's, so the row's says what every route shares ("Filter visible targets by kind"),
+     never what tells them apart ("Next / previous match").
    - `title` is the command's required concise name, or a function when state changes
      it. `description` optionally explains information the title cannot carry. The Ask,
      shortcut bar, reference, and announcements read these same words. `line` overrides

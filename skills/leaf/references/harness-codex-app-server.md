@@ -41,6 +41,10 @@ it. A later plain reply remains pending for the next slice.
 Other answers in the slice take the operations their delivered `handling`
 clauses name.
 
+Before finishing a turn that changed `index.html`, run `leaf page check <page>`
+and fix every error. The final reply requires valid source, and its refusal arrives
+after the model's turn has ended, when it can no longer correct the edit.
+
 A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a
 user message. Read it with `leaf delivery read <id>`: it was frozen for the queue, so
 its reply is a plain `reply` for `leaf thread reply`, as `references/harness-codex.md`

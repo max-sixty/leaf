@@ -52,7 +52,7 @@ class Harness:
       session's pages in the background and wakes the session when input arrives
       (`watches_between_turns`), and the prompt hook, which runs as the turn the
       wake opens begins, and the other Stop hook put the input in the turn's
-      context for its reader to confirm (`hook_delivers`). A turn that ends without its Stop
+      context and confirm it (`hook_delivers`). A turn that ends without its Stop
       hooks, as an interrupt does, leaves nothing watching while the session lives
       on, which is why this is the harness with a `nudge`.
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
@@ -149,8 +149,8 @@ class Harness:
     def run_ack(cls, delivery_id: str) -> str:
         """How the reader of this session's printed delivery runs the `leaf wait
         --ack` that confirms it and goes on waiting: the verb phrase the
-        delivery's `acknowledge` ends with. Hook context names its separate
-        `leaf delivery ack` route; a wait held in a background task is the default."""
+        delivery's `acknowledge` ends with. A wait held in a background task is
+        the default."""
         return f"start `leaf wait --ack {delivery_id}` as the next background task"
 
     @classmethod
@@ -184,9 +184,9 @@ class Harness:
         """How the page server names a thread a user opens on this session's page,
         as the comment is admitted (`thread_titles`), or None where it cannot.
 
-        Only a harness whose model any process on the machine can ask has one. An App
-        Server carrier names the thread instead, as it starts the turn answering
-        it, since the page server cannot reach that server."""
+        Only a harness whose model any process on the machine can ask has one. The
+        website's carrier names the thread instead, as the move opening it is
+        dispatched to it, since only it can reach the App Server it owns."""
         return None
 
     def live_turn(self) -> dict | None:
@@ -378,6 +378,15 @@ class CodexHarness(EnvironmentHarness):
     def process_pid(cls) -> int | None:
         """The nearest ancestor running the `codex` program (`lifetime`)."""
         return next((pid for pid, program in ancestry() if program == "codex"), None)
+
+    def title_generator(self) -> Callable[[str, Path], dict]:
+        """An App Server the page server starts for the request, whichever
+        transport carries the task's turns, so Codex is asked in one way: `codex
+        queue` reaches no model, and starting a server takes a few hundred
+        milliseconds of a title's few seconds."""
+        from leaf.thread_titles import codex_title
+
+        return codex_title
 
     def ensure_delivery(self) -> None:
         with self.preparing_delivery():

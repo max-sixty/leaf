@@ -87,7 +87,6 @@ customElements.define(
     #interactive = false;
     #ready = false;
     #resumeProjection = null;
-    #stop = null;
     #targetChanges = new MutationObserver(() => this.#render());
 
     connectedCallback() {
@@ -97,7 +96,6 @@ customElements.define(
         if (this.#interactive) {
           if (this.#dirty && !this.#resumeProjection)
             this.#resumeProjection = this.#controller.defer();
-          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
         }
         return;
       }
@@ -114,7 +112,7 @@ customElements.define(
         this.#ready = true;
         this.#watchTargets();
         if (this.#interactive)
-          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
+          this.#controller.subscribe(() => this.#paintAvailability());
         this.#render();
         // Built, so the height the page reserved for it lifts (x-height).
         this.classList.add("lf-rendered");
@@ -126,8 +124,6 @@ customElements.define(
 
     disconnectedCallback() {
       this.#targetChanges.disconnect();
-      this.#stop?.();
-      this.#stop = null;
       this.#resumeProjection?.();
       this.#resumeProjection = null;
       this.disarm();

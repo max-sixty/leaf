@@ -45,8 +45,8 @@ export { answersWithin } from "./asks/answer.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
   threadBox,
-  consumeThreads,
-  consumePageThreads,
+  placeThreads,
+  placePageThreads,
   consumeAnnotations,
   mountThreadViews,
   threadActions,
@@ -61,6 +61,7 @@ export { HeldReading } from "./thread/held-news.js";
 export { landInThread, openThread } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
+export { HOLDS_WORD } from "./held-word.js";
 export { PRESS, labelOf, submitBindings, submitLabel } from "./keyboard/bindings.js";
 export {
   commandScope,
@@ -160,6 +161,7 @@ export {
   PAGE_INTERFACE,
   PRESENTATION,
   afterPresentation,
+  isPagePaint,
   quietWord,
 } from "./presentation.js";
 export {

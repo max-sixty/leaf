@@ -131,17 +131,15 @@ def _append_reanchors(page, revision, moves, *, view=None, publication=None):
         publication = None
 
 
-def finish_publications(page: PageTransaction) -> None:
-    """Finish a journaled publication before any transaction consumer reads the page.
+def finish_publications(page: PageTransaction, publications: list[dict]) -> None:
+    """Finish each journaled publication `files.unfinished_publications` found,
+    before any transaction consumer reads the page.
 
     An admitted prerequisite names the exact durable bundle. Mutable source is
     irrelevant to recovery, and bundles staged without a prerequisite stay absent.
     The revision marker is last, after every required anchor transition.
     """
-    published = set(list_revisions(page.page_dir))
-    for event in list(page.events):
-        if not event.get("publication") or event["revision"] in published:
-            continue
+    for event in publications:
         revision = event["revision"]
         reading = staged_reading(page.page_dir, event["publication"])
         previous = revision - 1
@@ -166,7 +164,6 @@ def finish_publications(page: PageTransaction) -> None:
             ),
         )
         publish_artifact(page.page_dir, event["publication"], reading)
-        published.add(revision)
 
 
 def _publish_checked_source(page, checked, event=None):

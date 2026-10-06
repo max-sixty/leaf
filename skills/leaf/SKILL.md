@@ -16,12 +16,22 @@ The input is a subject to present, or a delivery from a page already handed
 over: a named `leaf_delivery` tool output, a `leaf-delivery` element, or the
 envelope a `leaf wait` printed. A delivery starts at step 5 below; do
 not initialize or hand the page over again. With no subject in `$ARGUMENTS`,
-present the work already under discussion. Leaf's writing instructions supply
-defaults only; any user-specific instructions on tone, structure, depth, or format
-take precedence. When the user states a preference meant for every page, save it
-in your harness's memory, where later sessions will read it; Leaf keeps none.
+present the work already under discussion.
 
 $ARGUMENTS
+
+## Core principles
+
+- **Responsive.** Being responsive to the user is your first priority, ahead of
+  the work itself.
+- **Playable.** The user sees at a glance what each view wants of them, and every
+  state offers a move.
+- **Visual.** The page shows its subject in pictures and controls, and uses words
+  for what they cannot say.
+- **Current.** The page states what is true now, so a returning user finds each
+  outcome in place.
+- **Personalized.** The user's word decides the page's content and presentation;
+  Leaf's defaults apply only where they have said nothing.
 
 ## Operate
 
@@ -58,8 +68,15 @@ directory explicitly; export or copy anything that must outlive the page directo
    page renders; the reading establishes that it shows the intended content.
    Review a record before its first handoff and at every later stamp, covering
    the views and Asks that stamp adds. Review a quick page when a stamp makes it
-   a record. A page declaring `<meta name="lf-review" content="sign-off">` is
-   always a record, since approval requires a stamped version.
+   a record. A revision that answers a user's message needs only
+   `leaf page check` before the reply, even on a record, because each valid save
+   is already live on the user's page and further checking only delays the answer
+   they are waiting for. Stamp a record again, with its render check and reading,
+   at a checkpoint the user would name, such as sign-off (step 6), and wherever a
+   reference requires a stamped version, as taking in an answer to a page Ask
+   does (`references/authoring-revisions.md`). A page declaring
+   `<meta name="lf-review" content="sign-off">` is always a record, since
+   approval requires a stamped version.
 4. Read `references/conversation-loop.md` and exactly one harness contract:
    `references/harness-claude-code.md` in Claude Code; `references/harness-pi.md` in
    Pi; in Codex, `references/harness-codex-app-server.md` when
@@ -77,6 +94,13 @@ directory explicitly; export or copy anything that must outlive the page directo
 
 From the first hand-over on, include the page's exact URL in each turn's final
 response. Intermediate progress updates do not repeat it.
+
+## Stay responsive
+
+A message with no sign that you have it reads as ignored, so when input arrives,
+show the user at once that you have it and what you will do, or answer it when it
+needs no work. Give work that would hold up the next message to background workers;
+you keep the page. `references/conversation-loop.md` says how.
 
 ## Leaf soul
 
@@ -124,12 +148,10 @@ whole page and revise the affected content, title, headings, and order. Follow
 in place and remove superseded claims; the `page stamp` changelog and event log
 keep the history. Save freely and stamp meaningful checkpoints.
 
-Keep the user informed before starting work. Answer incoming input before
-continuing other work, including the work it requests, and write each step's
-status before starting it. Keep the watcher running and delegate work longer
-than a few minutes to background workers, so new comments can steer the next
-step. You retain the page while they run. Follow `references/conversation-loop.md`
-for status surfaces, timing, and worker access.
+## Follow the user's preferences
+
+When the user states a preference meant for every page, save it in your harness's
+memory, where later sessions will read it; Leaf keeps none.
 
 ## Improve Leaf through use
 
@@ -155,8 +177,9 @@ so a phase does not depend on discovering a chain of references.
 
 ### First handoff
 
-- `references/conversation-loop.md`: before a page handoff, starting work on the page, or
-  work long enough to delegate.
+- `references/conversation-loop.md`: before a page handoff, starting work on the page,
+  work long enough to delegate, or asking the user to do something no Ask or thread
+  question answers.
 - `references/harness-claude-code.md`: before the first handoff in Claude Code or
   recovery of its direct wait loop.
 - `references/harness-pi.md`: before the first handoff in Pi.

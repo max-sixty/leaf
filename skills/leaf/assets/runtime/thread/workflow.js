@@ -30,15 +30,6 @@ const CONDITION_LABELS = Object.freeze({
 const WAITING_FOR_PICKUP = "Waiting for pickup";
 const NOT_ANSWERED = "Not answered";
 
-// A root message's changing receipt reserves these words so it cannot carry the
-// news control beside its metadata, including when the receipt disappears.
-export const WORKFLOW_LABELS = Object.freeze([
-  ...Object.values(STAGE_LABELS),
-  ...Object.values(CONDITION_LABELS),
-  WAITING_FOR_PICKUP,
-  NOT_ANSWERED,
-]);
-
 export const workflowLabel = (workflow, { answered = false } = {}) => {
   if (!workflow) return "";
   if (workflow.condition)

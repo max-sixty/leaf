@@ -172,6 +172,7 @@ import {
   cardMeasure,
   cardMinimum,
   commentAttachment,
+  commentReference,
   commentBoundary,
   commentPlacement,
   makeRoom,
@@ -303,6 +304,7 @@ export function createMarginProjection({
       height: box.height,
       messageWidth: parseFloat(style.width),
       messageHeight: parseFloat(style.height),
+      endRoom: element.endRoom ?? "none",
       scroll: element.scrollTop,
     };
   }
@@ -362,7 +364,7 @@ export function createMarginProjection({
       body: null,
       stopRegion: null,
     };
-    preview.toggleAttribute("data-lf-comment-frame", Boolean(previewMessageViewport));
+    keeps(preview, "data-lf-comment-frame", previewMessageViewport && origin.endRoom);
     const properties = {
       "--lf-comment-width": previewMessageViewport && `${origin.frame.width}px`,
       "--lf-comment-message-width":
@@ -737,6 +739,7 @@ export function createMarginProjection({
     const { side, fresh, hold } = previewSide.choose({
       clear: place.clear,
       row: place.row,
+      column: place.column,
       extent: place.extent,
       boundary,
       scroller,
@@ -797,12 +800,7 @@ export function createMarginProjection({
         watch(ui);
         return previewPlacement.position(
           ui.computePosition,
-          {
-            contextElement: place.element,
-            contextNode:
-              side === "left" || side === "right" ? place.contextNode : place.element,
-            getBoundingClientRect: () => reference,
-          },
+          commentReference(place, reference),
           { placement, middleware },
           plane,
           place.element,

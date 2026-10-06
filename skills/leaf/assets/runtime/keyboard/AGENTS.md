@@ -111,9 +111,12 @@ or the Page Map. `n` walks a search that has closed, which a finger searches aga
 More. Choosing a match is the soft keyboard's Enter, or selecting the marked words.
 The ⌥ aim names a target, which a finger does by selecting words or through Select
 element. `c` and `e` act on a selection, the item the user stands on, or the page: a
-selection's Comment on selection step and response options, a thread's own controls,
-and the Threads box all take a tap. Ask digits duplicate the Decision's own control. The
-command reference and caret browsing describe or extend the keyboard itself.
+selection's Comment on selection step, a thread's own controls, and the Threads box all
+take a tap. One gap is accepted for now: the response bar's other responses, Suggest
+and the reactions on a selection or item, open only by key, since the bar shows no
+ellipsis (`composing/selection.js`; `TODO.md` asks whether to restore a route). Ask
+digits duplicate the Decision's own control. The command reference and caret browsing
+describe or extend the keyboard itself.
 
 A command that preserves the reader's current context declares `retainStanding`.
 More holds a transient focus, caret and selection checkpoint before borrowing focus;

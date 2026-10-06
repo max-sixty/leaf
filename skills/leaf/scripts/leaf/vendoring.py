@@ -42,10 +42,10 @@ from .schema import (
 from .service import PageTransaction, claim_path
 from .state import EVENTS_FILE, json_bytes
 from .structure import SourceDocument
-from .tasks import open_tasks
+from .tasks import log_tasks_open
 from .validation.compatibility import candidate_vocabulary_gaps
 from .validation.source import check_source
-from .work import widget_tasks_without_targets
+from .work import tasks_without_targets
 
 
 def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:
@@ -239,10 +239,18 @@ def _refuse_data_contract_drift(
     # validating it with today's rules would prevent `page init` from replacing the
     # exact older layer it exists to migrate. Binding discovery only reads x-data.
     if current := read_json(page_dir / "registry.json"):
-        documents = page_data_document_readings(page_dir, events, current)
-        standing_bindings, standing_errors = merge_data_document_readings(
-            working_data_document_readings(page_dir, current, events, history=documents)
-        )
+        # Both layers interpret the same inventory, including an edit whose first
+        # revision has not yet activated.
+        history = page_data_document_readings(page_dir, events, current)
+        try:
+            documents = working_data_document_readings(
+                page_dir, current, events, history=history
+            )
+        except UnicodeDecodeError:
+            # An unreadable edit cannot activate or introduce a binding. Its source
+            # error belongs to page check; the active history still constrains the layer.
+            documents = history
+        standing_bindings, standing_errors = merge_data_document_readings(documents)
         incoming_bindings, incoming_errors = merge_data_document_readings(
             documents, incoming
         )
@@ -260,7 +268,7 @@ def _refuse_data_contract_drift(
         contract_changes = data_contract_transition_errors(documents, incoming)
         if binding_errors or binding_changes or contract_changes:
             sys.exit(
-                "this page's immutable documents do not keep one meaning for each "
+                "this page's documents do not keep one meaning for each "
                 "data source:\n"
                 + "\n".join(
                     f"  - {error}"
@@ -279,8 +287,8 @@ def _refuse_untargeted_work(page_dir: Path, events: list[dict], incoming: dict) 
         read_revision(page_dir, revision).under(incoming), events, revision
     )
     document = page.document
-    untargeted = widget_tasks_without_targets(
-        document, page.projection, open_tasks(events), incoming
+    untargeted = tasks_without_targets(
+        document, page.projection, log_tasks_open(events), incoming
     )
     if untargeted:
         sys.exit(

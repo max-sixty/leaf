@@ -251,7 +251,7 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 | Vocabulary and public helpers | `registry.js`, `widget-api.js`, `widget-elements.js` |
 | External data | `data.js`, `projection/data.js`, `projection/authored.js` |
 | Revision installs and continuity | `version.js`, `version-picker.js`, `carry.js`, `dom-children.js`, `root-state.js`, `restore-state.js` |
-| Repaint and geometry | `rendering.js`, `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `rect.js`, `pointer.js` |
+| Repaint and geometry | `rendering.js`, `repaint.js`, `standing.js`, `page-geometry.js`, `geometry.js`, `scroll-motion.js`, `rect.js`, `pointer.js` |
 | Chrome and available room | `chrome.js`, `chrome-layout.js`, `auxiliary-surfaces.js`, `drawn-edge.js` |
 | Reading regions and scrolling | `reading-regions.js`, `reading-place.js`, `bounds.js`, `scrolling.js`, `reach.js`, `user-place.js` |
 | Keyboard | `keyboard/AGENTS.md` |
@@ -458,7 +458,6 @@ changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme
 | `unmarkableElements` | every addressable element has a visible part to outline |
 | `misplacedBoxes` | boxes stay in the column or in reachable overflow at every width |
 | `squeezedTables` | a table scrolls sideways only with every column at its longest unbreakable run |
-| `strandedMargins` | every margin marker has an element to stand by |
 | `clippedControls` | controls are visible and reachable |
 | `unreachableWords`, `coveredWords` | visible words stay in reachable flow and are not silently clipped or claimed by chrome |
 | `unreadSyntax` | highlighting does not alter source words |

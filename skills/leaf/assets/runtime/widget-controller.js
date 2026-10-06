@@ -4,16 +4,19 @@
    immutable publisher selections and commands validated against the newest selection;
    the owner DOM is never a semantic store. Its semantic render and asynchronous
    preparation are two stable widget-id regions: neither can supersede the other's
-   proof. Local editing defers the render region at its newest unpublished reading. */
+   proof. Subscriptions belong to the owner; removal pauses them and reconnecting
+   restores the latest reading and preparation. Local editing defers the render
+   region at its newest unpublished reading, without painting a detached owner. */
 import { applicationState, attachWidgetPresentation } from "./semantic-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
 import { failSoftUnreported } from "./widget-upgrade.js";
 import { dragHeld, watchDragRelease } from "./widget-elements.js";
+import { watchArrivals } from "./arrivals.js";
 
 const controllers = new WeakMap();
 const lifecycles = new WeakMap();
-let lifecycleObserver = null;
+let watchingLifetime = false;
 const ancestorRefreshes = new Set();
 let ancestorRefreshQueued = false;
 const gestureDeferred = new Set();
@@ -23,12 +26,6 @@ watchDragRelease(() => {
   gestureDeferred.clear();
   for (const resume of pending) resume();
 });
-
-const visitElements = (node, visit) => {
-  if (!(node instanceof Element)) return;
-  visit(node);
-  for (const child of node.querySelectorAll("*")) visit(child);
-};
 
 function refreshAncestorControllers(owner) {
   for (
@@ -53,27 +50,11 @@ function refreshAncestorControllers(owner) {
 
 function watchLifetime(owner, lifecycle) {
   lifecycles.set(owner, lifecycle);
-  if (lifecycleObserver) return;
-  lifecycleObserver = new MutationObserver((records) => {
-    const changed = new Set();
-    for (const record of records) {
-      for (const node of record.addedNodes)
-        visitElements(node, (el) => changed.add(el));
-      for (const node of record.removedNodes)
-        visitElements(node, (el) => changed.add(el));
-    }
-    // Mutation records describe intermediate moves. `isConnected` after the whole
-    // batch distinguishes a real removal from Leaf's presentation-only reparenting.
-    for (const element of changed) {
-      const ownerLifecycle = lifecycles.get(element);
-      if (!ownerLifecycle) continue;
-      if (element.isConnected) ownerLifecycle.connect();
-      else ownerLifecycle.disconnect();
-    }
-  });
-  lifecycleObserver.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
+  if (watchingLifetime) return;
+  watchingLifetime = true;
+  watchArrivals("*", [], {
+    arrive: (element) => lifecycles.get(element)?.connect(),
+    leave: (element) => lifecycles.get(element)?.disconnect(),
   });
 }
 
@@ -144,6 +125,7 @@ function createWidgetController(owner) {
     handle.present(value, completion, (reason) => failSoftUnreported(owner, reason));
 
   const presentRender = (reading, callbacks) => {
+    if (!owner.isConnected) return;
     const firstRender = renderedReading !== reading;
     if (firstRender) {
       renderedReading = reading;

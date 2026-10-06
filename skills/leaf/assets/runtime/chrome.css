@@ -175,6 +175,30 @@ button.lf-media-open { cursor: zoom-in; }
   border-radius: var(--r); background: var(--card); color: var(--ink); font: inherit;
   line-height: 17px; cursor: pointer; box-shadow: 0 1px 4px var(--shade); }
 .lf-composer-media-remove:is(:hover, :focus-visible) { border-color: var(--accent); }
+/* A drawing the draft carries is one tile: its own ink fitted to a thumbnail, then the
+   stroke undo and the removal, each a full-height press inside the tile's edge rather
+   than a corner badge an overflowing strip would cut. */
+.lf-composer-drawing { display: flex; align-items: stretch; box-sizing: border-box;
+  border: 1px solid var(--border-2); border-radius: var(--r);
+  background: var(--paper); overflow: hidden; }
+.lf-composer-drawing > .lf-composer-media-open { padding: 4px;
+  box-sizing: border-box; border: 0; border-radius: 0; }
+.lf-composer-drawing > .lf-composer-media-open > svg { display: block; width: 100%;
+  height: 100%; overflow: visible; }
+.lf-composer-drawing > .lf-composer-media-open path { fill: none;
+  stroke: var(--accent); stroke-width: 2px; stroke-linecap: round;
+  stroke-linejoin: round; }
+.lf-composer-drawing > .lf-composer-media-open { align-self: center; }
+.lf-composer-drawing > button { flex: none; display: grid; place-items: center;
+  inline-size: max(26px, var(--aim-floor)); min-block-size: var(--aim-floor);
+  padding: 0; border: 0;
+  border-inline-start: 1px solid var(--border-2); background: transparent;
+  color: var(--ink-2); cursor: pointer; }
+.lf-composer-drawing > button:hover { color: var(--accent); background: var(--chip); }
+.lf-composer-drawing > button:is(:focus-visible, .lf-focus-visible) {
+  outline: var(--focus-ring); --lf-focus-ring: composer-drawing;
+  outline-offset: calc(-1 * var(--focus-ring-w)); }
+.lf-composer-drawing > button > svg { inline-size: 14px; block-size: 14px; }
 /* Sent media can live in chrome-owned threads or page-owned widget threads.
    Scale the complete image in both surfaces; a tall capture must not become the whole
    thread, and nothing is cropped. */
@@ -373,6 +397,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      response bar, and inspect in their ordinary order within it. */
   :is(.lf-page-paint, .lf-target-paint) { z-index: var(--lf-z-page-paint); }
   .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: var(--lf-z-chrome-paint); }
+  /* A paint box stands in the frames that cut what it is drawn over, each moved by the
+     scroll of the box that holds it (target-paint-geometry.js, `paintStand`). */
+  .lf-paint-stand { left: 0; top: 0; pointer-events: none; }
+  .lf-paint-frame { position: absolute; }
+  .lf-paint-motion { position: absolute; left: 0; top: 0; }
   /* Every margin-projection control traces the content it concerns through one quiet
      overlay. Painting above the target keeps a package-owned frame from covering the
      contour; the keyboard's stronger accent ring remains a separate focus fact. */
@@ -485,7 +514,21 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-status-button::after { content: ""; flex: none; width: 5px; height: 5px;
     border-right: 1px solid var(--muted); border-bottom: 1px solid var(--muted);
     transform: rotate(45deg); margin: -3px 0 0 -4px; }
-  .lf-status-button > .lf-status-text { order: 1; }
+  .lf-status-button > .lf-status-words { order: 1; }
+  /* The words and a passing notice share one box, so the notice taking the words' place
+     on a phone moves nothing; the words stay in it, unpainted, as the press's name. */
+  .lf-status-words { display: grid; grid-template-columns: minmax(0, auto); min-width: 0;
+    align-items: center; }
+  .lf-status-words > * { grid-area: 1 / 1; }
+  /* A notice may take two lines of the row, which holds them, since a refusal's reason
+     is a sentence the user has to read whole; past two it ends in an ellipsis. */
+  .lf-status-notice { display: none; min-width: 0; overflow: hidden;
+    -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+    white-space: normal; overflow-wrap: anywhere; line-height: 1.25; color: var(--ink); }
+  @container style(--lf-notice-seat: banner) {
+    .lf-banner-status[data-lf-notice] .lf-status-notice { display: -webkit-box; }
+    .lf-banner-status[data-lf-notice] .lf-status-text { opacity: 0; }
+  }
   /* The queue counts are page facts, like the Threads count, so they stand apart from
      the sentence: on one row between the status's room and the run, in a box reserved
      for the counts they usually reach (banner.js), which only grows. Their words start
@@ -549,6 +592,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      on the focus ring's edge, so a door with news behind it read as the focused control
      while the user was typing somewhere else. */
   :is(.lf-threads-toggle, .lf-banner-more, .lf-version) { position: relative; }
+  /* Threads draws its icon only on a phone's one row (below). */
+  .lf-threads-icon { display: none; flex: none; inline-size: 16px; block-size: 16px;
+    fill: none; stroke: currentColor; stroke-width: 1.6;
+    stroke-linecap: round; stroke-linejoin: round; }
   :is(.lf-threads-toggle[data-unread-threads], .lf-banner-more[data-lf-news],
       .lf-version[data-lf-news])::after {
     content: ""; position: absolute; inset-block-start: 2px; inset-inline-end: 2px;
@@ -741,6 +788,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     border-radius: 6px; background: none; color: inherit; font: inherit;
     cursor: pointer; }
   .lf-queue-row:hover { background: var(--chip); }
+  /* A task the user ends with Done carries its Done beside the row, at the row's top so
+     it stands level with the kind; the row gives up the width it takes. */
+  .lf-queue-item { display: flex; align-items: flex-start; gap: 4px; }
+  .lf-queue-item > .lf-queue-row { flex: 1 1 auto; min-width: 0; }
+  .lf-queue-finish { flex: none; margin: 4px 6px 0 0; }
   /* Both rings this row can wear, inset together. A control packed into a list states
      its own inset (theme.css, --focus-ring), because the list clips to its padding box.
      The second ring is the standing Ask's (markHere), which the row naming that Ask
@@ -1017,7 +1069,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* Status shares the title row. Its width may change the title's ellipsis,
      but never the header height or the conversation below it. */
   .lf-thread-meta { grid-column: 2; grid-row: 1; display: flex; align-items: baseline;
-    gap: 8px; min-width: 0; max-width: 150px; overflow: hidden;
+    gap: 8px; min-width: 0; max-width: 160px; overflow: hidden;
     font: 400 11px/14px var(--sans); }
   .lf-thread-draft { color: var(--muted); font-size: 10px; white-space: nowrap; }
   .lf-thread-unread { color: var(--accent); font-size: 10px;
@@ -1048,7 +1100,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-thread-compact:not([open]) > .lf-thread-header-action { display: none; }
   /* The container supplies navigation and an inset; shadow.css owns the conversation. */
   .lf-thread-compact > .lf-thread-content > .lf-thread-head { margin: 12px var(--lf-thread-inset); }
-  .lf-thread-compact > .lf-thread-content > .lf-thread-root-meta { margin: 12px var(--lf-thread-inset) 0; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-controls { margin: 12px var(--lf-thread-inset) 0; }
   .lf-thread-compact > .lf-thread-content > .lf-thread-transcript { flex: none; margin-inline: var(--lf-thread-inset); }
   /* A checkpoint is agent-written reading context, followed by the retained originals
      it covers. One disclosure beside that context controls the entire range. */
@@ -1096,18 +1148,20 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      HeldNews holds arrivals where growing the transcript would move the reply. */
   .lf-thread-compact > .lf-thread-reply { margin: 0; padding: 12px var(--lf-thread-inset);
     position: sticky; bottom: var(--focus-ring-room); z-index: var(--lf-thread-title-z); }
-  /* The pinned row covers the turns that scroll under it, so a landing on any of them,
-     a Tab or a jump, stops above it with its ring clear, as `scroll-margin-top` stops
-     one below the title: the row's height (`--lf-thread-reply-h`, thread-card.js), the
-     ring's room the row stands above the list's content box, and the ring's room above
-     the row; the list's scroll padding is the room below the content box. The row
-     itself takes none. The caret lives in it, and a
-     cover the caret stands in makes the browser scroll on every key. */
-  :is(.lf-threads > .lf-thread-compact:has(> .lf-thread-reply)
-        > :not(.lf-thread-summary, .lf-thread-reply),
-      .lf-threads > .lf-thread-compact:has(> .lf-thread-reply)
-        > :not(.lf-thread-summary, .lf-thread-reply) *) {
-    scroll-margin-bottom: calc(var(--lf-thread-reply-h, 0px) + 2 * var(--focus-ring-room)); }
+  /* The pinned row is a sticky footer (theme.css, at `--lf-bottom`) over the turns
+     that scroll under it: its height (`--lf-thread-reply-h`, thread-card.js) and the
+     ring's room it stands above the list's content box. The runtime's reading of what
+     is on screen leaves that band out (geometry.js, `footerInset`), so a turn under it
+     has not been seen, and a landing on any of them, a Tab or a jump, stops above it
+     with its ring clear, as `scroll-margin-top` stops one below the title; the list's
+     scroll padding is the room below the content box. The row itself takes none. The
+     caret lives in it, and a cover the caret stands in makes the browser scroll on
+     every key. */
+  .lf-threads > .lf-thread-compact:has(> .lf-thread-reply) > .lf-thread-content {
+    --lf-bottom: calc(var(--lf-thread-reply-h, 0px) + var(--focus-ring-room)); }
+  :is(.lf-threads > .lf-thread-compact > .lf-thread-content,
+      .lf-threads > .lf-thread-compact > .lf-thread-content *) {
+    scroll-margin-bottom: calc(var(--lf-bottom) + var(--focus-ring-room)); }
   .lf-thread-compact > .lf-thread-reply::after { content: ""; position: absolute;
     inset-inline: 0; inset-block-start: 100%;
     block-size: calc(2 * var(--focus-ring-room));
@@ -1184,7 +1238,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      paintAnchors for the one thing that wears this and why. */
   .lf-unseen { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); }
   /* A border image outset into the inline margin draws the rail and takes no room. */
-  :is(.lf-msg.lf-unread, .lf-thread-root-meta:has(+ .lf-thread-transcript > .lf-msg.lf-unread:first-child)) {
+  .lf-msg.lf-unread {
     border-image: linear-gradient(var(--accent), var(--accent)) 0 0 0 1 / 0 0 0 2px
       / 0 0 0 6px; }
   .lf-thread-panel { --lf-thread-inset: 12px; --lf-list-inset: 8px;
@@ -1229,7 +1283,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     --lf-comment-inset: 12px;
     --lf-comment-text-size: var(--t-5);
     --lf-comment-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
-    --lf-comment-text-pad-end: calc(max(28px, var(--aim-floor)) + var(--lf-thread-text-inset));
+    --lf-comment-text-pad-end: var(--lf-thread-text-inset);
+    --lf-comment-send-room: max(28px, var(--aim-floor));
     --lf-comment-head: max(28px, var(--aim-floor));
     --lf-comment-body-gap: 4px;
     --lf-comment-foot-gap: var(--sp-3);
@@ -1269,6 +1324,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      the editor's scrollport; its content-sized editor keeps native caret reveals. */
   leaf-text.lf-fab-input { width: 100%; min-width: 0;
     padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
+    --lf-field-end-room: var(--lf-comment-send-room);
     overflow-y: auto; }
   .lf-fab-bar .lf-compose-field {
     --lf-compose-pad-block: calc(var(--lf-comment-text-pad-block) - 1px);
@@ -1293,9 +1349,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     display: none !important;
   }
   .lf-fab-bar.lf-response-open { flex-wrap: wrap; }
-  .lf-fab-bar.lf-response-open > .lf-response-more { display: none !important; }
   /* The choices are one row, the width the bar's side can hold. A side is chosen for
-     the field and its More press, which is narrower than Suggest and six reactions at
+     the field, which is narrower than Suggest and six reactions at
      their resting 38px: beside the open Threads panel at 1024px the bar had 256px for
      a 288px row, and the reactions dropped whole beneath Suggest. So the reactions give
      up their spare inline padding before the row breaks, down to the floor every
@@ -1349,8 +1404,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     pointer-events: none; }
   .lf-drawing-mark path { fill: none; stroke: var(--mark-ink); stroke-width: 3px;
     stroke-linecap: round; stroke-linejoin: round; }
-  .lf-drawing-mark:is(.lf-drawing-active, .lf-drawing-pending) path {
+  .lf-drawing-mark:is(.lf-drawing-active, .lf-drawing-pending, .lf-drawing-parked) path {
     stroke: var(--accent); }
+  /* Unsent ink whose composer is put away stays on the page, dashed as a draft set
+     aside, apart from the drawing the open composer carries. */
+  .lf-drawing-mark.lf-drawing-parked path { stroke-dasharray: 7 6; }
   .lf-composer { display: none; }
   .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
     display: none !important; }
@@ -1437,7 +1495,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-command-reference-command[data-lf-selected="true"] { background: var(--chip); }
   .lf-command-reference-command:focus-visible { outline: var(--focus-ring);
     --lf-focus-ring: help-command; outline-offset: 1px; }
-  .lf-command-reference-command[data-lf-available="false"] { color: var(--muted); }
   .lf-page-map-toggle { display: none; }
   .lf-page-map-head { display: flex; align-items: center; gap: 8px; }
   .lf-page-map-head > strong { flex: 1; }
@@ -1569,21 +1626,36 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
        sentence still reads in its own direction. */
     direction: rtl; }
   .lf-bottom-status, .lf-bottom-status > * { unicode-bidi: plaintext; }
-  .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]),
-      > .lf-walk-position:not([hidden]), > .lf-notice.show)) { display: none; }
+  /* Where a passing notice stands: here at the foot, or on a phone in the banner's
+     status words, the one row a phone's banner has (banner-status-view.js). The banner
+     is the seat only while it draws its status over a live page: a covering surface
+     makes it inert background under the scrim, and a block sample draws no status, so
+     there the notice stays at the foot, which stands above both. */
+  :scope { --lf-notice-seat: foot; }
+  @media screen and (width <= 480px) { :scope { --lf-notice-seat: banner; } }
+  html:is([data-lf-covering-surface], [data-lf-sample-block]) :scope {
+    --lf-notice-seat: foot; }
+  @container style(--lf-notice-seat: foot) {
+    .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]),
+        > .lf-walk-position:not([hidden]), > .lf-notice.show)) { display: none; }
+    .lf-notice.show { display: block; }
+    .lf-bottom-status:has(> .lf-notice.show) { color: var(--ink); }
+    .lf-bottom-status:has(> .lf-notice.show) > :is(.lf-go-to-status, .lf-walk-position) {
+      display: none; }
+  }
+  @container style(--lf-notice-seat: banner) {
+    .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]),
+        > .lf-walk-position:not([hidden]))) { display: none; }
+  }
   .lf-walk-position { font-variant-numeric: tabular-nums; }
   .lf-go-to-status { white-space: normal; }
   /* News in the status (a notice, or a walk arriving at its end) is ink where the
      resting line is muted, on the same card ground and hairline: status text, which
      takes no press. A filled accent pill read as a primary button. */
-  .lf-bottom-status:has(> .lf-walk-position[data-lf-boundary], > .lf-notice.show) {
-    color: var(--ink); }
+  .lf-bottom-status:has(> .lf-walk-position[data-lf-boundary]) { color: var(--ink); }
   .lf-walk-position[hidden] { display: none; }
   .lf-notice { display: none; color: inherit; font-size: inherit; line-height: inherit;
     white-space: normal; min-width: 0; }
-  .lf-notice.show { display: block; }
-  .lf-bottom-status:has(> .lf-notice.show) > :is(.lf-go-to-status, .lf-walk-position) {
-    display: none; }
   .lf-bottom-status:has(> .lf-go-to-status:not([hidden])) > .lf-walk-position {
     display: none; }
   /* A touch device has no keyboard hints to advertise, so the resting line stands down
@@ -1732,12 +1804,13 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-inspect.lf-shown { display: block; }
   /* A phone held upright is narrower than the run in its desk face, so there the run
      wears a narrow one: the banner gives up its inset, which the status keeps for its
-     own line, and each control keeps only a sliver of padding. Approval, Threads,
-     and More keep the same order at every width.
+     own line, and each control keeps only a sliver of padding. Approval stands first
+     behind More there (banner-toolbar.js), so the row holds the status, Threads and
+     More.
 
-     The status keeps to one line in its own stated row. Two would be a row that changes
-     height as a sentence ages, which moves every control under it for no gesture; the
-     complete status remains available in its hover title at every width. */
+     The status keeps to one line, cut short by an ellipsis. Two would be a row that
+     changes height as a sentence ages, which moves every control under it for no
+     gesture; the complete status remains in its disclosure at every width. */
   @media screen and (width <= 480px) {
     .lf-banner { padding: var(--lf-safe-top) 0 0;
       --lf-status-inset-left: calc(14px + var(--lf-safe-left));
@@ -1759,6 +1832,24 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
        safe here.
        It states both axes for the same reason, and the band is the shared control's. */
     .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 2px; }
+    /* One row (theme.css): the status in words takes what Threads and More leave, so the
+       run is as wide as its controls rather than the desk's stated room, and the queue
+       counts stand down, as they do wherever the banner has no room for them; the
+       status's disclosure and the Queue control in More still say what they count. */
+    .lf-banner-actions { flex: none; }
+    .lf-banner > .lf-status-queues { display: none; }
+    /* Threads is its icon and its count. The count holds room for three digits, which
+       the desk's reservation holds as words, so a count changing moves nothing. */
+    .lf-banner-actions > .lf-threads-toggle { width: auto; gap: 4px; padding-inline: 6px; }
+    .lf-threads-toggle > .lf-threads-icon { display: block; order: -1; }
+    .lf-threads-toggle > .lf-threads-label { display: none; }
+    .lf-threads-toggle::before { content: attr(data-lf-count); min-width: 3ch;
+      text-align: start; font-variant-numeric: tabular-nums; }
+    /* Unread marks the icon's corner, as a badge does, rather than the box's, which
+       stands beside More and read as More's dot. */
+    .lf-threads-toggle[data-unread-threads]::after {
+      inset-block-start: calc(50% - 11px); inset-inline-end: auto;
+      inset-inline-start: calc(6px + 16px - 4px); }
   }
   @media screen and (width <= 840px) {
     /* The sheet the Map opens in stands over the whole window and is sized to it, so

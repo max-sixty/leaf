@@ -32,10 +32,6 @@ instructions above.
 
 ## Still open
 
-- **The phone banner,** decided and not built: one 53px row holding the status in
-  words, cut short with an ellipsis, with a passing notice taking that slot for a few
-  seconds; then Threads as an icon with its count; then More. Approve moves into More,
-  which wears a dot while approval is open.
 - **The desktop bottom bar,** undecided. Removing it deletes `--lf-bottom-bar-h` and
   its readers (`theme.css`, whose `--lf-view-height` the contents map reads,
   `chrome.css`, `shortcut-bar.js`), `declareBottomBar`, and the bottom edge in
@@ -43,11 +39,6 @@ instructions above.
   sequence, the walk position) to the banner. The bar is how a desktop user learns the
   keys without asking. A middle path keeps the hints at the foot and moves the status
   into the banner.
-- **Two gaps in the sticky headers.** A box the theme makes scroll starts `--lf-top`
-  again; one an author makes scroll does not, so an `lf-diff` inside it pins its file
-  header that far below the box's top. And a diff's file header is one line whose path
-  gives way from its folders, with the whole path in its title, which a keyboard user
-  focusing the header does not see.
 
 ## Evidence
 

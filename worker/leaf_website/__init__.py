@@ -68,7 +68,7 @@ from leaf.thread import (
     fail_answer,
     release_delivery_reply,
 )
-from leaf.thread_titles import app_server_title, name_untitled_threads
+from leaf.thread_titles import app_server_title, name_thread
 from starlette.responses import Response
 
 PORT = 8080
@@ -1008,12 +1008,6 @@ class WebsiteCodexHarness:
             turnId=turn_id,
             durationMs=round((time.monotonic() - started) * 1000),
         )
-        name_untitled_threads(
-            app_server_title(self.endpoint, HOSTED_MODEL),
-            prepared.payload,
-            thread_id,
-            log_agent,
-        )
         # App Server answered for the turn it made from this delivery, so the follower
         # knows which turn is its own before it reads anything. The answer names a turn
         # of this delivery's rather than another request's because `turn/start` steers
@@ -1237,6 +1231,18 @@ class WebsiteCodexHarness:
             eventId=event_id,
             durationMs=round((time.monotonic() - started) * 1000),
         )
+        # The Worker dispatches each move here as the page admits it, so a thread the
+        # move opens is named now, even when a running turn leaves the move to the
+        # next one. The page has a claim to write the title under only from the
+        # first turn on, so this follows the start rather than the admission.
+        if attached is not None:
+            name_thread(
+                app_server_title(self.endpoint, HOSTED_MODEL),
+                page_dir,
+                event_id,
+                attached,
+                log_agent,
+            )
         return attached
 
     def failure_receipt(

@@ -32,7 +32,7 @@ explicitly when you are claiming a page without serving it.
 While your turn is running, Leaf's tool hook offers new input between
 steps, after the current model request and tool calls finish. Read its pointer
 with `leaf delivery read <id>`; reading it confirms pickup in this turn. This
-envelope has `carrier: "queue"` and `acknowledge: null`, because the hook offers
+envelope has `acknowledge: null`, because the hook offers
 the same delivery the adapter would queue. The hook cannot interrupt a running
 request or start an idle turn.
 

@@ -214,11 +214,115 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     page.wait_for_function(f"() => ({tops})()[1] > 0")
     scroll_settled(page, "#right-reading > :not(header, footer)")
     assert page.evaluate(tops)[0] == left
-    # Escape still takes the user off a control, with no stop of its own on body.
+    # Escape still takes the user off a control, with no stop of its own on body, and
+    # lands them on what they are reading in the pane they stood in: the page outside
+    # the panes holds only its header, and landing there left `u` with nothing to move.
     page.locator("#left-head").focus()
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
-    assert page.evaluate(reading) is None
+    assert page.evaluate(reading) == "left-reading"
+    page.keyboard.press("u")
+    page.wait_for_function(f"() => ({tops})()[0] < {left}")
+
+
+def test_a_closed_threads_panel_hands_the_page_back_where_the_user_was_reading(
+    browser, serve
+):
+    """The Threads list is a reading region of its own, and it used to stand in for the
+    page's after the panel closed or while the user left it: `d` after a pointer closed
+    the panel scrolled a list no one could see, and `g p` from the open panel landed at
+    the top of the document rather than on the paragraph in view."""
+    paragraphs = "".join(
+        f'<p id="p{n}" style="min-height: 12rem">Paragraph {n} has '
+        f'<a href="#p{n}">a link</a>.</p>'
+        for n in range(12)
+    )
+    page = open_page(
+        browser, serve(leaf_page("A long page", f"<h1>A long page</h1>{paragraphs}"))
+    )
+    resized(page, 1440, 900)
+    page.locator("#p8").evaluate("p => p.scrollIntoView({block: 'start'})")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("g")
+    page.keyboard.press("p")
+    page.keyboard.press("Tab")
+    assert page.evaluate(
+        """() => {
+          const at = document.activeElement.getBoundingClientRect();
+          return document.activeElement.matches('main a') &&
+            at.top > 0 && at.bottom < innerHeight;
+        }"""
+    )
+
+    page.locator(".lf-threads").focus()
+    page.locator(".lf-threads-toggle").click()
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    top = page.evaluate("document.scrollingElement.scrollTop")
+    page.keyboard.press("d")
+    page.wait_for_function(f"() => document.scrollingElement.scrollTop > {top}")
+
+
+def test_a_let_go_keeps_the_user_in_the_pane_they_read(browser, serve):
+    """A let-go lands on what the user is reading in the page region they last acted
+    in. Opening Threads over a pane once replaced that region with the panel's list, so
+    closing it landed on the workspace header; and a pane showing no words where it
+    stood (a figure, a spacer) had no block to land on, so the user was dropped on the
+    body and the pane forgotten. Either way `d` and `u` stopped moving the pane.
+
+    A pane that flows inside a scrolling workspace body keeps answering after it scrolls
+    out of the window, which a test of the pane's own visibility must not mistake for a
+    closed surface."""
+    tops = """() => ['left-reading', 'right-reading'].map((id) =>
+      document.querySelector(`#${id} > :not(header, footer)`).scrollTop)"""
+    reading = """async () => (await window.__lfRuntimeImport(
+      '/runtime/reading-regions.js')).userReadingRegion()?.host.id ?? null"""
+    page = open_page(browser, serve(READING_REGIONS_PAGE))
+    resized(page, 1440, 900)
+    pane_posture(page, page.locator("#left-reading"), "bounded")
+
+    page.locator("#right-head").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(page.locator(".lf-threads")).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-thread-panel")).to_be_hidden()
+    assert page.evaluate(reading) == "right-reading"
+    page.keyboard.press("d")
+    page.wait_for_function(f"() => ({tops})()[1] > 0")
+
+    page.locator("#left-reading > :not(header, footer)").evaluate(
+        "body => body.scrollTop = 400"
+    )
+    page.locator("#left-head").focus()
+    page.keyboard.press("Escape")
+    assert page.evaluate(reading) == "left-reading"
+    page.keyboard.press("u")
+    page.wait_for_function(f"() => ({tops})()[0] < 400")
+
+    flowing = READING_REGIONS_PAGE.replace(
+        '<lf-pane id="left-reading"', '<section><lf-pane id="left-reading"'
+    ).replace("    </lf-pane>\n  </div>", "    </lf-pane></section>\n  </div>")
+    assert flowing.count("</section>") == 1
+    page = open_page(browser, serve(flowing))
+    resized(page, 1440, 900)
+    split = page.locator("#reading-split")
+    page.locator("#left-start").click()
+    for _ in range(12):
+        page.keyboard.press("d")
+        page.wait_for_timeout(200)
+    assert (
+        split.evaluate("box => box.scrollHeight - box.clientHeight - box.scrollTop") < 2
+    )
+    # The pane it remembers has scrolled out of view, so a landing reads the body
+    # carrying it, which shows the other pane, rather than going back for the first.
+    bottom = split.evaluate("box => box.scrollTop")
+    page.keyboard.press("g")
+    page.keyboard.press("p")
+    page.keyboard.press("Tab")
+    expect(page.locator("#right-subject")).to_be_focused()
+    assert split.evaluate("box => box.scrollTop") == bottom
 
 
 def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, serve):
@@ -288,6 +392,27 @@ def test_covering_panel_keeps_focus_on_a_nested_reading_region(browser, serve):
     page.keyboard.press("d")
     page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
     assert nested.evaluate("box => box.scrollTop") == nested_position
+
+
+def test_the_thread_panel_and_a_page_thread_carry_names(browser, serve):
+    """The Threads panel is a dialog, beside the page or covering it, and a thread card
+    on the page is where a send or a walk can stand the user. Both were unnamed, so a
+    screen reader arriving on either heard only "dialog" or "group"."""
+    page = open_page(browser, serve(READING_REGIONS_PAGE))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    expect(page.get_by_role("dialog", name="Threads", exact=True)).to_be_visible()
+    page.keyboard.press("Escape")
+
+    page.keyboard.press("/")
+    page.keyboard.type("Left start")
+    page.keyboard.press("Enter")
+    page.keyboard.press("c")
+    page.keyboard.type("Is this landmark stable?")
+    page.keyboard.press("Enter")
+    expect(page.locator(".lf-page-thread")).to_have_accessible_name(
+        "Thread, Is this landmark stable?"
+    )
 
 
 def test_workspace_posture_changes_keep_each_panes_reading(browser, serve):
@@ -3113,7 +3238,9 @@ def test_the_queue_panel_lists_both_queues_and_what_is_done(browser, serve):
         "user", kind="comment", text="Tighten this.", anchor={"section": "notes"}
     )
     subject = {"kind": "thread", "id": owed["id"]}
-    said("agent", kind="task", subject=subject, title="Rebuild the notes")
+    said(
+        "agent", kind="task", owner="agent", subject=subject, title="Rebuild the notes"
+    )
     retitle = said("user", kind="comment", text="Retitle it.", anchor={"section": "h"})
     said(
         "agent",
@@ -3125,6 +3252,7 @@ def test_the_queue_panel_lists_both_queues_and_what_is_done(browser, serve):
     ended = said(
         "agent",
         kind="task",
+        owner="agent",
         subject={"kind": "thread", "id": retitle["id"]},
         title="Retitle the release",
     )
@@ -3203,12 +3331,239 @@ def test_the_queue_panel_lists_both_queues_and_what_is_done(browser, serve):
     round_trip(page)
     expect(you).to_have_count(1)
 
-    # What is done stays folded until opened, and its row arrives at its thread too.
+    # The answered question joins what is done, which stays folded until opened, and a
+    # done row arrives at its thread too.
+    expect(page.locator(".lf-queue-done > summary")).to_have_text("Done · 2")
     page.locator(".lf-queue-done > summary").click()
-    page.locator(".lf-queue-done .lf-queue-row").click()
+    done = page.locator(".lf-queue-done .lf-queue-row")
+    expect(done.filter(has_text="Weekly?")).to_have_count(1)
+    done.filter(has_text="Retitle the release").click()
     expect(
         page.locator(f'.lf-page-thread[data-thread="{retitle["id"]}"]')
     ).to_be_focused()
+
+
+def test_a_task_on_you_ends_at_its_done_where_a_lands_and_in_the_panel(browser, serve):
+    """A task the agent put on the user ends at their Done. Where `a` lands on it, `x`
+    is Done; its Queue panel row carries a Done button. Either leaves the user's queue
+    in the turn it is pressed, and writes the user's `task_end`; the Ask beside them
+    has no Done, since its widget answers it."""
+    url = serve(QUEUE_PAGE)
+    d = serve.page_dir
+
+    def put_on_user(subject, title):
+        return append_carried_log_record(
+            d,
+            {
+                "kind": "task",
+                "author": "agent",
+                "agent": "Agent",
+                "session": "queue-done",
+                "owner": "user",
+                "subject": subject,
+                "title": title,
+            },
+        )
+
+    notes = put_on_user({"kind": "element", "id": "notes"}, "Check the notes")
+    whole = put_on_user({"kind": "page"}, "Read it through")
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    counts = page.locator(".lf-status-queues")
+    expect(counts).to_have_text("3 on you")
+
+    position = page.locator(".lf-walk-position")
+    # The page as a whole is arrived at its head, which comes first.
+    page.locator("#cadence").click()
+    page.keyboard.press("Shift+a")
+    expect(position).to_have_text("1 of 3 waiting on you · Task")
+    expect(page.locator("#h")).to_be_focused()
+    page.keyboard.press("a")
+    expect(position).to_have_text("2 of 3 waiting on you · Ask")
+    assert "x\ndone" not in shortcut_bar_text(page)
+    page.keyboard.press("a")
+    expect(position).to_have_text("3 of 3 waiting on you · Task")
+    expect(page.locator("#notes")).to_be_focused()
+    assert "x\ndone" in shortcut_bar_text(page)
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.keyboard.press("x")
+    holding(page, held, 1, "the Done")
+    expect(counts).to_have_text("2 on you")
+    page.unroute("**/api/event")
+    for route in held:
+        route.continue_()
+    round_trip(page)
+    expect(counts).to_have_text("2 on you")
+    end = events_model.read_events(d)[-1]
+    assert (end["kind"], end["author"], end["task"], end["outcome"]) == (
+        "task_end",
+        "user",
+        notes["id"],
+        "done",
+    )
+    # Done is a gesture like any other: `z` puts the task back on the user.
+    page.keyboard.press("z")
+    expect(counts).to_have_text("3 on you")
+    round_trip(page)
+    assert events_model.read_events(d)[-1]["undoes"] == end["id"]
+    expect(counts).to_have_text("3 on you")
+    with sending(page, "the Done again"):
+        page.keyboard.press("x")
+    expect(counts).to_have_text("2 on you")
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+q")
+    panel = page.locator(".lf-queue-panel")
+    expect(panel).to_be_visible()
+    you = panel.locator("[data-lf-queue='you']")
+    expect(you.locator(".lf-queue-row")).to_have_count(2)
+    expect(you.locator(".lf-queue-finish")).to_have_count(1)
+    row = you.locator(".lf-queue-row", has_text="Read it through")
+    expect(row).to_contain_text("Whole page")
+    row.focus()
+    page.keyboard.press("Tab")
+    expect(you.locator(".lf-queue-finish")).to_be_focused()
+    with sending(page, "the panel's Done"):
+        page.keyboard.press("Enter")
+    expect(you.locator(".lf-queue-row")).to_have_count(1)
+    expect(counts).to_have_text("1 on you")
+    expect(page.locator(".lf-queue-done > summary")).to_have_text("Done · 2")
+    assert events_model.read_events(d)[-1]["task"] == whole["id"]
+
+
+def test_a_finger_ends_a_task_on_you_from_the_banner_row(browser, serve):
+    """Under a finger, `x` is a step on the banner's row while the user stands on a
+    task Done ends, as a Queue panel row's tap leaves them."""
+    url = serve(QUEUE_PAGE)
+    task = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "task",
+            "author": "agent",
+            "agent": "Agent",
+            "session": "queue-done",
+            "owner": "user",
+            "subject": {"kind": "element", "id": "notes"},
+            "title": "Check the notes",
+        },
+    )
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    row = page.locator(".lf-banner-actions")
+    done = row.get_by_role("button", name="Done", exact=True)
+    expect(done).to_have_count(0)
+    page.locator(".lf-status-queues").tap()
+    panel = page.locator(".lf-queue-panel")
+    panel.locator(".lf-queue-row", has_text="Check the notes").tap()
+    expect(page.locator("#notes")).to_be_focused()
+    expect(done).to_be_visible()
+    with sending(page, "the Done step"):
+        done.tap()
+    expect(page.locator(".lf-status-queues")).to_have_text("1 on you")
+    assert events_model.read_events(serve.page_dir)[-1]["task"] == task["id"]
+    expect(done).to_have_count(0)
+
+
+def test_a_keyboard_reaches_the_banners_done_step_under_a_finger(browser, serve):
+    """A tablet with a keyboard has the banner's Done step and Tab both. Tab onto the
+    step takes focus into Leaf's chrome, where the user stands on nothing, and the step
+    stays for the task `a` landed on; Enter on it ends that task."""
+    url = serve(NESTED_TASKS_PAGE)
+    task = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "task",
+            "author": "agent",
+            "agent": "Agent",
+            "session": "queue-done",
+            "owner": "user",
+            "subject": {"kind": "element", "id": "plan"},
+            "title": "Check the plan",
+        },
+    )
+    context = browser.new_context(
+        viewport={"width": 1024, "height": 768}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    done = page.locator(".lf-banner-actions").get_by_role(
+        "button", name="Done", exact=True
+    )
+    page.keyboard.press("a")
+    expect(page.locator("#plan")).to_be_focused()
+    expect(done).to_be_visible()
+    for _ in range(12):
+        page.keyboard.press("Shift+Tab")
+        expect(done).to_be_visible()
+        if done.evaluate("el => el === document.activeElement"):
+            break
+    expect(done).to_be_focused()
+    with sending(page, "the Done step from the keyboard"):
+        page.keyboard.press("Enter")
+    assert events_model.read_events(serve.page_dir)[-1]["task"] == task["id"]
+    expect(done).to_have_count(0)
+
+
+NESTED_TASKS_PAGE = leaf_page(
+    "Nested tasks",
+    '<section id="plan"><h2>Plan</h2>'
+    '<p id="step">Ship it on Tuesday, after the backfill.</p></section>'
+    '<p id="tail">Nothing else is planned.</p>',
+)
+
+
+def test_x_ends_the_innermost_task_the_user_stands_on(browser, serve):
+    """Standing on a task inside another, `x` ends the inner one: a task on a section
+    inside the page, with no heading for the page's own task to stand at, and a task
+    on a paragraph inside that section."""
+    url = serve(NESTED_TASKS_PAGE)
+    d = serve.page_dir
+
+    def put_on_user(subject, title):
+        return append_carried_log_record(
+            d,
+            {
+                "kind": "task",
+                "author": "agent",
+                "agent": "Agent",
+                "session": "nested-tasks",
+                "owner": "user",
+                "subject": subject,
+                "title": title,
+            },
+        )
+
+    put_on_user({"kind": "page"}, "Read it through")
+    plan = put_on_user({"kind": "element", "id": "plan"}, "Check the plan")
+    step = put_on_user({"kind": "element", "id": "step"}, "Check the step")
+    page = open_page(browser, url)
+    counts = page.locator(".lf-status-queues")
+    expect(counts).to_have_text("3 on you")
+    position = page.locator(".lf-walk-position")
+
+    # The step stands inside the plan, which stands inside the page's `main`.
+    page.locator("#step").click()
+    with sending(page, "the step's Done"):
+        page.keyboard.press("x")
+    expect(counts).to_have_text("2 on you")
+    assert events_model.read_events(d)[-1]["task"] == step["id"]
+
+    page.locator("#step").click()
+    with sending(page, "the plan's Done"):
+        page.keyboard.press("x")
+    expect(counts).to_have_text("1 on you")
+    assert events_model.read_events(d)[-1]["task"] == plan["id"]
+
+    # Off every section, nothing the user stands on is the page's own task, which `a`
+    # arrives at its head.
+    page.locator("#tail").click()
+    assert "x\ndone" not in shortcut_bar_text(page)
+    page.keyboard.press("Shift+a")
+    expect(position).to_have_text("1 of 1 waiting on you · Task")
+    assert "x\ndone" in shortcut_bar_text(page)
 
 
 def test_an_a_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, serve):
@@ -4789,7 +5144,7 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
 
 
 def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
-    """Resolve shares the first message line without changing the current surface."""
+    """Thread controls and complete messages keep their room when the reply is focused."""
     url = serve(SEATED_QUESTION_PAGE)
     panel_comment(serve.page_dir, "First job note", {"section": "jobs"})
     root = panel_comment(
@@ -4847,8 +5202,11 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
           const control = el.querySelector(
             ':scope .lf-thread-meta-actions > .lf-resolve'
           ).getBoundingClientRect();
+          const controls = el.querySelector(
+            ':scope > .lf-thread-controls'
+          ).getBoundingClientRect();
           const headNode = el.querySelector(
-            ':scope .lf-thread-root-meta'
+            ':scope .lf-msg > .lf-msg-head'
           );
           const head = headNode.getBoundingClientRect();
           const author = headNode.querySelector('b').getBoundingClientRect();
@@ -4858,20 +5216,22 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
           const body = bodyNode.getBoundingClientRect();
           return {actionsTop: actions.top, actionsBottom: actions.bottom,
                   controlTop: control.top, expectedTop: own.top + inset,
-                  controlBottom: control.bottom, headTop: head.top,
+                  controlBottom: control.bottom, controlsTop: controls.top,
+                  controlsBottom: controls.bottom, headTop: head.top,
                   headBottom: head.bottom,
                   authorBottom: author.bottom,
                   bodyTop: body.top,
                   bodyMargin: parseFloat(getComputedStyle(bodyNode).marginTop)};
         }"""
     )
-    assert placement["controlTop"] == pytest.approx(placement["headTop"], abs=1)
+    assert placement["controlTop"] == pytest.approx(placement["controlsTop"], abs=1)
     assert placement["actionsTop"] == pytest.approx(placement["controlTop"], abs=1)
     assert placement["actionsBottom"] == pytest.approx(
         placement["controlBottom"], abs=1
     )
-    assert placement["controlBottom"] <= placement["headBottom"], (
-        f"Resolve did not share the first inline message's heading: {placement}"
+    assert placement["controlBottom"] <= placement["controlsBottom"]
+    assert placement["controlsBottom"] <= placement["headTop"], (
+        f"thread controls overlap the first message: {placement}"
     )
     assert placement["bodyTop"] - placement["headBottom"] == pytest.approx(
         placement["bodyMargin"], abs=1
@@ -7377,6 +7737,34 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     page.keyboard.press("Escape")
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="reach.js reads which boxes declare a scroll only when it sweeps them, so a "
+    "box a narrower window turns into a scroller gets no stop or continuation mark",
+)
+def test_a_box_that_starts_scrolling_at_a_narrower_window_takes_a_stop(browser, serve):
+    """A box that scrolls only below some width is reachable once the window narrows to
+    it, as it is when the page loads at that width."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Narrow scroller",
+                '<section id="s"><h2 id="h">Box</h2><div id="wide-box">'
+                '<p id="wide-p">A paragraph held to nine hundred pixels wide.</p>'
+                "</div></section>",
+                head="<style>@media (width < 600px) { #wide-box { overflow-x: auto; } }"
+                " #wide-box p { width: 900px; }</style>",
+            )
+        ),
+    )
+    resized(page, 1200, 900)
+    resized(page, 390, 844)
+    box = page.locator("#wide-box")
+    expect(box).to_have_attribute("data-lf-more-after", "")
+    expect(box).to_have_attribute("tabindex", "0")
+
+
 def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     """The reference has a visible close control and keeps Tab inside the surface.
 
@@ -7955,13 +8343,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Next Ask, thread or move to resend waiting on you",
+            has_text="Next Ask, thread, task or move to resend waiting on you",
         ).locator("kbd")
     ).to_have_text("a")
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Previous Ask, thread or move to resend waiting on you",
+            has_text="Previous Ask, thread, task or move to resend waiting on you",
         ).locator("kbd")
     ).to_have_text("A")
     page.keyboard.press("Escape")
@@ -8680,7 +9068,7 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     assert contextual_versions.count() > 0
     # Number keys delegate to native version rows. Once the modal dismisses the
     # menu, the reference still names those routes but offers no action for them.
-    expect(contextual_versions.first).to_contain_text("open v")
+    expect(contextual_versions.first).to_contain_text("Open v")
     expect(
         reference.locator(
             '.lf-command-reference-command[data-lf-command^="version.open-v"]'
@@ -12517,7 +12905,7 @@ def test_the_key_line_names_the_selected_comment_and_its_other_responses(
     expect(line).to_contain_text("comment on the page")
     page.keyboard.press("?")
     page.keyboard.press("?")
-    expect(help_el).to_contain_text("comment on the page")
+    expect(help_el).to_contain_text("Comment on the page")
     page.keyboard.press("Escape")
 
     # A real selection keeps the browser selection until Comment explicitly enters its
@@ -12785,7 +13173,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).to_be_visible()
     # Nothing is selected and the user is standing nowhere, so c's own row names the
     # page comment it enters. Threads navigation remains the separate g T command.
-    expect(help_el).to_contain_text("comment on the page")
+    expect(help_el).to_contain_text("Comment on the page")
     # The sequence's section stands on every page — the edges need no list — but holds
     # no row for a list this page hasn't got. Each row says the whole press from the
     # standing page rather than asking its heading to supply the first g.
@@ -12822,7 +13210,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Next open thread")
     expect(help_el).not_to_contain_text("Previous open thread")
     expect(help_el).not_to_contain_text("In a thread")
-    expect(help_el).not_to_contain_text("thread or move to resend waiting on you")
+    expect(help_el).not_to_contain_text("thread, task or move to resend waiting on you")
     # A first version has a menu and a way out, but no neighbouring version to walk.
     expect(help_el).to_contain_text("The versions, and what each one changed")
     expect(help_el).to_contain_text("Close the versions menu")
@@ -12861,7 +13249,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         )
     ).to_have_attribute("aria-label", "g then Shift+t")
     expect(help_el).not_to_contain_text("link on screen")
-    expect(help_el).not_to_contain_text("thread or move to resend waiting on you")
+    expect(help_el).not_to_contain_text("thread, task or move to resend waiting on you")
     expect(help_el).to_contain_text("Next open thread")
     expect(help_el).to_contain_text("Previous open thread")
     expect(

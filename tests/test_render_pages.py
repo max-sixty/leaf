@@ -821,9 +821,8 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     toggle.click()
     page.locator(".lf-thread-summary").first.click()
     thread = page.locator(".lf-thread").first
-    # The card lifts its first message's head beside the thread's actions.
     expect(thread.locator(".lf-msg.agent")).to_have_count(1)
-    expect(thread.locator(".lf-thread-root-meta .lf-msg-head b")).to_have_text("Codex")
+    expect(thread.locator(".lf-msg.agent > .lf-msg-head b")).to_have_text("Codex")
     expect(thread.locator(".lf-quote")).to_have_text("“Retries are capped at three”")
 
     write(thread.locator("leaf-text"), "three is the retry budget, not a guess")
@@ -2033,7 +2032,10 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
 def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     """One authored width contract applies to native and package blocks. An occurrence
     wins over a package default, and column remains the prose measure when nested in a
-    wider section rather than inheriting its containing block's allocation."""
+    wider section rather than inheriting its containing block's allocation. There a
+    column block, authored or declared by its widget (lf-options), starts at the
+    section's edge as the section's text does, rather than centred in the room. A board
+    allocated the column keeps to it even where its four columns' minimum is wider."""
     source = leaf_page(
         "Authored block widths",
         """
@@ -2043,9 +2045,14 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
   <table id="table" data-width="available"><thead><tr><th>Case</th><th>Result</th></tr></thead>
     <tbody><tr><td>Native table</td><td>Uses its authored allocation.</td></tr></tbody></table>
   <p id="nested-column" data-width="column">Narrow prose within wide evidence.</p>
+  <p id="nested-prose">Prose within wide evidence.</p>
+  <lf-options id="options" choose><lf-option id="option">One</lf-option></lf-options>
 </section>
 <lf-board id="board" data-width="column">
   <lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column>
+  <lf-column id="doing" label="Doing"></lf-column>
+  <lf-column id="review" label="Review"></lf-column>
+  <lf-column id="done" label="Done"></lf-column>
 </lf-board>
 """,
     )
@@ -2053,7 +2060,8 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     resized(page, 1726, 900)
     at = page.evaluate("""() => {
       const result = {};
-      for (const id of ['prose', 'wide', 'table', 'nested-column', 'board']) {
+      for (const id of ['prose', 'wide', 'table', 'nested-column', 'nested-prose',
+                        'options', 'board']) {
         const el = document.getElementById(id), box = el.getBoundingClientRect();
         result[id] = {width: box.width, left: box.left,
           space: el.getAttribute('data-lf-space'), role: el.getAttribute('role')};
@@ -2065,8 +2073,11 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     assert at["board"]["space"] == "column"
     assert at["wide"]["width"] > at["prose"]["width"]
     assert at["table"]["width"] == pytest.approx(at["wide"]["width"], abs=1)
-    assert at["nested-column"]["width"] == pytest.approx(at["prose"]["width"], abs=1)
-    assert at["nested-column"]["left"] > at["wide"]["left"]
+    assert at["options"]["space"] == "column"
+    assert at["wide"]["left"] < at["prose"]["left"]
+    for column in ("nested-column", "nested-prose", "options"):
+        assert at[column]["width"] == pytest.approx(at["prose"]["width"], abs=1)
+        assert at[column]["left"] == pytest.approx(at["wide"]["left"], abs=1)
     assert at["board"]["width"] == pytest.approx(at["prose"]["width"], abs=1)
     assert page.locator("#table").evaluate("el => el.tagName") == "TABLE"
     assert root_overflow(page) == 0
@@ -2084,6 +2095,57 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     assert root_overflow(page) == 0
 
 
+def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
+    """A widget's preferred minimum never claims the sidebar's margin. Native wide and
+    available blocks read the same capacity; four and five board columns previously
+    overrode it at mid widths, while the control without a sidebar fitted there.
+    Narrow boards scroll their columns inside that allocation rather than the page.
+    """
+    sidebar = '<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
+    boards = "".join(
+        f'<lf-board id="board-{count}">'
+        + "".join(
+            f'<lf-column id="col-{count}-{i}" label="Column {i}"></lf-column>'
+            for i in range(count)
+        )
+        + "</lf-board>"
+        for count in (4, 5, 6)
+    )
+    for resident in (sidebar, ""):
+        page = open_page(
+            browser,
+            serve(
+                leaf_page(
+                    "Board beside contents",
+                    resident
+                    + '<h1>Board beside contents</h1><section id="boards"><h2>Boards</h2>'
+                    + '<div id="wide" data-width="wide">Wide evidence.</div>'
+                    + '<div id="room" data-width="available">Available evidence.</div>'
+                    + boards
+                    + "</section>",
+                )
+            ),
+        )
+        for width in (540, 840, 1040, 1440):
+            resized(page, width, 900)
+            at = page.evaluate("""() => Object.fromEntries(
+              ['wide', 'room', 'board-4', 'board-5', 'board-6'].map(id => {
+                const el = document.getElementById(id), b = el.getBoundingClientRect();
+                return [id, {left: b.left, right: b.right, width: b.width,
+                             scrolls: el.scrollWidth - el.clientWidth}];
+              }))""")
+            for name in ("wide", "board-4", "board-5", "board-6"):
+                assert at[name]["left"] >= at["room"]["left"] - 1, (width, at)
+                assert at[name]["right"] <= at["room"]["right"] + 1, (width, at)
+            assert root_overflow(page) == 0, (width, at)
+            if width == 540:
+                assert at["board-4"]["scrolls"] > 0, at
+                assert at["board-5"]["scrolls"] > 0, at
+            elif width == 1440:
+                assert at["wide"]["width"] == pytest.approx(1080, abs=1), at
+                assert at["room"]["width"] > at["wide"]["width"], at
+
+
 def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
     """`wide` is the shared capped evidence width wherever a block stands. A wide
     Layout's track and a workspace pane are wider than `--wide` at a large window, so
@@ -2094,7 +2156,12 @@ def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
     narrow window's pane still bounds the wide block."""
     blocks = """
 <div id="named" data-width="wide">Named wide.</div>
-<lf-board id="board"><lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column></lf-board>
+<lf-board id="board">
+<lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column>
+<lf-column id="two" label="Two"></lf-column><lf-column id="three" label="Three"></lf-column>
+<lf-column id="four" label="Four"></lf-column><lf-column id="five" label="Five"></lf-column>
+<lf-column id="six" label="Six"></lf-column>
+</lf-board>
 <div id="plain">No width named.</div>
 <div id="available" data-width="available">Available.</div>
 """

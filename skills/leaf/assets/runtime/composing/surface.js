@@ -5,15 +5,17 @@
    targets words. Alt-click, `s`, and a visual's “Respond to…” proxy are explicit
    Comment gestures. They pass a stable target from `aimTargetAt` or the visual provider
    into this surface. A whole item or picture names its authored id, while a visual part
-   adds its declared token. Comment opens the compact field; Tab or its ellipsis extends
-   that field with the other response margin entries. Tab, Shift-Tab, and the arrow keys then
+   adds its declared token. Comment opens the compact field; Tab from it, or `e` while it
+   stands unfocused, extends that field with the other response margin entries. Tab,
+   Shift-Tab, and the arrow keys then
    wrap through the visible margin entries. Escape folds the extension; Escape from the field
    hides the draft.
    The same anchor resolves both states against the target's geometry.
 
    The bar a selection or keyboard-selected addressable raises is `.lf-fab-bar`: the
-   durable, compact `.lf-fab-input` followed by one response ellipsis. An explicit
-   addressable target
+   durable, compact `.lf-fab-input`, which spans the bar so a sent message keeps the
+   card's whole measure. No control stands beside it: the other responses are reached
+   by key alone, on every pointer (composing/selection.js). An explicit addressable target
    opens and focuses that field. On desktop, selecting a passage leaves the field open
    but unfocused. Selection observed outside a completed page gesture offers Comment
    on selection in the banner, as does selection on touch screens;

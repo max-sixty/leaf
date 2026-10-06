@@ -1096,7 +1096,13 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
     else:
         assert before["y"] >= target.bounding_box()["y"], before
     box = target.bounding_box()
+    page.mouse.move(box["x"] + 100, box["y"] + 80)
+    page.mouse.wheel(20, 20)
+    scroll_settled(page, "#quote")
+    rendered(page)
     if renew_placement:
+        # A size/layout delivery may renew placement after native scrolling. It
+        # must retain the same attachment rather than publish a second origin.
         page.evaluate("""() => {
           window.attachmentFrames = [];
           window.recordAttachment = true;
@@ -1111,13 +1117,6 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
           };
           sample();
         }""")
-    page.mouse.move(box["x"] + 100, box["y"] + 80)
-    page.mouse.wheel(20, 20)
-    scroll_settled(page, "#quote")
-    rendered(page)
-    if renew_placement:
-        # A size/layout delivery may renew placement after native scrolling. It
-        # must retain the same attachment rather than publish a second origin.
         page.evaluate("""async () => {
           const {layoutMarginRows} = await window.__lfRuntimeImport(
             '/runtime/annotation-overlay/margin-layout.js');
@@ -1678,7 +1677,7 @@ def test_a_comment_box_on_words_in_a_scroller_stands_without_scroll_timelines(
                 "Words in a scroller",
                 '<h1>Comments follow the words</h1><p id="quote">'
                 "The export keeps each tenant in an archive.<br>"
-                + "<span>More lines in this reading region.<br></span>" * 50
+                + "More lines in this reading region.<br>" * 50
                 + '</p><div style="height:1200px"></div>',
                 head="<style>#quote { height:120px; overflow:auto; }</style>",
             )

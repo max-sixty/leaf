@@ -1,8 +1,8 @@
 /* Press and hold to read, release to press.
 
    Some controls show only part of their word: a reaction shows its glyph, and a diff
-   file's row narrower than its path cuts it short at the folders. The whole word is the
-   control's tooltip, which a finger never sees, so such a control wears `HOLDS_WORD`,
+   file's row narrower than its path cuts it short, from the folders. The whole word is
+   the control's tooltip, which a finger never sees, so such a control wears `HOLDS_WORD`,
    and a press held on it reads the word. The control under the pointer wears
    `data-lf-held-word` for as long as the press is held, and its surface paints the word
    for that state as it does while the keyboard stands on the control (shadow.css for a

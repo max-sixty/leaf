@@ -12472,6 +12472,9 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, s
             title: path.title,
             base: base.textContent,
             baseCut: base.scrollWidth > base.clientWidth,
+            room: parseFloat(getComputedStyle(head).paddingRight),
+            bar: head.closest('.lf-diff-file')
+                .querySelector('.lf-diff-file-actions').getBoundingClientRect().width,
         };
         return reading;
     }"""
@@ -12486,6 +12489,9 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, s
     )
     assert head["height"] == pytest.approx(head["reserved"], abs=0.5), head
     assert head["base"] == "config.md" and not head["baseCut"], head
+    # An inline patch's file has its review press and no comment press, and its row
+    # holds open the bar's width and 14px beside it, inside its 10px padding.
+    assert head["room"] == pytest.approx(10 + head["bar"] + 14, abs=0.5), head
     assert head["title"] == path, head
     assert path in said[0] and said[1] > 0, said
 

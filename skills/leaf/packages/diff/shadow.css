@@ -23,9 +23,10 @@
 /* The file's row pins over the rows it names (below), so it is one line of a stated
    height (`--lf-diff-head-h`, at .lf-diff-file), which is what the rows under it add
    to `--lf-top` and to the room a landing leaves above them. A path too long for the
-   line gives way from its folders: the file's own name stays whole, the folders before
-   it end in an ellipsis, and the row's title holds the whole path. A flex row draws no
-   disclosure marker, so the triangle is the row's own first mark. */
+   line gives way from its folders first, which end in an ellipsis, and the file's own
+   name is cut only where it alone is too long; the row's title then holds the whole
+   path. A flex row draws no disclosure marker, so the triangle is the row's own first
+   mark. */
 :scope:host(.lf-rendered) :where(.lf-diff-file) > details > summary {
                                      display: flex; align-items: center; gap: 6px;
                                      box-sizing: border-box;
@@ -185,8 +186,9 @@
                 --lf-diff-action-h: max(26px, var(--aim-floor));
                 --lf-diff-action-top: 6px;
                 /* And how wide it stands, which is the column the name line holds open
-                   for it (above): a comment press, square, and with the review press the
-                   two side by side across the bar's gap. */
+                   for it (above): a comment press, square, a review press, or the two
+                   side by side across the bar's gap. An inline patch under review has
+                   only the review press, and a bound one may have only the comment's. */
                 --lf-diff-action-gap: 6px;
                 --lf-diff-actions: var(--lf-diff-action-h);
                 /* The file's row: 7px above and below a path's line, 35px in all, or the
@@ -195,7 +197,8 @@
 .lf-diff-file:has(> .lf-diff-file-actions > *) {
                 --lf-diff-head-h: max(35px, calc(var(--lf-diff-action-top)
                                                  + var(--lf-diff-action-h))); }
-.lf-diff-file:has(.lf-diff-review) {
+.lf-diff-file:has(.lf-diff-review) { --lf-diff-actions: var(--lf-diff-press); }
+.lf-diff-file:has(.lf-diff-review):has(.lf-diff-file-comment) {
                 --lf-diff-actions: calc(var(--lf-diff-press) + var(--lf-diff-action-gap)
                                         + var(--lf-diff-action-h)); }
 .lf-diff-file:has(> .lf-diff-file-actions > *) > :is(.lf-diff-fold, .lf-diff-rename) {

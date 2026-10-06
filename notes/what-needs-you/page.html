@@ -167,20 +167,21 @@
         <h1>What needs you: tasks</h1>
         <p class="lede">
           Each side has a queue: what waits on you, and what the agent owes you. Either
-          side can put items on the other's. A <em>task</em> is the record of work the
-          agent owes, open until the agent ends it, so a reply, a Resolve or the end of
-          a session can no longer settle work nobody did. This page tracks the plan, how
-          the model works so far, and what is still open.
+          side can put items on the other's. A <em>task</em> is the one record on both
+          queues: work the agent owes stays open until the agent ends it, so a reply, a
+          Resolve or the end of a session can no longer settle work nobody did, and an
+          Ask is a task on you that its widget's answer ends. This page tracks the plan,
+          how the model works so far, and what is still open.
         </p>
       </header>
 
       <lf-tabs id="page-tabs">
         <lf-tab id="tab-now" label="Where we are">
           <section id="status">
-            <h2>Steps 1 to 4 and the Queue panel are on main</h2>
+            <h2>Steps 1 to 5 and the Queue panel are on main</h2>
             <p id="direction">
               The code for queues and tasks is marked experimental, so later agents
-              change it freely. Step 5 is next, step 7 hasn't started, and step 6 isn't
+              change it freely. Step 7 is next and hasn't started, and step 6 isn't
               needed for now.
             </p>
             <table id="plan-step-list" data-width="wide">
@@ -260,7 +261,11 @@
                     Task is the primitive on both queues, and an Ask is a task on you
                     that a widget answers (<a href="#asks-as-tasks">Asks as tasks</a>).
                   </td>
-                  <td>Built and reviewed; try it here. Lands on your word</td>
+                  <td>
+                    On main (<a href="https://github.com/max-sixty/leaf/pull/1854"
+                      >#1854</a
+                    >)
+                  </td>
                 </tr>
                 <tr>
                   <th scope="row">6. Either side adds to the other's queue</th>

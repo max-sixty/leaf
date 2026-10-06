@@ -199,8 +199,9 @@ sequenceDiagram
                 <tr id="stages-picked">
                   <td>Picked up</td>
                   <td>
-                    A hook put the delivery in the agent's turn, and the agent confirmed
-                    it with <code>leaf delivery ack</code>.
+                    The prompt or Stop hook put the delivery in the agent's turn, or the
+                    agent read the pointer the hook put there with
+                    <code>leaf delivery read</code>.
                   </td>
                   <td>
                     The agent's next <code>leaf wait --ack</code> confirmed the delivery
@@ -324,7 +325,7 @@ Leaf: /home/you/review has new input; Leaf's prompt hook puts it in your context
   "id": "2d5bdcc4",
   "created_at": 1790100943.144468,
   "carrier": "hook",
-  "acknowledge": "Once this complete delivery is in your context, confirm it with `leaf delivery ack 2d5bdcc4`. Until then, the user's moves read Sent.",
+  "acknowledge": null,
   "batches": [
     {
       "page": "/home/you/review",
@@ -435,8 +436,7 @@ Leaf: /home/you/review has new input; Leaf's prompt hook puts it in your context
   ]
 }
 
-# acknowledge the complete delivery, then name the work before starting it
-$ leaf delivery ack 2d5bdcc4
+# the hook confirmed the delivery as it handed it over; name the work before starting it
 $ leaf task start ./review ebe8f367 "splitting the shed policy between the API and the importer"
 
 # revise ./review/index.html; a valid save goes live at once
@@ -467,14 +467,17 @@ $ leaf status ./review waiting "Does the API/importer split match what you need?
             </p>
             <p id="wait-ack">
               The harness does the delivering, so Leaf records a move as received only
-              when the agent or the harness confirms it. A hook's output can be
-              discarded when the hook times out, so the hook confirms nothing, and the
-              agent runs <code>leaf delivery ack &lt;delivery-id&gt;</code> once the
-              whole delivery is in its context. A Codex task running its own wait
-              confirms with <code>leaf wait --ack &lt;delivery-id&gt;</code>; printed
-              output can be lost or cut off, so until then the events stay available to
-              the next wait. The Codex adapter confirms each delivery itself, so the
-              agent starts no <code>leaf wait</code> of its own.
+              when the agent or the harness confirms it. A harness discards the output
+              of a hook it times out, so a hook confirms a delivery it puts in the turn
+              only once it has published it, well inside that timeout. When the delivery
+              is too large for the turn's context, or the hook ran too slowly to confirm
+              it, the hook hands over a pointer instead, and the agent's
+              <code>leaf delivery read &lt;delivery-id&gt;</code> confirms it. A Codex
+              task running its own wait confirms with
+              <code>leaf wait --ack &lt;delivery-id&gt;</code>; printed output can be
+              lost or cut off, so until then the events stay available to the next wait.
+              The Codex adapter confirms each delivery itself, so the agent starts no
+              <code>leaf wait</code> of its own.
               <a href="#stages-picked">Stages of a move</a> shows what sets Picked up
               under each harness.
             </p>
@@ -572,9 +575,9 @@ flowchart TD
                 comment at once, marked Sent.
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-picked" at="1s" kind="observation">
-                <strong>Picked up</strong> The agent reads your comment in its turn and
-                confirms receipt. Your comment reads Picked up, and until the agent
-                writes its own words the banner reads
+                <strong>Picked up</strong> Leaf's hook puts your comment in the agent's
+                turn and confirms receipt. Your comment reads Picked up, and until the
+                agent writes its own words the banner reads
                 <em>Claude working — on your update</em>.
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-reply" at="5s" kind="intervention">

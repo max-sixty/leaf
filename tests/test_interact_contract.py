@@ -3771,15 +3771,15 @@ How this text reaches the agent, by example
    @ADDED@.
    The batch's `handling` maps clause ids to their text, each distinct text
    appearing once. The event's `handling` names its applicable clauses in order.
-   The envelope's `acknowledge` tells the reader to confirm the complete delivery
-   with `leaf delivery ack`. Hook output alone confirms nothing. The whole delivery,
-   indented here (the hook writes it on one line):
+   Once it has published that context, the hook confirms the delivery itself,
+   so the envelope's `acknowledge` is null and the comment reads Picked up. The
+   whole delivery, indented here (the hook writes it on one line):
 
 @DELIVERY@
 
-5. The agent confirms the complete delivery, then follows `handling`: it names
-   any work the comment asks for with `leaf task start`, does it,
-   and replies in the thread with `leaf thread reply`.
+5. The agent follows `handling`: it names any work the comment asks for with
+   `leaf task start`, does it, and replies in the thread with
+   `leaf thread reply`.
 
 What this file records
 ----------------------

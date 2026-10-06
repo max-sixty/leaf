@@ -381,8 +381,30 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
       font-variant-ligatures: none;
       /* A block that scrolls its own lines never sizes what holds it: without this a
        * long line is every flex item's and grid track's minimum up the tree. */
-      contain: inline-size; }
+      contain: inline-size; container-type: scroll-state; }
 :where(:root, .lf-thread-transcript) pre > code { background: none; padding: 0; font-size: 100%; }
+/* An overlay scrollbar paints over the scroller's own block end, and macOS widens it to
+ * a 15px track under the pointer: a thread's code block, 8px of padding under its last
+ * line, lost half that line to the bar the moment the user reached for it. So a box of
+ * text that scrolls sideways (a code block, a table, each a scroll-state container) adds
+ * 8px below its content, enough to clear the track over the smallest inset either
+ * keeps, a thread's code block or a cell's padding. Only while it scrolls, since a box
+ * that fits has no bar to make room for, and asked of the engine rather than of the
+ * runtime's sideways mark, which arrives after first paint and would move the page
+ * under the reader. A classic scrollbar stands below the box instead, so there the
+ * room is only a little more air above it. An engine without scroll-state queries
+ * keeps the box as it was.
+ *
+ * A float and not a block: a block child wraps the lines in an anonymous block, whose
+ * overflow the scroller no longer pads at its inline end, so the last character sat
+ * against the edge and a block that overflowed by less than its inset stopped
+ * scrolling, which removed the room, which made it scroll again, a ResizeObserver loop
+ * in the command hub's ask. A float leaves the lines where they were, and at the box's
+ * full width it can only stand below the last of them. */
+@container scroll-state(scrollable: inline) {
+  :where(:root, .lf-thread-transcript) :is(pre, table)::after {
+    content: ""; float: inline-start; inline-size: 100%; block-size: 8px; }
+}
 /* Paper has no scrollbar, so a line past the column is not a scroll away but gone. Code
    wraps on the sheet whatever it does on screen, the trade lf-diff's own sheet already
    makes for its rows. `anywhere` because what runs long in source is paths, URLs and
@@ -807,8 +829,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           > :is(.lf-response-action-space, .lf-response-action-label) {
           display: none; }
 .lf-fab-bar[data-lf-presentation="inline"].lf-response-open { flex-wrap: wrap; }
-.lf-fab-bar[data-lf-presentation="inline"].lf-response-open
-          > .lf-response-more { display: none !important; }
 .lf-fab-bar[data-lf-presentation="inline"].lf-response-open
           > .lf-response-options { display: inline-flex; align-items: center;
           flex-wrap: wrap; gap: 4px; max-width: 100%; }

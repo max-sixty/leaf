@@ -1124,6 +1124,124 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
     expect(answer).to_have_text("Fix")
 
 
+def test_a_queue_stands_its_items_under_their_groups(browser, serve):
+    """Each run of neighbouring queue items that share a `group` stands under a label
+    of it: a heading over the run in the column, and a word before the run's first tab
+    in a phone's row, which comes into the row with that tab. A run of items with no
+    group is ruled off from the run before it, so it never reads as part of that group.
+    A label is not a tab, so the walk passes it by and assistive technology hears the
+    group in each tab's description instead. A revision that moves an item to another
+    group moves it under that group's label."""
+
+    def item(key, group):
+        return (
+            f'<lf-tab id="i-{key}" label="Item {key} with a long name"'
+            + (f' group="{group}"' if group else "")
+            + f' summary="{key} summary"><p id="p-{key}">Item {key}.</p></lf-tab>'
+        )
+
+    def queue(groups):
+        return leaf_page(
+            "Grouped queue",
+            '<h1 id="title">Triage</h1><lf-tabs id="queue" list="side">'
+            + "".join(item(key, group) for key, group in zip("abcdef", groups))
+            + "</lf-tabs>",
+        )
+
+    url = live_url(serve(queue(["Merge", "Merge", "Close", None, "FYI", "FYI"])))
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    # Each run: its label's words, whether the label stands above (in the column) or
+    # before (in the row) the run's first tab and is hidden from assistive technology
+    # and the keyboard, whether a rule stands between it and the run before, and its
+    # tabs.
+    runs = """() => {
+      const box = (el) => el.getBoundingClientRect();
+      return [...document.querySelectorAll('#queue > .lf-tabstrip > .lf-tab-run')]
+        .map((run) => {
+          const label = run.querySelector(':scope > .lf-tab-group');
+          const first = run.querySelector('[role="tab"]');
+          const style = getComputedStyle(run);
+          return {
+            label: label?.textContent ?? null,
+            placed: !label || (label.getAttribute('aria-hidden') === 'true'
+              && label.tabIndex === -1
+              && (box(label).bottom <= box(first).top + 0.5
+                || box(label).right <= box(first).left + 0.5)),
+            ruled: parseFloat(style.borderTopWidth) + parseFloat(style.borderLeftWidth) > 0,
+            tabs: [...run.querySelectorAll('[role="tab"]')]
+              .map((tab) => tab.getAttribute('aria-controls')),
+          };
+        });
+    }"""
+    expected = [
+        {"label": "Merge", "placed": True, "ruled": False, "tabs": ["i-a", "i-b"]},
+        {"label": "Close", "placed": True, "ruled": True, "tabs": ["i-c"]},
+        {"label": None, "placed": True, "ruled": True, "tabs": ["i-d"]},
+        {"label": "FYI", "placed": True, "ruled": True, "tabs": ["i-e", "i-f"]},
+    ]
+    assert page.evaluate(runs) == expected
+    # The list says the group, so the open panel carries no stacked heading of it.
+    assert page.evaluate(
+        "() => getComputedStyle(document.getElementById('i-a'), '::before').content"
+    ) in ("none", "normal")
+
+    tabs = page.locator("#queue").get_by_role("tab")
+    expect(tabs).to_have_count(6)
+    expect(tabs.nth(2)).to_have_accessible_description("Close group. c summary")
+    expect(tabs.nth(3)).to_have_accessible_description("d summary")
+    tabs.nth(1).focus()
+    page.keyboard.press("ArrowDown")
+    expect(tabs.nth(2)).to_have_attribute("aria-selected", "true")
+    expect(tabs.nth(2)).to_be_focused()
+
+    revised = queue(["Merge", "Merge", "Merge", None, "FYI", "FYI"])
+    wait_for_revision(page, stamp_page(serve.page_dir, revised, "Regroup")["revision"])
+    expect(page.locator("#queue > .lf-tabstrip .lf-tab-group")).to_have_text(
+        ["Merge", "FYI"]
+    )
+    expect(tabs.nth(2)).to_have_accessible_description("Merge group. c summary")
+
+    # On a phone, loaded there so the row has its presses from the start. A run's
+    # first tab comes into the row with its label, clear of the presses: at rest, and
+    # walking back onto it from the run after.
+    phone = open_page(
+        browser,
+        url,
+        context=browser.new_context(viewport={"width": 390, "height": 844}),
+    )
+    assert phone.evaluate(runs) == [
+        {
+            "label": "Merge",
+            "placed": True,
+            "ruled": False,
+            "tabs": ["i-a", "i-b", "i-c"],
+        },
+        {"label": None, "placed": True, "ruled": True, "tabs": ["i-d"]},
+        {"label": "FYI", "placed": True, "ruled": True, "tabs": ["i-e", "i-f"]},
+    ]
+    label_shown = """() => {
+      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const room = strip.getBoundingClientRect();
+      const tab = strip.querySelector('[aria-selected="true"]');
+      const label = tab.parentElement.querySelector('.lf-tab-group')
+        .getBoundingClientRect();
+      const faces = [...strip.querySelectorAll('.lf-tabstrip-scroll > span')]
+        .filter((face) => face.checkVisibility())
+        .map((face) => face.getBoundingClientRect());
+      return faces.length > 0 && room.left <= label.left && label.right <= room.right
+        && faces.every((face) => face.right <= label.left + 0.5 || label.right <= face.left + 0.5);
+    }"""
+    phone_tabs = phone.locator("#queue").get_by_role("tab")
+    phone_tabs.first.click()
+    phone.wait_for_function(label_shown)
+    phone_tabs.first.focus()
+    phone.keyboard.press("End")
+    phone.keyboard.press("ArrowLeft")
+    expect(phone_tabs.nth(4)).to_have_attribute("aria-selected", "true")
+    phone.wait_for_function(label_shown)
+
+
 def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     """A strip whose names outrun its one row scrolls them sideways, and keeps the open
     tab in the row and clear of the press at either edge: when the window narrows under

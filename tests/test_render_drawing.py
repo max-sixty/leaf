@@ -836,6 +836,29 @@ def test_a_drawing_takes_back_its_strokes_and_comes_off_its_comment(browser, ser
     page.keyboard.press("ControlOrMeta+z")
     expect(field).to_have_js_property("value", "")
     expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+
+    # The words' history orders them, not the words' text: words typed and taken out
+    # again are the latest change, and words typed hard on a stroke's heels, which the
+    # history would fold into the words before it, are a step of their own.
+    page.keyboard.type("x")
+    page.keyboard.press("ArrowLeft")
+    page.keyboard.press("End")
+    page.keyboard.press("Backspace")
+    page.keyboard.press("ControlOrMeta+z")
+    expect(field).to_have_js_property("value", "x")
+    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    page.keyboard.press("ControlOrMeta+z")
+    page.keyboard.type("a")
+    stroke_over(page, heading, steps=2, points=other)
+    field.focus()
+    page.keyboard.type("b")
+    page.keyboard.press("ControlOrMeta+z")
+    expect(field).to_have_js_property("value", "a")
+    expect(tile).to_have_attribute("aria-label", "Drawing, 3 strokes")
+    page.keyboard.press("ControlOrMeta+z")
+    expect(tile).to_have_attribute("aria-label", "Drawing, 2 strokes")
+    page.keyboard.press("ControlOrMeta+z")
+    expect(field).to_have_js_property("value", "")
     write(field, "Here.")
 
     # With the box put away, ⌘Z or `z` takes back the strokes of the parked drawing,

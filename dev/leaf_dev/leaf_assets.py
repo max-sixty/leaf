@@ -192,11 +192,44 @@ def stage(directory: str, files: dict[str, bytes], staging: Path) -> Path:
     return checkout
 
 
+# Where a checkout keeps the change it publishes, so a retry replays the same change.
+CHANGE = "refs/leaf-assets/change"
+# Pushes a publication tries before reporting the last rejection: another publisher
+# may move the head between one attempt's fetch and its push.
+PUSH_ATTEMPTS = 3
+
+
+def replay(checkout: Path, branch: str) -> None:
+    """Check out the remote head with the change applied: each file the change added or
+    altered takes the change's copy, and each it removed is removed, whatever another
+    writer did to that file since the pin."""
+    run("git", "fetch", "--depth", "1", "origin", branch, cwd=checkout)
+    run("git", "checkout", "--detach", "FETCH_HEAD", cwd=checkout)
+    fields = run(
+        "git",
+        "diff",
+        "--name-status",
+        "--no-renames",
+        "-z",
+        f"{CHANGE}^",
+        CHANGE,
+        cwd=checkout,
+    ).split("\0")
+    changed = dict(zip(fields[1::2], fields[0::2]))
+    if kept := [path for path, status in changed.items() if status != "D"]:
+        run("git", "checkout", CHANGE, "--", *kept, cwd=checkout)
+    if removed := [path for path, status in changed.items() if status == "D"]:
+        run("git", "rm", "-q", "--ignore-unmatch", "--", *removed, cwd=checkout)
+    if run("git", "status", "--porcelain", cwd=checkout):
+        run("git", "commit", "-C", CHANGE, cwd=checkout)
+
+
 def publish(checkout: Path, message: str) -> str:
-    """Commit the checkout's change to its pin, carry it onto the repository's head and
+    """Commit the checkout's change to its pin, replay it onto the repository's head and
     push it, then install the new pin, README and derived catalog links. Where another
-    writer changed the same file since the pin, this change's copy stands, as it would
-    have on the pin. An unchanged checkout keeps its pin."""
+    writer changed or removed the same file since the pin, this change's copy stands,
+    as it would have on the pin. A rejected push replays the change onto the head again;
+    an unchanged checkout keeps its pin."""
     repository, pinned = specification(ROOT)
     branch = run(
         "git", "symbolic-ref", "--short", "refs/remotes/origin/HEAD", cwd=checkout
@@ -204,14 +237,21 @@ def publish(checkout: Path, message: str) -> str:
     run("git", "add", "-A", cwd=checkout)
     if run("git", "status", "--porcelain", cwd=checkout):
         run("git", "commit", "-m", message, cwd=checkout)
-        change = run("git", "rev-parse", "HEAD", cwd=checkout)
-        run("git", "fetch", "--depth", "1", "origin", branch, cwd=checkout)
-        run("git", "checkout", "--detach", "FETCH_HEAD", cwd=checkout)
-        run("git", "cherry-pick", "--empty=drop", "-X", "theirs", change, cwd=checkout)
-    revision = run("git", "rev-parse", "HEAD", cwd=checkout)
-    updates = catalog_updates(checkout)
-    if revision != pinned:
-        run("git", "push", "origin", f"HEAD:refs/heads/{branch}", cwd=checkout)
+        run("git", "update-ref", CHANGE, "HEAD", cwd=checkout)
+    has_change = bool(run("git", "for-each-ref", CHANGE, cwd=checkout))
+    for attempt in range(PUSH_ATTEMPTS):
+        if has_change:
+            replay(checkout, branch)
+        revision = run("git", "rev-parse", "HEAD", cwd=checkout)
+        updates = catalog_updates(checkout)
+        if revision == pinned:
+            break
+        try:
+            run("git", "push", "origin", f"HEAD:refs/heads/{branch}", cwd=checkout)
+            break
+        except RuntimeError:
+            if attempt + 1 == PUSH_ATTEMPTS:
+                raise
     (ROOT / LOCK).write_text(
         json.dumps({"repository": repository, "revision": revision}, indent=2) + "\n",
         encoding="utf-8",

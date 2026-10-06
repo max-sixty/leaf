@@ -228,10 +228,10 @@ def test_demo_publication_reconciles_the_catalog_with_other_published_previews(
 
 def test_a_publication_keeps_what_others_published_since_its_pin(tmp_path, monkeypatch):
     """Two branches pinned to one revision each publish a directory's files. The second
-    removes the file its pin held and it dropped, and keeps the file the first added,
-    which its own run never saw: a stage is measured against the branch's pin, not the
-    head. The later pin holds both changes, and where both changed one file, the
-    second's copy."""
+    keeps what the first added, which its own run never saw, since a stage is measured
+    against the branch's pin and not the head. Where both touched one file, the second's
+    choice stands, whether that is a copy or a removal. A publication whose push was
+    refused lands on the head as it stands when it is tried again."""
     remote = tmp_path / "remote.git"
     leaf_assets.run(
         "git", "init", "--bare", "--initial-branch=main", str(remote), cwd=tmp_path
@@ -241,8 +241,8 @@ def test_a_publication_keeps_what_others_published_since_its_pin(tmp_path, monke
     (seed / "examples").mkdir()
     (seed / "examples" / "example-decision.jpg").write_bytes(b"decision preview")
     (seed / "threads").mkdir()
-    (seed / "threads" / "retired.png").write_bytes(b"a case both branches had")
-    (seed / "threads" / "shared.png").write_bytes(b"the pin's")
+    for name in ("kept", "shared", "edited", "dropped"):
+        (seed / "threads" / f"{name}.png").write_bytes(b"the pin's")
     publisher(seed)
     leaf_assets.run("git", "add", "-A", cwd=seed)
     leaf_assets.run("git", "commit", "-m", "Initial assets", cwd=seed)
@@ -254,7 +254,7 @@ def test_a_publication_keeps_what_others_published_since_its_pin(tmp_path, monke
     monkeypatch.setenv("GIT_CONFIG_KEY_0", f"url.{remote.as_uri()}.insteadOf")
     monkeypatch.setenv("GIT_CONFIG_VALUE_0", f"https://github.com/{repository}.git")
 
-    def publish_from(name, files):
+    def staged(name, directory, files):
         source = tmp_path / name
         (source / "examples").mkdir(parents=True)
         (source / "examples" / "decision.html").write_text("<h1>A decision</h1>")
@@ -272,36 +272,78 @@ def test_a_publication_keeps_what_others_published_since_its_pin(tmp_path, monke
         monkeypatch.setattr(example_data, "ROOT", source)
         staging = tmp_path / f"staging-{name}"
         staging.mkdir()
-        checkout = leaf_assets.stage("threads", files, staging)
+        checkout = leaf_assets.stage(directory, files, staging)
         publisher(checkout)
-        return leaf_assets.publish(checkout, f"Publish {name}'s threads")
+        return checkout
 
-    publish_from(
+    def published(revision):
+        return {
+            path: leaf_assets.run("git", "show", f"{revision}:{path}", cwd=remote)
+            for path in leaf_assets.run(
+                "git", "ls-tree", "-r", "--name-only", revision, cwd=remote
+            ).split()
+        }
+
+    # The first adds a file, rewrites two, and removes `edited`.
+    first = staged(
         "first",
+        "threads",
         {
-            "retired.png": b"a case both branches had",
+            "kept.png": b"the pin's",
             "added.png": b"first's",
             "shared.png": b"first's",
+            "dropped.png": b"first's",
         },
     )
-    revision = publish_from(
-        "second", {"own.png": b"second's", "shared.png": b"second's"}
+    leaf_assets.publish(first, "Publish the first branch's threads")
+    # The second, from the same pin, rewrites `shared` and `edited` and removes
+    # `dropped`, each a file the first touched.
+    second = staged(
+        "second",
+        "threads",
+        {
+            "kept.png": b"the pin's",
+            "own.png": b"second's",
+            "shared.png": b"second's",
+            "edited.png": b"second's",
+        },
     )
-
+    revision = leaf_assets.publish(second, "Publish the second branch's threads")
     assert leaf_assets.run("git", "rev-parse", "HEAD", cwd=remote) == revision
-    published = leaf_assets.run(
-        "git", "ls-tree", "-r", "--name-only", revision, cwd=remote
-    ).split()
-    assert sorted(published) == [
-        "examples/example-decision.jpg",
-        "threads/added.png",
-        "threads/own.png",
-        "threads/shared.png",
-    ]
-    assert (
-        leaf_assets.run("git", "show", f"{revision}:threads/shared.png", cwd=remote)
-        == "second's"
-    )
+    assert published(revision) == {
+        "examples/example-decision.jpg": "decision preview",
+        "threads/kept.png": "the pin's",
+        "threads/added.png": "first's",
+        "threads/own.png": "second's",
+        "threads/shared.png": "second's",
+        "threads/edited.png": "second's",
+    }
+
+    third = staged("third", "media", {"third.png": b"third's"})
+    rejection = remote / "hooks" / "pre-receive"
+    rejection.write_text("#!/bin/sh\nexit 1\n")
+    rejection.chmod(0o755)
+    with pytest.raises(RuntimeError, match="pre-receive hook declined"):
+        leaf_assets.publish(third, "Publish the third branch's media")
+    rejection.unlink()
+    # Another publisher lands while the third waits to try again.
+    leaf_assets.run("git", "pull", "-q", cwd=seed)
+    (seed / "late.png").write_bytes(b"late")
+    leaf_assets.run("git", "add", "-A", cwd=seed)
+    leaf_assets.run("git", "commit", "-m", "Publish meanwhile", cwd=seed)
+    leaf_assets.run("git", "push", cwd=seed)
+
+    retried = leaf_assets.publish(third, "Publish the third branch's media")
+    assert leaf_assets.run("git", "rev-parse", "HEAD", cwd=remote) == retried
+    assert published(retried) == {
+        **published(revision),
+        "late.png": "late",
+        "media/third.png": "third's",
+    }
+    assert json.loads((tmp_path / "third" / "leaf-assets.json").read_text()) == {
+        "repository": repository,
+        "revision": retried,
+    }
 
 
 def publisher(checkout):

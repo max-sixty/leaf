@@ -175,6 +175,30 @@ button.lf-media-open { cursor: zoom-in; }
   border-radius: var(--r); background: var(--card); color: var(--ink); font: inherit;
   line-height: 17px; cursor: pointer; box-shadow: 0 1px 4px var(--shade); }
 .lf-composer-media-remove:is(:hover, :focus-visible) { border-color: var(--accent); }
+/* A drawing the draft carries is one tile: its own ink fitted to a thumbnail, then the
+   stroke undo and the removal, each a full-height press inside the tile's edge rather
+   than a corner badge an overflowing strip would cut. */
+.lf-composer-drawing { display: flex; align-items: stretch; box-sizing: border-box;
+  border: 1px solid var(--border-2); border-radius: var(--r);
+  background: var(--paper); overflow: hidden; }
+.lf-composer-drawing > .lf-composer-media-open { padding: 4px;
+  box-sizing: border-box; border: 0; border-radius: 0; }
+.lf-composer-drawing > .lf-composer-media-open > svg { display: block; width: 100%;
+  height: 100%; overflow: visible; }
+.lf-composer-drawing > .lf-composer-media-open path { fill: none;
+  stroke: var(--accent); stroke-width: 2px; stroke-linecap: round;
+  stroke-linejoin: round; }
+.lf-composer-drawing > .lf-composer-media-open { align-self: center; }
+.lf-composer-drawing > button { flex: none; display: grid; place-items: center;
+  inline-size: max(26px, var(--aim-floor)); min-block-size: var(--aim-floor);
+  padding: 0; border: 0;
+  border-inline-start: 1px solid var(--border-2); background: transparent;
+  color: var(--ink-2); cursor: pointer; }
+.lf-composer-drawing > button:hover { color: var(--accent); background: var(--chip); }
+.lf-composer-drawing > button:is(:focus-visible, .lf-focus-visible) {
+  outline: var(--focus-ring); --lf-focus-ring: composer-drawing;
+  outline-offset: calc(-1 * var(--focus-ring-w)); }
+.lf-composer-drawing > button > svg { inline-size: 14px; block-size: 14px; }
 /* Sent media can live in chrome-owned threads or page-owned widget threads.
    Scale the complete image in both surfaces; a tall capture must not become the whole
    thread, and nothing is cropped. */
@@ -1234,7 +1258,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     --lf-comment-inset: 12px;
     --lf-comment-text-size: var(--t-5);
     --lf-comment-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
-    --lf-comment-text-pad-end: calc(max(28px, var(--aim-floor)) + var(--lf-thread-text-inset));
+    --lf-comment-text-pad-end: var(--lf-thread-text-inset);
+    --lf-comment-send-room: max(28px, var(--aim-floor));
     --lf-comment-head: max(28px, var(--aim-floor));
     --lf-comment-body-gap: 4px;
     --lf-comment-foot-gap: var(--sp-3);
@@ -1274,6 +1299,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      the editor's scrollport; its content-sized editor keeps native caret reveals. */
   leaf-text.lf-fab-input { width: 100%; min-width: 0;
     padding-inline: var(--lf-compose-pad-inline-start) calc(var(--lf-comment-text-pad-end) - 1px);
+    --lf-field-end-room: var(--lf-comment-send-room);
     overflow-y: auto; }
   .lf-fab-bar .lf-compose-field {
     --lf-compose-pad-block: calc(var(--lf-comment-text-pad-block) - 1px);
@@ -1353,8 +1379,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     pointer-events: none; }
   .lf-drawing-mark path { fill: none; stroke: var(--mark-ink); stroke-width: 3px;
     stroke-linecap: round; stroke-linejoin: round; }
-  .lf-drawing-mark:is(.lf-drawing-active, .lf-drawing-pending) path {
+  .lf-drawing-mark:is(.lf-drawing-active, .lf-drawing-pending, .lf-drawing-parked) path {
     stroke: var(--accent); }
+  /* Unsent ink whose composer is put away stays on the page, dashed as a draft set
+     aside, apart from the drawing the open composer carries. */
+  .lf-drawing-mark.lf-drawing-parked path { stroke-dasharray: 7 6; }
   .lf-composer { display: none; }
   .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
     display: none !important; }

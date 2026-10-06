@@ -764,6 +764,12 @@ function seatPins(standing, { bands, shell, pinInset, retainSeats }) {
     reach: REACH,
     gap: GAP,
   })) {
+    // An open folded row is wider than its one-control seat. Keep the toggle at
+    // that seat's right edge while the options spread to its left.
+    entry.visualLeft =
+      on && entry.read.row.hasAttribute("data-lf-options-open")
+        ? rect.right - (entry.rect.right - entry.rect.left)
+        : rect.left;
     entry.rect = rect;
     if (entry.fold) standFolded(entry.read.row, entry.fold, on);
     seats.set(entry.read.row, {
@@ -1127,7 +1133,7 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
   const packed = packRows(standing, GAP);
   // A push says where a standing row stands, so a row that no longer stands has none.
   for (const row of pushes.keys()) if (!packed.has(row)) pushes.delete(row);
-  for (const { key: row, rect, read } of standing) {
+  for (const { key: row, rect, read, visualLeft } of standing) {
     const push = packed.get(row) ?? 0;
     pushes.set(row, push);
     // A pin seated beside its target can stand outside what its pane shows though the
@@ -1145,7 +1151,7 @@ export function layoutMarginRows({ retainSeats = false } = {}) {
     // A rail row wider than the rail, unfolded or holding more than its resting budget,
     // steps back from the shell's edge rather than widening the page.
     const step = read.place === "rail" ? Math.min(0, shell - rect.right) : 0;
-    setStyle(row, "left", `${rect.left + step + scrollX}px`);
+    setStyle(row, "left", `${(visualLeft ?? rect.left) + step + scrollX}px`);
     setStyle(row, "top", `${rect.top + push + scrollY}px`);
     const carried = laneMotions.get(read.scroller) ?? [];
     // The rail's horizontal coordinate belongs to the column. Nested scrollports

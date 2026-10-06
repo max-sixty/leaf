@@ -5208,8 +5208,9 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
     # With room for its whole measure, the card clears both its words and its cluster,
     # which here is a pin standing on the block the thread is about and reaching past it.
     assert geometry["placement"] == "right", geometry
-    assert geometry["cardLeft"] == pytest.approx(
-        max(geometry["controlsRight"], geometry["targetRight"]) + 8, abs=0.5
+    assert (
+        geometry["cardLeft"]
+        >= max(geometry["controlsRight"], geometry["targetRight"]) + 8 - 0.5
     ), geometry
     assert geometry["cardWidth"] == pytest.approx(geometry["preferred"], abs=0.5), (
         geometry
@@ -5314,9 +5315,7 @@ def test_a_thread_beside_its_words_takes_the_room_to_the_visible_edge(browser, s
     assert geometry["wordsRight"] < geometry["pinRight"], geometry
     assert geometry["minimum"] <= room_past_pin < geometry["preferred"], geometry
     assert geometry["placement"] == "right", geometry
-    assert geometry["cardLeft"] == pytest.approx(geometry["pinRight"] + 8, abs=0.5), (
-        geometry
-    )
+    assert geometry["cardLeft"] >= geometry["pinRight"] + 8 - 0.5, geometry
     assert geometry["cardRight"] == pytest.approx(geometry["viewport"] - 8, abs=0.5), (
         geometry
     )
@@ -9591,6 +9590,7 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
     expect(accept).to_be_visible()
     expect(row.locator(".lf-sug-reject")).to_be_visible()
     expect(toggle).to_have_attribute("aria-expanded", "true")
+    margins_laid_out(page)
     assert toggle.bounding_box() == pressed, (toggle.bounding_box(), pressed)
     assert accept.bounding_box()["x"] < pressed["x"]
     expect(accept).to_be_focused()

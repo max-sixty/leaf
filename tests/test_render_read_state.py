@@ -900,9 +900,9 @@ def test_a_walk_to_a_thread_a_diff_line_holds_lands_in_its_outlet(browser, serve
         },
     )["id"]
     told(page)
-    news = thread.locator(":scope > .lf-thread-controls").get_by_role(
-        "button", name="1 new thread"
-    )
+    news = thread.locator(
+        ":scope > .lf-thread-content > .lf-thread-controls"
+    ).get_by_role("button", name="1 new thread")
     expect(news).to_be_visible()
     landed = page.locator(f'lf-diff .lf-page-thread[data-thread="{second}"]')
     expect(landed).to_have_count(0)

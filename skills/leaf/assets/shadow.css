@@ -299,7 +299,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           anchor-scope: --lf-thread-headline;
           --lf-thread-action-room: max(28px, var(--aim-floor));
           --lf-thread-notice-room: max(28px, var(--aim-floor));
-          --lf-thread-reaction-room: 0px; }
+          --lf-thread-message-control-room: 0px; }
 /* A semantic separator draws its boundary without sizing the transcript. */
 .lf-read-boundary { height: 0; }
 .lf-msg { margin: 16px 0 0; }
@@ -339,7 +339,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           min-height: var(--lf-thread-action-room); align-items: center;
           box-sizing: border-box;
           margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
-          padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2) + var(--lf-thread-reaction-room)); }
+          padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2) + var(--lf-thread-message-control-room)); }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
   > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
   > .lf-summary-checkpoint > .lf-summary-header {
@@ -348,10 +348,11 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
           padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2)); }
 .lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript
-  > .lf-msg.agent:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-react-strip) {
-          --lf-thread-reaction-room: calc(max(26px, var(--aim-floor)) + var(--sp-2)); }
+  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
+  > :is(.lf-react-strip, .lf-msg-edit)) {
+          --lf-thread-message-control-room: calc(max(26px, var(--aim-floor)) + var(--sp-2)); }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
-  > .lf-msg.agent:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
+  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
           anchor-name: --lf-thread-headline, --lf-msg-head; }
 .lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
           gap: 4px; margin-inline-start: auto; }
@@ -362,7 +363,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           inset-inline-start: calc(var(--lf-thread-news-start, 0px) + var(--sp-2));
           inline-size: var(--lf-reserved-width, max-content);
           max-inline-size: max(0px, min(
-            calc(100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) - var(--lf-thread-action-room) - var(--lf-thread-reaction-room)),
+            calc(100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) - var(--lf-thread-action-room) - var(--lf-thread-message-control-room)),
             calc(var(--lf-thread-news-visible-end, 100%) - var(--lf-thread-news-start, 0px) - var(--sp-2))));
           box-sizing: border-box; min-width: 0;
           min-height: var(--lf-thread-action-room);
@@ -380,18 +381,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-seat-news { display: flex; align-items: center; box-sizing: border-box; }
 .lf-msg-head time { color: var(--muted-2); }
 .lf-msg-head :is(.lf-edited, .lf-msg-kept) { color: var(--muted-2); }
-/* The user's own message offers its rewrite at the head's end, in the meta's face.
-   The end holds still while the meta's receipt changes its words beside it, as a
-   control in this text region must. A pointer that hovers finds it on the message it
-   points at or a focus inside; a finger sees it always. It keeps its box either way,
-   so showing it moves nothing. */
-.lf-msg-head .lf-msg-edit { flex: none; margin-inline-start: auto; padding: 0;
-          border: 0; background: none; font: inherit; color: var(--muted-2);
-          cursor: pointer; }
-.lf-msg-head .lf-msg-edit:hover { color: var(--ink); }
-@media (hover: hover) {
-  .lf-msg:not(:hover, :focus-within) > .lf-msg-head .lf-msg-edit { opacity: 0; }
-}
 /* A thread projected inline uses the same receipt emphasis as the panel. */
 .lf-msg-head .lf-msg-failure { color: var(--warn-ink); font-weight: 600; }
 /* Prose faces reach the document and the layer's reading regions in declared
@@ -590,18 +579,35 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           display: none; }
 .lf-react-strip > .lf-react-palette:not(:popover-open, :has(> [aria-pressed="true"])) {
           display: none; }
-/* A reply with no feedback keeps no row. Its add control follows the message
-   header's right edge and centre, including when thread actions narrow that header;
-   the full-width message body does not place it. It appears only for the message
-   under pointer or keyboard focus.
-   The picker is an overlaid menu below that control; opening it never moves this
-   message or the threads after it. At rest only feedback already left earns
-   flow space. */
-.lf-msg.agent { anchor-scope: --lf-msg-head; }
-.lf-msg.agent > .lf-msg-head { anchor-name: --lf-msg-head; }
-.lf-msg.agent:has(> .lf-react-strip) > .lf-msg-head {
-          --lf-react-row: max(26px, var(--aim-floor));
-          padding-inline-end: var(--lf-react-row); }
+/* A message offers one control of its own at its header's right edge and centre: an
+   agent's reply its reactions, the user's own words their rewrite. The header keeps
+   that control's room at its end, so it covers none of the header's words, and the
+   control follows that edge when thread actions narrow the header; the full-width
+   message body does not place it. It appears only for the message under pointer or
+   keyboard focus.
+   A reply with no feedback keeps no row. The reaction picker is an overlaid menu below
+   its control; opening it never moves this message or the threads after it. At rest
+   only feedback already left earns flow space. */
+.lf-msg { anchor-scope: --lf-msg-head; }
+.lf-msg > .lf-msg-head { anchor-name: --lf-msg-head; }
+.lf-msg:is(.agent:has(> .lf-react-strip), :has(> .lf-msg-edit)) > .lf-msg-head {
+          --lf-msg-control: max(26px, var(--aim-floor));
+          padding-inline-end: var(--lf-msg-control); }
+.lf-msg > .lf-msg-edit {
+          appearance: none; position: absolute; z-index: 2;
+          position-anchor: --lf-msg-head;
+          inset-block-start: anchor(center); inset-inline-end: anchor(right); translate: 0 -50%;
+          box-sizing: border-box; inline-size: 26px; block-size: 26px; padding: 0;
+          display: inline-flex; align-items: center; justify-content: center;
+          border: 1px solid transparent; border-radius: var(--r);
+          background: transparent; color: var(--muted);
+          opacity: 0; cursor: pointer; }
+.lf-msg > .lf-msg-edit:hover {
+          color: var(--ink-2); border-color: var(--border-2); background: var(--chip); }
+.lf-msg-edit-icon { inline-size: 16px; block-size: 16px; overflow: visible;
+          fill: none; stroke: currentColor; stroke-width: 1.6;
+          stroke-linecap: round; stroke-linejoin: round; }
+.lf-msg:is(:hover, :focus-within) > .lf-msg-edit { opacity: 1; }
 .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
           margin-top: 0; anchor-scope: --lf-react-trigger; }
 .lf-react-strip:has(.lf-react[aria-pressed="true"]) { margin-top: 4px; }
@@ -648,18 +654,22 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           box-sizing: border-box; inline-size: 32px; block-size: 32px; padding: 0;
           font-size: 16px; }
 @media (hover: none) {
-  .lf-react-strip > .lf-react-trigger { opacity: 1; }
+  .lf-react-strip > .lf-react-trigger,
+  .lf-msg > .lf-msg-edit { opacity: 1; }
 }
 /* Under a finger the trigger takes the aim floor, and with no hover to reveal it, it
    stands on every reply for good; either way it is more than an overlay on the corner
    can hold. Hung there at the floor's size it covered the last words of the reply's
    first line at 360px, so the head row it stands beside holds its height and the
-   trigger stands in that row. Its words and trigger share the header's centre. */
+   trigger stands in that row. Its words and trigger share the header's centre. The
+   user's messages hold the same row for their Edit control from their first paint, so
+   a message the log has just admitted, which only then offers its rewrite, grows no
+   taller. */
 @media (pointer: coarse), (hover: none) {
-  .lf-msg.agent > .lf-msg-head {
-          --lf-react-row: max(26px, var(--aim-floor));
-          box-sizing: border-box; min-height: var(--lf-react-row);
-          align-items: center; padding-inline-end: var(--lf-react-row); }
+  .lf-msg:is(.agent, .user) > .lf-msg-head {
+          --lf-msg-control: max(26px, var(--aim-floor));
+          box-sizing: border-box; min-height: var(--lf-msg-control);
+          align-items: center; padding-inline-end: var(--lf-msg-control); }
 }
 .lf-msg-meta { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
 .lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }

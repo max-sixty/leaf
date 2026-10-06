@@ -53,6 +53,7 @@ import {
 } from "../anchor-resolution.js";
 import { rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
+import { iconTemplate } from "../icons.js";
 import { keeps } from "../keeps.js";
 import { motion } from "../motion.js";
 
@@ -314,24 +315,26 @@ export class MessageView {
               : nothing
           }
         </span>
-        ${
-          model.editable && !editing
-            ? html`<button
-                type="button"
-                class="lf-msg-edit lf-ui"
-                tabindex="-1"
-                data-lf-gen="1"
-                data-lf-offer="button"
-                aria-label="Edit message"
-                @click=${() => this.openEdit()}
-              >
-                Edit
-              </button>`
-            : nothing
-        }
       `,
       this.#header,
     );
+    // The user's own words offer their rewrite where an agent's reply offers its
+    // reactions: the message's one control, at its header's right edge (shadow.css).
+    const rewrite =
+      model.editable && !editing
+        ? html`<button
+            type="button"
+            class="lf-msg-edit lf-ui"
+            tabindex="-1"
+            data-lf-gen="1"
+            data-lf-offer="button"
+            aria-label="Edit message"
+            title="Edit message"
+            @click=${() => this.openEdit()}
+          >
+            ${iconTemplate("edit", "lf-msg-edit-icon")}
+          </button>`
+        : nothing;
     render(
       html`
         ${this.#header}
@@ -359,7 +362,7 @@ export class MessageView {
               </button>`
             : nothing
         }
-        ${strip}
+        ${strip} ${rewrite}
       `,
       this.node,
     );

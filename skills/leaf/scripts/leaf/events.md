@@ -26,7 +26,7 @@ page and is not a global identifier. The kinds:
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
 | `task` | agent | `leaf task open` | `owner` (`agent`, or `user` with `--on user`); `subject`: `{kind: thread, id}` (an open thread, for the agent's own task only), `{kind: widget, id}` (a live page widget, which for the agent's own task declares `x-work` or holds an unsettled move), `{kind: element, id}` (any other element of the page), or `{kind: page}`; `title`; server-stamped `revision` on a widget task | the agent takes on work it owes there, or puts a task on the user; the agent's stands through replies, resolutions, versions and session ends, and the user's until their Done (`tasks.py`) |
 | `task_end` | agent or user | `leaf task end`, `POST /api/event` from a task's Done | `task`, an open task: one in the log, or a thread question's by the asking reply's id; `outcome` (`done`, `failed`, or `dropped`; the user's is `done`); optional `detail` from the agent | ends one open task, as a note that `settles` it does, as its `ends` allows: the agent may end any but an Ask's, which only its widget's answer ends, and the user only one the agent opened on them, since a question ends at their reply or a settling reaction |
-| `start` | agent | `leaf task start` | `item`, a user move the agent owes (its event id) or an open task; the banner's `text`; `turn`, the claimant turn that wrote it, when the poster holds the page | takes the item in hand: a move reads Working and a task runs, until the move is answered, the task ends, or a `put_down` follows; the newest start on an item replaces the one before |
+| `start` | agent | `leaf task start`; `leaf thread reply --ephemeral` on a move the agent owes | `item`, a user move the agent owes (its event id) or an open task; the banner's `text`; `turn`, the claimant turn that wrote it, when the poster holds the page | takes the item in hand: a move reads Working and a task runs, until the move is answered, the task ends, or a `put_down` follows; the newest start on an item replaces the one before |
 | `put_down` | agent | `leaf status waiting` and `leaf status idle`, when a start stands | | ends every start before it: the moves they named go back to their delivery stage and the tasks stay open with nothing running (`tasks.item_starts`) |
 | `undo` | user | `POST /api/event` | `undoes` | withdraws one gesture of the user's own (`UNDOABLE_KINDS`: resolve, unresolve, action, done, task_end) |
 
@@ -287,7 +287,9 @@ them:
   and settles nothing.
 - An agent `reply` with `ephemeral: true` is retained progress text. It carries no
   `responds`, `awaits`, markup, failure or anchor transition and participates in no
-  semantic turn, work settlement or reopening. The next ordinary agent reply in
+  semantic turn, work settlement or reopening. Posted to a move the agent owes, it
+  is followed in the same append by a `start` on that move with its text as the
+  line, so progress and work in hand are one write. The next ordinary agent reply in
   its thread derives empty-prose “Previous updates” folds over the preceding
   uncovered contiguous runs of ephemeral messages, including a single message.
   User messages break those runs and remain outside them. Explicit summaries own

@@ -218,8 +218,9 @@ sequenceDiagram
                 <tr id="stages-working">
                   <td>Working</td>
                   <td colspan="4">
-                    The agent started the move with <code>leaf task start</code>, which
-                    names the work in one line, or started a task on the move's widget.
+                    The agent took the move in hand with one line naming the work, as a
+                    progress update in its thread or with <code>leaf task start</code>,
+                    or started a task on the move's widget.
                   </td>
                 </tr>
                 <tr id="stages-replying">
@@ -353,7 +354,7 @@ Leaf: /home/you/review has new input; Leaf's prompt hook puts it in your context
         "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.",
         "h3": "It answers the page's Ask, so the page shows it as waiting on you until the markup records it. Name the work it selects or unblocks with `leaf task start &lt;page&gt; &lt;event-id&gt; \"&lt;the work, in a line&gt;\"` before starting it, then do it, write it in, and stamp a version.",
         "h4": "This event's thread has no title yet: name it by adding `--title \"&lt;a few words&gt;\"` to the reply that answers it, so the thread panel lists its subject rather than its opening words. If Leaf has named it from its opening message by then, that name stands.",
-        "h5": "When the event asks for work, name that work before any other, including reading the source it concerns: `leaf task start &lt;page&gt; &lt;event-id&gt; \"&lt;the work, in a line&gt;\"`. The move then reads Working, and the line stands beside the thread and in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf thread reply &lt;page&gt; --for &lt;event-id&gt; &lt; reply.md`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
+        "h5": "When the event asks for work, say in its thread what you will do before any other command, including reading the source it concerns: `leaf thread reply &lt;page&gt; --for &lt;event-id&gt; --ephemeral --text \"&lt;what you will do, in a line&gt;\"`. The user reads it in the thread at once, and it takes the move in hand: the move reads Working, and the line stands in the banner until you answer. Do the work and put its result on the page, with whatever shows it (captures, a figure, the numbers), then answer with `leaf thread reply &lt;page&gt; --for &lt;event-id&gt; &lt; reply.md`: what changed, in a sentence or two, linking the section that shows it. When the event asks for no work, as a question may not, answer it with that reply at once. The page carries the work, and the thread only the conversation about it. `leaf thread reply` checks any saved page edit and makes it live before posting. If a revision removes what the thread is anchored on, move the thread in the reply that reports it with `--section &lt;id&gt;` (narrowed by `--quote` or `--part` if needed), or `--detach` it if its subject has left the page. Add `--awaits` only if your reply's prose asks the user something.",
         "h6": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
       },
       "events": [
@@ -435,8 +436,8 @@ Leaf: /home/you/review has new input; Leaf's prompt hook puts it in your context
   ]
 }
 
-# the hook confirmed the delivery as it handed it over; name the work before starting it
-$ leaf task start ./review ebe8f367 "splitting the shed policy between the API and the importer"
+# the hook confirmed the delivery as it handed it over; say what comes next before starting it
+$ leaf thread reply ./review --for ebe8f367 --ephemeral --text "Splitting the shed policy between the API and the importer."
 
 # revise ./review/index.html; a valid save goes live at once
 $ leaf thread reply ./review --for ebe8f367 --title "Shed policy per caller" --text "Done: [the shed section](#shed-premise) now drops the oldest work for the batch importer and keeps rejection at the API boundary."
@@ -525,11 +526,11 @@ flowchart TD
               <li id="turn-end-claim">
                 <strong>A move started in this turn lets the turn end.</strong> Leaf
                 tells the agent to run work longer than a few minutes in background
-                workers, whose results wake it in a later turn, so a move the agent
-                started with <code>leaf task start</code> during this turn does not keep
-                the turn going. The move reads Working, with the agent's line beside it.
-                The next turn answers the move or starts it again; otherwise the move
-                soon reads <a href="#stages-stale">Update stale</a>.
+                workers, whose results wake it in a later turn, so a move the agent took
+                in hand during this turn does not keep the turn going. The move reads
+                Working, with the agent's line beside it. The next turn answers the move
+                or starts it again; otherwise the move soon reads
+                <a href="#stages-stale">Update stale</a>.
               </li>
               <li id="turn-end-watch">
                 <strong>Between turns, a page needs a watcher.</strong> Without Claude
@@ -581,12 +582,12 @@ flowchart TD
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-reply" at="5s" kind="intervention">
                 <strong>The work is named</strong> Before doing the work, the agent
-                writes
+                replies in your thread with what it will do,
                 <code
-                  >leaf task start … &lt;comment&gt; "cutting the lede to two
-                  sentences"</code
-                >, which puts that line beside the thread and in the banner, and your
-                comment reads Working.
+                  >leaf thread reply … --ephemeral --text "Cutting the lede to two
+                  sentences."</code
+                >, which also puts that line in the banner, and your comment reads
+                Working.
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-phase" at="1m" kind="intervention">
                 <strong>Each new phase gets a new line</strong> When the work moves from
@@ -648,6 +649,12 @@ flowchart LR
 
             <h3 id="updates-written-heading">Written by the agent</h3>
             <ul id="updates-written">
+              <li id="updates-written-progress">
+                <strong><code>leaf thread reply --for … --ephemeral</code></strong> What
+                it is about to do, in your thread, before it reads or edits anything.
+                The line also stands in the banner, your comment reads Working, and the
+                update folds under <em>Previous updates</em> once the answer arrives.
+              </li>
               <li id="updates-written-working">
                 <strong><code>leaf task start … &lt;id&gt; "…"</code></strong> What it
                 is doing, in the banner:

@@ -625,18 +625,23 @@ def token_counts(trace: list[dict]) -> dict[str, int | None]:
 
 
 def accepted_starts(trace: list[dict], item: str) -> dict[str, int]:
-    """Bash call ids whose successful `leaf task start` result takes ITEM in hand.
+    """Bash call ids whose successful result takes ITEM in hand: a `leaf task start`,
+    or a `leaf thread reply --ephemeral` on a move owed, which writes the same start.
 
     A start prints the record it appended as one JSON line. Compound Bash output may
     contain other lines; only a `start` record naming ITEM counts, never an attempted
-    command. Values are the result's trace index.
+    command, and only from a command that writes one, so a read of the log printing
+    an old start does not. Values are the result's trace index.
     """
     calls = {
         block["id"]
         for block in blocks(trace)
         if block.get("type") == "tool_use"
         and block["name"] == "Bash"
-        and re.search(r"\btask\s+start\b", block["input"].get("command", ""))
+        and re.search(
+            r"\btask\s+start\b|\bthread\s+reply\b(?:[^\n]|\\\n)*--ephemeral\b",
+            block["input"].get("command", ""),
+        )
     }
     accepted = {}
     for index, record in enumerate(trace):

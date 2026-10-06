@@ -212,7 +212,7 @@ def blocking_obligations(state: dict, *, carried: bool) -> list[dict]:
 
 
 def started_in_turn(obligation: dict, state: dict) -> bool:
-    """Whether the claimant's open turn took this move in hand with `leaf task start`
+    """Whether the claimant's open turn took this move in hand (`tasks.take_in_hand`)
     after it was delivered: a start covering the move
     (`workflows.canonical_workflows`, `started_by`) that turn wrote since the move's
     pickup.

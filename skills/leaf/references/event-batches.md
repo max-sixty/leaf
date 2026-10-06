@@ -114,8 +114,9 @@ Receipt and work have separate evidence. Confirming a direct delivery records it
 moves as **Picked up** in the current turn. Other harnesses record that opening when
 they observe the delivery entering a turn: as a hook hands it over, as the agent
 reads a pointer with `leaf delivery read`, or as a turn Leaf started begins. Leaf
-derives overall page activity from that evidence. Starting the move with `leaf task start <page> <event-id>`
-([conversation handoff](conversation-loop.md#when-to-write)) strengthens its
+derives overall page activity from that evidence. Taking the move in hand, with a
+progress update in its thread or `leaf task start <page> <event-id>`
+([conversation handoff](conversation-loop.md#when-to-write)), strengthens its
 receipt to **Working** while it remains outstanding. That neither acknowledges the
 delivery nor answers the move.
 

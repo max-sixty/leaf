@@ -359,18 +359,12 @@ def read_delivery(delivery_id: str) -> dict:
 
 def cmd_delivery_read(delivery_id: str) -> None:
     """Print one envelope, confirming it where reading is its receipt: a pointer
-    that names no other acknowledger, offered to the reading session by its own
-    carrier. A harness whose hooks deliver confirms each batch its session still
-    holds; Codex accepts the pointer its task offered."""
-    from .codex_state import accept_codex_delivery_read
-
+    that names no other acknowledger, offered to the reading session, which its
+    harness confirms (`Harness.receive_pointer`)."""
     payload = read_delivery(delivery_id)
     harness = session_harness()
     if payload["acknowledge"] is None and harness is not None:
-        if harness.hook_delivers:
-            receive_held(payload, harness.session)
-        else:
-            accept_codex_delivery_read(delivery_id)
+        harness.receive_pointer(payload)
     print(json.dumps(payload, indent=2, ensure_ascii=False))
 
 

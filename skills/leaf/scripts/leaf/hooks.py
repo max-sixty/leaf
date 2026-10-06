@@ -106,21 +106,12 @@ def cmd_hook(harness: str, payload: dict) -> None:
         if not owned_pages(sid):
             return
         from .codex import offer_hook_delivery
+        from .harness import HOOK_HARNESSES
 
-        prompt = offer_hook_delivery(sid, turn_id)
-        if prompt:
+        if prompt := offer_hook_delivery(sid, turn_id):
             import json
 
-            print(
-                json.dumps(
-                    {
-                        "hookSpecificOutput": {
-                            "hookEventName": "PostToolUse",
-                            "additionalContext": prompt,
-                        }
-                    }
-                )
-            )
+            print(json.dumps(HOOK_HARNESSES[harness].hook_context(event, prompt)))
         return
     # Retained claims may need reconnecting after active ownership expired.
     retained = event == "UserPromptSubmit" and any(

@@ -65,23 +65,18 @@ def step_delivery_turn(session_id: str) -> str | None:
     return None
 
 
-def accept_codex_delivery_read(delivery_id: str) -> None:
+def accept_codex_delivery_read(session_id: str, delivery_id: str) -> None:
     """Use the owning task's pointer read as evidence of entry into its exact turn.
 
     Reading an envelope alone authorizes no receipt. The hook observation is
     rechecked under the acceptance lock, so queue reservation or a newer turn
     invalidates this proof before any delivery record changes.
     """
-    from .harness import session_harness
-
-    harness = session_harness()
-    if harness is None or (turn := step_delivery_turn(harness.session)) is None:
+    if (turn := step_delivery_turn(session_id)) is None:
         return
-    observation = hook_turn(harness.session)
+    observation = hook_turn(session_id)
     if not observation or observation["turn"] != turn or not observation["running"]:
         return
     from .codex import accept_codex_delivery
 
-    accept_codex_delivery(
-        harness.session, delivery_id, turn, hook_observation=observation
-    )
+    accept_codex_delivery(session_id, delivery_id, turn, hook_observation=observation)

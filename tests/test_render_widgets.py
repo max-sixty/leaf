@@ -652,9 +652,10 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
                 f'<aside class="sidebar" id="side">{diff("in-side")}</aside>'
                 f'<h1>Scrolling boxes</h1><div id="box">{diff("in-box")}</div>'
                 '<div id="inline" style="max-height: 320px; overflow: auto">'
-                f'{diff("in-inline")}</div>'
+                f"{diff('in-inline')}</div>"
                 '<div id="panel" class="tall"><p>Panel.</p></div>'
-                + "<p>Filler.</p>" * 60,
+                + "<p>Filler.</p>"
+                * 60,
                 head="<style>html { overflow-y: scroll; }"
                 "#box, .tall { max-height: 320px; overflow: auto; }"
                 "#panel { position: sticky; top: var(--lf-top); }</style>",
@@ -662,7 +663,9 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
         ),
     )
     resized(page, 1600, 1000)
-    expect(page.locator("main")).to_have_attribute("data-lf-margin", re.compile("sidebar"))
+    expect(page.locator("main")).to_have_attribute(
+        "data-lf-margin", re.compile("sidebar")
+    )
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 3"
     )

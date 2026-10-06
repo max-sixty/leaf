@@ -79,7 +79,11 @@ export function holdToRead() {
       const origin = event.composedPath()[0];
       if (origin.hasPointerCapture?.(event.pointerId))
         origin.releasePointerCapture(event.pointerId);
-      hold = { pointerId: event.pointerId, parent: holder.parentElement, reading: null };
+      hold = {
+        pointerId: event.pointerId,
+        parent: holder.parentElement,
+        reading: null,
+      };
       read(holder);
     },
     { capture: true },

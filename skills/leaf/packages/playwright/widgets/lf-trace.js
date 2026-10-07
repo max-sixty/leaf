@@ -10,7 +10,7 @@
  * authored height, which left a page scrolling inside the page. The stepper instead
  * sticks at the top of the page's band while the recording is on screen (theme.css),
  * and the page selector and frames row above it scroll away. Evidence comes first, in
- * a box shared at one zoom by its page's images of one shape, and optional metadata
+ * a box shared at one zoom by the images of one viewport, and optional metadata
  * follows it.
  * Stepping keeps the evidence where the reader sees it, except that evidence the stuck
  * stepper covers starts again at the stepper's foot (`#navigate`). One cursor
@@ -74,22 +74,41 @@ function streamOrigins(trace) {
   return origins;
 }
 // The box each image is drawn in, by image id, and each page's box for a stop with no
-// image, by page id: that of its most frequent shape. Filmstrip JPEGs are smaller
-// encodings of the same viewport, so the images of one page and shape share the
-// widest one's width, and a frame's pixel width never becomes a different display
-// zoom at a timeline stop; their box is as tall as the tallest of them at that width,
-// so the caption and everything below stand still from one stop to the next. A
-// viewport of another shape is a box of its own, so a portrait capture never makes a
-// landscape one stand in blank room.
+// image, by page id: that of its most frequent shape. A page's checkpoints are whole
+// captures of its viewport, so they alone say which shapes it took: checkpoints within
+// 2% of one aspect are one viewport. A filmstrip frame is Playwright's smaller, and not
+// always same-shaped, encoding of whatever viewport the page had then, so it joins the
+// shape of the checkpoint nearest it in time; a page with no checkpoints groups its
+// frames by their own shape. The images of one shape share its widest member's width,
+// so no frame's pixel width becomes a different zoom at a timeline stop, in a box as
+// tall as the tallest of them at that width, so the caption and everything below stand
+// still from one stop to the next. A viewport of another shape is a box of its own, so
+// a portrait capture never makes a landscape one stand in blank room.
 function imageBoxes(images) {
   const shapes = [];
-  for (const image of images) {
+  const shapeOf = (image) => {
     const ratio = image.width / image.height;
     let shape = shapes.find(
       (other) =>
         other.pageId === image.pageId && Math.abs(other.ratio / ratio - 1) < 0.02,
     );
     if (!shape) shapes.push((shape = { pageId: image.pageId, ratio, members: [] }));
+    return shape;
+  };
+  const checkpoints = images.filter((image) => image.kind === "checkpoint");
+  for (const image of checkpoints) shapeOf(image).members.push(image);
+  for (const image of images) {
+    if (image.kind === "checkpoint") continue;
+    const distance = (other) => Math.abs(other.timestamp - image.timestamp);
+    const nearest = checkpoints
+      .filter((other) => other.pageId === image.pageId)
+      .reduce(
+        (best, other) => (!best || distance(other) < distance(best) ? other : best),
+        null,
+      );
+    const shape = nearest
+      ? shapes.find((candidate) => candidate.members.includes(nearest))
+      : shapeOf(image);
     shape.members.push(image);
   }
   const boxes = new Map();
@@ -136,6 +155,7 @@ customElements.define(
     #intermediates = false;
     #resized = null;
     #releaseFrame = 0;
+    #scrolled = null;
     #keys = null;
     #parts = null;
     #inventory = [];
@@ -184,6 +204,18 @@ customElements.define(
         });
         this.#resized.observe(this);
       }
+      // Held room serves the place the reader stood in when a change shortened the
+      // page; once they scroll away from it, what lies below them is given back too.
+      // Capture hears a box that scrolls as well as the root, whose scrollend never
+      // bubbles.
+      if (!this.#scrolled) {
+        this.#scrolled = new AbortController();
+        document.addEventListener("scrollend", () => this.#release(), {
+          capture: true,
+          passive: true,
+          signal: this.#scrolled.signal,
+        });
+      }
       if (firstConnection) watchData(this, "trace", (snapshot) => this.#show(snapshot));
     }
 
@@ -192,6 +224,8 @@ customElements.define(
       this.#resized = null;
       cancelRender(this.#releaseFrame);
       this.#releaseFrame = 0;
+      this.#scrolled?.abort();
+      this.#scrolled = null;
       // Element command scopes leave with their element; reconnect keeps the declaration.
     }
 

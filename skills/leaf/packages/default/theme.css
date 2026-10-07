@@ -1607,14 +1607,14 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   :scope:is(lf-tabs)[data-lf-tabs-flow="page"] { --lf-top-outer: var(--lf-top); }
   :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > lf-tab {
     --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
+    --lf-landing-room: var(--lf-landing-gap);
   }
   :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip {
     position: sticky;
     top: var(--lf-top);
-    /* Its names stand 8px down a strip the root's landing band counts whole
-       (`--lf-root-headers`), so they stand that far above where landings start
-       (`--lf-head-inset`, kernel shadow.css). */
-    --lf-head-inset: calc(8px - var(--lf-tabstrip-h));
+    /* Its names stand 8px below where it sticks (`--lf-head-inset`, kernel
+       shadow.css), and the root's landing room counts the strip itself. */
+    --lf-head-inset: 8px;
     z-index: 2;
     box-sizing: border-box;
     block-size: var(--lf-tabstrip-h);

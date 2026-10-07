@@ -168,11 +168,15 @@
      document already keeps clear of both (html[data-lf-live], below). */
   --lf-view-height: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-bar-h));
   --lf-top: var(--lf-banner-h);
-  /* How far below where a sticky header sticks a scroller's landing band starts: on
-     the root, the room a landing leaves below the banner for the focus ring (the root's
-     `scroll-padding-top`, below). A sticky header's controls take it back (shadow.css,
-     at `--lf-head-inset`), and a box that scrolls restarts it. */
-  --lf-landing-room: 12px;
+  /* How far below where a sticky header sticks a scroller's landing band starts. On
+     the root that is what stands over the whole root under the banner (a page tab
+     strip, `--lf-root-headers`) and the room a landing leaves for the focus ring
+     (`--lf-landing-gap`), which the root's `scroll-padding-top` adds below. What a page
+     tab strip stands over sticks under it, so there the room is the gap alone (the
+     default package). A sticky header's controls take it back (shadow.css, at
+     `--lf-head-inset`), and a box that scrolls restarts it. */
+  --lf-landing-gap: 12px;
+  --lf-landing-room: calc(var(--lf-root-headers, 0px) + var(--lf-landing-gap));
   /* The page tab strip's stated height: its 8px head, a name's 38px face or the aim
      floor where that is taller, and its 1px rule. The default package draws the strip
      at it, and the root's `scroll-padding` adds it where a page tab strip stands over
@@ -648,8 +652,7 @@ html { background: var(--paper); }
     overflow-y: scroll;
     /* A sticky header over the whole root, a page tab strip, adds its stated height as
      * `--lf-root-headers` (lf-tabs.js). */
-    scroll-padding-top: calc(var(--lf-banner-h) + var(--lf-root-headers, 0px)
-      + var(--lf-landing-room));
+    scroll-padding-top: calc(var(--lf-banner-h) + var(--lf-landing-room));
     scroll-padding-bottom: calc(var(--lf-bottom-bar-h) + max(12px, var(--focus-ring-room)));
     /* The bottom bar's room is the body's own end, where content growing above it only
      * lengthens the body: a box standing after the content would move with each growth. */

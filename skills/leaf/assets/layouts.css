@@ -91,6 +91,7 @@
     main.layout-column[data-lf-margin~="sidebar"] > aside.sidebar:nth-child(1 of aside.sidebar) {
       float: left; clear: left; position: sticky;
       top: calc(var(--lf-top-outer) + var(--sp-4)); --lf-top: 0px;
+      --lf-landing-room: 0px;
       width: calc(var(--sidebar) - var(--sp-4));
       max-height: calc(var(--lf-view-height) - 2 * var(--sp-4));
       overflow-y: auto;

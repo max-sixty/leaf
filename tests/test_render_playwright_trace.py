@@ -393,6 +393,21 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     expect(widget.locator(".lf-trace-tree")).not_to_have_attribute("open", "")
     rendered(user)
     assert summary.bounding_box()["y"] == pytest.approx(pressed, abs=1)
+    # The room held for that place is given back once the reader scrolls away from it.
+    held = widget.locator(".lf-trace-held")
+    kept = held.bounding_box()["height"]
+    assert kept > 0, "folding at the page's end must hold room for this regression"
+    user.evaluate("document.scrollingElement.scrollTop -= 200")
+    user.wait_for_function(
+        """(kept) => {
+          const held = document.querySelector('#journey .lf-trace-held');
+          const page = document.scrollingElement;
+          const room = held.getBoundingClientRect().height;
+          return room < kept
+            && (room === 0 || page.scrollHeight - page.clientHeight - page.scrollTop < 1);
+        }""",
+        arg=kept,
+    )
     frames_toggle.check()
     slider.focus()
     user.keyboard.press("Home")
@@ -654,24 +669,23 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     assert user.evaluate("document.scrollingElement.scrollTop") == page_place
 
 
-def test_trace_frames_and_checkpoints_share_one_box_per_shape(browser, serve):
-    """A filmstrip encoded smaller than the checkpoints of the same viewport draws at
-    their zoom, in their box, so stepping between them moves nothing beneath the
-    image; a frame of another shape has a box of its own."""
+def test_trace_filmstrip_shares_its_checkpoints_box(browser, serve):
+    """Playwright encodes a page's filmstrip at sizes, and even shapes, of its own:
+    the gallery's frames are 692x461 and 800x461 between 960x640 checkpoints of one
+    viewport. The checkpoints say which viewport the page had, so every frame draws at
+    their zoom in their box, and stepping between them moves nothing beneath the
+    image."""
     example = ROOT / "examples/developer/playwright-trace-gallery.html"
     data = json.loads(example.with_name(example.stem + ".data.json").read_text())
     images = data["release-journey"]["images"]
-
-    def shape(width, height):
-        return round(width / height, 2)
-
-    sizes = {}
-    for image in images:
-        sizes.setdefault(shape(image["width"], image["height"]), set()).add(
-            image["width"]
-        )
-    assert any(len(widths) > 1 for widths in sizes.values()), (
-        "the gallery's frames must be smaller encodings of its checkpoints' viewport"
+    shapes = {round(image["width"] / image["height"], 2) for image in images}
+    checkpoint_shapes = {
+        round(image["width"] / image["height"], 2)
+        for image in images
+        if image["kind"] == "checkpoint"
+    }
+    assert len(checkpoint_shapes) == 1 and len(shapes) > 1, (
+        "the gallery's frames must differ in shape from its one viewport's checkpoints"
     )
     user = open_page(browser, serve(example))
     resized(user, 1440, 900)
@@ -683,7 +697,8 @@ def test_trace_frames_and_checkpoints_share_one_box_per_shape(browser, serve):
     readout = widget.locator(".lf-trace-readout")
     raster = widget.locator(".lf-trace-image img")
     stops = int(slider.get_attribute("max")) + 1
-    first = {}
+    first = None
+    seen = set()
     for index in range(stops):
         if index:
             user.keyboard.press("ArrowRight")
@@ -691,13 +706,79 @@ def test_trace_frames_and_checkpoints_share_one_box_per_shape(browser, serve):
         rendered(user)
         if not raster.count():
             continue
-        key = shape(
-            int(raster.get_attribute("width")), int(raster.get_attribute("height"))
+        seen.add(
+            round(
+                int(raster.get_attribute("width"))
+                / int(raster.get_attribute("height")),
+                2,
+            )
         )
         reading = (readout.bounding_box()["y"], raster.bounding_box()["width"])
-        first.setdefault(key, reading)
-        assert reading == pytest.approx(first[key], abs=1), (index, reading, first)
-        # Its box is its own shape's, so no room another shape needs stands blank.
+        first = first or reading
+        assert reading == pytest.approx(first, abs=1), (index, reading, first)
+    assert seen == shapes, "the review must reach frames of every shape"
+
+
+def test_trace_viewport_change_takes_a_box_of_its_own(browser, serve, tmp_path):
+    """A page whose viewport really changes shape mid-recording draws each viewport in a
+    box of its own, so a portrait capture never leaves a landscape one standing in
+    blank room."""
+    url = serve(
+        leaf_page(
+            "Resized journey",
+            '<h1>Resized journey</h1><lf-trace id="journey" source="resized-trace"></lf-trace>',
+            layout="wide",
+        ),
+        packages=("playwright",),
+    )
+    directory = serve.page_dir
+    context = browser.new_context(viewport={"width": 390, "height": 600})
+    context.tracing.start(
+        screenshots=True, snapshots=True, screen_snapshots=True, aria_snapshots=True
+    )
+    capture = context.new_page()
+    capture.set_content(
+        "<h1>Resize</h1><button onclick=\"this.textContent='Done'\">Go</button>"
+    )
+    capture.get_by_role("button").click()
+    capture.set_viewport_size({"width": 900, "height": 450})
+    capture.get_by_role("button").click()
+    archive = tmp_path / "resized.zip"
+    context.tracing.stop(path=archive)
+    context.close()
+    script = ROOT / "skills/leaf/packages/playwright/scripts/import_trace.py"
+    spec = importlib.util.spec_from_file_location("trace_import", script)
+    importer = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(importer)
+    record = importer.import_trace(
+        archive,
+        page=directory,
+        launcher=ROOT / "bin/leaf",
+        viewer_url="https://trace.example/resized/",
+    )
+    checkpoint_shapes = {
+        round(image["width"] / image["height"], 1)
+        for image in record["images"]
+        if image["kind"] == "checkpoint"
+    }
+    assert len(checkpoint_shapes) == 2, checkpoint_shapes
+    data_model.cmd_data_set(directory, "resized-trace", record)
+    user = open_page(browser, url)
+    resized(user, 1440, 900)
+    widget = user.locator("#journey")
+    slider = widget.get_by_role("slider", name="Timeline position")
+    slider.focus()
+    user.keyboard.press("Home")
+    raster = widget.locator(".lf-trace-image img")
+    widths = set()
+    for index in range(int(slider.get_attribute("max")) + 1):
+        if index:
+            user.keyboard.press("ArrowRight")
+        expect(slider).to_have_value(str(index))
+        rendered(user)
+        if not raster.count():
+            continue
         box = raster.locator("xpath=..").bounding_box()
+        widths.add(round(box["width"]))
         assert box["height"] - raster.bounding_box()["height"] <= 2, (index, box)
-    assert len(first) > 1, "the review must reach frames of both shapes"
+    assert len(widths) == 2, widths

@@ -334,6 +334,10 @@ to leave, so a widget retiring one uses that constant rather than choosing a num
 a duration only on letting the eye follow a box from where it was to where it is. A result
 the module can already draw is drawn in the gesture rather than after a wait.
 
+A temporary yellow cue calls `backgroundFlash(element, ms)`. It supplies only the
+starting tint; the browser fades to the element's live CSS background, including any
+hover or theme change during the cue, and shares `motion`'s gates and cleanup.
+
 A module implementing its own navigation captures `retainUserIntent()` in the gesture
 that starts it, before its
 first wait, and checks the returned predicate after every wait before moving focus or

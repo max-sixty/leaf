@@ -9963,9 +9963,9 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
       return [style.animationName, style.backgroundClip, style.color];
     }"""
     sweep, clip, fill = topic.evaluate(paint)
-    assert sweep == "none" and clip != "text"
-    assert fill != "rgba(0, 0, 0, 0)"
-    # The placeholder remains readable and still under either motion preference.
+    assert sweep == "lf-title-sheen" and clip == "text"
+    assert topic.evaluate("el => getComputedStyle(el).backgroundImage") != "none"
+    # Reduced motion paints ordinary text instead of an animated clipped gradient.
     page.emulate_media(reduced_motion="reduce")
     sweep, clip, fill = topic.evaluate(paint)
     assert sweep == "none" and clip != "text"

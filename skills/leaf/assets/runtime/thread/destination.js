@@ -152,17 +152,19 @@ export function createThreadDestinations({
   }
 
   // Where a thread holds the user's draft `context`, with its box ready for the caret:
-  // the thread's reply box, or the rewrite of one of its messages, which opens on the
-  // message where the thread lands (`message-edit.js`).
+  // the thread's reply box, or the rewrite of one of its messages, which opens on that
+  // message where the Threads panel lands on it (`message-edit.js`). Landed on the
+  // thread instead, a long one's landing on its latest turn took the view away from a
+  // rewrite it had just opened higher up.
   async function openThreadDraft(context, intent) {
     const name = context.slice(context.indexOf(":") + 1);
     if (context.startsWith("reply:")) {
       const thread = allThreads().find((each) => threadKey(each) === name);
       return thread ? openPageThread(thread.id, { focus: "reply", intent }) : null;
     }
-    const thread = allThreads().find((each) => each.msgs.some(({ id }) => id === name));
-    if (!thread) return null;
-    const landed = await openPageThread(thread.id, { focus: "thread", intent });
+    if (!allThreads().some((each) => each.msgs.some(({ id }) => id === name)))
+      return null;
+    const landed = await openPageThread(name, { focus: "message", intent });
     return landed && openMessageEditIn(closestAcross(landed, THREAD), name);
   }
 

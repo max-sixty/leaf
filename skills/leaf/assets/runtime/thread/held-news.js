@@ -57,8 +57,7 @@
      an Ask it already shows;
    - acting in it (`gesturedOn`): a reply, a reaction on one of its messages, settling
      it, a move on a widget one of them holds, or a thread they start in the seat, which
-     answers what came before it and so follows it; and, while it stands open, a rewrite
-     of one of its messages, which has to be written over the words as they stand;
+     answers what came before it and so follows it;
    - changing the panel's view, which moves its cards anyway.
 
    Held news also shows once none of the seat shows in the window, where its growth moves
@@ -96,7 +95,6 @@ import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
 import { onStanding } from "../focus.js";
-import { rewritingIn } from "./message-edit.js";
 
 // Whether this page's ledger holds a gesture of the user's on `thread`, of any kind, the
 // refusal that takes one back included until the reading it restores is drawn: the
@@ -105,11 +103,10 @@ import { rewritingIn } from "./message-edit.js";
 // package mirror whose render waited on work of its own does, arrive like the agent's.
 export const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
 
-// Whether the user acts in the thread a seat draws under `key` (`gesturedOn`), or is
-// rewriting one of its messages.
+// Whether the user acts in the thread a seat draws under `key` (`gesturedOn`).
 const gestured = (key) => {
   const thread = allThreads().find((each) => threadKey(each) === key);
-  return Boolean(thread) && (gesturedOn(thread) || rewritingIn(thread));
+  return Boolean(thread) && gesturedOn(thread);
 };
 
 // The standing reactions a strip draws, by token, since a reaction keeps its token but

@@ -5,12 +5,12 @@
    with the owner its kind has elsewhere:
 
    - Its words are a draft under `rewrite:<message id>` (drafts.js), once the user
-     changes them, so they keep every promise a reply's words keep: they survive a
-     reload, reach every tab, come back on a refusal, and stay until Save or Cancel
-     settles them. Opening a rewrite again finds the words a closed one left, and the
-     message says it holds them (`keptRewrite`). Words the message already says, and no
-     words at all, are no rewrite: neither is kept, and a box with no draft holds the
-     message's own words, in this tab and in every other.
+     changes them, so they survive a reload, reach every tab, and come back on a
+     refusal. Escape, Cancel and Save settle them; words left by a reload or a refusal
+     wait in the draft, the message saying it holds them (`keptRewrite`), and opening the
+     rewrite again finds them. Words the message already says, and no words at all, are
+     no rewrite: neither is kept, and a box with no draft holds the message's own words,
+     in this tab and in every other.
    - That an editor stands open is disclosure, this document's mechanical state, held
      here by message id. One view of the message draws it: the one it was opened in,
      or, once that view is gone, the next view of the message on the same surface
@@ -18,6 +18,11 @@
      takes words and caret. A view on the other surface, or in another tab, draws the
      message as it was, since nothing the user did there asked it to change. A thread
      holds one open editor: opening another closes the first as Escape would.
+
+   Escape discards changed words, as Cancel does, so one Escape undoes the ↑ that opened
+   the rewrite, as in Slack, Discord and Telegram (the user's decision, 2026-10-06).
+   Rejected: Escape keeping them as an unsaved edit, as a reply box keeps its draft,
+   which left the user a draft to find and drop that the message could barely show.
 
    The editor takes the message's place without moving it. Its box surrounds the words
    where they stood, and its Cancel and Save stand at the message's head, where the
@@ -29,16 +34,16 @@
    from the start of an open rewrite, their message before it, so Edit takes no Tab stop
    in every thread the user opened. Resume writing (`g i`) opens a rewrite whose words
    were kept where its thread lands (`openMessageEditIn`). Opening brings the editor into
-   view. Enter saves; Escape closes it and keeps changed words; Cancel discards them.
-   The editor is a rung below the thread's reply box, so each of the three hands the
+   view. Enter saves; Escape and Cancel close it, discarding changed words. The
+   editor is a rung below the thread's reply box, so each of the three hands the
    user to that box, or, in a thread showing none, onto the thread (`land`). Save sends
    through the one ledger, which draws the new words on the message in the gesture
    (`foldThreads`), and a refusal gives its words back to the draft, the message saying
    it holds them beside the words it stands at. A rewrite names the revision it was
    written over, and the log refuses it once another tab has rewritten the message
-   since; opening a rewrite is acting in its thread, so it starts from the words as they
-   stand (held-news.js, `rewritingIn`). Words the message already says are no rewrite,
-   so saving them closes the editor and sends nothing. */
+   since; opening a rewrite shows what its thread holds, so it starts from the words as
+   they stand. Words the message already says are no rewrite, so saving them closes the
+   editor and sends nothing. */
 import {
   clearDraft,
   draftHasContent,
@@ -85,11 +90,7 @@ export function openMessageEdit(id, view, panel) {
   open.set(id, { view, panel });
 }
 
-// Whether a rewrite of one of `thread`'s messages stands open, which is acting in the
-// thread (held-news.js): its words must be the words as they stand.
-export const rewritingIn = (thread) => thread.msgs.some(({ id }) => open.has(id));
-
-// Whether the user closed a rewrite of `id` and kept its words for later.
+// Whether a rewrite of `id` holds words no editor shows: a reload's or a refusal's.
 export const keptRewrite = (id) =>
   !open.has(id) && !sending.has(id) && draftHasContent(editContext(id));
 
@@ -158,22 +159,25 @@ export class MessageEditor {
     this.node.append(this.input, actions);
     // The words a closed rewrite left, or the message's own. An empty draft is none.
     this.input.value = loadDraft(ctx) || said();
-    // Words the message already says, and no words, are nothing to keep.
-    const nothingToKeep = () => {
+    // Words the message already says, and no words, are no change.
+    const unchanged = () => {
       const words = this.input.value.trim();
       return !words || words === said().trim();
     };
-    const leave = (discard, { landing = true, says = null } = {}) => {
+    const leave = (discard, { landing = true, says = null, painting = true } = {}) => {
       if (landing) land();
       closeMessageEdit(id, { discard });
-      paint();
+      if (painting) paint();
       if (says) announce(says);
     };
-    // Closing as Escape does, with the words kept where they changed.
+    // Closing as Escape does, discarding what changed.
     const close = (options) =>
-      nothingToKeep()
-        ? leave(true, { ...options, says: "Stopped editing" })
-        : leave(false, { ...options, says: "Stopped editing; your words are kept" });
+      leave(true, {
+        ...options,
+        says: unchanged()
+          ? "Stopped editing"
+          : "Edit discarded; the message is as it was",
+      });
     this.#leave = close;
     const sync = wireInput(this.input, {
       hint: "Edit message",
@@ -189,16 +193,20 @@ export class MessageEditor {
       send: async (text, raw, owns) => {
         if (text === said().trim()) return leave(true, { says: "No change to save" });
         sending.add(id);
-        leave(false);
+        // The send's own paint, which draws the new words on the message, closes the
+        // editor too, so the message changes once: a paint of its own here drew the old
+        // words between the box and the new ones.
+        const sent = sendDraft(ctx, owns, (attempt) => send(raw, { attempt, base }));
+        leave(false, { painting: false });
         try {
-          await sendDraft(ctx, owns, (attempt) => send(raw, { attempt, base }));
+          await sent;
         } finally {
           sending.delete(id);
         }
         // A refusal gives the words back to the draft, which the message says it holds
-        // beside the words it stands at, as Escape leaves them: a message another tab has
-        // since rewritten shows that rewrite, which an editor opened at once would hide,
-        // and opening the words again writes them over what the user can now see.
+        // beside the words it stands at: a message another tab has since rewritten shows
+        // that rewrite, which an editor opened at once would hide, and opening the words
+        // again writes them over what the user can now see.
         paint();
       },
       rows: [
@@ -229,8 +237,7 @@ export class MessageEditor {
         {
           id: "message.edit.close",
           keys: ["Escape"],
-          description:
-            "Stop editing, keeping the message as it was and any words you changed for later",
+          description: "Stop editing, leaving the message as it was",
           title: "stop editing",
           run: () => close(),
         },
@@ -238,9 +245,7 @@ export class MessageEditor {
       { escape: "inner" },
     );
     cancel.addEventListener("mousedown", (event) => event.preventDefault());
-    cancel.addEventListener("click", () =>
-      leave(true, { says: "Edit cancelled; the message is as it was" }),
-    );
+    cancel.addEventListener("click", () => close());
     this.input.addEventListener(
       "keydown",
       (event) => {

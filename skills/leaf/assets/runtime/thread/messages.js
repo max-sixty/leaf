@@ -419,6 +419,11 @@ export class MessageView {
     this.#editor?.close();
   }
 
+  // Whether this view draws an open rewrite.
+  get editing() {
+    return this.#editor !== null;
+  }
+
   #body(body) {
     if (body.kind === "reaction")
       return html`<div class="lf-msg-text">

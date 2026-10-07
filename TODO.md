@@ -103,6 +103,10 @@ has tried; settle that before building it.
 
 ### User continuity and mobile access
 
+- **Bring back a rewrite Escape discarded.** Escape drops a rewrite's changed words, as
+  in Slack, Discord and Telegram, so an accidental press loses a long rewrite. Offer a
+  way back, such as `g D` restoring the last discarded rewrite into its editor (the
+  user's suggestion, 2026-10-06).
 - **Consider automatic Leaf recovery on resume.** Reuse the reconnect notice's
   eligibility checks to restore serving, ownership, and feedback delivery, while
   respecting explicit stops and transfers to another session.

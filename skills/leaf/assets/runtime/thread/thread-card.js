@@ -580,9 +580,11 @@ export class ThreadView {
     // Capture the standing words only when news starts waiting, before its update
     // removes a receipt. This allocation lives with the held view, not its reading.
     if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
-    // A reflow the user asked for of their own words, a rewrite opening or closing, holds
-    // no extent: the room it gives back is theirs to see go (ReplyContinuity).
-    const bodyPlace = requested ? null : this.#continuity?.before();
+    // A reflow the user asks for of their own words holds no extent: a rewrite opening or
+    // closing, or one open, whose box grows and shrinks with their typing as the reply
+    // box does. The room it gives back is theirs to see go (ReplyContinuity).
+    const rewriting = [...this.#messages.values()].some((view) => view.editing);
+    const bodyPlace = requested || rewriting ? null : this.#continuity?.before();
     const restoreFocus = holdFocus(this.node);
     const standing = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);

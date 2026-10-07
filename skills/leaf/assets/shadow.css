@@ -362,7 +362,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript
   > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-body > .lf-msg-editor) {
           --lf-thread-message-control-room:
-            calc(2 * max(58px, var(--aim-floor)) + 4px + var(--sp-2)); }
+            calc(max(52px, var(--aim-floor)) + 4px + max(40px, var(--aim-floor))
+              + var(--sp-2)); }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
   > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
           anchor-name: --lf-thread-headline, --lf-msg-head; }
@@ -604,10 +605,17 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-msg > .lf-msg-head { anchor-name: --lf-msg-head; }
 .lf-msg:has(.lf-msg-control) > .lf-msg-head {
           --lf-msg-control: max(26px, var(--aim-floor));
-          padding-inline-end: var(--lf-msg-control); }
-/* An open rewrite's Cancel and Save are two controls where its Edit was one. */
+          padding-inline-end: var(--lf-msg-control-room, var(--lf-msg-control)); }
+/* An open rewrite's Cancel and Save take the room its Edit control took, and more: the
+   head holds the author alone while it is open, its time and labels saying nothing a
+   rewrite needs. */
+.lf-msg:has(> .lf-msg-body > .lf-msg-editor) {
+          scroll-margin-block-end: var(--sp-2); }
 .lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head {
-          --lf-msg-control: calc(2 * max(58px, var(--aim-floor)) + 4px); }
+          --lf-msg-control-room:
+            calc(max(52px, var(--aim-floor)) + 4px + max(40px, var(--aim-floor))); }
+.lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head > .lf-msg-meta {
+          display: none; }
 .lf-msg-control {
           appearance: none; position: absolute; z-index: 2;
           position-anchor: --lf-msg-head;
@@ -666,7 +674,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   .lf-msg:is(.agent, .user) > .lf-msg-head {
           --lf-msg-control: max(26px, var(--aim-floor));
           box-sizing: border-box; min-height: var(--lf-msg-control);
-          align-items: center; padding-inline-end: var(--lf-msg-control); }
+          align-items: center;
+          padding-inline-end: var(--lf-msg-control-room, var(--lf-msg-control)); }
 }
 .lf-msg-meta { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
 .lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }
@@ -1007,21 +1016,23 @@ pre:hover + .lf-code-copy,
 .lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
 /* A message's rewrite stands where its words did. The words keep their place, size and
    wrapping: the field around them takes no room, and its box is painted around them,
-   reaching into the message's inset and the room between turns, so opening and closing
-   it moves nothing. Cancel and Save stand at the message's head (`.lf-msg-edit-actions`). */
+   reaching into the message's inset and the room between turns to the reply box's own
+   edges, so opening and closing it moves nothing. Its ring is drawn inside the box,
+   which a margin card's transcript would otherwise clip. Cancel and Save stand at the
+   message's head (`.lf-msg-edit-actions`). */
 .lf-msg-editor { display: block; min-width: 0; font: inherit; }
 .lf-msg-editor > .lf-compose-field { isolation: isolate; }
 .lf-msg-editor > .lf-compose-field::before { content: ""; position: absolute; z-index: -1;
-          inset: -4px calc(-1 * var(--lf-thread-text-inset));
+          inset: -4px 0 -4px calc(-1 * var(--lf-thread-text-inset));
           border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
           pointer-events: none; }
 .lf-msg-editor > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus))::before {
           outline: var(--focus-ring); --lf-focus-ring: text-box;
-          outline-offset: 0; border-color: transparent; }
+          outline-offset: calc(-1 * var(--focus-ring-w)); border-color: transparent; }
 .lf-msg-editor > .lf-compose-field > leaf-text:not(.lf-fab-input) { display: block;
           min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0;
           background: transparent; color: var(--ink); font: inherit;
-          --lf-field-end-room: 0px; }
+          max-height: none; overflow: visible; --lf-field-end-room: 0px; }
 .lf-msg-editor > .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
 .lf-thread-reply .lf-compose-field {
           --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
@@ -1043,9 +1054,10 @@ pre:hover + .lf-code-copy,
           inset-block-start: anchor(center); inset-inline-end: anchor(right); translate: 0 -50%;
           display: inline-flex; gap: 4px; }
 .lf-msg-edit-actions > .lf-msg-control { position: static; translate: none; opacity: 1;
-          inline-size: max(58px, var(--aim-floor)); block-size: max(24px, var(--aim-floor));
-          min-width: 0; min-height: 0;
+          block-size: max(24px, var(--aim-floor)); min-width: 0; min-height: 0;
           font: 600 var(--t-6)/1 var(--sans); }
+.lf-msg-edit-actions > .lf-msg-edit-cancel { inline-size: max(52px, var(--aim-floor)); }
+.lf-msg-edit-actions > .lf-msg-edit-save { inline-size: max(40px, var(--aim-floor)); }
 .lf-msg-edit-actions > .lf-msg-edit-save::before { display: none; }
 .lf-msg-edit-actions > .lf-msg-edit-save:not([aria-disabled="true"]) { color: var(--accent); }
 

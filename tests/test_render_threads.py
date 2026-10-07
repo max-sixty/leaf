@@ -10238,8 +10238,10 @@ def test_pending_message_headers_match_their_bodies(browser, serve, surface):
 
 def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     """A double click, or ↑ from the thread's empty reply box, opens the user's own
-    words in place. Enter sends the rewrite; Escape keeps the message as it was and the
-    words for the next opening, which Resume writing reaches, and Cancel discards them.
+    words in place. Enter sends the rewrite; Escape and Cancel leave the message as it
+    was and discard the words, so one Escape undoes the ↑ (the user's decision,
+    2026-10-06). Words a rewrite still holds when the page goes, as on a reload, wait
+    for the next opening, which Resume writing reaches.
 
     The rewrite draws on the message in the gesture, labelled edited, and reaches the
     log as one `edit` naming the message. The agent's words offer no rewrite, and the
@@ -10304,25 +10306,23 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     page.keyboard.press("Escape")
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the south bracket.")
-    expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
-    # Escape steps back up one rung, to the reply box ↑ came from, and the next one out
-    # of the box to the thread.
+    expect(message.locator(".lf-msg-kept")).to_have_count(0)
+    # Escape steps back up one rung, to the reply box ↑ came from.
     expect(reply).to_be_focused()
-    page.keyboard.press("Escape")
-    # Resume writing goes back to the kept words, as it does to a kept reply.
+    message.locator(".lf-msg-text").dblclick()
+    expect(editor).to_have_js_property("value", "Fit the south bracket.")
+    page.keyboard.type(" Or the east.")
+    # Words a rewrite holds when the page goes wait for its next opening.
+    page.reload()
+    wait_until_ready(page)
+    if not message.is_visible():
+        page.locator(".lf-threads-toggle").click()
+    expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
     page.keyboard.press("g")
     page.keyboard.press("i")
     expect(editor).to_be_focused()
-    expect(editor).to_have_js_property("value", "Fit the south bracket. Or not.")
+    expect(editor).to_have_js_property("value", "Fit the south bracket. Or the east.")
     message.get_by_role("button", name="Cancel").click()
-    expect(message.locator(".lf-msg-editor")).to_have_count(0)
-    expect(message.locator(".lf-msg-kept")).to_have_count(0)
-    message.locator(".lf-msg-text").dblclick()
-    expect(editor).to_have_js_property("value", "Fit the south bracket.")
-    # Closing a rewrite whose words the message already says keeps nothing.
-    page.keyboard.type("x")
-    page.keyboard.press("Backspace")
-    page.keyboard.press("Escape")
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(message.locator(".lf-msg-kept")).to_have_count(0)
     round_trip(page)
@@ -10500,7 +10500,7 @@ def test_a_rewrite_opens_and_closes_without_moving_the_thread(browser, serve, su
     words.dblclick()
     expect(editor).to_be_focused()
     page.keyboard.type("Y")
-    expect(editor).to_have_js_property("value", "Fit the north bracket.ZY")
+    expect(editor).to_have_js_property("value", "Fit the north bracket.Y")
     # Escape on the rewrite's own controls closes it as in its words.
     message.get_by_role("button", name="Save", exact=True).focus()
     page.keyboard.press("Escape")
@@ -10665,3 +10665,57 @@ def test_a_rewrite_never_replaces_words_it_did_not_see(browser, serve):
         ("Saved in A.", mine["id"]),
         ("Saved in B.", edits[0]["id"]),
     ]
+
+
+def test_a_rewrite_under_a_finger_keeps_its_message_head(browser, serve):
+    """Under a finger a message's head holds the row its control stands in. An open
+    rewrite's Cancel and Save took that row's height from the room they need across, so
+    a message below the first grew a head 120px tall and pushed the reply box down. The
+    head keeps its row, and the box's words take the floor a field's type needs on a
+    phone, the one size that changes."""
+    url = serve(THREAD_DIFF_PAGE)
+    d = serve.page_dir
+    first = append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "id": "rewritten",
+            "author": "user",
+            "revision": 1,
+            "text": "Fit the north bracket.",
+            "anchor": {"section": "cd-q"},
+        },
+    )
+    answer = append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Indexer",
+            "session": "worker-1",
+            "parent": first["id"],
+            "responds": first["id"],
+            "text": "Fitted.",
+        },
+    )
+    second = append_carried_log_record(
+        d, {"kind": "reply", "author": "user", "parent": answer["id"], "text": "Thanks."}
+    )
+    context = browser.new_context(
+        is_mobile=True, has_touch=True, viewport={"width": 390, "height": 844}
+    )
+    page = open_page(browser, url, context=context)
+    page.locator(".lf-threads-toggle").click()
+    message = page.locator(f'.lf-thread .lf-msg[data-mid="{second["id"]}"]')
+    expect(message).to_be_visible()
+    rendered(page)
+    head = message.locator(".lf-msg-head")
+    rest = head.bounding_box()
+    message.locator(".lf-msg-edit").tap()
+    expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    rendered(page)
+    now = head.bounding_box()
+    assert abs(now["height"] - rest["height"]) < 0.5, (rest, now)
+    for name in ("Cancel", "Save"):
+        box = message.get_by_role("button", name=name, exact=True).bounding_box()
+        assert now["y"] - 1 <= box["y"] + box["height"] / 2 <= now["y"] + now["height"] + 1

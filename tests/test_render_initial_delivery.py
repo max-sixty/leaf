@@ -207,14 +207,10 @@ def test_a_streamed_initial_host_first_shows_its_complete_drawing(browser):
             assert errors == []
 
             fallback = browser.new_context(java_script_enabled=False)
-            try:
-                reader = fallback.new_page()
-                reader.goto(f"http://127.0.0.1:{server.server_port}/")
-                assert reader.locator("#inner").is_visible()
-                assert reader.locator("#inner").inner_text() == "Original nested prose"
-            finally:
-                fallback.close()
+            reader = fallback.new_page()
+            reader.goto(f"http://127.0.0.1:{server.server_port}/")
+            assert reader.locator("#inner").is_visible()
+            assert reader.locator("#inner").inner_text() == "Original nested prose"
         finally:
             release_source.set()
             release_module.set()
-            context.close()

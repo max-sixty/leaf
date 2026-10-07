@@ -456,15 +456,14 @@ def test_a_comment_box_opens_where_a_panel_beside_the_page_leaves_it_in_sight(
     page = open_page(browser, serve(walkthrough))
     resized(page, 1440, 900)
     panel = page.get_by_role("dialog", name="Threads", exact=True)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(panel).to_be_visible()
     opener = page.locator("#pr-exact-patch .lf-diff-file-comment").first
     opener.scroll_into_view_if_needed()
     opener.click()
     page.keyboard.type("draft words")
     box = page.locator("leaf-text.lf-fab-input")
     expect(page.locator("#pr-exact-patch leaf-text.lf-fab-input")).to_be_focused()
+    page.locator(".lf-threads-toggle").click()
+    expect(panel).to_be_visible()
     page_at_rest(page)
     edge = panel.locator(".lf-edge").first.bounding_box()
     middle = edge["y"] + edge["height"] / 2

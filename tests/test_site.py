@@ -661,7 +661,7 @@ def test_the_published_notification_example_runs_its_authored_module(
     _, url = served_example("notification-playground")
     page = open_page(browser, url)
     pressure = page.get_by_role("slider", name="Concurrent release events")
-    expect(pressure).to_have_attribute("aria-valuenow", "2")
+    expect(pressure).to_have_js_property("value", "2")
 
     pressure.press("ArrowRight")
     pressure.press("ArrowRight")

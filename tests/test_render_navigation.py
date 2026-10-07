@@ -13349,7 +13349,7 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     page.keyboard.press("Shift+Enter")
     expect(field).to_have_js_property("value", "Send through the compact control.\n")
     expect(field).to_have_attribute(
-        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
+        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter Tab"
     )
     with sending(page, "the composer shortcut"):
         page.keyboard.press("Enter")

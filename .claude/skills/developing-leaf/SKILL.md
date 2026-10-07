@@ -120,13 +120,16 @@ least one second. `--motion reduce`
 reproduces the reduced-motion preference. A failed journey keeps its recording
 and exits unsuccessfully. The same command takes any HTTP(S) URL for general
 browser work. Keep the page and context open until the recorder finalizes:
-Playwright cannot save screencast video after its page closes. Serve the trace in
-a browser tab with:
+Playwright cannot save screencast video after its page closes. Serve the trace
+without opening a desktop browser with:
 
 ```bash
-uv run playwright show-trace --host 127.0.0.1 --port 0 \
+uv run leaf-dev trace-server \
   .tmp/recordings/NAME/worktree/trace.zip
 ```
+
+The command prints the viewer URL and stays running. Link that URL in the review
+page; open a desktop browser only when the user asks to watch.
 
 When showing a timeline in Leaf, select the optional `playwright` package and
 read its author instructions. Bind `lf-trace` to the original archive's imported

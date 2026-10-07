@@ -11,6 +11,7 @@ import {
   whenApplicationRegionsPresented,
   whenWidgetsPresented,
   presentDocument,
+  whenDocumentPresented,
 } from "./semantic-state.js";
 import { newAttempt } from "./drafts.js";
 import { saidNow } from "./presence.js";
@@ -186,16 +187,10 @@ export function mountApplication(dependencies) {
     let threadPresentation = Promise.resolve();
     try {
       pendingTraffic(readApplication().effective.sending);
-      // Desired state changes at enqueue even where the widget has already painted the
-      // same value, so this gesture reaches the page on the pass the enqueue opened,
-      // before transport. It claims directly rather than through `invalidateDom`: a
-      // state application held on some renderer's preparation holds background repaints,
-      // and a user's own gesture is not one of those — what the page can draw of it
-      // does not wait for an answer the log has not given.
-      // The presentation coordinator reports a failed paint once, for the region that
-      // owns it. Observe the pass here so this gesture's own promise carries no
-      // unhandled rejection and no second account of one fault.
-      threadPresentation = presentDocument().catch(() => undefined);
+      // Enqueue publishes and claims its presentation synchronously, including while an
+      // accepted reading is still preparing. Observe that pass without starting another;
+      // its coordinator reports any failed paint, and transport proceeds independently.
+      threadPresentation = whenDocumentPresented().catch(() => undefined);
     } catch (error) {
       presentationError = error;
     } finally {

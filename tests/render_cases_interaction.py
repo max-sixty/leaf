@@ -478,6 +478,9 @@ HOLD_MOTION = """
   const inner = Element.prototype.animate;
   Element.prototype.animate = function (...args) {
     const motion = inner.apply(this, args);
+    // A scroll timeline owns its progress; assigning an absolute time to it throws.
+    // The hold is for gesture animations on the document timeline.
+    if (motion.timeline !== document.timeline) return motion;
     motion.pause();
     motion.currentTime = 0;
     window.__lfHeld.push(motion);

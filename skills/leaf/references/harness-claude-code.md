@@ -31,7 +31,8 @@ every transport") and confirms it, so the user's moves read **Picked up** and it
 `acknowledge` is null: run no acknowledgement command. Large input arrives as a
 `leaf delivery read <id>` pointer instead; run it before working or replying, since
 reading it is what confirms it. Input that arrives as a turn ends comes through the
-Stop hook the same way.
+Stop hook the same way. Where the user turned on Leaf's hooks module, the module
+keeps the same watch, and a wake it opens arrives as a message from the leaf plugin.
 
 To pick up a page this session did not serve, run `leaf page claim <page>`; the
 Stop hook watches it from the end of the turn.
@@ -40,9 +41,9 @@ If a turn ends without answering a delivered move, the next prompt hook carries
 that obligation back into context and renews its **Picked up** receipt for the new
 turn without a start. The banner reports overall page activity separately.
 
-When nothing was watching, as after a turn you interrupted or once a background
-job has been idle for an hour, new input reaches you as a message from Leaf naming
-the page. It comes through Claude Code's session
+When nothing was watching, as after a turn you interrupted without the hooks module
+or once a background job has been idle for an hour, new input reaches you as a
+message from Leaf naming the page. It comes through Claude Code's session
 messaging, so it is presented as coming from another session; the input arrives
 with it, and the watch starts again when that turn ends.
 

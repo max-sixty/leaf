@@ -78,6 +78,7 @@ PRODUCT_ROUTES = {
     "extending.html": "/extending/",
     "registry.html": "/registry/",
     "event-log.html": "/event-log/",
+    "threads.html": "/threads/",
 }
 SITE_PACKAGE = "./docs/package"
 # The card a link to a product page unfurls into, shot at the 1.91:1 an unfurler draws

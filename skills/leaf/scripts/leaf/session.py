@@ -545,13 +545,14 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     input: the turn the pending input was handed to is the one the user stopped,
     and their next prompt carries it. Input admitted between the interruption and
     the watch's first look at the log waits for that prompt too, since nothing
-    records what the stopped turn was handed."""
+    records what the stopped turn was handed, unless the harness's `nudge` reaches
+    the session first: until that look no lease is held, so admission nudges."""
     watch = Watch(harness)
-    if not watch.acquire():
-        return None
     # Where each page's log stood as the watch first saw it, and when the Stop
     # hook's answer over what was pending then is due: an event past that point
-    # arrived since. A page claimed while the watch runs is first seen then.
+    # arrived since. A page claimed while the watch runs is first seen then. The
+    # first look precedes the lease, so the session reads as listening only once
+    # input admitted from then on is input that arrived after it.
     began: dict[Path, tuple[int, float]] = {}
 
     def first_sight(page_dir: Path, end: int) -> tuple[int, float]:
@@ -559,14 +560,23 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
 
     for page_dir in owned_pages(harness.session):
         first_sight(page_dir, _log_end(page_dir))
+    if not watch.acquire():
+        return None
     woke = []
 
     def ready(reading: PageTick) -> bool:
         claim = reading.transaction.active_claim
         last = reading.batch[-1]["seq"]
         end, settled = first_sight(reading.page_dir, last)
+        # TODO: read what the stopped turn was handed from its pickups rather than
+        # from where the log stood. Input that arrived mid-run and was never handed
+        # over (Pi holds it until `turn_end`) now waits for the next prompt instead
+        # of waking the session.
         if interrupted:
             return last > end
+        # TODO: this wakes for pending input the turn already answered without
+        # picking it up, as an agent does after `leaf status` names the move, and
+        # the turn it opens only says so (seen in `verify-cc-task`'s `ending` step).
         return (
             (claim is not None and claim.get("turn_closed") is not None)
             or last > end

@@ -6,9 +6,11 @@
    at each scroller's edge cannot be anchored, since an anchor outside a box's
    containing block cannot position it. A motion layer is a box translated by a scroll
    driven animation instead, one layer per axis a scroller scrolls along, so the
-   browser moves it in the frame that scrolls and no script answers the scroll. Nested
-   layers compose in that same frame; two effects added on one node compose a frame
-   late.
+   browser moves it with the scroll and no script answers the scroll. Nested layers
+   compose in the same frame as one another; two effects added on one node compose a
+   frame late. Chrome can still paint a layer a frame before or after the scrolled
+   content it carries, which it never does to an anchor that scroll carries, so a
+   surface uses a layer only where no anchor reaches the scroll.
 
    Sticky and fixed ancestry cannot be represented by a linear scroll trajectory,
    and a scroller used as its own subject supplies no visibility interval. Such
@@ -65,11 +67,24 @@ export function scrollOrigins(contexts) {
   return origins;
 }
 
-const scrollContainer = (box) =>
+export const scrollContainer = (box) =>
   box === box.ownerDocument.scrollingElement ||
   /auto|scroll|hidden/.test(
     `${getComputedStyle(box).overflowX} ${getComputedStyle(box).overflowY}`,
   );
+
+// Whether `box` scrolls what it holds: it clips into a scrollport, `hidden` included,
+// which a script or focus can scroll, and holds more than that scrollport shows on that
+// axis. An inline SVG drawing clips what it draws but scrolls none of it.
+export function scrollsContent(box) {
+  if (!(box instanceof Element) || box instanceof SVGElement) return false;
+  const style = getComputedStyle(box);
+  const port = (overflow) => overflow !== "visible" && overflow !== "clip";
+  return (
+    (port(style.overflowX) && box.scrollWidth > box.clientWidth) ||
+    (port(style.overflowY) && box.scrollHeight > box.clientHeight)
+  );
+}
 
 // Whether `source` starts scrolled to the far end of `axis`, its right or bottom, where
 // `scrollLeft` or `scrollTop` runs negative: the platform's rule, from the writing mode

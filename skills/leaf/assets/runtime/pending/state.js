@@ -27,9 +27,6 @@ export function createPendingLedger({ newAttempt, enqueue }) {
         get event() {
           return current()?.event ?? attempted;
         },
-        get projection() {
-          return current()?.projection ?? null;
-        },
         get message() {
           return current()?.message ?? null;
         },

@@ -53,8 +53,20 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Asks,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **#14 — [Verify the complete workspace keyboard and accessibility route](notes/workspace-followups.md#item-14).**
-  Follow one task through reading, panes, comments, and Threads.
+- **Keep Tab off page content a panel beside the page covers.** Threads and the
+  Queue panel leave the page live beside them while standing over part of it. Max's rule
+  (2026-10-06): the panels dominate focus, so moving focus never closes or changes a
+  standing panel, focus never lands on page content a panel covers, and Threads still
+  stands beside a full-width workspace. A comment box already refuses a covered seat
+  (`underOccluder`, geometry.js). Tab still walks onto `annotation-workspace`'s rail
+  under Threads at 1440×900, and onto an Ask's option marks under the Queue panel at
+  1200px. Making what a panel covers inert was built and withdrawn: it left the visible
+  part of a partly covered element dead to clicks and selection, and focus still reached
+  chrome markers, sample frames, overflowing children and content an attribute revealed.
+  Decide between laying the page out in the width a panel leaves beside it, which
+  reverses "auxiliary surfaces never change the page's geometry"
+  (`skills/leaf/assets/AGENTS.md`), and Leaf owning Tab beside a panel, skipping stops
+  `hides` says it covers.
 
 ### Agent and author experience
 
@@ -105,7 +117,7 @@ has tried; settle that before building it.
   marker's label and its status (Sent, Stalled); the diff's line "+"; and the
   latest-edit error, a dead passage's reason, a disabled More entry's reason, and the
   compare state. A finger also lacks exits a key has: a mode's or search's steps take
-  Threads and Approve off the row until it ends, Android's back gesture closes nothing
+  Threads off the row until it ends, Android's back gesture closes nothing
   (the Escape ladder could answer it), Draw mode blocks scrolling and zoom, and an
   `lf-draft` has no close that keeps the edit.
 - **Decide whether the response bar's reactions and Suggest need a pointer route.**
@@ -130,18 +142,13 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Give the phone banner one row.** Decided, not built
-  ([plan](notes/chrome-and-covers.md)): one 53px row holding the status in words, cut
-  short with an ellipsis, with a passing notice taking that slot for a few seconds;
-  then Threads as an icon with its count; then More. Approve moves into More, which
-  wears a dot while approval is open.
-- **Recompose `alert-review` as a screen.** It is the worked workspace example, and at
-  1200×900 `page check --render` advises that its detail pane runs 6890px past its
-  region (nine Asks stacked in one scroller) and its queue 104px. A page a reader moves
-  through rather than scrolls shows one alert's decision at a time; the shipped
-  workspace examples are then held to the advice in `test_page_fixture_renders`, with
-  `rust-sort`'s source pane the one reader allowed to scroll
-  ([plan](notes/chrome-and-covers.md)).
+- **Hold the shipped workspaces to the overflow advice.** `alert-review` shows one
+  alert's decision at a time, but `page check --render` still advises that its queue
+  (`ar-queue`) runs 106px past its region at every width from 720 to 1920px, and
+  `rust-sort`'s stage pane 100px at 720px. Fit both, then make
+  `test_page_fixture_renders` fail on that advice for workspace examples, with
+  `rust-sort`'s source pane the one reader allowed to scroll; today it asserts only
+  the gate's failures ([plan](notes/chrome-and-covers.md)).
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
   without asking, which is the trade to weigh ([plan](notes/chrome-and-covers.md)).
@@ -257,10 +264,12 @@ height and where a switch lands wait on the workspace decision under Layout.
   measures from focus (`askPosition` in `asks/view.js`), and the row precedes every
   panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
   the walks (`standing-target.js`), while `c` on a row still names the row.
-- **Let a queue group its items.** The author sorted the items into merge, close,
-  design and FYI, but `lf-tabs` takes only `lf-tab` members, so the page showed 21
-  undifferentiated rows. A side list could take group headings between its items,
-  skipped by the arrow walk.
+- **Keep the open item's group named on a phone.** In the one-row strip a group's
+  label stands before its run's first tab, so opening a later item in a long run
+  (`alert-review`'s "Ledger consumer lag" at 390px) scrolls the label out of view. A
+  label sticky at the row's start, stepping clear of the start press while stuck
+  (`scroll-state(stuck)`, Chrome 133+), keeps it named, but `#showTab` then has to
+  bring a tab in clear of a label whose width changes once it sticks.
 
 ### Recorded interaction review
 

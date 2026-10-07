@@ -22,8 +22,8 @@ turn the delivery opens speaks for it, as an App Server turn does: that turns th
 one thread reply the delivery owes into a `turn` answer, which the turn's own
 messages write, where every other route leaves it a `reply` for `leaf thread
 reply`. The envelope records the first and only the effect of the second: each
-event's `answer` is that same address, so its `handling` clauses follow from the
-answer rather than from the route.
+event's `answer` is that same address. Its delivered `handling` combines registry
+clauses for the event kind and for that answer kind.
 """
 
 import json
@@ -386,7 +386,11 @@ def record_pickup(
     """Durably record one delivery transition for exact attention-bearing inputs.
 
     ``queued`` means Codex's durable same-task queue accepted the batch;
-    ``opened`` means the batch entered an agent turn; ``failed`` means the harness
+    ``opened``, which the page shows as Picked up, means the batch is in the
+    harness's context for the session: written into the conversation its model
+    reads at its next step, whether or not that step has come. A batch the harness
+    holds to add later, as a queue or a steer waiting behind a running tool, is not
+    opened until it is added. ``failed`` means the harness
     gave up on the moves with the named ``failure`` and no answer is coming.
     Queued and opened are transport evidence, not authored work claims. A queued
     transition may therefore be followed by an opened transition for the same
@@ -444,8 +448,11 @@ def receive_batch(
     Every route confirms here once its durable consumer accepts input.
     The body records pickup and turn entry before this advances the cursor, so
     interruption leaves input available for retry. Work remains separate.
-    Current ownership authorizes the write, not capture-time ownership;
-    an old envelope can be confirmed after ownership returns to its receiver.
+    Current ownership authorizes the write, not capture-time ownership: the
+    page is still the receiver's (`service.claim_names_session`), even between a
+    restart's new generation and its claim, and an old envelope can be confirmed
+    after ownership returns to its receiver. A receiver with no session takes
+    receipt only while no session holds the page.
     """
     # The page is already locked; keep lifecycle admission valid through pickup
     # and cursor commit. SessionEnd cannot cross between those writes.
@@ -454,8 +461,11 @@ def receive_batch(
         if session_id
         else nullcontext()
     ):
-        claim = page.active_claim
-        if (claim["id"] if claim else None) != session_id:
+        if (
+            page.active_claim is not None
+            if session_id is None
+            else page.claim_of(session_id) is None
+        ):
             raise ReceiptRefused(f"delivery no longer owns its page: {page.page_dir}")
         expected = {event["seq"]: event["id"] for event in batch["events"]}
         delivered = {event["seq"]: event for event in page.events}

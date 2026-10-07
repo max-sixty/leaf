@@ -320,7 +320,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
    makes this runtime-private in the one CSS namespace scoping cannot protect. */
 @keyframes lf-runtime-4f3c2a8d-working { to { opacity: .5; } }
 @keyframes lf-runtime-4f3c2a8d-flash {
-  0% { background: var(--hi-tint); } 100% { background: var(--card); }
+  /* The target owns its resting fill, including transparency and focus paint.
+     An omitted endpoint lets the browser interpolate to that underlying value. */
+  from { background-color: var(--hi-tint); }
 }
 @keyframes lf-runtime-4f3c2a8d-grow {
   0% { opacity: 0; transform: translateY(-6px) scale(.985); }
@@ -397,8 +399,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      response bar, and inspect in their ordinary order within it. */
   :is(.lf-page-paint, .lf-target-paint) { z-index: var(--lf-z-page-paint); }
   .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: var(--lf-z-chrome-paint); }
-  /* A paint box stands in the frames that cut what it is drawn over, each moved by the
-     scroll of the box that holds it (target-paint-geometry.js, `paintStand`). */
+  /* A paint box stands in the frames that cut what it is drawn over, each carried by the
+     scrolls around the box that holds it: anchored to that box where anchors reach, else
+     in its motion layers (target-paint-geometry.js, `paintStand`). */
   .lf-paint-stand { left: 0; top: 0; pointer-events: none; }
   .lf-paint-frame { position: absolute; }
   .lf-paint-motion { position: absolute; left: 0; top: 0; }
@@ -514,7 +517,21 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-status-button::after { content: ""; flex: none; width: 5px; height: 5px;
     border-right: 1px solid var(--muted); border-bottom: 1px solid var(--muted);
     transform: rotate(45deg); margin: -3px 0 0 -4px; }
-  .lf-status-button > .lf-status-text { order: 1; }
+  .lf-status-button > .lf-status-words { order: 1; }
+  /* The words and a passing notice share one box, so the notice taking the words' place
+     on a phone moves nothing; the words stay in it, unpainted, as the press's name. */
+  .lf-status-words { display: grid; grid-template-columns: minmax(0, auto); min-width: 0;
+    align-items: center; }
+  .lf-status-words > * { grid-area: 1 / 1; }
+  /* A notice may take two lines of the row, which holds them, since a refusal's reason
+     is a sentence the user has to read whole; past two it ends in an ellipsis. */
+  .lf-status-notice { display: none; min-width: 0; overflow: hidden;
+    -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2;
+    white-space: normal; overflow-wrap: anywhere; line-height: 1.25; color: var(--ink); }
+  @container style(--lf-notice-seat: banner) {
+    .lf-banner-status[data-lf-notice] .lf-status-notice { display: -webkit-box; }
+    .lf-banner-status[data-lf-notice] .lf-status-text { opacity: 0; }
+  }
   /* The queue counts are page facts, like the Threads count, so they stand apart from
      the sentence: on one row between the status's room and the run, in a box reserved
      for the counts they usually reach (banner.js), which only grows. Their words start
@@ -578,6 +595,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      on the focus ring's edge, so a door with news behind it read as the focused control
      while the user was typing somewhere else. */
   :is(.lf-threads-toggle, .lf-banner-more, .lf-version) { position: relative; }
+  /* Threads draws its icon only on a phone's one row (below). */
+  .lf-threads-icon { display: none; flex: none; inline-size: 16px; block-size: 16px;
+    fill: none; stroke: currentColor; stroke-width: 1.6;
+    stroke-linecap: round; stroke-linejoin: round; }
   :is(.lf-threads-toggle[data-unread-threads], .lf-banner-more[data-lf-news],
       .lf-version[data-lf-news])::after {
     content: ""; position: absolute; inset-block-start: 2px; inset-inline-end: 2px;
@@ -616,6 +637,43 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      own specificity. The menu reserves no width, so nothing is spent restating it. */
   .lf-banner-menu .lf-btn.on {
     background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
+  /* Comment on the page is a symbol on the row and its words behind More, where every
+     row is words (thread/page-comment.js). */
+  .lf-page-comment { anchor-name: --lf-page-comment; }
+  /* The symbol sits in a line box, as every other control's words do, so the row's
+     line-height padding gives it their height; a flex box would size to the icon and
+     fall short of the aim floor. It is Threads' icon at Threads' weight: on the desk
+     only this control draws it, and on a phone only Threads does. */
+  .lf-banner-actions > .lf-page-comment { padding-inline: 8px; }
+  .lf-page-comment-icon { display: inline-block; vertical-align: middle;
+    inline-size: 16px; block-size: 16px;
+    fill: none; stroke: currentColor; stroke-width: 1.6;
+    stroke-linecap: round; stroke-linejoin: round; }
+  .lf-banner-actions .lf-page-comment-label,
+  .lf-banner-menu .lf-page-comment-icon { display: none; }
+  /* Open, the control takes the open surface's accent and ground, without the underline
+     an auxiliary toggle wears: the card's top edge meets it there. */
+  .lf-page-comment[aria-expanded="true"] { color: var(--accent); background: var(--chip); }
+  /* The card's box lays out as every composer does, its pasted media in a row of its
+     own (the unscoped rule above, for the boxes a shadow tree also holds). */
+  .lf-page-composer { --quote-inset: 10px; --pre-inset: 10px; }
+  .lf-page-composer:has(> .lf-composer-media:not([hidden])) { flex-wrap: wrap; }
+  .lf-page-composer > .lf-composer-media { display: flex; flex: 1 0 100%; gap: 6px;
+    min-width: 0; overflow-x: auto; padding: 2px; box-sizing: border-box; }
+  /* The card hangs from the control: its top edge on the banner's foot and its right
+     edge on the control's, with no border along the edge it hangs from, so control and
+     card read as one piece while it is open. On a phone, where the control is behind
+     More, it spans the window under the banner. */
+  .lf-page-comment-card { position: fixed; position-anchor: --lf-page-comment;
+    top: var(--lf-banner-h); right: anchor(right); bottom: auto; left: auto;
+    margin: 0; z-index: var(--lf-z-menu);
+    box-sizing: border-box; width: min(28rem, calc(100vw - 16px));
+    padding: 12px; background: var(--paper); color: var(--ink);
+    border: 1px solid var(--border-2); border-top: 0;
+    border-radius: 0 0 var(--r) var(--r); box-shadow: 0 12px 36px var(--shade); }
+  @media screen and (width <= 480px) {
+    .lf-page-comment-card { right: 8px; width: calc(100vw - 16px); }
+  }
   /* The controls stay packed against the row's end. Approval and Threads each hold the
      widest words they can show, measured by the reserve calls where the banner is
      built, so either can update without moving its sibling. The measured floor stays
@@ -1032,8 +1090,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      Sticky rows also paint over the conversation that scrolls beneath them. */
   .lf-thread-compact > :is(.lf-thread-summary, .lf-thread-reply) {
     background: var(--lf-thread-surface); }
-  .lf-thread-compact[open]:has(> .lf-thread-reply) > .lf-thread-content {
-    display: flex; flex-direction: column; }
   .lf-thread-summary { display: grid; flex: none;
     grid-template-columns: minmax(0, 1fr) minmax(0, max-content) auto;
     align-items: baseline; align-content: center; column-gap: 8px; width: 100%; block-size: var(--lf-thread-title-h); border: 0;
@@ -1081,9 +1137,17 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-thread-header-action:hover { text-decoration-style: solid; }
   .lf-thread-compact:not([open]) > .lf-thread-header-action { display: none; }
   /* The container supplies navigation and an inset; shadow.css owns the conversation. */
-  .lf-thread-compact > .lf-thread-content > .lf-thread-head { margin: 12px var(--lf-thread-inset); }
-  .lf-thread-compact > .lf-thread-content > .lf-thread-controls { margin: 12px var(--lf-thread-inset) 0; }
-  .lf-thread-compact > .lf-thread-content > .lf-thread-transcript { flex: none; margin-inline: var(--lf-thread-inset); }
+  .lf-thread-compact > .lf-thread-content { padding-block-start: 12px; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-head { margin: 0 var(--lf-thread-inset) 12px; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-transcript {
+    margin: 12px var(--lf-thread-inset) 0; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-transcript:first-child {
+    margin-block-start: 0; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-transcript
+    > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint) { margin-block-start: 0; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-transcript
+    > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint) .lf-summary-header {
+    min-height: max(28px, var(--aim-floor)); align-items: center; }
   /* A checkpoint is agent-written reading context, followed by the retained originals
      it covers. One disclosure beside that context controls the entire range. */
   .lf-thread-checkpoint { margin-block: 16px; }
@@ -1093,13 +1157,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     inset-block: 4px; inset-inline-start: -10px; width: 6px;
     border: 1px solid var(--muted-2); border-inline-end: 0; pointer-events: none; }
   .lf-summary-checkpoint { padding-block: 4px; }
-  .lf-summary-header { display: flex; align-items: baseline; gap: 8px; }
+  /* Keep the context label readable when the disclosure needs another line. */
+  .lf-summary-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
   .lf-summary-label { min-width: 0; overflow-wrap: anywhere; color: var(--muted); font: 500 11px/1.3 var(--sans); }
   .lf-summary-text { color: var(--ink-2); font-size: var(--t-5); line-height: 1.5;
     overflow-wrap: anywhere; user-select: text; }
   .lf-summary-text > :first-child { margin-top: 0; }
   .lf-summary-text > :last-child { margin-bottom: 0; }
-  .lf-summary-expand { min-height: var(--aim-floor); flex-shrink: 0; border: 0;
+  .lf-summary-expand { min-height: var(--aim-floor); max-inline-size: 100%; flex-shrink: 0; border: 0;
     padding: 4px 0; background: transparent; color: var(--accent); font: 600 11px/1.4 var(--sans);
     cursor: pointer; }
   .lf-summary-required { margin-top: 6px; color: var(--turn-ink); font: 600 11px/1.4 var(--sans); }
@@ -1230,7 +1295,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      chrome measures for its lift is the one the user sees standing there. */
   .lf-thread-panel-foot { display: flex; flex-direction: column; flex: none; }
   /* Every composer gives its field the row; its submit action lives inside that field. */
-  .lf-general { display: flex; gap: 6px; align-items: flex-end; }
+  :is(.lf-general, .lf-page-composer) { display: flex; gap: 6px; align-items: flex-end; }
   .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
   .lf-thread-action:hover { color: var(--ok); }
   /* Reopen stands in the same row as Resolve and answers the same question from the
@@ -1608,21 +1673,36 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
        sentence still reads in its own direction. */
     direction: rtl; }
   .lf-bottom-status, .lf-bottom-status > * { unicode-bidi: plaintext; }
-  .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]),
-      > .lf-walk-position:not([hidden]), > .lf-notice.show)) { display: none; }
+  /* Where a passing notice stands: here at the foot, or on a phone in the banner's
+     status words, the one row a phone's banner has (banner-status-view.js). The banner
+     is the seat only while it draws its status over a live page: a covering surface
+     makes it inert background under the scrim, and a block sample draws no status, so
+     there the notice stays at the foot, which stands above both. */
+  :scope { --lf-notice-seat: foot; }
+  @media screen and (width <= 480px) { :scope { --lf-notice-seat: banner; } }
+  html:is([data-lf-covering-surface], [data-lf-sample-block]) :scope {
+    --lf-notice-seat: foot; }
+  @container style(--lf-notice-seat: foot) {
+    .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]),
+        > .lf-walk-position:not([hidden]), > .lf-notice.show)) { display: none; }
+    .lf-notice.show { display: block; }
+    .lf-bottom-status:has(> .lf-notice.show) { color: var(--ink); }
+    .lf-bottom-status:has(> .lf-notice.show) > :is(.lf-go-to-status, .lf-walk-position) {
+      display: none; }
+  }
+  @container style(--lf-notice-seat: banner) {
+    .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]),
+        > .lf-walk-position:not([hidden]))) { display: none; }
+  }
   .lf-walk-position { font-variant-numeric: tabular-nums; }
   .lf-go-to-status { white-space: normal; }
   /* News in the status (a notice, or a walk arriving at its end) is ink where the
      resting line is muted, on the same card ground and hairline: status text, which
      takes no press. A filled accent pill read as a primary button. */
-  .lf-bottom-status:has(> .lf-walk-position[data-lf-boundary], > .lf-notice.show) {
-    color: var(--ink); }
+  .lf-bottom-status:has(> .lf-walk-position[data-lf-boundary]) { color: var(--ink); }
   .lf-walk-position[hidden] { display: none; }
   .lf-notice { display: none; color: inherit; font-size: inherit; line-height: inherit;
     white-space: normal; min-width: 0; }
-  .lf-notice.show { display: block; }
-  .lf-bottom-status:has(> .lf-notice.show) > :is(.lf-go-to-status, .lf-walk-position) {
-    display: none; }
   .lf-bottom-status:has(> .lf-go-to-status:not([hidden])) > .lf-walk-position {
     display: none; }
   /* A touch device has no keyboard hints to advertise, so the resting line stands down
@@ -1771,12 +1851,13 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-inspect.lf-shown { display: block; }
   /* A phone held upright is narrower than the run in its desk face, so there the run
      wears a narrow one: the banner gives up its inset, which the status keeps for its
-     own line, and each control keeps only a sliver of padding. Approval, Threads,
-     and More keep the same order at every width.
+     own line, and each control keeps only a sliver of padding. Approval stands first
+     behind More there (banner-toolbar.js), so the row holds the status, Threads and
+     More.
 
-     The status keeps to one line in its own stated row. Two would be a row that changes
-     height as a sentence ages, which moves every control under it for no gesture; the
-     complete status remains available in its hover title at every width. */
+     The status keeps to one line, cut short by an ellipsis. Two would be a row that
+     changes height as a sentence ages, which moves every control under it for no
+     gesture; the complete status remains in its disclosure at every width. */
   @media screen and (width <= 480px) {
     .lf-banner { padding: var(--lf-safe-top) 0 0;
       --lf-status-inset-left: calc(14px + var(--lf-safe-left));
@@ -1798,6 +1879,24 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
        safe here.
        It states both axes for the same reason, and the band is the shared control's. */
     .lf-banner-actions > .lf-btn { min-height: max(40px, var(--aim-floor)); padding: 4px 2px; }
+    /* One row (theme.css): the status in words takes what Threads and More leave, so the
+       run is as wide as its controls rather than the desk's stated room, and the queue
+       counts stand down, as they do wherever the banner has no room for them; the
+       status's disclosure and the Queue control in More still say what they count. */
+    .lf-banner-actions { flex: none; }
+    .lf-banner > .lf-status-queues { display: none; }
+    /* Threads is its icon and its count. The count holds room for three digits, which
+       the desk's reservation holds as words, so a count changing moves nothing. */
+    .lf-banner-actions > .lf-threads-toggle { width: auto; gap: 4px; padding-inline: 6px; }
+    .lf-threads-toggle > .lf-threads-icon { display: block; order: -1; }
+    .lf-threads-toggle > .lf-threads-label { display: none; }
+    .lf-threads-toggle::before { content: attr(data-lf-count); min-width: 3ch;
+      text-align: start; font-variant-numeric: tabular-nums; }
+    /* Unread marks the icon's corner, as a badge does, rather than the box's, which
+       stands beside More and read as More's dot. */
+    .lf-threads-toggle[data-unread-threads]::after {
+      inset-block-start: calc(50% - 11px); inset-inline-end: auto;
+      inset-inline-start: calc(6px + 16px - 4px); }
   }
   @media screen and (width <= 840px) {
     /* The sheet the Map opens in stands over the whole window and is sized to it, so

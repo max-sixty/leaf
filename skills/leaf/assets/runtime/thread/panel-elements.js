@@ -23,6 +23,9 @@ export function createThreadPanelElements({
     title: "Close threads (Esc)",
   });
   const panelTitle = el("span", "lf-auxiliary-title", "Threads");
+  // The panel is a dialog, beside the page or covering it, and its title names it.
+  panelTitle.id = `${id}-title`;
+  panel.setAttribute("aria-labelledby", panelTitle.id);
   const firstUnreadBtn = el("button", "lf-btn lf-first-unread", "Next unread");
   firstUnreadBtn.type = "button";
   firstUnreadBtn.hidden = true;

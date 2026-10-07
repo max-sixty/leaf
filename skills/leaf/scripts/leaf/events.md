@@ -51,8 +51,8 @@ cannot invent a replacement passage or detach a thread: a reply makes those choi
 A `drawing` is up to 32 freehand strokes (`strokes`, each a list of points) attached to
 an ordinary comment, and may be that comment's only content. The browser anchors it on
 the element its first stroke starts on or nearest, and records that element's `box` and
-the words the ink stands over as `says`; the door still admits a drawing with no anchor,
-whose offsets start at the page's top-left corner. The drawing's clause in
+the words the ink stands over as `says`. The door refuses a drawing without that anchor
+or `box`, so every drawing stands on an element. The drawing's clause in
 `$events.handling.comment` tells the agent how to read them. The browser also records
 `viewport`, the layout viewport's width and height, and `scheme`, `light` or `dark`, the window the drawing was made in. The
 browser reads all of these off the rendered page, which holds words and geometry no

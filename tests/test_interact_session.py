@@ -5973,12 +5973,19 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
     drawing = {
         "format": "leaf-drawing/2",
         "strokes": [[[0, 0], [10, 10]]],
+        "box": [640, 120],
         "viewport": [1200, 900],
         "scheme": "light",
     }
     for event in (
         {"kind": "comment", "id": "c1", "author": "user", "text": "hi"},
-        {"kind": "comment", "id": "c2", "author": "user", "drawing": drawing},
+        {
+            "kind": "comment",
+            "id": "c2",
+            "author": "user",
+            "anchor": {"section": "w"},
+            "drawing": drawing,
+        },
         {"kind": "comment", "id": "c3", "author": "user", "text": "never mind"},
         {"kind": "resolve", "author": "user", "parent": "c3"},
         page_pick,
@@ -6067,6 +6074,7 @@ def test_codex_delivery_carries_only_the_selected_events_handling(page_dir):
             "drawing": {
                 "format": "leaf-drawing/2",
                 "strokes": [[[0, 0], [1, 1]]],
+                "box": [640, 120],
                 "viewport": [1200, 900],
                 "scheme": "light",
             },
@@ -7534,6 +7542,7 @@ SETTLING_DECISION = {
     "drawing": {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
+        "box": [640.5, 96],
         "viewport": [1200, 900],
         "scheme": "light",
     },

@@ -205,8 +205,11 @@ never moves the user.
 
 ### Motion
 
-Use restrained, finite animations to acknowledge state changes. Do not animate
-continuously while a state remains unchanged.
+Use restrained, finite animations to acknowledge state changes. An untitled
+thread awaiting the agent uses a sheen sweeping across “Generating title”.
+It stops when the title arrives or the thread stops awaiting the agent, and
+is static under reduced motion. Other unchanged states
+do not animate continuously.
 
 Nothing the user must read, press, or decide waits on a clock. Motion runs from a
 state that is already true, and motion that must finish before the result can be

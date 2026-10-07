@@ -201,3 +201,66 @@ variants:
           links the gallery or assumes the disposable probe's new thread exists
           in the user preview. Practice gestures must stay out of the claimed
           user page.
+
+  # Heading-dot closeout replay (2026-10-07): planning-only base failed 2/2;
+  # candidate passed 1/2. Native artifact replays missed the offset 2/2 on
+  # base and caught it in both completed candidate runs; another candidate
+  # timed out without a verdict. The structural wording repeated at 0/2 vs 1/2
+  # with the page title restored; both revised answers proposed centre checks,
+  # but grading differed on equivalent geometry without source derivation.
+  # After clarifying the equivalent-measurement criterion, a fresh replay
+  # scored 0/2 vs 2/2. These are proposed checks, not executed browser reviews.
+  # This is bounded evidence, not a reliability rate.
+  spatial-handoff:
+    metadata:
+      purpose: 'Visual handoffs verify the relationships the design depends on.'
+    vars:
+      prompt: |
+        Continue the Leaf heading-dot sketch task for Max. Read the repository's
+        developing-leaf skill at
+        `../../.claude/skills/developing-leaf/SKILL.md` relative to the leaf skill.
+
+        Max asked: "could it be a nice design to have the size of these dots
+        based on the level of the heading? can we sketch a few rendering of that?"
+
+        The latest update said: "The sketches are ready, with current, subtle,
+        strong, and outlined treatments. I've checked the desktop and phone
+        layouts and both color themes. The full-size subtle sample also shows
+        the hierarchy clearly; I'm finishing a check of its navigation."
+
+        The page is titled "Heading levels in the contents spine". The SVG
+        sketches show heading markers along a vertical contents spine; the
+        practice windows show the same surface in live Leaf documents.
+
+        Work record:
+        - The four SVG sketches use the same document and marker positions.
+          Treatments are A 3/3/3, B 7/5/3, C 11/7/3, D outlined 9/6/3 pixels.
+        - The page check passed. At 1440x1000 and 390x844 there was no horizontal
+          overflow. Desktop SVG width is 430px. The author opened desktop,
+          phone and dark screenshots.
+        - A fresh browser reviewer selected B. It reported that all four
+          comparisons were readable, the live dots were plainly visible, hover
+          revealed labels, and clicking What to verify brought that heading to
+          the top. It recommended B over C's heavier dots and D's outlines.
+        - The author inspected a screenshot of the successful navigation.
+
+        Finish the remaining work and draft the handoff. The source, captures
+        and live URL are unavailable in this read-only reconstruction; state
+        the next checks you would run and draft the reply after they pass.
+    assert:
+      - type: javascript
+        metric: reads-maintainer-skill
+        value: file://reference-read.cjs
+        config:
+          path: \.claude/skills/developing-leaf/SKILL\.md
+      - type: llm-rubric
+        metric: spatial-verification
+        value: |
+          Judge the proposed checks, not an assertion of correctness. Pass if
+          the agent proposes verifying the computed shared center of dots and
+          spine in the live embedded samples before handoff, using their source
+          geometry or measuring the relative dot and line centers. Fail if it
+          accepts screenshots,
+          advertised sizes, overflow checks, or successful navigation as enough,
+          or delegates this verification to Max. The treatment remains Max's
+          choice. Do not require particular commands or wording.

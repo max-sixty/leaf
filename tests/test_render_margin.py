@@ -11125,7 +11125,11 @@ def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
     expect(page.locator(".lf-drawing-pending")).to_have_count(0)
 
 
-def test_rail_holds_foreign_thread_layout_before_existing_actions(browser, serve):
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("reveal", ["button", "return"])
+def test_rail_holds_foreign_thread_layout_before_existing_actions(
+    browser, serve, reveal
+):
     """A new conversation cannot push the rail's existing Ask out from under a reader."""
     page = open_page(browser, serve(page_annotation_action_source()))
     rail = page.locator("lf-annotation-rail")
@@ -11150,9 +11154,48 @@ def test_rail_holds_foreign_thread_layout_before_existing_actions(browser, serve
         rail.get_by_role("button", name="Show updated annotations", exact=True)
     ).to_be_enabled()
     assert ask.bounding_box() == before
-    rail.get_by_role("button", name="Show updated annotations", exact=True).click()
+    if reveal == "button":
+        rail.get_by_role("button", name="Show updated annotations", exact=True).click()
+    else:
+        page.evaluate("""() => {
+          window.__lfTestVisibility = 'hidden';
+          Object.defineProperty(document, 'visibilityState', {
+            configurable: true, get: () => window.__lfTestVisibility,
+          });
+          document.dispatchEvent(new Event('visibilitychange'));
+        }""")
+        with page.expect_request("**/api/news"):
+            page.evaluate("""() => {
+              window.__lfTestVisibility = 'visible';
+              document.dispatchEvent(new Event('visibilitychange'));
+            }""")
+        told(page)
+        rendered(page)
     expect(rail.locator(".lf-page-thread")).to_have_count(1)
     expect(rail).to_contain_text("A new thought about the source")
+    if reveal == "return":
+        page.wait_for_function("""async () => {
+          const { readingIsContinuous } = await window.__lfRuntimeImport(
+            '/runtime/reading-continuity.js');
+          return readingIsContinuous();
+        }""")
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "agent",
+                "agent": "Codex",
+                "session": "pytest-rail-news",
+                "revision": 1,
+                "text": "News after returning to the source",
+                "anchor": {"section": "subject"},
+            },
+        )
+        told(page)
+        expect(rail.locator(".lf-page-thread")).to_have_count(1)
+        expect(
+            rail.get_by_role("button", name="Show updated annotations", exact=True)
+        ).to_be_enabled()
 
 
 def test_rail_holds_source_group_changes_before_existing_actions(browser, serve):

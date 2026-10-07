@@ -1035,6 +1035,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     assert after_box["top"] >= before_box["bottom"]
     resized(page, 1200, 900)
     expect(widget).to_have_attribute("data-compare-layout", "stack")
+
     # In flow the stage is as tall as the view it shows, whatever part of the page
     # the window shows.
     def stage_height():

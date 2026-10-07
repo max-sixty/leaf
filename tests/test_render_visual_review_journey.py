@@ -505,7 +505,9 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(user.locator("body > main")).not_to_have_attribute("inert", "")
     user.keyboard.press("Escape")
     expect(user.get_by_role("dialog")).to_be_hidden()
-    assert user.evaluate("() => document.activeElement === document.body"), user.evaluate("() => document.activeElement.outerHTML.slice(0, 300)")
+    assert user.evaluate("() => document.activeElement === document.body"), (
+        user.evaluate("() => document.activeElement.outerHTML.slice(0, 300)")
+    )
     user.keyboard.press("g")
     user.keyboard.press("i")
     expect(field).to_be_focused()

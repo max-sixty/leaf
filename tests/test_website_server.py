@@ -1228,6 +1228,50 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     ]
 
 
+def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples():
+    """`journey-chart` charts the samples the journey kept, so a later reading needs
+    no transcription: each target's latest version only, each sign a sample saw."""
+
+    def sample(harness, version, titled, working, progress, replied):
+        comment = {
+            "sinceAdmissionMs": {
+                "titled": titled,
+                "progress": progress,
+                "published": replied - 500,
+                "replied": replied,
+            },
+            "sinceSendMs": {"workVisible": working, "responseVisible": replied + 1000},
+        }
+        return {"harness": harness, "version": version, "comment": comment}
+
+    old, new = "a" * 40, "b" * 40 + "+working-tree"
+    samples = [
+        sample("cc", old, 1800, 7000, None, 17500),
+        sample("codex", old, 4700, 200, None, 69600),
+        sample("cc", new, 1300, 7000, 6900, 18600),
+        sample("codex", old, 4600, 300, None, 102900),
+    ]
+    path = journey.samples_path()
+    path.parent.mkdir(parents=True)
+    path.write_text("".join(json.dumps(s) + "\n" for s in samples))
+    result = CliRunner().invoke(journey.journey_chart)
+    assert result.exit_code == 0, result.output
+    markup = result.stdout
+    assert markup.startswith('<lf-chart id="journey-signs"')
+    rows = journey.chart_rows(samples)
+    assert {r["row"] for r in rows} == {
+        "Claude Code at bbbbbbbb+working-tree",
+        "Codex App Server at aaaaaaaa",
+    }
+    # Claude Code's older version is left out; Codex's two runs of one version stay.
+    assert sorted(r["s"] for r in rows if r["sign"] == "reply") == [18.6, 69.6, 102.9]
+    # A step the run never reached draws no dot.
+    assert [r["row"] for r in rows if r["sign"] == "first words"] == [
+        "Claude Code at bbbbbbbb+working-tree"
+    ]
+    assert json.dumps(rows) in markup
+
+
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
     """A hosted task must not discover or initialize another plugin environment."""
     site_root = tmp_path / "site"

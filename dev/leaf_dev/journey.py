@@ -29,6 +29,10 @@ with the code version the journey ran.
 
 A `startup_failed` receipt gets one more ask; any other failure receipt fails on
 the first (`worker/README.md` owns that contract).
+
+Each sample is also kept on the machine that ran it (`samples_path`), and
+`leaf-dev journey-chart` draws what the user saw when, from the kept samples of the
+latest version each target ran, as an `lf-chart` element for a page.
 """
 
 from __future__ import annotations
@@ -837,3 +841,86 @@ def journey(target: str, release: str | None) -> None:
             json.dumps({"at": datetime.now().astimezone().isoformat(), **sample}) + "\n"
         )
     print(f"kept in {samples}", file=sys.stderr)
+
+
+# What the user sees after a comment, in the order it appears, and where each sample
+# records it. Send and admission are within `acknowledged` of each other, tens of
+# milliseconds, so one axis carries both clocks.
+SIGNS = (
+    ("title", "sinceAdmissionMs", "titled", "var(--series-2)"),
+    ("shown working", "sinceSendMs", "workVisible", "var(--series-5)"),
+    ("first words", "sinceAdmissionMs", "progress", "var(--series-4)"),
+    ("reply", "sinceAdmissionMs", "replied", "var(--series-3)"),
+)
+HARNESS_NAMES = {"cc": "Claude Code", "codex": "Codex App Server"}
+TICKS = (0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500)
+# Plot sizes no margin to its labels: about this many px a character at its font.
+LABEL_PX = 5.5
+
+
+def chart_rows(samples: list[dict]) -> list[dict]:
+    """One dot per sign each sample saw, for the latest version each target ran."""
+    latest = {}
+    for sample in samples:
+        latest[sample.get("origin") or sample["harness"]] = sample["version"]
+    rows = []
+    for sample in samples:
+        target = sample.get("origin") or sample["harness"]
+        if sample["version"] != latest[target]:
+            continue
+        name = HARNESS_NAMES.get(target, target)
+        version = re.sub(r"[0-9a-f]{40}", lambda sha: sha[0][:8], sample["version"])
+        row = f"{name} at {version}"
+        for sign, clock, step, _ in SIGNS:
+            if (ms := sample["comment"][clock].get(step)) is not None:
+                rows.append({"row": row, "sign": sign, "s": round(ms / 1000, 2)})
+    return rows
+
+
+def chart_markup(rows: list[dict]) -> str:
+    """An `lf-chart` element drawing `rows` on a log axis of seconds."""
+    seconds = [r["s"] for r in rows]
+    domain = [min(seconds) / 1.5, max(seconds) * 1.5]
+    shown = [entry for entry in SIGNS if any(r["sign"] == entry[0] for r in rows)]
+    described = "; ".join(
+        f"{row}: "
+        + ", ".join(f"{r['sign']} {r['s']} s" for r in rows if r["row"] == row)
+        for row in dict.fromkeys(r["row"] for r in rows)
+    )
+    # Plot's options are JavaScript, so the tick format can be a function: its log
+    # axis otherwise labels in SI units, 100m for 0.1 s.
+    body = f"""{{
+  ariaLabel: {json.dumps(f"Seconds after the comment until each sign. {described}.")},
+  x: {{
+    type: "log",
+    domain: {json.dumps(domain)},
+    ticks: {json.dumps([t for t in TICKS if domain[0] <= t <= domain[1]])},
+    tickFormat: (d) => String(d),
+    grid: true,
+    label: "seconds after the comment (log scale)",
+  }},
+  y: {{label: null}},
+  color: {{
+    legend: true,
+    domain: {json.dumps([sign for sign, *_ in shown])},
+    range: {json.dumps([color for *_, color in shown])},
+  }},
+  symbol: {{domain: {json.dumps([sign for sign, *_ in shown])}}},
+  marginLeft: {LABEL_PX * max(len(r["row"]) for r in rows) + 16},
+  marks: [
+    Plot.dot({json.dumps(rows)}, {{x: "s", y: "row", fill: "sign", symbol: "sign", r: 6}}),
+  ],
+}}"""
+    escaped = body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return f'<lf-chart id="journey-signs" data-height="240"><pre>\n{escaped}\n</pre></lf-chart>'
+
+
+@click.command("journey-chart")
+def journey_chart() -> None:
+    """Print an `lf-chart` of when the user saw each sign of the agent's work, for
+    the latest code version each target ran in this machine's kept samples."""
+    path = samples_path()
+    if not path.exists():
+        raise click.ClickException(f"no samples kept in {path}; run `leaf-dev journey`")
+    lines = path.read_text().splitlines()
+    print(chart_markup(chart_rows([json.loads(line) for line in lines])))

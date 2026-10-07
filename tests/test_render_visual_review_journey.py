@@ -493,6 +493,8 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert_keyboard_focus(user, field)
 
     resized(user, 1366, 768)
+    # Widening rewraps the review, and continuity brings the editor back on a later frame.
+    expect(field).to_be_in_viewport(ratio=1)
     expect(field).to_have_js_property("value", "Restore Back to releases")
     assert_keyboard_focus(user, field)
     user.keyboard.press("Escape")
@@ -505,7 +507,9 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(user.locator("body > main")).not_to_have_attribute("inert", "")
     user.keyboard.press("Escape")
     expect(user.get_by_role("dialog")).to_be_hidden()
-    assert user.evaluate("() => document.activeElement === document.body"), user.evaluate("() => document.activeElement.outerHTML.slice(0, 300)")
+    assert user.evaluate("() => document.activeElement === document.body"), (
+        user.evaluate("() => document.activeElement.outerHTML.slice(0, 300)")
+    )
     user.keyboard.press("g")
     user.keyboard.press("i")
     expect(field).to_be_focused()

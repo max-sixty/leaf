@@ -307,29 +307,37 @@ export async function preserveReadingRegions(owner, change) {
   }
 }
 
-// Whether every region is still scrolled by the box last seen for it. A layout that has
-// handed a region to another scroller, before the observer below has announced it, is
-// not a place to record the user's position in: the old scroller has already let go
-// of it (a flow page clamps as its content leaves).
-export const scrollersSettled = () =>
+// Whether a region is scrolled by the box last seen for it, at the width last seen.
+const asSeen = (region, scroller, width) =>
+  region.scroller === scroller && region.width === width;
+
+// Whether every region stands as last seen. A layout that has handed a region to another
+// scroller or rewrapped it, before the observer below has announced it, is not a place
+// to record the user's position in: the words have already moved under the reader (a
+// flow page clamps as its content leaves), and the restore the announcement brings
+// would return them to that moved place. A region hidden from layout shows no words to
+// move, and measuring one in skipped content would lay out what it skips.
+export const regionsSettled = () =>
   [...regions.values()].every(
     (region) =>
       !live(region) ||
       !region.scroller ||
-      effectiveScroller(region) === region.scroller,
+      !shown(region) ||
+      asSeen(region, effectiveScroller(region), region.host.offsetWidth),
   );
 
-// Every region's scroller and width as last seen, so a size change that hands a region
-// to a different scroller, or rewraps it, is announced once, after layout has produced
-// it. Read on the observer's delivery, which follows layout; nothing here writes a box it
-// observes.
+// Every shown region's scroller and width as last seen, so a size change that hands a
+// region to a different scroller, or rewraps it, is announced once, after layout has
+// produced it. A hidden region keeps what was last seen of it and is compared again once
+// it shows. Read on the observer's delivery, which follows layout; nothing here writes a
+// box it observes.
 const sizes = sizeObserver(() => {
   const shifted = [];
   for (const region of regions.values()) {
-    if (!live(region)) continue;
+    if (!live(region) || !shown(region)) continue;
     const scroller = effectiveScroller(region);
     const width = region.host.offsetWidth;
-    if (region.scroller && (region.scroller !== scroller || region.width !== width))
+    if (region.scroller && !asSeen(region, scroller, width))
       shifted.push({
         region: regionRecord(region),
         from: region.scroller,

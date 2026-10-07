@@ -1,6 +1,16 @@
 /* This module owns Design mode, its targets, and legend geometry. */
 import { cancelRender, nextRender, sizeObserver } from "./rendering.js";
-import { bannerFoot, documentPoint, shownRect } from "./geometry.js";
+import { bannerFoot, shownBox } from "./geometry.js";
+import { anchorReading, nameAnchor } from "./anchor-names.js";
+import { keeps, layoutPx } from "./keeps.js";
+import {
+  anchoredBy,
+  dropStand,
+  paintStand,
+  placement,
+  standBox,
+  standIn,
+} from "./target-paint-geometry.js";
 import { el } from "./widget-elements.js";
 import { WORKS } from "./control-selectors.js";
 import { tabStore } from "./storage.js";
@@ -14,8 +24,8 @@ import { coarsePointer } from "./pointer.js";
 
 // The name of what the pointer is over in design mode, floated at its corner. Chrome
 // nothing presses (pointer-events none, in the stylesheet); refreshAim is its one
-// writer (paintInspect), beside the box it names.
-export const inspectEl = el("div", "lf-ui lf-inspect lf-target-paint");
+// writer (paintInspect), in the aim's planes beside the box it names.
+export const inspectEl = el("div", "lf-ui lf-inspect");
 inspectEl.setAttribute("aria-hidden", "true");
 // Design mode's legend: a box for every addressable element on the page while the mode stands, drawn
 // here in the chrome's layer (paintLegend, its one writer). Paint about the page, so it
@@ -101,27 +111,60 @@ export function createDesignMode({
   // keep the hairline alone: a board's cards each have an id and each is a target, but a
   // tag on every card names nothing a user can't see and hides what they can.
   //
-  // Painted whole from the page on every ask, like the aim's box, because a legend is a
-  // reading of the page and a box kept from a previous reading is a claim about a page
-  // that has since moved. What moves it: a scroll (a board's sideways one included), a
-  // replay (paintAnchors), a resize, the page's markup changing under it (legendMoves —
-  // a diagram finishing its draw, a details opening, a card dragged), and a size
-  // changing with no mutation to say so (legendSizes — an image landing inside an element,
-  // a font swapping in). The shell observer in chrome-layout hears the body's own size
-  // and auxiliary-surface or margin motion and sends them through pageShifted too.
-  // Coalesced to a frame off those doors; the mode change paints in place, so the class
-  // and the legend land together.
+  // Painted whole from the page on every ask that can move it, like the aim's box,
+  // because a legend is a reading of the page and a box kept from a previous reading is a
+  // claim about a page that has since moved. What moves it: a replay (paintAnchors), a
+  // resize, the page's markup changing under it (legendMoves — a diagram finishing its
+  // draw, a details opening, a card dragged), and a size changing with no mutation to
+  // say so (legendSizes — an image landing inside an element, a font swapping in). The
+  // shell observer in chrome-layout hears the body's own size and auxiliary-surface or
+  // margin motion and sends them through pageShifted too. Coalesced to a frame off those
+  // doors; the mode change paints in place, so the class and the legend land together.
+  //
+  // A scroll is none of these. Each box stands in the frames of the boxes that clip
+  // what it names, anchored to what it names (target-paint-geometry.js, `paintStand`),
+  // so the browser carries it through every scroll, a pane's or a board's sideways one
+  // included, and through a sticky offset, a transform or layout that moves its element
+  // as well. Boxes the same frames cut share their stand. Only a box whose element is
+  // within a screen of where it would show is anchored and drawn (`legendNear`), so a
+  // legend of a few hundred boxes holds a screenful of anchors, not one for each, the
+  // layout cost that took the margin's rows off anchors of their own. A scroll changes
+  // only which tags stand inside their box (`legendScrolled`).
   //
   // Reads before writes, in two passes: a box's geometry is a DOM write, and an element's
   // rect read after one is a layout forced per element — the thrash a legend of a few
-  // hundred boxes cannot afford on every scroll frame. So the box set is settled first,
-  // every rect is read, and only then is anything placed.
-  const legendBoxes = new Map(); // addressable → { box, radius, tagW }
+  // hundred boxes cannot afford. So the box set is settled first, every rect is read,
+  // and only then is anything placed, but for each stand's frames, which read their
+  // holders as they stand.
+  const legendBoxes = new Map(); // addressable → { box, radius, tagW, ... }
+  const legendStands = new Map(); // frames key → stand
+  // The addressables in document order, as the last pass found them.
+  let legendOrder = [];
   const legendSizes = sizeObserver(() => pageGeometry.pageShifted());
+  // Which elements stand within a screen of being shown, the scrollers around them
+  // included (`scrollMargin`). A box stands in its stand only while its element is near:
+  // a box out of the document costs no layout, where one hidden in the stand beside the
+  // anchored ones made every layout pass revisit all of them.
+  const legendNear = new Set();
+  const legendView = new IntersectionObserver(
+    (entries) => {
+      const stands = new Set();
+      for (const { target, isIntersecting } of entries) {
+        if (isIntersecting) legendNear.add(target);
+        else legendNear.delete(target);
+        const stand = legendBoxes.get(target)?.stand;
+        if (stand) stands.add(stand);
+      }
+      for (const stand of stands) seatStand(stand);
+      placeTags();
+    },
+    { rootMargin: "100%", scrollMargin: "600px" },
+  );
   // The legend's own writes are mutations too, inside the chrome, and so is the runtime's
   // paint on page elements: a mark rewrites its classes, in the runtime's namespace, on
   // every repaint, which a shift starts. A repaint that heard either would never stop,
-  // and on a page with reactions it didn't, at thousands of mutations a second.
+  // and on a page with reactions it didn't, at thousands of mutations a second. Naming
+  // the start of a scroller's words (`data-lf-content-start`) moves nothing either.
   const authoredClasses = (value) =>
     (value ?? "")
       .split(/\s+/)
@@ -130,6 +173,7 @@ export function createDesignMode({
       .join(" ");
   const movesPage = (r) =>
     !inChrome(r.target) &&
+    r.attributeName !== "data-lf-content-start" &&
     !(
       r.attributeName === "class" &&
       authoredClasses(r.oldValue) === authoredClasses(r.target.getAttribute("class"))
@@ -148,10 +192,77 @@ export function createDesignMode({
       paintLegend();
     });
   }
+  // A stand's key: the frames that cut it, each band from its holder's corner, which
+  // no scroll moves, and the plane it stands in. A stand in motion layers follows its
+  // one target's timelines, so it holds that target's box alone.
+  const ids = new WeakMap();
+  let idCount = 0;
+  const idOf = (node) => ids.get(node) ?? (ids.set(node, ++idCount), idCount);
+  const standKey = ({ fixed, levels, surface }, anchor, holders) =>
+    [
+      fixed ? "fixed" : "page",
+      anchor ? "anchored" : levels.length ? `own${idOf(surface)}` : "",
+      ...levels.map(({ holder, band, axes }) => {
+        const at = holder ? holders.get(holder) : { left: 0, top: 0 };
+        const edges = [band.left - at.left, band.top - at.top, band.right - at.left];
+        return `${holder ? idOf(holder) : "window"}:${[...edges, band.bottom - at.top]}:${axes.x}${axes.y}`;
+      }),
+    ].join("|");
+  // A stand's boxes as the last pass placed them: those whose element is near in its
+  // carrier in document order, the rest out of the document. Each box seated here (all
+  // the near ones, for a pass) is written; the names their anchors need are all read
+  // before any is written, since reading an author's name after a write forces the
+  // style that write invalidated.
+  function seatStand(stand, all = false) {
+    const { carrier, members } = stand;
+    const seating = new Set(
+      members.filter(
+        ({ addressable, entry }) =>
+          legendNear.has(addressable) && (all || entry.box.parentElement !== carrier),
+      ),
+    );
+    const readings = [...seating]
+      .filter(({ entry }) => entry.anchor)
+      .map(({ entry }) => anchorReading(entry.anchor));
+    for (const reading of readings) nameAnchor(reading);
+    let cursor = carrier.firstElementChild;
+    for (const member of members) {
+      const { box } = member.entry;
+      if (!legendNear.has(member.addressable)) {
+        if (box.parentElement !== carrier) continue;
+        if (cursor === box) cursor = box.nextElementSibling;
+        box.remove();
+        continue;
+      }
+      if (cursor === box) cursor = box.nextElementSibling;
+      else carrier.insertBefore(box, cursor);
+      if (seating.has(member)) seatBox(member.entry);
+    }
+  }
+  function seatBox({ box, radius, stood, rect, anchor, at }) {
+    standBox(
+      box,
+      {
+        left: rect.left - 1,
+        top: rect.top - 1,
+        right: rect.right + 1,
+        bottom: rect.bottom + 1,
+      },
+      stood,
+      anchor,
+      at,
+    );
+    Object.assign(box.style, { display: "block", borderRadius: radius });
+  }
   function paintLegend() {
     if (!designModeOn) {
+      for (const stand of legendStands.values()) dropStand(stand);
+      legendStands.clear();
       legendRoot.replaceChildren();
       legendBoxes.clear();
+      legendOrder = [];
+      legendNear.clear();
+      legendView.disconnect();
       legendSizes.disconnect();
       legendMoves.disconnect();
       return;
@@ -173,6 +284,8 @@ export function createDesignMode({
       if (!present.has(addressable)) {
         box.remove();
         legendBoxes.delete(addressable);
+        legendNear.delete(addressable);
+        legendView.unobserve(addressable);
         legendSizes.unobserve(addressable);
       }
     // A widget's part is what its declaration says it is — a tag declaring x-owners has a
@@ -186,13 +299,16 @@ export function createDesignMode({
       box.dataset.for = addressable.id; // which element, stated where a test can read it (as .lf-aim's)
       if (!parts.has(addressable.tagName.toLowerCase()))
         box.append(el("span", "lf-legend-tag", designName(addressable)));
-      legendBoxes.set(addressable, { box });
+      legendBoxes.set(addressable, { box, seen: false });
       legendRoot.append(box);
       legendSizes.observe(addressable);
+      legendView.observe(addressable);
     }
-    // The reads.
+    // The reads: where each box stands, the frames that cut it, the anchor that carries
+    // it. One cut away by a scroller keeps its frames, which hide it until a scroll
+    // brings it in.
     const clips = new Map();
-    const roomTop = bannerFoot();
+    const holders = new Map();
     const placed = addressables.map((addressable) => {
       const entry = legendBoxes.get(addressable);
       entry.radius ??= getComputedStyle(addressable).borderRadius;
@@ -201,39 +317,128 @@ export function createDesignMode({
       // A tag's width is its text's (nowrap) under a viewport-relative cap (40vw), so
       // it is re-measured while shown rather than cached: a width taken in a narrow
       // window understates the tag after a resize, and a missed step is the garble
-      // this pass exists to prevent. A box hidden by an earlier write measures zero,
-      // so it keeps its last answer until the pass after it shows again.
-      if (entry.box.style.display !== "none")
+      // this pass exists to prevent. A box out of the document measures zero, so it
+      // keeps its last answer until the pass after it is seated again.
+      if (entry.box.isConnected)
         entry.tagW = entry.box.firstChild ? entry.box.firstChild.offsetWidth : 0;
-      return [entry, shownRect(addressable, clips)];
+      const at = addressable.checkVisibility()
+        ? placement(addressable, false, false, clips)
+        : null;
+      if (!at || !(at.rect.right > at.rect.left && at.rect.bottom > at.rect.top))
+        return { addressable, entry, at: null };
+      // Until the observer's first answer, near is read off the box itself, so the
+      // mode's first paint draws what it shows.
+      if (!entry.seen) {
+        entry.seen = true;
+        const { left, top, right, bottom } = at.rect;
+        if (
+          bottom > -innerHeight &&
+          top < 2 * innerHeight &&
+          right > -innerWidth &&
+          left < 2 * innerWidth
+        )
+          legendNear.add(addressable);
+      }
+      for (const { holder } of at.levels)
+        if (holder && !holders.has(holder))
+          holders.set(holder, holder.getBoundingClientRect());
+      const anchor = anchoredBy(addressable, legendRoot);
+      return {
+        addressable,
+        entry,
+        at,
+        anchor,
+        anchorAt: anchor?.getBoundingClientRect(),
+        key: standKey(at, anchor, holders),
+      };
     });
-    // The writes. Names that would land on one spot step apart: a suggestion and the
-    // block it wraps share a top-left corner, and two tags written there garble both —
-    // the longer peeking out past the shorter as fragments of a word nobody wrote. The
-    // later tag (document order, so the part's over its widget's) steps away from the
-    // corner by tag heights until it stands clear.
-    const said = []; // tag boxes already placed this pass, in viewport coordinates
-    for (const [{ box, radius, tagW }, r] of placed) {
-      if (!r) {
-        box.style.display = "none";
+    // The writes: each stand's frames, in the order its first box comes, then each box
+    // in its stand.
+    const stood = new Map(); // key → { stand, ... }
+    let previous = null;
+    for (const { at, key, anchor } of placed) {
+      if (!at || stood.has(key)) continue;
+      const stand = legendStands.get(key) ?? paintStand();
+      legendStands.set(key, stand);
+      keeps(stand.root, "data-lf-paint-plane", "page");
+      const next = previous
+        ? previous.root.nextElementSibling
+        : legendRoot.firstElementChild;
+      if (next !== stand.root) legendRoot.insertBefore(stand.root, next);
+      stood.set(key, { stand, ...standIn(stand, at, Boolean(anchor)) });
+      previous = stand;
+    }
+    for (const [key, stand] of legendStands)
+      if (!stood.has(key)) {
+        dropStand(stand);
+        legendStands.delete(key);
+      }
+    for (const stand of legendStands.values()) stand.members = [];
+    for (const { addressable, entry, at, key, anchor, anchorAt } of placed) {
+      const stand = at && stood.get(key).stand;
+      if (entry.stand !== stand) entry.box.remove();
+      if (!at) {
+        entry.stand = null;
         continue;
       }
-      const at = documentPoint(r.left - 1, r.top - 1);
-      Object.assign(box.style, {
-        display: "block",
-        left: at.left + "px",
-        top: at.top + "px",
-        width: r.right - r.left + 2 + "px",
-        height: r.bottom - r.top + 2 + "px",
-        borderRadius: radius,
+      const { stand: _, ...how } = stood.get(key);
+      Object.assign(entry, {
+        stand,
+        stood: how,
+        rect: at.rect,
+        anchor,
+        at: anchorAt,
+        // The edges that cut the box's top, from their holders' corners, where a tag
+        // above it would be cut.
+        cuts: at.levels
+          .filter(({ axes }) => axes.y)
+          .map(({ holder, band }) => ({
+            holder,
+            from: holder ? band.top - holders.get(holder).top : band.top,
+          })),
       });
-      const inward = r.top - legendTagH < roomTop;
+      stand.members.push({ addressable, entry });
+    }
+    for (const stand of legendStands.values()) seatStand(stand, true);
+    legendOrder = addressables;
+    placeTags();
+  }
+  // Names that would land on one spot step apart: a suggestion and the block it wraps
+  // share a top-left corner, and two tags written there garble both — the longer peeking
+  // out past the shorter as fragments of a word nobody wrote. The later tag (document
+  // order, so the part's over its widget's) steps away from the corner by tag heights
+  // until it stands clear. A tag stands above its box, or inside its corner where the
+  // banner or a frame cutting the box leaves no room above. Read where the elements and
+  // the cuts stand now, on every scroll, since a sticky or fixed element's tag and the
+  // tags the page carries past it move apart; a tag is written only where its step or
+  // its side changed.
+  function placeTags() {
+    const roomTop = bannerFoot();
+    const holders = new Map();
+    const tags = [];
+    for (const addressable of legendOrder) {
+      const entry = legendBoxes.get(addressable);
+      if (!entry?.tagW || !entry.stand || !legendNear.has(addressable)) continue;
+      const rect = shownBox(addressable);
+      const room = Math.max(
+        roomTop,
+        ...entry.cuts.map(({ holder, from }) => {
+          if (!holder) return from;
+          if (!holders.has(holder))
+            holders.set(holder, holder.getBoundingClientRect().top);
+          return holders.get(holder) + from;
+        }),
+      );
+      tags.push({ entry, rect, inward: rect.top - 1 - legendTagH < room });
+    }
+    const said = []; // tag boxes already placed, in viewport coordinates
+    for (const { entry, rect, inward } of tags) {
+      const { box, tagW } = entry;
       box.classList.toggle("lf-in", inward);
-      if (!tagW) continue;
-      const left = r.left - 1;
+      const left = rect.left - 1;
       const step = inward ? legendTagH : -legendTagH;
-      let top = inward ? r.top : r.top - legendTagH;
-      let moved = 0;
+      let top = inward ? rect.top - 1 : rect.top - 1 - legendTagH;
+      let shift = 0;
       while (
         said.some(
           (t) =>
@@ -244,12 +449,17 @@ export function createDesignMode({
         )
       ) {
         top += step;
-        moved += step;
+        shift += step;
       }
-      box.firstChild.style.transform = moved ? `translateY(${moved}px)` : "";
+      const transform = shift ? `translateY(${layoutPx(shift)})` : "";
+      if (box.firstChild.style.transform !== transform)
+        box.firstChild.style.transform = transform;
       said.push({ left, top, width: tagW });
     }
   }
+  const legendScrolled = () => {
+    if (designModeOn && legendBoxes.size) placeTags();
+  };
 
   // What a design press is about: the nearest addressable element, the same answer the ⌥
   // aim gives; the item a margin entry stands for; or inside a Leaf surface the nearest
@@ -387,6 +597,7 @@ export function createDesignMode({
     active: () => designModeOn,
     setActive: setDesignMode,
     queueLegend,
+    legendScrolled,
     paintLegend,
     target: designTarget,
     press: designPress,

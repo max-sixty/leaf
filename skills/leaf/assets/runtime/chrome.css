@@ -1138,6 +1138,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-thread-compact > .lf-thread-content > .lf-thread-head { margin: 0 var(--lf-thread-inset) 12px; }
   .lf-thread-compact > .lf-thread-content > .lf-thread-transcript {
     margin: 12px var(--lf-thread-inset) 0; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-transcript:first-child {
+    margin-block-start: 0; }
   .lf-thread-compact > .lf-thread-content > .lf-thread-transcript
     > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint) { margin-block-start: 0; }
   .lf-thread-compact > .lf-thread-content > .lf-thread-transcript

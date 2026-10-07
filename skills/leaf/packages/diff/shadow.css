@@ -279,13 +279,14 @@
   :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details {
                               --lf-top: calc(var(--lf-top-outer) + var(--lf-diff-head-h)); }
   :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file > details > summary { position: sticky;
-                              --lf-top: var(--lf-top-outer);
+                              --lf-top: var(--lf-top-outer); --lf-head-inset: 0px;
                               top: var(--lf-top, 0px); z-index: 2; }
   /* The press with it, as far down the pinned line as it stands at rest: its own gap
      less the 1px border the summary's box starts inside. */
   :scope:host(.lf-rendered[data-lf-diff-pinned]) .lf-diff-file-actions { position: sticky;
                               top: calc(var(--lf-top, 0px)
-                                        + var(--lf-diff-action-top) - 1px); }
+                                        + var(--lf-diff-action-top) - 1px);
+                              --lf-head-inset: calc(var(--lf-diff-action-top) - 1px); }
 }
 /* The room that header takes, so a landing arrives below it rather than behind it. The
    scroller's `scroll-padding` clears what stands over the whole of it, the banner and a

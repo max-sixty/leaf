@@ -238,20 +238,20 @@ read itself:
 .file > .head { position: sticky; top: var(--lf-top); block-size: var(--head-h); }
 .file > .rows { --lf-top: calc(var(--lf-top-outer) + var(--head-h)); }
 .file .row { scroll-margin-top: var(--head-h); }
-.file > .head :is(button, input, summary) {
-  scroll-margin-top: calc(var(--head-pad) - var(--lf-landing-room)); }
+.file > .head { --lf-head-inset: var(--head-pad); }
 ```
 
 The rows' `scroll-margin-top` has a landing on a row, native or the runtime's, arrive
-below the header. The header's own controls stand where it sticks, inside the room the
-root's `scroll-padding` leaves below the banner (`--lf-landing-room`), so the browser
-would scroll toward each one it focuses, a few pixels a key, without the header ever
-moving; their negative margin, the offset they stand at less that room, counts them as
-shown. The runtime reads what passes under it as off screen from `--lf-top`,
-for read acknowledgement, arrival checks, and chrome placement, so nothing is declared.
-The stacked value goes on a box that does not itself scroll, since the runtime reads a
-box that scrolls where it stands. A box a package makes scroll starts `--lf-top` again
-at `0px`, on the box that scrolls and only there.
+below the header. The header's `--lf-head-inset` says how far below `--lf-top` its
+controls stand when it is stuck. The layer's focus margin takes the scroller's landing
+room (`--lf-landing-room`) back from it, so a control focused where its header sticks
+counts as shown; without it the browser scrolls toward each one it focuses, every key,
+and the stuck header never moves. A box that scrolls with `scroll-padding` of its own
+states its room beside its `--lf-top`. The runtime reads what passes under it as off
+screen from `--lf-top`, for read acknowledgement, arrival checks, and chrome placement,
+so nothing is declared. The stacked value goes on a box that does not itself scroll,
+since the runtime reads a box that scrolls where it stands. A box a package makes scroll
+starts `--lf-top` again at `0px`, on the box that scrolls and only there.
 
 A box a package makes scroll text sideways carries the class `lf-text-scroller`. An
 overlay scrollbar paints over the box's lower edge and widens under the pointer, so while

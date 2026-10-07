@@ -25,17 +25,17 @@
  * stated height, so a phone keeps most of its screen for the evidence, while the page
  * selector and the frames row above it scroll away. It sticks at the `--lf-top` the
  * frame met, and what it stands over takes that value plus its height; a landing in the
- * evidence arrives below it through `scroll-margin-top`, and its own controls take back
- * the room a landing leaves below the banner (`--lf-landing-room`, kernel theme.css), so
- * focusing one where it sticks scrolls nothing. Its divider is the frame's own rule, so
+ * evidence arrives below it through `scroll-margin-top`, and it says where its controls
+ * stand (`--lf-head-inset`, kernel shadow.css), so focusing one where it sticks scrolls
+ * nothing. Its divider is the frame's own rule, so
  * where the evidence passes under it the edge reads as an edge. Screen only: paper has
  * no scroll to pin against. */
 @media screen {
   :scope:is(lf-trace) { --lf-top-outer: var(--lf-top); }
-  .lf-trace-stepper { position: sticky; top: var(--lf-top); z-index: 1; }
+  .lf-trace-stepper {
+    position: sticky; top: var(--lf-top); z-index: 1; --lf-head-inset: var(--sp-2); }
   .lf-trace-body { --lf-top: calc(var(--lf-top-outer) + var(--lf-trace-stepper-h)); }
   .lf-trace-body * { scroll-margin-top: var(--lf-trace-stepper-h); }
-  .lf-trace-stepper * { scroll-margin-top: calc(var(--sp-2) - var(--lf-landing-room)); }
 }
 .lf-trace-choices { min-inline-size: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
 .lf-trace-select {

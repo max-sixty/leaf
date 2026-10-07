@@ -9,8 +9,6 @@ import { currentAuxiliarySurface } from "./auxiliary-surfaces.js";
 import { handBack, letGo } from "./focus.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageRung } from "./keyboard/register.js";
-import { pagePresented } from "./presentation.js";
-import { readApplication } from "./semantic-state.js";
 import { rowWalk } from "./walk-position.js";
 import { createLiveLeavesList } from "./live-leaves-list.js";
 import { bannerControlDoor, dismissBannerControls } from "./banner-toolbar.js";
@@ -69,7 +67,7 @@ function drawerFurniture(panel, name, list = el("div", "lf-drawer-list")) {
   list.classList.add("lf-drawer-list");
   head.append(title, close);
   panel.append(head, list);
-  // An open drawer stands over the left of the page, so what it stands over is hidden
+  // An open drawer stands over its edge of the page, so what it stands over is hidden
   // from every reading of what the page shows (geometry.js).
   declareOccluder(panel);
   return { head, list, close };
@@ -122,22 +120,15 @@ queueNextBtn.addEventListener("mousedown", (event) => event.preventDefault());
 queueFurniture.head.insertBefore(queueNextBtn, queueFurniture.close);
 
 // What each drawer is called where the user reads it, as its banner door says.
-const DRAWER_NAMES = Object.freeze({ leaves: "Leaves", queue: "Questions" });
+const DRAWER_NAMES = Object.freeze({
+  leaves: ["Leaves", "Leaves drawer"],
+  queue: ["Questions", "Questions panel"],
+});
 // Furniture is local to this owner; selection belongs to the auxiliary-surface owner.
 const drawers = new Map();
 export const currentDrawer = () =>
   drawers.has(currentAuxiliarySurface()) ? currentAuxiliarySurface() : null;
 export const drawerIsOpen = (key) => currentDrawer() === key;
-// Each drawer's one offer: something to show, or the drawer already standing so its button
-// can still close it. Questions with nothing on either side and nothing done is the same.
-export function queueOffered() {
-  if (!pagePresented()) return false;
-  const { queues, done } = readApplication().effective;
-  return (
-    queues.onYou.length + queues.onAgent.length + done.length > 0 ||
-    drawerIsOpen("queue")
-  );
-}
 // The stops a walk down the Questions panel lands on: its items, and Done's door between
 // them.
 export const queueRows = () => walkStops(queueList);
@@ -288,8 +279,8 @@ export function createDrawers({
     currentDrawer()
       ? {
           root: drawers.get(currentDrawer()).panel,
-          title: `close ${DRAWER_NAMES[currentDrawer()]}`,
-          description: `Close the ${DRAWER_NAMES[currentDrawer()]} panel`,
+          title: `close ${DRAWER_NAMES[currentDrawer()][0]}`,
+          description: `Close the ${DRAWER_NAMES[currentDrawer()][1]}`,
           // A drawer's parent is the document, so its step lands the user there rather
           // than on the edge button that reopens it.
           out: () => {

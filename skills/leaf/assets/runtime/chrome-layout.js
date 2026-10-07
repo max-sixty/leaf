@@ -89,10 +89,11 @@ export function createChromeLayout({
     syncLayoutRegion();
     scheduleResidency();
     scheduleThreadPreviewPosition?.();
-    const panelLive = panelIsOpen() && !panelCovers();
-    // Over a live page, the thread panel owns the right of the window all the way to its
-    // foot. Cap the line's room at its edge rather than letting a long hint cross into it.
-    const panelRoom = (panelLive ? commentsEdge.width() : 0) + "px";
+    // Over a live page, the side panel, Threads or Questions, owns the right of the
+    // window all the way to its foot. Cap the line's room at its edge rather than letting
+    // a long hint cross into it, so swapping the two views moves nothing in the bar.
+    const sideLive = standsBeside() && rightCover() !== Infinity;
+    const panelRoom = (sideLive ? commentsEdge.width() : 0) + "px";
     shortcutBarEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
     bottomStatusEl.style.setProperty("--lf-shortcut-bar-right", panelRoom);
     // Over a live page the right edge's surface, Threads or Questions, stands over the

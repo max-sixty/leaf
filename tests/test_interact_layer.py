@@ -1648,8 +1648,8 @@ def test_the_layer_sheets_spell_the_runtime_s_layout_numbers():
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
     for spelling in (
-        'html[data-lf-live] body[data-lf-auxiliary-surface="queue"]',
-        'html[data-lf-live] body[data-lf-auxiliary-surface="threads"]',
+        '[data-lf-auxiliary-surface="queue"]',
+        '[data-lf-auxiliary-surface="threads"]',
     ):
         assert spelling in sheet, f"the layer sheets no longer spell {spelling}"
 
@@ -1681,7 +1681,8 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
     literal = f"var({panel_prop}, {panel_default}px)"
     assert literal in theme
     assert (
-        'body[data-lf-auxiliary-surface="queue"] {\n'
+        'html[data-lf-live] body:is([data-lf-auxiliary-surface="threads"],\n'
+        '      [data-lf-auxiliary-surface="queue"]) {\n'
         f"    --lf-auxiliary-width: {literal};"
     ) in theme
 

@@ -13,7 +13,7 @@ import { cancelRender, nextRender } from "/runtime/rendering.js";
 import { resolveAnchor } from "/runtime/anchor-resolution.js";
 import { sameAnchor } from "/runtime/anchor-coordinate.js";
 import { declareOffFlowSurface } from "/runtime/off-flow.js";
-import { shownBox } from "/runtime/geometry.js";
+import { rightCover, shownBox } from "/runtime/geometry.js";
 import {
   passageGeometry,
   rangeGeometry,
@@ -38,7 +38,6 @@ import {
   reachableRoom,
 } from "../comment-placement.js";
 import { pointBand } from "/runtime/pointed-place.js";
-import { rightCover } from "/runtime/geometry.js";
 import { keeps, layoutPx } from "/runtime/keeps.js";
 
 export function createFloatingResponsePlacement({

@@ -54,10 +54,11 @@ has tried; settle that before building it.
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
 - **Keep focus off page content a panel beside the page covers.** Threads and the
-  Queue panel leave the page live beside them while standing over part of it, and focus
+  Questions panel leave the page live beside them while standing over part of it, and focus
   still reaches what they cover. At 1440×900 Tab walks onto `annotation-workspace`'s
   rail under Threads, and `c` on a selection opens the rail's comment box there; at
-  1200px Tab reaches an Ask's option marks under the Queue panel. Max's rule
+  1200px Tab reached an Ask's option marks under the Queue panel when it stood on the
+  left; it now shares Threads' right edge. Max's rule
   (2026-10-06): the panels dominate focus, so moving focus never closes or changes a
   standing panel; instead focus never lands on page content a panel covers, and
   Threads still stands beside a full-width workspace rather than covering it.

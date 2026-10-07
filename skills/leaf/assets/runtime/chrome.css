@@ -760,6 +760,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     scroll-padding-bottom: calc(var(--lf-bottom-bar-h) + max(12px, var(--focus-ring-room)));
     overflow-y: auto;
     overscroll-behavior: contain; }
+  /* Questions beside a live page owns the right of the window to its foot, as Threads
+     does, and the band stops at its edge (chrome-layout.js), so its list ends at the
+     window's; only covering the page does it stand under the band. */
+  .lf-queue-panel:not([aria-modal="true"]) .lf-drawer-list {
+    padding-bottom: 6px; scroll-padding-bottom: max(12px, var(--focus-ring-room)); }
   .lf-others-row { display: block; padding: 8px 10px; border-radius: 6px; color: inherit;
     text-decoration: none; }
   .lf-others-row > svg[data-lf-gen="1"] { display: none; }
@@ -847,8 +852,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      a usable page and covers it; elsewhere the page beside it stays live and no scrim
      shows. The dialog is shown non-modally either way, so it
      needs no ::backdrop of its own. */
-  /* An edge, offered as a thing to take hold of — the thread panel's on the right of
-     the page, the drawers' on the left, and nothing here knows which it is drawing except
+  /* An edge, offered as a thing to take hold of — the side panel's on the right of the
+     page, the Leaves drawer's on the left, and nothing here knows which it is drawing except
      the two lines that place it. It draws nothing of its own: the region's inner border
      is the line the user already sees, and this is the room around that line in which
      a pointer counts as being on it. It straddles the border rather than sitting inside

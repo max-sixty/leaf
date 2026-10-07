@@ -714,10 +714,9 @@ body {
     var(--lf-auxiliary-width, 0px));
 }
 @media screen {
-  html[data-lf-live] body[data-lf-auxiliary-surface="queue"] {
-    --lf-auxiliary-width: var(--lf-thread-panel-width, 420px);
-  }
-  html[data-lf-live] body[data-lf-auxiliary-surface="threads"] {
+  /* Threads and Questions share the right edge and its width. */
+  html[data-lf-live] body:is([data-lf-auxiliary-surface="threads"],
+      [data-lf-auxiliary-surface="queue"]) {
     --lf-auxiliary-width: var(--lf-thread-panel-width, 420px);
   }
 }

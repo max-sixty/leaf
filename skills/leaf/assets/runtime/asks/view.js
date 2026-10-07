@@ -587,7 +587,7 @@ export function createAskView({
     );
   }
 
-  // Standing on one ask: what a and Shift+a do once the queue walk has decided on an Ask
+  // Standing on one ask: what q and Shift+q do once the queue walk has decided on an Ask
   // (queue-walk.js), what a Questions panel row does, and what a Page Map entry does having
   // been told outright. One
   // function because it is one act — a second would be a second answer to "how do I put

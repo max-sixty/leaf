@@ -102,7 +102,6 @@ registerBannerControl({
   control: queueBtn,
   rank: BANNER_CONTROL_RANK.queue,
   seat: { desk: "row", phone: "menu" },
-  conditional: true,
 });
 registerBannerControl({
   key: "versions",
@@ -743,7 +742,7 @@ export function mountBanner({ approveVersion, paintApproval }) {
   watchProjection(document.body, paintApproval);
   // The queues move with the application's publication, not only with a state answer.
   watchSemantic(() => lastStatus && presentStatus(lastStatus));
-  for (const control of [queueBtn, othersBtn]) showNews(control, false);
+  showNews(othersBtn, false);
   banner.append(bannerStatus, bannerStatus.queues, bannerActions);
   // On two rows the Tasks count stands on the second line only where the run leaves it
   // room whole, else on a third the banner does not draw, and a phone's one row leaves

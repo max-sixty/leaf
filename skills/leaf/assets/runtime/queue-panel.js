@@ -32,8 +32,9 @@
    count beside the status sentence opens it too; `g Shift+Q` is the key.
 
    Rows join, leave and change only while the panel is open, and the list holds its
-   focus across them (`RowFocus`); a closed panel holds no rows. The panel is offered
-   while any list has an item, or while it stands so its control can still close it. */
+   focus across them (`RowFocus`); a closed panel holds no rows. Its door stands on
+   every page, as the Threads door does, so a question arriving or the last one leaving
+   moves nothing on the banner: "Questions: 0" opens a panel that says so. */
 import {
   addressableLabel,
   addressableName,
@@ -43,12 +44,10 @@ import {
   queueBtn,
   queueList,
   queueNextBtn,
-  queueOffered,
   queuePanel,
   drawerIsOpen,
 } from "./drawers.js";
-import { showNews } from "./banner-toolbar.js";
-import { paintKeys } from "./keyboard/scopes.js";
+import { markBannerControl } from "./banner-toolbar.js";
 import { clocked, shortAgo } from "./presence.js";
 import { elementById, inChrome } from "./passages.js";
 import { PRESENTATION } from "./presentation.js";
@@ -296,18 +295,14 @@ export function createQueuePanel({ arriveAtItem, endTask, next, announce }) {
     return next;
   });
 
-  let shortcutsOffered = false;
   async function paintQueue(current) {
-    const offered = queueOffered();
-    showNews(queueBtn, offered);
     nameDoor();
-    keepsHidden(queueNextBtn, reading().queues.onYou.length === 0);
-    // The panel's rows and its control stand on this reading, so the surfaces reading
-    // them are repainted where it is offered or withdrawn.
-    if (offered !== shortcutsOffered) {
-      shortcutsOffered = offered;
-      paintKeys();
-    } else repaint();
+    const waiting = reading().queues.onYou.length > 0;
+    keepsHidden(queueNextBtn, !waiting);
+    // On a phone the door waits in More, which says a question is there as it says an
+    // approval is open.
+    markBannerControl(queueBtn, waiting ? "questions waiting" : null);
+    repaint();
     presenting = true;
     let next;
     try {

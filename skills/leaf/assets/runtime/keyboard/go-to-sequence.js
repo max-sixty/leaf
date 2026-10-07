@@ -81,7 +81,6 @@ import {
   othersBtn,
   othersPanel,
   queueBtn,
-  queueOffered,
   queuePanel,
   queueRows,
 } from "../drawers.js";
@@ -207,7 +206,7 @@ export function createGoToSequence({
       title: () =>
         currentDrawer() === "queue" ? "close Questions panel" : "Questions panel",
       control: () => queueBtn,
-      when: () => queueOffered(),
+      when: () => true,
       go: () => {
         setOpenDrawer("queue");
         (queueRows()[0] ?? queuePanel).focus({ preventScroll: true });

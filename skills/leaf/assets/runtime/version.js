@@ -72,7 +72,7 @@ import {
 } from "./drafts.js";
 import { heldThreadId, replyDestination } from "./thread/focus.js";
 import { restoreReplyEditing } from "./thread/replies.js";
-import { focusDestination } from "./focus.js";
+import { focusDestination, onStanding } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { patchTree } from "./dom-children.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
@@ -1822,7 +1822,7 @@ export function createVersionController({
       if (at?.matches(TEXT_BOX) && under(at, document.querySelector("body > main")))
         queueRecord();
     };
-    document.addEventListener("focusin", recordEditing);
+    onStanding(recordEditing);
     document.addEventListener("input", recordEditing);
     queueRecord();
   }

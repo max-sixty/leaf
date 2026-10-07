@@ -2318,11 +2318,12 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     claimed, codex_claimed_page
 ):
     """Listening between two waits rests on the open turn taking the input, which
-    only hooks that carry it do, and only while the turn is plausibly running. A
-    Codex task's carrier is a process of its own, so its open turn with no adapter
-    lease is nobody listening; and a Claude Code turn no Stop closed, as an
-    interrupted one, stops counting once nothing in it has renewed it for the
-    working grace: its opening, or a status written during it."""
+    only a session whose hooks hand it over does, and only while the turn is
+    plausibly running. A Codex task's open turn takes input once a tool hook has
+    proven its hooks run, since the tool hook then offers the pointer between
+    steps; before that, with no adapter lease, it is nobody listening. A Claude Code turn
+    no Stop closed, as an interrupted one, stops counting once nothing in it has
+    renewed it for the working grace: its opening, or a status written during it."""
     now = datetime.now().astimezone()
     for page in (claimed, codex_claimed_page):
         cleanup_model.write_json(
@@ -2336,6 +2337,10 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     assert codex["turn_opened"] and not codex["turn_takes_input"]
     assert codex["listening"] is False
     assert codex["activity"]["kind"] == "away"
+    leases_model.mark_step_hook("codex-thread")
+    codex = page_state(codex_claimed_page)
+    assert codex["turn_takes_input"] and codex["listening"] is False
+    assert codex["activity"]["kind"] == "listening"
 
     assert page_state(claimed)["activity"]["kind"] == "listening"
     claim = service_model.page_claim(claimed)

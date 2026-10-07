@@ -403,7 +403,7 @@ customElements.define(
       // The stage is as tall as the captures and the page scrolls through them, so the
       // window the chrome leaves is the height a reader sees at once.
       const stageWidth = entry.shotHost.clientWidth;
-      const stageHeight = shownWindow().height;
+      const stageHeight = shownWindow({ viewport: "layout" }).height;
 
       const gap = 8;
       const frameBorder = 2;

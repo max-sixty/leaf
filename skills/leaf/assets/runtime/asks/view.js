@@ -85,7 +85,13 @@
 import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { createAskBannerControls } from "./banner-controls.js";
 import { decisionControls } from "../keyboard/bindings.js";
-import { closestAcross, elementById, inChrome, TEXT_BLOCK } from "../passages.js";
+import {
+  closestAcross,
+  elementById,
+  inChrome,
+  showsWords,
+  TEXT_BLOCK,
+} from "../passages.js";
 import { scrollerFor } from "../reading-regions.js";
 import { reserve } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
@@ -538,8 +544,8 @@ export function createAskView({
     // the host climb below for the order, which together let an ask staged inside a
     // shadow tree take the heading standing over its host.
     //
-    // `hidden` goes with `inChrome`: content-visibility leaves real rects behind, so a
-    // block behind a shut disclosure otherwise measures like one the user can see.
+    // `showsWords` goes with `inChrome`: a block behind a shut disclosure keeps its
+    // boxes, so it would otherwise measure like one the user can see.
     //
     // Order is asked of the ask as the block's own tree sees it, which for a
     // ask staged in a shadow tree is its host and not the ask. Two nodes in
@@ -555,7 +561,7 @@ export function createAskView({
       return (
         from &&
         !inChrome(block) &&
-        !block.closest("[hidden]") &&
+        showsWords(block) &&
         !under(ask, block) &&
         block.parentElement &&
         under(ask, block.parentElement) &&

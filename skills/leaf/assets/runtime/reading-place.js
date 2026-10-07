@@ -35,6 +35,7 @@ import {
   pageBlocks,
   pageText,
   rangeOf,
+  showsWords,
 } from "./passages.js";
 import { ADDRESSABLE, resolveAnchor } from "./anchor-resolution.js";
 import { targetElement, targetSegments } from "./resolved-target.js";
@@ -96,12 +97,9 @@ export function* blocksOnScreen(region = null, blocks = textBlocks()) {
       ? shownWindow({ within: shown })
       : shown;
   for (const block of blocks) {
-    // What content-visibility hides still reports real rects: an inactive tab's panel
-    // (hidden="until-found") and a closed <details>' contents both do, and neither is
-    // what the user is reading.
     if (
       inChrome(block) ||
-      !block.checkVisibility() ||
+      !showsWords(block) ||
       (region
         ? !under(block, region.body)
         : readingPosture(readingRegionFor(block)) === "bounded")

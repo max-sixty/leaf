@@ -1253,27 +1253,24 @@ export function createMarginProjection({
     for (const host of hosts.values())
       if (host.contains(node)) return arriveAtCluster(host, node, cause, left);
   });
-  // Leaving a cluster folds what it unfolded, a drop no owner put right included, unless
-  // the user went into a surface that keeps its context (`inRetainedContext`). A change
-  // its owner puts right in the same script reaches no reader, and a window losing focus
-  // moves no one. The cluster they stood in is the one read when they came to it, since
-  // a drop that removed the node they stood on leaves it in no cluster.
-  let standingIn = null;
-  onStanding((node) => {
-    const host = node
-      ? ([...hosts.values()].find((each) => under(node, each)) ?? null)
-      : null;
-    const leaving = standingIn;
-    standingIn = host;
-    if (!leaving || leaving === host) return;
-    nextRender(refreshHighlight);
-    const current = leaving.lfEntry;
-    if (
-      current &&
-      expandedOptionsKey === current.key &&
-      !inRetainedContext(node && hostIn(node, document))
-    )
-      setOptionsOpen(current, false);
+  // Leaving a cluster folds what it unfolded, unless the user went into a surface that
+  // keeps its context (`inRetainedContext`). A node hidden under the user leaves it too,
+  // as its blur did. A node removed from under them is in no cluster any more, and the
+  // render that removed it hands them on to its replacement, often a frame later, so it
+  // folds nothing. A window losing focus moves no one.
+  onStanding((node, cause, left) => {
+    if (!left) return;
+    for (const host of hosts.values()) {
+      if (!under(left, host) || (node && under(node, host))) continue;
+      nextRender(refreshHighlight);
+      const current = host.lfEntry;
+      if (
+        current &&
+        expandedOptionsKey === current.key &&
+        !inRetainedContext(node && hostIn(node, document))
+      )
+        setOptionsOpen(current, false);
+    }
   });
   watchAnnotations((hidden) => {
     if (hidden) {

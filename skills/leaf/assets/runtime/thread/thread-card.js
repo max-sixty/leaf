@@ -49,7 +49,7 @@ import { threadAttention } from "./workflow.js";
 import { seenRect, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
 import { retainUserIntent } from "../user-intent.js";
-import { scrollThreadIntoView, replyPinned } from "./reply-landing.js";
+import { scrollThreadIntoView, replyPinned, revealEditor } from "./reply-landing.js";
 import {
   HeldNews,
   newsNotice,
@@ -203,50 +203,40 @@ function navigationSummary(model, control) {
       >${pendingTitle ? "Generating title" : title}</span
     >
     <span class="lf-thread-meta">
-      ${
-        draft
-          ? html`<span class="lf-thread-draft" data-lf-folded>Draft</span>`
-          : nothing
-      }
-      ${
-        status
-          ? html`<span
-              class="lf-thread-status"
-              data-lf-settlement=${control ? "" : nothing}
-              data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
-              data-lf-folded=${model.statusFolded ? "" : nothing}
-              title=${
-                model.attention?.secondary
-                  ? `${status} · ${model.attention.secondary}`
-                  : status
-              }
-              >${status}</span
-            >`
-          : nothing
-      }
-      ${
-        model.unreadCount
-          ? html`<span
-              class="lf-thread-unread"
-              data-lf-folded
-              aria-label=${`${model.unreadCount} unread`}
-              >${model.unreadCount} unread</span
-            >`
-          : nothing
-      }
+      ${draft
+        ? html`<span class="lf-thread-draft" data-lf-folded>Draft</span>`
+        : nothing}
+      ${status
+        ? html`<span
+            class="lf-thread-status"
+            data-lf-settlement=${control ? "" : nothing}
+            data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
+            data-lf-folded=${model.statusFolded ? "" : nothing}
+            title=${model.attention?.secondary
+              ? `${status} · ${model.attention.secondary}`
+              : status}
+            >${status}</span
+          >`
+        : nothing}
+      ${model.unreadCount
+        ? html`<span
+            class="lf-thread-unread"
+            data-lf-folded
+            aria-label=${`${model.unreadCount} unread`}
+            >${model.unreadCount} unread</span
+          >`
+        : nothing}
     </span>
     <span class="lf-thread-trailing">
-      ${
-        latest
-          ? html`<time
-              class="lf-thread-recency"
-              datetime=${latest}
-              title=${`Last message activity ${new Date(latest).toLocaleString()}`}
-              aria-label=${`Last message activity ${ago(latest)}`}
-              >${shortAgo(latest)}</time
-            >`
-          : nothing
-      }
+      ${latest
+        ? html`<time
+            class="lf-thread-recency"
+            datetime=${latest}
+            title=${`Last message activity ${new Date(latest).toLocaleString()}`}
+            aria-label=${`Last message activity ${ago(latest)}`}
+            >${shortAgo(latest)}</time
+          >`
+        : nothing}
     </span>
   </summary>`;
 }
@@ -325,11 +315,31 @@ export class ThreadView {
       // A rewrite of one of the user's messages (`message-edit.js`). Opening or closing
       // it paints at once, so its editor takes or gives back the focus in the same press.
       edit: {
-        paint: () => this.repaint(),
+        paint: () => this.repaint({ requested: true }),
         send: (id, text, options) =>
           commands.reply.actions.edit(this.#model.key, id, text, options),
-        land: () => commands.reply.landSent(this.node),
+        // The rung above a rewrite is the thread's reply box, where ↑ came from; a
+        // thread showing none, as a resolved one or a margin card not replying, hands
+        // the user on as a sent reply does.
+        land: () => {
+          const box = this.node.querySelector(SAY_BOX);
+          if (box && seenRect(box, new Map())) commands.reply.landInThread(box);
+          else commands.reply.landSent(this.node);
+        },
         previous: (id) => this.#lastEditable(id),
+        // A rewrite starts from the words as they stand, so opening one is acting in
+        // the thread and shows what it holds (held-news.js). One rewrite stands open in
+        // a thread: opening one closes another as Escape would, and unfolds a summary
+        // holding the message, since it opens to be seen.
+        opening: (id) => {
+          this.#showNews();
+          for (const view of this.#messages.values()) view.closeEdit();
+          const folded = this.#model?.summaries.find(({ covers }) =>
+            covers.includes(id),
+          );
+          if (folded) this.#expandedSummaries.add(folded.id);
+        },
+        reveal: (message, editor) => revealEditor(message, editor),
       },
     };
     this.node = document.createElement(
@@ -407,8 +417,8 @@ export class ThreadView {
 
   // Local disclosure and draft changes repaint the complete received descriptor,
   // never feed a held presentation back into the news owner's input.
-  repaint() {
-    this.present(this.#received);
+  repaint(options) {
+    this.present(this.#received, options);
   }
 
   // The view of the user's latest words in this thread, or the latest before message
@@ -532,7 +542,7 @@ export class ThreadView {
     );
   }
 
-  present(model, { retaining = false, viewChanged = false } = {}) {
+  present(model, { retaining = false, viewChanged = false, requested = false } = {}) {
     this.#received = model;
     const prior = this.#model;
     // The list chooses membership. The complete thread owns its outgoing paint and
@@ -570,7 +580,9 @@ export class ThreadView {
     // Capture the standing words only when news starts waiting, before its update
     // removes a receipt. This allocation lives with the held view, not its reading.
     if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
-    const bodyPlace = this.#continuity?.before();
+    // A reflow the user asked for of their own words, a rewrite opening or closing, holds
+    // no extent: the room it gives back is theirs to see go (ReplyContinuity).
+    const bodyPlace = requested ? null : this.#continuity?.before();
     const restoreFocus = holdFocus(this.node);
     const standing = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);
@@ -737,41 +749,35 @@ export class ThreadView {
     );
     if (reply && !this.#reply) this.#reply = this.#createReply(model);
     const body = html`
-      ${
-        model.quote
-          ? html`<header class="lf-thread-head">
-              <blockquote
-                class=${`lf-quote${model.quote.anchored && !model.quote.found ? " detached" : ""}`}
-                role=${model.quote.anchored ? "button" : nothing}
-                tabindex=${model.quote.anchored ? "0" : nothing}
-                aria-disabled=${
-                  model.quote.anchored ? String(!model.quote.found) : nothing
-                }
-                title=${model.quote.title ?? nothing}
-                @click=${this.#returnToQuote}
-              >
-                <span class="lf-quote-label">${model.quote.label}</span>
-                ${
-                  model.quote.outdated
-                    ? html`<span class="lf-anchor-status">Earlier data</span>`
-                    : model.quote.changed
-                      ? html`<span class="lf-anchor-status">Changed</span>`
-                      : nothing
-                }
-              </blockquote>
-            </header>`
-          : nothing
-      }
+      ${model.quote
+        ? html`<header class="lf-thread-head">
+            <blockquote
+              class=${`lf-quote${model.quote.anchored && !model.quote.found ? " detached" : ""}`}
+              role=${model.quote.anchored ? "button" : nothing}
+              tabindex=${model.quote.anchored ? "0" : nothing}
+              aria-disabled=${model.quote.anchored
+                ? String(!model.quote.found)
+                : nothing}
+              title=${model.quote.title ?? nothing}
+              @click=${this.#returnToQuote}
+            >
+              <span class="lf-quote-label">${model.quote.label}</span>
+              ${model.quote.outdated
+                ? html`<span class="lf-anchor-status">Earlier data</span>`
+                : model.quote.changed
+                  ? html`<span class="lf-anchor-status">Changed</span>`
+                  : nothing}
+            </blockquote>
+          </header>`
+        : nothing}
       <div class="lf-thread-transcript">${transcript}</div>
-      ${
-        threadActions
-          ? marginControls
-            ? this.#marginControlsRowOf(html`${news}${threadActions}`)
-            : html`<div class="lf-thread-controls" data-lf-reflow="text">
-                ${news}${threadActions}
-              </div>`
-          : nothing
-      }
+      ${threadActions
+        ? marginControls
+          ? this.#marginControlsRowOf(html`${news}${threadActions}`)
+          : html`<div class="lf-thread-controls" data-lf-reflow="text">
+              ${news}${threadActions}
+            </div>`
+        : nothing}
     `;
     render(
       html`
@@ -784,42 +790,36 @@ export class ThreadView {
               : settlement && (model.resolvedBy || "Resolved"),
         )}
         ${titleControl ?? nothing}
-        ${
-          model.surface === "outlet"
-            ? html`<summary
-                class="lf-page-thread-summary lf-ui"
-                data-lf-gen="1"
-                data-lf-offer=""
-                ?hidden=${!model.resolved}
-              >
-                ${
-                  model.news?.reopened
-                    ? model.news.label
-                    : html`Resolved · ${model.messages.length}
-                      message${model.messages.length === 1 ? "" : "s"}${
-                        model.news ? ` · ${model.news.label}` : ""
-                      }`
-                }
-              </summary>`
-            : nothing
-        }
-        ${
-          model.surface === "margin"
-            ? body
-            : html`<div class="lf-thread-content">${body}</div>`
-        }
+        ${model.surface === "outlet"
+          ? html`<summary
+              class="lf-page-thread-summary lf-ui"
+              data-lf-gen="1"
+              data-lf-offer=""
+              ?hidden=${!model.resolved}
+            >
+              ${model.news?.reopened
+                ? model.news.label
+                : html`Resolved · ${model.messages.length}
+                  message${model.messages.length === 1 ? "" : "s"}${model.news
+                    ? ` · ${model.news.label}`
+                    : ""}`}
+            </summary>`
+          : nothing}
+        ${model.surface === "margin"
+          ? body
+          : html`<div class="lf-thread-content">${body}</div>`}
         ${replySlot ? (this.#continuity?.gap ?? nothing) : nothing}
         ${reply ? this.#reply.node : (this.#replyReservation ?? nothing)}
-        ${
-          model.resolved && !replySlot && !model.folding && !marginControls && !panel
-            ? html`<div class="lf-page-thread-resolved lf-ui">
-                <span
-                  >${model.resolvedBy ? html`<span>${model.resolvedBy}</span>` : nothing}</span
-                >
-                ${news}${settlement}
-              </div>`
-            : nothing
-        }
+        ${model.resolved && !replySlot && !model.folding && !marginControls && !panel
+          ? html`<div class="lf-page-thread-resolved lf-ui">
+              <span
+                >${model.resolvedBy
+                  ? html`<span>${model.resolvedBy}</span>`
+                  : nothing}</span
+              >
+              ${news}${settlement}
+            </div>`
+          : nothing}
       `,
       this.node,
     );
@@ -972,43 +972,37 @@ export class ThreadView {
       <div class="lf-summary-checkpoint">
         <div class="lf-summary-header">
           <div class="lf-summary-label">${range.summary.label}</div>
-          ${
-            range.forced
-              ? nothing
-              : html`<button
-                  type="button"
-                  class="lf-summary-expand"
-                  aria-expanded=${String(range.expanded)}
-                  aria-controls=${originalsId}
-                  @click=${() => this.#setSummaryExpanded(id, !range.expanded)}
-                >
-                  ${range.expanded ? "Collapse" : "Show"} ${count} earlier
-                  message${count === 1 ? "" : "s"}
-                </button>`
-          }
+          ${range.forced
+            ? nothing
+            : html`<button
+                type="button"
+                class="lf-summary-expand"
+                aria-expanded=${String(range.expanded)}
+                aria-controls=${originalsId}
+                @click=${() => this.#setSummaryExpanded(id, !range.expanded)}
+              >
+                ${range.expanded ? "Collapse" : "Show"} ${count} earlier
+                message${count === 1 ? "" : "s"}
+              </button>`}
         </div>
-        ${
-          range.summary.text
-            ? html`<div
-                class="lf-summary-text"
-                .innerHTML=${renderMarkdown(range.summary.text)}
-              ></div>`
-            : nothing
-        }
-        ${
-          range.forced
-            ? html`<div class="lf-summary-required">${range.requiredText}</div>`
-            : nothing
-        }
+        ${range.summary.text
+          ? html`<div
+              class="lf-summary-text"
+              .innerHTML=${renderMarkdown(range.summary.text)}
+            ></div>`
+          : nothing}
+        ${range.forced
+          ? html`<div class="lf-summary-required">${range.requiredText}</div>`
+          : nothing}
       </div>
       <div id=${originalsId} class="lf-summary-originals" ?hidden=${!range.expanded}>
         ${repeat(
           range.messages,
           (message) => message.key,
           (message) =>
-            html`${markerFor(message.key)}${
-              range.nodes[range.messages.indexOf(message)]
-            }`,
+            html`${markerFor(message.key)}${range.nodes[
+              range.messages.indexOf(message)
+            ]}`,
         )}
       </div>
     </section>`;

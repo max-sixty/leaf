@@ -188,10 +188,22 @@ const revealWritingArea = (held, input, reply) => {
   const target = reply && shownBox(reply).height <= landingRoom(held) ? reply : input;
   scrollIntoReadingBand(target, target, "nearest", "instant");
 };
+// A rewrite opening in its message shows the message whole, its head with Cancel and
+// Save above the words, where the band holds it, and otherwise the words' box.
+export function revealEditor(message, editor) {
+  const held = message.closest(SAYS_IN);
+  if (!held) return;
+  bringBackSurfaceOf(held, "instant");
+  const target = shownBox(message).height <= landingRoom(held) ? message : editor;
+  scrollIntoReadingBand(target, target, "nearest", "instant");
+}
 export function followBoxGrowth(input) {
   const held = input.closest(SAYS_IN);
   if (!held) return;
   const reply = replyRowOf(held, input);
+  // A box standing in the transcript rather than its reply row, as a rewrite stands in
+  // its message, is its own writing area, wherever the transcript scrolls.
+  if (!reply) return revealWritingArea(held, input, null);
   // A separate transcript gives up height rather than being covered by the editor.
   // A reader at its tail keeps the turn beside the growing box; someone reading back
   // keeps their own offset. The beforeinput reading precedes the editor's layout.
@@ -222,9 +234,11 @@ export function followBoxGrowth(input) {
 export function readBoxPlace(input) {
   const held = input.closest(SAYS_IN);
   const reply = held && replyRowOf(held, input);
+  // A box in the transcript has no row to hold nor a tail to keep beside it.
+  if (!reply) return;
   // The edit may be the one that takes a natural row to its sticky floor.
-  if (reply) rowHeights.set(input, reply.getBoundingClientRect().height);
-  const transcript = held && separateTranscript(held);
+  rowHeights.set(input, reply.getBoundingClientRect().height);
+  const transcript = separateTranscript(held);
   if (transcript)
     transcriptPlaces.set(input, {
       transcript,

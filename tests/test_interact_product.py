@@ -1477,6 +1477,44 @@ def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkey
     assert suggested(rewrite) == ("U1", "A2")
 
 
+def test_a_rewrite_lands_only_on_the_words_it_was_written_over(page_dir):
+    """A tab still drawing a message's old words opened its rewrite on them, and its
+    save silently replaced the newer rewrite another tab had made. A rewrite names the
+    revision it was written over, and the door refuses it once that revision is not the
+    message's latest, telling the user to edit again. Words the message already says are
+    no rewrite."""
+    publish(page_dir)
+    said = append_command(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "North."},
+    )
+
+    def rewrite(text, base):
+        return append_command(
+            page_dir,
+            {
+                "kind": "edit",
+                "author": "user",
+                "message": said["id"],
+                "text": text,
+                "base": base,
+            },
+        )
+
+    south = rewrite("South.", said["id"])
+    with pytest.raises(events_model.EventRefused) as stale:
+        rewrite("East.", said["id"])
+    assert stale.value.user == "The message changed while you edited it; edit it again."
+    west = rewrite("West.", south["id"])
+    with pytest.raises(events_model.EventRefused):
+        rewrite("West.", west["id"])
+    thread = event_folds_model.build_threads(events_model.read_events(page_dir), {})[
+        said["id"]
+    ]
+    assert [message["text"] for message in thread["msgs"]] == ["West."]
+    assert thread["msgs"][0]["edited"]["was"] == "South."
+
+
 def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     page_dir, monkeypatch
 ):

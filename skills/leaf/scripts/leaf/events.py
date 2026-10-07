@@ -321,8 +321,14 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                     thread = thread_for[e["message"]]
                     thread["revisions"].append({**e, "was": message["text"]})
                     thread["resolved"] = None
+                # The message says when it was last rewritten, and what it said before,
+                # so a reader of the thread alone sees which answers were about other
+                # words.
+                message["edited"] = {
+                    **{key: e[key] for key in ("id", "seq", "ts")},
+                    "was": message["text"],
+                }
                 message["text"] = e["text"]
-                message["edited"] = {key: e[key] for key in ("id", "seq", "ts")}
             continue
         if e["kind"] == "reply":
             # A reply whose message the log lost opens the thread that message would

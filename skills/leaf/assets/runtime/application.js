@@ -283,6 +283,7 @@ export function mountApplication(dependencies) {
     actions: threadActions,
     wireInput: dependencies.wireInput,
     landSent: dependencies.landSent,
+    landInThread: dependencies.landInThread,
     changed: refreshThread,
   };
   const settlementView = {

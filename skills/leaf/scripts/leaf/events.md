@@ -11,7 +11,7 @@ page and is not a global identifier. The kinds:
 | --- | --- | --- | --- | --- |
 | `comment` | user or agent | `POST /api/event`, `leaf thread open` | `text`, `drawing`, or `token`; optional `anchor`, `suggestion`, `about: "design"`, `response`, `markup` (CLI only) | opens a question, or with `token` puts a reaction mark on the anchor |
 | `reply` | user or agent | `POST /api/event`, `leaf thread reply` | `parent`; `text` or `token`; agent `responds` when answering; `awaits`, `markup`, and a replacement `anchor` or null detachment (CLI only) | answers the exact named obligation without closing its thread; an agent reply may also replace or remove the thread's current location |
-| `edit` | user or agent | `POST /api/event`, `leaf thread edit` | `message`, `text` | replaces the visible text of one message its own author wrote; the original stays in the log. A user's is a turn the agent answers |
+| `edit` | user or agent | `POST /api/event`, `leaf thread edit` | `message`, `text`; `base` (browser) | replaces the visible text of one message its own author wrote; the original stays in the log. A user's is a turn the agent answers |
 | `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one user has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no thread turn or agent work |
 | `thread_title` | agent | `--title` on `leaf thread open`, `reply` or `edit` | `thread`, `title` | names a thread in the panel; latest title wins without adding a turn or settling work |
 | `reanchor` | page | revision activation | `thread`, `revision`, `anchor: {section}` | a quoted passage no longer resolves; retains the open thread at its surviving section without adding a message, answering work or changing attention |
@@ -273,7 +273,12 @@ them:
   agent session. Markup is frozen because a user action may already rest on a widget
   in it, and a reaction or a bare drawing has no text to revise. The original stays
   in the log with its id, timestamp, author, thread position, and anchor; the panel,
-  wait digests, and the transcript fold the latest text onto it and label it edited.
+  wait digests, and the transcript fold the latest text onto it and label it edited,
+  and the message's `edited` names that latest edit and the text it replaced (`was`).
+  Text the message already says is no revision, and is refused. A browser's edit names its `base`, the
+  revision its words were written over (the message's id, or its latest edit's id or
+  attempt), and lands only while that is still the latest, so a tab holding words
+  another tab has since rewritten cannot silently replace them.
 - An agent's `edit` corrects its words and hands nothing over. A user's `edit` is a
   turn: the fold keeps it in the thread's `revisions`, with `was`, the text it
   replaced, and `events.exchange` places it among the messages by its own id, so it

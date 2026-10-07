@@ -555,7 +555,13 @@ def _parent_error(event: dict, events: list) -> str | None:
 
 def _edit_error(event: dict, events: list) -> str | None:
     """An edit revises the words of a message its own author wrote: the user's own,
-    or the posting agent session's. A reaction or a bare drawing has none to revise."""
+    or the posting agent session's. A reaction or a bare drawing has none to revise.
+
+    An edit that names its `base`, the revision its words were written over (the
+    message's own id, or the latest edit of it, by id or by the attempt of a tab that
+    drew it before the log answered), lands only on that revision: one
+    written over words another tab has since replaced would silently take their place.
+    Words the message already says are no revision, and no turn."""
     if event["kind"] != "edit":
         return None
     name = event["message"]
@@ -579,6 +585,21 @@ def _edit_error(event: dict, events: list) -> str | None:
             return f"message {name!r} belongs to agent session {owner!r}"
     if "text" not in target:
         return f"message {name!r} has no words to revise"
+    revisions = [
+        logged
+        for logged in events
+        if logged["kind"] == "edit" and logged["message"] == name
+    ]
+    latest = revisions[-1] if revisions else target
+    # A tab names a revision it drew before the log answered by its attempt.
+    if "base" in event and event["base"] not in {latest["id"], latest.get("attempt")}:
+        return Refusal(
+            f"edit of {name!r} was written over {event['base']!r}, and "
+            f"{latest['id']!r} has since revised it",
+            "The message changed while you edited it; edit it again.",
+        )
+    if event["text"] == latest["text"]:
+        return f"edit of {name!r} says what the message already says"
     return None
 
 

@@ -359,6 +359,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
   > :is(.lf-react-strip, .lf-msg-control)) {
           --lf-thread-message-control-room: calc(max(26px, var(--aim-floor)) + var(--sp-2)); }
+.lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript
+  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-body > .lf-msg-editor) {
+          --lf-thread-message-control-room:
+            calc(2 * max(58px, var(--aim-floor)) + 4px + var(--sp-2)); }
 .lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
   > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
           anchor-name: --lf-thread-headline, --lf-msg-head; }
@@ -601,6 +605,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-msg:has(.lf-msg-control) > .lf-msg-head {
           --lf-msg-control: max(26px, var(--aim-floor));
           padding-inline-end: var(--lf-msg-control); }
+/* An open rewrite's Cancel and Save are two controls where its Edit was one. */
+.lf-msg:has(> .lf-msg-body > .lf-msg-editor) > .lf-msg-head {
+          --lf-msg-control: calc(2 * max(58px, var(--aim-floor)) + 4px); }
 .lf-msg-control {
           appearance: none; position: absolute; z-index: 2;
           position-anchor: --lf-msg-head;
@@ -998,25 +1005,53 @@ pre:hover + .lf-code-copy,
 /* A thread's reply is one field on every surface; its container decides where it stands.
    The wrapper wears the border and focus band around the editor and its Send action. */
 .lf-thread-reply { display: block; margin-top: var(--sp-3); min-width: 0; }
-/* A message's rewrite stands where its words did, in the reply's field. */
-.lf-msg-editor { display: block; margin-top: var(--sp-1); min-width: 0; }
-.lf-msg-editor > .lf-msg-edit-cancel { margin-top: var(--sp-1); }
-:is(.lf-thread-reply, .lf-msg-editor) .lf-compose-field {
+/* A message's rewrite stands where its words did. The words keep their place, size and
+   wrapping: the field around them takes no room, and its box is painted around them,
+   reaching into the message's inset and the room between turns, so opening and closing
+   it moves nothing. Cancel and Save stand at the message's head (`.lf-msg-edit-actions`). */
+.lf-msg-editor { display: block; min-width: 0; font: inherit; }
+.lf-msg-editor > .lf-compose-field { isolation: isolate; }
+.lf-msg-editor > .lf-compose-field::before { content: ""; position: absolute; z-index: -1;
+          inset: -4px calc(-1 * var(--lf-thread-text-inset));
+          border: 1px solid var(--border-2); border-radius: 6px; background: var(--card);
+          pointer-events: none; }
+.lf-msg-editor > .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus))::before {
+          outline: var(--focus-ring); --lf-focus-ring: text-box;
+          outline-offset: 0; border-color: transparent; }
+.lf-msg-editor > .lf-compose-field > leaf-text:not(.lf-fab-input) { display: block;
+          min-width: 0; min-height: 0; padding: 0; border: 0; border-radius: 0;
+          background: transparent; color: var(--ink); font: inherit;
+          --lf-field-end-room: 0px; }
+.lf-msg-editor > .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+.lf-thread-reply .lf-compose-field {
           --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
           border: 1px solid var(--border-2);
           border-radius: 6px; background: var(--card); }
-:is(.lf-thread-reply, .lf-msg-editor) .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
+.lf-thread-reply .lf-compose-field:has(> leaf-text:is(:focus, .lf-focus)) {
           outline: var(--focus-ring); --lf-focus-ring: text-box;
           outline-offset: 0; border-color: transparent; }
-:is(.lf-thread-reply, .lf-msg-editor) .lf-compose-field > leaf-text { display: block; min-width: 0;
+.lf-thread-reply .lf-compose-field > leaf-text { display: block; min-width: 0;
           padding: 8px var(--lf-compose-pad-inline-start);
           border: 0; border-radius: 0; background: transparent;
           color: var(--ink); font: var(--t-5)/1.5 var(--sans);
           max-height: 50vh; overflow-y: auto; }
-:is(.lf-thread-reply, .lf-msg-editor) .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+.lf-thread-reply .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+/* Cancel and Save take the message's head while it is open, where its Edit control stood
+   and with its face, as words: a glyph there would read as the thread's own Resolve
+   beside them. Save keeps its press's ink. */
+.lf-msg-edit-actions { position: absolute; z-index: 2; position-anchor: --lf-msg-head;
+          inset-block-start: anchor(center); inset-inline-end: anchor(right); translate: 0 -50%;
+          display: inline-flex; gap: 4px; }
+.lf-msg-edit-actions > .lf-msg-control { position: static; translate: none; opacity: 1;
+          inline-size: max(58px, var(--aim-floor)); block-size: max(24px, var(--aim-floor));
+          min-width: 0; min-height: 0;
+          font: 600 var(--t-6)/1 var(--sans); }
+.lf-msg-edit-actions > .lf-msg-edit-save::before { display: none; }
+.lf-msg-edit-actions > .lf-msg-edit-save:not([aria-disabled="true"]) { color: var(--accent); }
 
 .lf-msg-body a.detached { color: var(--muted-2); text-decoration: underline dashed; cursor: default; }
-.lf-msg-body.lf-suggest-body { white-space: pre-wrap; }
+/* A suggestion's words keep their lines; the body's own markup whitespace keeps none. */
+.lf-suggest-body > .lf-msg-text { white-space: pre-wrap; }
 
 .lf-suggest-label { color: var(--muted-2); }
 

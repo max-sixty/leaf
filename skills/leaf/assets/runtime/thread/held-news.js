@@ -57,7 +57,8 @@
      an Ask it already shows;
    - acting in it (`gesturedOn`): a reply, a reaction on one of its messages, settling
      it, a move on a widget one of them holds, or a thread they start in the seat, which
-     answers what came before it and so follows it;
+     answers what came before it and so follows it; and, while it stands open, a rewrite
+     of one of its messages, which has to be written over the words as they stand;
    - changing the panel's view, which moves its cards anyway.
 
    Held news also shows once none of the seat shows in the window, where its growth moves
@@ -95,6 +96,7 @@ import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
 import { onStanding } from "../focus.js";
+import { rewritingIn } from "./message-edit.js";
 
 // Whether this page's ledger holds a gesture of the user's on `thread`, of any kind, the
 // refusal that takes one back included until the reading it restores is drawn: the
@@ -103,10 +105,11 @@ import { onStanding } from "../focus.js";
 // package mirror whose render waited on work of its own does, arrive like the agent's.
 export const gesturedOn = (thread) => threadState().gestured.includes(thread.id);
 
-// Whether the user acts in the thread a seat draws under `key` (`gesturedOn`).
+// Whether the user acts in the thread a seat draws under `key` (`gesturedOn`), or is
+// rewriting one of its messages.
 const gestured = (key) => {
   const thread = allThreads().find((each) => threadKey(each) === key);
-  return Boolean(thread) && gesturedOn(thread);
+  return Boolean(thread) && (gesturedOn(thread) || rewritingIn(thread));
 };
 
 // The standing reactions a strip draws, by token, since a reaction keeps its token but
@@ -127,10 +130,14 @@ const fold = (summary, drawn) =>
     Boolean(summary.protected?.length),
   ]);
 
+// The edit a message's words were last rewritten by, or null for words as first said.
+const rewritten = (message) => (message.base === message.id ? null : message.base);
+
 // What of `now` the seat would draw differently from `was`, the thread as it drew it:
-// each message that is new or whose words changed, each reaction put on a reply or taken
-// off it, each summary that comes or goes, and the thread's settlement; `changed` the
-// keys of the messages the news changes, every one where the settlement changes, which
+// each message that is new, rewritten, or whose words grew, each reaction put on a reply
+// or taken off it, each summary that comes or goes, and the thread's settlement;
+// `changed` the keys of the messages the news changes, every one where the settlement
+// changes, which
 // moves the thread's controls into or out of its head row and draws or folds its
 // reaction strips; `folds` the keys of the messages a summary that comes or goes covers,
 // and the ids of those that go, whose checkpoints a summary's change redraws from their
@@ -145,7 +152,7 @@ function difference(was, now) {
       : now.resolved
         ? "Resolved"
         : "Reopened";
-  const news = { settled, replies: 0, reactions: 0, appended: false };
+  const news = { settled, replies: 0, edits: 0, reactions: 0, appended: false };
   const changed = new Set();
   const arrived = new Set();
   for (const message of now.messages) {
@@ -155,7 +162,10 @@ function difference(was, now) {
       news.appended = true;
       arrived.add(message.id);
     } else if (JSON.stringify(prior.body) !== JSON.stringify(message.body)) {
-      news.replies += 1;
+      // Words a new revision changed are a message rewritten, not a new one; words a
+      // reply streams on are still that reply arriving.
+      if (rewritten(prior) === rewritten(message)) news.replies += 1;
+      else news.edits += 1;
       changed.add(message.key);
     } else if (settled) changed.add(message.key);
     else if (message.reactions && prior.reactions) {
@@ -183,7 +193,8 @@ function difference(was, now) {
     ),
     summaries: gone.map(({ id }) => id),
   };
-  if (!settled && !news.replies && !news.reactions && !news.summaries) return null;
+  if (!settled && !news.replies && !news.edits && !news.reactions && !news.summaries)
+    return null;
   return { news, changed, folds };
 }
 
@@ -242,10 +253,11 @@ export function growthInsideIsSeen(nodes) {
 }
 
 const counted = (count, one, many) => count && `${count} ${count === 1 ? one : many}`;
-const newsLabel = ({ settled, replies, reactions, summaries, threads }) =>
+const newsLabel = ({ settled, replies, edits, reactions, summaries, threads }) =>
   [
     settled,
     counted(replies, "new reply", "new replies"),
+    counted(edits, "message edited", "messages edited"),
     counted(reactions, "reaction changed", "reactions changed"),
     counted(summaries, "summary changed", "summaries changed"),
     counted(threads, "new thread", "new threads"),

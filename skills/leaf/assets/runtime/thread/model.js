@@ -145,7 +145,12 @@ export function foldThreads(threads, gestures) {
       thread.msgs = thread.msgs.with(at, {
         ...thread.msgs[at],
         text: gesture.text,
-        edited: { id: gesture.id, ts: gesture.ts, pending: true },
+        edited: {
+          id: gesture.id,
+          ts: gesture.ts,
+          was: thread.msgs[at].text,
+          pending: true,
+        },
       });
       if (thread.root.id === gesture.message) thread.root = thread.msgs[at];
       thread.resolved = null;

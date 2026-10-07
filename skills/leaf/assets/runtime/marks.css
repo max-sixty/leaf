@@ -5,8 +5,9 @@
 /* A newly inserted message starts unconfirmed, so delivery paint is immediate.
    This sheet reaches every annotation surface, including inline threads inside
    declared shadow roots. Thread controls stay outside messages and keep
-   chrome.css's delayed busy feedback. */
-.lf-msg[aria-busy="true"] {
+   chrome.css's delayed busy feedback, as does a rewrite: its words stood before it, so
+   only a slow answer dims them. */
+.lf-msg[aria-busy="true"]:not([data-lf-rewriting]) {
   animation: none;
   opacity: .5;
   cursor: progress;

@@ -172,10 +172,18 @@ export function messageReading(
     by: message.author === "agent" ? message.agent : "You",
     timestamp: message.ts,
     age: ago(message.ts),
-    edited: message.edited ? `Edited ${ago(message.edited.ts)}` : null,
+    // What the message said before its last rewrite is the edited mark's to tell, since
+    // answers above may have been about those words.
+    edited: message.edited
+      ? `Edited ${ago(message.edited.ts)}. Before, it said: “${message.edited.was}”`
+      : null,
     editable: editable(message),
     failure: message.failure ?? null,
     pending: workflow?.stage === "sending",
+    rewriting: Boolean(message.edited?.pending),
+    // What a rewrite of the message is written over (`base` on an edit): its latest
+    // edit, or the message itself.
+    base: message.edited?.id ?? message.id,
     workflow,
     workflowLabel: workflowLabel(workflow),
     workflowTitle: workflowTitle(workflow),
@@ -229,10 +237,14 @@ export class MessageView {
         this.node.dataset.lfOffer = "";
       }
       // A double click on the user's own words opens them for rewriting, as the word
-      // under it would otherwise only be selected.
+      // under it would otherwise only be selected. The word it selected goes first: the
+      // editor then sets its own caret, which clearing the selection after would take. A
+      // link keeps its own double click.
       this.node.addEventListener("dblclick", (event) => {
-        if (event.target.closest?.(".lf-msg-editor")) return;
-        if (this.openEdit()) window.getSelection()?.removeAllRanges();
+        if (event.target.closest?.(".lf-msg-editor, a[href]")) return;
+        if (!this.#model?.editable) return;
+        window.getSelection()?.removeAllRanges();
+        this.openEdit();
       });
       this.node.addEventListener(OPEN_MESSAGE_EDIT, () => this.openEdit());
     }
@@ -240,14 +252,16 @@ export class MessageView {
     // closed editor goes with its subscription and keys.
     const editing = model.editable && holdsMessageEdit(model.id, this, panel);
     if (editing && !this.#editor)
-      this.#editor = new MessageEditor(model.id, this, panel, {
+      this.#editor = new MessageEditor(model.id, this, {
         wireInput: this.#commands.reply.wireInput,
         said: () => this.#model.body.text,
+        base: () => this.#model.base,
         send: (text, options) =>
           this.#commands.edit.send(this.#model.id, text, options),
         land: () => this.#commands.edit.land(),
         paint: () => this.#commands.edit.paint(),
         previous: () => this.#commands.edit.previous(this.#model.id),
+        reveal: (editor) => this.#commands.edit.reveal(this.node, editor),
       });
     if (!editing && this.#editor) {
       this.#editor.dispose();
@@ -268,6 +282,9 @@ export class MessageView {
     this.node.classList.toggle("lf-unread", Boolean(model.unread));
     keeps(this.node, "data-attempt", model.attempt || null);
     keeps(this.node, "aria-busy", model.pending ? "true" : null);
+    // A rewrite waits on words already standing, so it dims on the shared delay like any
+    // control awaiting the log, rather than at once as a new message does (marks.css).
+    keeps(this.node, "data-lf-rewriting", model.rewriting ? "" : null);
     keeps(this.node, "data-failure", model.failure || null);
     if (model.nativeAuthored && model.body.authored && !this.#authored)
       this.#authored = authoredMessage({
@@ -290,30 +307,22 @@ export class MessageView {
         <b>${model.by}</b
         ><span class="lf-msg-meta"
           ><time datetime=${model.timestamp}>${model.age}</time> ${receipt}
-          ${
-            model.failure
-              ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
-              : nothing
-          }
-          ${
-            model.body.kind === "suggestion"
-              ? html`<span class="lf-suggest-label">Suggestion</span>`
-              : nothing
-          }
-          ${
-            model.edited
-              ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
-              : nothing
-          }
-          ${
-            this.#kept
-              ? html`<span
-                  class="lf-msg-kept"
-                  title="Your rewrite is kept; open it to save or cancel"
-                  >unsaved edit</span
-                >`
-              : nothing
-          }
+          ${model.failure
+            ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
+            : nothing}
+          ${model.body.kind === "suggestion"
+            ? html`<span class="lf-suggest-label">Suggestion</span>`
+            : nothing}
+          ${model.edited
+            ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
+            : nothing}
+          ${this.#kept
+            ? html`<span
+                class="lf-msg-kept"
+                title="Your rewrite is kept; open it to save or cancel"
+                >unsaved edit</span
+              >`
+            : nothing}
         </span>
       `,
       this.#header,
@@ -342,26 +351,22 @@ export class MessageView {
           class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
         >
           ${editing ? this.#editor.node : this.#body(model.body)}
-          ${
-            model.body.drawing
-              ? html`<span class="lf-drawing-reference">Drawing comment</span>`
-              : nothing
-          }
+          ${model.body.drawing
+            ? html`<span class="lf-drawing-reference">Drawing comment</span>`
+            : nothing}
           ${model.nativeAuthored && model.body.authored ? this.#authored : nothing}
         </div>
-        ${
-          model.body.authored && !model.nativeAuthored
-            ? html`<button
-                type="button"
-                class="lf-btn lf-page-thread-open lf-ui"
-                data-lf-gen="1"
-                data-lf-offer="button"
-                @click=${() => this.#commands.showThread(this.#model.id)}
-              >
-                Open interactive reply in Threads
-              </button>`
-            : nothing
-        }
+        ${model.body.authored && !model.nativeAuthored
+          ? html`<button
+              type="button"
+              class="lf-btn lf-page-thread-open lf-ui"
+              data-lf-gen="1"
+              data-lf-offer="button"
+              @click=${() => this.#commands.showThread(this.#model.id)}
+            >
+              Open interactive reply in Threads
+            </button>`
+          : nothing}
         ${strip} ${rewrite}
       `,
       this.node,
@@ -399,10 +404,19 @@ export class MessageView {
   openEdit() {
     const model = this.#model;
     if (!model?.editable) return false;
-    openMessageEdit(model.id, this, model.panel);
-    this.#commands.edit.paint();
+    if (!this.#editor) {
+      this.#commands.edit.opening(model.id);
+      openMessageEdit(model.id, this, model.panel);
+      this.#commands.edit.paint();
+    }
     this.#editor?.focus();
     return true;
+  }
+
+  // Close an open editor as Escape would, without moving the user: another one in the
+  // thread is opening.
+  closeEdit() {
+    this.#editor?.close();
   }
 
   #body(body) {

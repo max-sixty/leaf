@@ -678,6 +678,7 @@
             "attempt": {"type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$"},
             "message": {"type": "string", "minLength": 1},
             "text": {"type": "string", "minLength": 1},
+            "base": {"type": "string", "minLength": 1},
             "agent": {"type": "string", "minLength": 1},
             "session": {"type": "string", "minLength": 1}
           },
@@ -688,7 +689,7 @@
             {"properties": {"author": {"const": "user"}}, "not": {"anyOf": [{"required": ["agent"]}, {"required": ["session"]}]}}
           ]
         },
-        "browser": {"required": ["kind", "message", "text"]}
+        "browser": {"required": ["kind", "message", "text", "base"]}
       },
       "summary": {
         "record": {

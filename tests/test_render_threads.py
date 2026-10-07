@@ -52,6 +52,7 @@ from render_harness import (
     LONG_PAGE,
     CutOff,
     admit_before_presenting_comment,
+    consume_browser_errors,
     any_owner_entry,
     example_media,
     expect_asks_answered,
@@ -539,9 +540,9 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
         },
     )
     told(page)
-    expect(thread.get_by_role("button", name="1 new reply", exact=True)).to_be_visible()
+    expect(thread.get_by_role("button", name="1 message edited", exact=True)).to_be_visible()
     expect(message.locator(".lf-msg-text")).to_have_text("The complete answer.")
-    thread.get_by_role("button", name="1 new reply", exact=True).click()
+    thread.get_by_role("button", name="1 message edited", exact=True).click()
     expect(message.locator(".lf-msg-text")).to_have_text("The complete edited answer.")
     assert page.evaluate(
         f"""() => window.__streamMessage === document.querySelector(
@@ -1076,7 +1077,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     told(page)
     expect(checkpoint).to_be_visible()
     card.get_by_role(
-        "button", name="1 new reply · 1 summary changed", exact=True
+        "button", name="1 message edited · 1 summary changed", exact=True
     ).click()
     expect(card.locator(".lf-thread-checkpoint")).to_have_count(0)
     expect(card.locator(f'.lf-msg[data-mid="{first["id"]}"]')).to_be_visible()
@@ -10304,6 +10305,10 @@ def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(message.locator(".lf-msg-text")).to_have_text("Fit the south bracket.")
     expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
+    # Escape steps back up one rung, to the reply box ↑ came from, and the next one out
+    # of the box to the thread.
+    expect(reply).to_be_focused()
+    page.keyboard.press("Escape")
     # Resume writing goes back to the kept words, as it does to a kept reply.
     page.keyboard.press("g")
     page.keyboard.press("i")
@@ -10380,3 +10385,283 @@ def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
     expect(earlier).to_be_focused()
     expect(thread.locator(".lf-msg-editor")).to_have_count(1)
     expect(earlier).to_have_js_property("value", "Fit the north bracket.")
+
+
+def _rewrite_surface(browser, serve, surface, size=(1400, 900)):
+    """A thread holding the user's message and the agent's answer, drawn on `surface`:
+    the Threads panel, the seat in the page's flow, or the margin card. Returns the
+    page, the thread, and the message as that surface draws it."""
+    url = serve(PANEL_PAGE if surface == "card" else THREAD_DIFF_PAGE)
+    anchor = "how-store" if surface == "card" else "cd-q"
+    mine = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Fit the north bracket.",
+            "anchor": {"section": anchor},
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Indexer",
+            "session": "worker-1",
+            "parent": mine["id"],
+            "responds": mine["id"],
+            "text": "Fitted.",
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, *size)
+    if surface == "panel":
+        page.locator(".lf-threads-toggle").click()
+        thread = page.locator(f'.lf-thread:has(.lf-msg[data-mid="{mine["id"]}"])')
+        message = thread.locator(f'.lf-msg[data-mid="{mine["id"]}"]')
+    elif surface == "seat":
+        thread = page.locator("#cd-q .lf-page-thread").first
+        message = thread.locator(f'.lf-msg[data-event="{mine["id"]}"]')
+    else:
+        page.locator(f'[data-lf-margin-for="{anchor}"] .lf-margin-marker').click()
+        thread = page.locator(".lf-margin-preview")
+        message = thread.locator(f'.lf-msg[data-event="{mine["id"]}"]')
+    expect(message).to_be_visible()
+    rendered(page)
+    return page, thread, message
+
+
+# Where the first line of a node's words stands: its first text box's left and top.
+FIRST_LINE = """n => {
+  const root = n.shadowRoot ?? n;
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  for (let t = walk.nextNode(); t; t = walk.nextNode()) {
+    if (!t.data.trim()) continue;
+    const range = document.createRange();
+    range.selectNodeContents(t);
+    const box = range.getClientRects()[0];
+    return [box.left, box.top];
+  }
+  return null;
+}"""
+
+
+@pytest.mark.parametrize("surface", ["panel", "seat", "card"])
+def test_a_rewrite_opens_and_closes_without_moving_the_thread(browser, serve, surface):
+    """Opening a rewrite with ↑ swapped the message for a bordered box with Cancel on a
+    row of its own, pushing every turn and the reply box below it down 55px, and Escape
+    left that room behind and the user standing on the thread rather than in the box
+    they pressed ↑ from. The box now surrounds the words where they stood, Cancel and
+    Save take the message's head, and every way out steps back up to the reply box.
+
+    In the margin card each keystroke in the rewrite also threw, from the reply box's
+    growth-following reading a reply row the rewrite has none of; the browser fixture
+    fails on that error. A double click put the caret before the words, since clearing
+    the word it selected took the caret the editor had just set."""
+    page, thread, message = _rewrite_surface(browser, serve, surface)
+    reply = thread.locator(".lf-thread-reply leaf-text").first
+    reply.click()
+    rendered(page)
+    words = message.locator(".lf-msg-text")
+    first_line = words.evaluate(FIRST_LINE)
+    rest = {"message": message.bounding_box(), "reply": reply.bounding_box()}
+
+    def unmoved():
+        now = {"message": message.bounding_box(), "reply": reply.bounding_box()}
+        for name, box in rest.items():
+            assert abs(now[name]["y"] - box["y"]) < 0.5, (name, box, now[name])
+            assert abs(now[name]["height"] - box["height"]) < 0.5, (name, box, now[name])
+
+    page.keyboard.press("ArrowUp")
+    editor = message.locator(".lf-msg-editor leaf-text")
+    expect(editor).to_be_focused()
+    rendered(page)
+    unmoved()
+    # The words stand where they stood.
+    editing_line = editor.evaluate(FIRST_LINE)
+    assert abs(editing_line[0] - first_line[0]) < 0.5, (editing_line, first_line)
+    assert abs(editing_line[1] - first_line[1]) < 0.5, (editing_line, first_line)
+    head = message.locator(".lf-msg-head").bounding_box()
+    for name in ("Cancel", "Save"):
+        box = message.get_by_role("button", name=name, exact=True).bounding_box()
+        middle = box["y"] + box["height"] / 2
+        assert head["y"] - 1 <= middle <= head["y"] + head["height"] + 1, (name, box, head)
+    page.keyboard.type("Z")
+    expect(editor).to_have_js_property("value", "Fit the north bracket.Z")
+    page.keyboard.press("Escape")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    expect(reply).to_be_focused()
+    rendered(page)
+    unmoved()
+
+    # A double click puts the caret after the words, as ↑ does.
+    words.dblclick()
+    expect(editor).to_be_focused()
+    page.keyboard.type("Y")
+    expect(editor).to_have_js_property("value", "Fit the north bracket.ZY")
+    # Escape on the rewrite's own controls closes it as in its words.
+    message.get_by_role("button", name="Save", exact=True).focus()
+    page.keyboard.press("Escape")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    expect(thread).to_be_visible()
+    expect(reply).to_be_focused()
+
+
+def test_walking_up_through_rewrites_shows_each_one(browser, serve):
+    """↑ walking up to an earlier message opened its rewrite wherever it stood, which in
+    a long thread was above the panel's top or below its foot: the user typed into a box
+    they could not see. Each one opened now stands in the panel's view, clear of the
+    reply row pinned at its foot."""
+    url = serve(THREAD_DIFF_PAGE)
+    d = serve.page_dir
+    first = append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "id": "rewritten",
+            "author": "user",
+            "revision": 1,
+            "text": "Fit the north bracket.",
+            "anchor": {"section": "cd-q"},
+        },
+    )
+    long = " ".join(["The steel pair held through the frost of February."] * 12)
+    mine = []
+    for turn in range(3):
+        answer = append_carried_log_record(
+            d,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Indexer",
+                "session": "worker-1",
+                "parent": first["id"],
+                "responds": mine[-1] if mine else first["id"],
+                "text": long,
+            },
+        )
+        said = append_carried_log_record(
+            d,
+            {
+                "kind": "reply",
+                "author": "user",
+                "parent": answer["id"],
+                "text": f"And {turn}.",
+            },
+        )
+        mine.append(said["id"])
+    page = open_page(browser, url)
+    resized(page, 1400, 600)
+    page.locator(".lf-threads-toggle").click()
+    thread = page.locator(f'.lf-thread:has(.lf-msg[data-mid="{first["id"]}"])')
+    thread.locator(".lf-thread-reply leaf-text").focus()
+    page.keyboard.press("ArrowUp")
+    for name in [*reversed(mine), first["id"]]:
+        editor = thread.locator(f'.lf-msg[data-mid="{name}"] .lf-msg-editor leaf-text')
+        expect(editor).to_be_focused()
+        rendered(page)
+        # The words' first line is what the hit test at its middle finds.
+        assert editor.evaluate(
+            """n => {
+              const b = n.getBoundingClientRect();
+              let at = document.elementFromPoint(b.left + 4, b.top + 8);
+              while (at?.shadowRoot) {
+                const inner = at.shadowRoot.elementFromPoint(b.left + 4, b.top + 8);
+                if (!inner || inner === at) break;
+                at = inner;
+              }
+              return n === at || n.contains(at) || n.shadowRoot.contains(at);
+            }"""
+        ), name
+        page.keyboard.press("Home")
+        page.keyboard.press("ArrowUp")
+
+
+def test_an_emptied_rewrite_keeps_nothing(browser, serve):
+    """A rewrite cleared and closed kept its empty words, so every later opening showed an
+    empty box in place of the message, without saying it held anything. A rewrite keeps
+    words."""
+    page, thread, message = _rewrite_surface(browser, serve, "panel")
+    words = message.locator(".lf-msg-text")
+    editor = message.locator(".lf-msg-editor leaf-text")
+    words.dblclick()
+    expect(editor).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.press("Backspace")
+    page.keyboard.press("Escape")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    expect(message.locator(".lf-msg-kept")).to_have_count(0)
+    words.dblclick()
+    expect(editor).to_have_js_property("value", "Fit the north bracket.")
+
+
+def test_a_rewrite_never_replaces_words_it_did_not_see(browser, serve):
+    """Another tab holding a message's old words behind its news notice opened a rewrite
+    on them, and its save silently took the place of the rewrite the first tab had made.
+    A rewrite opened before the words changed is refused, its words kept; opened again,
+    it shows the other's words on the message and is written over them."""
+    url = serve(THREAD_DIFF_PAGE)
+    mine = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "rewritten",
+            "author": "user",
+            "revision": 1,
+            "text": "Fit the north bracket.",
+            "anchor": {"section": "cd-q"},
+        },
+    )
+    context = browser.new_context()
+    tabs = []
+    for _ in range(2):
+        tab = open_page(browser, url, context=context)
+        resized(tab, 1200, 900)
+        # The panel's state is the user's, which the first tab already opened.
+        if tab.locator(".lf-thread-panel").is_hidden():
+            tab.locator(".lf-threads-toggle").click()
+        tabs.append(tab)
+    a, b = tabs
+    in_a, in_b = (
+        tab.locator(f'.lf-thread .lf-msg[data-mid="{mine["id"]}"]').first for tab in tabs
+    )
+    expect(in_a).to_be_visible()
+    expect(in_b).to_be_visible()
+    # B opens a rewrite before A's lands.
+    in_b.locator(".lf-msg-text").dblclick()
+    expect(in_b.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    a.bring_to_front()
+    in_a.locator(".lf-msg-text").dblclick()
+    a.keyboard.press("ControlOrMeta+a")
+    a.keyboard.type("Saved in A.")
+    a.keyboard.press("Enter")
+    round_trip(a)
+    b.bring_to_front()
+    in_b.locator(".lf-msg-editor leaf-text").focus()
+    b.keyboard.press("ControlOrMeta+a")
+    b.keyboard.type("Saved in B.")
+    b.keyboard.press("Enter")
+    round_trip(b)
+    consume_browser_errors(b, "/api/event")
+    # Refused, B's words wait as its rewrite.
+    expect(in_b.locator(".lf-msg-editor")).to_have_count(0)
+    expect(in_b.locator(".lf-msg-kept")).to_have_text("unsaved edit")
+    told(b)
+    edits = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"]
+    assert [e["text"] for e in edits] == ["Saved in A."]
+    # Opened again, the rewrite shows A's words on the message and is written over them.
+    in_b.locator(".lf-msg-text").dblclick()
+    editor = in_b.locator(".lf-msg-editor leaf-text")
+    expect(editor).to_have_js_property("value", "Saved in B.")
+    expect(in_b.locator(".lf-edited")).to_have_attribute(
+        "title", re.compile("Before, it said: “Fit the north bracket.”")
+    )
+    b.keyboard.press("Enter")
+    round_trip(b)
+    edits = [e for e in events_model.read_events(serve.page_dir) if e["kind"] == "edit"]
+    assert [(e["text"], e["base"]) for e in edits] == [
+        ("Saved in A.", mine["id"]),
+        ("Saved in B.", edits[0]["id"]),
+    ]

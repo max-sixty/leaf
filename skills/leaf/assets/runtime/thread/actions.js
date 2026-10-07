@@ -32,10 +32,11 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
     });
   };
 
-  // The user rewriting a message of their own (`message-edit.js`). Words the message
-  // already says send nothing.
-  const edit = (key, messageId, text, { attempt } = {}) => {
+  // The user rewriting a message of their own (`message-edit.js`), written over the
+  // revision `base` names. Words the message already says, and none, send nothing.
+  const edit = (key, messageId, text, { attempt, base } = {}) => {
     if (typeof text !== "string") throw new TypeError("A message edit needs text");
+    if (typeof base !== "string") throw new TypeError("A message edit needs its base");
     const thread = find(key);
     if (!thread || thread.settling) return null;
     const message = thread.msgs.find((item) => item.id === messageId);
@@ -44,6 +45,7 @@ export function createThreadActions({ post, withdraw, sendReaction, currentRevis
       kind: "edit",
       message: messageId,
       text,
+      base,
       ...(attempt && { attempt }),
     });
   };

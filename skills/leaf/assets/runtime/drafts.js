@@ -693,17 +693,25 @@ addEventListener("storage", (ev) => {
 // that lifetime on committed removal. Ordinary inputs retire on disconnection. The
 // owner receives the original notification after hydration: null can mask a provisional
 // send or report settlement, so its lifecycle reads canonical draft availability.
+// `blank` answers what the box holds with no draft: nothing for a new message, and the
+// message's own words for a rewrite of it.
 export function mirrorDraft(
   ta,
   sync,
   ctx,
-  { retained = false, mirrored = false, resume = null, onChange = () => {} } = {},
+  {
+    retained = false,
+    mirrored = false,
+    resume = null,
+    onChange = () => {},
+    blank = () => "",
+  } = {},
 ) {
   const off = watchDraft(
     ctx,
     (value) => {
       if (!retained && !ta.isConnected) return off();
-      sync.load(value ?? "");
+      sync.load(value ?? blank());
       onChange(value);
     },
     { input: ta, mirrored, resume },

@@ -112,6 +112,12 @@ takes the growth into what they scrolled past, or below it. A short thread's rep
 box follows its last message; a long panel thread pins the
 box at its scroller's foot. News that would move a reply in flow waits behind the
 thread's existing notice; a pinned reply lets the transcript grow above it.
+These holds protect continuous reading. A hidden tab ends it; returning reveals
+the held reading and the first refreshed reading before protection resumes
+(`reading-continuity.js`, closed by `state-feed.js` after presentation). Keyboard
+blur alone does not end reading: the page may remain visible beside another window.
+Returning uses the ordinary arrival tint and thread transitions, and keeps a native
+editor the user was composing in, including its focus and caret.
 Where news would move what the reader is reading, it waits behind a control of fixed size:
 in a seat in the page's flow or an open panel card, whatever the thread would draw
 differently (an agent's reply, a reaction from another tab, the thread resolved or

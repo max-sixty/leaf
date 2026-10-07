@@ -144,14 +144,9 @@ uv run leaf-dev trace-server \
 The command prints the viewer URL and stays running. Link that URL in the review
 page; open a desktop browser only when the user asks to watch.
 
-When showing a timeline in Leaf, select the optional `playwright` package and
-read its author instructions. Bind `lf-trace` to the original archive's imported
-`playwright-trace` source; that contract's producer instructions own the import
-command. The widget combines action checkpoints and optional intermediate frames
-in one chronological timeline, with comments on images and saved accessibility
-elements, and a direct link to the
-same recording in the running Trace Viewer. The viewer supplies DOM, source,
-console and network inspection. Keep both previews running and verify that the
+Show the trace on the Leaf page in `lf-trace`, as
+`skills/leaf/references/authoring-evidence.md`, "Source files and media", says,
+importing it with that viewer URL. Keep both previews running and verify that the
 viewer URL reaches the user's browser before handing it over.
 
 For an important result, perform the input and use a Playwright expectation to

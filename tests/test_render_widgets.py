@@ -5033,12 +5033,9 @@ def test_a_phone_board_gives_its_column_room_and_keeps_the_next_one_discoverable
     expect(page.locator("#sq-col-0 > #sq-card-0")).to_have_count(1)
 
 
-@pytest.mark.parametrize(
-    "typed_color, close_editor",
-    [("#8b4a5f", "escape"), ("#8B4A5F", "escape"), ("#8b4a5f", "outside-press")],
-)
+@pytest.mark.parametrize("typed_color", ["#8b4a5f", "#8B4A5F"])
 def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
-    browser, serve, typed_color, close_editor
+    browser, serve, typed_color
 ):
     page = open_page(browser, serve(PLAYGROUND_PAGE))
     playground = page.locator("#card-playground")
@@ -5064,15 +5061,7 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
         radius.press("ArrowRight")
     playground.get_by_role("switch", name="Compact spacing").press("Space")
     playground.get_by_role("radio", name="Quiet", exact=True).press("ArrowRight")
-    picker = playground.locator("wa-color-picker")
-    picker.get_by_role("button", name="Accent", exact=True).click()
-    color_field = picker.get_by_role("textbox")
-    color_field.fill(typed_color)
-    color_field.press("Enter")
-    if close_editor == "escape":
-        color_field.press("Escape")
-    else:
-        page.locator('lf-playground-control[name="title"] input').click()
+    playground.get_by_label("Accent", exact=True).fill(typed_color)
     page.locator('lf-playground-control[name="title"] input').fill("Ridge note; alert")
 
     assert len(events_model.read_events(serve.page_dir)) == before
@@ -5122,6 +5111,7 @@ def test_a_playground_keeps_one_typed_working_state_until_the_user_chooses(
     }
 
     page.reload()
+    wait_until_ready(page)
     expect(page.locator("#card-instruction")).to_contain_text("17px radius")
     assert playground.evaluate("root => root.values")["title"] == "Ridge note; alert"
     undo(page)
@@ -5232,7 +5222,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     expect(playground.get_by_role("button", name="Routine release")).to_be_visible()
     expect(playground.get_by_role("button", name="Needs attention")).to_be_visible()
     pressure = playground.get_by_role("slider", name="Concurrent release events")
-    expect(pressure).to_have_attribute("aria-valuenow", "2")
+    expect(pressure).to_have_value("2")
     expect(page.locator(".notification-demo-card-banner")).to_have_count(2)
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(2)
     expect(page.locator(".notification-demo-strip-owner")).to_have_count(2)
@@ -5267,7 +5257,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         "4 rows · compact summary"
     )
     playground.get_by_role("button", name="Needs attention").click()
-    expect(pressure).to_have_attribute("aria-valuenow", "4")
+    expect(pressure).to_have_value("4")
     expect(page.locator("#notification-simulator")).to_have_attribute(
         "data-compact", "true"
     )
@@ -5278,7 +5268,7 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
         regular_strip_padding.removesuffix("px")
     )
     playground.get_by_role("button", name="Routine release").click()
-    expect(pressure).to_have_attribute("aria-valuenow", "2")
+    expect(pressure).to_have_value("2")
     assert preview.evaluate("body => body.scrollTop") == 0
     action_box = actions.bounding_box()
     playground_box = playground.bounding_box()
@@ -5327,7 +5317,7 @@ def test_composed_corpus_runs_authored_page_modules(browser, serve):
         page.locator("#notification-playground").get_by_role(
             "slider", name="Concurrent release events"
         )
-    ).to_have_attribute("aria-valuenow", "2")
+    ).to_have_value("2")
     expect(page.locator(".notification-demo-card-banner")).to_have_count(2)
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(2)
 
@@ -5473,11 +5463,11 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     playground.get_by_role("button", name="Broad query").click()
     expect(
         playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
-    ).to_have_attribute("aria-valuenow", "6")
+    ).to_have_value("6")
     playground.get_by_role("button", name="Focused query").click()
     expect(
         playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
-    ).to_have_attribute("aria-valuenow", "4")
+    ).to_have_value("4")
     instruction = page.locator("#release-query-instruction")
     expect(instruction).to_contain_text("risk above 80, then region is europe")
     playground.get_by_role("button", name="Copy instruction").click()
@@ -5485,6 +5475,7 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     assert copied == instruction.inner_text()
 
     page.reload()
+    wait_until_ready(page)
     expect(rows).to_have_count(2)
     assert playground.evaluate("root => root.values.filters.order") == [
         "filter-2",
@@ -5522,6 +5513,7 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
         "values": playground.evaluate("root => root.values"),
     }
     page.reload()
+    wait_until_ready(page)
     expect(rows.first.get_by_label("Value")).to_have_value("asia")
     expect(instruction).to_contain_text("region is asia, then risk above 40")
     undo(page)
@@ -5601,21 +5593,19 @@ def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
     playground.get_by_role("button", name="Wrapped reader").click()
     expect(
         playground.locator('lf-playground-control[name="width"]').get_by_role("slider")
-    ).to_have_attribute("aria-valuenow", "320")
-    expect(
-        playground.locator('lf-playground-choice[value="B"] wa-radio')
-    ).to_be_checked()
+    ).to_have_value("320")
+    expect(playground.get_by_role("radio", name="B", exact=True)).to_be_checked()
     playground.get_by_role("button", name="Compact reader").click()
     expect(
         playground.locator('lf-playground-control[name="width"]').get_by_role("slider")
-    ).to_have_attribute("aria-valuenow", "420")
+    ).to_have_value("420")
     playground.get_by_role("button", name="Reset").click()
     assert playground.evaluate("root => root.values.comparison") == {
         "candidateA": {"density": "compact", "wrap": False},
         "candidateB": {"density": "comfortable", "wrap": True},
     }
 
-    playground.locator('lf-playground-choice[value="B"] wa-radio').click()
+    playground.get_by_role("radio", name="B", exact=True).click()
     instruction = page.locator("#code-comparison-instruction")
     expect(instruction).to_contain_text("comfortable reading density")
     expect(instruction).to_contain_text("wrap long lines")
@@ -5990,7 +5980,7 @@ def test_a_playground_switch_is_reachable_through_go_to(browser, serve):
         "() => document.querySelectorAll('.lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]').length"
     )
     switch_hint = page.locator(
-        '.lf-go-to-hint[data-lf-go-to-target="card-playground-compact"]'
+        '.lf-go-to-hint[data-lf-go-to-target="card-playground-compact-input"]'
     )
     expect(switch_hint).to_have_count(1)
     switch_code = switch_hint.get_attribute("data-lf-hint-code")
@@ -6004,7 +5994,9 @@ def test_a_playground_copy_is_reachable_through_go_to(browser, serve):
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
     page = open_page(browser, serve(PLAYGROUND_PAGE), context=context)
     playground = page.locator("#card-playground")
-    playground.locator(".lf-playground-copy").scroll_into_view_if_needed()
+    playground.get_by_role(
+        "button", name="Copy instruction"
+    ).scroll_into_view_if_needed()
 
     page.keyboard.press("g")
     page.wait_for_function(
@@ -6057,7 +6049,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         "aria-pressed", "false"
     )
     playground.get_by_role("button", name="Dense").click()
-    copy = playground.locator(".lf-playground-copy").get_by_role("button")
+    copy = playground.locator(".lf-playground-copy-trigger")
     copy.scroll_into_view_if_needed()
 
     def copy_width(label):
@@ -6099,7 +6091,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
         }"""
         ),
     )
-    expect(playground.locator("wa-copy-button:state(success)")).to_have_count(1)
+    expect(copy).to_have_attribute("data-copy-state", "success")
     assert page.evaluate("navigator.clipboard.readText()") == (
         "Use a 4px radius, compact spacing set to true, a bold tone, #4f766f accents, "
         "and the title Field note."
@@ -6203,7 +6195,6 @@ def test_a_playground_rejects_range_values_that_do_not_land_on_its_step(browser,
     )
     consume_browser_errors(
         page,
-        '<lf-playground id="card-playground"> failed: '
         "control radius has a value off its step",
     )
 
@@ -6352,13 +6343,13 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     assert values()["ring"] == "thick"
     assert child_button.evaluate(standing)
 
-    playground.locator("wa-switch").click()
+    playground.get_by_role("switch", name="Dim").click()
     assert values()["dim"] is True
     assert child_button.evaluate(standing), "switch"
     page.get_by_role("button", name="Wide", exact=True).click()
     assert values()["width"] == 4
     assert child_button.evaluate(standing), "preset"
-    slider = playground.locator("wa-slider").bounding_box()
+    slider = playground.get_by_role("slider", name="Width").bounding_box()
     page.mouse.click(slider["x"] + 2, slider["y"] + slider["height"] / 2)
     assert values()["width"] == 1
     assert child_button.evaluate(standing), "slider"
@@ -6384,7 +6375,7 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     expect(thin).to_be_focused()
     page.keyboard.press("ArrowRight")
     assert values()["ring"] == "thick"
-    playground.locator("wa-switch").click()
+    playground.get_by_role("switch", name="Dim").click()
     page.keyboard.press("Space")
     assert values()["dim"] is False
 
@@ -6450,7 +6441,7 @@ def test_playground_labels_can_be_selected_without_changing_the_controls(
     preview = page.locator("#preview-focus")
     preview.click()
     assert page.evaluate("getSelection().toString()") == "Compact"
-    playground.locator("wa-switch [part=control]").click()
+    toggle.click()
     expect(toggle).to_be_checked()
     expect(preview).to_be_focused()
     label.click()
@@ -12164,16 +12155,22 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
     assert plain.evaluate("() => customElements.get('wa-input') !== undefined")
     assert plain.evaluate("() => customElements.get('wa-switch') === undefined")
 
-    playground = open_page(browser, serve(PLAYGROUND_PAGE))
+    source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    page = open_page(browser, serve(source))
     assert (
-        playground.evaluate(f"() => ({WEB_AWESOME_SHEET})(document.adoptedStyleSheets)")
+        page.evaluate(f"() => ({WEB_AWESOME_SHEET})(document.adoptedStyleSheets)")
         is True
     )
-    control = playground.locator("lf-playground wa-switch").first
+    targeting = page.locator("#code-comparison-targeting")
+    targeting.get_by_role("button", name="Select element").click()
+    page.locator(".reader-treatment-title").focus()
+    page.keyboard.press("Enter")
+    targeting.locator(".lf-targeting-candidate-choice").first.click()
+    control = targeting.locator("wa-select").first
     # A page rule with no specificity at all. It can outrank the generated sheet's own
-    # `:is(wa-switch, …)` mapping only because that sheet sits in @layer lf-vendor.
-    playground.add_style_tag(
-        content=":where(wa-switch){--wa-color-text-quiet: rgb(1, 2, 3);}"
+    # `:is(wa-select, …)` mapping only because that sheet sits in @layer lf-vendor.
+    page.add_style_tag(
+        content=":where(wa-select){--wa-color-text-quiet: rgb(1, 2, 3);}"
     )
     assert (
         control.evaluate(

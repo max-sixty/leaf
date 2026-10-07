@@ -137,6 +137,7 @@
           <a href="#x-face"><code>x-face</code></a>
           <a href="#x-height"><code>x-height</code></a>
           <a href="#x-history"><code>x-history</code></a>
+          <a href="#x-initial"><code>x-initial</code></a>
           <a href="#x-inline"><code>x-inline</code></a>
           <a href="#x-instructions"><code>x-instructions</code></a>
           <a href="#x-language"><code>x-language</code></a>
@@ -370,6 +371,33 @@
                   words its ids had in the document it was made in, so a later version
                   rewording or removing what was chosen leaves the row as made. The
                   module reads it through <code>watchHistory</code>.
+                </p>
+              </details>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-initial">
+            <h3><code>x-initial</code></h3>
+            <div class="reference-copy">
+              <p>
+                The rooted path of a captured classic JavaScript bundle registering the
+                widget's synchronous initial renderer with
+                document.documentElement.lfInitial.register(tag, render).
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-initial contract">Full contract</summary>
+                <p>
+                  Delivery inlines each used bundle once in the head, buffers each outer
+                  host in an inert template until its source is complete, and inserts
+                  and draws it in one synchronous turn, nested hosts deepest-first.
+                  render(host, {tabStore, offer, offerElement}) builds the instance's
+                  real markup using authored values and tab-local mechanical state; it
+                  performs no network or asynchronous work and returns the structure the
+                  behavior module adopts with initialRender(host). The widget loader
+                  imports that same bundle before the behavior module for later revision
+                  and thread arrivals, only where it has not already registered. The
+                  coordinator preserves the original authored markup and node routes
+                  before rendering, so source comparisons and semantic readings do not
+                  consume the drawing. Requires x-upgrade: true and excludes x-prepaint.
                 </p>
               </details>
             </div>

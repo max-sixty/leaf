@@ -137,6 +137,13 @@ def _validate_widget_structure(
             f"{path}: <{tag}> x-owners names unknown element declarations {unknown}"
         )
     properties = entry.get("properties", {})
+    if entry.get("x-initial"):
+        if not entry["x-upgrade"]:
+            raise RegistryError(f"{path}: <{tag}> x-initial requires x-upgrade: true")
+        if entry.get("x-prepaint") is not None:
+            raise RegistryError(
+                f"{path}: <{tag}> declares both x-initial and x-prepaint"
+            )
     if (prepaint := entry.get("x-prepaint")) is not None:
         if isinstance(prepaint, dict):
             named = declarations.get(prepaint["as"], {}).get("x-prepaint")

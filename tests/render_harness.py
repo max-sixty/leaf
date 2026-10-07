@@ -27,7 +27,9 @@ Playwright's default Chromium launch selects its separate headless shell. The
 matching build is installed once with `playwright install chromium --only-shell`.
 """
 
+import base64
 import difflib
+import io
 import itertools
 import json
 import math
@@ -59,7 +61,7 @@ from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev.browser import (
-    scroll_settled,  # noqa: F401 — shared browser wait, re-exported to tests
+    scroll_settled,
 )
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
@@ -72,6 +74,7 @@ from leaf_dev.thread_snapshot_plugin import (
     image_snapshot,  # noqa: F401 — fixture for comparisons and explicit captures
 )
 from model_folds import leaf_page
+from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
@@ -2093,6 +2096,110 @@ def resized(page, width, height):
     page.set_viewport_size({"width": width, "height": height})
     page.wait_for_function("() => window.lfResizes > window.lfResizesWas")
     one_frame(page)
+
+
+@contextmanager
+def compositor_trace(page, categories=()):
+    """Record the frames Chrome's compositor draws while the block runs.
+
+    Yields the trace's event list, complete once the block exits; its `Screenshot`
+    events are the frames the window showed. Reading rectangles after a scroll forces
+    layout and conceals a frame painted out of step, so a claim about what a scroll
+    paints reads these frames instead. Waiting for the trace pumps CDP delivery
+    without reading the page or forcing its layout."""
+    cdp = page.context.new_cdp_session(page)
+    events, complete = [], []
+    cdp.on("Tracing.dataCollected", lambda data: events.extend(data["value"]))
+    cdp.on("Tracing.tracingComplete", lambda _: complete.append(True))
+    # Only the named categories: Chrome otherwise adds its default ones, whose forced
+    # layout events alone, from the suite's own watchers, can outlast the wait.
+    cdp.send(
+        "Tracing.start",
+        {
+            "traceConfig": {
+                "includedCategories": [
+                    "disabled-by-default-devtools.screenshot",
+                    *categories,
+                ],
+                "excludedCategories": ["*"],
+            },
+            "transferMode": "ReportEvents",
+        },
+    )
+    yield events
+    cdp.send("Tracing.end")
+    wait_for(
+        lambda: (cdp.send("Tracing.getCategories"), bool(complete))[1],
+        bool,
+        failure="Chrome never completed the compositor screenshot trace",
+    )
+
+
+def frame_image(event):
+    """A compositor `Screenshot` trace event's frame, as an RGB image."""
+    return Image.open(io.BytesIO(base64.b64decode(event["args"]["snapshot"]))).convert(
+        "RGB"
+    )
+
+
+# A frame test paints its subject in this red and the surface that must follow it in
+# this green, colours nothing else on the page uses.
+SUBJECT_MARK = "#ff0044"
+FOLLOWER_MARK = "#00cc44"
+
+
+def marked_tops(image):
+    """The topmost rows of `image` painted in `SUBJECT_MARK` and in `FOLLOWER_MARK`,
+    each None where the frame shows none. Downsampled frames blend the marks' edges,
+    so each matches a range around its colour."""
+    pixels = image.load()
+    subject, follower = [], []
+    for y in range(image.height):
+        for x in range(image.width):
+            red, green, blue = pixels[x, y]
+            if red > 180 and green < 60 and blue < 130:
+                subject.append(y)
+            if green > 130 and red < 60 and blue < 130:
+                follower.append(y)
+    return (min(subject, default=None), min(follower, default=None))
+
+
+def assert_follows_in_every_frame(page, scroller):
+    """Wheel `scroller` down and back, under the pointer, and require every frame the
+    compositor draws meanwhile to show the follower (`FOLLOWER_MARK`) at one offset from
+    its subject (`SUBJECT_MARK`).
+
+    A box the browser carries through the scroll paints in step with it. A scroll-driven
+    layer carries the same motion but has painted a frame early or late on Linux under
+    load, and reading rectangles after the scroll forces layout and hides that frame,
+    so this reads the compositor's own frames."""
+    width = page.viewport_size["width"]
+    with compositor_trace(page) as events:
+        for delta in (40, 40, -40, -40):
+            page.mouse.wheel(0, delta)
+            scroll_settled(page, scroller)
+    readings = []
+    for event in events:
+        if event["name"] != "Screenshot":
+            continue
+        image = frame_image(event)
+        scale = width / image.width
+        tops = [None if top is None else top * scale for top in marked_tops(image)]
+        readings.append((*tops, scale))
+    assert all(
+        subject is not None and follower is not None
+        for subject, follower, _ in readings
+    ), readings
+    assert len({subject for subject, _, _ in readings}) >= 3, (
+        "the scroller never scrolled",
+        readings,
+    )
+    offset = readings[0][1] - readings[0][0]
+    # Chrome downsamples trace frames, so two samples allow the blended edges.
+    assert all(
+        abs(follower - subject - offset) <= 2 * scale
+        for subject, follower, scale in readings
+    ), readings
 
 
 def root_overflow(page) -> float:

@@ -901,3 +901,79 @@ for (const order of ["passive-first", "input-first"]) {
     assert.equal(context, "unrelated");
   });
 }
+
+test("region readiness observes completion and same-epoch replacement without other domains", async () => {
+  const { coordinator } = setup();
+  const document = {};
+  const publication = coordinator.begin(document, 0);
+  const current = () => publication;
+  const first = coordinator.attach("widget", {});
+  const other = coordinator.attach("data", {});
+  const pending = deferred();
+  const painting = first.present("initial", pending.promise);
+  void other.present("data", new Promise(() => {}));
+  const seen = [];
+  const stop = coordinator.subscribe(() => {
+    seen.push(coordinator.currentRegionsPresented(current, ["widget"]));
+  });
+  assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), false);
+  coordinator.seal(publication);
+  pending.resolve();
+  await painting;
+  assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), true);
+  assert.equal(coordinator.currentPresented(current), false);
+  assert.equal(seen.at(-1), true);
+
+  const replacement = coordinator.attach("widget", {});
+  assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), false);
+  assert.equal(seen.at(-1), false);
+  const ready = deferred();
+  const replacementPaint = replacement.present("replacement", ready.promise);
+  first.disconnect();
+  assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), false);
+  ready.resolve();
+  await replacementPaint;
+  assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), true);
+  assert.equal(seen.at(-1), true);
+
+  const reopened = deferred();
+  void replacement.present("reopened", reopened.promise);
+  assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), false);
+  replacement.disconnect();
+  assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), false);
+  await Promise.resolve();
+  assert.equal(coordinator.currentRegionsPresented(current, ["widget"]), true);
+  assert.equal(seen.at(-1), true);
+  const observations = seen.length;
+  stop();
+  other.disconnect();
+  await Promise.resolve();
+  assert.equal(seen.length, observations);
+  assert.equal(
+    coordinator.currentRegionsPresented(() => null, ["widget"]),
+    false,
+  );
+});
+
+test("a failing proof observer cannot fail or starve renderer completion", async () => {
+  const { coordinator, failures } = setup();
+  const document = {};
+  const publication = coordinator.begin(document, 0);
+  const current = () => publication;
+  const handle = coordinator.attach("widget", {});
+  const stopFailed = coordinator.subscribe(() => {
+    throw new Error("observer broke");
+  });
+  let observed = false;
+  const stopHealthy = coordinator.subscribe(() => {
+    observed = coordinator.currentRegionsPresented(current, ["widget"]);
+  });
+  coordinator.seal(publication);
+  await handle.present("visible", undefined);
+  assert.equal(observed, true);
+  assert.equal(coordinator.currentPresented(current), true);
+  assert.ok(failures.every((reason) => reason.message === "observer broke"));
+  assert.ok(failures.length > 0);
+  stopFailed();
+  stopHealthy();
+});

@@ -7,7 +7,9 @@ The agent's tasks are in the log. An item on the agent's queue is either a user 
 it owes an answer, whose id is the move's event id (`workflows`), or a task it
 opened. Working always names one of them: `leaf task start` writes a `start` event
 naming the item with the line the banner shows, and the item is in hand, running,
-from then on.
+from then on. An ephemeral reply to a move the agent owes writes the same start, its
+text the line (`take_in_hand`), so the words the user reads in the thread and the
+Working line are one write.
 
 The agent's task is work it owes on a thread, a page widget, an element of the page,
 or the page as a whole. `leaf task open` writes a `task` event, and it stands until a
@@ -491,58 +493,70 @@ def cmd_open(page_dir: Path, subject: str, title: str, owner: str) -> dict:
     return write(page_dir)
 
 
-def cmd_start(page_dir: Path, item: str, text: str) -> dict:
-    """Take `item`, a move's event id or an open task's id, in hand for this turn with
-    `text` as its line; the record.
+def start_line_error(text: str) -> str | None:
+    """Why `text` cannot be a start's line, or None. The banner's dot already says
+    the agent is working; the line is the whole of what a start adds, and one
+    sentence is what the banner has room for."""
+    if not text.strip() or "\n" in text or "\r" in text:
+        return (
+            "a start's line names the work and its subject in one sentence, such as "
+            '"running the browser suite against the new banner"'
+        )
+    return None
+
+
+def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
+    """Append the start taking `item` in hand with `text` as its line, written as
+    `identity`, within `page`, an open `service.PageTransaction`; the record.
 
     The start names the claimant's turn when the posting session holds the page, which
     is what lets that turn end over the move it started (`activity.started_in_turn`)
     and what ends the start's hold with the turn. Another session's start names none: a
     Claude Code subagent runs as its parent's session, so workers leave starts to the
-    session driving the page."""
+    session driving the page. `leaf task start` writes one, and so does an ephemeral
+    reply to a move the agent owes (`thread.post_reply`): the progress it posts is
+    what the agent has in hand."""
     from .event_contracts import append_admitted
+
+    claim = page.claim
+    turn = (
+        claim.get("turn") if claim and claim["id"] == identity.get("session") else None
+    )
+    record = append_admitted(
+        page,
+        {
+            "kind": "start",
+            "author": "agent",
+            **identity,
+            "item": item,
+            "text": text,
+            **({"turn": turn} if turn else {}),
+        },
+    )
+    # Work in hand reopens a page the agent had closed: `idle` says it was done with
+    # the page, and every carrier stands down for an idle page. The reopening is a
+    # bare declaration, with no `put_down` to take this start back.
+    if page.status["state"] == "idle":
+        page.set_status("waiting", "")
+    return record
+
+
+def cmd_start(page_dir: Path, item: str, text: str) -> dict:
+    """Take `item`, a move's event id or an open task's id, in hand for this turn with
+    `text` as its line (`take_in_hand`); the record."""
     from .harness import message_identity
     from .leases import contract_writer
     from .revisioning import activate_source
     from .service import PageTransaction
 
-    # The banner's dot already says the agent is working; the line is the whole of
-    # what a start adds, and one sentence is what the banner has room for.
-    if not text.strip() or "\n" in text or "\r" in text:
-        sys.exit(
-            "a start's line names the work and its subject in one sentence, such as "
-            '"running the browser suite against the new banner"'
-        )
+    if error := start_line_error(text):
+        sys.exit(error)
 
     @contract_writer
     def write(page_dir: Path) -> dict:
         with PageTransaction(page_dir) as page:
             activate_source(page_dir, transaction=page)
-            identity = message_identity()
-            claim = page.claim
-            turn = (
-                claim.get("turn")
-                if claim and claim["id"] == identity.get("session")
-                else None
-            )
-            record = append_admitted(
-                page,
-                {
-                    "kind": "start",
-                    "author": "agent",
-                    **identity,
-                    "item": item,
-                    "text": text,
-                    **({"turn": turn} if turn else {}),
-                },
-            )
-            # Work in hand reopens a page the agent had closed: `idle` says it was
-            # done with the page, and every carrier stands down for an idle page. The
-            # reopening is a bare declaration, with no `put_down` to take this start
-            # back.
-            if page.status["state"] == "idle":
-                page.set_status("waiting", "")
-            return record
+            return take_in_hand(page, item, text, message_identity())
 
     return write(page_dir)
 

@@ -56,7 +56,13 @@ export const standsBeside = () =>
     getComputedStyle(document.body).getPropertyValue("--lf-auxiliary-beside"),
   ) > 0;
 
-export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterChange }) {
+export function createAuxiliarySurfaces({
+  chromeRoot,
+  band,
+  syncLayout,
+  afterChange,
+  reachChanged,
+}) {
   const controllers = new Map();
   const scrim = document.createElement("div");
   scrim.className = "lf-auxiliary-scrim";
@@ -225,9 +231,19 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     };
   }
 
+  // What the page can seat the user in changes with what stands over it: a surface
+  // opening, closing, arriving, or its edge or the window moving. One reading a frame,
+  // since a drag or a resize syncs on every event.
+  let reachQueued = false;
   function sync() {
     const selected = controllers.get(selectedKey);
     cover(selected && selected !== arriving && selected.covers() ? selected : null);
+    if (reachQueued) return;
+    reachQueued = true;
+    nextRender(() => {
+      reachQueued = false;
+      reachChanged();
+    });
   }
 
   function select(

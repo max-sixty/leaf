@@ -1290,12 +1290,16 @@ def ran_between(trace: list[dict], start: int, end: int) -> list[str]:
 
 
 def claimed_first(trace: list[dict], thread: str) -> bool:
-    """An accepted start on this thread's comment before the turn's first reply call."""
+    """An accepted start on this thread's comment, a progress update's included,
+    before the turn's first reply call that answers it."""
     reply = next(
         (
             index
             for index, record in enumerate(trace)
-            if any(re.search(r"\bthread reply\b", c) for c in commands(record))
+            if any(
+                re.search(r"\bthread reply\b", c) and "--ephemeral" not in c
+                for c in commands(record)
+            )
         ),
         len(trace),
     )

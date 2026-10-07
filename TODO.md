@@ -53,15 +53,19 @@ has tried; settle that before building it.
   result is hidden. Decide whether a page needs one progress reading across Asks,
   board work, and version approval. Test a concrete first task before changing the
   public home page's prompt.
-- **Keep focus off page content a panel beside the page covers.** Threads and the
-  Questions panel leave the page live beside them while standing over part of it, and focus
-  still reaches what they cover. At 1440×900 Tab walks onto `annotation-workspace`'s
-  rail under Threads, and `c` on a selection opens the rail's comment box there; at
-  1200px Tab reached an Ask's option marks under the Queue panel when it stood on the
-  left; it now shares Threads' right edge. Max's rule
+- **Keep Tab off page content a panel beside the page covers.** Threads and the
+  Questions panel leave the page live beside them while standing over part of it. Max's rule
   (2026-10-06): the panels dominate focus, so moving focus never closes or changes a
-  standing panel; instead focus never lands on page content a panel covers, and
-  Threads still stands beside a full-width workspace rather than covering it.
+  standing panel, focus never lands on page content a panel covers, and Threads still
+  stands beside a full-width workspace. A comment box already refuses a covered seat
+  (`underOccluder`, geometry.js). Tab still walks onto `annotation-workspace`'s rail
+  under Threads, or the Questions panel that shares its right edge, at 1440×900. Making what a panel covers inert was built and withdrawn: it left the visible
+  part of a partly covered element dead to clicks and selection, and focus still reached
+  chrome markers, sample frames, overflowing children and content an attribute revealed.
+  Decide between laying the page out in the width a panel leaves beside it, which
+  reverses "auxiliary surfaces never change the page's geometry"
+  (`skills/leaf/assets/AGENTS.md`), and Leaf owning Tab beside a panel, skipping stops
+  `hides` says it covers.
 
 ### Agent and author experience
 
@@ -137,13 +141,13 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Recompose `alert-review` as a screen.** It is the worked workspace example, and at
-  1200×900 `page check --render` advises that its detail pane runs 6890px past its
-  region (nine Asks stacked in one scroller) and its queue 104px. A page a reader moves
-  through rather than scrolls shows one alert's decision at a time; the shipped
-  workspace examples are then held to the advice in `test_page_fixture_renders`, with
-  `rust-sort`'s source pane the one reader allowed to scroll
-  ([plan](notes/chrome-and-covers.md)).
+- **Hold the shipped workspaces to the overflow advice.** `alert-review` shows one
+  alert's decision at a time, but `page check --render` still advises that its queue
+  (`ar-queue`) runs 106px past its region at every width from 720 to 1920px, and
+  `rust-sort`'s stage pane 100px at 720px. Fit both, then make
+  `test_page_fixture_renders` fail on that advice for workspace examples, with
+  `rust-sort`'s source pane the one reader allowed to scroll; today it asserts only
+  the gate's failures ([plan](notes/chrome-and-covers.md)).
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys
   without asking, which is the trade to weigh ([plan](notes/chrome-and-covers.md)).
@@ -259,10 +263,12 @@ height and where a switch lands wait on the workspace decision under Layout.
   measures from focus (`askPosition` in `asks/view.js`), and the row precedes every
   panel; `t` and `T` measure the same way. A tab could stand at the view it opens for
   the walks (`standing-target.js`), while `c` on a row still names the row.
-- **Let a queue group its items.** The author sorted the items into merge, close,
-  design and FYI, but `lf-tabs` takes only `lf-tab` members, so the page showed 21
-  undifferentiated rows. A side list could take group headings between its items,
-  skipped by the arrow walk.
+- **Keep the open item's group named on a phone.** In the one-row strip a group's
+  label stands before its run's first tab, so opening a later item in a long run
+  (`alert-review`'s "Ledger consumer lag" at 390px) scrolls the label out of view. A
+  label sticky at the row's start, stepping clear of the start press while stuck
+  (`scroll-state(stuck)`, Chrome 133+), keeps it named, but `#showTab` then has to
+  bring a tab in clear of a label whose width changes once it sticks.
 
 ### Recorded interaction review
 

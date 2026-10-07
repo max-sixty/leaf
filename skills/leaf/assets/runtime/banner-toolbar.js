@@ -9,11 +9,13 @@
  *
  * Three seats partition the run, and measured geometry never changes the partition:
  *
- * - `row`: Questions and Threads, and on a desk Approval, the page's standing reading
- *   loop.
+ * - `row`: Threads, and on a desk Approval, Comment on the page and Questions, the
+ *   page's standing reading loop: reading it, starting a conversation about it,
+ *   deciding it.
  * - `menu`: every secondary action, in one stable seat behind More. On a phone
- *   Approval and Questions join them, so the banner keeps one row: the status in words,
- *   Threads and More. More wears its news dot while the approval behind it is still open.
+ *   Approval, Comment on the page and Questions join them, so the banner keeps one row:
+ *   the status in words, Threads and More. More wears its news dot while the approval
+ *   or a question behind it is still open.
  * - `gesture`: the next step of something the user is doing right now, such as
  *   commenting on the words a touch just selected, or a finger's way out of the mode it
  *   stands in. It exists only while that gesture or mode holds it, and it is the one
@@ -32,7 +34,13 @@
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { repaint } from "./repaint.js";
-import { deepFocus, focusDestination, readCaret, releaseFocus } from "./focus.js";
+import {
+  deepFocus,
+  focusDestination,
+  readCaret,
+  releaseFocus,
+  returningFocus,
+} from "./focus.js";
 import { selectEnds } from "./passages.js";
 
 const EMPTY = Object.freeze([]);
@@ -50,8 +58,9 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   blanket: 80,
   versions: 90,
   approval: 100,
+  pageComment: 105,
   // Questions and Threads are the two doors to the one side panel, side by side.
-  queue: 105,
+  queue: 107,
   threads: 110,
   // The way out of the mode or picker the user stands in, under a finger.
   steps: 120,
@@ -175,8 +184,9 @@ export function bannerStanding() {
 }
 export function restoreBannerStanding(held) {
   opener = null;
+  // Handing the borrowed focus back is the menu's own return, not the user going there.
   if (held?.node?.isConnected && held.node !== document.body)
-    focusDestination(held.node, held.caret);
+    returningFocus(() => focusDestination(held.node, held.caret));
   else releaseFocus();
   if (held?.ends?.every(([node]) => node.isConnected)) selectEnds(...held.ends);
 }

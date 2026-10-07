@@ -26,6 +26,7 @@ from leaf.projection import (
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.schema import MESSAGE_KINDS, THREAD_ANSWER_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt
+from leaf.tasks import start_line_error, take_in_hand
 from leaf.thread_context import thread_message, thread_names
 from leaf.validation.admission import (
     check_markup,
@@ -385,7 +386,7 @@ def answered_by_reply(events: list[dict], for_event: str) -> bool:
 
 
 @contract_writer
-def cmd_reply(
+def post_reply(
     page_dir: Path,
     to: str | None,
     text,
@@ -405,8 +406,10 @@ def cmd_reply(
     validate_source: bool = False,
     claimed_session: str | None = None,
     ephemeral: bool = False,
-) -> dict | None:
-    """Post one complete threaded reply, optionally moving or detaching its anchor.
+) -> list[dict]:
+    """Post one complete threaded reply, optionally moving or detaching its anchor;
+    the records appended, or the earlier reply a repeated `attempt` names, or none
+    when `when_settled` leaves nothing to write.
 
     ``for_event`` fences the write to the exact current obligation. Its response
     address may differ from ``to`` when a widget gesture belongs to a frozen
@@ -426,6 +429,11 @@ def cmd_reply(
 
     ``ephemeral`` posts progress at the same response address without answering it.
     It remains content, and cannot carry a question, widgets, failure or relocation.
+    Progress on a move the agent owes says what it has in hand, so it also takes that
+    move in hand with its text as the line (`tasks.take_in_hand`), which is why that
+    text is one line: the move reads Working beside its thread and in the banner, and
+    the user's message gets the agent's first words and its Working line from one
+    write.
     """
     body = read_text_arg(page_dir, text)
     posting_identity = message_identity() if identity is None else identity
@@ -455,13 +463,13 @@ def cmd_reply(
                     or not same_scope
                 ):
                     sys.exit(f"attempt {attempt!r} already belongs to another event")
-                return existing
+                return [existing]
         if (
             when_settled == "post"
             and for_event is not None
             and answered_by_reply(events, for_event)
         ):
-            return None
+            return []
         responses = current_responses(page_dir, events)
         if for_event is None and to is None:
             claim = page.active_claim
@@ -504,7 +512,7 @@ def cmd_reply(
                     held or f"this page's log holds no event {for_event!r}"
                 )
                 if when_settled == "skip":
-                    return None
+                    return []
                 if when_settled != "post" or to is None:
                     sys.exit(refusal)
             elif to is None:
@@ -512,6 +520,8 @@ def cmd_reply(
         assert to is not None
         thread_id, to = thread_addressed(page_dir, events, to)
         opening = _messages(events).get(thread_id)
+        # The owed move an ephemeral update takes in hand.
+        in_hand = None
         if for_event is not None:
             expected = responses.get(for_event)
             if (
@@ -520,29 +530,29 @@ def cmd_reply(
                 or (expected["to"], expected["for"]) != (to, for_event)
             ):
                 if when_settled == "skip":
-                    return None
+                    return []
                 if when_settled != "post":
                     sys.exit(
                         f"event {for_event!r} no longer requires a reply to {to!r}; "
                         "read the current delivery or thread state"
                     )
-            elif (
-                not ephemeral
-                and expected["kind"] == "turn"
-                and expected["attempt"] != attempt
-            ):
+            elif ephemeral:
+                in_hand = for_event
+            elif expected["kind"] == "turn" and expected["attempt"] != attempt:
                 sys.exit(
                     f"event {for_event!r} is answered by this turn's messages; "
                     "finish the reply in your final message"
                 )
         else:
             standing = thread_obligation(events, responses, thread_id)
-            if not ephemeral and standing is not None and standing["kind"] == "turn":
+            if ephemeral:
+                in_hand = standing["for"] if standing is not None else None
+            elif standing is not None and standing["kind"] == "turn":
                 sys.exit(
                     f"thread {thread_id!r} is answered by this turn's messages; "
                     "finish the reply in your final message"
                 )
-            if not ephemeral and standing is not None:
+            elif standing is not None:
                 sys.exit(
                     f"thread {thread_id!r} currently requires a response; "
                     f"{answer_command(standing)} answers it"
@@ -551,11 +561,17 @@ def cmd_reply(
             event["kind"] == "pickup" and for_event in event["events"]
             for event in events
         ):
-            return None
+            return []
         moving = bool(quote or section or part)
         if ephemeral and (awaits or markup or failure or moving or detach):
             sys.exit(
                 "--ephemeral is for progress text; it cannot ask a question, carry widgets, report failure, or move the thread"
+            )
+        if in_hand is not None and start_line_error(body.strip()):
+            sys.exit(
+                f"progress on {in_hand!r}, a move you owe, takes it in hand, and its "
+                "text is the Working line beside the thread and in the banner: write "
+                "it as one line saying what you are doing"
             )
         if detach and moving:
             sys.exit("--detach cannot be combined with --quote, --section, or --part")
@@ -701,8 +717,18 @@ def cmd_reply(
         if not source_matches_active:
             from leaf.revisioning import publish_checked_event
 
-            return publish_checked_event(page, checked, event)
-        return append_admitted(page, event)
+            records = [publish_checked_event(page, checked, event)]
+        else:
+            records = [append_admitted(page, event)]
+        if in_hand is not None:
+            records.append(take_in_hand(page, in_hand, body.strip(), posting_identity))
+        return records
+
+
+def cmd_reply(page_dir: Path, *args, **kwargs) -> dict | None:
+    """The reply `post_reply` posts, or the one a repeated `attempt` names; None when
+    it writes nothing."""
+    return next(iter(post_reply(page_dir, *args, **kwargs)), None)
 
 
 def fail_answer(

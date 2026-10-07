@@ -12,11 +12,10 @@ import { dispatchWidget, invalidateDom } from "./application.js";
 import { descriptorStillMatches, widgetDescriptor } from "./widget-descriptors.js";
 import { failSoftUnreported } from "./widget-upgrade.js";
 import { dragHeld, watchDragRelease } from "./widget-elements.js";
-import { watchArrivals } from "./arrivals.js";
+import { watchOwner } from "./arrivals.js";
 
 const controllers = new WeakMap();
 const lifecycles = new WeakMap();
-let watchingLifetime = false;
 const ancestorRefreshes = new Set();
 let ancestorRefreshQueued = false;
 const gestureDeferred = new Set();
@@ -50,12 +49,7 @@ function refreshAncestorControllers(owner) {
 
 function watchLifetime(owner, lifecycle) {
   lifecycles.set(owner, lifecycle);
-  if (watchingLifetime) return;
-  watchingLifetime = true;
-  watchArrivals("*", [], {
-    arrive: (element) => lifecycles.get(element)?.connect(),
-    leave: (element) => lifecycles.get(element)?.disconnect(),
-  });
+  watchOwner(owner, lifecycle);
 }
 
 const immutable = (value) => {

@@ -950,11 +950,12 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     page = open_page(browser, url)
 
     # Focus inside the first panel Ask paints that group's predictable digits, once a
-    # keyboard gesture has asked for a paint — opening the composer is that gesture here.
+    # keyboard gesture has asked for a paint — opening Threads by key is that gesture here.
     # The sequence is a nearer keyboard layer and takes the digits back while it stands, so
     # each face is read from the one moment its own layer renders it rather than from a
     # single frame that cannot hold both.
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
     page.locator(".lf-thread-summary").first.click()
     page.locator("#tq-one .lf-pick").first.focus()
     picked = page.locator("#tq-one .lf-key-badge").first
@@ -5921,7 +5922,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
 
     # News updates the root's workflow line in both views, in place.
     inline_status = thread.locator(
-        ":scope > .lf-thread-transcript > .lf-msg:first-child > .lf-msg-head .lf-msg-sending"
+        ":scope > .lf-thread-content > .lf-thread-transcript > .lf-msg:first-child > .lf-msg-head .lf-msg-sending"
     )
     panel_status = panel_thread.locator(
         ".lf-thread-transcript > .lf-msg:first-child > .lf-msg-head .lf-msg-sending"

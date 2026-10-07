@@ -40,11 +40,13 @@ import {
   offer,
   once,
   projectData,
+  setChildren,
   relabel,
   selectableOffer,
   shortAgo,
   TEXT_BOX,
   watchUpdates,
+  watchOwner,
 } from "/runtime/widget-api.js";
 import {
   closestCommandRole,
@@ -526,39 +528,38 @@ function renderStopped(snapshot) {
       list.id = `lf-${plan.id}-stopped`;
       box.append(list);
     }
-    projectData(
+    const datums = snapshot.stopped.map((goal) => {
+      const downstream = descendants(plan, goal.element.id);
+      const reason = goal.held
+        ? "paused by you"
+        : goal.role.review?.includes(goal.state)
+          ? "awaiting review"
+          : goal.role.stalled?.includes(goal.state)
+            ? "stalled"
+            : "blocked";
+      const item = document.createElement("li");
+      item.dataset.lfGoal = goal.element.id;
+      item.dataset.lfReason = reason;
+      const why = chip("", "lf-stopped-why");
+      why.append(chip(age(goal), "lf-stopped-age"), ` ${reason}`);
+      if (downstream.length)
+        why.append(
+          ` · holds ${downstream.length} downstream goal${downstream.length === 1 ? "" : "s"}`,
+        );
+      item.append(button(goal.title, goal.element), why);
+      return {
+        node: item,
+        key: goal.element.id,
+        origin: {
+          derived: [goal.element.id, ...downstream].map((widget) => ({ widget })),
+        },
+      };
+    });
+    setChildren(
       list,
-      snapshot.stopped,
-      (goal) => goal.element.id,
-      (goal) => {
-        const downstream = descendants(plan, goal.element.id);
-        const reason = goal.held
-          ? "paused by you"
-          : goal.role.review?.includes(goal.state)
-            ? "awaiting review"
-            : goal.role.stalled?.includes(goal.state)
-              ? "stalled"
-              : "blocked";
-        const item = document.createElement("li");
-        item.dataset.lfGoal = goal.element.id;
-        item.dataset.lfReason = reason;
-        const why = chip("", "lf-stopped-why");
-        why.append(chip(age(goal), "lf-stopped-age"), ` ${reason}`);
-        if (downstream.length)
-          why.append(
-            ` · holds ${downstream.length} downstream goal${downstream.length === 1 ? "" : "s"}`,
-          );
-        item.append(button(goal.title, goal.element), why);
-        return item;
-      },
-      {
-        originOf: (goal) => ({
-          derived: [goal.element.id, ...descendants(plan, goal.element.id)].map(
-            (widget) => ({ widget }),
-          ),
-        }),
-      },
+      datums.map(({ node }) => node),
     );
+    projectData(list, datums);
   } else box.querySelector(":scope > ol")?.remove();
   return true;
 }
@@ -654,20 +655,16 @@ function paint(plan) {
 customElements.define(
   "lf-command",
   class extends HTMLElement {
-    #stop;
-
     connectedCallback() {
-      once(this);
-      this.#stop ??= watchUpdates(this, () => render(this));
-    }
-
-    // The panels leave with the command: standing in a seat, they would outlive it
-    // there, and a command that connects again repaints them into its current seat.
-    disconnectedCallback() {
-      this.#stop?.();
-      this.#stop = null;
-      for (const held of Object.values(holders.get(this) ?? {})) held.dispose();
-      if (drawn.has(this)) seat(this, band(this));
+      if (!once(this)) return;
+      watchOwner(this, {
+        // The command takes its panels out of an external seat only when it leaves.
+        disconnect: () => {
+          for (const held of Object.values(holders.get(this) ?? {})) held.dispose();
+          if (drawn.has(this)) seat(this, band(this));
+        },
+      });
+      watchUpdates(this, () => render(this));
     }
 
     // The seat this command's `readings` names connected or disconnected.

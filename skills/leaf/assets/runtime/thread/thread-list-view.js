@@ -26,10 +26,9 @@
    nothing the user sees. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
-import { holdFocus, restoringFocus } from "../focus.js";
+import { holdFocus } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
-import { showHeld } from "./held-news.js";
 import { draftHasContent } from "../drafts.js";
 import { focusThread } from "./focus.js";
 import { passOn, retainUserIntent } from "../user-intent.js";
@@ -96,8 +95,6 @@ class ThreadListView extends RetainedFace {
     const row = this.#visibleRows().find((row) => row.node === card);
     if (!row) return;
     this.#commands.beforeChoose(card);
-    // A title choice is an arrival; restoring that title after paint is not.
-    if (!restoringFocus()) showHeld(card.dataset.id);
     this.#select(row.key);
     this.#showExpanded();
   }

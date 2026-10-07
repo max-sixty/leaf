@@ -328,21 +328,33 @@ def mark_declared(
     sizes it as it will size the drawing. What a template holds is inert until a
     module clones it, and a declarative shadow tree's content is its host's to style, so
     neither is marked.
+
+    A mark is declared by the element's tag or by an idiom (`$idioms`) whose selector
+    the element matches, as a `.callout` declares the room it takes; the tag's
+    declaration comes first.
     """
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
+    idioms = [
+        (selector, entry)
+        for selector, entry in registry.get("$idioms", {}).items()
+        if isinstance(entry, dict) and not entry.keys().isdisjoint(DECLARED_MARKS)
+    ]
     edits = []
     for element in tree.find_all(True):
         location = element.source_location
         if location is None or element.closest("template") is not None:
             continue
-        declaration = registry.get(element.tag, {})
+        declarations = [registry.get(element.tag, {})] + [
+            entry for selector, entry in idioms if element.matches(selector)
+        ]
         attrs = element_attrs(element)
         marks = {}
         for key, mark in DECLARED_MARKS.items():
+            declared = next((d[key] for d in declarations if d.get(key)), None)
             if (authored := mark.get("authored")) in attrs:
                 marks[mark["paint"]] = attrs[authored]
-            elif declared := declaration.get(key):
+            elif declared:
                 marks[mark["paint"]] = "" if declared is True else str(declared)
         sizes = [
             size

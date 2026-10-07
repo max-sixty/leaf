@@ -352,7 +352,7 @@ selects from:
 | unresolved browser work | the publisher's one ordered ledger |
 | thread, workflow, attention, Asks, tasks, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
 | what is waiting on the user and on the agent | `queues.js`'s selection from those readings, the browser's side of `agent_state.queues` |
-| what the DOM represents | controller presentation tickets and projection commits |
+| what the DOM represents | the presentation coordinator's renderer tickets and preparation regions |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | `anchor-placement.js`'s resolution of its anchor in this version |
 | the row inside a target a comment stands by | `pointed-place.js`: the line a pointing gesture landed on, held by the composer until sent, then under the thread's key with the words that find it again; where it stands now is `anchor-placement.js`'s placement record (`point`, `pointRow`), written in its read, the only writer, which takes in what a send hands over; presentation only, and only the pointed threads' row, card and travel follow it |

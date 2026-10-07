@@ -2254,48 +2254,96 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     )
 
 
-def test_a_finger_s_reaction_trigger_meets_the_floor_and_covers_no_words(
-    browser, serve
+@pytest.mark.parametrize(("width", "touch"), [(360, True), (1440, False)])
+def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
+    browser, serve, width, touch
 ):
-    """The add-reaction trigger was a fixed 26x26 under a finger, where every other aim
-    stands at the 44px floor, and it stands on every reply for good once there is no
-    hover to reveal it. At the floor's size hung over the reply's corner it covered the
-    end of the first line, so the head row holds the trigger's height instead."""
+    """Reaction belongs to its own header, including an agent-authored root whose
+    first header shares space with Resolve. Both actions stay reachable, and a touch
+    trigger takes its floor without covering the message's first line."""
     url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Why this change?", {"section": "how-cap"})
+    text = (
+        "Step three now requires the supervisor to reap every process "
+        "under the sandbox user and verify none remain before export."
+    )
+    root = panel_comment(serve.page_dir, text, author="agent")
     reply = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
             "author": "agent",
-            "agent": "Codex",
+            "agent": "Codex reviewing the presentation and interaction of the shared thread controls",
             "parent": root,
-            "text": "Step three now requires the supervisor to reap every process "
-            "under the sandbox user and verify none remain before export.",
+            "text": text,
         },
     )["id"]
     context = browser.new_context(
-        viewport={"width": 360, "height": 740}, has_touch=True, is_mobile=True
+        viewport={"width": width, "height": 740}, has_touch=touch, is_mobile=touch
     )
     page = open_page(browser, url, context=context)
-    page.locator(".lf-threads-toggle").tap()
+
+    def activate(control):
+        control.tap() if touch else control.click()
+
+    activate(page.locator(".lf-threads-toggle"))
     panel_settled(page)
-    page.locator(".lf-thread-summary").first.tap()
-    message = page.locator(f'.lf-msg[data-mid="{reply}"]')
-    trigger = message.get_by_role("button", name="Add reaction", exact=True)
-    expect(trigger).to_be_visible()
-    reading = trigger.evaluate("""trigger => {
-      const box = trigger.getBoundingClientRect();
-      const text = trigger.closest('.lf-msg').querySelector('.lf-msg-text');
-      const range = document.createRange();
-      range.selectNodeContents(text);
-      const covered = [...range.getClientRects()].filter((line) =>
-        line.right > box.left && line.left < box.right &&
-        line.bottom > box.top && line.top < box.bottom);
-      return {width: box.width, height: box.height, covered: covered.length,
-        opacity: getComputedStyle(trigger).opacity};
-    }""")
-    assert reading == {"width": 44, "height": 44, "covered": 0, "opacity": "1"}
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    if card.get_attribute("open") is None:
+        activate(card.locator(":scope > .lf-thread-summary"))
+    expect(card).to_have_attribute("open", "")
+    for message_id in (reply, root):
+        message = card.locator(f'.lf-msg[data-mid="{message_id}"]')
+        if not touch:
+            message.hover()
+        trigger = message.get_by_role("button", name="Add reaction", exact=True)
+        expect(trigger).to_be_visible()
+        reading = trigger.evaluate("""trigger => {
+          const box = trigger.getBoundingClientRect();
+          const message = trigger.closest('.lf-msg');
+          const head = message.querySelector('.lf-msg-head').getBoundingClientRect();
+          const metadata = [...message.querySelector('.lf-msg-head').children]
+            .map(node => node.getBoundingClientRect());
+          const resolve = message.closest('.lf-thread').querySelector('.lf-resolve');
+          const action = resolve.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(message.querySelector('.lf-msg-text'));
+          const covered = [...range.getClientRects()].filter((line) =>
+            line.right > box.left && line.left < box.right &&
+            line.bottom > box.top && line.top < box.bottom);
+          const hit = control => {
+            const rect = control.getBoundingClientRect();
+            return control.contains(document.elementFromPoint(
+              rect.left + rect.width / 2, rect.top + rect.height / 2));
+          };
+          return {width: box.width, height: box.height, covered: covered.length,
+            opacity: getComputedStyle(trigger).opacity,
+            metadataClear: metadata.every(words => words.right <= box.left ||
+              words.left >= box.right || words.bottom <= box.top || words.top >= box.bottom),
+            insideHeader: box.right <= head.right && box.left >= head.left,
+            disjoint: box.right <= action.left || box.left >= action.right ||
+              box.bottom <= action.top || box.top >= action.bottom,
+            triggerHit: hit(trigger), resolveHit: hit(resolve)};
+        }""")
+        floor = 44 if touch else 26
+        assert reading == {
+            "width": floor,
+            "height": floor,
+            "covered": 0,
+            "opacity": "1",
+            "metadataClear": True,
+            "insideHeader": True,
+            "disjoint": True,
+            "triggerHit": True,
+            "resolveHit": True,
+        }
+        activate(trigger)
+        expect(message.locator(".lf-react-palette:popover-open")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(message.locator(".lf-react-palette:popover-open")).to_have_count(0)
+
+    with sending(page, "resolve beside the agent-root reaction"):
+        activate(card.get_by_role("button", name="Resolve thread", exact=True))
+    expect(card).to_be_hidden()
 
 
 def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):

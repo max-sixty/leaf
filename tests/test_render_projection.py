@@ -377,8 +377,9 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
     expect(observed).to_have_text(re.compile(r"^Observed 3h ago$"))
 
 
-def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
-    """A delayed lazy import cannot paint a widget after its host has disconnected."""
+@pytest.mark.parametrize("reconnect", [False, True])
+def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve, reconnect):
+    """A delayed paint leaves with its owner, while a same-batch move retains it."""
     authored = leaf_page(
         "pull request disconnect",
         '<lf-pull-request id="reviewed-pr" source="pr-1842"></lf-pull-request>',
@@ -412,9 +413,32 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
             page.goto(url, wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         assert held, "the positive control did not hold the lazy Markdown import"
-        page.locator("#reviewed-pr").evaluate("element => element.remove()")
+        page.locator("#reviewed-pr").evaluate(
+            """(element, reconnect) => {
+              window.detachedPr = element;
+              window.detachedPrMarkup = element.innerHTML;
+              const parent = element.parentElement;
+              element.remove();
+              if (reconnect) parent.append(element);
+            }""",
+            reconnect,
+        )
         held.pop(0).continue_()
-        page.wait_for_timeout(100)
+        page.evaluate(
+            """async () => {
+              const {loadMarkdown} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              await loadMarkdown();
+            }"""
+        )
+        wait_until_ready(page)
+        if reconnect:
+            expect(page.locator(".lf-pr-title")).to_have_text(
+                "Keep delayed rendering safe"
+            )
+        else:
+            assert page.evaluate(
+                "() => window.detachedPr.innerHTML === window.detachedPrMarkup"
+            )
     finally:
         while held:
             held.pop(0).continue_()
@@ -5444,6 +5468,125 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
 
 
+@pytest.mark.parametrize("holding", ["defer", "preparation", "async"])
+def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
+    browser, serve, holding
+):
+    """Report prose, coverage, and clocks consume the widget's canonical proof.
+
+    A local editing hold and an asynchronous face/preparation are distinct owners of
+    completion. Each holds only its widget; report narration cannot jump ahead by
+    inferring that the coordinate was committed because its DOM node still exists.
+    """
+    page = open_page(browser, serve(ROSTER_PAGE))
+    d = serve.page_dir
+    row = page.locator("#ag-wren")
+    first = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "report",
+            str(d),
+            "ag-wren",
+            "state",
+            "state=working",
+            "doing=first report",
+        ],
+    )
+    assert first.exit_code == 0, first.output
+    told(page)
+    expect(row.locator(".lf-doing")).to_have_text("first report")
+    page.evaluate(
+        """async holding => {
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {clockValue, tickClock} = await window.__lfRuntimeImport('/runtime/presence.js');
+          const {readApplicationPresentation} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          const owner = document.getElementById('ag-wren');
+          window.__proofClock = 0;
+          window.__proofReads = [];
+          api.watchUpdates(owner, updates => {
+            clockValue(() => window.__proofClock);
+            window.__proofReads.push(updates.map(update => update.text));
+          });
+          window.__proofTick = async () => {
+            window.__proofClock += 1;
+            await tickClock(message => { throw new Error(message); });
+          };
+          window.__proofPending = () => {
+            const proof = readApplicationPresentation();
+            return api.updateSequence(owner).some(update => update.text === 'held report') &&
+              proof.pending.some(region => region.startsWith('widget:ag-wren:')) &&
+              !proof.pending.includes('projection:chrome');
+          };
+          // The watcher gets its first clock reading before the held publication.
+          await Promise.resolve();
+          const other = api.widgetController(document.getElementById('ag-finch'));
+          other.present(new Promise(resolve => { window.__proofOtherResume = resolve; }));
+          window.__proofOtherPending = () =>
+            readApplicationPresentation().pending.includes('widget:ag-finch:preparation');
+          const controller = api.widgetController(owner);
+          if (holding === 'defer') {
+            window.__proofResume = controller.defer();
+          } else {
+            let resolve;
+            const completion = new Promise(done => { resolve = done; });
+            if (holding === 'preparation') {
+              controller.present(completion);
+              window.__proofResume = resolve;
+            } else {
+              const render = owner.renderState.bind(owner);
+              let pendingState;
+              owner.renderState = state => { pendingState = state; };
+              Object.defineProperty(owner, 'updateComplete', {get: () => completion, configurable: true});
+              window.__proofResume = () => {
+                owner.renderState = render;
+                render(pendingState);
+                delete owner.updateComplete;
+                resolve();
+              };
+            }
+          }
+        }""",
+        holding,
+    )
+    if holding == "preparation":
+        # A same-epoch reopen has no semantic notification. The next clock paint
+        # must still check proof rather than bypassing its readiness guard.
+        reads = page.evaluate("window.__proofReads.length")
+        page.evaluate("window.__proofTick()")
+        assert page.evaluate("window.__proofReads.length") == reads
+    second = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "report",
+            str(d),
+            "ag-wren",
+            "state",
+            "state=idle",
+            "doing=held report",
+        ],
+    )
+    assert second.exit_code == 0, second.output
+    page.wait_for_function("window.__proofPending()")
+    page.evaluate("window.__proofTick()")
+    assert not page.evaluate(
+        "window.__proofReads.some(read => read.includes('held report'))"
+    )
+    expect(row.locator(".lf-doing")).to_have_text("first report")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "2")
+    if holding != "preparation":
+        expect(row).to_have_attribute("state", "working")
+    page.evaluate("window.__proofResume()")
+    expect(row).to_have_attribute("state", "idle")
+    expect(row.locator(".lf-doing")).to_have_text("held report")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
+    assert page.evaluate("window.__proofOtherPending()"), (
+        "an unrelated widget's preparation must not block the report or coverage"
+    )
+    page.evaluate("window.__proofOtherResume()")
+
+
 def test_a_worker_that_has_never_reported_dates_from_its_version(browser, serve):
     """The direction a freshness line must never fail in. A row nobody has reported on
     is not of unknown age: its words were asserted when the version landed, and are
@@ -9047,22 +9190,16 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
 
 
 REORDERED_PROJECTION = """
-import {projectData} from '/runtime/widget-api.js';
+import {projectData, html, render, repeat} from '/runtime/widget-api.js';
 customElements.define('lf-ranked', class extends HTMLElement {
   connectedCallback() {
     window.lfRanked = this;
     this.show(['api', 'worker', 'queue']);
   }
   show(keys) {
-    projectData(this, keys.map(key => ({key})), row => row.key, ({key}, prior) => {
-      if (prior) return prior;
-      const row = document.createElement('p');
-      const note = document.createElement('input');
-      note.setAttribute('aria-label', `Note on ${key}`);
-      note.value = `${key} is ready`;
-      row.append(note);
-      return row;
-    });
+    render(repeat(keys, key => key, key => html`<p><input aria-label=${`Note on ${key}`} .value=${`${key} is ready`}></p>`), this);
+    projectData(this, keys.map((key, index) => ({key, node: this.querySelectorAll('p')[index], label: `Service ${key}`, identity: key, origin: {derived: [{widget: key}]}})));
+
   }
 });
 """
@@ -9105,12 +9242,27 @@ def test_a_reordered_projection_keeps_the_user_in_the_row_they_stand_in(browser,
     expect(note).to_be_focused()
     assert note.evaluate("(box) => [box.selectionStart, box.selectionEnd]") == [2, 5]
 
+    page.evaluate("""async () => {
+      const {projectData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const root = document.querySelector('#services');
+      projectData(root, [...root.querySelectorAll('p')].filter(node => node.dataset.lfDatum !== 'worker').map(node => ({node, key: node.dataset.lfDatum})));
+    }""")
+    assert note.evaluate("node => node.isConnected")
+    expect(note).to_be_focused()
+    assert note.evaluate("node => [node.selectionStart, node.selectionEnd]") == [2, 5]
+    assert (
+        note.evaluate(
+            "node => [...node.parentElement.attributes].filter(attr => attr.name.startsWith('data-lf-') || attr.name === 'aria-description').map(attr => attr.name)"
+        )
+        == []
+    )
+
     # A row the renderer hides with `visibility: hidden` still holds focus until the
     # browser blurs it a frame later, so the hold hands the user to the stand-in.
     page.evaluate(
         """async () => {
           const {holdFocus} = await window.__lfRuntimeImport('/runtime/focus.js');
-          const row = document.querySelector('[data-lf-datum="worker"]');
+          const row = document.querySelector('input[aria-label="Note on worker"]').parentElement;
           const restore = holdFocus(row.parentElement);
           row.style.visibility = 'hidden';
           window.landed = restore(document.querySelector('[data-lf-datum="api"] input'));
@@ -9483,6 +9635,41 @@ def test_command_hub_readings_follow_their_seat_across_revisions(browser, serve)
         "lf-fleet-view",
     ]
     expect(page.locator(f"#side-readings > {READING_PANELS}")).to_have_count(3)
+
+
+@pytest.mark.parametrize("opened", [False, True])
+def test_command_hub_keeps_its_seated_readings_when_the_command_moves(
+    browser, serve, opened
+):
+    """A move retains the panels and the reader's open state in their existing seat."""
+    page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
+    panels = page.locator(f"#hub-readings > {READING_PANELS}")
+    expect(panels).to_have_count(3)
+    if opened:
+        page.locator("#hub-readings").get_by_role("button", name="5 stopped").click()
+        expect(page.locator("#hub-readings")).to_have_attribute("data-lf-open", "")
+    result = page.evaluate(
+        """async () => {
+          const command = document.getElementById('hub-plan');
+          const seat = document.getElementById('hub-readings');
+          const panels = [...seat.children];
+          const before = seat.innerHTML;
+          const parent = command.parentElement;
+          const next = command.nextSibling;
+          await new Promise(resolve => {
+            const observer = new MutationObserver(() => {
+              observer.disconnect(); resolve();
+            });
+            observer.observe(document.body, {childList: true, subtree: true});
+            command.remove();
+            parent.insertBefore(command, next);
+          });
+          return {sameNodes: panels.every(panel => panel.parentElement === seat),
+            sameMarkup: seat.innerHTML === before};
+        }"""
+    )
+    assert result == {"sameNodes": True, "sameMarkup": True}
+    expect(panels).to_have_count(3)
 
 
 def test_command_hub_readings_seat_is_filled_when_it_connects(browser, serve):

@@ -35,7 +35,9 @@
    A double click on the message or a press on its Edit control opens it. The keyboard
    opens it with ↑: from the thread's empty reply box, the user's latest message, and
    from the start of an open rewrite not yet changed, their message before it, so Edit
-   takes no Tab stop in every thread the user opened. Resume writing (`g i`) opens a
+   takes no Tab stop in every thread the user opened. A resolved thread shows no reply
+   box; Enter on it reopens it into that box, as replying there starts, since a saved
+   rewrite reopens it anyway, and ↑ goes on from there. Resume writing (`g i`) opens a
    rewrite whose words were kept on the message in the Threads panel
    (`openMessageEditIn`). Opening brings the editor into view. Enter saves; Escape and
    Cancel close it, discarding changed words; opening another rewrite in the thread

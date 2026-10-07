@@ -278,6 +278,40 @@ test("a local rewrite shows on its message and hands a closed thread to the agen
   assert.equal(thread.msgs[0].text, "Chart 2024.", "the served thread stays as served");
 });
 
+test("a local rewrite leaves a question asked since with the user", () => {
+  const asked = { id: "root", kind: "comment", author: "user", text: "A", ts: "then" };
+  const question = {
+    id: "question",
+    kind: "reply",
+    parent: "root",
+    author: "agent",
+    agent: "Indexer",
+    text: "Which year?",
+    ts: "then",
+  };
+  const owed = { kind: "needs_user", reason: "ask", workflow: null };
+  const rewrite = {
+    id: "pending:rewrite",
+    kind: "edit",
+    author: "user",
+    message: "root",
+    text: "B",
+    ts: "now",
+  };
+  const [folded] = foldThreads(
+    [servedThread([asked, question], { attention: owed })],
+    [rewrite],
+  );
+  assert.deepEqual(folded.attention, owed);
+  // A reply answers the question, so the thread goes to the agent.
+  const reply = { ...rewrite, id: "pending:reply", kind: "reply", parent: "question" };
+  const [replied] = foldThreads(
+    [servedThread([asked, question], { attention: owed })],
+    [reply],
+  );
+  assert.equal(replied.attention.workflow, "pending:reply");
+});
+
 test("pending thread gestures fold in the order the user made them, as the log will", () => {
   const asked = { id: "root", kind: "comment", author: "user", text: "A", ts: "then" };
   const answer = {

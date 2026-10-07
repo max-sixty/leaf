@@ -42,11 +42,12 @@ const depthOf = (node) => {
 
 const live = (region) => region?.host?.isConnected && region.body?.isConnected;
 
-const hidden = (region) =>
-  !live(region) ||
+const concealed = (region) =>
   region.host.hidden ||
-  region.host.closest?.("[hidden], [aria-hidden='true']") !== null ||
-  shownRect(region.host, new Map()) === null;
+  region.host.closest?.("[hidden], [aria-hidden='true']") !== null;
+
+const hidden = (region) =>
+  !live(region) || concealed(region) || shownRect(region.host, new Map()) === null;
 
 const regionRecord = (region) => ({
   id: region.id,
@@ -109,6 +110,13 @@ export const readingRegion = (id) => {
 
 export const readingRegions = () =>
   [...regions.values()].filter(live).map(regionRecord);
+
+// Keep a region in the inventory while an authored disclosure or tab conceals it,
+// but never ask its geometry merely to decide whether to sample it.
+export const unconcealedReadingRegions = () =>
+  [...regions.values()]
+    .filter((region) => live(region) && !concealed(region))
+    .map(regionRecord);
 
 export const readingRegionFor = (node) => {
   const region = [...regions.values()]

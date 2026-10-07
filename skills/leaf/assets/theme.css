@@ -179,6 +179,7 @@
   --lf-z-margin-raised: 8895;     /* the margin item under pointer or focus */
   --lf-z-surface: 8900;           /* a standing drawer or thread panel */
   --lf-z-margin-preview: 8920;    /* the thread card, under the bars it scrolls beneath */
+  --lf-z-page-hints: 8930;        /* a key chip naming a page target, under the bars */
   --lf-z-shortcut-bar: 8940;
   --lf-z-menu: 8950;              /* a door's menu */
   --lf-z-banner: 9000;
@@ -188,7 +189,7 @@
   --lf-z-bottom-status: 9030;
   --lf-z-escaped-control: 9050;   /* a focused control that leaves the flow to be seen */
   --lf-z-chrome-paint: 9060;      /* paint whose target is inside the chrome */
-  --lf-z-key-badges: 9070;
+  --lf-z-key-badges: 9070;        /* a key chip naming what stands in a surface */
   --lf-z-page-search: 9080;
   --lf-z-dialog: 9300;            /* the command reference, the page map */
   --lf-z-media-viewer: 9400;

@@ -1376,11 +1376,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     background: color-mix(in srgb, var(--accent) 8%, transparent); }
   .lf-aim.lf-shaped { border: 0; border-radius: 0 !important; background: none; }
   .lf-aim-shape { display: block; width: 100%; height: 100%; overflow: hidden; }
-  /* Each drawing is fixed and anchored to what it was drawn on (drawing-paint.js), so a
-     stroke crosses content boundaries without becoming part of the document's
-     scrollable overflow, and scrolls with the page. The layer only stacks them. */
-  .lf-drawings { position: fixed; inset: 0; pointer-events: none; }
-  .lf-drawing-mark { position: fixed; display: block; overflow: visible;
+  /* Each drawing stands in a paint stand over what it was drawn on (drawing-ink.js),
+     anchored to it, so a stroke crosses content boundaries without becoming part of the
+     document's scrollable overflow, scrolls with what it marks, and is cut where a pane
+     cuts that. */
+  .lf-drawings { pointer-events: none; }
+  .lf-drawing-mark { position: absolute; display: block; overflow: visible;
     pointer-events: none; }
   .lf-drawing-mark path { fill: none; stroke: var(--mark-ink); stroke-width: 3px;
     stroke-linecap: round; stroke-linejoin: round; }
@@ -1710,34 +1711,33 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      stood (.lf-inspect); the banner takes an accent wash so the mode reads at the top
      edge as well. Nothing here is something to press: pointer-events stands down so a
      click still lands on the item the box outlines. */
-  /* Predictable numeric binding badges belong to local Ask controls. */
-  .lf-key-badges { position: fixed; inset: 0; z-index: var(--lf-z-key-badges); pointer-events: none; }
-  .lf-key-badges > .lf-key-badge { position: absolute; display: block;
-    transform: translate(-50%, -100%); }
-  /* Ask binding badges sit on the answer control's upper-left corner. Unlike a route name
-     above prose, the single digit is a local label for the control it touches, so they
-     stand in the document plane with it, where a scroll carries them, under the chrome
-     they never cover. */
-  .lf-command-binding-badges { position: absolute; inset: 0 auto auto 0;
-    z-index: var(--lf-z-page-paint); }
-  .lf-command-binding-badges > .lf-command-binding-badge { transform: translate(-50%, -50%); }
+  /* A key chip stands in a seat anchored to what it names (chip-seats.js), in a paint
+     stand that stacks under the bars and banner it keeps clear of, so a chip riding a
+     scroll slides beneath them as the page does, or above every surface where what it
+     names stands in one. The open search's mark stands with the picker's chips. */
+  .lf-key-chips > .lf-paint-stand[data-lf-paint-plane="page"] {
+    z-index: var(--lf-z-page-hints); }
+  .lf-key-chips > .lf-paint-stand[data-lf-paint-plane="chrome"] {
+    z-index: var(--lf-z-key-badges); }
+  .lf-chip-seat { position: absolute; left: 0; top: 0; width: 0; height: 0;
+    pointer-events: none; }
+  .lf-chip-seat > .lf-key-badge { position: absolute; left: 0; top: 0; display: block; }
+  /* Ask binding badges sit on the answer control's upper-left corner: the single digit is
+     a local label for the control it touches. */
+  .lf-command-binding-badge { transform: translate(-50%, -50%); }
   /* The Target picker and Go-to sequence both give visible targets generated, prefix-free
      names while their interaction stands. Every hint remains visible: the face is
      the route itself, not a reminder of a predictable ordinal. */
-  .lf-target-picker-hints, .lf-go-to-hints {
-    position: fixed; inset: 0; z-index: var(--lf-z-key-badges); pointer-events: none;
-  }
-  :is(.lf-target-picker-hints, .lf-go-to-hints) > .lf-key-hint {
-    position: absolute; display: block;
+  :is(.lf-target-picker-hints, .lf-go-to-hints) .lf-key-hint {
     min-width: 0; height: auto; padding: 0; border: 0; background: transparent;
     transform: translate(-50%, -50%); }
-  :is(.lf-target-picker-hints, .lf-go-to-hints) > .lf-key-hint.lf-in {
+  :is(.lf-target-picker-hints, .lf-go-to-hints) .lf-key-hint.lf-in {
     transform: translate(-50%, 0);
   }
   /* The hint the keyboard is browsing is where the user is standing in this mode, so
      it wears the layer's band — cast as a shadow, since a chip in a layer nothing can
      focus has no outline state to hang it on. */
-  :is(.lf-target-picker-hints, .lf-go-to-hints) > .lf-key-hint.lf-current { font-weight: 700;
+  :is(.lf-target-picker-hints, .lf-go-to-hints) .lf-key-hint.lf-current { font-weight: 700;
     --lf-focus-ring: target-hint; box-shadow: var(--focus-shadow); }
   /* Search has one active result, painted as a quiet wash rather than a second native
      selection. The real Selection is made only on Enter, when the ordinary comment

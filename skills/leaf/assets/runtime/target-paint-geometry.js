@@ -1,10 +1,20 @@
-/* Shared geometry for transient target traces and persistent visual marks.
+/* Where paint over the page's targets stands: traces, visual marks, the design
+ * legend, key chips, the search's mark and drawing ink.
  *
- * Read the provider's drawn SVG primitives and clone them into a caller-owned shape.
- * These operations hold no targets, nodes, caches or scheduled work; each painter
- * decides when geometry must be rebuilt and when only its placement has changed. */
+ * Read the provider's drawn SVG primitives and clone them into a caller-owned shape,
+ * and stand each box in the planes of what carries its target (`paintStand`), alone or
+ * in a set (`paintSet`). Each painter decides when geometry must be rebuilt and when
+ * only its placement has changed; a set alone keeps state, which of its targets stand
+ * near enough to be shown. */
 
-import { anchorElement, anchorName, inTopLayer, scrollsWith } from "./anchor-names.js";
+import {
+  anchorElement,
+  anchorName,
+  anchorReading,
+  inTopLayer,
+  nameAnchor,
+  scrollsWith,
+} from "./anchor-names.js";
 import { paintClips, shownBox } from "./geometry.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
 import {
@@ -369,7 +379,7 @@ export function standBox(
     Object.assign(box.style, {
       position: "fixed",
       positionAnchor: anchorName(anchor),
-      positionVisibility: "always",
+      positionVisibility: stood.visibility ?? "always",
       left: from("left", rect.left - at.left),
       top: from("top", rect.top - at.top),
       ...(sizes ? sized(rect) : {}),
@@ -397,6 +407,256 @@ export function standOver(stand, placed, borderRadius) {
   return { ...stood, anchor, at };
 }
 
+// A set of paint boxes, each over a target and standing in the frames that cut it
+// (`placement`), anchored to it where the anchor reaches (`anchoredBy`), the boxes the
+// same frames cut sharing a stand, so no scroll writes any of them. A box not `cut`, as
+// a chip hung off its target's corner wherever the room around it seats it, or ink
+// still being drawn past its target's edge, stands in no frame where it is anchored,
+// and hides once its target is scrolled out of sight (`position-visibility:
+// anchors-visible`); unanchored, it stands uncut in its target's layers. A box with no
+// target stands where the window holds it.
+//
+// Only a box whose target stands within a screen of being shown, the scrollers around
+// it included (`scrollMargin`), is in the document. A box out of it costs no layout,
+// where boxes hidden beside the anchored ones made every layout pass revisit them all.
+// `onNear` hears where that changed, once the boxes come near are seated.
+//
+// `place` takes every box of the set, in paint order, each `{ node, target, rect }`:
+// `rect` in client coordinates, a point for a box that keeps its own size, or a
+// function of the target's placement, which is the default. `held` places paint over
+// what the target holds, cut by its own band too, `anchor` names what carries the box
+// where that is not the target's own anchor, `plane` the stacking its stand takes
+// (`data-lf-paint-plane`), the page's unless it says otherwise, and `cut: false` that
+// no frame cuts it. It reads every box's geometry and
+// anchor before it writes any, and the names those anchors need before it gives any,
+// since reading an author's name after a write forces the style that write
+// invalidated. It answers each box's placement, null where it stands nowhere.
+export function paintSet(root, { onNear = () => {} } = {}) {
+  const stands = new Map(); // key → stand
+  const entries = new Map(); // node → how it stands
+  // Each target is watched through the box it anchors by, which a target with no box
+  // of its own has in its first shown part (`anchorElement`).
+  const near = new Set(); // targets
+  const watched = new Map(); // target → the box watched for it
+  const watching = new Map(); // box → the targets it is watched for
+  const nearBy = (target) => !target || near.has(target);
+  const view = new IntersectionObserver(
+    (records) => {
+      const moved = new Set();
+      for (const { target: box, isIntersecting } of records)
+        for (const target of watching.get(box) ?? []) {
+          if (isIntersecting) near.add(target);
+          else near.delete(target);
+          moved.add(target);
+        }
+      for (const stand of stands.values())
+        if (stand.members.some(({ target }) => moved.has(target))) seat(stand);
+      onNear();
+    },
+    { rootMargin: "100%", scrollMargin: "600px" },
+  );
+
+  // A stand's key: the frames that cut it, each band from its holder's corner, which no
+  // scroll moves, and the plane it stands in. A stand in motion layers follows its one
+  // target's timelines, so it holds that target's boxes alone.
+  const ids = new WeakMap();
+  let idCount = 0;
+  const idOf = (node) => ids.get(node) ?? (ids.set(node, ++idCount), idCount);
+  const keyOf = ({ surface, fixed, levels }, anchor, plane, framed) =>
+    !surface
+      ? `${plane}|window`
+      : [
+          plane,
+          framed ? "cut" : "open",
+          fixed ? "fixed" : "page",
+          anchor ? "anchored" : levels.length ? `own${idOf(surface)}` : "",
+          ...levels.map(({ holder, band, from, axes }) => {
+            const edges = [from.left, from.top, from.left + band.right - band.left];
+            return `${holder ? idOf(holder) : "window"}:${[...edges, from.top + band.bottom - band.top]}:${axes.x}${axes.y}`;
+          }),
+        ].join("|");
+
+  // A stand's boxes in its carrier in order, those whose target is near, the rest out of
+  // the document. Each box seated here, every near one for a pass, is written.
+  function seat(stand, all = false) {
+    const { carrier, members } = stand;
+    const seating = new Set(
+      members.filter(
+        ({ node, target }) => nearBy(target) && (all || node.parentElement !== carrier),
+      ),
+    );
+    const readings = [...seating]
+      .filter(({ entry }) => entry.anchor)
+      .map(({ entry }) => anchorReading(entry.anchor));
+    for (const reading of readings) nameAnchor(reading);
+    let cursor = carrier.firstElementChild;
+    for (const member of members) {
+      const { node, target, entry } = member;
+      if (!nearBy(target)) {
+        if (node.parentElement !== carrier) continue;
+        if (cursor === node) cursor = node.nextElementSibling;
+        node.remove();
+        continue;
+      }
+      if (cursor === node) cursor = node.nextElementSibling;
+      else carrier.insertBefore(node, cursor);
+      if (seating.has(member))
+        standBox(node, entry.rect, entry.stood, entry.anchor, entry.at);
+    }
+  }
+
+  function place(items, clips = new Map()) {
+    const holders = new Map();
+    const targets = new Set();
+    const read = items.map((item) => {
+      const { node, target = null, rect, held = false, anchor, plane = "page" } = item;
+      const { cut: framed = true } = item;
+      if (!target) {
+        const placed = { surface: null, levels: [], fixed: true };
+        return {
+          node,
+          target,
+          placed,
+          rect,
+          plane,
+          framed,
+          key: keyOf(placed, null, plane),
+        };
+      }
+      targets.add(target);
+      // A target with no box of its own stands where its parts do (`shownBox`).
+      let placed = placement(target, false, false, clips, held);
+      const { left, top, right, bottom } = placed.rect;
+      if (!(right > left && bottom > top)) return { node, target, placed: null };
+      const box = typeof rect === "function" ? rect(placed) : (rect ?? placed.rect);
+      // Until the observer's first answer, near is read off the box itself, so a set's
+      // first paint draws what it shows.
+      if (!watched.has(target)) {
+        const box = anchorElement(target);
+        watched.set(target, box);
+        if (!watching.has(box)) {
+          watching.set(box, new Set());
+          view.observe(box);
+        }
+        watching.get(box).add(target);
+        if (
+          bottom > -innerHeight &&
+          top < 2 * innerHeight &&
+          right > -innerWidth &&
+          left < 2 * innerWidth
+        )
+          near.add(target);
+      }
+      const carriedBy = anchor !== undefined ? anchor : anchoredBy(target, root);
+      // A box no frame cuts is carried by its anchor alone, or by its target's layers
+      // standing open.
+      if (!framed)
+        placed = {
+          ...placed,
+          levels: carriedBy
+            ? []
+            : placed.levels.map((level) => ({
+                ...level,
+                axes: { x: false, y: false },
+              })),
+        };
+      // Each level's band from its holder's corner (`from`), which no scroll moves.
+      for (const { holder } of placed.levels)
+        if (holder && !holders.has(holder))
+          holders.set(holder, holder.getBoundingClientRect());
+      placed.levels = placed.levels.map((level) => {
+        const at = level.holder ? holders.get(level.holder) : { left: 0, top: 0 };
+        return {
+          ...level,
+          from: { left: level.band.left - at.left, top: level.band.top - at.top },
+        };
+      });
+      return {
+        node,
+        target,
+        placed,
+        rect: box,
+        plane,
+        framed,
+        anchor: carriedBy,
+        at: carriedBy?.getBoundingClientRect(),
+        key: keyOf(placed, carriedBy, plane, framed),
+      };
+    });
+    for (const [target, box] of watched)
+      if (!targets.has(target)) {
+        watched.delete(target);
+        near.delete(target);
+        watching.get(box).delete(target);
+        if (watching.get(box).size) continue;
+        watching.delete(box);
+        view.unobserve(box);
+      }
+    // The writes: each stand's frames, in the order its first box comes, then each box
+    // in its stand.
+    const stood = new Map(); // key → { stand, ... }
+    let previous = null;
+    for (const { placed, key, anchor, plane, framed } of read) {
+      if (!placed || stood.has(key)) continue;
+      const stand = stands.get(key) ?? paintStand();
+      stands.set(key, stand);
+      keeps(stand.root, "data-lf-paint-plane", plane);
+      const next = previous ? previous.root.nextElementSibling : root.firstElementChild;
+      if (next !== stand.root) root.insertBefore(stand.root, next);
+      const how = standIn(stand, placed, Boolean(anchor));
+      stood.set(key, {
+        stand,
+        ...how,
+        visibility: framed ? "always" : "anchors-visible",
+      });
+      previous = stand;
+    }
+    for (const [key, stand] of stands)
+      if (!stood.has(key)) {
+        dropStand(stand);
+        stands.delete(key);
+      }
+    for (const stand of stands.values()) stand.members = [];
+    const placing = new Set();
+    for (const { node, target, placed, key, rect, anchor, at } of read) {
+      placing.add(node);
+      const { stand = null, ...how } = (placed && stood.get(key)) || {};
+      const entry = entries.get(node) ?? {};
+      if (entry.stand !== stand) node.remove();
+      Object.assign(entry, { stand, stood: how, rect, anchor, at });
+      entries.set(node, entry);
+      stand?.members.push({ node, target, entry });
+    }
+    for (const node of entries.keys())
+      if (!placing.has(node)) {
+        node.remove();
+        entries.delete(node);
+      }
+    for (const stand of stands.values()) seat(stand, true);
+    return read.map(({ placed }) => placed);
+  }
+
+  function clear() {
+    for (const stand of stands.values()) dropStand(stand);
+    for (const node of entries.keys()) node.remove();
+    stands.clear();
+    entries.clear();
+    near.clear();
+    watched.clear();
+    watching.clear();
+    view.disconnect();
+  }
+
+  return {
+    place,
+    clear,
+    // Whether `target`'s boxes stand in the document, near enough to be shown.
+    near: nearBy,
+    // Whether `node` stands in the set, near or not.
+    stands: (node) => Boolean(entries.get(node)?.stand),
+  };
+}
+
 // A stand whose box is put away keeps no frames, layers or timelines, which would hold
 // the scrollers they follow after a revision removed them.
 export function vacate(stand) {
@@ -415,8 +675,15 @@ export function dropStand(stand) {
 // null where the cuts hide all of it. `shapeKey` changes where a shape drawn in the box
 // must be drawn again. `levels` are the frames that cut it, outermost first, each with
 // the box `holder` whose band it is, none for the window's. `clips` is the clip walk's
-// cache, shared by a pass that places many.
-export function placement(surface, shaped, aboveSurfaces, clips = new Map()) {
+// cache, shared by a pass that places many. Paint over what `surface` holds (`held`), as
+// words standing in it, is cut by its own band as well.
+export function placement(
+  surface,
+  shaped,
+  aboveSurfaces,
+  clips = new Map(),
+  held = false,
+) {
   const box = shownBox(surface);
   const pad = shaped ? SHAPE_STROKE_ROOM : 0;
   const rect = {
@@ -425,7 +692,7 @@ export function placement(surface, shaped, aboveSurfaces, clips = new Map()) {
     right: box.right + pad,
     bottom: box.bottom + pad,
   };
-  const cuts = paintClips(surface, rect, clips, aboveSurfaces);
+  const cuts = paintClips(surface, rect, clips, aboveSurfaces, held);
   const levels = [];
   if (cuts.window)
     levels.push({ band: cuts.window, axes: { x: true, y: true }, holder: null });

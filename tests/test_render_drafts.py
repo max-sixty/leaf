@@ -997,7 +997,7 @@ def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
     )
     question = page.locator("#note-decision")
     editor = page.locator("#note leaf-text")
-    hints = page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    hints = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
 
     def return_to_question():
         question.evaluate(

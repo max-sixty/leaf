@@ -6355,7 +6355,7 @@ def test_generated_hints_fit_the_visible_screen(browser, serve):
           height: document.documentElement.clientHeight,
           banner: document.querySelector('.lf-banner').getBoundingClientRect().bottom,
           chips: [...document.querySelectorAll(
-            '.lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]')]
+            '.lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]')]
             .map(chip => ({
             route: chip.textContent,
             code: chip.dataset.lfHintCode,
@@ -6796,7 +6796,7 @@ def test_generated_hints_spread_without_hiding_a_crowded_target(browser, serve):
     piles = page.evaluate(
         """() => {
              const boxes = [...document.querySelectorAll(
-               '.lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]')]
+               '.lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]')]
                .map(chip => ({
                  code: chip.dataset.lfHintCode,
                  r: chip.getBoundingClientRect(),
@@ -6846,7 +6846,7 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
     # ends in its own frame, and Chrome sends `scrollend` for each one.
     travel = page.evaluate(
         """async () => {
-          const sel = '.lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]';
+          const sel = '.lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]';
           // A chip whose target sits well inside the room, so neither reading is held
           // against the banner at one end or the window's foot at the other.
           const code = [...document.querySelectorAll(sel)]
@@ -6923,7 +6923,7 @@ def test_a_generated_hint_is_never_drawn_on_the_key_line(browser, serve):
                  const hit = (a, b) => a.left < b.right && b.left < a.right
                                     && a.top < b.bottom && b.top < a.bottom;
                  return [...document.querySelectorAll(
-                   '.lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]')]
+                   '.lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]')]
                    .filter(chip => hit(chip.getBoundingClientRect(), bar))
                    .map(chip => chip.textContent + ' at '
                      + Math.round(document.scrollingElement.scrollTop));
@@ -7318,7 +7318,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         """() => {
              const links = [...document.querySelectorAll('#refs a[href]')];
              const chips = links.map(link => document.querySelector(
-               `.lf-go-to-hints > .lf-go-to-hint[data-lf-go-to-target="${link.id}"]`));
+               `.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-target="${link.id}"]`));
              return {wrapped: links[0].getClientRects().length > 1,
                      on: chips.map((chip, i) => {
                        const c = chip.getBoundingClientRect();
@@ -7361,7 +7361,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     assert page.evaluate(
         """() => {
              const c = document.querySelector(
-               '.lf-go-to-hints > .lf-go-to-hint[data-lf-go-to-target="dsc-head"]')
+               '.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-target="dsc-head"]')
                         .getBoundingClientRect();
              const first = document.getElementById('dsc-head').getClientRects()[0];
              return Math.abs(c.left + c.width / 2 - first.left) < 2
@@ -7411,7 +7411,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
         """() => {
              const mark = document.querySelector('#opt-a .lf-pick').getBoundingClientRect();
              const chip = [...document.querySelectorAll(
-               '.lf-go-to-hints > .lf-go-to-hint[data-lf-go-to-kind="Control"]')]
+               '.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-kind="Control"]')]
                .find(c => {
                  const r = c.getBoundingClientRect();
                  return Math.abs(r.left + r.width / 2 - mark.left) < 2
@@ -7519,11 +7519,11 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("Leaves drawer")
     expect(
         page.locator(
-            '.lf-go-to-hints > [data-lf-go-to-command="navigation.drawer.leaves"]'
+            '.lf-go-to-hints [data-lf-go-to-command="navigation.drawer.leaves"]'
         )
     ).to_have_count(0)
     threads_hint = page.locator(
-        '.lf-go-to-hints > [data-lf-go-to-command="navigation.panel.threads"]'
+        '.lf-go-to-hints [data-lf-go-to-command="navigation.panel.threads"]'
     )
     expect(threads_hint).to_be_visible()
     # A live secondary-control label may change while the sequence stands. Its keyboard
@@ -9270,7 +9270,7 @@ def test_global_destinations_switch_from_a_covering_workspace(
     ):
         page.keyboard.press("g")
         expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
-        expect(page.locator(".lf-go-to-hints > [data-lf-hint-code]")).to_have_count(0)
+        expect(page.locator(".lf-go-to-hints [data-lf-hint-code]")).to_have_count(0)
         page.keyboard.press(key)
         expect(page.locator(opened)).to_be_visible()
         expect(page.locator(closed)).to_be_hidden()
@@ -10384,7 +10384,7 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     for control, suffix in banner_destinations.values():
         expect(control).to_have_attribute("title", re.compile(rf"\(g {suffix}\)$"))
         expect(control.locator(".lf-target-picker-hint")).to_have_count(0)
-    expect(page.locator(".lf-go-to-hints > [data-lf-go-to-command]")).to_have_count(0)
+    expect(page.locator(".lf-go-to-hints [data-lf-go-to-command]")).to_have_count(0)
     expect(page.locator(".lf-latest-chip")).to_have_attribute(
         "title", re.compile(r"\(g V v\)$")
     )
@@ -10412,14 +10412,14 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("visible target")
     for command in ("navigation.drawer.queue", "version.open"):
         expect(
-            page.locator(f'.lf-go-to-hints > [data-lf-go-to-command="{command}"]')
+            page.locator(f'.lf-go-to-hints [data-lf-go-to-command="{command}"]')
         ).to_have_count(0)
     expect(
         page.locator(f'{CHIPS}[data-lf-go-to-target="hint-collision-probe"]')
     ).to_be_visible()
     for command, (control, suffix) in banner_destinations.items():
         hint = page.locator(
-            f'.lf-go-to-hints > .lf-go-to-hint[data-lf-go-to-command="{command}"]'
+            f'.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-command="{command}"]'
         )
         expect(hint).to_be_visible()
         assert hint.locator("kbd").evaluate_all(
@@ -10429,7 +10429,7 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
         hint_box, control_box = control.evaluate(
             """(control, command) => [
               document.querySelector(
-                `.lf-go-to-hints > [data-lf-go-to-command="${command}"]`
+                `.lf-go-to-hints [data-lf-go-to-command="${command}"]`
               ).getBoundingClientRect().toJSON(),
               control.getBoundingClientRect().toJSON(),
             ]""",
@@ -10445,7 +10445,7 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
         assert hint_box["x"] + hint_box["width"] / 2 == pytest.approx(
             control_box["x"] + control_box["width"] / 2, abs=0.5
         ), (command, hint_box, control_box)
-    all_hints = page.locator(".lf-go-to-hints > .lf-go-to-hint:visible")
+    all_hints = page.locator(".lf-go-to-hints .lf-go-to-hint:visible")
     boxes = all_hints.evaluate_all(
         """hints => hints.map(hint => {
           const box = hint.getBoundingClientRect();
@@ -10471,13 +10471,13 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
         ("navigation.panel.threads", page.locator(".lf-threads-toggle")),
     ):
         hint = page.locator(
-            f'.lf-go-to-hints > .lf-go-to-hint[data-lf-go-to-command="{command}"]'
+            f'.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-command="{command}"]'
         )
         expect(hint).to_be_visible()
         hint_box, control_box = control.evaluate(
             """(control, command) => [
               document.querySelector(
-                `.lf-go-to-hints > [data-lf-go-to-command="${command}"]`
+                `.lf-go-to-hints [data-lf-go-to-command="${command}"]`
               ).getBoundingClientRect().toJSON(),
               control.getBoundingClientRect().toJSON(),
             ]""",
@@ -10497,7 +10497,7 @@ def test_banner_destinations_use_transient_target_overlays(browser, serve):
         "title", re.compile(r"\(g V v\)$")
     )
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-go-to-hints > [data-lf-go-to-command]")).to_have_count(0)
+    expect(page.locator(".lf-go-to-hints [data-lf-go-to-command]")).to_have_count(0)
 
     page.keyboard.press("?")
     page.keyboard.press("?")

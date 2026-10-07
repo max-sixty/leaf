@@ -439,7 +439,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       if (focused() === ta) followBoxGrowth(ta);
     });
     ta.addEventListener("focus", () => readBoxPlace(ta));
-    ta.addEventListener("beforeinput", () => readBoxPlace(ta), { capture: true });
+    ta.addEventListener("lf-before-edit", () => readBoxPlace(ta), { capture: true });
     // The composer owns picture admission. Capture declines the field's ordinary text
     // paste before CodeMirror handles it; a direct editor without this owner keeps the
     // clipboard's text even when the payload also contains a picture.

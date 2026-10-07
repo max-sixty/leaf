@@ -302,7 +302,15 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           --lf-thread-reaction-room: 0px; }
 /* A semantic separator draws its boundary without sizing the transcript. */
 .lf-read-boundary { height: 0; }
-.lf-msg { margin: 16px 0 0; }
+/* One animated phase feeds every painted part of a message. Animating the
+   background itself lets Firefox's compositor leave an inheriting sticky head
+   behind; a typed inherited ground keeps both paints on the same frame. */
+@property --lf-msg-ground { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --lf-msg-arrival { syntax: "<number>"; inherits: false; initial-value: 0; }
+.lf-msg { margin: 16px 0 0; --lf-msg-rest-ground: transparent;
+          --lf-msg-ground: color-mix(in srgb,
+            var(--hi-tint) calc(var(--lf-msg-arrival) * 100%), var(--lf-msg-rest-ground));
+          background-color: var(--lf-msg-ground); }
 .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) { margin-top: 0; }
 /* All message headers share one shrinking policy, including sticky margin heads.
    An author may ellipsize while time and receipt use their own intrinsic room. */
@@ -1012,3 +1020,5 @@ pre:hover + .lf-code-copy,
 .lf-reply-continuity:not(details) { display: flex; flex-direction: column;
   min-block-size: var(--lf-thread-body-extent, 0px); }
 .lf-reply-space { flex: 1 0 0; min-block-size: 0; }
+.lf-reply-continuity > .lf-thread-reply leaf-text:not(:state(placeholder-shown)) {
+  block-size: var(--lf-reply-writing-room, auto); }

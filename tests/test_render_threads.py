@@ -1906,6 +1906,124 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     expect(box).to_be_focused()
 
 
+def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
+    browser, serve
+):
+    """The banner's Comment on the page starts a page thread with Threads shut: a card
+    hangs flush from the control, and its send puts the card away and flashes Threads,
+    whose count takes the new thread, without opening the panel. `c` on the floor goes
+    to the same card, and with Threads open both go to Threads' own box instead."""
+    page = open_page(browser, serve(LONG_PAGE))
+    control = page.locator(".lf-banner-actions > .lf-page-comment")
+    card = page.locator(".lf-page-comment-card")
+    box = card.locator("leaf-text")
+    toggle = page.locator(".lf-threads-toggle")
+    is_open = "node => node.matches(':popover-open')"
+    expect(control).to_have_attribute("title", "Comment on the page (c)")
+
+    control.click()
+    assert card.evaluate(is_open)
+    expect(box).to_be_focused()
+    hung = page.evaluate(
+        """() => {
+          const card = document.querySelector('.lf-page-comment-card')
+            .getBoundingClientRect();
+          const control = document.querySelector('.lf-banner-actions > .lf-page-comment')
+            .getBoundingClientRect();
+          const banner = document.querySelector('.lf-banner').getBoundingClientRect();
+          return [card.top - banner.bottom, card.right - control.right];
+        }"""
+    )
+    assert [round(edge) for edge in hung] == [0, 0], hung
+
+    count = toggle.get_attribute("data-lf-count")
+    write(box, "Does the plan cover the self-hosted runners?")
+    with sending(page, "the page comment"):
+        page.keyboard.press("Enter")
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert (sent["kind"], sent["text"], sent.get("anchor")) == (
+        "comment",
+        "Does the plan cover the self-hosted runners?",
+        None,
+    )
+    assert not card.evaluate(is_open)
+    assert toggle.evaluate("t => t.getAnimations().length") == 1, (
+        "Threads did not flash"
+    )
+    expect(toggle).to_have_attribute("data-lf-count", str(int(count) + 1))
+    assert not page.locator(".lf-thread-panel").evaluate("p => p.open")
+    expect(control).to_be_focused()
+
+    page.locator("main").click(position={"x": 4, "y": 4})
+    page.keyboard.press("c")
+    assert card.evaluate(is_open)
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", "")
+    page.keyboard.press("Escape")
+    # Words typed straight after `c` land in the box rather than on the page's keys.
+    page.keyboard.press("c")
+    page.keyboard.type("Kept for later")
+    expect(box).to_have_js_property("value", "Kept for later")
+    page.keyboard.press("Escape")
+    assert not card.evaluate(is_open)
+
+    # A refused send opens the card again on the words it handed back.
+    page.route(
+        "**/api/event",
+        lambda route: route.fulfill(
+            status=400,
+            json={"ok": False, "final": True, "error": "refused before append"},
+        ),
+    )
+    # Pressed straight after the press that opens the card, Enter sends from its box.
+    control.click()
+    page.keyboard.press("Enter")
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", "Kept for later")
+    assert card.evaluate(is_open)
+    page.unroute("**/api/event")
+    assert all("400" in error for error in take_browser_errors(page))
+    page.keyboard.press("Escape")
+
+    # The card and Threads' box are two views of the one page draft.
+    toggle.click()
+    panel_settled(page)
+    control.click()
+    general = page.locator(".lf-general leaf-text")
+    expect(general).to_be_focused()
+    expect(general).to_have_js_property("value", "Kept for later")
+    assert not card.evaluate(is_open)
+
+
+def test_comment_on_the_page_stands_in_more_on_a_phone(browser, serve):
+    """A phone's banner keeps one row, so Comment on the page is a row of More in its
+    words; its press takes More down and opens the card across the window."""
+    context = browser.new_context(
+        is_mobile=True, has_touch=True, viewport={"width": 390, "height": 844}
+    )
+    page = open_page(browser, serve(LONG_PAGE), context=context)
+    expect(page.locator(".lf-banner-actions > .lf-page-comment")).to_have_count(0)
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    page.locator(".lf-banner-menu .lf-page-comment").click()
+    card = page.locator(".lf-page-comment-card")
+    assert card.evaluate("node => node.matches(':popover-open')")
+    assert not page.locator(".lf-banner-menu").evaluate(
+        "node => node.matches(':popover-open')"
+    )
+    expect(card.locator("leaf-text")).to_be_focused()
+    box = card.bounding_box()
+    assert round(box["x"]) == 8 and round(box["width"]) == 390 - 16, box
+
+    # `c` with More open takes More down too, rather than opening the card inside it.
+    page.keyboard.press("Escape")
+    page.get_by_role("button", name="More page controls", exact=True).click()
+    page.keyboard.press("c")
+    assert card.evaluate("node => node.matches(':popover-open')")
+    assert not page.locator(".lf-banner-menu").evaluate(
+        "node => node.matches(':popover-open')"
+    )
+
+
 def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     browser, serve
 ):
@@ -2013,6 +2131,29 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
         "src", "/media/051bee487bfb5d13.png"
     )
     expect(viewer.locator("img")).to_have_attribute("alt", "Pasted image")
+    # Native close notification arrives after its gesture. An image opened before that
+    # notification belongs to the new opening and keeps both its pixels and focus.
+    reopened = media_open.evaluate(
+        """trigger => new Promise(resolve => {
+          const viewer = document.querySelector('#lf-media-viewer');
+          viewer.addEventListener('close', () => resolve({
+            open: viewer.open,
+            image: viewer.querySelector('img')?.getAttribute('src') ?? null,
+            focused: viewer.contains(document.activeElement),
+          }), {once: true});
+          // The sensor sees one task ending where it began as an unchanged `open`
+          // write; here the two native transitions deliberately exercise that race.
+          window.lfUnwatched(() => {
+            viewer.close();
+            trigger.click();
+          });
+        })"""
+    )
+    assert reopened == {
+        "open": True,
+        "image": "/media/051bee487bfb5d13.png",
+        "focused": True,
+    }
     page.keyboard.press("Escape")
     expect(viewer).to_be_hidden()
     expect(media_open).to_be_focused()
@@ -3183,10 +3324,10 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
     if new_input:
         page.wait_for_function("window.visibleThreadPresentationHeld === true")
-        resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
+        reaction = thread.get_by_role("button", name="Add reaction", exact=True).first
         if new_input == "Tab":
             page.keyboard.press("Tab")
-            expect(resolve).to_be_focused()
+            expect(reaction).to_be_focused()
         elif new_input == "widget":
             choice = message.locator("#held-choice")
             first = choice.locator("#held-first").get_by_role("checkbox")
@@ -3215,11 +3356,11 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
             pytest.approx(scroll, abs=1)
         )
         if new_input == "Tab":
-            expect(resolve).to_be_focused()
+            expect(reaction).to_be_focused()
             page.keyboard.press("Shift+Tab")
             expect(thread.locator(".lf-thread-summary")).to_be_focused()
             page.keyboard.press("Tab")
-            expect(resolve).to_be_focused()
+            expect(reaction).to_be_focused()
         elif new_input == "widget":
             round_trip(page)
             expect(first).to_have_attribute("aria-checked", "false")
@@ -7976,6 +8117,48 @@ def test_a_growing_panel_reply_keeps_the_previous_turn_visible(browser, serve):
     in_threads_scrollport(page, f'.lf-thread[data-id="{root}"] .lf-thread-send')
 
 
+@pytest.mark.parametrize("edit", ["backspace", "replace"])
+def test_a_panel_reply_keeps_its_first_line_when_the_draft_shrinks(
+    browser, serve, edit
+):
+    """A short reply grows and shrinks below its first line, including after paint.
+
+    Message continuity must not turn a draft's former height into space above it.
+    Backspace removes the lines the user just added; replacing the draft exercises
+    the same layout through a single native input instead of repeated key presses.
+    """
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "A short thread with room below its reply.")
+    page = open_page(browser, url)
+    open_threads_list(page, 1400, 900)
+    card = reply_by_keyboard(page, root)
+    editor = card.locator("leaf-text")
+    page.keyboard.type("First line")
+    rendered(page)
+    first = editor.bounding_box()
+    for _ in range(4):
+        page.keyboard.press("Shift+Enter")
+        rendered(page)
+    grown = editor.bounding_box()
+    assert grown["height"] > first["height"] + 50, (first, grown)
+    assert grown["y"] == pytest.approx(first["y"], abs=0.5), (first, grown)
+
+    if edit == "backspace":
+        for _ in range(4):
+            page.keyboard.press("Backspace")
+            rendered(page)
+            now = editor.bounding_box()
+            assert now["y"] == pytest.approx(first["y"], abs=0.5), (first, now)
+    else:
+        write(editor, "First line")
+        rendered(page)
+    shrunk = editor.bounding_box()
+    assert shrunk["height"] == pytest.approx(first["height"], abs=0.5), (first, shrunk)
+    assert shrunk["y"] == pytest.approx(first["y"], abs=0.5), (first, shrunk)
+    expect(editor).to_have_js_property("value", "First line")
+    expect(editor).to_be_focused()
+
+
 LANDING_WORDS = (
     "This message has enough words in it to wrap over several lines in the panel, "
     "so that a thread of a dozen of them is taller than the list's scrollport. "
@@ -8684,12 +8867,12 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
               node.textContent.includes('Sent from the box.')
             );
             if (!message) return;
+            observer.disconnect();
             const cue = message.getAnimations().find(animation =>
-              animation.effect.getKeyframes().some(frame => frame.backgroundColor)
+              animation.effect.getKeyframes().some(frame => frame['--lf-msg-arrival'])
             );
             window.__sendPaint = {cue: Boolean(cue), message};
             if (cue) { cue.pause(); cue.currentTime = 0; }
-            observer.disconnect();
           });
           observer.observe(root, {subtree: true, childList: true, attributes: true});
         }""",
@@ -8729,7 +8912,8 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
           const thread = message.closest('.lf-thread, .lf-page-thread');
           return !thread.getAnimations({subtree: true}).some(animation =>
             animation.effect.target !== message &&
-            animation.effect.getKeyframes().some(frame => frame.background || frame.backgroundColor)
+            animation.effect.getKeyframes().some(frame =>
+              frame.background || frame.backgroundColor || frame['--lf-msg-arrival'])
           );
         }"""
     ), "the surrounding card flashed on admission"
@@ -8738,6 +8922,78 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
     )
     one_frame(page)
     assert page.evaluate("() => window.__sendPaint.message.getAnimations().length") == 0
+
+
+def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
+    firefox_browser, serve
+):
+    """A natural send fades its sticky author and words together in actual frames.
+
+    Pausing the animation or repeatedly reading styles invalidates Firefox's paint
+    and conceals a stale inherited background. Native screencast frames observe its
+    ordinary compositor path, including the receipt repaint, without those reads.
+    """
+    page, _box, send, _after, _reply = pressed_send_surface(
+        firefox_browser, serve, "card"
+    )
+    page.emulate_media(reduced_motion="no-preference")
+    page.evaluate(
+        """() => {
+          window.__sendFlash = new Promise((resolve, reject) => {
+            const root = document.querySelector('.lf-margin-preview');
+            const observer = new MutationObserver(() => {
+              const message = [...root.querySelectorAll('.lf-msg')].find(node =>
+                node.textContent.includes('Sent from the box.'));
+              if (!message) return;
+              observer.disconnect();
+              const cue = message.getAnimations()[0];
+              if (!cue) {
+                reject(new Error('the sent message has no arrival cue'));
+                return;
+              }
+              cue.finished.then(() => {
+                const head = message.querySelector('.lf-msg-head').getBoundingClientRect();
+                const body = message.querySelector('.lf-msg-body').getBoundingClientRect();
+                const x = head.left + head.width * 0.7;
+                resolve({head: [x, head.top + 3], body: [x, body.bottom - 3]});
+              }, reject);
+            });
+            observer.observe(root, {subtree: true, childList: true});
+          });
+        }"""
+    )
+    frames = []
+    with page.screencast.start(
+        on_frame=lambda frame: frames.append(frame),
+        quality=100,
+        size=page.viewport_size,
+    ):
+        send.click()
+        points = page.evaluate("() => window.__sendFlash")
+    readings = []
+    for frame in frames:
+        pixels = Image.open(io.BytesIO(frame["data"])).convert("RGB")
+        colours = {
+            name: pixels.getpixel(tuple(round(coordinate) for coordinate in point))
+            for name, point in points.items()
+        }
+        readings.append(colours)
+    # The light card fades from yellow (#fff8c5) to paper. Require an actual
+    # sequence of intermediate colours: a discrete jump, or the constant .5
+    # pending opacity blending yellow with paper, must not pass as a fade.
+    fading = [
+        reading
+        for reading in readings
+        if reading["body"][0] > 245 and 205 < reading["body"][2] < 240
+    ]
+    assert fading, readings
+    blues = {reading["body"][2] for reading in fading}
+    assert len(blues) >= 3 and max(blues) - min(blues) >= 12, fading
+    assert all(
+        max(abs(a - b) for a, b in zip(reading["head"], reading["body"], strict=True))
+        <= 3  # Native JPEG rounding of otherwise uniform ground.
+        for reading in fading
+    ), fading
 
 
 @pytest.mark.parametrize(

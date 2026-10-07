@@ -1127,6 +1127,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
     drawing = {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
+        "box": [640.5, 96],
         "viewport": [1200, 900],
         "scheme": "light",
     }

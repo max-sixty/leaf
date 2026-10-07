@@ -397,8 +397,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      response bar, and inspect in their ordinary order within it. */
   :is(.lf-page-paint, .lf-target-paint) { z-index: var(--lf-z-page-paint); }
   .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: var(--lf-z-chrome-paint); }
-  /* A paint box stands in the frames that cut what it is drawn over, each moved by the
-     scroll of the box that holds it (target-paint-geometry.js, `paintStand`). */
+  /* A paint box stands in the frames that cut what it is drawn over, each carried by the
+     scrolls around the box that holds it: anchored to that box where anchors reach, else
+     in its motion layers (target-paint-geometry.js, `paintStand`). */
   .lf-paint-stand { left: 0; top: 0; pointer-events: none; }
   .lf-paint-frame { position: absolute; }
   .lf-paint-motion { position: absolute; left: 0; top: 0; }
@@ -634,6 +635,43 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      own specificity. The menu reserves no width, so nothing is spent restating it. */
   .lf-banner-menu .lf-btn.on {
     background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
+  /* Comment on the page is a symbol on the row and its words behind More, where every
+     row is words (thread/page-comment.js). */
+  .lf-page-comment { anchor-name: --lf-page-comment; }
+  /* The symbol sits in a line box, as every other control's words do, so the row's
+     line-height padding gives it their height; a flex box would size to the icon and
+     fall short of the aim floor. It is Threads' icon at Threads' weight: on the desk
+     only this control draws it, and on a phone only Threads does. */
+  .lf-banner-actions > .lf-page-comment { padding-inline: 8px; }
+  .lf-page-comment-icon { display: inline-block; vertical-align: middle;
+    inline-size: 16px; block-size: 16px;
+    fill: none; stroke: currentColor; stroke-width: 1.6;
+    stroke-linecap: round; stroke-linejoin: round; }
+  .lf-banner-actions .lf-page-comment-label,
+  .lf-banner-menu .lf-page-comment-icon { display: none; }
+  /* Open, the control takes the open surface's accent and ground, without the underline
+     an auxiliary toggle wears: the card's top edge meets it there. */
+  .lf-page-comment[aria-expanded="true"] { color: var(--accent); background: var(--chip); }
+  /* The card's box lays out as every composer does, its pasted media in a row of its
+     own (the unscoped rule above, for the boxes a shadow tree also holds). */
+  .lf-page-composer { --quote-inset: 10px; --pre-inset: 10px; }
+  .lf-page-composer:has(> .lf-composer-media:not([hidden])) { flex-wrap: wrap; }
+  .lf-page-composer > .lf-composer-media { display: flex; flex: 1 0 100%; gap: 6px;
+    min-width: 0; overflow-x: auto; padding: 2px; box-sizing: border-box; }
+  /* The card hangs from the control: its top edge on the banner's foot and its right
+     edge on the control's, with no border along the edge it hangs from, so control and
+     card read as one piece while it is open. On a phone, where the control is behind
+     More, it spans the window under the banner. */
+  .lf-page-comment-card { position: fixed; position-anchor: --lf-page-comment;
+    top: var(--lf-banner-h); right: anchor(right); bottom: auto; left: auto;
+    margin: 0; z-index: var(--lf-z-menu);
+    box-sizing: border-box; width: min(28rem, calc(100vw - 16px));
+    padding: 12px; background: var(--paper); color: var(--ink);
+    border: 1px solid var(--border-2); border-top: 0;
+    border-radius: 0 0 var(--r) var(--r); box-shadow: 0 12px 36px var(--shade); }
+  @media screen and (width <= 480px) {
+    .lf-page-comment-card { right: 8px; width: calc(100vw - 16px); }
+  }
   /* The controls stay packed against the row's end. Approval and Threads each hold the
      widest words they can show, measured by the reserve calls where the banner is
      built, so either can update without moving its sibling. The measured floor stays
@@ -1097,9 +1135,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-thread-header-action:hover { text-decoration-style: solid; }
   .lf-thread-compact:not([open]) > .lf-thread-header-action { display: none; }
   /* The container supplies navigation and an inset; shadow.css owns the conversation. */
-  .lf-thread-compact > .lf-thread-content > .lf-thread-head { margin: 12px var(--lf-thread-inset); }
+  .lf-thread-compact > .lf-thread-content { padding-block-start: 12px; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-head { margin: 0 var(--lf-thread-inset) 12px; }
   .lf-thread-compact > .lf-thread-content > .lf-thread-transcript {
     margin: 12px var(--lf-thread-inset) 0; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-transcript:first-child {
+    margin-block-start: 0; }
   .lf-thread-compact > .lf-thread-content > .lf-thread-transcript
     > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint) { margin-block-start: 0; }
   .lf-thread-compact > .lf-thread-content > .lf-thread-transcript
@@ -1252,7 +1293,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      chrome measures for its lift is the one the user sees standing there. */
   .lf-thread-panel-foot { display: flex; flex-direction: column; flex: none; }
   /* Every composer gives its field the row; its submit action lives inside that field. */
-  .lf-general { display: flex; gap: 6px; align-items: flex-end; }
+  :is(.lf-general, .lf-page-composer) { display: flex; gap: 6px; align-items: flex-end; }
   .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
   .lf-thread-action:hover { color: var(--ok); }
   /* Reopen stands in the same row as Resolve and answers the same question from the

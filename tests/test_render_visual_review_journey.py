@@ -493,6 +493,8 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert_keyboard_focus(user, field)
 
     resized(user, 1366, 768)
+    # Widening rewraps the review, and continuity brings the editor back on a later frame.
+    expect(field).to_be_in_viewport(ratio=1)
     expect(field).to_have_js_property("value", "Restore Back to releases")
     assert_keyboard_focus(user, field)
     user.keyboard.press("Escape")

@@ -898,16 +898,18 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     padding-top: 8px; border-bottom: 1px solid var(--rule); }
   .lf-thread-view-summary { flex: 1; min-width: 0; }
   /* A selected box applies one refinement; pressing it again removes it. */
-  .lf-thread-filters[hidden], .lf-thread-filter-group[hidden] { display: none; }
+  .lf-thread-filters[hidden] { display: none; }
   .lf-thread-filters { display: flex; flex: none; flex-direction: column;
     gap: 6px; padding: 0 var(--lf-panel-inset) 12px; }
   .lf-thread-filter-group { display: grid; width: 100%; min-width: 0;
     grid-template-columns: 76px minmax(0, 1fr); align-items: center; column-gap: 8px; }
   .lf-thread-filter-label { color: var(--muted); font: var(--t-6) var(--sans); }
   .lf-thread-filter-choices { display: flex; flex-wrap: wrap; gap: 5px; }
-  /* A count news changes keeps its width, so the choices after it stay put. */
+  /* A choice reserves its widest count (narrowing-view.js), so a count that changes
+     moves no choice after it; tabular digits and the leading edge keep its words
+     still inside that room. */
   .lf-thread-filter { padding: max(2px, (var(--aim-floor) - 1lh) / 2 - 1px) 8px;
-    font-size: var(--t-6); font-variant-numeric: tabular-nums; }
+    font-size: var(--t-6); font-variant-numeric: tabular-nums; text-align: start; }
   .lf-thread-filter-group:not(:has(.lf-thread-filter:not([hidden]))) { display: none; }
   @media (max-width: 360px) {
     .lf-thread-filters { padding-inline: 8px; }

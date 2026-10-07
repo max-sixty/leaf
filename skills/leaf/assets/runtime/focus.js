@@ -790,9 +790,13 @@ export function layerLanding(land) {
 export function closeLayer(close, land = null) {
   closing += 1;
   let deferred = null;
+  // A close inside a landing is no landing of its own while it hides.
+  const landingAround = landingLayer;
+  landingLayer = false;
   try {
     close();
   } finally {
+    landingLayer = landingAround;
     closing -= 1;
     // The outermost close takes what an inner one deferred, whether or not it threw,
     // so no landing outlives the act it belonged to.
@@ -1071,7 +1075,7 @@ export function handBack(...destinations) {
     const at = placements;
     return places.some((node) => {
       if (placements !== at) return true;
-      if (!node.isConnected || !node.checkVisibility()) return false;
+      if (!drawn(node)) return false;
       focusDestination(node, "return");
       return landedOn(node);
     });

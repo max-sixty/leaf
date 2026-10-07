@@ -320,6 +320,11 @@ test("a landing built away from its close runs only as a layer closes", () => {
   focusDestination(other, "move");
   const land = layerLanding((node) => handBack(node));
   assert.throws(() => land(first), /runs only as the layer closes/);
+  // A close a landing makes hides as any close does, and lands nobody while it hides.
+  closeLayer(
+    () => {},
+    () => closeLayer(() => assert.throws(() => land(first), /runs only/)),
+  );
   assert.equal(focused(), other);
   closeLayer(
     () => {},

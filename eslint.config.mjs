@@ -517,16 +517,21 @@ export const placementsRule = {
 // A layer hands the user back as it closes in one act (`closeLayer(close, land)` in
 // focus.js), so the platform's own hand-back and the owner's reach readers once, as where
 // the user ends up. A return made anywhere else is a layer return beside it, which
-// readers hear as a second move and holds read as a newer word. The rule refuses
-// `handBack(...)` outside a close's `land` argument (the `close` argument is the hide,
-// which places nothing) and outside a landing built away from the call, which
-// `layerLanding(...)` wraps and which throws if it runs at any other time. It refuses a
-// `focusDestination(..., "return")` there too where a statement before it in its
-// function hides something, which is a layer return spelled out by hand. `letGo` lands
-// the user on the page by a route, as `g p` does, so it is no layer return of itself.
-// The option names the files that may still return the user directly.
+// readers hear as a second move and holds read as a newer word. The rule admits
+// `handBack(...)` only in a landing's own body: the function passed as a close's `land`,
+// or one `layerLanding(...)` wraps, which a closer builds away from the call and which
+// throws if it runs at any other time. A landing is synchronous, since what it does
+// after an await or in a callback happens beside the close. The `close` argument hides
+// the layer and places nothing, so a placement written there is refused too. So is a
+// `focusDestination(..., "return")` outside a landing where a statement before it in its
+// function hides something by the platform's means, a layer return spelled out by hand;
+// a hide through an owner's own function, as `showFab(null)`, is out of the rule's
+// sight. `letGo` lands the user on the page by a route, as `g p` does, so it is no layer
+// return of itself. The option names the files that may still return the user directly.
 const LAYER_RETURN_MESSAGE =
-  "Hand the user back as the layer closes, in closeLayer(close, land)'s land or a layerLanding (runtime/focus.js): a return beside it reaches readers as a second move.";
+  "Hand the user back as the layer closes, in the body of closeLayer(close, land)'s land or a layerLanding (runtime/focus.js): a return beside it reaches readers as a second move.";
+const CLOSE_PLACES_MESSAGE =
+  "closeLayer's close hides the layer and places nothing; put the user in its land (runtime/focus.js).";
 const HIDING_CALLS = new Set(["hide", "hidePopover", "close"]);
 // Whether `node` hides something by the platform's own means: a dialog's or popover's
 // close, `hidden = true`, or a style that takes the box out of view. A function it
@@ -562,6 +567,26 @@ const isCall = (node, name) =>
     (node.callee.type === "MemberExpression" &&
       !node.callee.computed &&
       node.callee.property.name === name));
+const isFunction = (node) => /Function/u.test(node.type);
+// The function `node` runs in, if any.
+const enclosingFunction = (node) => {
+  for (let at = node.parent; at; at = at.parent) if (isFunction(at)) return at;
+  return null;
+};
+// The argument a function value is passed as, through the choices that pick it
+// (`open && (() => …)`, `standing ? () => … : letGo`).
+const argumentOf = (fn) => {
+  let at = fn;
+  while (
+    at.parent.type === "LogicalExpression" ||
+    (at.parent.type === "ConditionalExpression" && at.parent.test !== at)
+  )
+    at = at.parent;
+  const call = at.parent;
+  return call.type === "CallExpression"
+    ? { call, index: call.arguments.indexOf(at) }
+    : null;
+};
 export const layerReturnsRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
@@ -570,21 +595,29 @@ export const layerReturnsRule = {
       .split(path.sep)
       .join("/");
     if ((context.options[0] ?? []).includes(file)) return {};
-    // Whether `node` stands in a close's landing: its `land` argument, or a function
-    // `layerLanding` wraps.
+    // Whether the function `node` runs in is a landing: a close's `land` or a function
+    // `layerLanding` wraps, and synchronous.
     const landing = (node) => {
-      for (let at = node; at.parent; at = at.parent) {
-        const { parent } = at;
-        if (isCall(parent, "closeLayer") && parent.arguments[1] === at) return true;
-        if (isCall(parent, "layerLanding") && parent.arguments[0] === at) return true;
-      }
-      return false;
+      const fn = enclosingFunction(node);
+      if (!fn || fn.async) return false;
+      const passed = argumentOf(fn);
+      return Boolean(
+        passed &&
+        ((isCall(passed.call, "closeLayer") && passed.index === 1) ||
+          (isCall(passed.call, "layerLanding") && passed.index === 0)),
+      );
+    };
+    // Whether the function `node` runs in is a close's `close`.
+    const inClose = (node) => {
+      const fn = enclosingFunction(node);
+      const passed = fn && argumentOf(fn);
+      return Boolean(passed && isCall(passed.call, "closeLayer") && passed.index === 0);
     };
     // Whether a statement before `node` in its own function hides something.
     const afterHide = (node) => {
       for (let at = node; at.parent; at = at.parent) {
         const { parent } = at;
-        if (/Function/u.test(parent.type)) return false;
+        if (isFunction(parent)) return false;
         const run =
           parent.type === "SequenceExpression"
             ? parent.expressions
@@ -597,29 +630,39 @@ export const layerReturnsRule = {
       }
       return false;
     };
-    // The local names `handBack` goes by in this file, an alias included.
-    const names = new Set(["handBack"]);
+    // The local names each placement goes by in this file, an alias included.
+    const names = {
+      handBack: new Set(["handBack"]),
+      focusDestination: new Set(["focusDestination"]),
+      letGo: new Set(["letGo"]),
+    };
+    const calls = (node, which) =>
+      (node.callee.type === "Identifier" && names[which].has(node.callee.name)) ||
+      (node.callee.type === "MemberExpression" &&
+        !node.callee.computed &&
+        node.callee.property.name === which);
     return {
       ImportSpecifier(node) {
-        if (node.imported.name === "handBack") names.add(node.local.name);
+        names[node.imported.name]?.add(node.local.name);
       },
       CallExpression(node) {
-        const { callee } = node;
-        const handsBack =
-          (callee.type === "Identifier" && names.has(callee.name)) ||
-          (callee.type === "MemberExpression" &&
-            !callee.computed &&
-            callee.property.name === "handBack");
+        const handsBack = calls(node, "handBack");
+        const places =
+          handsBack || calls(node, "focusDestination") || calls(node, "letGo");
+        if (places && inClose(node)) {
+          context.report({ node, message: CLOSE_PLACES_MESSAGE });
+          return;
+        }
         const returnsAfterHide =
-          isCall(node, "focusDestination") &&
+          calls(node, "focusDestination") &&
           node.arguments[1]?.value === "return" &&
           afterHide(node);
         if ((handsBack || returnsAfterHide) && !landing(node))
           context.report({ node, message: LAYER_RETURN_MESSAGE });
       },
-      // Handed on as a value, it is called where no closeLayer frames it.
+      // Handed on as a value, it is called where no landing frames it.
       Identifier(node) {
-        if (!names.has(node.name) || landing(node)) return;
+        if (!names.handBack.has(node.name)) return;
         const { parent } = node;
         if (
           (parent.type === "CallExpression" && parent.callee === node) ||

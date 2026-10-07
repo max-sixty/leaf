@@ -59,6 +59,7 @@ import {
   focusDestination,
   focused,
   closeLayer,
+  drawn,
   openerOf,
   openLayer,
 } from "./focus.js";
@@ -441,11 +442,7 @@ export function createReactionController({
         lowerMarginSurface();
         if (fabAnchorAt()) showFab(fabAnchorAt());
       },
-      owed &&
-        (() => {
-          const places = candidates.filter((node) => node?.checkVisibility?.());
-          if (places.length) handBack(...places);
-        }),
+      owed && (() => handBack(...candidates.filter(drawn))),
     );
   }
 

@@ -143,7 +143,7 @@
           <li>
             <a href="/examples/review-a-plan/">
               <img
-                src="/media/3746316e7eee8ffe.jpg"
+                src="/media/a874f637b8637887.jpg"
                 alt="Sandbox implementation plan with nested steps and prior discussion."
                 loading="lazy"
               />
@@ -157,7 +157,7 @@
           <li>
             <a href="/examples/live-progress/">
               <img
-                src="/media/15c50ff1c898f049.jpg"
+                src="/media/c1d80c6155ab9dfe.jpg"
                 alt="Release workspace with rollout state, checks, and supporting logs."
                 loading="lazy"
               />
@@ -168,7 +168,7 @@
           <li>
             <a href="/examples/pr-walkthrough/">
               <img
-                src="/media/40a457e4ac76f6ff.jpg"
+                src="/media/9dfbc0cb848a7131.jpg"
                 alt="Code review with a file tree and commentable diff."
                 loading="lazy"
               />
@@ -191,20 +191,22 @@
             <h3>Claude Code</h3>
             <pre
               id="claude-install"
-            ><code class="language-bash">/plugin marketplace add max-sixty/leaf
+            ><code class="language-bash">/plugin marketplace add max-sixty/leaf#prepared
 /plugin install leaf@leaf</code></pre>
           </div>
           <div>
             <h3>Codex</h3>
             <pre
               id="codex-install"
-            ><code class="language-bash">codex plugin marketplace add max-sixty/leaf
+            ><code class="language-bash">codex plugin marketplace add max-sixty/leaf --ref prepared
 codex plugin add leaf@leaf</code></pre>
           </div>
         </div>
         <p id="first-invocation">
-          Then ask your agent: “Use Leaf to write a plan for these changes” or “Use Leaf
-          to make a dashboard showing the release steps.”
+          The browser runtime is ready to use; neither Leaf nor custom packages need a
+          browser build or an npm command. Then ask your agent: “Use Leaf to write a
+          plan for these changes” or “Use Leaf to make a dashboard showing the release
+          steps.”
         </p>
       </section>
 

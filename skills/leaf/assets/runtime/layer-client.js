@@ -2,7 +2,7 @@
    to the agent.
 
    A vendored runtime and registry are one generation. This module carries the
-   `__LEAF_LAYER_GENERATION__` placeholder (quoted, once) and the registry carries the same epoch
+   epoch from `layer-generation.js` and the registry carries the same epoch
    after `page init`. `admitResponse` observes every response's session metadata and
    checks every successful payload against the document's layer and website release,
    including a freshness token whose body has not changed. A foreign answer is always refused;
@@ -26,8 +26,8 @@ import { countTraffic } from "./traffic.js";
 import { recordInteraction } from "./interaction-log.js";
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
 import { notice } from "./notifications.js";
+import { layerGeneration } from "./layer-generation.js";
 
-const layerGeneration = "__LEAF_LAYER_GENERATION__";
 const runtimeScript = document.querySelector("script[data-lf-server]");
 const documentLayer = runtimeScript?.dataset.lfLayer;
 const release = runtimeScript?.dataset.lfRelease;

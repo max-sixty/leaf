@@ -44,6 +44,7 @@ describe("published runtime bundle", () => {
         "layer-client",
         "media",
         "widget-api",
+        "check-api",
       ]) {
         await writeFile(
           join(layer, "runtime", `${entry}.js`),

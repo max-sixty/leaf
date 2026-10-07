@@ -6,9 +6,12 @@ harness's login, and expands the catalog's task/context addresses into Promptfoo
 Promptfoo owns the rest: repetition, concurrency, assertions, the console table, and
 the result database its viewer reads. Arguments after the cases go to `promptfoo eval`.
 
-A provider is one column of the results: a harness on one arm (`cc/candidate`), suffixed
-`/workflow` for the Python provider that runs complete tasks, and on arm `html` for
-the plain HTML control. A test is one catalog address under one condition.
+A provider is one column of the results: a harness on one arm (`claude-code/candidate`),
+suffixed `/workflow` for the Python provider that runs complete tasks, and on arm `html`
+for the plain HTML control. A workflow column names the Leaf transport its harness
+session takes where the harness has more than one (`codex:app-server/base/workflow`),
+since a workflow scores only that transport. A test is one catalog address under one
+condition.
 """
 
 import fnmatch
@@ -25,19 +28,21 @@ from pathlib import Path
 
 import click
 import yaml
+from leaf.harness import ClaudeCodeHarness
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
+    HARNESSES,
     MODELS,
     base_ref,
     build_arm,
+    child_class,
     claude_child,
     codex_home,
     environment,
 )
 from leaf_dev.leaf_assets import pinned_copy
 
-HARNESSES = ("cc", "codex")
 PROMPTFOO = ROOT / "evals/node_modules/.bin/promptfoo"
 RUNS = ROOT / ".tmp/eval"
 SKILL_PREFIX = "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n"
@@ -86,12 +91,12 @@ def select_cases(globs: tuple[str, ...]) -> list[str]:
 
 def native_provider(harness: str, payload: Path, work: Path) -> dict:
     """A native agent provider that can read the arm's skill and nothing else of ours."""
-    if harness == "cc":
+    if harness == ClaudeCodeHarness.name:
         child = claude_child(work)
         return {
             "id": "anthropic:claude-agent-sdk",
             "config": {
-                "model": MODELS["cc"],
+                "model": MODELS[ClaudeCodeHarness.name],
                 "apiKeyRequired": False,
                 "working_dir": str(work),
                 "persist_session": False,
@@ -143,6 +148,12 @@ def native_provider(harness: str, payload: Path, work: Path) -> dict:
             },
         },
     }
+
+
+def workflow_harness(harness: str) -> str:
+    """The harness as a workflow column names it, with its session's transport."""
+    transport = child_class(harness).transport
+    return harness if transport is None else f"{harness}:{transport}"
 
 
 def workflow_provider(
@@ -237,7 +248,11 @@ def prepare(
                 if harness not in metadata.get("harnesses", HARNESSES):
                     continue
                 for arm, payload in columns.items():
-                    label = f"{harness}/{arm}" + ("/workflow" if executor else "")
+                    label = (
+                        f"{workflow_harness(harness)}/{arm}/workflow"
+                        if executor
+                        else f"{harness}/{arm}"
+                    )
                     if label not in providers:
                         if executor:
                             configured = workflow_provider(

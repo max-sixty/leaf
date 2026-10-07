@@ -153,6 +153,7 @@ export {
 } from "./registry.js";
 export {
   FOLD_MS,
+  backgroundFlash,
   motion,
   onMotionPreferenceChange,
   reducedMotion,

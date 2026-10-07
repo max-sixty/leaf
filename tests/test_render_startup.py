@@ -894,11 +894,11 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
     module.write_text(
         module.read_text()
         .replace("{offer,", "{keeps, keepsText, offer,")
-        .replace("({value}) => {", "({value}, prior) => {")
         .replace(
             "const row = document.createElement('p');\n"
             "      row.append(value, offer('button', 'inspect', 'Inspect'));",
-            """const row = prior ?? document.createElement('p');
+            """const prior = [...this.children].find(row => row.dataset.lfDatum === key);
+      const row = prior ?? document.createElement('p');
       const link = row.querySelector('a') ?? document.createElement('a');
       keeps(link, 'href', value === 'Ready' ? 'https://example.com/status' : '#title');
       keepsText(link, value);

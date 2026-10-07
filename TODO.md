@@ -82,14 +82,26 @@ has tried; settle that before building it.
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
-- **#24 — Measure the fresh-reader review across pages.** The catalog's
+- **#24 — Measure time to an initial reviewable page and the value of review.**
+  Measure from the user's request to the first browser-reachable page handed over
+  for review. Separate preparation and reference reads, authoring, markup and
+  render checks, the author's navigation task, independent reading, revisions,
+  and serving and handoff. Record wall time, agent and tool cost, defects caught,
+  and whether the author acts on findings; distinguish quick drafts from finished
+  records and first handoff from later revisions. Compare the current scaffold and
+  Layout examples with optional, editable compositions that make navigation and
+  supporting material easy to place. Keep a composition only where it saves time
+  or prevents defects while still letting agents change the layout or create their
+  own; measure the cost of departing from it as well as starting from it.
+  Run the study with actual page, registry, editing, and rendering tools so the
+  measured handoff is a usable page rather than an HTML-only proposal.
+  The catalog's
   `dashboard/reader-seeded` and `dashboard/reader-clean` contexts show the screenshot
   judge one triage board each, with a seeded count defect or the correct count, and
   ask both whether the count matches the cards. That narrow calibration scores count
   detection and false alarms separately from other page defects; it does not
-  establish overall page acceptance. Measure
-  whether authors invoke the review, its cost and what it catches across actual
-  pages. Author delegation traces and independent judge cost are separate evidence.
+  establish overall page acceptance. Author delegation traces and independent
+  judge cost are separate evidence.
 
 ### Prose
 
@@ -361,6 +373,11 @@ in the integration.
   in `notes/user-feedback-responsiveness.md`. Uploading a CI artifact needs no extra
   token but keeps 90 days; a file in `max-sixty/leaf-assets` keeps history but needs
   a token that can push there.
+- **Decide whether `leaf-dev` should draw charts.** `leaf-dev journey-chart` prints
+  an `lf-chart` of the kept journey samples, so a reading needs no numbers copied
+  into a page by hand. It is an experiment: the alternative is for the command to
+  print the samples' rows and leave the chart to the agent writing the page. Keep it
+  if it gets used for later readings; otherwise reduce it to the rows.
 - **Consider bundling the browser runtime.** A navigation loads about 220 JS modules
   over HTTP/1.1's six connections. A prototype bundling `leaf.js` with esbuild cut a
   widgetless page from 217 requests to 38 and its open from 332–483 ms to 238–258 ms,

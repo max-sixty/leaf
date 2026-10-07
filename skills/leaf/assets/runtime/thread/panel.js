@@ -8,11 +8,11 @@
    takes words from the first paint — the offline banner says a comment will not send, not
    that there is nowhere to write it. A drawing belongs to an element's comment, never to
    this box (composing/drawing.js). */
-import { focused, keys } from "../keyboard/scopes.js";
+import { keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
-import { focusDestination } from "../focus.js";
+import { focusDestination, focused } from "../focus.js";
 
 export function createThreadPanelKeys({
   elements: { closeBtn, findInput, narrowingView, inPanel: panelFocusIsInside },

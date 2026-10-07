@@ -86,7 +86,7 @@ import { shownBand, whenOffScreen } from "../geometry.js";
 import { scrollersOf } from "../reading-regions.js";
 import { offer } from "../widget-elements.js";
 import { keeps, keepsText, layoutPx } from "../keeps.js";
-import { keys, focused } from "../keyboard/scopes.js";
+import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread, threadFocusStop } from "./focus.js";
 import { isReaction, threadKey, threadNames } from "./model.js";
@@ -94,7 +94,7 @@ import { allThreads } from "./state.js";
 import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
-import { onStanding } from "../focus.js";
+import { onStanding, focused } from "../focus.js";
 
 // Whether this page's ledger holds a gesture of the user's on `thread`: one of its
 // messages, a reply or a settlement naming one, a move on a widget one of them holds, an

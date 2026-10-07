@@ -21,8 +21,9 @@
  * controls or sample frames. Native moves retain their state; `motion` makes the
  * preview still under reduced motion and during initial state projection. */
 import {
-  dragging,
   commands,
+  dragging,
+  focusDestination,
   holdFocus,
   keeps,
   keepsHidden,
@@ -30,14 +31,14 @@ import {
   layoutChanged,
   motion,
   motionPreview,
-  once,
   offer,
+  once,
   paintKeys,
   quoted,
   rankAt,
+  retainUserIntent,
   widgetController,
   worksInside,
-  focusDestination,
 } from "/runtime/widget-api.js";
 
 const VERDICTS = {
@@ -269,7 +270,9 @@ customElements.define(
       button.addEventListener("click", async () => {
         const command = this.#returnable(card);
         if (!command || this.#returning.has(card.id)) return;
-        const refocus = document.activeElement === button;
+        // The return waits on the log; a newer input meanwhile keeps the user where it
+        // put them.
+        const refocus = document.activeElement === button && retainUserIntent();
         this.#returning.add(card.id);
         const placed =
           command.kind === "action" && this.#place(card, this.#pile("unseen"), 0);
@@ -282,7 +285,9 @@ customElements.define(
           this.#returning.delete(card.id);
           if (this.isConnected) this.#render();
         }
-        if (refocus) focusDestination(returned ? this.#active() : button, "return");
+        const destination = returned ? this.#active() : button;
+        if (refocus && destination)
+          refocus.handoff(() => focusDestination(destination, "return"));
       });
       card.append(button);
     }

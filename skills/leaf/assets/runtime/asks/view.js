@@ -98,11 +98,11 @@ import {
   unansweredAsks as readUnansweredAsks,
 } from "./model.js";
 import { walkPositionLabel } from "../walk-position.js";
+import { focused } from "../focus.js";
 import {
   commandDeclarationsWithin,
   commandsWithin,
   documentFocused,
-  focused,
   contextScopes,
 } from "../keyboard/scopes.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";

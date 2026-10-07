@@ -17,10 +17,9 @@ import {
   segmentBlock,
 } from "../passages.js";
 import { bannerFoot, shownParts } from "../geometry.js";
-import { focused } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
 import { watchScrolls } from "../arrivals.js";
-import { handBack, releaseFocus, focusDestination } from "../focus.js";
+import { handBack, releaseFocus, focusDestination, focused } from "../focus.js";
 import {
   createHintSession,
   HINT_KEYS,

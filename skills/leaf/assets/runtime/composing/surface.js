@@ -117,8 +117,8 @@ import {
   letGo,
   takesLetters,
   focusDestination,
+  focused,
 } from "../focus.js";
-import { focused } from "../keyboard/scopes.js";
 import { shadowHost, under } from "../shadow.js";
 import { heldAsk } from "../standing-target.js";
 

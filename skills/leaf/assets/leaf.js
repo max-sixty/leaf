@@ -179,7 +179,6 @@ import {
   bottomStatusEl,
 } from "./runtime/keyboard/shortcut-bar.js";
 import {
-  focused,
   paintKeys,
   reflectFirstScopes,
   reflectKeys,
@@ -200,6 +199,7 @@ import {
   focusDestination,
   releaseFocus,
   tabStops,
+  focused,
 } from "./runtime/focus.js";
 import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";

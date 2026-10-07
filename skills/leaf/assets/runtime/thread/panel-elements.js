@@ -1,7 +1,7 @@
 /* Each Thread panel owns its scaffold and controls. A caller mounts an instance and
  * supplies its elements to the controllers that read them; creating a second panel
  * never aliases the first panel's DOM or reading region. */
-import { focused } from "../keyboard/scopes.js";
+import { focused } from "../focus.js";
 import { registerReadingRegion } from "../reading-regions.js";
 import { closeControl, el } from "../widget-elements.js";
 import { createThreadListView } from "./thread-list-view.js";

@@ -34,10 +34,10 @@ import {
 
 import { pageSelection, rangeAnchor } from "./capture.js";
 import { THREAD } from "../thread/selectors.js";
-import { focused, keys, paintKeys } from "../keyboard/scopes.js";
+import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { onStanding, takesLetters, focusDestination } from "../focus.js";
+import { onStanding, takesLetters, focusDestination, focused } from "../focus.js";
 import { repaint } from "../repaint.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
@@ -358,6 +358,9 @@ export function createSelectionComposer({
   // The composer supplies a field instead of a primary margin entry, so it owns this layout
   // adapter rather than borrowing the margin's target aggregation and spill machinery.
   const focusResponseOption = (focus) => {
+    // The bar may place a frame or more later; a newer input meanwhile keeps the user
+    // where it put them.
+    const mayFocus = retainUserIntent();
     void fabPositioned().then((positioned) => {
       if (!positioned || !responseOptionsOpen) return;
       const options = responseOptionButtons();
@@ -365,7 +368,7 @@ export function createSelectionComposer({
         focus === "reaction"
           ? options.find((control) => control.classList.contains("lf-react"))
           : options[0];
-      if (destination) focusDestination(destination, "move");
+      if (destination) mayFocus.handoff(() => focusDestination(destination, "move"));
       paintKeys();
     });
   };

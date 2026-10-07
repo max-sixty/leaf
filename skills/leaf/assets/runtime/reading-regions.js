@@ -29,7 +29,7 @@ import { shownRect } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, upFrom } from "./shadow.js";
-import { deepFocus, onStanding } from "./focus.js";
+import { deepFocus, onStanding, pressing } from "./focus.js";
 
 const regions = new Map();
 const transitionWatchers = new Set();
@@ -139,8 +139,8 @@ export const readingRegionFor = (node) => {
 let recentRegionId = null;
 let pageRegionId = null;
 // Chrome can focus body between pointerdown on unfocusable words and pointerup.
-// That focus belongs to the same press; pointerdown has already named its place.
-let pressing = false;
+// That focus belongs to the same press (focus.js, `pressing`); pointerdown has already
+// named its place.
 const pageRoot = () => document.querySelector("body > main");
 const actedAt = (at, arriving) => {
   const region = readingRegionFor(at);
@@ -149,25 +149,19 @@ const actedAt = (at, arriving) => {
     if (under(region.host, pageRoot())) pageRegionId = region.id;
   } else if (
     (at === document.body || under(at, pageRoot())) &&
-    !(arriving && at === document.body && pressing)
+    !(arriving && at === document.body && pressing())
   )
     recentRegionId = pageRegionId = null;
 };
 for (const type of ["pointerdown", "wheel", "touchstart"])
-  addEventListener(
-    type,
-    (event) => {
-      if (type === "pointerdown") pressing = true;
-      actedAt(event.composedPath()[0], false);
-    },
-    { capture: true, passive: true },
-  );
+  addEventListener(type, (event) => actedAt(event.composedPath()[0], false), {
+    capture: true,
+    passive: true,
+  });
 // An arrival, by whatever route, a move inside a widget's shadow tree included.
 onStanding((node) => {
   if (node) actedAt(node, true);
 });
-for (const type of ["pointerup", "pointercancel"])
-  addEventListener(type, () => (pressing = false), { capture: true });
 export const recentReadingRegion = () => readingRegion(recentRegionId);
 // A region hidden from layout — a closed panel's list, a pane in a tab not shown — is not
 // where the user reads. One scrolled out of the window still is.

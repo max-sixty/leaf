@@ -9,10 +9,9 @@
    face. Both clamped and cyclic semantic walks use this reading. Native focus traversal
    and gestures that rearrange state are not walks through a named list. */
 import { clampedRow } from "./keyboard/bindings.js";
-import { focused } from "./keyboard/scopes.js";
 import { holdStatus } from "./notifications.js";
 import { repaint } from "./repaint.js";
-import { focusDestination } from "./focus.js";
+import { focusDestination, focused } from "./focus.js";
 
 const BOUNDARY_MS = 900;
 

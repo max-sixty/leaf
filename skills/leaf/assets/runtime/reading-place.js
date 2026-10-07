@@ -50,10 +50,10 @@ import {
 import { followingItsEnd } from "./bounds.js";
 import { moveScrollerBy, pageScroller, scrollToEnd } from "./scrolling.js";
 import { under } from "./shadow.js";
-import { recentPlaceInput, retainUserIntent } from "./user-intent.js";
+import { retainUserIntent } from "./user-intent.js";
+import { recentPlaceInput, focused } from "./focus.js";
 import { reveal } from "./widget-elements.js";
 import { TEXT_BOX } from "./control-selectors.js";
-import { focused } from "./keyboard/scopes.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 
 // A live editing place belongs to this DOM, not a serialized history record. Its

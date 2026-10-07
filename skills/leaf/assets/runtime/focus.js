@@ -24,12 +24,23 @@
    Rejected: keeping wrappers around a placement (`returningFocus`, `placeChrome`) that a
    caller could forget, which is how those returns reached the readers as moves.
 
+   And it is the one reader of the user's inputs, so the one owner of whether they have
+   moved on since a hold began or a delayed move was scheduled. It keeps two counts: the
+   placements, which a hold compares, since typing in the box it holds is the user working
+   there and must not void it; and the inputs, which delayed work compares
+   (user-intent.js), since any key, press, wheel or touch since the gesture that started
+   the work is the user's newer word. It also keeps the one reading of the press
+   in progress (`pressing`, `onPress`), and the press on a label that leaves the user
+   standing on the control they stood on until it lands (`focused`). Rejected: merging the
+   two readings into one count, which a hold would then lose to the user typing where it
+   holds; and each owner keeping its own press tracker, which is how holds came to read
+   the in-between node a label press goes through.
+
    The selector vocabulary lives in control-selectors.js, which imports nothing.
    This module imports only that vocabulary and rendering.js: importing a gesture
-   owner would cycle through its focus dependency. The hand-back and the hold therefore
-   count placements off the events read here rather than from user-intent.js. */
+   owner would cycle through its focus dependency. */
 import { nextRender } from "./rendering.js";
-import { TEXT_BOX, TAB_STOP } from "./control-selectors.js";
+import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 
 // The stops Tab walks inside `root` right now, in document order: the candidates above
 // that are in the order, enabled, and drawn. A modal's own Tab loop reads this.
@@ -193,6 +204,50 @@ export const deepFocus = (at = document.activeElement) => {
   return at;
 };
 
+// A press on a label can blur the element the user stood on to the body, or let a
+// containing thread take focus, before the platform focuses the label's control at its
+// click. Those in-between nodes are no new standing: until the press lands, the user
+// stands on the element they stood on, for every reader of where they stand, every hold
+// and every key. The press leaves DOM focus alone and keeps the platform's default, so a
+// drag still selects a label's words. `onLabelPress` hears the held element as the press
+// begins and null as it ends, for the paint that keeps its focus ring on.
+//
+// It lands at the label's click, whose default focuses the control, which a tap delivers
+// after its release, or at a release off the label, which no click on it follows, or at
+// a native menu, which swallows the release. A cancel, the window losing focus, a key
+// (which puts the user back on the held element) and a runtime placement each end it
+// too. A second contact meanwhile is no part of it.
+let labelPress = null;
+const labelPressReaders = new Set();
+export const onLabelPress = (read) => labelPressReaders.add(read);
+const heldByLabel = () => (labelPress?.held.isConnected ? labelPress.held : null);
+function finishLabelPress() {
+  const press = labelPress;
+  if (!press) return null;
+  labelPress = null;
+  for (const read of labelPressReaders) read(null);
+  return press;
+}
+// Standing is read once more a task after the press lands, when the control's focus at
+// the click has been read: a press that left the user on a node no reading told, or
+// nowhere, as a label whose control takes no focus does, is the user's own move.
+function landLabelPress() {
+  if (!finishLabelPress()) return;
+  setTimeout(() => {
+    if (labelPress) return;
+    const at = deepFocus();
+    if (at && at !== document.body) return reconcile(null, pressedPath);
+    if (!published || !drawn(published)) return;
+    placements += 1;
+    stood = null;
+    publish(null, cause(null));
+  });
+}
+
+// Where the user stands: the element holding focus, inside any open shadow tree, or the
+// element a press on a label holds them on.
+export const focused = () => heldByLabel() ?? deepFocus();
+
 // Holding the user's place across a change to the tree they stand in. Moving a node
 // blurs whatever it holds to the body in the same call, and hiding one does the same a
 // frame later, on no frame an owner can count; the node keeps its value and selection,
@@ -305,6 +360,7 @@ function publish(node, cause) {
   // reading, the owner putting them back there included, is told against it.
   if (cause === "drop") departed = true;
   else published = node;
+  if (node) placeInput = "focus";
   // What a reader places is its own act: it names its own cause, and it is a newer word
   // to a hold even inside a hold's restore.
   const was = [placing, restoring];
@@ -325,6 +381,12 @@ function publish(node, cause) {
 }
 // The press the user last made, as the nodes under it, until a key follows it.
 let pressedPath = null;
+// Whether a node is what that press asked for: a node under it, or the control of a
+// label under it, which the platform focuses at the press's click.
+const pressedOn = (node) =>
+  Boolean(pressedPath) &&
+  (pressedPath.has(node) ||
+    [...pressedPath].some((at) => at?.localName === "label" && at.control === node));
 // Whether the user's latest input was a press rather than a key, so that a `move` is a
 // route a press began: what the platform's `:focus-visible` guesses from, read here
 // from the inputs themselves. No input yet reads as no press.
@@ -341,7 +403,7 @@ const cause = (node, left = null) =>
   placing ??
   (leftClosedLayer(left)
     ? "return"
-    : pressedPath?.has(node)
+    : pressedOn(node)
       ? "press"
       : stepping
         ? "step"
@@ -351,6 +413,12 @@ const read = new WeakSet();
 function stand(event) {
   if (read.has(event)) return;
   read.add(event);
+  // A node a press on a label goes through on its way to the control is no standing; a
+  // runtime placement during the press ends it.
+  if (heldByLabel()) {
+    if (placing === null) return;
+    finishLabelPress();
+  }
   if (!restoring && !(placing === null && leftClosedLayer(event.relatedTarget)))
     placements += 1;
   stood = deepFocus();
@@ -382,6 +450,7 @@ document.addEventListener(
     queueMicrotask(() => {
       const at = document.activeElement;
       if (at !== null && at !== document.body) return;
+      if (heldByLabel()) return;
       if (!drawn(left)) return publish(null, "drop");
       placements += 1;
       if (stood === left) stood = null;
@@ -402,6 +471,7 @@ const sequential = (event) =>
 // is told then, with the cause that input gave it, a Tab's step included, and a return
 // where it came out of a layer that closed.
 function reconcile(step, pressed) {
+  if (heldByLabel()) return;
   const at = deepFocus();
   if (!at || at === document.body || at === published) return;
   placements += 1;
@@ -422,6 +492,112 @@ addEventListener(
   },
   { capture: true, passive: true },
 );
+// The user's inputs, counted: a key, a press, a wheel, a touch, text entered, or the
+// window losing focus, as find-in-page takes it. Delayed work compares the count it
+// began at (user-intent.js). A scroll is none of these: the runtime's own landings fire
+// it, and each of the user's ways of scrolling begins with one that is.
+let inputs = 0;
+export const inputCount = () => inputs;
+for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart"])
+  addEventListener(type, () => inputs++, { capture: true, passive: true });
+addEventListener("blur", (event) => {
+  if (event.target !== window) return;
+  inputs++;
+  landLabelPress();
+  endPress(event, false);
+});
+
+// Which input last named a place to keep in a reflow: a pointer moving, pressing or
+// wheeling over an item, or the keyboard, whose arrivals name the item focus stands on.
+// It chooses which visible item holds a reflow, and supersedes no delayed move.
+let placeInput = "focus";
+for (const type of ["pointermove", "pointerdown", "wheel"])
+  addEventListener(type, () => (placeInput = "pointer"), {
+    capture: true,
+    passive: true,
+  });
+export const recentPlaceInput = () => placeInput;
+
+// The primary pointer's press, from its `pointerdown` until it ends: its pointer and the
+// nodes under its start, read after the event has gone, when the platform no longer
+// reports its path. `onPress(start, path)` hears each press begin and returns what
+// hears it end, as `end(event, completed)`. A release completes it. Every other end does
+// not: a cancel, which the browser sends when it took the press for something else,
+// commonly a touch scroll; a native menu the press opened, which swallows the release;
+// and the window losing it altogether. So a gesture judged where it starts and acted on
+// where it ends reads both from one press.
+let press = null;
+export const pressing = () => press;
+const pressReaders = new Set();
+export const onPress = (read) => pressReaders.add(read);
+addEventListener(
+  "pointerdown",
+  (event) => {
+    if (!event.isPrimary) return;
+    const path = event.composedPath();
+    const ends = [];
+    press = { pointerId: event.pointerId, path, ends };
+    for (const read of pressReaders) {
+      const end = read(event, path);
+      if (end) ends.push(end);
+    }
+    if (event.button !== 0 || labelPress) return;
+    const label = path.find((node) => node?.localName === "label" && node.control);
+    const held = label && deepFocus();
+    if (!held || held === document.body) return;
+    labelPress = { held, pointerId: event.pointerId, label };
+    for (const read of labelPressReaders) read(held);
+  },
+  { capture: true, passive: true },
+);
+function endPress(event, completed) {
+  if (!press) return;
+  const { ends } = press;
+  press = null;
+  for (const end of ends) end(event, completed);
+}
+for (const type of ["pointerup", "pointercancel"])
+  addEventListener(
+    type,
+    (event) => {
+      if (
+        event.pointerId === labelPress?.pointerId &&
+        (type === "pointercancel" || !event.composedPath().includes(labelPress.label))
+      )
+        landLabelPress();
+      if (event.pointerId === press?.pointerId) endPress(event, type === "pointerup");
+    },
+    { capture: true, passive: true },
+  );
+addEventListener(
+  "contextmenu",
+  (event) => {
+    landLabelPress();
+    endPress(event, false);
+  },
+  { capture: true, passive: true },
+);
+addEventListener("click", landLabelPress, { capture: true, passive: true });
+
+// A key ends a label press, since it changes the input the user works with: they go back
+// on the element the press held them on, before the key's dispatch and default run,
+// and the key's own route reads that element as its target (`recoveredLabelFocus`).
+const recoveredLabelKeys = new WeakMap();
+export const recoveredLabelFocus = (event) => recoveredLabelKeys.get(event);
+addEventListener(
+  "keydown",
+  (event) => {
+    placeInput = "focus";
+    if (!labelPress || event.isComposing || MODIFIER_KEYS.includes(event.key)) return;
+    const active = deepFocus();
+    const { held } = finishLabelPress();
+    if (active === held || !held.isConnected) return;
+    focusDestination(held, "return");
+    if (deepFocus() === held) recoveredLabelKeys.set(event, held);
+  },
+  true,
+);
+
 for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
   addEventListener(
     type,
@@ -439,7 +615,7 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
         });
       }
       const at = deepFocus();
-      if (at && at !== document.body) return;
+      if ((at && at !== document.body) || heldByLabel()) return;
       stood = null;
       publish(null, cause(null));
     },
@@ -456,7 +632,14 @@ const dropped = () => {
   if (at && at !== document.body) return null;
   return stood && !drawn(stood) ? stood : null;
 };
+// Whether `node` stands in `scope`, across every shadow tree between them.
+const within = (scope, node) => {
+  for (let at = node; at; at = at.parentNode ?? at.host) if (at === scope) return true;
+  return false;
+};
 export function holdFocus(scope) {
+  const held = heldByLabel();
+  if (held) return within(scope, held) ? holdOn(held) : null;
   const standing = scope.getRootNode().activeElement;
   if (standing && standing !== document.body && scope.contains(standing))
     return holdOn(deepFocus(standing));
@@ -468,11 +651,16 @@ export function holdFocus(scope) {
 // the node: where the user stands, or the node a change dropped them from. `null` where
 // they stand on nothing, or on nothing a change took away.
 export function holdStanding() {
-  const at = deepFocus();
+  const at = focused();
   const node = at && at !== document.body ? at : dropped();
   return node ? { node, restore: holdOn(node) } : null;
 }
 
+// The node a hold carried the user to from the one it held, with the input count then:
+// the same place under a new node, so work waiting on the held node follows it there
+// while the user has done nothing since (user-intent.js).
+const carried = new WeakMap();
+export const carriedFrom = (node) => carried.get(node) ?? null;
 function holdOn(held) {
   const caret = readCaret(held);
   const began = placements;
@@ -508,7 +696,17 @@ function holdOn(held) {
         focusDestination(place, "return", { caret });
         return standsIn(place);
       });
-      if (landed) return true;
+      if (landed) {
+        // Two holds in a row with no input between carry the same place on, so the
+        // record names the node the first one held.
+        const before = carriedFrom(held);
+        if (place !== held)
+          carried.set(
+            place,
+            before?.inputs === inputs ? before : { from: held, inputs },
+          );
+        return true;
+      }
     }
     return false;
   };

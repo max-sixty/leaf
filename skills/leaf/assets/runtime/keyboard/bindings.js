@@ -137,10 +137,6 @@ const GLYPH = {
 // Read off `answers` rather than chosen here, so the list cannot claim more than the
 // dispatcher does — a fourth name would have to be taught to both.
 const MODIFIERS = ["Mod", "Alt", "Shift"];
-// The same modifiers as the platform's own keydowns: what `ev.key` says when a modifier
-// goes down alone, ahead of the key it modifies. The dispatcher's sequence asks this to tell
-// half a press from a key of its own.
-export const MODIFIER_KEYS = ["Shift", "Alt", "Control", "Meta"];
 // One reading of a binding's syntax, for the three questions asked of it: how it is
 // spelled, whether a press answers it, and whether a text box's letters cover it. Three
 // hand-agreed splits is one representation too few — the moment one of them had to state

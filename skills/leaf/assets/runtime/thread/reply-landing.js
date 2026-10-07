@@ -27,7 +27,7 @@
    the turn the user was reading, even when it is not the latest one. A separate
    transcript opened for reading shows its latest turn (`showLatestTurn`). */
 import { landingBand, seenRect, shownBox } from "../geometry.js";
-import { focused } from "../keyboard/scopes.js";
+import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { scrollerFor, scrollersOf } from "../reading-regions.js";

@@ -74,10 +74,15 @@ export function createAnchorControls({
     record.expanded = eventId;
     record.margin?.update({ immediate: true });
     paintKeys();
-    if (focus && eventId)
-      nextRender(() =>
+    if (!focus || !eventId) return;
+    // The remove action draws on the next render; a newer input the user gave meanwhile
+    // keeps them where it put them.
+    const mayFocus = retainUserIntent();
+    nextRender(() =>
+      mayFocus.handoff(() =>
         record.margin?.focus(`reaction:${eventId}:remove`, "move", surface),
-      );
+      ),
+    );
   }
 
   const visualActionAnchor = (anchor) =>

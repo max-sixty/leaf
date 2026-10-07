@@ -2,7 +2,7 @@
 import { TEXT_BOX } from "../control-selectors.js";
 import { runtime } from "../context.js";
 import { dragHeld } from "../widget-elements.js";
-import { focused } from "../keyboard/scopes.js";
+import { focused } from "../focus.js";
 import { replyCompositionHasDraft, hasReplyDraft } from "../thread/replies.js";
 import { pageSelection } from "./capture.js";
 import { draftOf } from "./input.js";

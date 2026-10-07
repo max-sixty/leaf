@@ -54,8 +54,8 @@ import {
   visualPartLabel,
 } from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
-import { claimsEsc, focused, saying } from "./keyboard/scopes.js";
-import { handBack, focusDestination } from "./focus.js";
+import { claimsEsc, saying } from "./keyboard/scopes.js";
+import { handBack, focusDestination, focused } from "./focus.js";
 import { repaint } from "./repaint.js";
 
 import {

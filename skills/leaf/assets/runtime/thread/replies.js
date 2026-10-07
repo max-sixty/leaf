@@ -22,10 +22,9 @@ import {
   tellDraft,
 } from "../drafts.js";
 import { sendLanding } from "./reply-landing.js";
-import { readCaret } from "../focus.js";
+import { readCaret, focused } from "../focus.js";
 import { threadKey } from "./model.js";
 import { closestAcross } from "../passages.js";
-import { focused } from "../keyboard/scopes.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 import { THREAD, SAY_ROW } from "./selectors.js";
 

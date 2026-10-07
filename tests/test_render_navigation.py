@@ -10,8 +10,8 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import server as server_model
 from leaf.render_checks import one_frame, rendered
-from playwright.sync_api import expect
 from PIL import Image
+from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_PAGE,
     HOLD_MOTION,
@@ -2587,7 +2587,9 @@ def test_firefox_paints_a_natural_color_cue(firefox_browser, serve, target):
         size=page.viewport_size,
     ):
         page.keyboard.press("a" if target == "tab" else "Enter")
-        page.wait_for_function("() => window.__colorCue.point || window.__colorCue.error")
+        page.wait_for_function(
+            "() => window.__colorCue.point || window.__colorCue.error"
+        )
         result = page.evaluate("() => window.__colorCue")
         assert result["error"] is None, result
         point = result["point"]

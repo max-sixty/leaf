@@ -2399,6 +2399,43 @@ def test_approval_capability_changes_keep_banner_targets(
         expect(more).to_be_focused()
 
 
+@pytest.mark.parametrize("width", [320, 1440])
+def test_more_menu_stays_put_when_the_layer_age_gains_a_digit(browser, serve, width):
+    """A clock tick can change a menu label without moving its other controls."""
+    page = open_page(browser, serve(LONG_PAGE))
+    resized(page, width, 844)
+    page.locator(".lf-banner-more").click()
+    menu = page.locator(".lf-banner-menu")
+    expect(menu).to_be_visible()
+    version = menu.locator(".lf-layer-reference")
+    expect(version).to_be_visible()
+
+    def age_at(minutes):
+        page.evaluate(
+            """async minutes => {
+              const {observeServerNow, tickClock} = await window.__lfRuntimeImport(
+                '/runtime/presence.js');
+              const title = document.querySelector('.lf-layer-reference').title;
+              const stamp = title.match(/(?:committed|installed): ([^\\n]+)/)?.[1];
+              if (!stamp) throw new Error(`Layer has no dated provenance: ${title}`);
+              observeServerNow(new Date(Date.parse(stamp) + minutes * 60000).toISOString());
+              await tickClock(error => { throw new Error(error); });
+            }""",
+            minutes,
+        )
+        rendered(page)
+
+    age_at(9)
+    expect(version).to_contain_text("9m ago")
+    before = menu.bounding_box()
+    control = menu.locator(".lf-version")
+    control_before = control.bounding_box()
+    age_at(10)
+    expect(version).to_contain_text("10m ago")
+    assert menu.bounding_box()["x"] == pytest.approx(before["x"], abs=0.5)
+    assert control.bounding_box()["x"] == pytest.approx(control_before["x"], abs=0.5)
+
+
 def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
     """A notice keeps the page's right corner through panel and viewport changes."""
     page = open_page(browser, serve(LONG_PAGE))

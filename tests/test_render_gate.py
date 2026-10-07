@@ -2809,9 +2809,7 @@ def test_page_fixture_renders(browser, serve, source):
     assert failures == [], "\n".join(failures)
     # This pass measures writes caused by scrolling; the sort film may otherwise
     # repaint its SVG on the same frames while it plays automatically.
-    page = open_page(
-        browser, url, context=browser.new_context(reduced_motion="reduce")
-    )
+    page = open_page(browser, url, context=browser.new_context(reduced_motion="reduce"))
     # The layer's own panel is held open by its own test; shut, its boxes misreport.
     framing = [
         finding

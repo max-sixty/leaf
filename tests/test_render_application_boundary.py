@@ -1445,7 +1445,7 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
             "revision": 1,
             "widget": "page-local",
             "action": "choose",
-            "detail": {"choice": "chosen"},
+            "detail": {"value": "chosen"},
         },
     )
     told(page)
@@ -1578,7 +1578,7 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             "revision": 1,
             "widget": "thread-local",
             "action": "choose",
-            "detail": {"choice": "chosen"},
+            "detail": {"value": "chosen"},
             "meaning": {
                 "scope": "thread",
                 "unit": "thread-local",

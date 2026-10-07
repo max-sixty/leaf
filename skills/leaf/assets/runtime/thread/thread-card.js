@@ -592,14 +592,16 @@ export class ThreadView {
     // Capture the standing words only when news starts waiting, before its update
     // removes a receipt. This allocation lives with the held view, not its reading.
     if (model.news && !prior?.news) this.#retainHeaderSlot({ observe: false });
-    // The message being rewritten, whose own change of height the held extent follows
-    // (ReplyContinuity): the one a rewrite gesture names, or the one whose rewrite
-    // stands open, which the send that closes it paints.
-    const rewritten =
-      writing ??
-      [...this.#messages.values()].find((view) => view.editing)?.node ??
-      null;
-    const bodyPlace = this.#continuity?.before(rewritten);
+    // The messages being rewritten, whose own changes of height the held extent follows
+    // (ReplyContinuity): the one a rewrite gesture names, and every one whose rewrite
+    // stands open, a save closing it among them.
+    const rewritten = new Set(
+      [...this.#messages.values()]
+        .filter((view) => view.editing)
+        .map(({ node }) => node),
+    );
+    if (writing) rewritten.add(writing);
+    const bodyPlace = this.#continuity?.before([...rewritten]);
     const restoreFocus = holdFocus(this.node);
     const standing = focused();
     const priorSummaries = new Set(prior?.summaries.map(({ id }) => id) ?? []);

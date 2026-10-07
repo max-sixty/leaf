@@ -7,7 +7,7 @@
    than a later resize correction. What the user writes is theirs to see grow and shrink:
    the retained extent changes by the height change of the box they write in, the reply
    row or a message they are rewriting (`message-edit.js`), on each native edit and on
-   the presentation that opens, closes or saves that rewrite (`before(writing)`), so the
+   each presentation that opens, closes or saves a rewrite (`before(writing)`), so the
    transcript's space never retains deleted lines, and space held for news stays held.
    A departed or closed region releases that mechanical extent. A floating card
    bounds that extent by its already allocated body room.
@@ -31,8 +31,8 @@ export class ReplyContinuity {
   // The writing area read at an edit's boundary, and its height then.
   #read = null;
   #readHeight = 0;
-  // The writing area a presentation changes, and its height before it.
-  #presenting = null;
+  // The writing areas a presentation changes, each with its height before it.
+  #presenting = [];
   gap = document.createElement("div");
   constructor(owner) {
     this.#owner = owner;
@@ -67,17 +67,15 @@ export class ReplyContinuity {
       Boolean(seenRect(this.#row, new Map()))
     );
   }
-  // `writing` is the box the presentation opens, closes or changes the words of, as a
-  // rewrite does, whose own height change the extent follows.
-  before(writing = null) {
+  // `writing` are the boxes the presentation opens, closes or changes the words of, as
+  // rewrites do, whose own height changes the extent follows.
+  before(writing = []) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
-    this.#presenting = null;
+    this.#presenting = [];
     if (!this.#visible()) return null;
-    if (writing?.isConnected)
-      this.#presenting = {
-        node: writing,
-        height: writing.getBoundingClientRect().height,
-      };
+    this.#presenting = writing
+      .filter((node) => node.isConnected)
+      .map((node) => ({ node, height: node.getBoundingClientRect().height }));
     const body =
       this.#owner.localName === "details"
         ? getComputedStyle(this.#owner, "::details-content")
@@ -87,7 +85,7 @@ export class ReplyContinuity {
   after(extent) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     const presenting = this.#presenting;
-    this.#presenting = null;
+    this.#presenting = [];
     if (
       extent == null ||
       !this.#row?.isConnected ||
@@ -95,15 +93,16 @@ export class ReplyContinuity {
     )
       return this.release();
     // Keep the prior extent before asking layout to read the changed body: scroll
-    // anchoring need not pay a temporary collapse the live response never paints.
-    this.#keep(extent);
-    if (presenting?.node.isConnected)
-      this.#keep(
-        Math.max(
-          0,
-          extent + presenting.node.getBoundingClientRect().height - presenting.height,
-        ),
+    // anchoring need not pay a temporary collapse the live response never paints. An
+    // extent already held does that itself, so the one write is the followed extent.
+    if (this.#extent == null) this.#keep(extent);
+    const grown = presenting
+      .filter(({ node }) => node.isConnected)
+      .reduce(
+        (sum, { node, height }) => sum + node.getBoundingClientRect().height - height,
+        0,
       );
+    this.#keep(Math.max(0, extent + grown));
     this.#readArea(this.#row);
     this.#departure?.();
     this.#departure = whenOffScreen([this.#row], () => this.release());

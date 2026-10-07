@@ -10517,6 +10517,17 @@ def test_a_rewrite_opens_and_closes_without_moving_the_thread(browser, serve, su
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(thread).to_be_visible()
     expect(reply).to_be_focused()
+    # Saved, the new words take the box's place, and the user stands in the reply box.
+    words.dblclick()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("Fit the bracket.")
+    page.keyboard.press("Enter")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+    expect(words).to_have_text("Fit the bracket.")
+    expect(reply).to_be_focused()
+    round_trip(page)
+    rendered(page)
+    unmoved()
 
 
 def test_walking_up_through_rewrites_shows_each_one(browser, serve):
@@ -11022,3 +11033,60 @@ def test_typing_in_a_long_rewrite_keeps_the_view(browser, serve):
     rendered(page)
     after = page.evaluate("() => document.scrollingElement.scrollTop")
     assert abs(after - before) < 30, (before, after)
+
+
+def test_saving_one_of_two_open_rewrites_leaves_no_gap(browser, serve):
+    """With a changed rewrite left open higher in the thread, saving a shorter one below
+    it followed the open one and not the saved one, so the reply box jumped back down
+    and the room the shorter words gave back stayed as a gap."""
+    url = serve(THREAD_DIFF_PAGE)
+    d = serve.page_dir
+    first = append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Fit the north bracket.",
+            "anchor": {"section": "cd-q"},
+        },
+    )
+    answer = append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Indexer",
+            "session": "worker-1",
+            "parent": first["id"],
+            "responds": first["id"],
+            "text": "Fitted.",
+        },
+    )
+    long = " ".join(["The steel pair held through the frost of February."] * 4)
+    second = append_carried_log_record(
+        d, {"kind": "reply", "author": "user", "parent": answer["id"], "text": long}
+    )
+    page = open_page(browser, url)
+    resized(page, 1400, 900)
+    thread = page.locator("#cd-q .lf-page-thread").first
+    earlier = thread.locator(f'.lf-msg[data-event="{first["id"]}"]')
+    latest = thread.locator(f'.lf-msg[data-event="{second["id"]}"]')
+    reply = thread.locator(".lf-thread-reply leaf-text").first
+    earlier.scroll_into_view_if_needed()
+    earlier.locator(".lf-msg-text").dblclick()
+    page.keyboard.type(" And the east.")
+    latest.locator(".lf-msg-text").dblclick()
+    expect(latest.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.type("Short.")
+    rendered(page)
+    typed = reply.bounding_box()["y"]
+    page.keyboard.press("Enter")
+    expect(latest.locator(".lf-msg-text")).to_have_text("Short.")
+    round_trip(page)
+    rendered(page)
+    assert abs(reply.bounding_box()["y"] - typed) < 0.5, (typed, reply.bounding_box())
+    expect(earlier.locator(".lf-msg-editor leaf-text")).to_have_js_property(
+        "value", "Fit the north bracket. And the east."
+    )

@@ -62,6 +62,7 @@ import {
   watchDraft,
 } from "../drafts.js";
 import { TEXT_FIELD } from "../control-selectors.js";
+import { PENDING } from "./identity.js";
 import { keys } from "../keyboard/scopes.js";
 import { announce, notice } from "../notifications.js";
 import { sizeObserver } from "../rendering.js";
@@ -160,7 +161,9 @@ export class MessageEditor {
     // it says now before the kept words go over it.
     const base = standing();
     const keptOver = loadDraftPayload(ctx)?.over;
-    if (keptOver && keptOver !== base)
+    // Words kept over the user's own edit still sending name it by its pending id, which
+    // is no change of anyone else's.
+    if (keptOver && keptOver !== base && !keptOver.startsWith(PENDING))
       notice(
         `This message changed since you wrote your edit. It now says: “${said()}”`,
       );
@@ -189,6 +192,9 @@ export class MessageEditor {
     };
     const leave = (discard, { landing = true, says = null, painting = true } = {}) => {
       if (landing) land();
+      // A closing box shows no more of its draft: settled by a save, it would refill
+      // with the message's old words before the paint that takes it away.
+      this.#stop();
       closeMessageEdit(id, { discard });
       if (painting) paint();
       if (says) announce(says);

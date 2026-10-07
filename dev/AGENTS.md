@@ -124,8 +124,10 @@ in `leaf-assets.json` and the README's image URLs that name it.
   on the page server's clock from the comment's admission, and what only the browser
   sees from the send; on `cc` or `codex`, also the agent's turn split into delivery,
   model and tool phases. Each sample is also appended to
-  `$XDG_STATE_HOME/leaf-dev/journey.jsonl` on the machine that ran it.
-  `publish-site` runs it against each release.
+  `$XDG_STATE_HOME/leaf-dev/journey.jsonl` on the machine that ran it, and
+  `leaf-dev journey-chart` prints an `lf-chart` of those samples, for the latest
+  version each target ran, to put on a page. `publish-site` runs it against each
+  release.
 - `worker/deploy-dev.sh` (`npm run deploy:dev --prefix worker`) deploys the checkout
   to the standing `leaf-website-dev` environment and verifies it. Production deploys
   only through `.github/workflows/publish-site.yaml`.

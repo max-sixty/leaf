@@ -15,6 +15,7 @@ COMMANDS = {
     "corpus": "corpus",
     "fetch-assets": "leaf_assets",
     "journey": "journey",
+    "journey-chart": "journey",
     "flake": "flake",
     "eval": "eval",
     "keydocs": "keydocs",

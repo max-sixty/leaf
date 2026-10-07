@@ -50,11 +50,11 @@
    the freshness floor for authored state when no report exists. A page that reports no
    worker update is not timeless; its authored assertion is as old as its revision.
 
-   createProjectionUpdates binds semantic subscriptions to one presentation owner's
-   commit proof. Raw update and history readings do not depend on that proof and
-   remain direct exports. */
+   The shared presentation coordinator owns the proof that guards report callbacks.
+   Raw update and history readings remain direct semantic selections. */
 import { watchProjection } from "./projection-watch.js";
 import { currentProjection } from "./projection/state.js";
+import { projectionRegionsPresented } from "./semantic-state.js";
 
 import { runtime } from "./context.js";
 import { closestAcross } from "./passages.js";
@@ -97,23 +97,23 @@ export const watchHistory = (owner, callback) =>
     callback(structuredClone(runtime.browser?.history ?? [])),
   );
 
-export function createProjectionUpdates({ coordinateProjectionCommitted }) {
-  function reportsCommitted(projection, target) {
-    const key = targetKey(updateTarget(target));
-    const coordinates = new Map();
-    for (const entry of projection.classified.values()) {
+// A report can speak only once the renderer of its widget and coordinate chrome
+// have committed. Required asynchronous preparation is the same coordinator region
+// used by startup and pending release, not a second coordinate/event-id commit map.
+export const watchUpdates = (target, callback) => {
+  const key = targetKey(updateTarget(target));
+  const reportWidgets = () => {
+    const widgets = new Set(target instanceof Element ? [target.id] : []);
+    for (const entry of currentProjection().classified.values()) {
       if (entry.terminal || entry.e.kind !== "report") continue;
-      const entryKey = targetKey({ kind: "widget", id: entry.e.widget });
-      if (key === null || key === entryKey) coordinates.set(entry.coordinate, entry);
+      if (key === null || key === targetKey({ kind: "widget", id: entry.e.widget }))
+        widgets.add(entry.e.widget);
     }
-    return [...coordinates.values()].every((entry) =>
-      coordinateProjectionCommitted(projection, entry),
-    );
-  }
-  const watchUpdates = (target, callback) =>
-    watchProjection(target instanceof Element ? target : document.body, () => {
-      const projection = currentProjection();
-      if (reportsCommitted(projection, target)) callback(updateSequence(target));
-    });
-  return { watchUpdates };
-}
+    return [...widgets];
+  };
+  return watchProjection(
+    target instanceof Element ? target : document.body,
+    () => callback(updateSequence(target)),
+    () => projectionRegionsPresented(reportWidgets()),
+  );
+};

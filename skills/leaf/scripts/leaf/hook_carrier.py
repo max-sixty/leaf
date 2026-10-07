@@ -271,6 +271,18 @@ HOOK_CONTEXT_LIMIT = 10_000
 CONFIRM_WITHIN = 10.0
 
 
+# The line an inline delivery opens with, by which Leaf's Claude Code hooks module
+# finds one in the Stop hook's output (`hooks/claude-code.ts`).
+# TODO: without the module, Claude Code prints a Stop hook's inline delivery in
+# full in the terminal. Hiding it there means handing over a pointer, which needs a
+# record of offered, unread deliveries that a repeated Stop and the watch both
+# respect; otherwise each re-offers it as new. Moot once the module is the only
+# Claude Code carrier.
+INLINE_DELIVERY = (
+    "Leaf has new input for your turn. Read this complete delivery before answering."
+)
+
+
 def render(
     delivery: dict | None, attention: list[str], *, inline: bool
 ) -> tuple[str, bool]:
@@ -282,7 +294,7 @@ def render(
         return "\n".join(attention), False
     message = "\n".join(
         [
-            "Leaf has new input for your turn. Read this complete delivery before answering.",
+            INLINE_DELIVERY,
             json.dumps(delivery, ensure_ascii=False),
             *attention,
         ]

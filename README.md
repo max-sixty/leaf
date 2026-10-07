@@ -69,6 +69,11 @@ In Claude Code, a page messages its session when input arrives while nothing wat
 it, as after a turn you interrupted. A session that bypasses permissions holds that message for
 your approval unless Claude Code's `crossSessionInbound` setting is `"accept"`.
 
+Leaf's "Watch pages with a hooks module" option, in `/config`, moves that watch into a
+Claude Code hooks module, an early-access Claude Code feature, which goes on watching
+after a turn you interrupt. A Claude Code that doesn't load hooks modules keeps the
+default watch.
+
 </details>
 
 ## Explore and extend

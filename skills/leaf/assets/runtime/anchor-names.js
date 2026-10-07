@@ -6,7 +6,8 @@
  * its observation through the same arrivals door as the other chrome owners; its
  * weakly retained binding restores that observation when the control returns. */
 import { pagePlaneRect, shownParts } from "./geometry.js";
-import { hostIn } from "./shadow.js";
+import { hostIn, renderedParent } from "./shadow.js";
+import { scrollsContent } from "./scroll-motion.js";
 import { watchArrivals } from "./arrivals.js";
 
 // Anchor names are global to their tree, so one per target element, merged with whatever
@@ -48,6 +49,50 @@ export function anchorElement(target) {
   if (el !== target) return el;
   const [part] = shownParts(target);
   return part && part !== target ? part : target;
+}
+
+// Whether every scroll that moves `node` moves what `box` holds with it, so an anchor
+// on `box`, or on a box `box` holds still (`carriedAnchor`), carries `node` through each:
+// `box` holds `node`, and nothing from `node` up to `box` is sticky, fixed or absolute,
+// whose spot is not the scrolls' alone, or scrolls what it holds past `node`.
+export function scrollsWith(node, box) {
+  for (let at = node; at !== box; at = renderedParent(at)) {
+    if (!at) return false;
+    if (
+      at instanceof Element &&
+      (!/^(static|relative)$/.test(getComputedStyle(at).position) ||
+        (at !== node && scrollsContent(at)))
+    )
+      return false;
+  }
+  return true;
+}
+
+// An element `scroller`'s own scroll carries as it carries what the scroller holds: a
+// child with a box of its own, in flow where that scroll moves it, so a box anchored to
+// it moves with that scroll in the frame that scrolls. A line break renders as a break
+// in the words rather than a box, so it anchors nothing. The child nearest `near`, one
+// of the scroller's child nodes, where one is given; null where the scroller holds none
+// or lies inside a shadow tree, whose anchor names a document box cannot reach.
+export function carriedAnchor(scroller, near = null) {
+  if (scroller.getRootNode() !== document) return null;
+  const carried = (node) =>
+    node instanceof Element &&
+    !/^(br|wbr)$/.test(node.localName) &&
+    anchorElement(node) === node &&
+    node.getClientRects().length > 0 &&
+    /^(static|relative)$/.test(getComputedStyle(node).position);
+  if (!near) {
+    for (const child of scroller.children) if (carried(child)) return child;
+    return null;
+  }
+  for (
+    let before = near.previousSibling, after = near.nextSibling;
+    before || after;
+    before = before?.previousSibling, after = after?.nextSibling
+  )
+    for (const node of [before, after]) if (carried(node)) return node;
+  return null;
 }
 
 // The name `el` answers to as an anchor, given it first where it has none.

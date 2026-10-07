@@ -7,8 +7,8 @@
    served page, as `/runtime/widget-api.js`, so a search of `runtime/` for a re-export's
    importer comes back empty whether or not the export is reachable. What answers that
    question is the browser gate, which fails to parse every probe module at once. */
-export { LitElement, html, render, repeat } from "../vendor/browser-runtime.js";
-export { keyed } from "../vendor/lit.js";
+export { LitElement, html, repeat } from "../vendor/browser-runtime.js";
+export { keyed, unsafeHTML } from "../vendor/lit.js";
 export { widgetController } from "./widget-controller.js";
 export { watchOwner } from "./arrivals.js";
 // The rank a position record carries for a unit dropped at an index in a container.
@@ -41,7 +41,7 @@ export { focusDestination, holdFocus } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place and keeping the
 // user standing in a node it moves.
-export { setChildren, setRenderedChildren } from "./dom-children.js";
+export { render, setChildren, setRenderedChildren } from "./dom-children.js";
 export { openAsks, watchAsks } from "./application.js";
 export { answersWithin } from "./asks/answer.js";
 export { registerVisualParts } from "./visual-parts.js";

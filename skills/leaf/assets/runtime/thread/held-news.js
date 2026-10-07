@@ -477,7 +477,12 @@ export class HeldNews {
         thread.news = {
           label: newsLabel(thread.news),
           reopened: thread.news.settled === "Reopened",
-          open: () => this.#open(thread.key, thread === host && waiting),
+          open: () => {
+            const node = this.#view(thread.key)?.node ?? null;
+            showHeld(thread.id);
+            if (thread === host && waiting) this.#open(thread.key, true);
+            return node;
+          },
         };
     }
     // A thread arriving with no thread drawn is held only where the seat drew its

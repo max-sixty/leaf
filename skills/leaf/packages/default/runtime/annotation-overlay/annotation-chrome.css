@@ -254,8 +254,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-thread-reply .lf-composer-media { grid-row: 1; }
   .lf-margin-thread .lf-thread-reply .lf-compose-field { grid-row: 2; min-height: 0;
     grid-template-rows: minmax(0, max-content); }
+  /* A retained writing size is preferred room; the grid's allocated track still
+     bounds the field, whose own scrollport carries any remaining words. */
   .lf-margin-thread .lf-thread-reply leaf-text { min-width: 0;
-    max-height: none; }
+    max-height: 100%; }
   /* The card's actions stand over the top of its transcript, where each message's head
      sticks while that message is read, so the row always names who wrote the words
      beneath it and a scrolled card never labels an agent's words with the user's name.

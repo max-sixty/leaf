@@ -194,6 +194,7 @@ export {
   el,
   layoutChanged,
   measure,
+  motionPreview,
   offer,
   offered,
   quoted,

@@ -1020,3 +1020,5 @@ pre:hover + .lf-code-copy,
 .lf-reply-continuity:not(details) { display: flex; flex-direction: column;
   min-block-size: var(--lf-thread-body-extent, 0px); }
 .lf-reply-space { flex: 1 0 0; min-block-size: 0; }
+.lf-reply-continuity > .lf-thread-reply leaf-text:not(:state(placeholder-shown)) {
+  block-size: var(--lf-reply-writing-room, auto); }

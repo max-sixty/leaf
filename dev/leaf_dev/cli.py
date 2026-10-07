@@ -28,6 +28,7 @@ COMMANDS = {
     "stills": "stills",
     "test-select": "test_select.command",
     "thread-snapshots": "thread_snapshots",
+    "trace-server": "trace_server",
     "verify-cc-task": "verify_cc_task",
     "verify-codex-task": "verify_codex_task",
     "verify-pi-task": "verify_pi_task",

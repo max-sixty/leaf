@@ -52,7 +52,8 @@ reaches a module by importing it from this package, never through `sys.path`,
   Plain recording inserts no pauses. `--actions` is for demonstrations: Playwright
   waits 500 ms before each annotated input. Native video holds its final frame for
   at least one second. Read the timeline, filmstrip, DOM snapshots,
-  console and network with `uv run playwright show-trace DIR/worktree/trace.zip`.
+  console and network with `uv run leaf-dev trace-server DIR/worktree/trace.zip`.
+  The server prints its viewer URL without opening a browser; link it for the user.
   `recording.py` owns capture and GIF encoding, including the demo's encoder;
   its `recording(page, directory)` context works in any Playwright script.
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states, at rest and

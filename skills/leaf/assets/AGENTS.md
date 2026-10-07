@@ -133,8 +133,9 @@ user sees or they change the view
 (`thread/thread-list-view.js`, `keeping`). A turn of the user's own that takes its
 card out of the view, as a reply under "Waiting on you" or a rewrite or Reopen under
 Resolved does, takes them with it: the view widens to one that holds the thread, and a
-refusal puts it back only where that view shows the thread again
-(`thread/thread-card.js`, `#speak`); Resolve moves them to the neighbouring card. A region whose rows only the
+refusal puts it back only while they have not acted since (`thread/thread-card.js`,
+`#speak`); news keeps its card in the view, and Resolve moves them to the neighbouring
+card. A region whose rows only the
 log or the clock decides, so no first paint can size it, shows none of them until the
 reader opens them through a control of fixed size the widget already draws, as a
 command's counts open its lists; after that a change to its rows waits the same way

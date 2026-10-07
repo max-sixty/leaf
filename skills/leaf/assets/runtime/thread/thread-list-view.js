@@ -130,7 +130,6 @@ class ThreadListView extends RetainedFace {
     const view = this.#views.get(`thread:${key}`);
     if (this.#intent !== intent || !view?.model.visible || view.model.folding)
       return null;
-    const news = view.model.kept ? view.model.kept === "news" : !gesturedOn(thread);
     const seen =
       readingIsContinuous() &&
       (view.node.open
@@ -140,6 +139,13 @@ class ThreadListView extends RetainedFace {
       key,
       thread.msgs.map(({ id }) => id),
     );
+    // The user's own words sent in a card news kept make it theirs: the turn takes the
+    // card out as any turn of theirs does (thread-card.js, `#speak`). A reaction there,
+    // which sends no words, leaves it held for the news.
+    const theirs = gesturedOn(thread);
+    const news = view.model.kept
+      ? view.model.kept === "news" && !(theirs && draft)
+      : !theirs;
     if (news && (seen || draft)) return "news";
     return draft ? "draft" : null;
   }
@@ -171,6 +177,15 @@ class ThreadListView extends RetainedFace {
   inPageOrder(cards) {
     const seats = this.model.pageSeats;
     return [...cards].sort((a, b) => seats.get(a.dataset.id) - seats.get(b.dataset.id));
+  }
+
+  // Whether the card drawn for thread or message `id` stands only for the user's own
+  // words on their way (`keeping`, "draft"): drawn, though the view leaves it out.
+  keepsForWords(id) {
+    const row = this.#rows.find(
+      (row) => row.kind === "thread" && this.#views.get(row.key).ownsMessage(id),
+    );
+    return Boolean(row) && this.#views.get(row.key).model.kept === "draft";
   }
 
   revealNavigation(id) {

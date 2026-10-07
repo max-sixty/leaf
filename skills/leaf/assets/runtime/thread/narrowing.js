@@ -274,15 +274,7 @@ export function narrowingReading(reading, threads, places) {
 
 // Each panel owns its view intent. The reading above remains pure so package views can
 // apply their own intent to the same threads without sharing this panel's controls.
-// `placeOf` reads a thread's place on the page, as the list's `places` hold it.
-export function createThreadNarrowing({
-  view,
-  listRoot,
-  readThreads,
-  placeOf,
-  ready,
-  repaint,
-}) {
+export function createThreadNarrowing({ view, listRoot, readThreads, ready, repaint }) {
   // Replace the whole value on every change. A retained arrival can then distinguish
   // its own transition from a later choice by identity.
   let intent = DEFAULT_INTENT;
@@ -365,20 +357,9 @@ export function createThreadNarrowing({
       (candidate) =>
         candidate.id === id || candidate.msgs.some((message) => message.id === id),
     ) ?? null;
-  const shows = (thread, reading = intent) =>
-    includesThread(reading, thread, placeOf(thread));
 
-  // Whether the view leaves out thread `id` as it stands now, though a card the view
-  // keeps for words in flight or news may still draw it (thread-list-view.js, `keeping`).
-  const excludesThread = (id) => {
-    const thread = findThread(id);
-    return Boolean(thread) && !shows(thread);
-  };
-
-  // A fallible optimistic arrival can put back the exact view the user was using, where
-  // that view shows thread `id` again: one the user has since spoken in again, which
-  // their own later turn keeps out of it, stays in the view it went to.
-  function retainNarrowing(id) {
+  // A fallible optimistic arrival can put back the exact view the user was using.
+  function retainNarrowing() {
     const retained = intent;
     let replacement = null;
     return {
@@ -393,8 +374,6 @@ export function createThreadNarrowing({
         const prepared = intent;
         const restore = bindQueuedWork(() => {
           if (intent !== prepared) return false;
-          const thread = findThread(id);
-          if (!thread || !shows(thread, retained)) return false;
           intent = retained;
           view.setSearchWords(retained.words);
           return renarrow();
@@ -440,7 +419,6 @@ export function createThreadNarrowing({
     retainNarrowing,
     select,
     revealThread,
-    excludesThread,
     widen,
   });
 }

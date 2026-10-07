@@ -1783,9 +1783,9 @@ def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refus
 ):
     """Panel focus follows the same optimistic Resolve/Reopen state as its cards.
 
-    A refusal restores both the prior lifecycle view and the thread the user was
-    operating. A later accepted attempt keeps the optimistic destination rather than
-    moving focus again when the server answers.
+    A refusal restores the thread the user was operating, and the prior lifecycle
+    view while they have not acted since. A later accepted attempt keeps the
+    optimistic destination rather than moving focus again when the server answers.
     """
     browser, held = held_events
     url = serve(LONG_PAGE)
@@ -1834,12 +1834,12 @@ def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refus
     expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value("")
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     round_trip(page)
-    expect(page.locator('[data-filter-value="resolved"]')).to_have_attribute(
+    # The user acted since the reopen, so the refusal leaves the view they are working
+    # in (#46 on the rewrite survey, the user's decision, 2026-10-07).
+    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
         "aria-pressed", "true"
     )
-    expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value(
-        "first thread"
-    )
+    expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value("")
     expect(pending_reply).to_be_focused()
     expect(pending_reply).to_have_js_property(
         "value", "Keep this draft through the refusal."
@@ -4946,8 +4946,19 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     page.keyboard.press("w")
     page.keyboard.press("w")
 
+    # Escape unwinds the narrowing before it closes the panel, from wherever the user
+    # is standing: a list that is not the whole thread is a layer they put on.
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("show all")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(2)
+    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
+    expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "false")
+    page.keyboard.press("w")
+    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(1)
+
     # Answering the agent's comment takes it out of the user's list and hands the
-    # next word to the agent.
+    # next word to the agent; the user goes with the thread into the view that holds
+    # it, standing on it as a sent reply leaves them (#46 on the rewrite survey).
     page.locator(f'.lf-thread[data-id="{theirs}"] .lf-thread-summary').click()
     reply = page.locator(f'.lf-thread[data-id="{theirs}"] leaf-text')
     reply.click()
@@ -4955,20 +4966,11 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     page.locator(f'.lf-thread[data-id="{theirs}"] .lf-thread-send').click()
     round_trip(page)
     expect(page.locator(".lf-needs")).to_have_text("You (0)")
-    expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(0)
-    expect(page.locator(".lf-empty")).to_have_text("Nothing is waiting on you.")
-    # The user was standing in the thread that just left. Focus lands on the list
-    # rather than falling to body, where the next Space would scroll the page behind
-    # the panel instead of the list in front of them.
-    expect(page.locator(".lf-threads")).to_be_focused()
-
-    # Escape unwinds the narrowing before it closes the panel, from wherever the user
-    # is standing: a list that is not the whole thread is a layer they put on.
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("show all")
-    page.keyboard.press("Escape")
+    expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "false")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(2)
-    expect(page.locator(f'.lf-thread[data-id="{mine}"]')).to_have_count(1)
-    expect(page.locator(".lf-thread-panel .lf-auxiliary-title")).to_have_text("Threads")
+    expect(
+        page.locator(f'.lf-thread[data-id="{theirs}"] > .lf-thread-summary')
+    ).to_be_focused()
     expect(page.locator(".lf-needs")).to_be_disabled()
     expect(page.locator(".lf-needs")).to_have_attribute(
         "title", "Nothing shown is waiting on you"
@@ -5389,10 +5391,12 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
     holding(page, held, 1, "the recovery resend")
     expect(status).to_have_text("Sending")
     expect(recovery).to_have_text("You (0)")
-    expect(recovery).to_have_attribute("aria-pressed", "true")
+    # The resend takes the thread off the user, and the user goes with it (#46).
+    expect(recovery).to_have_attribute("aria-pressed", "false")
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     expect(status).to_have_text("On you to resend")
     expect(recovery).to_have_text("You (1)")
+    expect(recovery).to_have_attribute("aria-pressed", "true")
     expect(recovery).to_be_enabled()
     expect(draft).to_have_js_property("value", "Try the south pair again.")
     page.unroute("**/api/event")
@@ -11412,9 +11416,9 @@ def test_a_refused_rewrite_puts_the_resolved_filter_back(browser, serve):
 
 
 def test_a_refusal_leaves_the_view_on_a_thread_the_user_spoke_in_since(browser, serve):
-    """A refused rewrite puts back the view it left only where that view shows the
-    thread again. Once the user has replied in the reopened thread, their reply keeps
-    it open, so the Resolved view would hide the thread they are writing in."""
+    """A refused rewrite puts back the view it left only while the user has not acted
+    since: once they have replied in the reopened thread, the Resolved view would take
+    away the thread they are working in."""
     page, thread, message = _rewrite_surface(browser, serve, "panel", resolved=True)
     resolved_filter = page.locator('[data-filter-value="resolved"]')
     reply = thread.locator(":scope > .lf-thread-reply leaf-text")
@@ -11463,3 +11467,72 @@ def test_a_reopen_in_a_view_that_still_holds_its_thread_keeps_that_view(browser,
         "aria-pressed", "false"
     )
     expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_be_focused()
+
+
+def test_reaching_news_a_card_holds_keeps_the_view(browser, serve):
+    """A card news takes out of the view stays where it stood (thread-list-view.js,
+    `keeping`), and reaching that news, as Next unread does, lands on it there. Only a
+    card drawn for the user's own words on their way makes an arrival choose another
+    view."""
+    url = serve(PANEL_PAGE)
+    d = serve.page_dir
+    asked = panel_comment(d, "Is forty enough?", {"section": "how-cap"})
+    other = panel_comment(d, "Where does it live?", {"section": "how-store"})
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{asked}"]')
+    beside = page.locator(f'.lf-thread[data-id="{other}"]')
+    card.locator(":scope > .lf-thread-summary").click()
+    answer = append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Codex",
+            "parent": asked,
+            "text": "Forty is enough.",
+        },
+    )
+    append_carried_log_record(
+        d, {"kind": "resolve", "author": "agent", "agent": "Codex", "parent": asked}
+    )
+    told(page)
+    rendered(page)
+    expect(card).to_be_visible()
+    page.locator(".lf-first-unread").click()
+    expect(card.locator(f'.lf-msg[data-mid="{answer["id"]}"]')).to_be_focused()
+    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+        "aria-pressed", "true"
+    )
+    expect(beside).to_be_visible()
+
+
+def test_a_rewrite_in_a_card_news_kept_goes_with_its_thread(browser, serve):
+    """A card news keeps in a view it no longer belongs to, as the agent reopening a
+    thread shown under Resolved does, becomes the user's once they send words in it:
+    their rewrite takes them with the thread into the view that holds it, rather than
+    leaving an open thread under a Resolved view that counts none."""
+    page, thread, message = _rewrite_surface(browser, serve, "panel", resolved=True)
+    thread.locator(":scope > .lf-thread-summary").click()
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "unresolve",
+            "author": "agent",
+            "agent": "Indexer",
+            "parent": thread.get_attribute("data-id"),
+        },
+    )
+    told(page)
+    rendered(page)
+    resolved_filter = page.locator('[data-filter-value="resolved"]')
+    expect(resolved_filter).to_have_attribute("aria-pressed", "true")
+    expect(thread).to_be_visible()
+    message.locator(".lf-msg-text").dblclick()
+    page.keyboard.press("End")
+    page.keyboard.type(" Now.")
+    page.keyboard.press("Enter")
+    expect(resolved_filter).to_have_attribute("aria-pressed", "false")
+    expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_be_focused()
+    round_trip(page)

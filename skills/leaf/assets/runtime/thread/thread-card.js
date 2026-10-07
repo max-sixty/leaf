@@ -1279,7 +1279,7 @@ export class ThreadView {
   // Where the turn takes the thread out of the view the user wrote it in, as a reply
   // under "Waiting on you" or a rewrite under Resolved does, the view widens to show
   // it and the user goes with it, landing as `focus` says, and back if the log refuses
-  // it; a refusal after they spoke in the thread again leaves the view showing it.
+  // it while they have not acted since.
   #speak(post, attempt, focus) {
     const landing =
       this.#model.surface === "panel"
@@ -1306,11 +1306,15 @@ export class ThreadView {
     const shownCard = () =>
       !this.node.hidden && this.node.isConnected ? this.node : null;
     let mayRestore = () => false;
-    const narrowing = travel.retainNarrowing(this.#model.id);
+    const narrowing = travel.retainNarrowing();
+    // The card leaves the view the turn was written in: hidden, or drawn only for the
+    // turn's words on their way (thread-list-view.js, `keepsForWords`).
+    const leftOut = () =>
+      this.node.hidden || this.#commands.listRoot.keepsForWords(this.#model.id);
     return {
       optimistic: async () => {
         if (!mayLand()) return false;
-        if (!always && !travel.excludesThread(this.#model.id)) return false;
+        if (!always && !leftOut()) return false;
         const arriving = travel.showThread(this.#model.id, { focus });
         narrowing.replaced();
         if (!(await arriving)) return false;
@@ -1318,17 +1322,16 @@ export class ThreadView {
         if (destination) mayRestore = travel.retainPanelLanding(destination);
         return Boolean(destination);
       },
-      // The filter the reopen cleared goes back with the thread, while Threads is open.
-      // An undo's intent governs the whole reversal, so a later input wins over both
-      // halves. A refusal has none: the narrowing's own guard decides the filter, and
-      // the landing's decides the focus.
+      // The view the turn widened goes back with the user, while Threads is open and
+      // they have not acted since (the user's decision, 2026-10-07): an undo's intent,
+      // or for a refusal the landing's own, governs the whole reversal, so a later input
+      // keeps both the view and the focus where the user took them.
       reverse: async (may = null) => {
-        if (!mayLand.available() || (may && !may())) return;
-        const restoreFocus = (may ?? mayRestore)();
-        await narrowing.restore(async () => {
-          if (restoreFocus)
-            await travel.showThread(this.#model.id, { focus: "thread" });
-        });
+        const acting = may ?? mayRestore;
+        if (!mayLand.available() || !acting()) return;
+        await narrowing.restore(() =>
+          travel.showThread(this.#model.id, { focus: "thread" }),
+        );
       },
     };
   }

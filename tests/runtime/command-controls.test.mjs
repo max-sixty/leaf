@@ -71,6 +71,20 @@ test("a command owns its native button across availability, replacement and reco
   owner.remove();
 });
 
+// A new thread card's Resolve, focused and pressed by a key in the same task, did
+// nothing until a paint had wired it.
+test("a button declared on itself activates before its declaration is painted", () => {
+  const control = document.createElement("button");
+  document.body.append(control);
+  let count = 0;
+  keys(control, "Probe commands", [
+    { id: "probe.press", title: "Press", keys: ["Enter"], control, run: () => count++ },
+  ]);
+  control.click();
+  assert.equal(count, 1);
+  control.remove();
+});
+
 // A projected entry retains native origin/surface/input without a second callback.
 test("a contribution invokes its declared command and derives refusal from it", async () => {
   const { registerContribution } =

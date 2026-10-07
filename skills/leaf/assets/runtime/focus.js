@@ -25,16 +25,30 @@
    caller could forget, which is how those returns reached the readers as moves.
 
    And it is the one reader of the user's inputs, so the one owner of whether they have
-   moved on since a hold began or a delayed move was scheduled. It keeps two counts: the
-   placements, which a hold compares, since typing in the box it holds is the user working
-   there and must not void it; and the inputs, which delayed work compares
-   (user-intent.js), since any key, press, wheel or touch since the gesture that started
-   the work is the user's newer word. It also keeps the one reading of the press
-   in progress (`pressing`, `onPress`), and the press on a label that leaves the user
-   standing on the control they stood on until it lands (`focused`). Rejected: merging the
-   two readings into one count, which a hold would then lose to the user typing where it
-   holds; and each owner keeping its own press tracker, which is how holds came to read
-   the in-between node a label press goes through.
+   moved on since a hold began or a delayed move was scheduled. The two ask different
+   questions, so it keeps two counts:
+
+   - A hold (`holdFocus`, `holdStanding`, `handBack`'s retry) reads `placements`: has
+     focus been put anywhere since, by the user or by an owner, other than by a hold's
+     own restore or a closing layer's hand-back. Its question is whether the place it
+     holds is still the user's, and the user typing, pressing or scrolling in that place
+     is them working there: a hold that inputs voided would drop the user from the box
+     they are typing in whenever a render replaced it.
+   - Delayed work (`retainUserIntent`, user-intent.js) reads `inputCount`: has the user
+     pressed, typed, scrolled, touched or left the window since the gesture that started
+     it. Its question is whether that gesture is still their latest word, and any input
+     is a newer one, wherever focus stands; a move that only counted placements would
+     pull the user back to its destination after they had gone on typing elsewhere.
+
+   It also keeps the one reading of the press in progress (`pressing`, `onPress`), and
+   the press on a label that leaves the user standing on the control they stood on until
+   it lands (`focused`). Rejected: merging the two counts into one, which would void a
+   hold on every keystroke; and each owner keeping its own press tracker, which is how
+   holds came to read the in-between node a label press goes through.
+
+   And it owns the widget primitives built on these: closing a layer and handing the user
+   on as one act (`closeLayer`), holding a place in a keyed list (`holdFocus` with `key`),
+   and a group's one Tab stop (`rove`).
 
    The selector vocabulary lives in control-selectors.js, which imports nothing.
    This module imports only that vocabulary, rendering.js and keeps.js: importing a

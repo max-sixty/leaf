@@ -1196,20 +1196,31 @@ export function createSemanticApplication({
           ),
       });
     },
+    // A gesture naming a message this tab sent, by its pending id, names it by the id
+    // the log gave it once the log has answered: a reply's `parent`, or the revision an
+    // edit is written over (`base`), as a second rewrite over a first still sending is.
     nameParent(attempt: string, receipts: Event[]) {
+      const admitted = (pending: unknown) => {
+        if (typeof pending !== "string" || !pending.startsWith(PENDING)) return null;
+        const pendingAttempt = pending.slice(PENDING.length);
+        return (
+          entry(pendingAttempt)?.admitted?.id ??
+          receipts.find((receipt) => receipt.attempt === pendingAttempt)?.id ??
+          null
+        );
+      };
       const item = entry(attempt);
       const parent = item?.event.parent;
-      if (typeof parent !== "string" || !parent.startsWith(PENDING)) return;
-      const parentAttempt = parent.slice(PENDING.length);
-      const named =
-        entry(parentAttempt)?.admitted?.id ??
-        receipts.find((receipt) => receipt.attempt === parentAttempt)?.id;
+      const named = admitted(parent);
       if (named)
         update(attempt, (item) => ({
           ...item,
           namedParent: parent,
           event: { ...item.event, parent: named },
         }));
+      const base = admitted(item?.event.base);
+      if (base)
+        update(attempt, (item) => ({ ...item, event: { ...item.event, base } }));
     },
     nameUndo(attempt: string, receipts: Event[]) {
       const item = entry(attempt);

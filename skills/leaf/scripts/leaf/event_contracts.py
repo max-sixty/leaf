@@ -558,8 +558,8 @@ def _edit_error(event: dict, events: list) -> str | None:
     or the posting agent session's. A reaction or a bare drawing has none to revise.
 
     An edit that names its `base`, the revision its words were written over (the
-    message's own id, or the latest edit of it, by id or by the attempt of a tab that
-    drew it before the log answered), lands only on that revision: one
+    message's own id, or the latest edit of it; a browser names an edit of its own
+    still sending once the log has answered it), lands only on that revision: one
     written over words another tab has since replaced would silently take their place.
     Words the message already says are no revision, and no turn."""
     if event["kind"] != "edit":
@@ -591,8 +591,7 @@ def _edit_error(event: dict, events: list) -> str | None:
         if logged["kind"] == "edit" and logged["message"] == name
     ]
     latest = revisions[-1] if revisions else target
-    # A tab names a revision it drew before the log answered by its attempt.
-    if "base" in event and event["base"] not in {latest["id"], latest.get("attempt")}:
+    if "base" in event and event["base"] != latest["id"]:
         return Refusal(
             f"edit of {name!r} was written over {event['base']!r}, and "
             f"{latest['id']!r} has since revised it",

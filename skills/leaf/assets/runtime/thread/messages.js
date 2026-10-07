@@ -259,7 +259,7 @@ export class MessageView {
         send: (text, options) =>
           this.#commands.edit.send(this.#model.id, text, options),
         land: () => this.#commands.edit.land(),
-        paint: () => this.#commands.edit.paint(),
+        paint: () => this.#commands.edit.paint(this.node),
         previous: () => this.#commands.edit.previous(this.#model.id),
         reveal: (caretLine) => this.#commands.edit.reveal(this.node, caretLine),
       });
@@ -272,7 +272,8 @@ export class MessageView {
     this.#kept = model.editable && !editing && keptRewrite(model.id);
     if (model.editable && !this.#stopKept)
       this.#stopKept = watchRewrite(model.id, () => {
-        if (keptRewrite(this.#model.id) !== this.#kept) this.#commands.edit.paint();
+        if (keptRewrite(this.#model.id) !== this.#kept)
+          this.#commands.edit.paint(this.node);
       });
     keeps(this.#header, "data-lf-reflow", "text");
     if (prior && prior.author !== model.author)
@@ -307,22 +308,30 @@ export class MessageView {
         <b>${model.by}</b
         ><span class="lf-msg-meta"
           ><time datetime=${model.timestamp}>${model.age}</time> ${receipt}
-          ${model.failure
-            ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
-            : nothing}
-          ${model.body.kind === "suggestion"
-            ? html`<span class="lf-suggest-label">Suggestion</span>`
-            : nothing}
-          ${model.edited
-            ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
-            : nothing}
-          ${this.#kept
-            ? html`<span
-                class="lf-msg-kept"
-                title="Your rewrite is kept; open it to save or cancel"
-                >unsaved edit</span
-              >`
-            : nothing}
+          ${
+            model.failure
+              ? html`<span class="lf-msg-failure">${FAILURE_LABEL}</span>`
+              : nothing
+          }
+          ${
+            model.body.kind === "suggestion"
+              ? html`<span class="lf-suggest-label">Suggestion</span>`
+              : nothing
+          }
+          ${
+            model.edited
+              ? html`<span class="lf-edited" title=${model.edited}>edited</span>`
+              : nothing
+          }
+          ${
+            this.#kept
+              ? html`<span
+                  class="lf-msg-kept"
+                  title="Your rewrite is kept; open it to save or cancel"
+                  >unsaved edit</span
+                >`
+              : nothing
+          }
         </span>
       `,
       this.#header,
@@ -351,22 +360,26 @@ export class MessageView {
           class=${`lf-msg-body${model.body.kind === "suggestion" ? " lf-suggest-body" : ""}`}
         >
           ${editing ? this.#editor.node : this.#body(model.body)}
-          ${model.body.drawing
-            ? html`<span class="lf-drawing-reference">Drawing comment</span>`
-            : nothing}
+          ${
+            model.body.drawing
+              ? html`<span class="lf-drawing-reference">Drawing comment</span>`
+              : nothing
+          }
           ${model.nativeAuthored && model.body.authored ? this.#authored : nothing}
         </div>
-        ${model.body.authored && !model.nativeAuthored
-          ? html`<button
-              type="button"
-              class="lf-btn lf-page-thread-open lf-ui"
-              data-lf-gen="1"
-              data-lf-offer="button"
-              @click=${() => this.#commands.showThread(this.#model.id)}
-            >
-              Open interactive reply in Threads
-            </button>`
-          : nothing}
+        ${
+          model.body.authored && !model.nativeAuthored
+            ? html`<button
+                type="button"
+                class="lf-btn lf-page-thread-open lf-ui"
+                data-lf-gen="1"
+                data-lf-offer="button"
+                @click=${() => this.#commands.showThread(this.#model.id)}
+              >
+                Open interactive reply in Threads
+              </button>`
+            : nothing
+        }
         ${strip} ${rewrite}
       `,
       this.node,
@@ -407,16 +420,16 @@ export class MessageView {
     if (!this.#editor) {
       this.#commands.edit.opening(model.id);
       openMessageEdit(model.id, this, model.panel);
-      this.#commands.edit.paint();
+      this.#commands.edit.paint(this.node);
     }
     this.#editor?.focus();
     return true;
   }
 
-  // Close an open editor as Escape would, without moving the user: another one in the
-  // thread is opening.
-  closeEdit() {
-    this.#editor?.close();
+  // Make way for another editor opening in the thread, closing this one where its
+  // words are the message's own.
+  putEditAside() {
+    this.#editor?.putAside();
   }
 
   // Whether this view draws an open rewrite.

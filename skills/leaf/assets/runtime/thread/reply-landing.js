@@ -210,8 +210,9 @@ export function followBoxGrowth(input) {
   if (!held) return;
   const reply = replyRowOf(held, input);
   // A box standing in the transcript rather than its reply row, as a rewrite stands in
-  // its message, is its own writing area, wherever the transcript scrolls.
-  if (!reply) return revealWritingArea(held, input, null);
+  // its message, keeps its caret in view itself: aimed at the whole box, a landing here
+  // pulled a long one's top into view on every key.
+  if (!reply) return;
   // A separate transcript gives up height rather than being covered by the editor.
   // A reader at its tail keeps the turn beside the growing box; someone reading back
   // keeps their own offset. The beforeinput reading precedes the editor's layout.

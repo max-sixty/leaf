@@ -17,7 +17,10 @@
      (the Threads panel, or the page), which takes the editor as a replacement node
      takes words and caret. A view on the other surface, or in another tab, draws the
      message as it was, since nothing the user did there asked it to change. A thread
-     holds one open editor: opening another closes the first as Escape would.
+     holds one open editor whose words are the message's own: opening another closes
+     it, as ↑ to an earlier message does. One whose words the user changed stays open
+     until a key or press of theirs puts it away, so a second press elsewhere in the
+     thread opens a second editor beside it, each named for its message.
 
    Escape discards changed words, as Cancel does, so one Escape undoes the ↑ that opened
    the rewrite, as in Slack, Discord and Telegram (the user's decision, 2026-10-06).
@@ -31,12 +34,14 @@
 
    A double click on the message or a press on its Edit control opens it. The keyboard
    opens it with ↑: from the thread's empty reply box, the user's latest message, and
-   from the start of an open rewrite, their message before it, so Edit takes no Tab stop
-   in every thread the user opened. Resume writing (`g i`) opens a rewrite whose words
-   were kept where its thread lands (`openMessageEditIn`). Opening brings the editor into
-   view. Enter saves; Escape and Cancel close it, discarding changed words. The
-   editor is a rung below the thread's reply box, so each of the three hands the
-   user to that box, or, in a thread showing none, onto the thread (`land`). Save sends
+   from the start of an open rewrite not yet changed, their message before it, so Edit
+   takes no Tab stop in every thread the user opened. Resume writing (`g i`) opens a
+   rewrite whose words were kept on the message in the Threads panel
+   (`openMessageEditIn`). Opening brings the editor into view. Enter saves; Escape and
+   Cancel close it, discarding changed words; opening another rewrite in the thread
+   puts this one aside, keeping them. The
+   editor is a rung below the thread's reply box, so Enter, Escape and Cancel each hand
+   the user to that box, or, in a thread showing none, onto the thread (`land`). Save sends
    through the one ledger, which draws the new words on the message in the gesture
    (`foldThreads`), and a refusal gives its words back to the draft, the message saying
    it holds them beside the words it stands at. A rewrite names the revision it was
@@ -49,6 +54,7 @@ import {
   draftHasContent,
   forgetWritingPlace,
   loadDraft,
+  loadDraftPayload,
   mirrorDraft,
   saveDraft,
   sendDraft,
@@ -57,7 +63,7 @@ import {
 } from "../drafts.js";
 import { TEXT_FIELD } from "../control-selectors.js";
 import { keys } from "../keyboard/scopes.js";
-import { announce } from "../notifications.js";
+import { announce, notice } from "../notifications.js";
 import { sizeObserver } from "../rendering.js";
 import { retainUserIntent } from "../user-intent.js";
 import { offer } from "../widget-elements.js";
@@ -135,7 +141,7 @@ function closeMessageEdit(id, { discard }) {
  * editor into view. */
 export class MessageEditor {
   #stop;
-  #leave;
+  #putAside;
   #reveal;
   #settling = null;
   // Where the caret stood when ↑ went down, while it is down: the editor's own ↑ moves
@@ -148,8 +154,16 @@ export class MessageEditor {
     { wireInput, said, base: standing, send, land, paint, previous, reveal },
   ) {
     const ctx = editContext(id);
-    // The revision these words are written over, which the log holds the rewrite to.
+    // The revision these words are written over, which the log holds the rewrite to: the
+    // message as it stands now. Words kept from an earlier opening carry the revision
+    // they were written over; where the message has changed since, the user is told what
+    // it says now before the kept words go over it.
     const base = standing();
+    const keptOver = loadDraftPayload(ctx)?.over;
+    if (keptOver && keptOver !== base)
+      notice(
+        `This message changed since you wrote your edit. It now says: “${said()}”`,
+      );
     this.#reveal = reveal;
     this.node = offer("div", "lf-msg-editor");
     this.input = offer(TEXT_FIELD);
@@ -179,25 +193,30 @@ export class MessageEditor {
       if (painting) paint();
       if (says) announce(says);
     };
-    // Closing as Escape does, discarding what changed.
-    const close = (options) =>
+    // Closing as Escape and Cancel do, discarding what changed.
+    const close = () =>
       leave(true, {
-        ...options,
         says: unchanged()
           ? "Stopped editing"
           : "Edit discarded; the message is as it was",
       });
-    this.#leave = close;
+    // Making way for another rewrite, as ↑ to an earlier message or opening one
+    // elsewhere in the thread does, closes one the user has not changed; changed words
+    // stay in their box, which no key here meant to put away.
+    const putAside = () => {
+      if (unchanged()) leave(true, { landing: false });
+    };
+    this.#putAside = putAside;
     const sync = wireInput(this.input, {
       hint: "Edit message",
-      accessibleName: "Edit your message",
+      accessibleName: () => `Edit your message: ${said().slice(0, 60)}`,
       sends: "save",
       icon: null,
       sendBtn: save,
       submitIn: actions,
       save: (value) => {
-        saveDraft(ctx, value);
-        tellDraft(ctx, value);
+        saveDraft(ctx, value, { over: base });
+        tellDraft(ctx, value, { over: base });
       },
       send: async (text, raw, owns) => {
         if (text === said().trim()) return leave(true, { says: "No change to save" });
@@ -225,15 +244,19 @@ export class MessageEditor {
         {
           id: "message.edit.previous",
           keys: ["ArrowUp"],
-          description: "From the start of the box, edit your message before this one",
+          description:
+            "From the start of an unchanged box, edit your message before this one",
           title: "edit previous message",
+          // A walk passes over words as they stand: words the user changed hold ↑ for
+          // the caret, as a reply box holding words does, until Save or Escape.
           when: () =>
             (this.#upFromStart ??
               (this.input.selectionStart === 0 && this.input.selectionEnd === 0)) &&
+            unchanged() &&
             Boolean(previous()),
           run: () => {
             const before = previous();
-            close({ landing: false });
+            putAside();
             before.openEdit();
           },
         },
@@ -291,9 +314,10 @@ export class MessageEditor {
     this.#settling.observe(this.node);
   }
 
-  // Close without landing, as another editor opening in the thread does.
-  close() {
-    this.#leave({ landing: false });
+  // Make way for another editor opening in the thread, without moving the user: close
+  // this one where the user has changed nothing in it.
+  putAside() {
+    this.#putAside();
   }
 
   dispose() {

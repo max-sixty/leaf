@@ -4,8 +4,11 @@
    keeps the body extent it occupied before that presentation, with flexible free space
    immediately before the reply row. Removed content becomes space; new content and
    semantic draft restoration consume it, with the response foot held by layout rather
-   than a later resize correction. Native edits change that retained extent by the
-   reply's own height change: the transcript's space never retains deleted draft lines.
+   than a later resize correction. What the user writes is theirs to see grow and shrink:
+   the retained extent changes by the height change of the box they write in, the reply
+   row or a message they are rewriting (`message-edit.js`), on each native edit and on
+   the presentation that opens, closes or saves that rewrite (`before(writing)`), so the
+   transcript's space never retains deleted lines, and space held for news stays held.
    A departed or closed region releases that mechanical extent. A floating card
    bounds that extent by its already allocated body room.
    No message or delivery state is retained; a short panel card starts at its
@@ -13,12 +16,23 @@
 import { seenRect, whenOffScreen } from "../geometry.js";
 import { layoutPx } from "../keeps.js";
 
+// The box an edit is written in: the thread's reply row, or the message whose rewrite
+// holds the target.
+const writingArea = (row, target) =>
+  row?.contains(target)
+    ? row
+    : (target.closest?.(".lf-msg-editor")?.closest(".lf-msg") ?? null);
+
 export class ReplyContinuity {
   #owner;
   #row = null;
   #departure = null;
   #extent = null;
-  #replyHeight = 0;
+  // The writing area read at an edit's boundary, and its height then.
+  #read = null;
+  #readHeight = 0;
+  // The writing area a presentation changes, and its height before it.
+  #presenting = null;
   gap = document.createElement("div");
   constructor(owner) {
     this.#owner = owner;
@@ -28,24 +42,20 @@ export class ReplyContinuity {
     owner.addEventListener("toggle", () => {
       if (!this.#visible()) this.release();
     });
-    // Read the live row at the edit boundary, after any prior rewrap or draft mirror.
+    // Read the live area at the edit boundary, after any prior rewrap or draft mirror.
     // CodeMirror's keyboard commands (including Shift+Enter) bypass beforeinput;
     // beforeinput also covers text insertion, paste and touch/IME edits without keys.
     for (const type of ["keydown", "beforeinput"])
       owner.addEventListener(
         type,
-        (event) => {
-          if (this.#row?.contains(event.target)) this.#readReply();
-        },
+        (event) => this.#readArea(writingArea(this.#row, event.target)),
         { capture: true },
       );
     // Input names a native edit; writing a restored or mirrored draft fires none.
     // Rebase before the draft's listeners can repaint and retain its former height.
     owner.addEventListener(
       "input",
-      (event) => {
-        if (this.#row?.contains(event.target)) this.#edited();
-      },
+      (event) => this.#edited(writingArea(this.#row, event.target)),
       { capture: true },
     );
   }
@@ -57,9 +67,17 @@ export class ReplyContinuity {
       Boolean(seenRect(this.#row, new Map()))
     );
   }
-  before() {
+  // `writing` is the box the presentation opens, closes or changes the words of, as a
+  // rewrite does, whose own height change the extent follows.
+  before(writing = null) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
+    this.#presenting = null;
     if (!this.#visible()) return null;
+    if (writing?.isConnected)
+      this.#presenting = {
+        node: writing,
+        height: writing.getBoundingClientRect().height,
+      };
     const body =
       this.#owner.localName === "details"
         ? getComputedStyle(this.#owner, "::details-content")
@@ -68,6 +86,8 @@ export class ReplyContinuity {
   }
   after(extent) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
+    const presenting = this.#presenting;
+    this.#presenting = null;
     if (
       extent == null ||
       !this.#row?.isConnected ||
@@ -77,7 +97,14 @@ export class ReplyContinuity {
     // Keep the prior extent before asking layout to read the changed body: scroll
     // anchoring need not pay a temporary collapse the live response never paints.
     this.#keep(extent);
-    this.#readReply();
+    if (presenting?.node.isConnected)
+      this.#keep(
+        Math.max(
+          0,
+          extent + presenting.node.getBoundingClientRect().height - presenting.height,
+        ),
+      );
+    this.#readArea(this.#row);
     this.#departure?.();
     this.#departure = whenOffScreen([this.#row], () => this.release());
   }
@@ -86,15 +113,16 @@ export class ReplyContinuity {
     this.#extent = extent;
     this.#owner.style.setProperty("--lf-thread-body-extent", layoutPx(extent));
   }
-  #edited() {
-    if (this.#extent == null || !this.#row?.isConnected) return;
-    const height = this.#row.getBoundingClientRect().height;
-    this.#keep(Math.max(0, this.#extent + height - this.#replyHeight));
-    this.#replyHeight = height;
+  #edited(area) {
+    if (this.#extent == null || !area?.isConnected || area !== this.#read) return;
+    const height = area.getBoundingClientRect().height;
+    this.#keep(Math.max(0, this.#extent + height - this.#readHeight));
+    this.#readHeight = height;
   }
-  #readReply() {
-    if (this.#extent != null && this.#row?.isConnected)
-      this.#replyHeight = this.#row.getBoundingClientRect().height;
+  #readArea(area) {
+    if (this.#extent == null || !area?.isConnected) return;
+    this.#read = area;
+    this.#readHeight = area.getBoundingClientRect().height;
   }
   release() {
     this.#departure?.();

@@ -276,8 +276,9 @@ them:
   wait digests, and the transcript fold the latest text onto it and label it edited,
   and the message's `edited` names that latest edit and the text it replaced (`was`).
   Text the message already says is no revision, and is refused. A browser's edit names its `base`, the
-  revision its words were written over (the message's id, or its latest edit's id or
-  attempt), and lands only while that is still the latest, so a tab holding words
+  revision its words were written over (the message's id, or its latest edit's id,
+  which the browser fills in for an edit of its own once the log has answered it), and
+  lands only while that is still the latest, so a tab holding words
   another tab has since rewritten cannot silently replace them.
 - An agent's `edit` corrects its words and hands nothing over. A user's `edit` is a
   turn: the fold keeps it in the thread's `revisions`, with `was`, the text it

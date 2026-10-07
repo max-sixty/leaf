@@ -234,6 +234,19 @@ canonical user preview in each task, checks the keyed URL across those turns,
 and interrupts its isolated server between turns to prove that the preview
 restores both the address and working feedback without a source edit.
 
+## Test a Claude Code session
+
+`uv run --project <root> leaf-dev verify-cc-task` runs a real interactive Claude Code
+session in a tmux pane, with this working tree as its plugin and the host's login.
+It checks each comment is answered once, a comment during a turn is picked up in
+that turn, comments after an Escape are answered, and quitting ends the session's
+claim; `--hooks-module` runs the same journey with the plugin's hooks module on,
+and also checks that Escape closes the turn and leaves a watch running. Run it,
+with and without the flag, after a change to `hooks/hooks.json`,
+`hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, `loop-guard.py`, or the
+watch between turns in `session.py`; the suite stands in for Claude Code, and only
+this run shows what Claude Code itself does.
+
 ## Test a Pi session
 
 `uv run --project <root> leaf-dev verify-pi-task` runs a real Pi session, the

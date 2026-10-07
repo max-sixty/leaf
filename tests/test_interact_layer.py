@@ -675,6 +675,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
         "pyproject.toml",
         "uv.lock",
         "hooks/hooks.json",
+        "hooks/claude-code.ts",
         "hooks/codex.json",
         "hooks/scripts/loop-guard.py",
         "skills/leaf/SKILL.md",

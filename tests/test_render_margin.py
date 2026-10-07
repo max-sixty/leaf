@@ -8473,9 +8473,11 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
 
 
 def test_the_thread_card_survives_drawers_and_authored_sidebars(browser, serve):
-    """A drawer or authored sidebar does not turn the contextual card into a panel."""
+    """The Questions panel or an authored sidebar does not turn the contextual card into
+    the Threads panel. The Questions panel stands on the right edge, over the rail at a
+    desk's width, so the window is wide enough to leave the marker clear of it."""
     page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
-    resized(page, 1440, 900)
+    resized(page, 2100, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)

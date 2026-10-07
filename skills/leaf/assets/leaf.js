@@ -815,10 +815,10 @@ goToSequence = createGoToSequence({
   elements: { banner, toggleBtn, threadsBox },
   hintChrome,
   directDestinations: () => [
-    version.PICKER,
     writingResume,
     passageSelection.command,
     navigation.alignTop,
+    version.PICKER,
   ],
   setPanel: threadPanelController.setPanel,
   setOpenDrawer: drawers.setOpenDrawer,

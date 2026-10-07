@@ -1612,7 +1612,8 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     assert held, "the positive control did not hold the first state response"
     body = page.locator("body")
     expect(body).to_have_attribute("data-lf-auxiliary-surface", "queue")
-    expect_banner_control_offered(page.locator(".lf-queue"), offered=False)
+    # The door stands on every page, and claims no count before the log has answered.
+    expect(page.locator(".lf-queue")).to_have_text("Questions")
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
     expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
 
@@ -1626,7 +1627,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     decisions = page.locator(".lf-queue")
-    expect_banner_control_offered(decisions)
+    expect(decisions).to_have_text("Questions: 0")
     expect_asks_answered(page, "1/1")
     expect(decisions).to_have_attribute("aria-expanded", "false")
     expect(page.locator(".lf-queue-panel")).to_be_hidden()

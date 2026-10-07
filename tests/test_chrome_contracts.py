@@ -2227,8 +2227,8 @@ def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, ser
 
 def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
     """The fixed menu and primary row keep one reading order at every desk width, and
-    a phone reads the same order with Approval and Comment on the page, which stand
-    before Threads on a desk, moved to the head of More."""
+    a phone reads the same order with Approval, Comment on the page and Questions,
+    which stand before Threads on a desk, moved to the head of More."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -2248,7 +2248,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         resized(page, width, 900)
         orders[width] = page.evaluate(BANNER_ORDER)
     phone = orders.pop(390)
-    moved = ["Approve version", "Comment on the page"]
+    moved = ["Approve version", "Comment on the page", "Questions waiting on you: 4"]
     assert phone[: len(moved)] == moved, phone
     rest = phone[len(moved) :]
     assert rest[:-1] + moved + rest[-1:] == orders[800], (phone, orders[800])

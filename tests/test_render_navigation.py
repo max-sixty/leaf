@@ -3001,7 +3001,7 @@ def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):
     resized(page, 390, 780)
     position = page.locator(".lf-walk-position")
     expect(position).to_be_hidden()
-    expect(page.locator(".lf-banner-actions > .lf-queue")).to_have_count(1)
+    expect(page.locator(".lf-banner-menu > .lf-queue")).to_have_count(1)
 
     page.keyboard.press("q")
     expect(position).to_have_text("1 of 4 waiting on you · Ask")
@@ -7515,7 +7515,7 @@ def test_a_banner_disclosure_does_not_retake_focus_from_a_list(
     """A deferred disclosure opening cannot undo a newer focus destination."""
     live_leaf("second", "A second leaf")
     page = open_page(browser, serve(ASKS_PAGE))
-    resized(page, 700, 850)
+    resized(page, 1200, 850)
     page.keyboard.press("g")
     page.keyboard.press("Shift+q")
     asks = page.locator("button.lf-queue-row")

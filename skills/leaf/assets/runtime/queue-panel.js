@@ -34,7 +34,9 @@
    Rows join, leave and change only while the panel is open, and the list holds its
    focus across them (`RowFocus`); a closed panel holds no rows. Its door stands on
    every page, as the Threads door does, so a question arriving or the last one leaving
-   moves nothing on the banner: "Questions: 0" opens a panel that says so. */
+   moves nothing on the banner: "Questions: 0" opens a panel that says so. Before the
+   log's first answer it says only "Questions", since a count read from no log would be
+   a claim. */
 import {
   addressableLabel,
   addressableName,
@@ -125,10 +127,17 @@ export function createQueuePanel({ arriveAtItem, endTask, next, announce }) {
   const agent = agentName;
   // The panel's door beside Threads, in the Threads door's face: its name and how many
   // Questions wait on the user, as that one says how many threads are open (banner.js).
+  // Until the log has answered, the door claims no count, as the Threads door claims none.
   function nameDoor() {
-    const count = reading().queues.onYou.length;
-    keepsText(queueBtn, `Questions: ${count}`);
-    keeps(queueBtn, "aria-label", `Questions waiting on you: ${count}`);
+    const count = readApplication().authoritative
+      ? reading().queues.onYou.length
+      : null;
+    keepsText(queueBtn, count === null ? "Questions" : `Questions: ${count}`);
+    keeps(
+      queueBtn,
+      "aria-label",
+      count === null ? "Questions" : `Questions waiting on you: ${count}`,
+    );
     keeps(
       queueBtn,
       "data-lf-key-title",

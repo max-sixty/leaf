@@ -145,7 +145,7 @@
     calc(var(--aim-floor) + 9px));
   --lf-banner-status-row: max(36px, calc(var(--t-5) * var(--lf-ui-lh) + 4px));
   /* The complete toolbar owns 37em of UI type, Questions' 7em beside the rest, the
-     agent's Tasks count beside the status 5em, about what "Tasks: 9" takes, and 220px is
+     agent's Tasks count beside the status 4em, what "Tasks: 9" takes, and 220px is
      left for the status, insets, and the gaps. Below that the banner takes two rows, and
      the sentence has the first to itself (chrome.css), until a phone's face makes it one
      row again (below). The rooms are independent of page capabilities and of whether
@@ -153,7 +153,7 @@
      larger UI font raises the same capacity boundary before first paint. */
   --lf-banner-actions-w: calc(37 * var(--t-5));
   --lf-banner-rows: clamp(1, round(up,
-    calc((var(--lf-banner-actions-w) + 5 * var(--t-5) + 220px + var(--lf-safe-left)
+    calc((var(--lf-banner-actions-w) + 4 * var(--t-5) + 220px + var(--lf-safe-left)
       + var(--lf-safe-right)) / 100vw)), 2);
   --lf-banner-h: calc(var(--lf-banner-status-row) * (var(--lf-banner-rows) - 1) + var(--lf-banner-row)
     + var(--lf-safe-top));

@@ -53,24 +53,24 @@
 // observer hears it or a paint checkpoint takes it, makes the reading that judges
 // it complete: every node is read, and the entry's paint is read then where the
 // following frame kept an unchanged reading, unless a later input already makes
-// that endpoint ambiguous. A held frame's poses date from the complete reading they
-// repeat. So whatever moved a landmark without input, its verdict compares complete
-// readings. Announcements keep the readings between entries current, which input
-// ownership and typing's verdicts rest on: a frame reads completely when a change
-// was announced since the last complete reading, and on the frame after one that
-// read an announced change, since native anchoring follows its scroller a frame
-// late. Each announcement is made in the task of the change it covers: DOM writes
-// in the document and every shadow root; a running animation anywhere in the
-// composed tree, or one that stopped or left the set; input, focus, scroll, drag,
-// resize, load, reset and beforetoggle events; the emulated media tests change;
-// this frame's own visibility; and the calls that restyle without a DOM write
-// (custom states, constructed and adopted sheets, form-control values and ranges,
-// animation mutators). Every VERIFY-th unannounced frame, and the first one once
-// the fixture asks for the test's verdict, reads completely and fails the test where
-// any reading differs, naming the innermost node that changed, so a source missing
-// from this list is found rather than leaving the readings between entries stale.
-// A page that writes while it is read announces its change by that write. A change
-// to this gate runs the suite with VERIFY = 1, which checks every frame.
+// that endpoint ambiguous. So whatever moved a landmark without input, its verdict
+// compares complete readings. Announcements keep the readings between entries
+// current, which input ownership and typing's verdicts rest on: a frame reads
+// completely when a change was announced since the last complete reading, and on
+// the frame after one that read an announced change, since native anchoring
+// follows its scroller a frame late. Each announcement is made in the task of the
+// change it covers: DOM writes in the document and every shadow root; a running
+// animation anywhere in the composed tree, or one that stopped or left the set;
+// input, focus, scroll, drag, resize, load, reset and beforetoggle events; the
+// emulated media tests change; this frame's own visibility; and the calls that
+// restyle without a DOM write (custom states, constructed and adopted sheets,
+// form-control values and ranges, animation mutators). Every VERIFY-th unannounced
+// frame, and the first one once the fixture asks for the test's verdict, reads
+// completely and fails the test where any reading differs, naming the innermost
+// node that changed, so a source missing from this list is found rather than
+// leaving the readings between entries stale. A page that writes while it is read
+// announces its change by that write. A change to this gate runs the suite with
+// VERIFY = 1, which checks every frame.
 //
 // Every finding fails the ordinary browser fixture. It installs this sensor after
 // write_watch.js and binds the canonical control and clipping vocabulary.
@@ -617,10 +617,6 @@
   let wasRunning = false;
   let owed = 0;
   let wasDrawn = null;
-  let lastComplete = -Infinity;
-  // A frame that kept an unchanged reading holds the poses of the last complete
-  // one, so a comparison from it starts when those poses were read.
-  const readFrom = (frame) => (frame.complete ? frame : { ...frame, at: frame.readAt });
   let seenAnimations = [];
   // One line for a reading that found unannounced changes: the innermost node that
   // changed, what changed on it, and how many other nodes changed with it.
@@ -691,12 +687,10 @@
           motion: [],
           written,
           complete: false,
-          readAt: lastComplete,
         });
       return at;
     }
     unread = false;
-    lastComplete = at;
     if (changing) quiet = 0;
     const misses = [];
     const nodes = everything();
@@ -1508,7 +1502,7 @@
       after = frames.at(-1);
     // No pose was appended between the two readings, so none moved.
     if (before.written === after.written) return;
-    protectedMotion([readFrom(before), readFrom(before), after]);
+    protectedMotion([before, before, after]);
   };
   // A painted layout transition admits the retained landmark ledger. Chrome's
   // source list never selects which landmarks get checked; source geometry only
@@ -1612,7 +1606,7 @@
       }
       const rendering = renderings.findLast(({ start }) => start <= at);
       if (observed && frame !== -1)
-        protectedMotion([readFrom(frames[frame]), readFrom(frames[frame]), observed]);
+        protectedMotion([frames[frame], frames[frame], observed]);
       const typing = rendering?.typing;
       if (typing && at <= typing.until) {
         // A later frame may include the next gesture; typed() caps its reading at

@@ -44,6 +44,22 @@ def paint(page):
     page.screenshot()
 
 
+def held_stretch(page):
+    """Idle frames the sensor keeps unchanged readings for, on a CPU as slow as a CI
+    runner's, so a credited move that follows is compared from a held frame
+    (`shift_watch.js`, "Unchanged frames") with the frame timing CI has."""
+    page.context.new_cdp_session(page).send(
+        "Emulation.setCPUThrottlingRate", {"rate": 6}
+    )
+    page.evaluate(
+        """count => new Promise((done) => {
+          const next = () => (--count ? requestAnimationFrame(next) : done());
+          requestAnimationFrame(next);
+        })""",
+        60,
+    )
+
+
 def field_page(browser, key=""):
     page = browser.new_page()
     page.goto("data:text/html," + quote(FIELD))
@@ -1875,6 +1891,7 @@ def test_real_floating_plane_retains_local_motion(
     if guard_mode == "passive":
         page.keyboard.press("Shift")
         paint(page)
+    held_stretch(page)
     before, holder_before = field.bounding_box(), holder.bounding_box()
     page.evaluate("window.beforeField=document.querySelector('#field')")
     page.evaluate("""()=>{
@@ -2594,6 +2611,7 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
     expect(page.locator("#holder")).to_have_attribute("data-lf-plane", "window")
     paint(page)
     judge_watches()
+    held_stretch(page)
     before = page.locator("#field").bounding_box()
     holder_before = page.locator("#holder").bounding_box()
     if case.startswith("clamp"):

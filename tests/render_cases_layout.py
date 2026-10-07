@@ -831,7 +831,9 @@ BANNER_ORDER = """() => {
     .filter(control => control !== more &&
             getComputedStyle(control).display !== 'none' &&
             getComputedStyle(control).visibility !== 'hidden')
-    .map(control => (control.getAttribute('aria-label') || control.textContent).trim());
+    .map(control => (control.getAttribute('aria-label') || control.textContent).trim()
+      // The version's age ticks with the clock between two readings; the order does not.
+      .replace(/ · \S+ ago$/, ''));
 }"""
 
 

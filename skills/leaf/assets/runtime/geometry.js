@@ -524,7 +524,8 @@ export const clippedRect = (box, item, clips) => clipped(box, item, clips, false
 // clip around it, and the page's otherwise, which the root scroll carries. `bands` are
 // the boxes between it and the item whose bands cut it, outermost first, each band less
 // the headers stuck over the item's view of it (`headerInset`); each stands in the plane
-// of the box that holds it. `window` is what the window leaves the paint, in the
+// of the box that holds it, kept where they cut the box whole. `window` is what the
+// window leaves the paint, in the
 // window's plane: the room below a header stuck over the root's top, cut, for paint
 // stacked `aboveSurfaces`, at the edge of each declared occluder standing over what the
 // bands leave of the box, on the side `occluded` keeps, or null where neither cuts it,
@@ -536,10 +537,16 @@ export function paintClips(item, box, clips, aboveSurfaces) {
   const plane = walk.fixed ? "window" : "page";
   const root = item.ownerDocument.scrollingElement;
   const hidden = { plane, window: { left: 0, top: 0, right: 0, bottom: 0 }, bands: [] };
-  let shown = cutBy(box, walk.cuts, root, false);
-  if (!shown) return hidden;
   // The root's band is the window's, which cuts only below a header stuck over it.
   let window = walk.cuts.find(({ box: cut, covered }) => cut === root && covered)?.band;
+  const bands = walk.cuts.filter(({ box: cut }) => cut !== root).reverse();
+  let shown = cutBy(box, walk.cuts, root, false);
+  // Cut away by the bands, the box keeps them, which a scroll may bring it into; under
+  // headers that cover a band whole, it has none to keep.
+  if (!shown)
+    return walk.cuts.some(({ band }) => !band)
+      ? hidden
+      : { plane, window: window ?? null, bands };
   for (const { surface, box: over, level } of aboveSurfaces
     ? standingOccluders(clips)
     : []) {
@@ -558,11 +565,7 @@ export function paintClips(item, box, clips, aboveSurfaces) {
     };
     shown = left;
   }
-  return {
-    plane,
-    window: window ?? null,
-    bands: walk.cuts.filter(({ box: cut }) => cut !== root).reverse(),
-  };
+  return { plane, window: window ?? null, bands };
 }
 // The same walk for a box drawn in the document plane, which a root scroll carries with
 // the page: the page's own boxes cut it, and the window does not, so a box scrolled off

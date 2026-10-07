@@ -15,6 +15,10 @@ other tests fail, merge the verified fix for its subset; handle the other failur
 separately. Pull requests run only the nightly tests they edit, so run the claimed
 ones yourself. GitHub's applying merge rules still govern the merge.
 
+When the test itself is wrong, validate the intended behavior with corrected or
+replacement checks. Justify removing a test that protects no user behavior
+rather than claiming the removed test passed.
+
 Merge a fix that is correct but incomplete, and open an issue for what it leaves.
 Changes to workflows, Tend's configuration, CODEOWNERS, or agent instructions
 require the control-plane owner's fresh approval.
@@ -51,9 +55,19 @@ profiles from CI.
 
 ## Reading a red suite
 
-Nearly every test drives a real browser, so a traceback can name a symptom
-several boundaries after its cause. Before updating a test to its new expectation,
-apply `tests/AGENTS.md`, **A failure is evidence about the test too**.
+Preserve intended behavior when repairing a red suite. Decide whether the failure
+calls for changing the test or the behavior: an existing assertion is evidence,
+not authority. Read the originating pull request's description, discussion and
+diff alongside the current contract; an intentional behavior change can leave
+an old test stale. Apply `tests/AGENTS.md`, **A failure is evidence about the test too**.
+
+If the evidence leaves that choice uncertain, make and validate the best-supported
+fix, then open an issue asking the original contributor to judge whether to keep
+or revise it. Address the issue to that contributor, link the originating and
+repair pull requests, and explain the evidence, the choice and what remains
+uncertain. Mark the issue as awaiting that contributor's judgment and leave it
+open until they settle it; subsequent Tend runs must not decide on their behalf.
+Proceed under **Landing** rather than waiting for that judgment.
 
 Read the failing test's record in main's earlier complete runs before choosing a
 fix: each `ci` run uploads its junit results
@@ -84,8 +98,9 @@ cause that no open pull request already covers. For each durable failure, look
 for the pull request that introduced it, first among those merged since the last
 run where the failing check passed and then earlier, since a failure that comes
 and goes can pass after its cause landed. Establish the cause from the failing
-diagnostic and the pull request's diff. Where a pull request introduced it, fix
-the failure in terms of what that change set out to do and link it from the fix's
+diagnostic and the pull request's context, following **Reading a red suite**.
+Where a pull request introduced it, explain which behavior its author intended
+and why the repair changes the test or the behavior; link it from the fix's
 description.
 
 ## A red `ci` on main is live

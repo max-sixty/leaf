@@ -90,6 +90,11 @@ agent. Present visible and interaction changes using the proof below.
 
 ## Prove and hand off a visible change
 
+The handoff lets the user inspect the changed behavior. Open the exact preview
+URL in a fresh browser context and verify that the review state is visible on
+arrival or reached by the route the handoff names. Setup from a private probe
+that the user cannot repeat belongs in the fixture or a replay control.
+
 Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
 "Layout and motion"), and capture the viewport when fixed chrome should
 appear. A Playwright screenshot of an element taller than the viewport draws
@@ -107,7 +112,10 @@ merge base beside it (`dev/AGENTS.md`).
 
 When a complex interaction depends on a sequence of inputs or changes over time,
 show a recorded journey with a timeline so the user can inspect intermediate
-states and motion. Use that same probe with `--record .tmp/recordings/NAME`.
+states and motion. Review the final exported recording through playback or decoded
+frames at their recorded times, including its loop boundary; select the interval
+that shows the behavior being reviewed. Use that same probe with
+`--record .tmp/recordings/NAME`.
 Its Playwright trace has an action timeline, a screenshot
 filmstrip, DOM snapshots, console and network; its WebM shows the actual frames.
 Add `--gif` for a short shareable loop, or `--actions` to decorate clicks and keys.

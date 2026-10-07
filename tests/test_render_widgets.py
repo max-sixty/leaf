@@ -627,32 +627,54 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
     assert read["shown"] == pytest.approx(read["head"]["bottom"], abs=0.5), read
 
 
+LONG_DIFF_PATH = "src/deeply/nested/module/file.rs"
+LONG_DIFF_PATCH = (
+    f"diff --git a/{LONG_DIFF_PATH} b/{LONG_DIFF_PATH}\n"
+    f"--- a/{LONG_DIFF_PATH}\n+++ b/{LONG_DIFF_PATH}\n"
+    "@@ -1 +1,81 @@\n fn main() {\n"
+    + "".join(f"+    let value_{i} = {i};\n" for i in range(80))
+)
+
+
+def long_diff(id):
+    return f'<lf-diff id="{id}"><pre>{LONG_DIFF_PATCH}</pre></lf-diff>'
+
+
+# Scrolls the box with the given id 400px down and reads how far below the top of its
+# content the diff's file header inside it stands. A sticky box stops at its scroller's
+# padding edge, so a box that states no start of its own pins it below its padding.
+PINNED_IN_BOX = """async (id) => {
+    const box = document.getElementById(id);
+    box.scrollTop = 400;
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const head = box.querySelector('lf-diff').shadowRoot
+        .querySelector('.lf-diff-file > details > summary');
+    return {
+        scrolled: box.scrollTop,
+        gap: head.getBoundingClientRect().top - (box.getBoundingClientRect().top
+            + box.clientTop + parseFloat(getComputedStyle(box).paddingTop)),
+    };
+}"""
+
+
 def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve):
     """A diff's file header pins at the top of the box that scrolls it, whoever made the
-    box scroll: a page rule, an inline style, and a column's sticky sidebar each start
-    `--lf-top` again, where each pinned the header the banner's height below the box's
-    top. The root keeps the banner's height though a page rule makes it scroll, and a
-    page's sticky box keeps the slot it met though another rule makes it scroll, so both
-    still stop at the banner's foot."""
-    path = "src/deeply/nested/module/file.rs"
-    rows = "".join(f"+    let value_{i} = {i};\n" for i in range(80))
-    patch = (
-        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
-        f"@@ -1 +1,81 @@\n fn main() {{\n{rows}"
-    )
-
-    def diff(id):
-        return f'<lf-diff id="{id}"><pre>{patch}</pre></lf-diff>'
-
+    box scroll: a page rule, an inline style, `overflow: hidden`, and a column's sticky
+    sidebar each start `--lf-top` again, where each pinned the header the banner's
+    height below the box's top. The root keeps the banner's height though a page rule
+    makes it scroll, and a page's sticky box keeps the slot it met though another rule
+    makes it scroll, so both still stop at the banner's foot."""
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Scrolling boxes",
-                f'<aside class="sidebar" id="side">{diff("in-side")}</aside>'
-                f'<h1>Scrolling boxes</h1><div id="box">{diff("in-box")}</div>'
+                f'<aside class="sidebar" id="side">{long_diff("in-side")}</aside>'
+                f'<h1>Scrolling boxes</h1><div id="box">{long_diff("in-box")}</div>'
                 '<div id="inline" style="max-height: 320px; overflow: auto">'
-                f"{diff('in-inline')}</div>"
+                f"{long_diff('in-inline')}</div>"
+                '<div id="hidden" style="max-height: 320px; overflow: hidden">'
+                f"{long_diff('in-hidden')}</div>"
                 '<div id="panel" class="tall"><p>Panel.</p></div>'
                 + "<p>Filler.</p>"
                 * 60,
@@ -667,35 +689,71 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
         "data-lf-margin", re.compile("sidebar")
     )
     page.wait_for_function(
-        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 3"
+        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 4"
     )
     read = page.evaluate(
-        """async () => {
-        const pinned = async (id) => {
-            const box = document.getElementById(id);
-            box.scrollTop = 400;
-            await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-            const head = box.querySelector('lf-diff').shadowRoot
-                .querySelector('.lf-diff-file > details > summary');
-            return {
-                scrolled: box.scrollTop,
-                gap: head.getBoundingClientRect().top
-                    - (box.getBoundingClientRect().top + box.clientTop),
-            };
-        };
-        return {
+        f"""async () => {{
+        const pinned = {PINNED_IN_BOX};
+        return {{
             box: await pinned('box'),
             inline: await pinned('inline'),
+            hidden: await pinned('hidden'),
             side: await pinned('side'),
             panel: getComputedStyle(document.querySelector('#panel')).top,
             root: getComputedStyle(document.documentElement).getPropertyValue('--lf-top'),
-        };
-    }"""
+        }};
+    }}"""
     )
-    for box in ("box", "inline", "side"):
+    for box in ("box", "inline", "hidden", "side"):
         assert read[box]["scrolled"] == 400, read
         assert read[box]["gap"] == pytest.approx(0, abs=1.5), read
     assert read["root"] != "0px" and read["panel"] == read["root"], read
+
+
+def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve):
+    """A page tab panel the page makes scroll is the box its diff's header pins to, though
+    the tab strip stacks its height onto what the panel holds: the panel's own scroll
+    restarts `--lf-top`. An undecided option card clips its rounded corners and scrolls
+    nothing, so a diff in an option pins under the banner as the page scrolls past it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Panel and option",
+                '<lf-tabs id="tabs"><lf-tab id="tab" label="Diff">'
+                f"{long_diff('in-tab')}</lf-tab></lf-tabs>"
+                '<lf-ask id="ask"><h2>Which?</h2><lf-options id="opts" choose>'
+                f'<lf-option id="opt-a"><strong>A</strong>{long_diff("in-option")}'
+                '</lf-option><lf-option id="opt-b"><strong>B</strong></lf-option>'
+                "</lf-options></lf-ask>" + "<p>Filler.</p>" * 60,
+                head="<style>#tab { max-height: 320px; overflow: auto; }</style>",
+            )
+        ),
+    )
+    resized(page, 1280, 900)
+    expect(page.locator("lf-tabs")).to_have_attribute("data-lf-tabs-flow", "page")
+    page.wait_for_function(
+        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 2"
+    )
+    read = page.evaluate(
+        f"""async () => {{
+        const tab = await ({PINNED_IN_BOX})('tab');
+        const diff = document.getElementById('in-option');
+        const head = diff.shadowRoot.querySelector('.lf-diff-file > details > summary');
+        const rows = [...diff.shadowRoot.querySelectorAll('[data-line]')];
+        rows[40].scrollIntoView({{block: 'start', behavior: 'instant'}});
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        return {{
+            tab,
+            option: head.getBoundingClientRect().top,
+            banner: parseFloat(getComputedStyle(document.documentElement)
+                .getPropertyValue('--lf-top')),
+        }};
+    }}"""
+    )
+    assert read["tab"]["scrolled"] == 400, read
+    assert read["tab"]["gap"] == pytest.approx(0, abs=1.5), read
+    assert read["option"] == pytest.approx(read["banner"], abs=1), read
 
 
 def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):
@@ -4403,6 +4461,141 @@ def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
     expect(bubble).to_be_visible()
 
 
+MOTION_SAMPLE_CONTENT = """
+<lf-code id="card-code" language="python"><pre>print("retained")</pre></lf-code>
+<lf-tree id="card-tree"><pre>root/
+└── retained.txt</pre></lf-tree>
+<lf-sample id="card-sample" label="Current sample">
+  <template id="card-sample-page" data-sample>
+    <h2>Painted sample</h2>
+    <lf-ask id="sample-choice-ask"><h3>Choose a sample</h3>
+      <lf-options id="sample-choice" choose>
+        <lf-option id="sample-alpha"><strong>Alpha</strong></lf-option>
+        <lf-option id="sample-beta"><strong>Beta</strong></lf-option>
+      </lf-options>
+    </lf-ask>
+    <lf-draft id="sample-draft"><pre>Original sample draft.</pre></lf-draft>
+  </template>
+</lf-sample>
+"""
+
+
+@pytest.mark.parametrize("route", ["pointer", "keyboard"])
+def test_board_moves_preserve_live_sample_and_control_state(browser, serve, route):
+    """A preview names the move; only the original document and widgets stay live."""
+    source = BOARD_PAGE.replace(
+        "<strong>Heated perch</strong>",
+        "<strong>Heated perch</strong>" + MOTION_SAMPLE_CONTENT,
+    )
+    page = open_page(browser, serve(source))
+    live = page.frame_locator("#card-sample iframe")
+    live.locator("#sample-beta").click()
+    live.locator("#sample-draft .lf-draft-body").click()
+    editor = live.locator("#sample-draft leaf-text")
+    write(editor, "Edited sample draft")
+    frame = page.locator("#card-sample iframe")
+    frame.evaluate("frame => window.originalSampleDocument = frame.contentDocument")
+    sample_url = frame.evaluate("frame => frame.src").rstrip("/")
+    requests = []
+    page.on("request", lambda request: requests.append(request.url))
+    card = page.locator("#card-heater")
+    original = card.element_handle()
+    card.evaluate("""card => {
+      const radio = document.createElement('input');
+      radio.type = 'radio'; radio.name = 'retained'; radio.checked = true;
+      radio.dataset.lfGen = '1'; card.append(radio);
+    }""")
+    grip = card.locator(":scope > .lf-grip")
+    grip.focus()
+    page.keyboard.press("Space")
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("Escape")
+    expect(page.locator("#col-todo > #card-heater")).to_have_count(1)
+    assert frame.evaluate(
+        "frame => frame.contentDocument === window.originalSampleDocument"
+    )
+    expect(editor).to_have_js_property("value", "Edited sample draft")
+    assert not actions(serve.page_dir)
+
+    if route == "keyboard":
+        grip.focus()
+        page.keyboard.press("Space")
+        page.keyboard.press("ArrowRight")
+        page.keyboard.press("Space")
+    else:
+        grip.scroll_into_view_if_needed()
+        page.evaluate("""async () => {
+          const {default: Sortable} = await import('/vendor/sortable.esm.js');
+          window.previewAllocations = 0;
+          for (const column of document.querySelectorAll('#sprint > lf-column')) {
+            const owner = Sortable.get(column), produce = owner.option('cloneElement');
+            owner.option('cloneElement', card => {
+              window.previewAllocations++; return produce(card);
+            });
+          }
+          window.previewFirstPaint = false;
+          new MutationObserver((records, observer) => {
+            const preview = document.querySelector('.lf-motion-preview.lf-inhand');
+            if (!preview) return;
+            observer.disconnect();
+            requestAnimationFrame(() => window.previewFirstPaint =
+              preview.textContent === 'Heated perch' && preview.getBoundingClientRect().height > 0);
+          }).observe(document.body, {childList: true, subtree: true});
+        }""")
+        box = grip.bounding_box()
+        source_box = card.bounding_box()
+        assert box and source_box
+        x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+        page.mouse.move(x, y)
+        page.mouse.down()
+        page.mouse.move(x + 20, y + 35, steps=8)
+        preview = page.locator(".lf-motion-preview.lf-inhand")
+        expect(preview).to_have_text("Heated perch")
+        expect(page.locator(".lf-motion-preview")).to_have_count(1)
+        assert page.evaluate("window.previewAllocations") == 2
+        expect(page.locator("#col-todo > lf-card")).to_have_count(2)
+        expect(preview.locator("*")).to_have_count(0)
+        expect(preview).to_have_attribute("inert", "")
+        page.wait_for_function("window.previewFirstPaint")
+        bounds = preview.bounding_box()
+        assert bounds and bounds["height"] <= 56
+        assert bounds["width"] == pytest.approx(source_box["width"], abs=0.02)
+        assert bounds["x"] <= x + 20 <= bounds["x"] + bounds["width"]
+        expect(card.locator("input[type=radio]")).to_be_checked()
+        expect(
+            page.locator("#card-code, #card-tree, #card-sample iframe")
+        ).to_have_count(3)
+        destination = page.locator("#col-done").bounding_box()
+        assert destination
+        page.mouse.move(
+            destination["x"] + destination["width"] / 2, destination["y"] + 40, steps=15
+        )
+        page.mouse.up()
+        expect(preview).to_have_count(0)
+    expect(page.locator("#col-done > #card-heater")).to_have_count(1)
+    round_trip(page)
+    assert frame.evaluate(
+        "frame => frame.contentDocument === window.originalSampleDocument"
+    )
+    expect(editor).to_have_js_property("value", "Edited sample draft")
+    expect(live.locator("#sample-beta")).to_have_attribute("chosen", "")
+    card.click(position={"x": 10, "y": 10})
+    undo(page)
+    expect(page.locator("#col-todo > #card-heater")).to_have_count(1)
+    assert original.evaluate("card => card === document.querySelector('#card-heater')")
+    assert frame.evaluate(
+        "frame => frame.contentDocument === window.originalSampleDocument"
+    )
+    expect(editor).to_have_js_property("value", "Edited sample draft")
+    assert not [
+        url
+        for url in requests
+        if "/runtime/" in url
+        or url.rstrip("/") == sample_url
+        or url.rstrip("/").endswith("/api/samples")
+    ]
+
+
 def test_a_board_says_which_column_each_card_is_in(browser, serve):
     """Which column a card sits in is the one fact about it that isn't in its own
     text, and columns are three boxes side by side — geometry, which the
@@ -4573,10 +4766,6 @@ def test_cancelling_a_keyboard_move_stops_its_scroll(browser, serve):
     resized(page, 390, 500)
     card = page.locator("#sq-card-0")
     grip = card.locator(".lf-grip")
-    origin = card.evaluate(
-        """el => { const box = el.getBoundingClientRect();
-                    return {top: box.top + scrollY, bottom: box.bottom + scrollY}; }"""
-    )
 
     grip.focus()
     page.keyboard.press("Enter")
@@ -4589,14 +4778,8 @@ def test_cancelling_a_keyboard_move_stops_its_scroll(browser, serve):
         )
         == 7
     )
-    page.wait_for_function(
-        """origin => {
-          const top = origin.top - scrollY;
-          const bottom = origin.bottom - scrollY;
-          return scrollY > 0 && top >= 0 && bottom <= innerHeight;
-        }""",
-        arg=origin,
-    )
+    # Cancel once native reveal has started; the old origin can already be offscreen.
+    page.wait_for_function("scrollY > 0")
     page.keyboard.press("Escape")
 
     # Read only once the document has held one position. Without cancellation, the
@@ -7476,16 +7659,28 @@ def test_swipe_deck_pointer_threshold_cancel_and_commit(browser, serve):
     round_trip(touch)
 
 
-def test_swipe_deck_exit_echo_starts_at_the_dragged_card_box(browser, serve):
-    """The Tinder-like exit continues from the held card instead of gaining its
-    padding and border a second time when the fixed-position echo is sized."""
-    page = open_page(browser, serve(SWIPE_PAGE), init_script=HOLD_MOTION)
+def test_swipe_deck_exit_preview_starts_at_the_dragged_card_box(browser, serve):
+    """The short label starts where the held card stood; its content stays live."""
+    source = (
+        SWIPE_PAGE.replace('<lf-ask id="session-triage-decision">', "<section>")
+        .replace("</lf-ask>", "</section>")
+        .replace("<p>Refresh once a minute.</p>", MOTION_SAMPLE_CONTENT)
+    )
+    page = open_page(browser, serve(source), init_script=HOLD_MOTION)
+    live = page.frame_locator("#card-sample iframe")
+    live.locator("#sample-draft .lf-draft-body").click()
+    editor = live.locator("#sample-draft leaf-text")
+    write(editor, "Edited swipe sample")
+    frame = page.locator("#card-sample iframe")
+    frame.evaluate("frame => window.originalSampleDocument = frame.contentDocument")
     card = page.locator("#swipe-a")
+    card.locator(":scope > strong").scroll_into_view_if_needed()
+    original = card.element_handle()
     box = card.bounding_box()
-    assert box
-    x = box["x"] + box["width"] / 2
-    y = box["y"] + box["height"] / 2
-
+    heading = card.locator(":scope > strong").bounding_box()
+    assert box and heading
+    x = heading["x"] + heading["width"] / 2
+    y = heading["y"] + heading["height"] / 2
     page.mouse.move(x, y)
     page.mouse.down()
     page.mouse.move(x - box["width"] * 0.35, y)
@@ -7495,12 +7690,30 @@ def test_swipe_deck_exit_echo_starts_at_the_dragged_card_box(browser, serve):
 
     echo = page.locator(".lf-swipe-exit")
     expect(echo).to_have_count(1)
+    expect(echo).to_have_text("Buffer rolling expiry")
+    expect(echo).to_have_attribute("inert", "")
+    expect(echo.locator("*")).to_have_count(0)
+    expect(page.locator("#card-code, #card-tree, #card-sample iframe")).to_have_count(3)
     echo_box = echo.bounding_box()
     assert echo_box
-    assert echo_box == pytest.approx(dragged, abs=0.02)
+    assert echo_box["x"] == pytest.approx(dragged["x"], abs=0.02)
+    assert echo_box["y"] == pytest.approx(dragged["y"], abs=0.02)
+    assert echo_box["width"] <= 384 and echo_box["height"] <= 56
     page.evaluate("window.__lfHeld[0].finish()")
     expect(echo).to_have_count(0)
     round_trip(page)
+    assert original.evaluate("el => el === document.querySelector('#swipe-a')")
+    assert frame.evaluate(
+        "frame => frame.contentDocument === window.originalSampleDocument"
+    )
+    expect(editor).to_have_js_property("value", "Edited swipe sample")
+    card.click(position={"x": 10, "y": 10})
+    undo(page)
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    assert frame.evaluate(
+        "frame => frame.contentDocument === window.originalSampleDocument"
+    )
+    expect(editor).to_have_js_property("value", "Edited swipe sample")
 
 
 def test_swipe_deck_projects_the_same_exit_motion_as_a_local_swipe(browser, serve):

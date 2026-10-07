@@ -320,7 +320,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
    makes this runtime-private in the one CSS namespace scoping cannot protect. */
 @keyframes lf-runtime-4f3c2a8d-working { to { opacity: .5; } }
 @keyframes lf-runtime-4f3c2a8d-flash {
-  0% { background: var(--hi-tint); } 100% { background: var(--card); }
+  /* The target owns its resting fill, including transparency and focus paint.
+     An omitted endpoint lets the browser interpolate to that underlying value. */
+  from { background-color: var(--hi-tint); }
 }
 @keyframes lf-runtime-4f3c2a8d-grow {
   0% { opacity: 0; transform: translateY(-6px) scale(.985); }
@@ -1015,10 +1017,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      That padding is inside the scrollport, so the list's words scroll through it, and
      a sticky offset is measured from the content box inside it. A row pinned to an
      edge therefore either offsets back across the padding or paints over it. At the
-     top, the sticky-header slot `--lf-top` (theme.css) restarts at minus the top
-     padding, as a workspace pane's does, so an open thread's title stands on the
-     scrollport's edge. At the foot, the reply row stands where a landing puts a
-     thread's end and paints the band below it (below). */
+     top, the list states its own start of the sticky-header slot (`--lf-top-start`,
+     theme.css) at minus the top padding, as a workspace pane's body does, so an open
+     thread's title stands on the scrollport's edge. At the foot, the reply row stands
+     where a landing puts a thread's end and paints the band below it (below). */
   /* The editor takes a share of this actual list, so typing leaves the preceding
      turn readable even when the panel is short. */
   .lf-threads-frame { flex: 1; min-height: 0; display: grid; container-type: size; }
@@ -1026,7 +1028,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-threads { overflow-y: auto; overscroll-behavior: contain; z-index: 0;
     padding: var(--focus-ring-room) var(--lf-list-inset); --lf-block-frame: 1;
     scroll-padding: var(--focus-ring-room) 0;
-    --lf-top: calc(-1 * var(--focus-ring-room)); }
+    --lf-top-start: calc(-1 * var(--focus-ring-room)); --lf-top: var(--lf-top-start); }
   /* The list holds focus itself only while it shows no thread (thread-list-view.js):
      an empty list, or the last one folding away as it resolves. That folding card is
      positioned, so it paints after the scrollport and an outline on the list itself

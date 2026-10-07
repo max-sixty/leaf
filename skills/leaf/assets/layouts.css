@@ -461,8 +461,10 @@
       min-block-size: 0;
       overflow: auto;
       /* A sticking box stops at its scroller's padding edge, so the body's own top
-       * inset is taken back to put the stop at the scrollport's top (theme.css). */
-      --lf-top: calc(-1 * var(--lf-pane-top, 0px));
+       * inset is taken back to put the stop at the scrollport's top: the body's own
+       * start (`--lf-top-start`, theme.css). */
+      --lf-top-start: calc(-1 * var(--lf-pane-top, 0px));
+      --lf-top: var(--lf-top-start);
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
     }

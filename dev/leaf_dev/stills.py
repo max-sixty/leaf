@@ -456,12 +456,18 @@ def playground_controls(page: Page) -> None:
     control = page.get_by_role("slider", name="Concurrent release events")
     control.focus()
     control.press("ArrowRight")
-    page.locator("lf-playground-control").first.scroll_into_view_if_needed()
+    page.locator(".lf-playground-controls").scroll_into_view_if_needed()
 
 
 def margin_gallery(page: Page) -> None:
     """The margin gallery's real controls and labels in a finger-sized column."""
-    page.locator("#bg-margin-controls-samples").scroll_into_view_if_needed()
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Page & layout", exact=True
+    ).click()
+    settle(page)
+    page.locator(
+        "#bg-margin-controls-samples .margin-entry-gallery-group"
+    ).first.evaluate("group => group.scrollIntoView({block: 'start'})")
 
 
 @dataclass(frozen=True)

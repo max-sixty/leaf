@@ -826,8 +826,8 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
         capture(*roots)
         told(page)
         expect(
-            location.locator("xpath=ancestor::details").locator(
-                ".lf-call-group-summary .lf-call-location"
+            location.locator("xpath=ancestor::details/preceding-sibling::*[1]").locator(
+                ".lf-call-location"
             )
         ).to_have_text(destination)
         expect(location).to_be_visible()

@@ -1,4 +1,1 @@
-/* Browser render checks share these observations with the running kernel. This
-   diagnostic entry is separate from the package authoring API. */
-export { validationWidgetStates } from "./validation.js";
-export { unrevealedVisualParts, visualPartProblems } from "./visual-parts.js";
+import{e as n,f as p,t as a}from"./bundle-MQLU3CY2.js";import"./bundle-OIZISLAZ.js";import"./bundle-IDW7DOUO.js";import{p as r}from"./bundle-57OUJFOB.js";import"./bundle-2ZNPLJSR.js";import"./bundle-BO5ONPPC.js";import{v as o}from"./bundle-NBLYYGWR.js";function s(i=null){return[...o(i)].map(([t,{state:d,specs:m}])=>({get widget(){return r(t)},state:d,read:()=>[...m].filter(([,e])=>e.record?.kind==="body").map(([e,l])=>[e,a(r(t),l.record)])}))}export{p as unrevealedVisualParts,s as validationWidgetStates,n as visualPartProblems};

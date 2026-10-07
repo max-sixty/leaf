@@ -1,3 +1,0 @@
-[shell_environment_policy]
-inherit = "all"
-exclude = ["OPENAI_API_KEY"]

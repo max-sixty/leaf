@@ -1,9 +1,0 @@
-{
-  "$captures": {
-    "gallery-source": {
-      "file": "feature-gallery-source.toml",
-      "lines": "1:4"
-    }
-  },
-  "gallery-latency": 184
-}

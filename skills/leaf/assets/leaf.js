@@ -1,1134 +1,321 @@
-/* Leaf runtime boot and application composition root. */
-import "./vendor/browser-runtime.js";
-import "./runtime/interaction-log.js";
-// Restored panels and the first keyboard gesture share the ordinary synchronous
-// control routes, so their controls must be upgraded before those routes mount.
-import "./vendor/webawesome-chrome.js";
-import {
-  passiveSample,
-  offlineInteractive,
-  runtime,
-  annotationMode,
-} from "./runtime/context.js";
-import { initializeServedDocument } from "./runtime/document-identity.js";
-import { chromeRoot } from "./runtime/chrome.js";
-import { landingPlace } from "./runtime/reading-place.js";
-import { mountHistory } from "./runtime/history.js";
-import { holdArrivingBounds } from "./runtime/bounds.js";
-import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
-import { keepPageRulesOffLayer } from "./runtime/page-sheets.js";
-import { reportPageError, uploadMedia } from "./runtime/layer-client.js";
-import { upgradeWidgets } from "./runtime/widget-loader.js";
-import {
-  markPagePresented,
-  whenArrived,
-  pageReadiness,
-  settlePageInterface,
-  PAGE_INTERFACE,
-  PRESENTATION,
-} from "./runtime/presentation.js";
-import { PAGE_PAINT_ATTRIBUTE } from "./runtime/page-paint.js";
-import { nextFrame, renderingSettled } from "./runtime/rendering.js";
-import { observeQueuedWork } from "./runtime/queued-work.js";
-import { mountApplication } from "./runtime/application.js";
-import {
-  applicationState,
-  whenApplicationPresented,
-} from "./runtime/semantic-state.js";
-import { createEngagement } from "./runtime/composing/engagement.js";
-import { createCompositionInputs } from "./runtime/composing/input.js";
-import {
-  createSelectionComposer,
-  composerOpen,
-  composerQuote,
-  fabBar,
-  fabInput,
-  pendingAbout,
-  pendingAnchor,
-  pendingDrawing,
-} from "./runtime/composing/selection.js";
-import { createResponseSurface } from "./runtime/composing/surface.js";
-import { createPassageSelection } from "./runtime/composing/capture.js";
-import { createDrawingController } from "./runtime/composing/drawing.js";
-import { createDrawingInk } from "./runtime/composing/drawing-ink.js";
-import { createAim } from "./runtime/composing/aim.js";
-import {
-  createTargetPicker,
-  targetPickerHintLayer,
-  pageSearchSurface,
-} from "./runtime/composing/target-picker.js";
-import { createStandingTarget } from "./runtime/composing/standing.js";
-import {
-  createReactionController,
-  reactionTokens,
-  sendReaction,
-} from "./runtime/reactions.js";
-import { createAnchorPlacement } from "./runtime/anchor-placement.js";
-import { createAnchorControls } from "./runtime/anchor-controls.js";
-import { createAnchorTravel } from "./runtime/anchor-travel.js";
-import {
-  aimTargetAt,
-  resolveAnchor,
-  setAnchoringReady,
-} from "./runtime/anchor-resolution.js";
-import { createPageGeometry } from "./runtime/page-geometry.js";
-import * as targetPaint from "./runtime/target-paint.js";
-import { pointerAt } from "./runtime/pointer.js";
-import { createWritingResume } from "./runtime/drafts.js";
-import { threadKey } from "./runtime/thread/model.js";
-import { allThreads, threadList } from "./runtime/thread/state.js";
-import { anchorLabel } from "./runtime/thread/messages.js";
-import {
-  createThreadLanding,
-  declareThreadKeys,
-  scrollThreadIntoView,
-  retainPanelLanding,
-  standingThread,
-  wireThreadLanding,
-} from "./runtime/thread/landing.js";
-import { createThreadPanelKeys } from "./runtime/thread/panel.js";
-import { createPageComment } from "./runtime/thread/page-comment.js";
-import { standingThreadId } from "./runtime/thread/focus.js";
-import { createThreadListController } from "./runtime/thread/thread-list.js";
-import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
-import { createThreadPanelElements } from "./runtime/thread/panel-elements.js";
-import { createPageMapDialog } from "./runtime/page-map-dialog.js";
-import { createAskView } from "./runtime/asks/view.js";
-import { createQueueWalk } from "./runtime/queue-walk.js";
-import { createQueuePanel } from "./runtime/queue-panel.js";
-import { ASK_CONTROL } from "./runtime/asks/view-elements.js";
-import {
-  commandHintLayer,
-  createCommandHints,
-} from "./runtime/keyboard/command-hints.js";
-import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
-import { createChromeLayout } from "./runtime/chrome-layout.js";
-import { createThreadPanelController } from "./runtime/thread-panel.js";
-import {
-  createDrawers,
-  currentDrawer,
-  othersPanel,
-  queuePanel,
-} from "./runtime/drawers.js";
-import { createAuxiliarySurfaces } from "./runtime/auxiliary-surfaces.js";
-import { restoreUserView } from "./runtime/restore-state.js";
-import { watchProjection } from "./runtime/projection-watch.js";
-import { createVersionController } from "./runtime/version.js";
-import { versionMenu, versionMenuIsOpen } from "./runtime/version-picker.js";
-import {
-  banner,
-  isSignoffDeclared,
-  loadIcon,
-  mountBanner,
-  paintApproval,
-  queueCounts,
-  renderStatus,
-  setThreadCounts,
-  stateSignoff,
-  toggleBtn,
-} from "./runtime/banner.js";
-
-import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
-import { holdToRead } from "./runtime/held-word.js";
-
-initializeServedDocument();
-keepPageRulesOffLayer();
-holdArrivingBounds();
-
-// A published shell may bundle the entry without publishing its source modules beside
-// it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
-// checks can inspect either distribution without turning it into a package API. These
-// scene readings answer different questions: which readiness fact the page has yet to state
-// (`pageReadiness`), and whether its chrome and geometry have caught up with the input
-// handled since, and which native layers currently expose reading and controls.
-// Job lifecycle tracing binds at enqueue without replacing any rendering callback.
-const validationEntry = document.querySelector("script[data-lf-entry]");
-if (validationEntry) {
-  validationEntry.lfReadiness = pageReadiness;
-  validationEntry.lfRenderingSettled = renderingSettled;
-  validationEntry.lfObserveQueuedWork = observeQueuedWork;
-  validationEntry.lfNativeLayers = nativeLayers;
-}
-import { overflowMenu } from "./runtime/banner-toolbar.js";
-import {
-  leavesOffered,
-  othersLinks,
-  presentLeaves,
-  renderOthers,
-  declareLeavesKeys,
-} from "./runtime/live-leaves.js";
-import { acceptData, notifyDataSubscribers } from "./runtime/data.js";
-import {
-  createGoToSequence,
-  goToHintLayer,
-} from "./runtime/keyboard/go-to-sequence.js";
-import { bannerFoot } from "./runtime/geometry.js";
-// The page's own keyboard parts join the register as this module evaluates; every other
-// owner contributes its own as it is constructed below.
-import { declareStanding } from "./runtime/keyboard/page.js";
-import { mountKeyboard } from "./runtime/keyboard/controller.js";
-import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
-import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
-import { commandReferenceDialog } from "./runtime/keyboard/command-reference.js";
-import {
-  collapseShortcutBar,
-  mountShortcutBar,
-  renderShortcutBar,
-  shortcutBarEl,
-  standingStatusBoxes,
-  bottomStatusEl,
-} from "./runtime/keyboard/shortcut-bar.js";
-import {
-  focused,
-  paintKeys,
-  reflectFirstScopes,
-  reflectKeys,
-} from "./runtime/keyboard/scopes.js";
-import { watchDisclosures } from "./runtime/keyboard/disclosure.js";
-import { createStanding } from "./runtime/standing.js";
-import { mountRepaint, repaint, repaintPage } from "./runtime/repaint.js";
-import { openResidency } from "./runtime/content-layout.js";
-import {
-  createNavigation,
-  placeThreadEdge,
-  glideTo,
-  stopGlide,
-} from "./runtime/navigation.js";
-import {
-  declareCovering,
-  declareReading,
-  focusDestination,
-  releaseFocus,
-  tabStops,
-} from "./runtime/focus.js";
-import { announce, liveEl, notice } from "./runtime/notifications.js";
-import { mediaViewer } from "./runtime/media.js";
-import { offer } from "./runtime/widget-elements.js";
-import { retainUserIntent } from "./runtime/user-intent.js";
-
-// Automatic recovery belongs to this arrival. A press made while its presentation
-// waits owns the page; recovery must not capture a fresh focus intent after that wait.
-const recoverComposer = retainUserIntent();
-
-// This declaration belongs to the executable document lifetime. The revision capture
-// includes it in executable identity, so selecting another presentation retires this
-// module graph through the ordinary document replacement and draft carry owners.
-const overlaySelected = annotationMode === "overlay";
-const annotationRenderer = overlaySelected
-  ? await import("./runtime/annotation-overlay/index.js")
-  : null;
-if (validationEntry && annotationRenderer)
-  validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
-annotationRenderer?.mountAnnotationControls();
-
-const panelElements = createThreadPanelElements({ id: "lf-threads" });
-const { panel, closeBtn, panelFoot, threadsBox, narrowingView } = panelElements;
-const threadListController = createThreadListController(panelElements);
-const panelIsOpen = () => auxiliarySurfaces.selectedSurface() === panel;
-
-let app;
-const narrowing = createThreadNarrowing({
-  view: narrowingView,
-  listRoot: threadsBox,
-  readThreads: threadList,
-  ready: () => runtime.statePhase === "ready",
-  repaint: () => app.presentThread(),
-});
-const paintVersionApproval = () =>
-  paintApproval(
-    app.pendingApprovals(),
-    app.approvalBlockingAsks(),
-    app.acceptedApprovals(),
-  );
-let threadPanelController;
-let drawers;
-let layout;
-let landing;
-let pageMapDialog;
-let asks;
-let panelKeys;
-let pageComment;
-let selectionComposer;
-let responseSurface;
-let drawing;
-// A draft's drawing put in place, null taking it off, and the page's ink repainted.
-const replaceDrawing = (anchor, drawn) => {
-  selectionComposer.setDraftDrawing(anchor, drawn);
-  drawingPaint.paint();
-};
-// A composer's own controls for the drawing its draft holds, which the drawing
-// controller answers, and its history's way of putting one back.
-const drawingEdits = {
-  undoStroke: (anchor) => drawing.undoStroke(anchor),
-  remove: (anchor) => drawing.removeDrawing(anchor),
-  replace: replaceDrawing,
-};
-let aim;
-let targets;
-let reactions;
-let pageGeometry;
-let goToSequence;
-
-const auxiliarySurfaces = createAuxiliarySurfaces({
-  chromeRoot,
-  band: shortcutBarEl,
-  syncLayout: () => layout.syncLayout(),
-  afterChange: () => {
-    app.renderAnnotations();
-    paintKeys();
-    repaint();
-    anchorPaint?.refreshHover();
-  },
-  // A comment box seated where a surface now stands, or in its home in a surface now
-  // gone, moves to the seat the user can reach: presenting the page again seats it.
-  reachChanged: () => {
-    if (responseSurface.fabAnchorAt()) void app.invalidateDom();
-  },
-});
-const navigation = createNavigation({
-  panelElements,
-  openThreads: threadListController.openThreads,
-  panelIsOpen,
-  narrowing,
-  coveringAuxiliaryScroller: auxiliarySurfaces.coveringScroller,
-  threadDestinations: {
-    openPageThread: (...args) => app.threadDestinations.openPageThread(...args),
-    scrollToThread: (...args) => anchorTravel.scrollToThread(...args),
-    threadHere: () => app.threadDestinations.threadHere(),
-    threadAtStanding: () => app.threadDestinations.threadAtStanding(),
-    threadTarget: (...args) => app.threadDestinations.threadTarget(...args),
-  },
-});
-
-// The standing furniture every generated-hint map is spread around. Both maps read the
-// same three boxes, and they are passed rather than imported so the hint machine keeps
-// no ownership edge back to the shortcut bar it is placed against.
-const hintChrome = {
-  barriers: standingStatusBoxes,
-  lineBox: () => shortcutBarEl.getBoundingClientRect(),
-  viewportTop: bannerFoot,
-};
-const anchorPlacement = createAnchorPlacement();
-const visualMarkPaint = annotationRenderer?.createVisualMarkPaint();
-const anchorPaint = annotationRenderer?.createAnchorPaint({
-  targetPaint: visualMarkPaint,
-  pointer: pointerAt,
-  standingThreadId,
-  hoveredPanelThreadId: () => {
-    const { x, y } = pointerAt();
-    const thread = document.elementFromPoint(x, y)?.closest(".lf-thread");
-    return thread?.parentElement === threadsBox ? thread.dataset.id : null;
-  },
-  panelThreadForId: (id) =>
-    id
-      ? threadsBox.querySelector(`:scope > .lf-thread[data-id="${CSS.escape(id)}"]`)
-      : null,
-});
-const drawingPaint = createDrawingInk({
-  drawings: () => [
-    ...(annotationRenderer?.postedDrawings(allThreads(), anchorPlacement) ?? []),
-    ...drawing.drawings(),
-  ],
-});
-const designMode = createDesignMode({
-  pageGeometry: {
-    refreshAim: () => pageGeometry.refreshAim(),
-    pageShifted: () => pageGeometry.pageShifted(),
-  },
-  syncGeneral: () => pageComment.sync(),
-  composer: {
-    showFab: (...args) => responseSurface.showFab(...args),
-    openComposer: (...args) => selectionComposer.openComposer(...args),
-  },
-  closePreview: (...args) => app.overlay?.closePreview(...args),
-  marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args),
-  closeDrawMode: () => drawing.setDrawMode(false, { spoken: false }),
-  closeTargetPicker: () => targets.closeTargetPicker(),
-  closeReactionMode: () => reactions.setReact(false),
-  banner,
-  announce,
-  repaint,
-});
-aim = createAim({
-  marginTargetAt: (...args) => app.overlay?.marginTargetAt(...args),
-  refreshAim: () => pageGeometry.refreshAim(),
-  commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
-  standDown: (...args) => responseSurface.standDown(...args),
-  drawModeActive: () => drawing.drawModeActive(),
-  designMode,
-  targetPicker: {
-    active: () => targets.choosing(),
-    choose: (...args) => targets.chooseTarget(...args),
-  },
-});
-pageGeometry = createPageGeometry({
-  refreshAnchorHover: anchorPaint?.refreshHover,
-  aim: { isOn: aim.aimIsOn, target: aim.aimedTarget },
-  pointer: pointerAt,
-  designMode,
-  targetPaint,
-  visualMarkPaint,
-  shiftDrawings: drawingPaint.shifted,
-  queueLegend: designMode.queueLegend,
-  activeActionAnchor: () => responseSurface.fabAnchorAt(),
-  refreshActionBar: () => responseSurface.refreshFab(),
-});
-const anchorTravel = createAnchorTravel({
-  anchors: anchorPlacement,
-  surfaces: auxiliarySurfaces,
-  currentThreads: allThreads,
-  refreshThread: () => app.refreshThread(),
-  focusForNavigation: (node, caret) =>
-    (app?.overlay?.focusForNavigation ?? focusDestination)(node, caret),
-  threadFocusTarget: (id, options) =>
-    app.threadDestinations.threadFocusTarget(id, options),
-  announce,
-});
-landing = createThreadLanding({
-  threadsBox,
-  setPanel: (...args) => threadPanelController.setPanel(...args),
-  revealThread: narrowing.revealThread,
-  cardTarget: (thread) => app?.overlay?.cardTarget(thread),
-});
-declareThreadKeys(landing.landIn, narrowing);
-const anchorControls = createAnchorControls({
-  commentOnTarget: (...args) => responseSurface.commentOnTarget(...args),
-  openThread: (...args) => app.threadDestinations.openPageThread(...args),
-  withdrawReaction: (...args) => app.withdraw(...args),
-  labelAnchor: anchorLabel,
-  invalidateThread: () => app.refreshThread(),
-  invalidatePageGeometry: pageGeometry.invalidate,
-  messageReferenceRoot: panel,
-  draftQuote: composerQuote,
-  focused,
-  paintKeys,
-});
-
-const version = createVersionController({
-  compositionInput: fabInput,
-  openThread: (id, options) =>
-    app.threadDestinations.openPageThread(id, { ...options, travel: false }),
-  refreshThread: () => app.refreshThread(),
-  midComposition: () => app.midComposition(),
-  hasPending: () => app.hasPending(),
-  readAndApply: (...args) => app.readAndApply(...args),
-  retireProjectionCoverage: () => app.retireProjectionCoverage(),
-  syncLayout: () => layout.syncLayout(),
-  captureRetainedStanding: () => app?.overlay?.captureStanding() ?? null,
-  restoreRetainedStanding: (standing) =>
-    app?.overlay?.restoreStanding(standing) ?? false,
-  captureAskStanding: () => asks.captureStanding(),
-  restoreAskStanding: (standing) => asks.restoreStanding(standing),
-});
-
-const inputs = createCompositionInputs({
-  uploadMedia,
-  inputHint: () => responseSurface.commentHint(),
-});
-
-app = mountApplication({
-  panel,
-  firstUnreadBtn: panelElements.firstUnreadBtn,
-  accompaniedThread: (...args) => landing.accompaniedThread(...args),
-  accompanyThread: (...args) => landing.accompanyThread(...args),
-  threadAvailable: !offlineInteractive,
-  reportPageError,
-  createEngagement,
-  targetPickerOpen: () => targets.targetPickerOpen(),
-  wireInput: inputs.wireInput,
-  anchorPlacement,
-  anchorPaint,
-  anchorControls,
-  drawingPaint,
-  pageGeometry,
-  anchorTravel,
-  readThreadDraft: () => ({
-    open: composerOpen,
-    anchor: pendingAnchor,
-    about: pendingAbout,
-    drawing: pendingDrawing,
-  }),
-  activeActionAnchor: () => responseSurface.fabAnchorAt(),
-  compositionSurface: {
-    active: () =>
-      composerOpen && responseSurface?.fabAnchorAt()
-        ? { anchor: responseSurface.fabAnchorAt() }
-        : null,
-    node: () => fabBar,
-    open: (...args) => responseSurface.commentOnTarget(...args),
-    outlet: () => responseSurface?.fabInlineOutlet() ?? null,
-    seat: (...args) => responseSurface.seatFab(...args),
-    restore: (...args) => responseSurface?.restoreFab(...args) ?? false,
-    finishPlacement: () => responseSurface?.finishPlacement(),
-  },
-  landInThread: (...args) => landing.landInThread(...args),
-  landSent: (...args) => landing.landSent(...args),
-  showThread: (...args) => landing.showThread(...args),
-  panelIsOpen,
-  registerReactSurface: (...args) => reactions.registerReactSurface(...args),
-  sendReaction,
-  updateFab: (...args) => responseSurface.updateFab(...args),
-  createMarginProjection: annotationRenderer?.createMarginProjection,
-  annotationCommands: {
-    designModeActive: designMode.active,
-    pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
-    comparisonBase: version.comparisonBase,
-    comparisonChanges: version.comparisonChanges,
-    inlineComparison: version.inlineComparison,
-    toggleInlineComparison: version.toggleInlineComparison,
-    leavePageMap: (...args) => pageMapDialog.leavePageMap(...args),
-    openPageMap: (...args) => pageMapDialog.openPageMap(...args),
-    pageMapDialogContains: (...args) => pageMapDialog.pageMapDialogContains(...args),
-    renderPageMapDialog: (...args) => pageMapDialog.renderPageMapDialog(...args),
-    scrollThreadIntoView,
-    goToAsk: (...args) => asks.goToAsk(...args),
-  },
-  state: {
-    prepareActivation: (state) => version.prepareActivation(state),
-    acceptData,
-    notifyDataSubscribers,
-    isSignoffDeclared,
-    renderStatus,
-    renderVersions: version.renderVersions,
-    stateSignoff: (next) => stateSignoff(next, layout.syncLayout, paintVersionApproval),
-    renderOthers: offlineInteractive ? () => undefined : renderOthers,
-  },
-  feed: {
-    prepareActivation: (state) => version.prepareActivation(state),
-    notifyDataSubscribers,
-    renderStatus,
-  },
-});
-app.registerThreadPanel({
-  required: true,
-  controller: threadListController,
-  threadsBox,
-  view: {
-    narrowing,
-    panelIsOpen,
-    scrollToElement: anchorTravel.scrollToElement,
-    setThreadCounts,
-    onListChanged: repaint,
-    refreshAnchorHover: anchorPaint?.refreshHover,
-    travel: {
-      showThread: (...args) => landing.showThread(...args),
-      retainPanelLanding: (source) =>
-        retainPanelLanding(source, panelIsOpen, threadsBox),
-      retainNarrowing: narrowing.retainNarrowing,
-    },
-  },
-});
-if (offlineInteractive) applicationState.setHostAvailable(false);
-
-// Where a landing in the document goes, which is version continuity's reading of what is
-// on screen. Declared beside the let-go that uses it, for the same reason: the owner
-// stands by now and nothing has read the register yet.
-declareReading(landingPlace);
-
-// And where it goes instead while a surface covers the page: the page is inert under one,
-// so the reading above cannot take the user and a step that let go would leave them
-// wherever the closing layer happened to drop them. The modality that covers already
-// answers both halves for whichever surface is standing — the panel, either drawer — and
-// the keyboard register carries the same pair to the dispatcher.
-declareCovering({
-  surface: auxiliarySurfaces.coveringSurface,
-  landing: auxiliarySurfaces.coveringFocus,
-});
-
-// The let-go's external readings stand by now, so the scope is declared before anything
-// reads the register.
-declareStanding({
-  pageState: () =>
-    Boolean(
-      responseSurface.fabAnchorAt() ||
-      designMode.active() ||
-      drawing.drawModeActive() ||
-      app.overlay?.optionsRung(),
-    ),
-});
-
-pageMapDialog = createPageMapDialog({
-  inventory: app.annotations,
-  activeInAnnotations: app.overlay?.pageMapActive,
-  releaseAnnotations: app.overlay?.releaseForMap,
-  annotationFocus: app.overlay?.mapFocusTarget,
-});
-
-// Ask view is constructed below by its owner factory; all accesses above are inert closures.
-asks = createAskView({
-  panelIsOpen,
-  focusForNavigation: app.overlay?.focusForNavigation ?? focusDestination,
-  presentedControl: app.overlay?.presentedControl,
-  setPanel: (...args) => threadPanelController.setPanel(...args),
-  prepareTrip: anchorTravel.prepareTrip,
-  arrive: anchorTravel.arrive,
-  refreshThread: () => app.refreshThread(),
-  revealThread: (id) => narrowing.revealThread(id),
-  announce,
-  repaint,
-});
-const queueWalk = createQueueWalk({
-  arriveAtAsk: asks.arriveAtAsk,
-  arriveAtThread: navigation.arriveAtThread,
-  threadHere: () => app.threadDestinations.threadHere(),
-  threadTarget: (id) => app.threadDestinations.threadTarget(id),
-  prepareTrip: anchorTravel.prepareTrip,
-  arrive: anchorTravel.arrive,
-  readableDestination: anchorTravel.readableDestination,
-  announce,
-  post: (event) => app.post(event),
-});
-const queue = createQueuePanel({
-  arriveAtItem: queueWalk.arriveAtItem,
-  endTask: queueWalk.endTask,
-  announce,
-});
-
-const commandHints = createCommandHints({
-  presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
-});
-
-const standingTarget = createStandingTarget({
-  isAskControl: (node) => node?.matches?.(ASK_CONTROL),
-  standingIn: asks.standingIn,
-});
-
-panelKeys = createThreadPanelKeys({
-  elements: panelElements,
-  openThreads: threadListController.openThreads,
-  narrowing,
-  setPanel: (...args) => threadPanelController.setPanel(...args),
-  panelIsOpen,
-  stepThread: (...args) => navigation.stepThread(...args),
-  firstUnread: () => app.read.firstUnread(),
-  unreadCount: () => app.read.unreadCount(),
-});
-pageComment = createPageComment({
-  wireInput: inputs.wireInput,
-  createPageComment: app.createPageComment,
-  designModeActive: designMode.active,
-  panelIsOpen,
-  setPanel: (...args) => threadPanelController.setPanel(...args),
-  panelBox: panelElements.generalInput,
-  panelSend: panelElements.generalSend,
-  showThread: landing.showThread,
-  threadsToggle: toggleBtn,
-});
-selectionComposer = createSelectionComposer({
-  panelIsOpen,
-  setReact: (...args) => reactions.setReact(...args),
-  reactionTokens,
-  designModeActive: designMode.active,
-  openPageThread: app.threadDestinations.openPageThread,
-  threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
-  anchorStands: (...args) => responseSurface.anchorStands(...args),
-  anchorTravelAt: (...args) => responseSurface.anchorTravelAt(...args),
-  bringForward: (...args) => responseSurface.bringForward(...args),
-  fabAnchorAt: (...args) => responseSurface.fabAnchorAt(...args),
-  fabPointAt: (...args) => responseSurface.fabPointAt(...args),
-  fabFrameAt: () => responseSurface.fabFrameAt(),
-  fabPositioned: (...args) => responseSurface.fabPositioned(...args),
-  beginFabFocus: (...args) => responseSurface.beginFabFocus(...args),
-  endFabFocus: (...args) => responseSurface.endFabFocus(...args),
-  landFabFocus: (...args) => responseSurface.landFabFocus(...args),
-  showFab: (...args) => responseSurface.showFab(...args),
-  createComment: app.createComment,
-  landSent: landing.landSent,
-  refreshThread: app.refreshThread,
-  wireInput: inputs.wireInput,
-  drawingEdits,
-});
-const passageSelection = createPassageSelection({
-  restore: anchorTravel.restoreSelection,
-});
-responseSurface = createResponseSurface({
-  rememberSelection: passageSelection.remember,
-  createPlacement: annotationRenderer?.createFloatingResponsePlacement,
-  panelElements,
-  panelIsOpen,
-  landIn: landing.landIn,
-  threadHere: () => app.threadDestinations.threadHere(),
-  threadAtStanding: () => app.threadDestinations.threadAtStanding(),
-  replyThreadAtStanding: () => app.threadDestinations.replyThreadAtStanding(),
-  threadTarget: (id) => app.threadDestinations.threadTarget(id),
-  standingTarget,
-  composerHolds: selectionComposer.composerHolds,
-  responseOptionsAreOpen: selectionComposer.responseOptionsAreOpen,
-  markAt: anchorPaint?.markAt,
-  scrollToElement: anchorTravel.scrollToElement,
-  scrollToRange: anchorTravel.scrollToRange,
-  visualActionAnchor: anchorControls.visualActionAnchor,
-  hideComposer: selectionComposer.hideComposer,
-  openComposer: selectionComposer.openComposer,
-  carryComposerToReply: selectionComposer.carryComposerToReply,
-  resetResponseOptions: selectionComposer.resetResponseOptions,
-  responseOptionsAvailable: selectionComposer.responseOptionsAvailable,
-  setResponseOptions: selectionComposer.setResponseOptions,
-  syncResponseOptions: selectionComposer.syncResponseOptions,
-  designModeActive: designMode.active,
-  designTarget: designMode.target,
-  openOnDesign: designMode.open,
-  isReactArmed: () => reactions.isReactArmed(),
-  reactionContextContains: (...args) => reactions.reactionContextContains(...args),
-  reactionTokens,
-  setReact: (...args) => reactions.setReact(...args),
-  collapseShortcutBar: (...args) => collapseShortcutBar(...args),
-  closeVersionMenu: version.closeVersionMenu,
-  versionMenuIsOpen,
-  openPageThread: app.threadDestinations.openPageThread,
-  drawModeActive: () => drawing.drawModeActive(),
-  refreshThread: app.refreshThread,
-  dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
-  pageComment,
-  responseHome: overlaySelected ? chromeRoot : panelFoot,
-  revealResponseHome: overlaySelected
-    ? null
-    : () => threadPanelController.setPanel(true),
-});
-reactions = createReactionController({
-  marginEntryChoices: app.overlay?.marginEntryChoices,
-  marginEntryContextContains: app.overlay?.marginEntryContextContains,
-  foldMarginEntryOptions: app.overlay?.foldMarginEntryOptions,
-  openMarginEntryOptions: app.overlay?.openMarginEntryOptions,
-  unfoldedMarginEntries: app.overlay?.unfoldedMarginEntries,
-  designModeActive: designMode.active,
-  hideComposer: selectionComposer.hideComposer,
-  syncResponseOptions: selectionComposer.syncResponseOptions,
-  fabAnchorAt: responseSurface.fabAnchorAt,
-  fabReturnTo: responseSurface.fabReturnTo,
-  fabTargetAt: responseSurface.fabTargetAt,
-  hasPageSelectionTarget: responseSurface.hasPageSelectionTarget,
-  showFab: responseSurface.showFab,
-  showFabOptions: responseSurface.showFabOptions,
-  updateFab: responseSurface.updateFab,
-  standingThread,
-  standingTarget,
-});
-targets = createTargetPicker({
-  scrollToRange: anchorTravel.scrollToRange,
-  hintChrome,
-  commentOnTarget: responseSurface.commentOnTarget,
-  updateFab: responseSurface.updateFab,
-  fabAnchorAt: responseSurface.fabAnchorAt,
-  pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
-  armChanged: () => aim.armChanged(),
-});
-drawing = createDrawingController({
-  anchors: { aimTargetAt, resolveAnchor },
-  pageGeometry: { refreshAim: pageGeometry.refreshAim },
-  pointer: pointerAt,
-  visibleTargets: targets.visibleTargets,
-  anchoredDrawing: selectionComposer.draftDrawing,
-  heldDrawings: selectionComposer.heldDrawings,
-  watchHeldDrawings: selectionComposer.watchHeldDrawings,
-  draftKey: selectionComposer.draftKey,
-  openAnchoredDrawing: (anchor, drawing) =>
-    selectionComposer.openComposer(anchor, "", { carry: true, drawing }),
-  replaceDrawing,
-  setDesignMode: designMode.setActive,
-  closeTargetPicker: targets.closeTargetPicker,
-  closeReactionMode: () => reactions.setReact(false),
-  banner,
-  announce,
-  paintDrawings: drawingPaint.paint,
-  shiftDrawingPaint: drawingPaint.shifted,
-  repaint,
-});
-
-layout = createChromeLayout({
-  panelIsOpen,
-  elements: {
-    panel,
-    closeBtn,
-    panelFoot,
-    threadsBox,
-    shortcutBarEl,
-    bottomStatusEl,
-  },
-  scheduleThreadPreviewPosition: app.overlay?.scheduleThreadPreviewPosition,
-  restateDrawerEdge: () => drawers.drawersEdge.state(),
-  syncAuxiliarySurfaces: auxiliarySurfaces.sync,
-  syncReactLayout: reactions.syncReactLayout,
-  refreshFab: responseSurface.refreshFab,
-  pageShifted: pageGeometry.pageShifted,
-  repaint,
-  repaintPage,
-});
-threadPanelController = createThreadPanelController({
-  narrowing,
-  auxiliarySurfaces,
-  elements: { panel, toggleBtn, threadsBox, inPanel: panelElements.inPanel },
-  threadAtStanding: app.threadDestinations.threadAtStanding,
-  placedAt: anchorPlacement.placedAt,
-  showThread: landing.showThread,
-  refreshThread: app.refreshThread,
-  closeReactionMode: () => reactions.setReact(false),
-  // A surface opening puts away the floating cards it would stand beside.
-  closePreview: (...args) => {
-    pageComment.close();
-    app.overlay?.closePreview(...args);
-  },
-  syncGeneral: pageComment.sync,
-});
-// The sample host binds to this child's owners, rather than importing another
-// window's runtime. This capability is ready before the child presents.
-if (window.frameElement?.hasAttribute("data-lf-contained")) {
-  window.frameElement.lfShowThread = async (
-    id,
-    { surface, status, waiting, signal },
-  ) => {
-    if (surface === "panel")
-      return threadPanelController.showView({ thread: id, status, waiting, signal });
-    const intent = retainUserIntent({ available: () => !signal.aborted });
-    intent.handoff(() => threadPanelController.setPanel(false));
-    return Boolean(
-      await app.threadDestinations.openPageThread(id, {
-        focus: "thread",
-        travel: false,
-        intent,
-      }),
-    );
-  };
-}
-drawers = createDrawers({
-  doors: { queue: [queueCounts] },
-  landEdge: layout.landEdge,
-  auxiliarySurfaces,
-  closePreview: app.overlay?.closePreview,
-  leavesOffered,
-  presentLeaves,
-  presentQueue: queue.present,
-});
-const writingResume = createWritingResume({
-  arriveEditor: anchorTravel.arriveEditor,
-  revealReply: (key, intent) => {
-    const thread = allThreads().find((thread) => threadKey(thread) === key);
-    return thread
-      ? app.threadDestinations.openPageThread(thread.id, { focus: "reply", intent })
-      : null;
-  },
-});
-goToSequence = createGoToSequence({
-  panelIsOpen,
-  elements: { banner, toggleBtn, threadsBox },
-  hintChrome,
-  directDestinations: () => [
-    version.PICKER,
-    writingResume,
-    passageSelection.command,
-    navigation.alignTop,
-  ],
-  setPanel: threadPanelController.setPanel,
-  setOpenDrawer: drawers.setOpenDrawer,
-  scrollToElement: anchorTravel.scrollToElement,
-  leavesOffered,
-  othersLinks,
-  activateMarginEntry: app.overlay?.activateMarginEntry,
-  marginEntryKind: app.overlay?.marginEntryKind,
-  visibleMarginEntries: app.overlay?.visibleMarginEntries,
-  glideTo,
-  placeThreadEdge,
-  seenScroller: navigation.seenScroller,
-  stopGlide,
-  coveringAuxiliarySurface: auxiliarySurfaces.coveringSurface,
-  enterPageMap: pageMapDialog.enterPageMap,
-  leavePageMap: pageMapDialog.leavePageMap,
-  pageMapIsActive: pageMapDialog.pageMapIsActive,
-});
-const standing = createStanding({
-  markHere: asks.markHere,
-  paintStanding: anchorPaint?.paintStanding,
-  paintSelectedMarginEntries: () =>
-    app.overlay?.paintSelectedMarginEntries([
-      { kind: "ask", target: asks.standingIn() },
-      {
-        kind: "comment",
-        target: anchorPlacement.placedAt(standingThreadId())?.place,
-      },
-    ]),
-  paintTouchControls,
-  renderShortcutBar: () => renderShortcutBar(goToSequence.goToStatus),
-  paintGoToHints: goToSequence.paintGoToHints,
-  paintTargetPickerHints: targets.paintTargetPickerHints,
-  paintCommandHints: commandHints.paint,
-  paintCoreControls,
-  paintVersionShortcuts: version.paintShortcuts,
-  paintInputs: inputs.paintInputs,
-});
-
-const skipToChrome = offer("button", "lf-skip", "Skip to Leaf controls");
-skipToChrome.onclick = () => {
-  for (const control of tabStops(banner)) {
-    control.focus({ preventScroll: true });
-    if (control.matches(":focus")) return;
-  }
-  focusDestination(banner);
-};
-
-if (!offlineInteractive) {
-  document.adoptedStyleSheets = [
-    ...document.adoptedStyleSheets,
-    ...annotationSheets,
-    chromeSheet,
-    marksSheet,
-  ];
-  chromeRoot.append(
-    banner,
-    overflowMenu,
-    versionMenu,
-    othersPanel,
-    queuePanel,
-    panel,
-    legendRoot,
-    goToHintLayer,
-    commandHintLayer,
-    targetPickerHintLayer,
-    pageSearchSurface,
-    ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
-    drawingPaint.layer,
-    targetPaint.targetTraceLayer,
-    targetPaint.aimLayer,
-    fabBar,
-    liveEl,
-    mediaViewer,
-    commandReferenceDialog,
-    auxiliarySurfaces.scrim,
-    bottomStatusEl,
-    shortcutBarEl,
-    inspectEl,
-  );
-  document.body.prepend(skipToChrome);
-  document.body.append(chromeRoot);
-  panelElements.mountReadingRegion();
-  panelElements.mountOverlay();
-  version.mount();
-  mountBanner({
-    approveVersion: () => app.post({ kind: "done", version: runtime.currentStamp }),
-    paintApproval: paintVersionApproval,
-  });
-  auxiliarySurfaces.mount();
-  // Connect the search field before mount awaits its rendered input: Lit does not
-  // resolve updateComplete until connection, and keyboard registration needs that input.
-  narrowing.mount();
-  await panelKeys.mount();
-  pageComment.mount(chromeRoot);
-  selectionComposer.mount();
-  responseSurface.mount();
-  holdToRead();
-  reactions.mount();
-  targets.mount();
-  drawing.mount();
-  aim.mount();
-  targetPaint.mountTargetPaint();
-  anchorPaint?.mount();
-  anchorControls.mount();
-  pageGeometry.mount();
-  pageMapDialog.mount(chromeRoot);
-  asks.mount();
-  queueWalk.mount();
-  queue.mount();
-  commandHints.mount();
-  app.mountAnnotations();
-  app.overlay?.mount();
-  app.mountThread();
-  app.mountRead();
-  wireThreadLanding(threadsBox);
-  drawers.mountDrawers();
-  threadPanelController.mountThreadPanel();
-  layout.mountLayoutObservers();
-  goToSequence.mountGoToSequence();
-  mountShortcutBar({
-    placeBottomStatus: layout.syncBottomStatus,
-    setGoToSequence: goToSequence.setGoToSequence,
-    setReact: reactions.setReact,
-  });
-  mountKeyboard({
-    goToSequenceActive: goToSequence.goToSequenceActive,
-    setGoToSequence: goToSequence.setGoToSequence,
-    reactArmed: reactions.isReactArmed,
-    setReact: reactions.setReact,
-  });
-  declareLeavesKeys();
-  watchDisclosures(document);
-  mountRepaint({
-    reflectFirstScopes,
-    reflectKeys,
-    paintStandingContent: standing.paintStandingContent,
-    syncLayout: layout.syncLayout,
-    pageShifted: pageGeometry.pageShifted,
-    paintStandingGeometry: standing.paintStandingGeometry,
-  });
-} else {
-  // An interactive export attaches no chrome, so its standing is only what a widget's
-  // own box shows: an options group's addition field paints there as it does live.
-  mountRepaint({ paintStandingGeometry: inputs.paintInputs, reflectKeys });
-}
-
-const replayReady = passiveSample
-  ? import("./runtime/interaction-gallery-frame.js").then(({ mountReplay }) =>
-      mountReplay({
-        toggleBtn,
-        panelIsOpen,
-        setPanel: threadPanelController.setPanel,
-        detachComposer: selectionComposer.detachComposer,
-        fabInput,
-        fabFrameAt: () => responseSurface.fabFrameAt(),
-        openComposer: selectionComposer.openComposer,
-        closePreview: app.overlay?.closePreview,
-        openThread: app.threadDestinations.openPageThread,
-        threadTransitionOrigin: app.overlay?.threadTransitionOrigin,
-        currentDrawer,
-        setOpenDrawer: drawers.setOpenDrawer,
-      }),
-    )
-  : Promise.resolve();
-
-const initialStateRead = app.beginRead();
-let interactionGalleryModule;
-let interactionGalleryLoading;
-let failedInteractionGallery;
-async function syncInteractionGallery() {
-  const gallery = document.querySelector("[data-interaction-gallery]");
-  if (gallery && gallery === failedInteractionGallery) return;
-  try {
-    if (!gallery && !interactionGalleryModule) return;
-    if (!interactionGalleryModule) {
-      interactionGalleryLoading ??= import("./runtime/interaction-gallery.js");
-      interactionGalleryModule = await interactionGalleryLoading;
-    }
-    interactionGalleryModule?.installInteractionGallery();
-  } catch (error) {
-    failedInteractionGallery = gallery;
-    if (!interactionGalleryModule) interactionGalleryLoading = null;
-    reportPageError(`interaction gallery failed to start: ${error?.message ?? error}`);
-  }
-}
-if (!offlineInteractive) {
-  watchProjection(document.body, () => void syncInteractionGallery());
-  document.addEventListener(PAGE_INTERFACE, (event) =>
-    event.detail.present(syncInteractionGallery()),
-  );
-}
-
-if (!passiveSample && !offlineInteractive) {
-  restoreUserView({
-    commentsEdge: layout.commentsEdge,
-    drawersEdge: drawers.drawersEdge,
-    restoreAuxiliarySurface: auxiliarySurfaces.restore,
-    setDesignMode: designMode.setActive,
-  });
-  annotationRenderer?.restoreAnnotations();
-  // The page has just arrived, so nothing holds focus and the first Tab starts at the
-  // skip link. Not the reading landing: a user who has read nothing has no position
-  // for the browser to carry on from.
-  releaseFocus();
-}
-mountHistory({
-  followFragment: anchorTravel.followFragment,
-  returnToFragment: anchorTravel.returnToFragment,
-});
-const landFragment = version.aimArrival();
-const { landArrival, savedView } = offlineInteractive
-  ? { landArrival: () => {}, savedView: null }
-  : version.installArrival();
-const savedComposer = offlineInteractive ? null : selectionComposer.pendingComposer();
-
-async function presentPage() {
-  if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
-  await whenApplicationPresented();
-  if (document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.presented)) return;
-  setAnchoringReady(true);
-  try {
-    const draftOpened =
-      !offlineInteractive &&
-      recoverComposer() &&
-      selectionComposer.openDraft(savedComposer);
-    await app.presentThread();
-    // Anchoring changes where thread chrome is painted. That final paint is part
-    // of initial presentation too: opening interaction before it commits can expose a
-    // malformed page that the unanchored provisional pass could not yet inspect.
-    await whenApplicationPresented();
-    if (draftOpened) {
-      await responseSurface.fabPositioned();
-      paintKeys();
-    }
-  } catch (error) {
-    setAnchoringReady(false);
-    throw error;
-  }
-  markPagePresented();
-  // Optional author context begins after the presented frame. It neither imports
-  // checks nor takes geometry on the path that gives the reader the page.
-  if (!offlineInteractive && !passiveSample)
-    nextFrame(() =>
-      setTimeout(() => {
-        void import("./runtime/user-view.js")
-          .then(({ observeUserView }) => observeUserView())
-          .catch(() => {});
-      }, 0),
-    );
-  void whenArrived().then(landFragment);
-  anchorControls.publishVisualActions();
-  if (offlineInteractive) {
-    landFragment();
-    document.dispatchEvent(new Event(PRESENTATION));
-    return;
-  }
-  responseSurface.updateFab();
-  auxiliarySurfaces.present();
-  presentLeaves();
-  paintKeys();
-  void syncInteractionGallery();
-  paintVersionApproval();
-  repaint();
-  app.overlay?.flushLayout();
-  landFragment();
-  // The geometry readers PRESENTATION replaces run in the turn the stamp above opens
-  // interaction, after the landing's synchronous part, rather than after an editor
-  // the landing waits for: awaited first, a margin map presented its authored spans.
-  const arrival = landArrival();
-  document.dispatchEvent(new Event(PRESENTATION));
-  await arrival;
-  if (savedView && savedView.revision < runtime.currentRevision)
-    notice(`Updated to ${runtime.currentLabel}`, { background: true });
-}
-
-async function startPage() {
-  const [upgraded] = await Promise.all([
-    upgradeWidgets({
-      buildReactionBar: () =>
-        offlineInteractive
-          ? undefined
-          : reactions.buildReactBar({
-              withdrawReaction: app.withdraw,
-              postReaction: app.post,
-            }),
-    }),
-    offlineInteractive
-      ? Promise.resolve()
-      : loadIcon().catch((error) => console.error(error)),
-    replayReady,
-  ]);
-  if (!upgraded) return;
-  if (!offlineInteractive) {
-    // Authored residents are read from the upgraded document (content-layout.js).
-    openResidency({
-      rail: overlaySelected,
-      onRead: annotationRenderer?.syncMarginResidency,
-    });
-    layout.syncLayout();
-    asks.buildBulkAnswers();
-    asks.syncAsks();
-  }
-  await settlePageInterface();
-  landFragment();
-  document.body.setAttribute(PAGE_PAINT_ATTRIBUTE.upgraded, "1");
-  app.startFeed(presentPage, initialStateRead);
-}
-
-startPage().catch((error) => {
-  const reason = `page failed to start: ${error?.message ?? error}`;
-  window.dispatchEvent(new CustomEvent("lf-startup-failed", { detail: { reason } }));
-  reportPageError(reason);
-  renderStatus(error);
-});
+import{b as _m}from"./runtime/bundle-JWHFZE3W.js";import{$ as Fm,D as Cm,V as Mm,W as ma,X as Nm,Y as Bm,Z as qm,_ as Dm,aa as jm,b as df,ba as Yl,c as uf,ca as Xm,e as ff,ea as tp,f as Vf,fa as Ql,g as Kf,h as Yi,i as aa,j as Be,k as Pt,l as Fl,m as Xf,n as Jf,o as Zf,p as em,q as tm,r as nm,s as et,t as om,u as Wl,v as dm,w as um,y as Tm,z as Em}from"./runtime/bundle-UCA7GK3F.js";import{A as Xi,B as Ji,C as Jr,D as Zi,E as Gm,F as Vm,G as Km,H as Jm,I as Zm,a as nt,b as Vl,c as Rm,d as fa,e as xm,f as at,g as Om,h as Qi,i as Pm,j as an,k as Xr,l as Lm,m as Eo,u as Wm,v as zm,x as Hm,y as Um,z as ir}from"./runtime/bundle-GL52N4JQ.js";import{$ as Hi,$b as Hf,A as Ru,Ab as Vr,Ac as am,Ba as gf,Bb as rn,C as xu,D as Ou,E as Gs,Ea as vf,F as Vs,G as Pu,Ga as Pl,Gc as lm,H as Ks,Ha as Ll,Hc as _l,I as Sl,J as _i,K as Al,L as Tl,Lc as Yr,M as Ys,N as Yo,Nc as Qr,O as Lu,P as At,Pa as Tf,Pc as cm,Q as Iu,R as Hn,Rc as fm,T as _u,Ta as Ef,U as Js,Ua as Cf,Ub as Wf,V as Wi,Va as $f,W as zu,Wa as Rf,Wb as zf,Wc as mm,X as Hu,Xa as xf,Y as Uu,Yb as nr,Yc as pm,Z as Gu,Za as Of,Zc as zl,_ as zi,_a as Pf,_b as Ve,_c as Hl,a as qn,aa as Ui,ab as Lf,ac as Dl,ad as hm,b as st,ba as Hr,bc as Uf,c as yt,cc as Gf,cd as gm,d as lo,db as Il,e as co,ec as Yf,ed as vm,f as Qd,fa as na,fc as ia,fd as ca,ga as Rl,ha as So,hb as If,hc as Qf,ia as af,ib as Ml,id as Ul,j as ul,ja as lf,jc as Ao,jd as da,je as Kl,kb as Mf,kc as To,kd as bm,ke as Ym,lb as Nf,lc as sa,ld as Gl,le as Qm,ma as Gr,mb as Bf,mc as Kr,md as wm,na as Zo,nb as qf,nc as sn,oa as cf,ob as Nl,oe as ep,pa as En,pc as rm,qa as Vi,ra as er,rb as Bl,rc as or,s as Cu,sb as oa,sc as la,t as Ot,tb as Ke,tc as im,td as ym,u as yl,ub as Ge,ud as km,v as Sn,vb as qt,vc as sm,vd as Sm,w as $u,wb as tr,x as ji,xb as Df,y as kl,yb as ra,z as Us,zb as Ff,zc as jl,zd as Am}from"./runtime/bundle-LOOT6KDT.js";import{a as Gt,h as Mu,j as Nu,k as Bu,m as An,n as Qs,o as qu,q as El,r as Cl,s as $l,t as Qo,u as Du,v as Xs,w as Xo,x as Fu,z as ju}from"./runtime/bundle-BTPL7RZC.js";import{A as Tn,B as of,C as rf,E as sf,L as ql,M as Cn,P as jf,Q as _f,T as Ki,d as Ur,g as Vu,h as Zs,i as Gi,t as ko,u as ef,w as tf,z as nf}from"./runtime/bundle-R64O2RLP.js";import{b as Wu,c as Fe,d as zr}from"./runtime/bundle-TOFEIGTP.js";import{b as yf,c as kf,d as Sf,e as Af}from"./runtime/bundle-IRAAOODM.js";import{t as xl,u as Ol,v as bf,w as wf}from"./runtime/bundle-MQLU3CY2.js";import{b as Ku,d as Yu,g as Qu,h as ea,i as Xu,j as ta,k as Ne,l as Ze,n as Ju,u as Zu,v as Jo}from"./runtime/bundle-OIZISLAZ.js";import{A as Ps,B as qd,C as Dd,F as Ls,H as Is,I as Fd,K as jd,L as Br,N as bo,O as de,P as Wn,Q as Qe,R as wl,S as wo,T as zn,U as ue,W as Au,Z as Di,_ as Fi,a as nn,aa as Tu,b as Mr,ca as Ut,d as Ht,f as Id,fa as Eu,g as Md,h as Dn,ia as yo,j as Fn,ja as _r,k as xs,l as Os,n as Nd,t as ao,v as Bd,w as Rt,x as Nr,z as zo}from"./runtime/bundle-IDW7DOUO.js";import{c as mf,d as pf,f as hf,g as np,h as op,i as rp,j as ip}from"./runtime/bundle-BQ57MIVM.js";import{b as ua,d as $m,f as rr,g as Im}from"./runtime/bundle-3XPWUJK4.js";import{e as Wr}from"./runtime/bundle-7XWGVFYZ.js";import{A as Gd,B as Pi,C as Vd,D as Kd,F as Li,G as vn,L as it,Q as Bs,R as Yd,S as qs,a as _d,b as xi,i as xe,j as qr,k as Ms,l as Wd,m as dl,n as zd,o as dt,p as rt,s as Ho,t as Uo,u as Oi,v as Dr,w as Hd,x as Ud,z as Ns}from"./runtime/bundle-57OUJFOB.js";import{a as xt}from"./runtime/bundle-2ZNPLJSR.js";import{$ as Ii,$a as Vo,C as Rs,Ca as lu,G as Bt,Ga as cu,H as uo,Ha as go,I as kt,Ja as du,K as fo,Ka as wn,L as Xd,La as uu,M as on,Ma as fu,N as Je,Na as jr,O as Fr,P as Jd,Pa as mu,Q as Zd,Qa as yn,R as ut,Ra as kn,S as eu,Sa as js,T as fl,U as tu,Ua as pu,V as ml,Va as gl,W as je,Wa as Ae,X as nu,Xa as hu,Y as jn,Ya as _s,Z as pl,_ as _n,aa as Go,b as Pr,bb as Bi,ca as mo,cb as gu,d as wd,da as ze,db as vu,e as yd,ea as po,eb as Ws,f as tn,fa as Ds,fb as qi,ga as bn,gb as tt,hb as zs,ib as vl,j as Od,ja as ou,jb as bu,ka as St,kb as wu,lb as yu,mb as bl,n as Pd,na as ru,nb as ft,oa as iu,ob as ku,p as gn,pa as su,pb as ge,qa as hl,qb as vo,rb as Su,sa as Mi,sb as Hs,t as Wo,ta as Ni,tb as Ko,u as $s,ua as Fs,v as Ld,va as ho,w as Pe,x as Ri,ya as au}from"./runtime/bundle-BO5ONPPC.js";import{C as Lr,D as Ir,E as ll,L as so,M as $d,N as Rd,O as wt,S as cl,T as be,U as Cs,V as xd,b as _o,d as kd,e as Bn,h as Sd,j as al,l as Ad,o as Td,r as Ss,s as ct,t as As,u as Ed,w as Cd,y as Ts,z as Es}from"./runtime/bundle-NBLYYGWR.js";import"/vendor/browser-runtime.js";import"/vendor/webawesome-chrome.js";var sp=document.querySelector('meta[name="lf-revision"][data-lf-runtime]')?.content,Xl=document.querySelector('meta[name="lf-version"][data-lf-runtime]'),Jl=document.querySelector('meta[name="lf-executable"][data-lf-runtime]')?.content,Zl=e=>{let t=e.querySelector('meta[name="lf-widgets"][data-lf-runtime]')?.content;return t?JSON.parse(t):{}},ap=Zl(document);function lp(){Ss.identify(sp?parseInt(sp,10):null,Xl?parseInt(Xl.content,10):null,_o),Xl?.remove()}var rv=":not(:where(.lf-chrome, .lf-chrome *, .lf-ui, .lf-ui *))",iv=/(?:^|[\s>+~(,&|])[a-z][\w]*-|[.#]lf-|\[\s*data-lf-/i,sv=/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|:{1,2}(?:lang|dir|state|part|highlight|nth-[a-z-]+)\([^)]*\)/gi,pa=e=>iv.test(e.replace(sv,"")),cp=new WeakSet;function av(e){let t=[],n=0,o=null,r=0,s=-1;for(let i=0;i<e.length;i++){let c=e[i];o?c==="\\"?i++:c===o&&(o=null):c==='"'||c==="'"?o=c:c==="\\"?i++:c==="("||c==="["?n++:c===")"||c==="]"?n--:n===0&&c===","?(t.push([e.slice(r,i),s<0?-1:s-r]),r=i+1,s=-1):n===0&&s<0&&c===":"&&e[i+1]===":"&&(s=i)}return t.push([e.slice(r),s<0?-1:s-r]),t}function lv(e,t){let n=t<0?e.trimEnd():e.slice(0,t),o=t<0?"":e.slice(t);return n+rv+o}function up(e,t){for(let n of e){if(n instanceof CSSKeyframesRule||n instanceof CSSImportRule)continue;let o=t;if(n instanceof CSSScopeRule&&(o||=pa(n.start??"")||pa(n.end??"")),n instanceof CSSStyleRule){let r=av(n.selectorText);if(!t){let s=r.map(([i,c])=>pa(i)?i:lv(i,c)).join(", ");s!==n.selectorText&&(n.selectorText=s)}o||=r.every(([s])=>pa(s))}n.cssRules&&up(n.cssRules,o)}}function fp(e){let t=e.ownerNode;if(!(e.href&&new URL(e.href).origin!==location.origin&&!t?.hasAttribute?.("crossorigin"))){cp.has(e)||(cp.add(e),up(e.cssRules,!1));for(let n of e.cssRules)n instanceof CSSImportRule&&n.styleSheet&&fp(n.styleSheet)}}var dp=!1;function sr(){for(let e of document.styleSheets)e.ownerNode?.hasAttribute("data-lf-runtime")||fp(e);dp||(dp=!0,new MutationObserver(e=>{for(let t of e)for(let n of t.addedNodes)n instanceof HTMLLinkElement&&n.addEventListener("load",sr,{once:!0});sr()}).observe(document.head,{childList:!0,subtree:!0,characterData:!0}))}var ec="http://www.w3.org/2000/svg",mp=1;function pp(e){let t=e.flat(),n=t.map(([p])=>p),o=t.map(([,p])=>p),r=Math.min(...n),s=Math.max(...n),i=Math.min(...o),c=Math.max(...o),a=Math.max(s-r,mp),m=Math.max(c-i,mp);return{x:(r+s-a)/2,y:(i+c-m)/2,width:a,height:m}}var hp=e=>e.flatMap(t=>t.map(([n,o],r)=>`${r?"L":"M"} ${n.toFixed(4)} ${o.toFixed(4)}`)).join(" ");function gp(e){let t=document.createElementNS(ec,"path");return t.setAttribute("d",e),t.setAttribute("fill","none"),t.setAttribute("vector-effect","non-scaling-stroke"),t}function vp(e){let t=document.createElementNS(ec,"svg"),{x:n,y:o,width:r,height:s}=pp(e.strokes);return t.setAttribute("viewBox",`${n} ${o} ${r} ${s}`),t.setAttribute("aria-hidden","true"),t.append(gp(hp(e.strokes))),t}function bp({drawings:e}){let t=ue("div","lf-ui lf-drawings lf-page-paint");t.setAttribute("aria-hidden","true");let n=0,o=new Map,r=new Map,s=new Set,i=fo(()=>m());function c(h,f,g,v=""){if(!Kf(h))return null;let k=Rt(f);if(!k?.width||!k?.height)return null;let N=Yi(h,k),P=pp(N),{width:_,height:T}=P;if(!_||!T)return null;let w=gf(f),D=w.getBoundingClientRect(),$=vf(w),J=wl(k.left+P.x-D.left),Z=wl(k.top+P.y-D.top),x=hp(N),B=JSON.stringify([g,v,$,J,Z,_,T,P.x,P.y,x]),I=o.get(B)?.shift();if(I){let te=r.get(B)??[];return te.push(I),r.set(B,te),I}let R=document.createElementNS(ec,"svg");R.classList.add("lf-drawing-mark",g),v&&(R.dataset.thread=v),R.setAttribute("viewBox",`${P.x} ${P.y} ${P.width} ${P.height}`),R.setAttribute("preserveAspectRatio","none"),R.setAttribute("aria-hidden","true"),Object.assign(R.style,{positionAnchor:$,left:`calc(anchor(left) + ${J}px)`,top:`calc(anchor(top) + ${Z}px)`,width:`${_}px`,height:`${T}px`}),R.append(gp(x));let z=r.get(B)??[];return z.push(R),r.set(B,z),R}function a(){let h=new Set,f=[];r=new Map;for(let{drawing:g,target:v,className:k,id:N}of e()){let P=c(g,v,k,N);P&&(f.push(P),h.add(v))}ua(t,f),o=r;for(let g of s)h.has(g)||(i.unobserve(g),s.delete(g));for(let g of h)s.has(g)||(i.observe(g),s.add(g))}function m(){n||(n=Bt(()=>{n=0,a()}))}function p(){n&&kt(n),n=0,i.disconnect(),s.clear(),o.clear(),r.clear(),t.replaceChildren()}return{layer:t,paint:a,shifted:m,destroy:p}}import{LitElement as cv,html as wp}from"/vendor/browser-runtime.js";var yp=new WeakMap,tc="leaf-pasted-media-shelf",nc=class extends cv{static properties={model:{attribute:!1}};constructor(){super(),this.model={drawing:null,media:[]},this.actions=null,this.undoIcon=bo("undo","lf-action-icon"),this.removeIcon=bo("cross","lf-action-icon"),this.pictured={drawing:null,node:null}}picture(t){return t!==this.pictured.drawing&&(this.pictured={drawing:t,node:vp(t)}),this.pictured.node}createRenderRoot(){return this}present(t,n){this.model=t,this.actions=n,this.performUpdate()}updated(){Wn(this,!this.model.drawing&&this.model.media.length===0)}render(){let{drawing:t,media:n}=this.model,o=t?.strokes.length??0;return[t?wp`
+            <span class="lf-composer-media-item lf-composer-drawing">
+              <span
+                class="lf-composer-media-open"
+                role="img"
+                aria-label=${`Drawing, ${o} ${o===1?"stroke":"strokes"}`}
+                >${this.picture(t)}</span
+              >
+              <button
+                type="button"
+                aria-label="Undo last stroke"
+                title="Undo last stroke"
+                @mousedown=${r=>r.preventDefault()}
+                @click=${()=>this.actions.undoStroke()}
+              >
+                ${this.undoIcon}
+              </button>
+              <button
+                type="button"
+                aria-label="Remove drawing"
+                title="Remove drawing"
+                @mousedown=${r=>r.preventDefault()}
+                @click=${()=>this.actions.removeDrawing()}
+              >
+                ${this.removeIcon}
+              </button>
+            </span>
+          `:null,n.map(({index:r,url:s})=>wp`
+          <span class="lf-composer-media-item">
+            <button
+              type="button"
+              class="lf-media-open lf-composer-media-open"
+              data-lf-media-url=${s}
+              aria-label=${`View pasted image ${r+1}`}
+            >
+              <img src=${s} alt="" />
+            </button>
+            <button
+              type="button"
+              class="lf-composer-media-remove"
+              aria-label=${`Remove pasted image ${r+1}`}
+              @click=${()=>this.actions.removeMedia(r)}
+            >
+              ×
+            </button>
+          </span>
+        `)]}};customElements.get(tc)||customElements.define(tc,nc);var kp=e=>yp.get(e)?.value()??e?.value??"";function Sp({uploadMedia:e,inputHint:t}){let n=new WeakMap,o=new Set,r=null,s=null,i=()=>{let a=ge(),m=a&&n.has(a)?a:null,p=t(),h=p?.box&&n.has(p.box)?p.box:null,f=new Set([...o,r,m,s,h]);o.clear();for(let g of f)n.get(g)?.(p);r=m,s=h};function c(a,{hint:m,accessibleName:p=null,save:h,send:f,sendBtn:g,sends:v,icon:k="send",altBtn:N=null,altSend:P=null,allowsMedia:_=()=>!0,busy:T=()=>!1,hasContent:w=J=>!!J,paint:D=()=>{},drawing:$=null}){let J=document.createElement("div");J.className="lf-compose-field",a.before(J);let Z=document.createElement("span");Z.className="lf-compose-placeholder",Z.slot="placeholder";let x=document.createElement("span"),B=document.createElement("kbd");B.className="lf-key-badge",Z.append(x,B),J.append(a,g),g.classList.add("lf-icon-action","lf-compose-submit"),g.replaceChildren(bo(k,"lf-action-icon"));let I=document.createElement(tc);I.className="lf-composer-media",I.setAttribute("role","group"),I.setAttribute("aria-label","Attachments"),J.before(I);let R=[],z=()=>Sf(a.value,R),te=le=>{R.splice(le,1),F(),De(),Ml(a),a.focus({preventScroll:!0})},d=null,A=0,H=(le,we)=>le===we||JSON.stringify(le)===JSON.stringify(we),M=le=>{d={...d,drawing:le},$.replace(le);let we=le?.strokes.length??0;Ne(we?`Drawing, ${we} stroke${we===1?"":"s"}.`:"No drawing.")},K=le=>{d={...d,media:le},R=[...le],F(),De()},F=()=>{let le=$?.read()??null,we=[...R];if(d&&!H(le,d.drawing)){let Re=d.drawing;a.record(()=>M(Re),()=>M(le))}if(d&&we.join(`
+`)!==d.media.join(`
+`)){let Re=d.media;a.record(()=>K(Re),()=>K(we))}d={drawing:le,media:we},I.present(Object.freeze({drawing:le,media:R.map((Re,We)=>Object.freeze({index:We,url:yf(Re)}))}),{removeMedia:te,undoStroke:()=>{$.undoStroke(),$.read()||a.focus({preventScroll:!0})},removeDrawing:()=>{$.remove(),a.focus({preventScroll:!0})}})},X=le=>{let we=kf(le);R=we.paths,a.value=we.text,a.restartHistory(),d=null,F()};X(a.value);let L=()=>typeof m=="function"?m():m,O=()=>typeof p=="function"?p():p,ee=()=>typeof v=="function"?v():v,Y=()=>{let le=ee();return le.charAt(0).toUpperCase()+le.slice(1)};N&&(N.title=N.textContent);let ve=!1,oe=!1,V=()=>!ve&&!oe&&!T()&&w(z()),pe=le=>{let we=ge()===a,Re=tu(),We=Re?fl():"",W=Re?we?We:le?.box===a?le.label:"":"",ne=L(),C=W?`${ne} ${W}`:ne;a.placeholder!==C&&(a.placeholder=C),W?(Qe(x,ne),Qe(B,W),Z.parentNode!==a&&a.append(Z)):Z.remove();let U=O();U&&de(a,"aria-label",U);let se=Y();de(g,"aria-label",se),de(g,"title",We?`${se} (${We})`:se),de(g,"aria-disabled",!V()),N&&de(N,"aria-disabled",!V())};n.set(a,pe);let $e=()=>{D(),$&&F(),o.add(a),ft()},De=()=>{h(z()),$e()},Me=()=>$e();Me.value=z,Me.hasMedia=()=>R.length>0,Me.arrive=()=>{A+=1,a.restartHistory(),d={drawing:$?.read()??null,media:[...R]}},Me.load=le=>{z()!==le&&X(le),$e()},yp.set(a,Me),$e();let ye=async le=>{if(ve||oe||T())return;let we=z(),Re=we.trim();if(!w(we))return Ze(`Nothing to ${ee()} \u2014 the box is empty`);ve=!0,$e();try{await le(Re,we,()=>z()===we,a.value)}finally{ve=!1,$e()}};a.addEventListener("input",()=>{De(),ge()===a&&pm(a)}),a.addEventListener("focus",()=>zl(a)),a.addEventListener("lf-before-edit",()=>zl(a),{capture:!0}),a.addEventListener("paste",async le=>{let we=[...le.clipboardData?.items??[]].filter(ne=>ne.kind==="file"&&ne.type.startsWith("image/")).map(ne=>ne.getAsFile()).filter(Boolean);if(!we.length)return;le.preventDefault();let Re=_();if(Re!==!0){Ze(Re);return}Ml(a);let We=a.readOnly;oe=!0,a.readOnly=!0,a.setAttribute("aria-busy","true"),$e(),Ze(we.length===1?"Adding image\u2026":`Adding ${we.length} images\u2026`);let W=A;try{let ne=await Promise.all(we.map(C=>e(C)));if(ne.some(C=>C===null))return;if(A!==W){Ze("Image not added \u2014 the comment moved before it finished uploading");return}R.push(...ne),F(),De(),Ze(we.length===1?"Image added":`${we.length} images added`)}catch(ne){Ze(`Could not add image \u2014 ${ne?.message??ne}`)}finally{oe=!1,a.readOnly=We,a.removeAttribute("aria-busy"),$e()}},{capture:!0}),tt(a,"In a text box",[{id:"text.send",keys:eu,label:fl,description:"Submit what you have typed",title:v,run:()=>ke(f)}]);let Te=!1;a.addEventListener("compositionstart",()=>Te=!0),a.addEventListener("compositionend",()=>Te=!1);let ke=le=>{ge()!==a&&a.focus({preventScroll:!0}),ye(le)};for(let[le,we]of[[g,f],[N,P]])le&&(le.addEventListener("mousedown",Re=>{Te||Re.preventDefault()}),le.addEventListener("click",()=>ke(we)));return Me}return{wireInput:c,paintInputs:i}}function Ap({hasPending:e,fabAnchorAt:t,targetPickerOpen:n}){function o(){return be.undoing||e()||Au()}function r(){let s=ge(),i=gm(s);return et||n()||!!t()||!!Ve()||o()||hm()||i===!0||s?.matches(Pr)&&(kp(s)!==""||i===null&&s.hasAttribute("data-lf-offer"))}return{unaccountedGesture:o,midComposition:r}}import{html as Gn,nothing as ei,render as Sv,repeat as Av}from"/vendor/browser-runtime.js";import{html as Tp,nothing as dv,repeat as uv}from"/vendor/browser-runtime.js";var fv=new Set(["neutral","pressed"]),ar=(e,t=null)=>{if(t)return[ut(t.binding)];let n=bn(e);return je(e.sequenceSteps)??(n?[n]:[])},oc=(e,t=null)=>t?ar(e,t):je(e.completeSequenceSteps)??ar(e),Zr=e=>e.map(()=>"neutral"),lr=(e,t)=>{let n=!0;return e.map((o,r)=>(n=n&&t[r]===o,n?"pressed":"neutral"))};function $n(e,t=Zr(e),n=e){if(!e.length||t.length!==e.length||n.length!==e.length)throw new Error("leaf: a key sequence needs one state and spoken label per step");let o=e.map((r,s)=>{let i=t[s],c=n[s];if(!fv.has(i))throw new Error(`leaf: unknown key state ${String(i)}`);return Object.freeze({text:r,spoken:c,state:i})});return Object.freeze({label:o.map(({spoken:r})=>r.replaceAll(" / "," or ")).join(" then "),steps:Object.freeze(o)})}function Un(e,{id:t=null,label:n=!1}={}){return Tp`<span
+    id=${t??dv}
+    class=${`lf-binding-sequence${n?" lf-key-label":""}`}
+    role="group"
+    aria-label=${e.label}
+    >${uv(e.steps,(o,r)=>r,o=>Tp`<kbd
+          class="lf-key-badge"
+          data-lf-sequence-step-state=${o.state}
+          aria-hidden="true"
+          >${o.text}</kbd
+        >`)}</span
+  >`}var mv=e=>!e.when||e.when(),rc=e=>!e.at||e.at(),ic=e=>rc(e)&&mv(e),Cp=e=>({get rows(){return[ra()]},claims:e,escapeBoundary:!0}),Ep=Cp(js),pv=Cp(e=>e==="Escape"),ha=e=>{let t=e.root??e.el??document;return typeof t=="function"?t():t},$p=(e,t)=>{if(e.escape!==void 0&&e.escape!=="inner")throw new TypeError(`leaf: ${e.title??"a scope"} has invalid Escape ownership ${String(e.escape)}`);return e.escape==="inner"||e.el===t},hv=(e,t)=>{let n=0;for(let o=t;o;o=o.parentNode??Wo(o)){if(o===e)return n;n+=1}return-1},gv=(e,t)=>{let n=e.findIndex(f=>f.escapeBoundary),o=n<0?e.length:n,r=e.slice(0,o),s=r.filter(f=>$p(f,t)),i=r.filter(f=>!s.includes(f)),c=new Map(i.map(f=>[f,ha(f)])),a=new Map(i.map(f=>[f,hv(c.get(f),t)])),m=null;for(let f of i){let g=c.get(f);a.get(f)<1||g===document||(!m||Pe(g,m))&&(m=g)}let p=m?i.filter(f=>Pe(c.get(f),m)):[];p.sort((f,g)=>a.get(f)-a.get(g));let h=i.filter(f=>!p.includes(f));return[...s,...p,...h,...e.slice(o)]};function Co(e=null){let t=ge(),n=Hs(t),o=wn(t),r=Ff(),s=pu(t),i=s&&!o?{root:t,rows:[],claims:s}:null,c=tr().flatMap(w=>{if(w===oa){if(!o&&!i)return n;let D=n.filter(({el:J,contextual:Z})=>J===t&&!Z),$=n.filter(({el:J,contextual:Z})=>J!==t||Z);return[...D,...o?[r]:[i],...$]}return w===r&&o?[]:w}),a=w=>{let D=w.filter(ic);return e==="Escape"?gv(D,t):D},m=rr(),p=m.findLastIndex(w=>w.kind==="modal"),h=p<0?m:m.slice(p),f=rn(),g=p<0?f:h[0].root,v=w=>!g||Pe(ha(w),g),k=h.at(-1)??null,N=w=>n.includes(w)||ha(w)===t||$p(w,t),P=[],_=c,T=w=>{let D=[];for(let $ of _)(w($)?P:D).push($);_=D};for(let w=h.length-1;w>=0;w-=1){let D=h[w];T($=>Pe(ha($),D.root)||D===k&&N($)&&v($)),P.push(D.kind==="modal"?Ep:pv)}return p<0&&(f?(T(v),P.push(Ep)):P.push(..._)),a(P)}var vv=e=>!!e.run||Go(e).some(t=>mo(t)),cr=()=>{let e=[];return{takes:t=>e.some(n=>n(t)),past:t=>{t.claims&&e.push(t.claims);let n=t.el?t.rows.filter(vv).flatMap(ze).filter(o=>o!=="Escape"):[];n.length&&e.push(o=>n.includes(o))}}};function bv(e){if(!e)return null;let t=ou(e);if(!t||!Bi(e.source).includes(e.scope))return null;let n=e.row.run?()=>e.row.run(e.binding??void 0):t.route?()=>je(t.route.control??e.row.control).click():je(e.row.control)?.isConnected?()=>je(e.row.control).click():null;return n?{id:e.id,row:e.row,binding:e.binding??void 0,run:n,native:!1}:null}function es(e,t,n,o=null){if(!n||!St(e))return null;let r=po(e,[t]).find(({id:a})=>a===n.id);if(!r)return null;let s=mo(r.route);if(s)return bv(s);let i=o??je(r.route?.control??e.control),c=e.run?()=>e.run(r.route?.binding??t):i?.isConnected?()=>i.click():null;return c?{id:n?.id??e.id,row:e,binding:t,run:c,native:!!e.native}:null}function sc(e){document.dispatchEvent(new window.CustomEvent("lf-command-invoked",{detail:{id:e.id,binding:e.binding}}))}function wv(e,t){let n=es(e.row,e.binding,e.entry);return n?(t?.(n.row),sc(n),n.run(),!0):!1}function Rp(e){let t=cr();for(let n of Co(e)){let o=n.rows.filter(r=>ze(r).includes(e)&&!t.takes(e)&&po(r,[e]).length>0&&_n(r)!==!1);if(o.length>1)throw new Error(`leaf: ${n.title??"a scope"} has two live meanings for ${e}: `+o.map(jn).join("; "));if(o.length)return{scope:n,row:o[0],visible:!(!n.sequence&&je(o[0].lineWhen)===!1)};t.past(n)}return null}function xp(e){let t=new Set,n=cr();for(let o of Co(e))n.takes(e)||t.add(Vo(o)),n.past(o);return t}function Op(e,{beforeCommand:t}){let n=Su(e),o=cr();for(let r of Co(hl("Escape",e)?"Escape":null)){let s=null;for(let i of r.rows){let c=ze(i).find(p=>hl(p,e));if(!c||o.takes(c)||!St(i))continue;let a=po(i,[c])[0],m=es(i,c,a,n);if(m){if(s)throw new Error(`leaf: ${r.title??"a scope"} has two live meanings for ${c}: ${jn(s.row)}; ${jn(i)}`);s=m}}if(s)return s.native||e.preventDefault(),e.repeat&&!s.row.repeat||(t?.(s.row),sc(s),s.run()),!0;o.past(r)}return!1}function Pp(e){let t=xp("Escape"),n=cr();for(let o of Co()){for(let r of o.rows){if(!St(r))continue;let s=ze(r).filter(c=>c==="Escape"?t.has(Vo(o)):!n.takes(c)),i=po(r,s).find(c=>e(c,r)&&es(r,c.binding,c));if(i&&(i.binding!=null||Ii(r).length===0))return{row:r,binding:i.binding,entry:i}}n.past(o)}return null}var yv=e=>Pp(t=>t.id===e);function Lp(e){let t=new Set(e),n=Pp(o=>t.has(o.id));return n?.binding!=null?ut(n.binding):""}function kv(){let e=new Set,t=new Map,n=xp("Escape"),o=cr();for(let r of Co()){for(let s of r.rows){if(!St(s))continue;let i=ze(s).filter(c=>c==="Escape"?n.has(Vo(r)):!o.takes(c));for(let c of Ii(s).length?i:[void 0])for(let a of po(s,[c]))es(s,c,a)&&(e.add(a.id),t.has(s)||t.set(s,new Set),t.get(s).add(c))}o.past(r)}return{commands:e,routes:t}}var ga=()=>kv().routes;function Ip({id:e,row:t,binding:n}){let o=es(t,n,{id:e});return o?(sc(o),o.run(),!0):!1}function Mp(e,t){let n=yv(e);return n?wv(n,t):!1}var He=document.createElement("dialog");He.id="lf-command-reference";He.className="lf-ui lf-command-reference";He.setAttribute("aria-label","Command reference");He.setAttribute("closedby","any");He.setAttribute("aria-modal","true");He.tabIndex=-1;var wa=_r({name:"Close the command reference",className:"lf-command-reference-close"}),ya=()=>!1,qp=e=>{ya=e};function Dp(){let e=ya()?"Back to more shortcuts":"Close the command reference";de(wa,"data-lf-key-title",e),de(wa,"aria-label",e)}Dp();function Tv(e){Ws();let t=new Map,n=Hs(e),o=a=>n.some(m=>m.title===a.title&&(!m.when||m.when())),r=new Map,s=(a,m)=>a.contextual?(r.has(m.id)||r.set(m.id,Symbol(m.id)),r.get(m.id)):m.id,i=a=>a.rows.map(m=>[s(a,m),a.sequence?{...m,sequence:a.sequencePrefix??a.sequence}:m]);for(let a of tr().toReversed()){if(a!==oa){qi(t,{...a,rows:i(a)});continue}let m=new Map,p=[...vu].map(f=>f.deref()).filter(f=>f?.isConnected&&Bi(f).some(g=>g.title));p.sort((f,g)=>f.compareDocumentPosition(g)&Node.DOCUMENT_POSITION_FOLLOWING?-1:1);let h=new Set;for(let f of p)for(let g of Bi(f)){if(!g.title)continue;let v=g.identity??g;h.has(v)||(h.add(v),qi(m,{...g,rows:i(g)}))}for(let f of n.toReversed())f.title&&qi(m,{...f,rows:i(f)});for(let f of m.values())qi(t,{...f,at:()=>o(f)})}let c=a=>ze(a).includes("Escape")?1:0;return[...t.values()].map(a=>({...a,rows:[...a.rows.values()].sort((m,p)=>c(m)-c(p))}))}var Fp=new Map,ac=!1,lc=null,jp=null,Ev=Object.freeze({total:0,entries:Object.freeze([]),sections:Object.freeze([])}),ts=Ev,mt={query:"",selectedCommandId:null,metaOverride:null},pt={shown:0,metadata:"",bindingHeading:null,sectionHeadings:[],entryPresentations:[],visibleCommands:[],selectedCommandId:null,tabStopCommandId:null},va=e=>String(e??"").toLocaleLowerCase().replace(/\s+/g," ").trim(),Cv=e=>String(e??"").replace(/^\s+/,"").replace(/\s+/g," "),$v=e=>`${e.charAt(0).toLocaleUpperCase()}${e.slice(1)}`,Rv=(e,t,n)=>{let o=je(e.reach)??je(n)??t;return`Available ${o.charAt(0).toLocaleLowerCase()}${o.slice(1)}`},xv=(e,t,n,o)=>{let r=t?[t.binding]:o;if(r.length!==1)return n;let s=r[0],i=[...n],c=i.lastIndexOf(ut(s));return c!==-1&&(i[c]=ml(s)),i};function Ov(){let e=Tv(lc).map(c=>{let a=rc(c)||c.liveInCommandReference,m=c.rows.filter(p=>!a||(p.commandReferenceWhen?p.commandReferenceWhen():St(p))).map(p=>{let h=[...je(p.sequence)??[]],f=[...Ii(p)],g={...p,keys:f},v=[...ze(p)],k=jn(p),N=pl(p);return{row:p,sequence:h,declared:f,rowBindings:v,referenceRow:g,baseTitle:k,baseDescription:N,familySteps:[...h,...oc(g)],presentations:Ds(p,f,{includeUnavailable:!0}).map(({id:P,route:_})=>({id:P,route:_&&_.binding==null?{..._,binding:nu(_)[0]}:_}))}});return{scope:c,rows:m}}).filter(({rows:c})=>c.length),t=(c,a)=>{let m=Fp.get(c.row)??new Set,p=a?[a.binding]:c.rowBindings;return c.declared.length===0?m.has(void 0):p.some(h=>m.has(h))},n=new Map;for(let{rows:c}of e)for(let a of c)for(let{id:m,route:p}of a.presentations){let h={row:a.row,binding:p?.binding??null,available:t(a,p)},f=n.get(m);(!f||!f.available&&h.available)&&n.set(m,h)}let o=new Set,r=[],s=[],i=0;for(let{scope:c,rows:a}of e){let m=r.length,p=c.title??"On this page",h=[];for(let f of a)for(let{id:g,route:v}of f.presentations){let k=n.get(g);if(k?.row!==f.row||k.binding!==(v?.binding??null)||o.has(g))continue;o.add(g);let N=$v(v?jn(v):f.baseTitle),P=v?.description!==void 0?pl(v):f.baseDescription,_=[...f.sequence,...oc(f.referenceRow,v)],T=v?[v.binding]:f.declared,w=t(f,v),D=xv(f.row,v,_,f.declared),$=Object.freeze({id:g,rowId:`lf-command-reference-row-${i}`,keyId:`lf-command-reference-key-${i}`,descriptionId:`lf-command-reference-description-${i}`,sectionId:`lf-command-reference-section-${m}`,sectionTitle:p,order:h.length,sequenceControl:!!f.row.sequenceControl,keyLabel:f.declared.length===0&&je(f.row.label)==null,steps:Object.freeze(_),keySequence:_.length?$n(_,Zr(_),D):null,title:N,description:P,actionable:!!((f.row.run||mo(v))&&(mo(v)?.row??f.row).runFromCommandReference!==!1),available:w,unavailableMessage:Rv(f.row,p,c.reach),bindingForms:Object.freeze(T.map(J=>Object.freeze({display:[...f.sequence,ut(J)].join(" "),spoken:[...f.sequence,ml(J)].join(" ")}))),directWords:va(`${g} ${p} ${_.join(" ")} ${N} ${P??""} ${_n(v??f.row)||""}`),familyWords:va(`${f.row.id} ${f.familySteps.join(" ")} ${f.baseTitle} ${f.baseDescription??""}`)});i+=1,s.push($),h.push($)}r.push(Object.freeze({id:`lf-command-reference-section-${m}`,title:p,words:va(p),order:m,entries:Object.freeze(h)}))}return Object.freeze({total:s.length,entries:Object.freeze(s),sections:Object.freeze(r)})}function Np(e,t){let n=va(t.query),o=Cv(t.query),r=o.toLocaleLowerCase(),s=!!n&&e.entries.some(w=>w.directWords.includes(n)),i=e.sections.flatMap(w=>{let D=!!n&&w.words.includes(n);return w.entries.map($=>{let J=!!o&&$.bindingForms.some(({display:I})=>I.startsWith(o)),Z=!!r&&$.bindingForms.some(({display:I})=>I.toLocaleLowerCase().startsWith(r)),x=!!r&&$.bindingForms.some(({spoken:I})=>I.toLocaleLowerCase().startsWith(r)),B=n?J?0:Z?1:x?2:D||$.directWords.includes(n)?3:!s&&$.familyWords.includes(n)?4:1/0:0;return{entry:$,section:w,rank:B}})}),c=n?i.filter(({rank:w})=>w<=2).sort((w,D)=>w.rank-D.rank||w.section.order-D.section.order||w.entry.order-D.entry.order):[],a=new Set(c.map(({entry:w})=>w.id)),m=e.sections.map(w=>{let D=i.filter($=>$.section===w&&Number.isFinite($.rank)&&!a.has($.entry.id)).sort(($,J)=>$.rank-J.rank||$.entry.order-J.entry.order);return{...w,rank:D[0]?.rank??1/0,entries:D.map(({entry:$})=>$)}}).sort((w,D)=>w.rank-D.rank||w.order-D.order),h=[...c.map(({entry:w})=>({entry:w,promoted:!0})),...m.flatMap(({entries:w})=>w.map(D=>({entry:D,promoted:!1})))].filter(({entry:w})=>w.actionable),g=h.find(({entry:w})=>w.id===t.selectedCommandId)?.entry.id??null,v=i.filter(({rank:w})=>Number.isFinite(w)).length,k=t.metaOverride??(n?`${v} of ${e.total} commands \xB7 \u2191\u2193 choose \xB7 \u23CE activate`:`${e.total} commands \xB7 \u2191\u2193 choose \xB7 \u23CE activate`),N=0,P=c.length?Object.freeze({order:N++}):null,_=c.map(({entry:w})=>Object.freeze({entry:w,promoted:!0,order:N++})),T=m.map(w=>{let D=Object.freeze({id:w.id,title:w.title,shown:w.entries.length>0,order:w.entries.length>0?N++:-1});return _.push(...w.entries.map($=>Object.freeze({entry:$,promoted:!1,order:N++}))),D});return{shown:v,metadata:k,bindingHeading:P,sectionHeadings:T,entryPresentations:_,visibleCommands:h,selectedCommandId:g,tabStopCommandId:g??h[0]?.entry.id??null}}function Pv(){let e=Np(ts,mt);mt.selectedCommandId&&!e.selectedCommandId&&(mt={...mt,selectedCommandId:null},e=Np(ts,mt)),pt=e}function _p(e){if(!e.available)return mt={...mt,metaOverride:e.unavailableMessage},ns();let t=jp;os(),!t?.(e.id)&&queueMicrotask(()=>{dc(t),mt={...mt,metaOverride:"That command is no longer available"},ns()})}function Lv(e,t=!1,n=!0){let o=pt.selectedCommandId===e.id,r=pt.tabStopCommandId===e.id,s=e.actionable?Gn`<button
+        type="button"
+        class="lf-command-reference-command"
+        data-lf-command=${e.id}
+        data-lf-available=${String(e.available)}
+        data-lf-selected=${String(o)}
+        aria-describedby=${[e.keySequence?e.keyId:null,e.description?e.descriptionId:null].filter(Boolean).join(" ")}
+        .tabIndex=${r?0:-1}
+        title=${e.available?"Run command":e.unavailableMessage}
+        @click=${()=>_p(e)}
+        .textContent=${e.title}
+      ></button>`:e.title,i=t?Gn`<span class="lf-command-reference-scope">${e.sectionTitle}</span>`:ei,c=Gn`<div class="lf-command-reference-action"><div class="lf-command-reference-action-main">${s}${i}</div>${e.description?Gn`<span id=${e.descriptionId} class="lf-command-reference-description">${e.description}</span>`:ei}</div>`,a=Gn`<td role="gridcell">${c}</td>`;return Gn`
+    <tr
+      id=${e.rowId}
+      role="row"
+      class=${e.sequenceControl?"lf-sequence-command":""}
+      data-lf-command=${e.id}
+      aria-selected=${e.actionable?String(o):ei}
+      ?hidden=${!n}
+    >
+      <td role="gridcell">
+        ${e.keySequence?Un(e.keySequence,{id:e.keyId,label:e.keyLabel}):ei}
+      </td>
+      ${a}
+    </tr>
+  `}var Iv=(e,t,n=!1)=>Gn`
+  <tbody ?hidden=${n}>
+    <tr role="row">
+      <th role="gridcell" colspan="2"><h3 id=${e}>${t}</h3></th>
+    </tr>
+  </tbody>
+`,Mv=()=>{let e=[];pt.bindingHeading&&e.push({kind:"heading",key:"heading:bindings",id:"lf-command-reference-binding-matches",title:"Matching shortcuts",order:pt.bindingHeading.order});for(let o of pt.sectionHeadings)o.shown&&e.push({kind:"heading",key:`heading:${o.id}`,id:o.id,title:o.title,order:o.order});for(let o of pt.entryPresentations)e.push({kind:"entry",key:`entry:${o.entry.id}`,...o});e.sort((o,r)=>o.order-r.order);let t=new Set(e.map(({key:o})=>o)),n=[{kind:"heading",key:"heading:bindings",id:"lf-command-reference-binding-matches",title:"Matching shortcuts"},...ts.sections.map(o=>({kind:"heading",key:`heading:${o.id}`,id:o.id,title:o.title})),...ts.sections.flatMap(o=>o.entries.map(r=>({kind:"entry",key:`entry:${r.id}`,entry:r,promoted:!1})))].filter(({key:o})=>!t.has(o));return[...e,...n.map(o=>({...o,hidden:!0}))]};function Nv(e){return e.kind==="heading"?Iv(e.id,e.title,e.hidden):Gn`<tbody
+    role="rowgroup"
+    aria-labelledby=${e.promoted?"lf-command-reference-binding-matches":e.entry.sectionId}
+    class=${e.promoted?"lf-command-reference-binding-matches":ei}
+    ?hidden=${e.hidden}
+  >
+    ${Lv(e.entry,e.promoted,!e.hidden)}
+  </tbody>`}function Bv(){let e=pt.visibleCommands.find(({entry:n})=>n.id===pt.selectedCommandId),t=Mv();return Gn`
+    <div class="lf-command-reference-head">
+      <div class="lf-command-reference-title">Command reference</div>
+      ${wa}
+    </div>
+    <input
+      type="search"
+      name="shortcut-search"
+      class="lf-command-reference-search"
+      placeholder="Find a key or action"
+      aria-label="Search commands"
+      role="combobox"
+      aria-autocomplete="list"
+      aria-expanded="true"
+      aria-haspopup="grid"
+      aria-controls="lf-command-reference-results"
+      aria-activedescendant=${e?.entry.rowId??ei}
+      autocomplete="off"
+      spellcheck="false"
+      @input=${qv}
+    />
+    <div
+      class="lf-command-reference-meta"
+      aria-live="polite"
+      .textContent=${pt.metadata}
+    ></div>
+    <div
+      id="lf-command-reference-results"
+      class="lf-command-reference-results"
+      role="grid"
+      aria-label="Command reference"
+    >
+      <table role="presentation">
+        <colgroup>
+          <col class="lf-command-reference-key-column" />
+          <col />
+        </colgroup>
+        ${Av(t,n=>n.key,Nv)}
+      </table>
+      <div role="row" ?hidden=${pt.shown!==0}>
+        <div class="lf-command-reference-empty" role="gridcell">
+          No matching commands
+        </div>
+      </div>
+    </div>
+  `}function ns(){Pv(),Dp(),Sv(Bv(),He)}function qv(e){mt={...mt,query:e.currentTarget.value,metaOverride:null},ns()}He.addEventListener("cancel",e=>{e.preventDefault(),os()});function Wp(e,t,n){let o=e&&!ac,r=o&&!!Ve(),s=!e&&t&&He.contains(ge()),i=s?lc:null;if(o){jp=n;for(let a of Im())a.popover!=="manual"&&a.matches(":popover-open")&&a.hidePopover();let c=ge();lc=c===document.body?null:c,Fp=ga()}if(ac=e,o){ts=Ov(),mt={query:"",selectedCommandId:null,metaOverride:null},ns();let c=He.querySelector(".lf-command-reference-search"),a=He.querySelector(".lf-command-reference-results");c.value="",a.scrollTop=0}He.classList.toggle("open",e),e&&!He.open?He.showModal():!e&&He.open&&He.close(),!e&&He.contains(document.activeElement)&&document.activeElement.blur(),e&&Mu(He),e&&He.querySelector(r?".lf-command-reference-close":".lf-command-reference-search").focus({preventScroll:!0}),Ae(),s&&kn(i)}function Dv(e){let t=Fs(He);if(!t.length)return He.focus({preventScroll:!0});let n=t.indexOf(ge());(n<0?e>0?t[0]:t.at(-1):t[(n+e+t.length)%t.length]).focus({preventScroll:!0})}var Fv=e=>[...He.querySelectorAll(".lf-command-reference-command")].find(t=>t.dataset.lfCommand===e)??null,cc=()=>ge()?.matches?.(".lf-command-reference-command")?ge().dataset.lfCommand:null,ba=()=>pt.visibleCommands.length>0&&(ge()?.matches?.(".lf-command-reference-search, .lf-command-reference-command")??!1);function Bp(e){let t=pt.visibleCommands.map(({entry:i})=>i.id);if(!t.length)return;let n=cc(),o=Ni(t,n??mt.selectedCommandId,e),r=pt.visibleCommands.find(({entry:i})=>i.id===o);mt={...mt,selectedCommandId:o,metaOverride:`${r.entry.title} \xB7 ${r.entry.steps[0]} \xB7 \u23CE activate`},ns();let s=Fv(o);n&&s.focus({preventScroll:!0}),s.closest("tr").scrollIntoView({block:"nearest"}),sn("shortcut-command","Command",()=>{let i=cc()??mt.selectedCommandId;return To(pt.visibleCommands.map(({entry:c})=>c.id),i)})}function jv(){if(!ba())return!1;let e=cc()??mt.selectedCommandId??pt.visibleCommands[0]?.entry.id,t=pt.visibleCommands.find(({entry:n})=>n.id===e);return t?(_p(t.entry),!0):!1}var dr=()=>ac,dc=e=>Wp(!0,!0,e),os=(e=!0)=>Wp(!1,e,null);Ke("command reference",{title:"In the command reference",escape:"inner",root:()=>He,at:()=>dr(),claims:js,rows:[{id:"command.reference.focus.walk",keys:["Tab","Shift+Tab"],description:"Move through the command reference",title:"move",repeat:!0,runFromCommandReference:!1,run:e=>Dv(e==="Tab"?1:-1)},{id:"command.reference.command.next",keys:["ArrowDown"],description:"Choose the next command",title:"choose next",repeat:!0,runFromCommandReference:!1,commandReferenceWhen:()=>!0,when:()=>ba(),run:()=>Bp(1)},{id:"command.reference.command.previous",keys:["ArrowUp"],description:"Choose the previous command",title:"choose previous",repeat:!0,runFromCommandReference:!1,commandReferenceWhen:()=>!0,when:()=>ba(),run:()=>Bp(-1)},{id:"command.reference.command.activate",keys:["Enter"],description:"Activate the chosen command",title:"activate",runFromCommandReference:!1,commandReferenceWhen:()=>!0,when:()=>ba(),run:()=>jv()},{id:"command.reference.close",keys:["Escape"],description:()=>ya()?"Back to more keyboard shortcuts":"Close the command reference",title:()=>ya()?"back to more shortcuts":"close command reference",control:()=>wa,runFromCommandReference:!1,run:()=>os()}]});function zp(e,t){let n=new Map(t.map(o=>[o.token,o]));for(let o of e.querySelectorAll(".lf-react-palette > .lf-react")){let r=n.get(o.dataset.token)??null;de(o,"aria-pressed",!!r),o.lfReaction=r}}function Hp({panelElements:{panel:e,threadsBox:t,inPanel:n},panelIsOpen:o,rememberSelection:r,landIn:s,threadHere:i,threadAtStanding:c,replyThreadAtStanding:a,threadTarget:m,standingTarget:p,composerHolds:h,responseOptionsAreOpen:f,markAt:g,scrollToElement:v,scrollToRange:k,visualActionAnchor:N,hideComposer:P,openComposer:_,carryComposerToReply:T,resetResponseOptions:w,responseOptionsAvailable:D,setResponseOptions:$,syncResponseOptions:J,designModeActive:Z,designTarget:x,openOnDesign:B,isReactArmed:I,reactionContextContains:R,reactionTokens:z,setReact:te,collapseShortcutBar:d,closeVersionMenu:A,versionMenuIsOpen:H,openPageThread:M,drawModeActive:K,refreshThread:F,dismissThreadView:X,pageComment:L,responseHome:O,revealResponseHome:ee=null,createPlacement:Y=null}){let ve=()=>os(!1),oe=l=>z().length>0||!!(l?.quote&&!Z()),V=null,pe=null,$e=null,De=!1,Me=null,ye=[],Te=()=>Me?ge():document.activeElement,ke=()=>cu(et?Pt:Be),le=l=>{if(l&&!ke())return;let y=ye;ye=[];for(let j of y)j(l)},we=()=>V?!b&&Me===O&&!ke()&&!bt?.intent()?Promise.resolve(!1):(Me?.isConnected&&Be.parentElement===Me||b?.ready())&&ke()?Promise.resolve(!0):new Promise(l=>ye.push(l)):Promise.resolve(!1),Re=({reset:l=!1,repositioning:y=!1}={})=>{b?.stop({reset:l,repositioning:y}),l&&!y&&le(!1)};function We(l){if(Be.parentElement===l)return;let y=go(Be);l.append(Be),y?.()}function W(l){if(!(l instanceof Element)||!V||!et)return!1;let y=l;for(;y&&!(y.getBoundingClientRect().width>0);)y=y.parentElement??y.getRootNode().host;if(y&&jd(y))return!1;let j=Be.parentNode,ae=Be.style.visibility,me=go(Be);return Be.parentNode!==l&&l.append(Be),Be.style.removeProperty("visibility"),ke()?(De&&Re({reset:!0,repositioning:!0}),Me=l,De=!1,de(Be,"data-lf-presentation","inline"),Be.style.display="inline-flex",Be.style.removeProperty("visibility"),le(!0),b?.stoodAgain(),me?.(),!0):(j&&Be.parentNode!==j?j.append(Be):j||Be.remove(),ae?Be.style.visibility=ae:Be.style.removeProperty("visibility"),me?.(),!1)}function ne({place:l=!0}={}){if((b||!l||!V||!et)&&(Be.parentElement===O||b?.holdsHome(O))&&(!Me||Me===O))return!1;let y=go(Be);return Re({reset:!0,repositioning:l}),Me=b?null:O,De=!!b,de(Be,"data-lf-presentation",b?null:"inline"),We(O),!b&&l&&V&&O.isConnected?(Be.style.removeProperty("visibility"),le(!0),y?.()):l&&V&&Ee()&&y&&we().then(j=>j&&y()),!0}let C=(l,y)=>{if(!y)return!1;if(l.quote){if(lo(y).length)return!0;if(y.status!=="outdated"&&!(l.identity&&y.datumElement))return!1}return!!yt(y)},U=l=>!!l&&C(l,At(l,it())),se=l=>V?.quote?null:ia(l,$e),b=Y?.({nodes:{bar:Be,input:Pt,composer:Jf,options:Xf},response:{get anchor(){return V},get open(){return et},get floating(){return De},get target(){return Qt()},get captured(){return Nn()},pointIn:se},panel:e,panelIsOpen:o,threadsBox:t,positioned:le,dismiss:()=>q(null,{returnFocus:"page"}),standsIn:C,scrollToElement:v,scrollToRange:k})??null,S=(l,y)=>l&&!l.quote&&y?y.isConnected?y:N(l):null;function q(l,{returnFocus:y="target",origin:j=null,place:ae=!0,point:me=void 0}={}){let ie=V,fe=pe,Oe=De,Se=!l&&Be.contains(Te()),Ue=Se&&o()&&!(b?.fits()??!0),_e=Se?S(ie,fe):null,ro=!!(Me?.isConnected&&l&&ie&&st(ie,l));(!l||Me&&!ro)&&ne({place:!1}),l||(Zt=!1),(!l||ie&&!st(ie,l))&&w(),(!l||!st(ie,l))&&b?.release(),!l&&et&&P();let io=me!==void 0?me:st(ie,l)?$e:null,jo=io!==$e;if($e=io,(!l||!ie||!st(ie,l)||!ae||jo||!Oe&&!ro)&&Re({reset:!0}),V=l,De=!!b&&(!V||ae&&!ro),pe=V&&j?.isConnected?j:V&&ie&&st(ie,V)?fe:null,Be.toggleAttribute("data-lf-target-only",!!(V&&!et)),Be.style.display=V?"var(--lf-response-display, inline-flex)":"none",Pt.style.display=V&&et?"block":"none",J(V),Fl.style.display=V?"":"none",V){let Nt=Yr(V).replace(/^§\s*/,"");de(Be,"aria-label",Nt?`Respond to ${Nt}`:"Respond"),de(Pt,"aria-label",Nt?`Comment on ${Nt}`:"Comment"),zp(Be,sm(Qr(),V)),ae&&De&&b&&!b.place()&&(st(ie,V)&&U(V)?b?.withhold():(V=null,pe=null,b?.release(),Re({reset:!0}),w(),Be.removeAttribute("data-lf-target-only"),Zt=!1,et&&P(),Be.style.display="none",Pt.style.display="none",Fl.style.display="none"))}V&&De&&!st(ie,V)&&X(),st(ie,V)||F(),Ae(),!V&&y!=="none"&&(Ue?t.focus({preventScroll:!0}):Se&&y==="target"?kn(_e):(Se||y==="page"&&document.activeElement===fe)&&yn())}let G=!1;function ce(){G=!!(Ve()||V?.quote),Ve()?.removeAllRanges(),q(null)}function he(){!V||!De||(V.quote&&!et&&!Nn()?pn():Ee())}function Ee(){return U(V)?!b||b.place()?!0:(b?.withhold(),!1):(q(null,{returnFocus:"page"}),!1)}let Le=l=>{if(!l)return null;let y=At(l,it());if(!y)return null;if(!l.quote)return yt(y);let j=co(y);return j?Wo(j.getRootNode())??j:null},qe=l=>l?.quote&&Qd(At(l,it()))||Le(l),Qt=()=>Le(V),Xt=()=>S(V,pe);function In(l){l&&!Ps(l,new Map)&&v(l,"instant")}function gs({anchor:l,element:y=null,point:j=null},{origin:ae=null}={}){kt(vt),vt=null,In(y),Fo=!0;let me=getSelection();me?.rangeCount&&me.removeAllRanges(),no(l,"",{carry:!0,point:j}),ae&&q(l,{origin:ae}),setTimeout(()=>{Fo=!1,Bo()})}function yi(){if(!V)return;kt(vt),vt=null;let l=Ti();if(!et){no(structuredClone(V),"");return}let y=structuredClone(V);fm(Be),Cr(l,y,()=>st(y,V))}let ki=()=>!!(V&&oe(V)&&D()),vs=({reaction:l=!1}={})=>$(!0,{focus:l?"reaction":"first"}),Jt=l=>!!l?.quote?.trim(),Mo=()=>{let l=Ve(),y=l?nr(l):null;return Jt(y)},No=null,zt=document.createElement("button");zt.className="lf-btn primary",zt.type="button",zt.textContent="Comment on selection",at({key:"comment-selection",control:zt,rank:nt.commentSelection,seat:"gesture",present:!1});let Mn=l=>{No=l,Qi(zt,!!l)},Ar=()=>{let l=No;l&&(Eo(),kt(vt),vt=null,getSelection()?.removeAllRanges(),Mn(null),no(l,""))};function Bo(){let l=Ot()?Ve():null,y=l?nr(l):null;Mn(Jt(y)&&!st(y,V)?y:null)}function pn(){if(!Ot()){Mn(null),q(null);return}let l=Ve(),y=l?nr(l):null;if((Je.matches||!b)&&Jt(y)&&(!Nn()||!st(y,V))){Mn(y);return}if(Mn(null),Jt(y)){if(st(y,V)){b?.place();return}no(y,"",{focus:!1})}else V?.quote&&!Nn()&&q(null)}let vt=null,qo=null,bs=l=>{let y=Fe();qo=y,kt(vt),vt=Bt(()=>{vt=null,qo=null,y()&&l()})},Si=()=>{vt&&qo()||bs(pn)},ht=!1,eo=null,to=!1,Do=null,Ai=!1,Tr=null,hn=!1,Er=!1,Fo=!1,Zt=!1,bt=null,Ti=()=>{Zt=!0;let l={};return l.intent=Fe({available:()=>bt===l}),bt=l,l},Ei=(l=null)=>{l&&l!==bt||(Zt=!1,bt=null)};function Cr(l,y,j){l.intent=zr(l.intent,()=>et&&j()&&st(y,V)),we().then(ae=>{if(l!==bt)return;let me=Ve(),ie=me?nr(me):null;ae&&(!Jt(ie)||st(ie,y))&&l.intent.handoff(()=>Pt.focus({preventScroll:!0}))||Ei()})}function $r(){if(!(b||!ee||Be.parentElement!==O||!V||!et)){if(!bt?.intent.handoff(ee)){le(!1);return}le(!0)}}function no(l,y,j={}){return _(l,y,j)}function Nn(){return Zt||Be.contains(Te())||R(Te())}function en(){Pt.addEventListener("focus",()=>{kt(vt),vt=null,Mt=!1,ht=!1,eo=null,Mn(null),Zt=!0}),Pt.addEventListener("blur",()=>{Zt=!1})}let Mt=!1,Ci=!1,ws=()=>{let l=!!Ve();l!==Ci&&(Ci=l,Ae())},Rr="",ys=()=>{let l=Ve();if(!l||Dl(l))return;let y=nr(l);Jt(y)&&(Do=Oi(l).cloneRange(),Ai=Ud(l))},ks=l=>{if(K())return;let y=()=>setTimeout(()=>{Er=!1});if(No&&xe(l.target)){Mt=!1,ht=!1,hn=!1,y();return}if(Mt&&l.type==="pointerup"&&l.pointerType==="mouse"){y();return}Mt&&ht&&eo?.()&&!hn&&(r(),Si()),Mt=!1,ht=!1,hn=!1,y()};function oo(l){let y=Gs(l);!(y&&!V?.quote&&V?.section===y.id&&V?.visual===y.part?.id)&&!l.closest?.(".lf-fab-bar, .lf-react-surface, .lf-composer")&&!R(l)&&(et&&P(),q(null,{returnFocus:"page"}),te(!1)),dr()&&!l.closest?.(".lf-command-reference")&&ve(),l.closest?.(".lf-command-reference, .lf-shortcut-bar")||d(),H()&&!l.closest?.(".lf-version-menu, .lf-version")&&A()}let xr=()=>V,rl=()=>se(Qt());function il(){b?.mount(),zt.addEventListener("mousedown",l=>l.preventDefault()),zt.addEventListener("click",Ar),Je.addEventListener("change",Bo),document.addEventListener("pointerdown",l=>{if(K())return;Mt=l.isPrimary&&l.button===0,ht=Mt&&Ms(l.target),eo=ht?Fe({source:l.target}):null,to=!1,Do=null,hn=!1,Tr=ht?{x:l.clientX,y:l.clientY}:null;let y=Ve();Ci=!!y,Rr=y?y.toString():"";let j=ht?y:null;j&&Oi(j).intersectsNode(l.target)&&ys(),Er=No&&xe(l.target)||l.target===zt||!!l.target.closest?.(".lf-react-surface, .lf-composer")},!0),document.addEventListener("pointermove",l=>{if(!K()&&!(!ht||!Tr)){if(l.defaultPrevented){hn=!0;return}to||=Math.hypot(l.clientX-Tr.x,l.clientY-Tr.y)>3}}),document.addEventListener("touchstart",l=>{Mt&&ht&&(eo=Fe({source:l.target}))}),document.addEventListener("pointerup",ks),document.addEventListener("pointercancel",ks),document.addEventListener("selectionchange",()=>{let l=Hd(getSelection());if(Mt&&eo?.()){ys(),Je.matches&&ht&&!hn&&r(),ws();return}if(wn(document.activeElement)){Mn(null);return}if(Er||Fo)return;let y=Ve();Je.matches&&y&&!l&&r(y),Bo(),ws()}),document.addEventListener("mouseup",l=>{if(K())return;let y=ht&&eo?.();Mt=!1,ht=!1;let j=hn;if(hn=!1,j){Do=null;return}if(Er||!y)return;let ae=Ve(),me=ae?nr(ae):null,ie=to&&Dl(),fe=to&&(ie||!Jt(me))?Do:null,Oe=to||l.detail>1||ae?.toString()!==Rr;Oe&&Jt(me)&&!ie&&r(),bs(()=>{if(fe){let Se=[fe.startContainer,fe.startOffset],Ue=[fe.endContainer,fe.endOffset];Dr(...Ai?[Ue,Se]:[Se,Ue])}else if(ie){q(null);return}l.button===0&&Uf(),Oe&&r(),pn()})}),document.addEventListener("keyup",l=>{G&&(G=!1,l.key==="Escape")||I()||wn(l.target)||xe(l.target)||!Ms(l.target)&&!Ve()||(l.shiftKey&&["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Home","End","PageUp","PageDown"].includes(l.key)||l.key.toLowerCase()==="a"&&(l.metaKey||l.ctrlKey)?(r(),Si()):Bo())}),document.addEventListener("mousedown",l=>{K()||oo(l.composedPath()[0])}),document.addEventListener("click",l=>{if(K()||!Ms(l.target))return;let y=Ve();if(y&&y.toString()!==Rr)return;if(Z()){let me=x(l.composedPath()[0]);me&&B(me);return}let j=l.detail?on():{x:l.clientX,y:l.clientY},ae=g?.(j.x,j.y);if(ae)return void M(ae,{focus:e.classList.contains("open")?"reply":"thread",travel:!1})}),en()}let u=l=>({title:`comment on the ${l}`});function E(){if(No)return{...u("selection"),box:zt,go:Ar};let l=p(),y=xr(),j=i(),ae=c(),me=a(),ie=ae&&m(ae),fe=j&&(j.dataset.thread??j.dataset.id)===ae&&(!l||j.contains(ge())||ie&&Pe(ie,er()??l.element))&&Mm(j),Oe=ma()??(fe?{held:j,box:fe}:null),Se=ae&&(!l||ie&&Pe(ie,er()??l.element)),Ue=Se&&me;return y&&(Ve()||Nn()||!Oe&&!Se&&(!l||l.element===Qt()))?{...u(y.quote?"selection":_i(rt(y.section))||"element"),box:Pt,go:yi}:Oe?{...u("thread"),box:Oe.box,go:()=>{T(Hl(Oe.box)),s(Oe)}}:Ue?{...u("thread"),box:null,go:async()=>{let _e=await M(ae,{focus:"reply",travel:!1});_e&&(T(Hl(_e)),s({box:_e}))}}:l?{...u(l.anchor.datum?"item":_i(l.element)),box:Pt,go:()=>gs(l)}:{...u("page"),box:L.box(),go:L.open}}let Q=()=>({box:E().box,label:Lp(["comment.create"])});return Ge({id:"comment.create",touch:!1,keys:["c"],description:()=>E().description,title:()=>E().title,covering:!0,when:()=>(Ot()||!Ve())&&(!rn()||n(o)),run:()=>{pn(),E().go()}}),Ke("composer",{title:"In the composer",at:()=>et&&!b?.withheld(),rows:[{id:"comment.options",keys:["Tab"],description:"Show other responses",title:"other responses",when:()=>ki()&&!f(),run:()=>vs()},{id:"composer.close",keys:["Escape"],description:()=>h()?"Close the composer, keeping the draft":"Close the composer",title:()=>h()?"close \u2014 draft kept":"close",promoteEscape:!1,when:()=>!f(),run:()=>ce()}]}),qt("selection",()=>Ve()||xr()&&!b?.withheld()?{title:"unselect",description:"Clear the selection",promoteEscape:!xr()||z().length===0,out:ce}:null),{commentHint:Q,fabPositioned:we,beginFabFocus:Ti,endFabFocus:Ei,landFabFocus:Cr,anchorStands:U,showFab:q,dismissFab:ce,refreshFab:he,anchorTargetAt:Le,anchorTravelAt:qe,fabTargetAt:Qt,fabReturnTo:Xt,bringForward:In,commentOnTarget:gs,focusFabComment:yi,fabOptionsAvailable:ki,showFabOptions:vs,hasPageSelectionTarget:Mo,updateFab:pn,standDown:oo,fabAnchorAt:xr,fabPointAt:rl,fabFrameAt:()=>b?.frame()??null,seatFab:W,restoreFab:ne,finishPlacement:$r,fabInlineOutlet:()=>Me,mount:il}}var Wv=2,zv=4,Vp=["mousedown","mouseup","click","dblclick"],Kp=["z","Mod+z"],Hv=24,ti=e=>Number(e.toFixed(4));function Uv(e){let t=[],n=0;for(let o of e.matchAll(_d))o.index>n&&t.push([n,o.index]),n=o.index+o[0].length;return n<e.length&&t.push([n,e.length]),t}var Gv=8;function Vv(e){let t=e.map(([m])=>m),n=e.map(([,m])=>m),o={left:Math.min(...t),right:Math.max(...t),top:Math.min(...n)-Gv,bottom:Math.max(...n)},r=new Map,s=document.createRange(),{segments:i}=it(),c=null,a=null;return i.forEach(({node:m},p)=>{if(s.selectNodeContents(m),![...s.getClientRects()].some(f=>nn(o,f)))return;let h=Wd(m);for(let[f,g]of Uv(m.data))s.setStart(m,f),s.setEnd(m,g),[...s.getClientRects()].some(k=>{let N=Ls(k,h,r);return N&&nn(o,N)})&&(a={at:p,start:f,end:g},c??=a)}),c?Pi(i.slice(c.at,a.at+1).map((m,p,h)=>({...m,start:p?m.start:c.start,end:p===h.length-1?a.end:m.end}))):""}function Yp({anchors:{aimTargetAt:e,resolveAnchor:t},pageGeometry:{refreshAim:n},pointer:o,visibleTargets:r,anchoredDrawing:s,heldDrawings:i,watchHeldDrawings:c,draftKey:a,openAnchoredDrawing:m,replaceDrawing:p,setDesignMode:h,closeTargetPicker:f,closeReactionMode:g,banner:v,announce:k,paintDrawings:N,shiftDrawingPaint:P,repaint:_}){let T=!1,w=null,D=null,$=null,J=!1,Z=null,x=null,B=!1,I=()=>T;function R(){x!==null&&globalThis.clearTimeout(x),x=setTimeout(()=>{x=null,J=!1})}function z(C,{spoken:U=!0}={}){C=!!C,C&&(h(!1,{spoken:!1}),f(),g()),T=C,D=null,C||(w=null,Z===null&&(J=!1)),document.documentElement.toggleAttribute("data-lf-draw-mode",C),v.toggleAttribute("data-lf-draw-mode",C),n(),U&&k(C?`Draw mode: draw anywhere on the page; each stroke adds to one drawing, and z takes one back. ${Je.matches?"Exit Draw mode on the banner leaves.":"Escape leaves."}`:"Draw mode off"),N(),_()}function te({x:C,y:U}){let se=r().filter(({rect:q})=>q?.width&&q?.height).map(q=>({target:q,distance:Math.hypot(Math.max(q.rect.left-C,0,C-q.rect.right),Math.max(q.rect.top-U,0,U-q.rect.bottom))})),b=Math.min(...se.map(({distance:q})=>q)),S=se.filter(({distance:q})=>q<=b+Hv);return S.filter(({target:q})=>!S.some(G=>G.target.element!==q.element&&Pe(G.target.element,q.element))).sort((q,G)=>q.distance-G.distance)[0]?.target??null}function d(){let C=o();if(C.x<0)return null;let U=Ho(C.x,C.y);return!U||qr(U)?null:e(U)??te(C)}let A=C=>s(C),H=(C,U)=>a(C)===a(U);function M(C){let U=t(C,"");return U&&U.status!=="outdated"?yt(U)??co(U):null}function K(){if(!D||!A(D.anchor))return null;let C=M(D.anchor);return C?{anchor:D.anchor,element:C}:null}function F(C,U){let se=Fn(U.left,U.top);return C.map(({left:b,top:S})=>[ti(Ht(b-se.left,-33554432,33554432)),ti(Ht(S-se.top,-33554432,33554432))])}let X=(C,{points:U,box:se})=>[...C?Yi(C,se):[],F(U,se)];function L(C,U){let{clientWidth:se,clientHeight:b}=document.documentElement;return{format:Vf,strokes:C,box:[ti(U.width),ti(U.height)],viewport:[se,b],scheme:_m()}}function O(C,U,se){let b=Sn(se),S=b&&Rt(b),q={...L(C,U),...S?.width&&S?.height&&{at:[ti(U.left-S.left),ti(U.top-S.top)]}},G=Vv(q.strokes.flat().map(([he,Ee])=>[U.left+he,U.top+Ee]));if(!G)return q;let ce=[...G].length>500?`${Kd(G,0,499)}\u2026`:G;return{...q,says:ce}}function ee(C,U){if(!w||w.invalid)return!1;let se=M(w.anchor),b=se&&Rt(se);if(!b?.width||!b?.height)return w.invalid=!0,P(),!1;w.target=se,w.box=b;let S={x:C,y:U},q=w.lastScreen;if(q){let G=Math.hypot(C-q.x,U-q.y);if(G<Wv)return!1;w.distance+=G}return w.lastScreen=S,w.points.push(Fn(C,U)),w.points.length>256&&(w.points=w.points.filter((G,ce,he)=>ce%2===0||ce===he.length-1)),P(),!0}function Y(C){C.preventDefault(),C.stopImmediatePropagation()}function ve(C){if(!T||!C.isPrimary||C.button!==0)return;let U=C.composedPath()[0];if(qr(U))return;J=!0,Z=C.pointerId,Y(C);let se=K()??d(),b=se&&Rt(se.element);if(!b?.width||!b?.height){k("Draw on or beside something on the page.");return}if(A(se.anchor)?.strokes.length>=32){k(`A drawing holds ${32} strokes. Undo a stroke, or send or remove this drawing to start another.`);return}C.target.setPointerCapture(C.pointerId),w={anchor:se.anchor,box:b,distance:0,lastScreen:null,points:[],pointerId:C.pointerId,target:se.element},ee(C.clientX,C.clientY)}function oe(C){if(!w||C.pointerId!==w.pointerId){C.pointerId===Z&&Y(C);return}Y(C),ee(C.clientX,C.clientY)}function V(C){if(!w||C.pointerId!==w.pointerId){C.pointerId===Z&&(Y(C),Z=null,R());return}Y(C),ee(C.clientX,C.clientY);let U=w;if(w=null,Z=null,R(),U.invalid){P(),k("Stroke canceled because its page element changed.");return}if(U.distance<zv||U.points.length<2){P(),k("Drag to draw; a click leaves no mark.");return}let se=A(U.anchor),b=O(X(se,U),U.box,U.anchor);D={anchor:U.anchor},$={anchor:U.anchor},m(U.anchor,b),k(se?"Stroke added to the drawing.":"Drawing captured. Draw more strokes, add words, or send it.")}function pe(){let C=$&&A($.anchor);if(C&&we($.anchor,C))return $;let U=i().find(se=>se.open);return U?{anchor:U.anchor}:null}function $e(C=pe()?.anchor){let U=C&&A(C);if(!U){k("No stroke to undo.");return}let se=M(C),b=se&&Rt(se),S=!!(b?.width&&b?.height),q=(S?Yi(U,b):U.strokes).slice(0,-1),{says:G,...ce}=U;p(C,q.length?S?O(q,b,C):{...ce,strokes:q}:null),k(q.length?`Stroke undone; ${q.length} left.`:"Last stroke undone; drawing removed.")}function De(C){A(C)&&(p(C,null),k("Drawing removed."))}function Me(C){if(!w||C.pointerId!==w.pointerId){C.pointerId===Z&&(Y(C),Z=null,R());return}Y(C),w=null,Z=null,R(),P(),k("Stroke canceled. Draw mode is still on.")}let ye=C=>{J&&!Fr(C)&&Y(C)};function Te(){return!w||w.points.length<2?null:{drawing:L(X(A(w.anchor),w),w.box),target:w.target,className:"lf-drawing-active"}}let ke=new WeakMap;function le(C){if(!ke.has(C)){let[U,se]=C.at,{box:b,...S}=C;ke.set(C,{...S,strokes:C.strokes.map(q=>q.map(([G,ce])=>[G+U,ce+se]))})}return ke.get(C)}function we(C,U){let se=M(C);if(se)return{target:se,drawing:U,detached:!1};let b=U.at&&Sn(C);return b?{target:b,drawing:le(U),detached:!0}:null}function Re(C){let U=[];for(let{anchor:se,drawing:b,open:S}of i()){if(C&&H(se,C.anchor))continue;let q=we(se,b);q&&U.push({drawing:q.drawing,target:q.target,className:S&&!q.detached?"lf-drawing-pending":"lf-drawing-parked"})}return U}let We=()=>{};function W(){if(!B){B=!0,We=c(()=>P()),document.addEventListener("pointerdown",ve,!0),document.addEventListener("pointermove",oe,!0),document.addEventListener("pointerup",V,!0),document.addEventListener("pointercancel",Me,!0);for(let C of Vp)document.addEventListener(C,ye,!0)}}function ne(){if(B){document.removeEventListener("pointerdown",ve,!0),document.removeEventListener("pointermove",oe,!0),document.removeEventListener("pointerup",V,!0),document.removeEventListener("pointercancel",Me,!0);for(let C of Vp)document.removeEventListener(C,ye,!0);We()}B=!1,x!==null&&globalThis.clearTimeout(x),x=null,T=!1,w=null,D=null,$=null,J=!1,Z=null,document.documentElement.removeAttribute("data-lf-draw-mode"),v.removeAttribute("data-lf-draw-mode")}return Ke("draw mode",{title:"In Draw mode",at:I,claims:C=>Kp.includes(C),rows:[{id:"draw.mode.stroke",keys:[],label:"drag",title:"Draw on the page",description:"Each stroke adds to one drawing",line:!1},{id:"draw.mode.undo",keys:Kp,title:"undo stroke",description:"Take back the last stroke drawn",touch:"Undo stroke",when:()=>!!pe(),run:()=>$e()},{id:"draw.mode.exit",keys:["w"],title:"exit Draw mode",touch:"Exit Draw mode",line:!1,run:()=>z(!1)}]}),qt("draw mode",()=>I()?{title:"exit Draw mode",out:()=>z(!1)}:null),Ge({id:"draw.mode.enter",keys:["w"],description:"Draw on the page and attach the drawing to a comment",title:"draw mode",touch:"Draw mode",when:()=>Ot()&&!T,run:()=>z(!0)}),{mount:W,destroy:ne,drawModeActive:I,setDrawMode:z,undoStroke:$e,removeDrawing:De,drawings:()=>{let C=Te();return[...Re(C&&w),...C?[C]:[]]}}}function Qp({marginTargetAt:e,refreshAim:t,commentOnTarget:n,standDown:o,drawModeActive:r,designMode:s,targetPicker:i}){let c=!1,a=()=>!s.active()&&!r(),m=I=>a()&&(I||i.active()),p=()=>m(c)&&(c||!Je.matches),h={id:"aim.comment",touch:!1,modifier:"Alt",keys:[],label:`${ut("Alt")} click`,title:"Comment under the pointer",line:!1,when:a};function f(I){let R=I&&xe(I)?e(I):I;return R&&!xe(R)?R:null}function g(){let I=on();return I.x<0?null:v(f(Ho(I.x,I.y)))}function v(I){let R=I&&Yo(I),z=R?.anchor.visual?null:Yf(R?.element,I);return R&&{...R,point:z}}function k(){document.body.classList.toggle("lf-aiming",c||i.active()),t()}function N(I){c=I,k()}let P=I=>I.key===h.modifier&&N(!0),_=I=>I.key===h.modifier&&N(!1),T=()=>N(!1),w=I=>{let R=I.getModifierState(h.modifier);R!==c?N(R):t()},D=["pointerdown","mousedown","pointerup","mouseup","click","auxclick","dblclick"],$=null,J=null;function Z(I){if(I.type==="pointerdown"){J=$;let R=I.composedPath()[0],z=s.press(R),te=m(I.getModifierState(h.modifier))&&f(I.target);$=z?{designMode:s.target(R)}:te?{aim:g(),choosing:i.active()}:null,$&&o(I.target)}!$&&I.type==="mousedown"&&I.detail>1&&J&&($={continuing:!0}),$&&(Fr(I)||(["mousedown","click","auxclick"].includes(I.type)&&I.preventDefault(),I.stopPropagation(),I.type==="click"&&($.aim&&$.choosing?i.choose($.aim):$.aim?n($.aim):$.designMode&&s.open($.designMode))))}function x(){addEventListener("keydown",P),addEventListener("keyup",_),addEventListener("blur",T),document.addEventListener("pointermove",w);for(let I of D)document.addEventListener(I,Z,!0)}function B(){globalThis.removeEventListener("keydown",P),globalThis.removeEventListener("keyup",_),globalThis.removeEventListener("blur",T),document.removeEventListener("pointermove",w);for(let I of D)document.removeEventListener(I,Z,!0)}return Ge(h),{aimIsOn:p,aimedTarget:g,armChanged:k,mount:x,destroy:B}}import{html as Oa,nothing as cb,render as uh,repeat as db}from"/vendor/browser-runtime.js";import{html as Kv,nothing as Xp,render as uc,repeat as Yv}from"/vendor/browser-runtime.js";var ni=[..."asdfghjklqwertyuiopzxcvbnm"];function Aa(e,t=ni){let n=[...t];for(;n.length<e;){let o=Math.min(...n.map(i=>i.length)),r=n.findLastIndex(i=>i.length===o),s=n[r];n.splice(r,1,...t.map(i=>s+i))}return n.slice(0,e)}function Ta(){let e=new WeakMap,t=1;return n=>(e.has(n)||e.set(n,t++),e.get(n))}var Sa=(e,t,n)=>({left:t,right:t+e.width,top:n,bottom:n+e.height,width:e.width,height:e.height});function Qv(e,t,n,o,r,s){let i=Math.max(o,r-e.height),c=[t,o,i];for(let a of n)c.push(a.bottom+s,a.top-s-e.height);return c.map(a=>Ht(a,o,i)).filter(a=>!n.some(m=>nn(Sa(e,e.left,a),m))).sort((a,m)=>Math.abs(a-t)-Math.abs(m-t))[0]}function Jp(e,{barriers:t=[],lineBox:n,viewportLeft:o=0,viewportTop:r=0,viewportRight:s=document.documentElement.clientWidth,viewportBottom:i=document.documentElement.clientHeight}={}){let c=parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--focus-ring-w"))||0,a=e.map(({chip:p,at:h,target:f,belowTarget:g=!1})=>({start:Os(p,h),target:f,belowTarget:g})),m=Xv(a,{barriers:t,lineBox:n,band:c,viewport:{left:o,top:r,right:s,bottom:i}});return e.forEach(({chip:p,at:h},f)=>{let{start:g}=a[f],v=m[f];xs(p,h.left+v.left-g.left,h.top+v.top-g.top)}),m}function Xv(e,{barriers:t=[],lineBox:n,band:o,viewport:r}){let i=Math.max(2,o),c=n??{left:0,top:r.bottom,right:0,height:0},a={left:c.left,top:c.top,right:c.right,bottom:r.bottom},m=r.left+o,p=r.top+o,h=r.right-o,f=r.bottom-o,g=e.map(({start:k,target:N,belowTarget:P})=>{let _=P?N.left+(N.width-k.width)/2:k.left,T=P?N.bottom+i:k.top,w=Sa(k,Ht(_,m,Math.max(m,h-k.width)),Ht(T,p,Math.max(p,f-k.height))),D=Math.max(N.left,c.right+i),$=D+k.width<=Math.min(N.right,h),J=c.height&&nn(w,a)&&$?D:w.left;return[Sa(w,J,w.top),P?N:null]}),v=[];for(let[k,N]of g){let P=[...t,...v].filter(T=>Mr(T,k));N&&Mr(N,k)&&P.push(N),a.bottom>a.top&&Mr(a,k)&&P.push(a);let _=Qv(k,k.top,P,p,f,i);v.push(Sa(k,k.left,_??k.top))}return v}var fc=80;function Ea({layer:e,walk:t,read:n,identity:o,scene:r,layout:s,template:i,take:c,words:a,chrome:m,extras:p=()=>[]}){let h=!1,f=!1,g="",v=[],k=-1,N=!1,P=!1,_=0,T=()=>v.filter(({code:M})=>M.startsWith(g));function w(M){return g="",k=-1,P=!1,v=M}function D(){N=!1,clearTimeout(_)}function $(){return h=!0,f=!1,D(),_=setTimeout(A,fc),w(n())}function J(){h=!1,D(),w([]),uc(Xp,e)}let Z=()=>w(n());function x(){g="",k=-1,P=!0,Ae()}function B(M){let K=n();if(M&&K.some(F=>o(F)===o(M)))return c(M);w(K),Ne("That target is no longer visible. The hints are reset."),Ae()}function I(M){let K=g+M;if(!v.some(({code:X})=>X.startsWith(K))){Ne(`No hint ${K}. The current hints are unchanged.`);return}g=K,k=-1;let F=T().find(({code:X})=>X===g);if(F)return B(F);Ne(`${T().length} targets remain.`),Ae()}function R(M){let K=T();if(!K.length)return;k=(k+M+K.length)%K.length;let F=K[k];sn(t,"Target",()=>To(T(),T()[k],{identity:o}));let X=a.describe(F),L=/[.!?]$/.test(X)?"":".";Ne(`Hint ${F.code}: ${X}${L} Press Enter to ${a.take}.`),Ae()}function z(){return g?(g=g.slice(0,-1),k=-1,Ne(g?`Hint ${g}.`:a.all),Ae(),!0):!1}function te(M,K){let F=[...M,...K];uc(Kv`${Yv(F,({model:ee})=>ee.key,({model:ee})=>i(ee))}`,e);let X=[...e.children],L=F.map((ee,Y)=>({chip:X[Y],at:{left:ee.left,top:ee.top},target:ee.target,belowTarget:ee.belowTarget})),O=M.length?Jp(L.slice(0,M.length)):[];K.length&&Jp(L.slice(M.length),{barriers:[...O,...m.barriers()],lineBox:m.lineBox(),viewportTop:m.viewportTop()})}function d(){if(!h){uc(Xp,e);return}let M=p();if(!f)return te(M,[]);let K=k>=0,F=T()[k],X=v.length===0,L=v.some(ve=>!o(ve)?.isConnected);!g&&!N&&(P||L||!v.length)&&(v=n(),P=!1,k=F?v.findIndex(ve=>o(ve)===o(F)&&ve.code===F.code):-1);let O=T()[k],ee=s(T(),{current:O,reading:r()}),Y=new Set(ee.map(ve=>ve.candidate));K&&O&&!Y.has(O)&&(k=-1),te(M,ee),(K&&k<0||X!==(v.length===0))&&Ae()}function A(){clearTimeout(_),f=!0,N=!1,Ae()}function H(){addEventListener("scroll",()=>{h&&(N=!0,P=!0,clearTimeout(_),_=setTimeout(A,fc),Ae())},{capture:!0,passive:!0}),addEventListener("scrollend",()=>{h&&A()},{capture:!0,passive:!0}),addEventListener("resize",()=>{h&&(clearTimeout(_),f||(_=setTimeout(A,fc)),N=!1,P=!0,Ae())})}return{arm:$,armed:()=>h,backOneLetter:z,candidates:()=>v,choose:()=>B(T()[k]),disarm:J,invalidate:x,mount:H,paint:d,prefix:()=>g,refresh:Z,type:I,walk:R,walking:()=>k>=0}}import{html as rs,nothing as oi,render as gc,repeat as Jv}from"/vendor/browser-runtime.js";var lt=ue("div","lf-ui lf-shortcut-bar");lt.id="lf-shortcut-bar";lt.setAttribute("data-lf-reflow","controls");var fr=ue("div","lf-ui lf-bottom-status"),th=null,Zv=Object.freeze({goTo:null,walk:null}),eb=Object.freeze({items:Object.freeze([]),more:Object.freeze({hidden:!0,binding:null,line:"more",title:"More keyboard shortcuts",expanded:!1,ariaLabel:"More keyboard shortcuts"}),tail:null,expanded:!1}),tb=e=>rs`
+  <span class="lf-go-to-status" aria-hidden="true" ?hidden=${!e.goTo}
+    >${e.goTo??oi}</span
+  >
+  <span
+    class="lf-walk-position"
+    aria-hidden="true"
+    ?hidden=${!e.walk?.shown}
+    data-kind=${e.walk?.shown?e.walk.kind:oi}
+    ?data-lf-boundary=${e.walk?.shown?e.walk.boundary:!1}
+    >${e.walk?.text??oi}</span
+  >
+  <span class=${`lf-ui lf-notice${e.notice.visible?" show":""}`}
+    >${e.notice.message||oi}</span
+  >
+`,nh=e=>rs`${Jv(e.items,t=>t.key,t=>rs`
+        <span
+          class=${`lf-shortcut${t.sequenceControl?" lf-sequence-command":""}`}
+          aria-hidden="true"
+          data-lf-command-ids=${t.commandIds}
+          >${Un(t.sequence)}${t.said?rs`<span>${t.said}</span>`:oi}</span
+        >
+      `)}<button
+      type="button"
+      class="lf-shortcut-more"
+      title=${e.more.title}
+      aria-label=${e.more.ariaLabel}
+      aria-expanded=${String(e.more.expanded)}
+      ?hidden=${e.more.hidden}
+    >
+      <kbd class="lf-key-badge">${e.more.binding}</kbd
+      ><span>${e.more.line}</span></button
+    >${e.tail?rs`<span class="lf-shortcut" aria-hidden="true"
+            >${Un(e.tail.sequence)}<span
+              >${e.tail.said}</span
+            ></span
+          >`:oi}`,oh=Zv,hc=null,vc=()=>{let e=Object.freeze({...oh,notice:ea()});gc(tb(e),fr),hc?.()};vc();gc(nh(eb),lt);var nb=fr.querySelector(".lf-walk-position"),ob=fr.querySelector(".lf-go-to-status"),rb=lt.querySelector(".lf-shortcut-more");ta(vc);var rh=e=>e.filter(t=>getComputedStyle(t).position==="fixed").map(t=>t.getBoundingClientRect()).filter(t=>t.height>0&&t.width>0),ib=()=>!nb.hidden||!ob.hidden,Ca=null,Ra=()=>ib()?(Xu()||([Ca=null]=rh([fr])),Ca?[Ca]:[]):(Ca=null,[]),bc=()=>[...rh([lt]),...Ra()];Md(bc);var ih=new WeakMap,ss=e=>ih.get(e)??e,mc=new WeakMap,sb=1,ab=e=>{let t=ss(e);return mc.has(t)||mc.set(t,sb++),mc.get(t)},Zp=(e,t,n)=>{if(n.length===t.length)return e;let o=Go(e).filter(i=>n.includes(i.binding)),r=o.length===1?o[0]:null,s={...e,keys:n,routes:o,label:r?.label,title:r?.title??e.title,description:r?.description??e.description,line:r?.line??e.line};return ih.set(s,e),s};function sh(e){let t=Rp("Escape"),n=new Set,o=cr(),r=[];for(let s of e){let i=s.rows.flatMap(c=>{if(c.line===!1||!s.sequence&&je(c.lineWhen)===!1)return[];let a=ze(c),m=a.filter(p=>p==="Escape"?t?.visible&&Vo(t.scope)===Vo(s)&&t.row===c:!n.has(p)&&!o.takes(p));return m.length?[Zp(c,a,m)]:[]});for(let c of ru(i,s.title??"the page's keys")){if(!_n(c))continue;let a=ze(c).filter(p=>po(c,[p]).length);if(!a.length)continue;let m=ss(c);for(let p of a)n.add(p);r.push(Zp(m,ze(m),a))}o.past(s)}return r}var ur=!1,pc=null,wc=()=>ze(ri).length>0,ah=e=>{let t=e.findIndex(p=>ss(p)===ri),n=t===-1?null:e[t],o=t===-1?e:[...e.slice(0,t),...e.slice(t+1)],r=o,s=r[0],i=r.find(p=>ze(p).includes("Escape")&&je(p.promoteEscape)!==!1),c=i&&i!==s?i:r.find(p=>p!==s),a=new Set([s,c].filter(Boolean)),m=o.includes($a)?$a:null;return{candidates:r,reference:n,short:a,tail:m,wayOut:i}},lh=(e,t)=>{let n=e.find(s=>s.sequence);if(!n)return null;let o=new Set(n.rows),r=new Set(t.filter(s=>o.has(ss(s))));return r.size?{scope:n,rows:r}:null},eh=()=>dc(e=>Mp(e,yc));function lb(){if(!wc()||ur)return eh();let e=Co(),{candidates:t,short:n}=ah(sh(e)),o=lh(e,t)?.rows??n;if(!t.some(r=>!o.has(r)))return eh();ur=!0,Ae(),Ne("Shortcut bar expanded. Press question mark again for Command reference, or Escape to collapse it.")}function xa({silent:e=!1}={}){ur&&(ur=!1,Ae(),e||Ne("Shortcut bar collapsed."))}function ch(e){if(!ko())return;let t=Co(),n=sh(t);wc()||(ur=!1);let o=ur&&!dr(),{candidates:r,reference:s,short:i,tail:c,wayOut:a}=ah(n),m=lh(t,r),p=m?.rows??i,h=sa(),f=e();h&&(pc=Object.freeze({kind:h.kind,text:h.text,boundary:h.boundary})),oh=Object.freeze({goTo:f,walk:pc?Object.freeze({...pc,shown:!!h}):null}),Ju(!!f),vc();let v=(o||m?r:[...p,...r.filter(O=>!p.has(O))]).filter(O=>!o||O!==c),k=s?[s]:[],N=[...v,...k],P=s?ze(s)[0]:null,_=jn(ri),T=_n(ri),w=m?.scope,D=je(w?.sequence)??[],$=N.map(O=>{let ee=D.length&&!O.sequenceControl,Y=ee?[D[0],...ar(O)]:ar(O),ve=ee?lr(Y,D):Zr(Y),oe=ze(O);return Object.freeze({key:ab(O),sequenceControl:!!O.sequenceControl,sequence:$n(Y,ve),said:_n(O),commandIds:Ds(O,oe).map(({id:V})=>V).join(" "),wayOut:O===a,hidden:ss(O)===ri||!o&&!p.has(O)})}),J=Object.freeze({items:Object.freeze($),more:Object.freeze({hidden:dr()||!P,binding:P?ut(P):null,line:T,title:_,expanded:o,ariaLabel:P?`${ut(P)} ${T}`:_}),tail:o&&c?Object.freeze({sequence:$n(ar(c),Zr(ar(c))),said:_n(c)}):null,expanded:o});de(lt,"data-lf-expanded",J.expanded),gc(nh(J),lt);let Z=lt.querySelectorAll(":scope > .lf-shortcut"),x=J.items.map((O,ee)=>({presentation:O,span:Z[ee]})),B=getComputedStyle(lt),I=parseFloat(B.columnGap),[R]=o?[]:Ra(),z=R?R.width+I:0,te=O=>{let ee=getComputedStyle(O);return O.getBoundingClientRect().width+parseFloat(ee.marginLeft)+parseFloat(ee.marginRight)},d=lt.getBoundingClientRect().width-parseFloat(B.borderLeftWidth)-parseFloat(B.borderRightWidth)-parseFloat(B.paddingLeft)-parseFloat(B.paddingRight)+(parseFloat(lt.style.getPropertyValue("--lf-status-room"))||0),A=new Map(x.map(({span:O,presentation:ee})=>[O,!ee.hidden])),H=new Map([...lt.children].filter(O=>A.get(O)??!O.hidden).map(O=>[O,te(O)])),M=new Set,K=O=>{let ee=0,Y=1/0;for(let[ve,oe]of H)M.has(ve)||(Y+=I+oe,Y>d-O&&(ee+=1,Y=oe));return ee},F=o?2:1,X=x.filter(({presentation:O})=>!O.hidden&&!O.wayOut).map(({span:O})=>O).toReversed();for(;K(z)>F&&X.length;)M.add(X.shift());for(let O of[...M].toReversed())M.delete(O),K(z)>F&&M.add(O);let L=z&&K(z)>F?0:z;lt.style.setProperty("--lf-status-room",`${L}px`);for(let{presentation:O,span:ee}of x)Wn(ee,O.hidden||M.has(ee))}var is=()=>ur&&wc();function dh({setGoToSequence:e,setReact:t,placeBottomStatus:n}){hc=n,hc(),th=()=>{e(!1),t(!1),lb()},Ae()}var ri=Ge({id:"command.reference.open",touch:!1,runFromCommandReference:!1,keys:["?"],title:()=>is()?"Command reference":"More keyboard shortcuts",line:()=>is()?"command reference":"more",control:()=>rb,run:()=>th?.()}),$a={id:"shortcut.bar.collapse",keys:["Escape"],title:"Fewer keyboard shortcuts",line:"less",commandReferenceWhen:()=>!1,runFromCommandReference:!1,run:()=>xa()};Ke("expanded shortcut bar",{title:"In the expanded shortcut bar",escape:"inner",root:()=>He,at:()=>!!is(),rows:[$a]});qp(is);var yc=e=>{is()&&!dr()&&e!==ri&&e!==$a&&xa({silent:!0})};var as=(e,t,n,o,r=t)=>n>e&&o>t?{left:e,top:t,right:n,bottom:o,width:n-e,height:o-t,clippedTop:r<t}:null;function Vn(){let e=new Map,t=Dn(),n=bc(),o=[...n],r=(v,k=v?.top)=>v?as(Math.max(v.left,0),Math.max(v.top,t),Math.min(v.right,innerWidth),Math.min(v.bottom,innerHeight),k):null;function s(v,k){let N=r(v,k);return N?n.reduce((P,_)=>P.flatMap(T=>nn(T,_)?[as(T.left,T.top,T.right,Math.min(T.bottom,_.top),k),as(T.left,T.top,Math.min(T.right,_.left),T.bottom,k),as(Math.max(T.left,_.right),T.top,T.right,T.bottom,k),as(T.left,Math.max(T.top,_.bottom),T.right,T.bottom,k)].filter(Boolean):[T]),[N]).sort((P,_)=>_.width*_.height-P.width*P.height)[0]??null:null}let i=v=>r(Dd(v,e)),c=v=>r(zo(v,e)),a=v=>zo(v,e),m=(v,k)=>v&&k?s({left:Math.max(v.left,k.left),top:Math.max(v.top,k.top),right:Math.min(v.right,k.right),bottom:Math.min(v.bottom,k.bottom)},v.top):null,p=(v,k,N="across")=>{if(!k)return!1;let P=v?Nr(v):[],_=P.length===1&&P[0]===v?[k]:P.map(T=>T.getBoundingClientRect()).filter(T=>nn(T,k)).map(T=>({left:Math.max(T.left,k.left),top:Math.max(T.top,k.top),right:Math.min(T.right,k.right),bottom:Math.min(T.bottom,k.bottom)}));return(_.length?_:[k]).some(T=>{let w=Ho(Ht((T.left+T.right)/2,0,innerWidth-1),Ht((T.top+T.bottom)/2,t,innerHeight-1));return v?N==="self"?v.contains(w):Pe(w,v):!xe(w)})};function h(v){return!v||v.right<=v.left||v.bottom<=v.top||o.some(k=>nn(v,k))?!1:(o.push(v),!0)}function f(v,k){return[[(v.left+v.right)/2,(v.top+v.bottom)/2],[v.left+1,v.top+1],[v.right-1,v.top+1],[v.left+1,v.bottom-1],[v.right-1,v.bottom-1]].some(([P,_])=>{let T=dt(Ho(P,_),wd);return T&&!Pe(T,k)&&!Pe(k,T)})}function g(v,k){ua(v,k.map(({chip:w})=>w));let N=document.documentElement.clientWidth,P=document.documentElement.clientHeight,_=k.map(({chip:w,owner:D,corner:$,at:J})=>({chip:w,owner:D,corner:$,at:J,start:Os(w,J)})),T=w=>w.right>w.left&&w.bottom>w.top&&!o.some(D=>nn(w,D));for(let{chip:w,owner:D,corner:$,at:J,start:Z}of _){let x=[[$.left,$.top],[$.right,$.top],[$.left,$.bottom],[$.right,$.bottom]].map(([I,R])=>{let z=Z.left+I-$.left,te=Z.top+R-$.top,d=new DOMRect(Ht(z,0,N-Z.width),Ht(te,t,P-Z.height),Z.width,Z.height);return d.held=Math.abs(d.top-te)>=.5,d}),B=x.find(I=>T(I)&&!f(I,D))??x[0];if(!h(B)){w.style.visibility="hidden";continue}w.style.removeProperty("visibility"),xs(w,J.left+B.left-Z.left,J.top+B.top-Z.top,B.held)}}return{badgeBox:i,clearPart:m,clipOver:a,exposes:p,paint:g,reserve:h,visibleBounds:c}}var ii=ue("div","lf-ui lf-target-picker-hints");ii.setAttribute("aria-hidden","true");var mr=ue("div","lf-ui lf-page-search");mr.setAttribute("role","search");mr.hidden=!0;var ot=document.createElement("input");ot.className="lf-page-search-box";ot.type="search";ot.name="page-search";ot.autocomplete="off";ot.spellcheck=!1;ot.maxLength=160;ot.placeholder="Search page text";ot.setAttribute("aria-label","Search page text");var kc=ue("span","lf-page-search-status");kc.setAttribute("role","status");mr.append(ot,kc);function fh({scrollToRange:e,hintChrome:t,commentOnTarget:n,updateFab:o,fabAnchorAt:r,pointerModeActive:s,armChanged:i}){let a=()=>Ot()&&!rn()&&!s(),m=!1,p=!1,h=[],f=-1,g=null,v=!1,k=null,N=new WeakMap,P=1,_=Ta(),T=(S,q)=>`${S}\0${q}`,w=Vn,D=({element:S})=>S.checkVisibility()||getComputedStyle(S).display==="contents"&&Nr(S).some(q=>q.checkVisibility());function $(S,q,G){let ce=G.clipOver(q);return ce?[...S.getClientRects()].map(he=>G.clearPart(he,ce)).find(he=>G.exposes(null,he))??null:null}let J=(S,q)=>Math.abs(S.left-q.left)<.5&&Math.abs(S.top-q.top)<.5&&Math.abs(S.right-q.right)<.5&&Math.abs(S.bottom-q.bottom)<.5;function Z(){let S=w(),q=Lu().filter(({element:he})=>!xe(he)).filter(D).map(he=>({...he,rect:S.visibleBounds(he.element)})).filter(({element:he,rect:Ee})=>S.exposes(he,Ee)).sort((he,Ee)=>he.rect.top-Ee.rect.top||he.rect.left-Ee.rect.left),G=q.filter(he=>!q.some(Ee=>Ee!==he&&he.element!==Ee.element&&he.element.contains(Ee.element)&&J(he.rect,Ee.rect))),ce=Aa(G.length);return G.map((he,Ee)=>({...he,code:ce[Ee]}))}let x=(S,q)=>q.filter(G=>G!==S&&G.left<=S.left&&G.top<=S.top&&G.right>=S.right&&G.bottom>=S.bottom&&(G.right-G.left>S.right-S.left||G.bottom-G.top>S.bottom-S.top)).length;function B(S,q=!1,G=!0){if(S&&(!Ot()||G&&!a()))return;S&&(g=ge());let ce=!S&&q?g:null;if(m=S,p=!1,v=!1,h=[],f=-1,ot.value="",Wn(mr,!0),S&&G){let he=ye.arm();Ne(he.length?`Choose a target \u2014 press an element, type one of ${he.length} hints, press Tab to hear them, or slash to search the page.`:"There is no visible target to choose. Press slash to search the page.")}else ye.disarm(),S||(g=null);i(),Ae(),ce&&kn(ce)}function I(S){p=S,Wn(mr,!S),S?(ot.focus({preventScroll:!0}),A(),Ne("Search the page.")):(ot.value="",h=[],f=-1,jr(),ye.invalidate(),Ne("Choose a target \u2014 type a hint, or slash to search the page.")),i(),Ae()}function R(){let S=m;m||B(!0,!1,!1),v=S,I(!0)}function z(S){let q=S[0];return q?Gd(q):null}function te(S,q=w()){let G=z(S);return G?$(vn(S),G,q):null}function d(S){let q=Dn(),G=S.findIndex(ce=>vn(ce).getBoundingClientRect().bottom>q);return G===-1?0:G}function A(){let q=ot.value.trim()?h.length?`${f+1} of ${h.length}`:"No matches":cb;uh(Oa`${q}`,kc)}function H(S,q){return S.length===q.length&&S.every((G,ce)=>G.node===q[ce].node&&G.start===q[ce].start&&G.end===q[ce].end)}function M(S,q){let G=q.map(({node:ce,start:he,end:Ee})=>(N.has(ce)||N.set(ce,P++),`${N.get(ce)}:${he}:${Ee}`));return`${S}\0${G.join(",")}`}function K(S){return S.length>0&&S.every(({node:q,start:G,end:ce})=>q.isConnected&&G>=0&&G<=ce&&ce<=q.length)}function F(S){let q=getSelection();if(q.rangeCount!==1||q.isCollapsed||!K(S))return!1;let G=q.getRangeAt(0),ce=vn(S);return G.startContainer===ce.startContainer&&G.startOffset===ce.startOffset&&G.endContainer===ce.endContainer&&G.endOffset===ce.endOffset}function X(S){return!S||f<0||f>=h.length||!K(h[f])||!p&&!F(h[f])?null:{target:M(S,h[f]),position:f+1,total:h.length,qualifier:""}}function L(){if(sa()?.kind!=="page-search")return;let S=p?ot.value.trim():k?.query,q=h[f];if(!S||!q)return;let G=Bs(it(),S),ce=G.findIndex(he=>H(he,q));f=ce>=0?ce:G.length?Math.min(f,G.length-1):-1,h=G,k&&!p&&f>=0&&(k.index=f),p&&A(),Ae()}function O(){let S=ot.value.trim();h=S?Bs(it(),S):[],f=h.length?d(h):-1,A(),ee(),Ae()}function ee(){let S=h[f];!S||te(S)||e(vn(S),"instant")}function Y(S){if(!h.length)return;f=(f+S+h.length)%h.length,A(),ee();let q=ot.value.trim();sn("page-search","Match",()=>X(q)),Ne(`Match ${f+1} of ${h.length}: ${ve(h[f])}.`),Ae()}function ve(S){let{before:q,after:G}=Yd(it(),S),ce=Pi(S);return`${q?`\u2026${q} `:""}${ce}${G?` ${G}\u2026`:""}`}function oe(S){B(!1),jr(),n(S),Ne(`Chosen ${S.label}.`)}function V(){let S=h[f];if(!S)return;let q=Pi(h[f]);k={query:ot.value.trim(),index:f},B(!1),pe(S),Ne(`Selected match: ${q}. ${Je.matches?"Comment on selection on the banner comments on it.":"Press n for next, Shift+n for previous, or c to comment."}`)}function pe(S){jr();let q=vn(S);Dr([q.startContainer,q.startOffset],[q.endContainer,q.endOffset]),o()}function $e(S){if(h=Bs(it(),k.query),!h.length)return k=null,f=-1,Ne("The page no longer contains that search."),Ae();f=(Math.min(k.index,h.length-1)+S+h.length)%h.length,k.index=f,ee(),pe(h[f]);let G=k.query;sn("page-search","Match",()=>X(G)),Ne(`Match ${f+1} of ${h.length}: ${ve(h[f])}.`)}function De(){if(p){if(v)return I(!1);B(!1,!0),Ne("Page search closed.");return}ye.backOneLetter()||(B(!1,!0),Ne("Target picker closed."))}let ye=Ea({layer:ii,walk:"target-picker",read:Z,identity:S=>S.element,scene:w,layout:(S,{current:q,reading:G})=>{let ce=S.map(Le=>[Le,D(Le)?G.visibleBounds(Le.element):null]).filter(([Le,qe])=>G.exposes(Le.element,qe)),he=ce.map(([,Le])=>Le),Ee=Dn();return ce.map(([Le,qe])=>{let Qt=[...Le.code];return{candidate:Le,model:Object.freeze({key:_(Le.element),className:`lf-key-badge lf-key-hint lf-target-picker-hint${Le===q?" lf-current":""}${qe.clippedTop||qe.top<Ee?" lf-in":""}`,hintCode:Le.code,sequence:$n(Qt,lr(Qt,[...ye.prefix()]))}),target:qe,belowTarget:!1,left:Math.max(10,qe.left+x(qe,he)*10),top:Math.max(Ee,qe.top)}})},template:S=>Oa`<span class=${S.className} data-lf-hint-code=${S.hintCode}
+      >${Un(S.sequence)}</span
+    >`,take:oe,words:{describe:S=>S.label,take:"choose",all:"All target hints."},chrome:t});function Te(){let S=h[f],q=S&&K(S)?z(S):null,G=w(),ce=q?G.clipOver(q):null,he=[];if(ce)for(let[Ee,Le]of[...vn(S).getClientRects()].entries()){let qe=G.clearPart(Le,ce);G.exposes(null,qe)&&he.push({key:T(M(ot.value.trim(),S),Ee),rect:qe})}uh(Oa`${db(he,({key:Ee})=>Ee,()=>Oa`<span class="lf-page-search-match"></span>`)}`,ii);for(let[Ee,{rect:Le}]of he.entries()){let qe=ii.children[Ee];qe.style.left=wo(Le.left),qe.style.top=wo(Le.top),qe.style.width=wo(Le.width),qe.style.height=wo(Le.height)}}function ke(){if(m&&p)return Te();ye.paint()}let le={id:"page.search.open",touch:"Search page",keys:["/"],description:"Search all the text on the page",title:"search page",lineWhen:()=>!r(),when:()=>Ot()&&!p,run:R},we={id:"page.search.repeat",touch:!1,keys:["n","Shift+n"],routes:[{id:"page.search.next",binding:"n",title:"Go to the next match for the last page search"},{id:"page.search.previous",binding:"Shift+n",title:"Go to the previous match for the last page search"}],title:"search matches",repeat:!0,when:()=>!!k,run:S=>$e(S==="n"?1:-1)},Re={id:"targeting.back",keys:["Escape"],promoteEscape:()=>!p,description:()=>p?v?"Return to the visible target hints":"Close page search":ye.prefix()?"Remove the last hint letter":"Close the target picker",title:()=>p?v?"back to hints":"close search":ye.prefix()?"back one letter":"close picker",touch:()=>p?v?"Back to hints":"Close search":ye.prefix()?"Back one letter":"Cancel selection",run:De},We=S=>Vr(S)&&!ze(le).includes(S),W={title:"In the target picker",escape:"inner",at:()=>m&&!p,claims:We,rows:[{id:"target.picker.hint.type",keys:ni,label:"a\u2013z",description:"Type the hint for a target",title:"type hint",when:()=>ye.candidates().length>0,run:ye.type},{id:"target.picker.hint.walk",keys:["Tab","Shift+Tab"],routes:[{id:"target.picker.hint.next",binding:"Tab",title:"Hear the next visible target"},{id:"target.picker.hint.previous",binding:"Shift+Tab",title:"Hear the previous visible target"}],title:"browse hints",repeat:!0,when:()=>ye.candidates().length>0,run:S=>ye.walk(S==="Tab"?1:-1)},{id:"target.picker.target.choose",keys:["Enter"],description:"Choose the target just announced",title:"choose target",when:ye.walking,run:ye.choose},Re]},ne={title:"In page search",escape:"inner",at:()=>p,claims:We,rows:[{id:"page.search.match.select",keys:["Enter"],description:"Select the current search match",title:"select match",touch:"Select",when:()=>h.length>0,run:V},{id:"page.search.match.walk",keys:["Tab","Shift+Tab"],routes:[{id:"page.search.match.previous",binding:"Shift+Tab",title:"Go to the previous search match",touch:"Previous"},{id:"page.search.match.next",binding:"Tab",title:"Go to the next search match",touch:"Next"}],title:"matches",repeat:!0,when:()=>h.length>0,run:S=>Y(S==="Tab"?1:-1)},Re]},C=()=>m,U=()=>B(!0),se=()=>B(!1);function b(){ot.addEventListener("input",O),ye.mount();let S=()=>{p&&Ae()};Wr(S),addEventListener("resize",S),document.addEventListener(Di,L)}return Ke("page search",ne),Ke("target picker",W),Ge({id:"target.picker.open",keys:["s"],description:"Choose an element by pressing it or typing its hint, then comment",title:"select element",touch:"Select element",lineWhen:()=>!r(),when:a,run:(...S)=>U(...S)}),Ge(le),Ge(we),{visibleTargets:Z,chooseTarget:oe,choosing:()=>ye.armed()&&!p,paintTargetPickerHints:ke,targetPickerOpen:C,openTargetPicker:U,closeTargetPicker:se,mount:b}}function mh({isAskControl:e,standingIn:t}){return function(){let o=ge();if(!o||o===document.body||xe(o)&&da())return null;let r=En(o);if(!r||xe(r))return null;if(r!==o)return Yo(r);let s=e(o)?t():null;return Yo(s??o)}}function ph(){let e=new Map,t=null,n=new Map;function o({threads:r,draft:s,actionAnchor:i}){if(!Ot())return null;e.clear(),n=la(r);let c=it(),a=[],m=[];for(let v of r){if(!v.anchor)continue;let k=At(v.anchor,c);if(!k)continue;let N=yt(k)??k.place,P=Object.assign(k,{point:null,pointRow:null,pointWords:null});e.set(v.id,P),a.push({thread:v,placement:P}),!v.resolved&&!v.anchor.quote&&!v.anchor.visual&&N&&m.push({id:v.id,key:or(v),target:N})}let p=Qf(m,new Set(r.map(or)),c);for(let{id:v,key:k}of m){let N=p.get(k);N&&Object.assign(e.get(v),{point:N.element,pointRow:N.row,pointWords:N.words})}let h=s.open&&s.anchor?At(s.anchor,c):null;t=h;let f=s.open?null:i,g=f&&!f.quote?At(f,c):null;return{readings:a,draft:{...s,resolved:h},action:g}}return Object.freeze({read:o,placedAt:r=>e.get(n.get(r)?.id??r),pendingAt:()=>t})}var Pa=new Map,Ac=new WeakMap,si=null;Gr(e=>{for(let t=e;t&&t!==si;t=t.parentElement){let n=Ac.get(t);if(n)return n}return null});var ub=(e,t)=>e.length===t.length&&e.every((n,o)=>n===t[o]),fb=(e,t)=>(t??"").split(/\s+/).filter(Boolean).map(n=>e.getRootNode().getElementById?.(n)).filter(Boolean),Sc=e=>e.getAttribute("aria-details")==="";function hh(e,t){Sc(e)||(t.authored=e.getAttribute("aria-details"));let n=[...fb(e,t.authored),...t.notes];Sc(e)&&ub(e.ariaDetailsElements??[],n)||(e.ariaDetailsElements=n)}function La(e,t){si??=Ut("div","lf-details-shelf"),si.isConnected||qn.append(si),t.parentNode!==si&&si.append(t),Ac.set(t,e);let n=Pa.get(e);n||(n={notes:[],authored:null},Pa.set(e,n)),n.notes.includes(t)||n.notes.push(t),hh(e,n)}function Ia(e,t){let n=Pa.get(e);n?.notes.includes(t)&&(n.notes=n.notes.filter(o=>o!==t),n.notes.length?hh(e,n):(Sc(e)&&(n.authored===null?e.removeAttribute("aria-details"):e.setAttribute("aria-details",n.authored)),Pa.delete(e))),t.remove(),Ac.delete(t)}var mb=e=>`${e} comment${e===1?"":"s"}`;function gh({openThread:e,labelAnchor:t}){let n=new Map;function o(){let c=Ut("button","lf-skip lf-mark-note");c.tabIndex=-1;let a={note:c,firstThreadId:null};return c.addEventListener("click",()=>{e(a.firstThreadId,{focus:"thread"})}),a}function r(c,a){Ia(c,a.note),n.delete(c)}function s(c){for(let[a,m]of n)(!c.has(a)||!a.isConnected)&&r(a,m);for(let[a,m]of c){let p=n.get(a);p||n.set(a,p=o()),La(a,p.note),p.firstThreadId=m[0];let h=mb(m.length),f=Ks(a)?.id;Qe(p.note,h),de(p.note,"aria-label",f?`${h} on ${Cu(t({section:f}))}`:h)}}function i(){for(let[c,a]of n)r(c,a)}return{present:s,destroy:i}}import{html as vh,nothing as pb,render as bh,repeat as hb}from"/vendor/browser-runtime.js";var wh='.lf-msg-body a[href^="#"]';function yh({commentOnTarget:e,openThread:t,withdrawReaction:n,labelAnchor:o,invalidateThread:r,invalidatePageGeometry:s,messageReferenceRoot:i,draftQuote:c,focused:a,paintKeys:m}){let p=new Map,h=new Map,f=gh({openThread:t,labelAnchor:o}),g=!1,v=!1,k=new Map;function N(F,X,{focus:L=!1,surface:O=null}={}){if(X)for(let ee of h.values())ee!==F&&ee.expanded&&(ee.expanded=null,ee.margin?.update({immediate:!0}));F.expanded=X,F.margin?.update({immediate:!0}),m(),L&&X&&Bt(()=>F.margin?.focus(`reaction:${X}:remove`,O))}let P=F=>Uo(".lf-visual-action").find(X=>st(X.lfAnchor,F))??null;function _(F){let X=Wo(F.getRootNode())??F;for(let L=X;L;L=$s(L))L.matches?.("details")&&(X=L);return X}function T(){let F=new Map,X=new Set;for(let L of Uo(xu())){let O=Gs(L);if(!O||O.element!==L)continue;let ee=[{anchor:{section:O.id},label:o({section:O.id}).replace(/^§\s*/,"")||O.id},...Ru(L).filter(oe=>Ou(oe.element)).map(oe=>({anchor:{section:O.id,visual:oe.id},label:oe.label}))],Y=_(L),ve=F.get(Y)??[];F.set(Y,ve);for(let oe of ee){let V=JSON.stringify([oe.anchor.section,oe.anchor.visual??null]);X.has(V)||(X.add(V),ve.push({...oe,key:V}))}}return F}function w(F){let X=F.currentTarget,L=At(X.lfAnchor,it()),O=ul(L)[0]??yt(L);O&&(zn(O,Fe()),L=At(X.lfAnchor,it()),O=ul(L)[0]??yt(L),O?.scrollIntoView({behavior:"instant",block:"nearest",inline:"nearest"}))}function D(F){let X=F.currentTarget;e({anchor:X.lfAnchor},{origin:X})}let $=({anchor:F,label:X})=>vh`
+    <button
+      type="button"
+      class="lf-visual-action lf-quiet lf-ui"
+      data-lf-gen="1"
+      data-lf-offer="button"
+      tabindex="-1"
+      .lfAnchor=${F}
+      .textContent=${`Respond to ${X}`}
+      @focus=${w}
+      @click=${D}
+    ></button>
+  `;function J(F){let X=new Set;for(let[L,O]of F){if(!O.length)continue;let ee=p.get(L);ee||(ee=Ut("div","lf-visual-actions"),ee.setAttribute("role","group"),p.set(L,ee)),X.add(L);let Y=go(ee);de(ee,"aria-label",`Responses to ${O[0].label}`),bh(vh`${hb(O,({key:ve})=>ve,$)}`,ee),La(L,ee),Y?.()}for(let[L,O]of p)X.has(L)||(bh(pb,O),Ia(L,O),p.delete(L))}function Z(){let F=k;k=new Map,J(F)}function x(){k=T(),document.body.hasAttribute("data-lf-presented")&&Z()}function B(F){let X=new Set;for(let[L,O]of F){let ee=[...O.before,...O.inside],Y=h.get(L),ve=!Y||Y.roots.length!==ee.length||ee.some((oe,V)=>oe.id!==Y.roots[V]?.id||oe.token!==Y.roots[V]?.token);Y||(Y={roots:ee,expanded:null,margin:null,surface:null},Y.scope=zs("On a standing reaction",[{id:"reaction.removal.close",keys:["Escape"],description:"Hide the remove action",title:"hide remove",when:()=>!!Y.expanded,run:()=>{let oe=Y.expanded,V=`reaction:${oe}:open`,pe=["map","margin","inline"].find($e=>[V,`reaction:${oe}:remove`].some(De=>Y.margin.control(De,$e)===a()))??Y.surface;N(Y,null),Y.margin.focus(V,pe)}}],{escape:"inner"}),h.set(L,Y)),Y.roots=ee,X.add(L),ee.some(oe=>oe.id===Y.expanded)||(Y.expanded=null),Y.margin?ve&&Y.margin.update():Y.margin=Wf({key:"standing-reactions",target:L,read:()=>({side:"after",state:Y.expanded?"engaged":"idle",entries:Y.roots.flatMap(oe=>[{key:`reaction:${oe.id}:open`,glyph:tn.$reactions.tokens[oe.token]?.glyph??oe.token,label:`${oe.token} reaction actions`,behavior:"disclosure",rank:"secondary",className:"lf-react-mark",scope:Y.scope,relation:{kind:"entries",keys:[`reaction:${oe.id}:remove`],expanded:Y.expanded===oe.id}},{key:`reaction:${oe.id}:remove`,icon:"cross",label:`Remove ${oe.token} reaction`,tone:"negative",rank:"secondary",className:"lf-react-remove",scope:Y.scope,visible:Y.expanded===oe.id}]),readings:Y.roots.map(oe=>({id:`reaction:${oe.id}`,text:`${oe.token} reaction actions`,activate:()=>Y.margin.focus(`reaction:${oe.id}:open`)}))}),activate:(oe,V)=>{let pe=Y.roots.find(De=>oe===`reaction:${De.id}:open`||oe===`reaction:${De.id}:remove`);if(!pe)return;if(oe===`reaction:${pe.id}:remove`){n(pe);return}Y.surface=V.surface??null;let $e=a();N(Y,Y.expanded===pe.id?null:pe.id,{focus:V.input==="keyboard"&&V.origin===$e&&$e?.matches(":focus-visible, .lf-focus-visible"),surface:Y.surface})}})}for(let[L,O]of h)X.has(L)||(O.margin.unregister(),h.delete(L))}function I(){for(let F of i.querySelectorAll(wh)){let X=F.getAttribute("href"),L=Iu(X),O=!!Hn(X);F.classList.toggle("detached",!O),de(F,"aria-disabled",O?null:"true"),de(F,"title",O?`Jump to \xA7 ${L}`:`\xA7 ${L} isn't in the version you're viewing`)}}function R({open:F,anchor:X,about:L,resolved:O}){let ee=F?o(X,L):"";Qe(c,ee);let Y=!!(O&&O.status!=="outdated");c.classList.toggle("lf-unseen",!ee||Y&&!L)}function z({readings:F,draft:X}){let L=new Map,O=new Map;for(let{thread:ee,placement:Y}of F){if(Y.status==="outdated"||ee.resolved)continue;if(im(ee)){let oe,V;if(yt(Y))[oe,V]=[Y.place,!0];else{let pe=Sl(lo(Y)[0].node),$e=Wo(pe?.getRootNode());[oe,V]=$e?[$e,!0]:[pe,!1]}if(oe&&!xe(oe)){let pe=O.get(oe)??{before:[],inside:[]};pe[V?"before":"inside"].push(ee.root),O.set(oe,pe)}continue}let ve=yt(Y)?[Y.place]:[...new Set(lo(Y).map(oe=>Sl(oe.node)))].filter(Boolean);for(let oe of ve.length?ve:[Sn(ee.anchor)])oe&&!xe(oe)&&L.set(oe,[...L.get(oe)??[],ee.id])}x(),f.present(L),B(O),R(X),I()}function te(){v||(v=!0,queueMicrotask(()=>{v=!1,g&&r()}))}let d=()=>{s(),te()},A=F=>{let X=F.target.closest(wh);X&&!Hn(X.getAttribute("href"))&&F.preventDefault()},H=F=>{for(let X of h.values())X.expanded&&!F.composedPath().some(L=>X.margin.contains(L))&&N(X,null)};function M(){g||(g=!0,document.addEventListener("lf-layout",d),document.addEventListener("pointerdown",H,{capture:!0}),i.addEventListener("click",A))}function K(){g&&(document.removeEventListener("lf-layout",d),document.removeEventListener("pointerdown",H,{capture:!0}),i.removeEventListener("click",A)),g=!1;for(let F of h.values())F.margin.unregister();h.clear(),f.destroy(),k=new Map,J(new Map)}return{mount:M,destroy:K,render:z,publishVisualActions:Z,visualActionAnchor:P}}function Tc(e){e.scrollIntoView({block:"start",inline:"nearest",behavior:"auto"})}function kh({anchors:e,surfaces:t,currentThreads:n,refreshThread:o,focusForNavigation:r,threadFocusTarget:s,announce:i}){let c=0,a=(d=Fe())=>{let A=++c;return zr(d,()=>A===c)},m=`${performance.timeOrigin}:`,p=0,h=null;function f(){let d=h&&history.state?.lfJourney===h.token&&h.landing();return!!(d&&Z(d))}async function g(d,{intent:A,present:H=null,keep:M=!1,departure:K=null}){let F=d(),X=F&&Br(F.where);if(!X||!A())return!1;M||A.handoff(()=>t.clearFor(X));let L=[X,...F.reveal??[]].map(Y=>zn(Y,A)),O=L.some(Y=>Y.replacedView),ee=(Y=!1)=>{let ve=!1;return A.handoff(()=>{let oe=d();if(!oe?.where)return;oe.focus&&r(oe.focus,oe.caret);let V=d();if(V?.where){if(Y&&K?.commit(),V.selection){let{range:pe,backward:$e}=V.selection,De=[pe.startContainer,pe.startOffset],Me=[pe.endContainer,pe.endOffset];Dr(...$e?[Me,De]:[De,Me])}for(let pe of V.scroll)$(pe,O);ve=!0}}),ve};return O&&ee(),await Promise.all(L.map(Y=>Y.ready)),!A()||(H&&await H(),!A())?!1:ee(!0)}async function v(d,{backward:A,intent:H}){let M=a(H),K=()=>{let O=At(d,it()),ee=lo(O);if(!ee.length)return null;let Y=vn(ee);return{where:Y,focus:co(O),selection:{range:Y,backward:A},scroll:[{at:Y}]}},F=K(),X=d.datum&&Sn(d);if(!F&&!X)return!1;let L=N({intent:M,landing:()=>K()?.where});if(L.plan(F?.where??X,{there:O=>!!(F&&O(F.where))}),X){let O=Us(X,d.datum);if(O?.then&&await O,!M()||Sn(d)!==X)return!1}return g(K,{intent:M,departure:L})}async function k(d,{intent:A,caret:H}){let M=a(A),K=d();if(!K?.where)return null;let F=N({intent:M,landing:()=>d()?.where});F.plan(K.where);let X=null;return await g(()=>{let L=d(),O=L?.input();return L&&{where:L.where,focus:O,caret:H,scroll:O?[{at:O,block:"nearest"},{at:L.where,when:()=>!x(L.where)||!x(O)}]:[{at:L.where}]}},{intent:M,departure:F,present:async()=>{let L=d();L&&(x(L.where)||M.handoff(()=>{I(L.where,L.where,"instant","center")}),L.open&&M.handoff(()=>{X=L.open()}),await L.present?.())}}),typeof X=="function"&&X(),M()?d()?.input()??null:void 0}function N({landing:d=null,url:A,keep:H=!1,intent:M}){let K=uf(),F=d&&f(),X;return{plan(L,{there:O=ee=>ee(L)}={}){return L&&!H&&M.handoff(()=>t.clearFor(L)),X=!(L&&O(x)),X},commit(){if(X!==void 0){if(!X){F&&(h.landing=d);return}h=d&&{token:m+ ++p,landing:d},K(A??window.location.href,h&&{lfJourney:h.token},F)}}}}function P(d){return Hn(d.hash)&&T(d,!0)}function _(d){let A=Hn(d.hash);return A&&!A.checkVisibility()?T(d,!1):null}function T(d,A){let H=a();return()=>g(()=>{let M=Hn(d.hash);return M&&{where:M,focus:A?M:null,scroll:[{at:M,block:"fragment"}]}},{intent:H})}async function w(d,A,H,{success:M="",missing:K=""}={}){let F=a();if($u("navigateToDatum",d,A),typeof H!="string"||!H)throw new TypeError("navigateToDatum key must be a non-empty string");let X=ji(d,A);if(!X)return K&&i(K),!1;let L=new URL(window.location.href);L.hash=X.id;let O=N({url:L,intent:F}),ee=Us(X,H);if(ee?.then&&await ee,!F())return!1;if(X=ji(d,A),!X)return K&&i(K),!1;let Y=kl(X,H)[0]??null,ve=O.plan(Y);if(!Y)return await g(()=>{let V=ji(d,A);return V&&{where:V,focus:null,scroll:[{at:V,block:"start"}]}},{intent:F,departure:O}),F()&&K&&i(K),!1;let oe=await g(()=>{let V=ji(d,A),pe=V&&kl(V,H)[0];return pe&&{where:pe,focus:pe,scroll:ve?[{at:pe}]:[]}},{intent:F,departure:O});return F()&&(oe?M:K)&&i(oe?M:K),oe}let D=d=>Xs(d).next().value??null;function $({at:d,align:A=d,block:H="center",behavior:M=Cn(),when:K},F){K&&!K()||(H==="fragment"?Tc(d):I(d,A,F?"instant":M,H))}function J(d,A=Cn(),H="center"){let{replacedView:M}=zn(d,Fe());$({at:d,behavior:A,block:H},M)}function Z(d){let A=Br(d);if(!A)return null;let H=d instanceof Range?d.getBoundingClientRect():Rt(d),M=t.selectedSurface(),K=M?Fd([M]):new Map,F=d instanceof Range?Ls(H,A,K):zo(d,K);return F&&{holder:A,destination:H,seen:F}}function x(d){let A=Z(d);if(!A)return!1;let{holder:H,destination:M,seen:K}=A,F=D(H),X=F?ao(F):Rt(Gt),L=(O,ee)=>Math.abs(O-ee)<=.5;return M.top>=X.top-.5&&M.bottom<=X.bottom+.5&&L(K.top,M.top)&&L(K.right,M.right)&&L(K.bottom,M.bottom)&&L(K.left,M.left)}function B(d,A,H,M){if(d<H&&A>M)return 0;let K=A-d>M-H;return d<H?K?A-M:d-H:A>M?K?d-H:A-M:0}function I(d,A,H,M){if(M==="nearest"&&d instanceof Element){d.scrollIntoView({block:M,inline:"nearest",behavior:H});return}let K=Br(A);if(!K)return;let F=D(K);if(!F)return;let X=!0;for(let L=Br(d);L instanceof Element;L=Ld(L)){L===F&&(X=!1);let O=ao(L);if(!O)continue;let{left:ee,right:Y,top:ve,bottom:oe}=O,V=d.getBoundingClientRect(),pe=B(V.left,V.right,ee,Y),$e=X?B(V.top,V.bottom,ve,oe):0;if((pe||$e)&&L.scrollBy({...Nd(L,{x:pe,y:$e}),behavior:"instant"}),L===Gt||getComputedStyle(L).position==="fixed")break}Js(A,K,M,H)}function R(d,A=Cn()){let H=Br(d);if(!H)return;let{replacedView:M}=zn(H,Fe());$({at:d,behavior:A},M)}let z=d=>{let A=e.placedAt(d),H=lo(A)[0],M=H?vn([H]):yt(A)??co(A);return ia(yt(A)??co(A),A?.point)??M};async function te(d,{focus:A=null,keep:H=!1,presented:M=null,intent:K}={}){let F=a(K),L=la(n()).get(d)?.anchor,O=e.placedAt(d)?.status,ee=L?.datum&&O!=="outdated"||L?.visual&&O==="fallback",Y=z(d),oe=N({landing:()=>z(d),keep:H,intent:F});if((Y||ee)&&oe.plan(Y),ee){let V=Sn(L),pe=V&&Us(V,L.visual??L.datum);if(pe?.then&&await pe,!F()||Sn(L)!==V||(await o(),!F()))return!1}return g(()=>{let V=z(d);if(!V)return null;let pe=A&&s(d,{focus:A});return{where:V,focus:pe,scroll:[...pe?[{at:pe,block:"nearest"}]:[],{at:V,when:()=>!x(V)}]}},{intent:F,departure:oe,present:async()=>{M&&await M,F()&&await o()},keep:H})}return{prepareTrip:N,arrive:g,arriveEditor:k,restoreSelection:v,followFragment:P,returnToFragment:_,navigateToDatum:w,scrollToElement:J,readableDestination:x,scrollToRange:R,scrollToThread:te,threadDestination:z}}function Sh({refreshAnchorHover:e,aim:t,pointer:n,designMode:o,targetPaint:r,visualMarkPaint:s,shiftDrawings:i,queueLegend:c,activeActionAnchor:a,refreshActionBar:m}){let p=0,h=!1,f=null;function g(){if(t.isOn()){let J=t.target();return J?{element:J.element,part:"",surface:J.surface??null}:null}let $=n();return o.active()&&$.x>=0&&!Je.matches?o.target(document.elementFromPoint($.x,$.y)):null}function v(){let $=g(),J=$?.element??null;document.body.classList.toggle("lf-over-item",!!J);let Z=J&&r.paintAim(J,$.surface);if(!Z){r.clearAim(),k(null);return}k(o.active()?$:null,{left:Z.left,top:Z.top})}function k($,J){let Z=o.inspectElement;if(Z.classList.toggle("lf-shown",!!$),!$){delete Z.dataset.lfPaintPlane;return}de(Z,"data-lf-paint-plane",xe($.element)?"chrome":"page");let x=$.part?`${$.part} \xB7 ${o.name($.element)}`:o.name($.element);Qe(Z,x);let B=J.top-Z.offsetHeight-2,I=Fn(Math.max(2,J.left),B>=0?B:J.top+2);Z.style.left=wo(I.left),Z.style.top=wo(I.top)}function N(){p||(p=Bt(()=>{p=0,m()}))}function P(){e?.(),v(),r.shifted(),s?.shifted(),i(),c(),a()&&N()}function _(){r.geometryChanged(),s?.geometryChanged()}let T=()=>{_(),P()};function w(){h||(h=!0,f=Wr(P),document.addEventListener(Di,P),addEventListener("resize",T,{passive:!0}))}function D(){h&&(h=!1,f(),document.removeEventListener(Di,P),globalThis.removeEventListener("resize",T),p&&kt(p),p=0,r.clearAim(),k(null))}return{mount:w,destroy:D,refreshAim:v,invalidate:_,pageShifted:P}}function Ah({elements:{closeBtn:e,findInput:t,narrowingView:n,inPanel:o},openThreads:r,setPanel:s,panelIsOpen:i,narrowing:c,stepThread:a,firstUnread:m,unreadCount:p}){async function h(){e.onclick=()=>s(!1),await t.updateComplete,k()}let f=()=>o(i),g=()=>r({visibleOnly:i()}).length>0,v=Ke("panel",{title:"In the thread panel",root:ge,at:f,rows:[{id:"thread.find.repeat",keys:["n","Shift+n"],routes:[{id:"thread.find.next",binding:"n",title:"Go to the next thread found"},{id:"thread.find.previous",binding:"Shift+n",title:"Go to the previous thread found"}],title:"search matches",repeat:!0,when:()=>c.threadSearchActive()&&g(),run:N=>a(N==="n"?1:-1)},{id:"thread.waiting.toggle",keys:["w"],description:()=>c.needsYou()?"Clear waiting filter":"Show only the threads waiting on you",title:()=>c.needsYou()?"clear waiting filter":"waiting on you",control:()=>n.userControl,when:()=>be.statePhase==="ready"&&n.canToggleUser,run:()=>n.toggleUser()},{id:"thread.unread.first",keys:["u"],description:"Go to the first unread message",title:"first unread",when:()=>p()>0,run:m},{id:"thread.find",keys:["/"],description:"Find in the threads",title:"find",control:()=>t,run:()=>{t.focus(),t.select()}}]});function k(){tt(t.input,"In the find box",[{id:"thread.find.first",keys:["Enter"],description:"Go to the first thread found",title:"first found",when:g,run:()=>a(1)}],ko)}return{mount:h,dispose:()=>v()}}var gb=e=>je(e?.sequencePrefix??e?.sequence)??[],Th=(e,t)=>[...gb(e),bn(t)].filter(Boolean).join(" ");function Ma(e){for(let t of tr())for(let n of t?.rows??[])if(n.id===e)return Th(t,n);return""}function Eh(){let e=ra();for(let t of tr())for(let n of t?.rows??[]){if(n===e)continue;let o=je(n.control);if(!o)continue;"lfKeyTitle"in o.dataset||(o.dataset.lfKeyTitle=o.title);let r=St(n)&&ze(n).length>0;de(o,"title",o.dataset.lfKeyTitle+(r?` (${Th(t,n)})`:"")),!_s(o)&&de(o,"aria-keyshortcuts",r&&!t.sequence?su([n],!1):null)}}var ai="Comment on the page";function Ch({wireInput:e,createPageComment:t,designModeActive:n,panelIsOpen:o,setPanel:r,panelBox:s,panelSend:i,showThread:c,threadsToggle:a}){let m=ue("button","lf-btn lf-page-comment");m.type="button",m.setAttribute("aria-label",ai),m.title=ai,m.setAttribute("aria-expanded","false"),m.append(bo("comment","lf-page-comment-icon"),ue("span","lf-page-comment-label",ai));let p=ue("section","lf-ui lf-page-comment-card");p.setAttribute("popover","auto"),p.setAttribute("role","dialog"),p.setAttribute("aria-label",ai);let h=aa();h.name="comment";let f=ue("button","lf-btn","Send"),g=ue("div","lf-page-composer");g.append(h,f),p.append(g);let v=()=>n()?"Comment on the design":ai,k=()=>!!Il("general")?.trim(),N=()=>p.matches(":popover-open");tt(p,"In the page comment card",[{id:"comment.card-close",keys:["Escape"],description:()=>k()?"Close the card, keeping the draft":"Close the card",title:()=>k()?"close \u2014 draft kept":"close",run:()=>p.hidePopover()}]),p.addEventListener("toggle",Z=>de(m,"aria-expanded",String(Z.newState==="open")));let P=()=>{r(!0),s.focus({preventScroll:!0})};m.addEventListener("click",()=>{N()?p.hidePopover():T()}),at({key:"page-comment",control:m,rank:nt.pageComment,seat:{desk:"row",phone:"menu"}});function _(){Eo(),N()||(Xr(m)?.focus({preventScroll:!0}),p.showPopover({source:m})),h.focus({preventScroll:!0})}function T(){o()?P():_()}let w=(Z,x,B)=>e(Z,{hint:v,accessibleName:v,sends:"send",sendBtn:x,save:I=>{Lf("general",I),Of("general",I)},send:async(I,R,z)=>{let te=null,d=await If("general",z,A=>{let H={attempt:A,text:R};return n()&&(H.about="design"),te=t(H)});d&&B(d,te)}}),D=[],$=[];function J(Z){Z.append(p),m.title=`${ai} (${Ma("comment.create")})`;for(let x of[s,h])x.value=Il("general")??"";D.push(w(s,i,x=>c(x.id,{focus:!1,flash:!1})),w(h,f,(x,B)=>{p.hidePopover(),_f(a,jf),Promise.resolve(B).then(I=>{let R=[m,document.body,null].includes(document.activeElement);!I&&R&&!o()&&_()})}));for(let x of D)x();$.push(Bl(s,D[0],"general"),Bl(h,D[1],"general",{resume:()=>o()?{where:s,input:()=>s,open:()=>r(!0)}:{where:h,input:()=>h,open:_}}))}return{control:m,open:T,close:()=>N()&&p.hidePopover(),box:()=>o()?s:h,sync:()=>{for(let Z of D)Z()},mount:J,dispose:()=>{for(let Z of $)Z()}}}import{html as $h,repeat as bb}from"/vendor/browser-runtime.js";import{LitElement as vb}from"/vendor/browser-runtime.js";var ln=class extends vb{static properties={model:{attribute:!1}};#e;#t=null;constructor(t){super(),this.model=t,this.#e=t}createRenderRoot(){return this}get committed(){return this.#e}async paint(t,{now:n=!1}={}){if(this.#t=null,this.model=t,n&&this.performUpdate(),await this.updateComplete,this.#t)throw this.#t;return t}present(t){return this.paint(t)}commit(){this.#e=this.model}retainCommitted(){return this.paint(this.#e)}async scheduleUpdate(){try{await super.scheduleUpdate()}catch(t){this.#t=t}}},li=class{#e;#t;#i;#o;#n=void 0;constructor(t,{rows:n,key:o,keys:r}){this.#e=t,this.#t=n,this.#i=o,this.#o=r}hold(t,n){let o=document.activeElement?.closest?.(this.#t);if(!o||!this.#e.contains(o))return;let r=o.getAttribute(this.#i),s=this.#o(t);if(s.includes(r))return;let i=this.#o(n),c=i.indexOf(r);this.#n=i.slice(c+1).find(a=>s.includes(a))??i.slice(0,c).reverse().find(a=>s.includes(a))??null}land(t){this.#n===void 0&&(this.#n=t)}drop(){this.#n=void 0}restore(t){if(this.#n===void 0)return;let n=this.#n;this.#n=void 0,((n===null?null:[...this.#e.querySelectorAll(this.#t)].find(r=>r.getAttribute(this.#i)===n))??t)?.focus({preventScroll:!0})}};var Ec="leaf-thread-list",wb=Object.freeze({rows:Object.freeze([]),count:null,pageSeats:new Map}),Cc=class extends ln{#e=null;#t=new Map;#i=null;#o=0;#n=[];#s=!1;#r=null;#l=!1;#a=[];#c=null;#u=new Map;#d(){let t=new Set(this.model.rows.filter(n=>n.kind==="thread"&&n.descriptor.visible&&!n.descriptor.folding).map(n=>n.key));return this.#n.filter(n=>n.kind==="thread"&&t.has(n.key))}#m(t){this.#a=[t,...this.#a.filter(n=>n!==t)]}#p(){let t=new Set(this.model.rows.map(r=>r.key)),n=this.#a.find(r=>t.has(r)),o=this.#d();return o.find(r=>r.key===n)??o[0]}#f(){let t=this.#p();if(t)for(let n of this.#d())n.node.toggleAttribute("open",n===t)}#h(t){let n=this.#d().find(o=>o.node===t);n&&(this.#e.beforeChoose(t),this.#m(n.key),this.#f())}keeping(t,n){let o=or(t),r=this.#t.get(`thread:${o}`);if(this.#c!==n||!r?.model.visible||r.model.folding)return null;let s=r.model.kept?r.model.kept==="news":!km(t),i=r.node.open?this.checkVisibility():!!Ps(r.node,new Map),c=Pf("reply:"+o);return s&&(i||c)?"news":c?"draft":null}#g(){let t=new Set(this.model.rows.filter(n=>n.kind==="thread"&&n.descriptor.kept).map(n=>this.#t.get(n.key).node));for(let[n,o]of this.#u)t.has(n)||(o(),this.#u.delete(n));for(let n of t)this.#u.has(n)||this.#u.set(n,qd([n],()=>this.#e.repaintThread()))}navigationThreads(){return this.#d().map(t=>t.node)}inPageOrder(t){let n=this.model.pageSeats;return[...t].sort((o,r)=>n.get(o.dataset.id)-n.get(r.dataset.id))}revealNavigation(t){let n=this.#n.find(o=>o.kind==="thread"&&this.#t.get(o.key).ownsMessage(t));!n||n.node.hidden||(this.#m(n.key),this.#f())}incomingTail(t,n){let o=this.committed.rows.find(s=>s.kind==="thread"&&this.#t.get(s.key)?.node===n),r=o&&t.rows.find(s=>s.key===o.key);return r?.kind==="thread"?this.#t.get(o.key).incomingTail(o.descriptor,r.descriptor):null}messageTail(t){return[...this.#t.values()].find(o=>o.ownsMessage(t))?.messageTail(t)??null}constructor(){super(wb),this.addEventListener("focus",()=>{this.#f();let t=this.#p();if(t){this.#l=!0;try{ca(t.node,{preventScroll:!0})}finally{this.#l=!1}Wu(this,ge())}})}configure(t,n){this.#e||(this.#e=t,this.model=n,super.commit())}async present(t){let n=++this.#o;if(!this.#r&&this.contains(ge())){let o=ge();this.#r={node:o,mayRestore:Fe({source:o,fallback:this})}}return await this.paint(t,{now:!0}),n===this.#o&&this.model===t}commit(t){if(this.model!==t)return!1;super.commit();let n=new Set(t.rows.filter(o=>o.kind==="thread").map(o=>o.key));if(t.count!==null){this.#a=this.#a.filter(r=>n.has(r));let o=this.#p();o&&this.#m(o.key)}for(let[o,r]of this.#t)n.has(o)?r.commit():(r.dispose(),this.#t.delete(o));return this.#r=null,!0}async retainCommitted(t){if(this.model!==t)return!1;let n=++this.#o;this.#s=!0;try{if(await this.paint(this.committed,{now:!0}),n!==this.#o)return!1;let o=this.#r;return o?.node.isConnected&&o.mayRestore()&&o.node.focus({preventScroll:!0}),this.#r=null,this.committed}finally{this.#s=!1}}willUpdate(t){if(!t.has("model")||!this.#e)return;this.#i??=go(this);let n=this.#c!==this.model.intent;this.#c=this.model.intent;let o=[],r=new Set;for(let i of this.model.rows){if(i.kind!=="thread"){o.push(i);continue}r.add(i.key);let c=this.#t.get(i.key);if(!c){this.#t.set(i.key,c=new Am("panel",{...this.#e.card,choose:()=>{this.#l||this.#h(c.node)}}));let a=()=>{let m=this.#d().find(p=>p.node===c.node);!c.node.open||!m||m.key===this.#p()?.key||(this.#m(m.key),this.#f())};c.node.addEventListener("lf-reveal",a),c.node.addEventListener("toggle",()=>{Fi(this),a(),!c.node.open&&c.model.kept&&this.#e.repaintThread()})}n&&c.releaseNews(),c.present(i.descriptor,{retaining:this.#s,viewChanged:n}),o.push({kind:"thread",key:i.key,node:c.node})}for(let[i,c]of this.#t)r.has(i)||c.retire();this.#g();let s=o.some(i=>i.kind==="thread"&&ym(i.node));this.#n=s?o.filter(i=>i.kind!=="empty"):o}updated(){this.#f();let t=this.#i;this.#i=null,t?.(this),this.#e?.presentSummary(this.model)}#v(t){return t.kind==="thread"?t.node:t.kind==="empty"?$h`<div class="lf-empty">${t.text}</div>`:$h`<div class="lf-system" data-id=${t.id}>${t.text}</div>`}render(){return bb(this.#n,t=>t.key,t=>this.#v(t))}};customElements.get(Ec)||customElements.define(Ec,Cc);var Rh=()=>document.createElement(Ec);import{html as $c,noChange as yb,nothing as Na,render as xh,repeat as Oh}from"/vendor/browser-runtime.js";var Rc="leaf-thread-narrowing",xc=class extends HTMLElement{#e=null;#t=null;#i=!1;#o=null;#n=null;#s=null;#r=Ut("wa-input","lf-find-box lf-label-hidden");constructor(){super(),this.#r.type="search",this.#r.size="s",this.#r.name="thread-search",this.#r.placeholder="Find in threads",this.#r.label="Find in threads",this.#r.title="Find in threads",this.#r.addEventListener("input",()=>this.#e?.(this.#r.value))}configure({changeWords:t,chooseFacet:n,initial:o,reset:r,toggleUser:s}){if(this.#e)throw new Error("The thread narrowing view is already configured");this.#e=t,this.#t=n,this.#n=r,this.#s=s,this.present(o)}get userControl(){return this.querySelector('[data-filter-kind="waiting"][data-filter-value="user"]')}toggleUser(){this.#s()}get canToggleUser(){return this.#o?.userAvailable??!1}get searchInput(){return this.#r}setSearchWords(t){this.#r.value!==t&&(this.#r.value=t)}present(t){if(!Object.isFrozen(t))throw new Error("Thread narrowing presentation models must be immutable");this.#o=t,xh(this.#d(),this)}#l(){this.#i=!this.#i,xh(this.#d(),this)}#a(t){document.activeElement===t.currentTarget&&this.querySelector(".lf-thread-filter-toggle")?.focus(),this.#n()}#c(t){let n=t.kind==="waiting"&&t.value==="user",o=["lf-btn","lf-thread-filter",t.className,t.selected?"on":""].filter(Boolean).join(" ");return $c`<button
+      type="button"
+      data-lf-gen="1"
+      class=${o}
+      data-filter-kind=${t.kind}
+      data-filter-value=${t.value}
+      aria-pressed=${String(t.selected)}
+      data-lf-key-title=${n?this.#o.userTitle:Na}
+      title=${n?this.#o.userTitle:Na}
+      ?hidden=${t.hidden}
+      ?disabled=${n?yb:t.disabled}
+      @click=${n?Na:()=>this.#t(t.kind,t.kind==="gone"?!t.selected:t.value)}
+    >
+      ${t.amount===null?t.label:`${t.label} (${t.amount})`}
+    </button>`}#u(t){return $c`<div
+      class="lf-thread-filter-group"
+      role="group"
+      aria-label=${t.label}
+      ?hidden=${t.hidden}
+    >
+      <span class="lf-thread-filter-label" aria-hidden="true">${t.label}</span>
+      <div class="lf-thread-filter-choices">
+        ${Oh(t.choices,n=>n.value,n=>this.#c(n))}
+      </div>
+    </div>`}#d(){return this.#o?$c`
+      <div class="lf-find">
+        ${this.#r}
+        <button
+          type="button"
+          class="lf-btn lf-thread-filter-toggle"
+          aria-expanded=${String(this.#i)}
+          aria-controls="lf-thread-filters"
+          @click=${()=>this.#l()}
+        >
+          View
+        </button>
+      </div>
+      <div
+        class="lf-thread-filters"
+        id="lf-thread-filters"
+        aria-label="Thread view"
+        ?hidden=${!this.#i}
+      >
+        ${Oh(this.#o.groups,t=>t.kind,t=>this.#u(t))}
+      </div>
+      <div class="lf-thread-view">
+        <span class="lf-thread-view-summary">${this.#o.summary}</span>
+        <button
+          type="button"
+          class="lf-btn lf-thread-filter-reset"
+          aria-label="Reset thread filters"
+          ?data-lf-unoffered=${!this.#o.resettable}
+          @click=${t=>this.#a(t)}
+        >
+          Reset
+        </button>
+      </div>
+    `:Na}};customElements.get(Rc)||customElements.define(Rc,xc);var Ph=()=>document.createElement(Rc);var kb=0;function Lh({id:e=`lf-thread-panel-${++kb}`}={}){let t=ue("dialog","lf-ui lf-thread-panel");t.id=e;let n=ue("div","lf-thread-panel-head"),o=_r({name:"Close threads",title:"Close threads (Esc)"}),r=ue("span","lf-auxiliary-title","Threads");r.id=`${e}-title`,t.setAttribute("aria-labelledby",r.id);let s=ue("button","lf-btn lf-first-unread","Next unread");s.type="button",s.hidden=!0,s.title="Go to first unread message",n.append(r,s,o);let i=Ph(),c=i.searchInput,a=Rh();a.className="lf-threads",a.tabIndex=-1,a.setAttribute("role","group"),a.setAttribute("aria-label","Threads");let m=ue("div","lf-threads-frame");m.append(a);let p=ue("div","lf-general"),h=aa();h.name="comment";let f=ue("button","lf-btn","Send");p.append(h,f);let g=ue("div","lf-thread-panel-foot");g.append(p),t.append(n,i,m,g);let v=null,k=()=>(v??=Is(t),()=>{v?.(),v=null}),N=null;return{panel:t,closeBtn:o,firstUnreadBtn:s,narrowingView:i,findInput:c,threadsBox:a,generalInput:h,generalSend:f,panelFoot:g,inPanel:_=>_()&&Pe(ge(),t),mountOverlay:k,mountReadingRegion:()=>(N??=Nu({id:e,host:t,body:a}),()=>{N?.(),N=null}),dispose:()=>{N?.(),N=null,v?.(),v=null}}}import{html as Sb}from"/vendor/browser-runtime.js";var Oc="lf-ask-banner-face",Pc=class extends ln{updated(){let t=this.parentElement;t&&(de(t,"title",this.model.title),de(t,"aria-disabled",this.model.busy?"true":null),an(t,this.model.offered))}render(){return Sb`${this.model.text}`}};customElements.get(Oc)||customElements.define(Oc,Pc);var Ab=(e,t)=>{let n=document.createElement(Oc);return n.model=t,n.commit(),n.style.display="contents",e.append(n),n};function Ih(e){let t=new Map;function n(i,c){if(t.has(i))return t.get(i).control;let a=ue("button","lf-btn lf-answer-all","");a.type="button",a.onclick=()=>e(i);let m=Ab(a,Object.freeze({busy:!1,offered:!1,text:`${c} all (0)`,title:`${c} every one still waiting on you`,outcome:i}));return at({key:`blanket:${i}`,control:a,rank:nt.blanket,conditional:!0}),an(a,!1),t.set(i,{control:a,owner:m}),a}async function o(i){try{await Promise.all(i.bulk.map(c=>t.get(c.outcome).owner.present(c)))}catch(c){try{await s()}catch(a){throw new AggregateError([c,a],"Ask banner presentation and retention failed")}throw c}return i}function r(){for(let{owner:i}of t.values())i.commit()}async function s(){await Promise.all([...t.values()].map(({owner:i})=>i.retainCommitted()))}return Object.freeze({commit:r,registerBulk:n,present:o,retainCommitted:s})}var Mh=24,$o=null;function Ba({side:e,noun:t,wide:n,min:o,prop:r,key:s,when:i,land:c}){let a=new Set,m=n,p=()=>document.documentElement.clientWidth,h=P=>Math.min(p(),Math.max(o,P)),f=()=>h(m);function g(){Ku(document.documentElement,r,f()+"px");for(let P of a){de(P,"aria-valuenow",Math.round(f())),de(P,"aria-valuemax",Math.round(p()));let _=p()<=o;_&&P===document.activeElement&&P.lfFixedFocus().focus({preventScroll:!0}),Wn(P,_)}}function v(P){m=Math.round(h(P)),al.set(s,String(m)),c(g)}function k(P,_){let T=ue("div","lf-ui lf-edge");T.lfFixedFocus=_,T.dataset.lfSide=e,T.setAttribute("role","separator"),T.setAttribute("aria-orientation","vertical"),T.setAttribute("aria-label",`${t[0].toUpperCase()}${t.slice(1)} width`),T.setAttribute("aria-valuemin",String(o)),T.tabIndex=0,T.addEventListener("pointerdown",$=>{if($o||!$.isPrimary||$.button!==0)return;T.blur(),T.setPointerCapture($.pointerId);let J=P.getBoundingClientRect();$o={edge:T,pointerId:$.pointerId,grab:$.clientX-(e==="right"?J.left:J.right)}}),T.addEventListener("pointermove",$=>{if($o?.edge!==T||$o.pointerId!==$.pointerId||!T.hasPointerCapture($.pointerId))return;let J=$.clientX-$o.grab;v(e==="right"?document.documentElement.clientWidth-J:J)}),T.addEventListener("mousedown",$=>$.stopPropagation());let w=$=>{$o?.edge!==T||$o.pointerId!==$.pointerId||($o=null,T.focus({preventScroll:!0}))};for(let $ of["pointerup","pointercancel","lostpointercapture"])T.addEventListener($,w);let D=e==="right"?"ArrowLeft":"ArrowRight";return tt(T,`On the ${t}'s edge`,[{id:"region.resize",keys:["ArrowLeft","ArrowRight"],routes:[{id:"region.resize-left",binding:"ArrowLeft",title:`Move the ${t}'s edge left`},{id:"region.resize-right",binding:"ArrowRight",title:`Move the ${t}'s edge right`}],label:"arrows",title:`resize the ${t}`,repeat:!0,run:$=>v(f()+($===D?Mh:-Mh))}],i),a.add(T),P.prepend(T),g(),T}function N(){m=parseFloat(al.get(s))||n,g()}return{width:f,state:g,restore:N,handle:k,key:s}}import{html as ci,repeat as Tb}from"/vendor/browser-runtime.js";var Ic="lf-leaves-list",Mc="lf-leaves-banner-face",Lc="a.lf-others-row",Eb="data-lf-row",Cb=Object.freeze([]),Bh=Object.freeze({offered:!1,label:"All leaves (0)",rows:Cb}),Nc=class extends ln{constructor(){super(Bh)}updated(){let t=this.parentElement;t&&an(t,this.model.offered)}render(){return ci`${this.model.label}`}};customElements.get(Mc)||customElements.define(Mc,Nc);var $b=Object.freeze([Object.freeze({id:"leaf.open",keys:["Enter"],description:"Open that leaf in a tab",title:"open it in a tab"})]),Nh=e=>ci`
+  <div class="lf-others-head">
+    <span class=${`lf-dot${e.tone?` ${e.tone}`:""}`}></span>
+    <span class="lf-others-title">${e.title}</span>
+    ${e.self?ci`<span class="lf-outline-chip">this page</span>`:""}
+  </div>
+  <div class="lf-others-line">${e.line}</div>
+`,Bc=class extends ln{#e=null;#t=new li(this,{rows:Lc,key:Eb,keys:t=>t.rows.filter(n=>!n.self).map(n=>n.key)});#i=0;#o=null;#n=!1;#s=new WeakSet;constructor(){super(Bh)}connectedCallback(){super.connectedCallback(),this.#o??=Cd("leaves",this),this.present(this.model)}disconnectedCallback(){this.#o?.disconnect(),this.#o=null,super.disconnectedCallback()}configure(t){if(this.#e)throw new Error("Leaves presentation is already configured");this.#e=document.createElement(Mc),this.#e.style.display="contents",t.append(this.#e)}commit(){super.commit(),this.#e.commit()}async retainCommitted(){this.#t.drop();let[t]=await Promise.all([super.retainCommitted(),this.#e.retainCommitted()]);return t}async#r(t,n){try{return await this.#e.present(t),n!==this.#i?this:(await this.paint(t),n!==this.#i?this:(this.commit(),this))}catch(o){if(n!==this.#i)throw o;try{await this.retainCommitted()}catch(r){throw new Lr([o,r],"Leaves presentation and retention failed")}throw o}}present(t){if(!t||!Array.isArray(t.rows))throw new TypeError("Leaves presentation needs a model with row models");if(!this.#e)throw new Error("Leaves presentation needs its banner control");if(!this.#o)throw new Error("Leaves presentation needs its connected drawer");let n=++this.#i,o,r,s=new Promise((c,a)=>{o=c,r=a}),i=this.#o.present(t,s,Ir(this));return this.#r(t,n).then(o,r),i}willUpdate(t){t.has("model")&&this.#t.hold(this.model,this.committed)}updated(){for(let n of this.querySelectorAll(Lc))this.#s.has(n)||(this.#s.add(n),tt(n,"In the leaves drawer",$b));let t=this.querySelector(Lc)!==null;t!==this.#n&&(this.#n=t,ft()),this.#t.restore(this.closest(".lf-others-panel"))}render(){return ci`${Tb(this.model.rows,t=>t.key,t=>t.self?ci`<div class="lf-others-row lf-others-self" title=${t.account}>
+              ${Nh(t)}
+            </div>`:ci`<a
+              class="lf-others-row"
+              data-lf-row=${t.key}
+              href=${t.href}
+              target="_blank"
+              rel="noopener"
+              title=${t.account}
+              >${Nh(t)}</a
+            >`)}`}};customElements.get(Ic)||customElements.define(Ic,Bc);function qh(e){let t=document.createElement(Ic);return t.configure(e),t}import{html as Ro,nothing as qa,repeat as Rb}from"/vendor/browser-runtime.js";var Da="data-lf-at",pr="data-lf-row",jh="data-lf-done",di=`button[${pr}]`,xb=`button[${jh}]`,qc="lf-queue-list",Ob=Object.freeze({open:!1,queues:Object.freeze([]),done:Object.freeze({label:"",rows:Object.freeze([])})}),Dh=e=>[...e.queues.flatMap(({rows:t})=>t),...e.done.rows].map(({key:t})=>t),Pb=(e,t,n)=>Ro`<div class="lf-queue-item">
+    <button
+      type="button"
+      class="lf-queue-row"
+      data-lf-row=${e.key}
+      data-lf-at=${e.at??qa}
+      data-lf-kind=${e.kind}
+      data-lf-live=${e.live?"":qa}
+      title=${e.account}
+      @click=${t}
+    >
+      <span class="lf-queue-kind">${e.word}</span>
+      <span class="lf-queue-title">${e.title}</span>
+      <span class="lf-queue-where">${e.where}</span>
+    </button>
+    ${e.done?Ro`<button
+            type="button"
+            class="lf-btn lf-queue-finish"
+            data-lf-done=${e.key}
+            aria-label=${`Done: ${e.title}`}
+            @click=${n}
+          >
+            Done
+          </button>`:qa}
+  </div>`,Fh=(e,t,n)=>Ro`<div class="lf-queue-rows">
+    ${Rb(e,({key:o})=>o,o=>Pb(o,t,n))}
+  </div>`,Dc=class extends ln{#e=null;#t=null;#i=null;#o=new li(this,{rows:`button[${pr}]`,key:pr,keys:Dh});#n=new WeakSet;constructor(){super(Ob)}configure({activate:t,finish:n,fallback:o}){this.#e=t,this.#t=n,this.#i=o}willUpdate(t){if(!t.has("model"))return;let n=Dh(this.model)[0];if(this.model.open&&!this.committed.open&&document.activeElement===this.parentElement&&n!==void 0){this.#o.land(n);return}this.#o.hold(this.model,this.committed)}#s(t){return this.model.queues.some(({rows:n})=>n.some(o=>o.key===t&&o.done))}#r(t){this.querySelector(`${di}[${pr}="${CSS.escape(t)}"]`)?.focus({preventScroll:!0}),this.#t?.(t)}updated(){for(let t of this.querySelectorAll(di))this.#n.has(t)||(this.#n.add(t),tt(t,"In the Queue",[{id:"queue.row.open",keys:Mi,title:"go to this item"},{id:"queue.row.done",keys:["x"],title:"done",description:"Mark this task waiting on you done",when:()=>this.#s(t.getAttribute(pr)),run:()=>this.#r(t.getAttribute(pr))}]));for(let t of this.querySelectorAll(xb))this.#n.has(t)||(this.#n.add(t),tt(t,"On a task's Done",[{id:"queue.done.press",keys:Mi,title:"mark it done"}]));this.#o.restore(this.#i)}#l=t=>{let n=t.currentTarget.getAttribute(pr);n&&this.#e?.(n)};#a=t=>{let n=t.currentTarget.getAttribute(jh);n&&this.#r(n)};render(){if(!this.model.open)return Ro``;let{queues:t,done:n}=this.model;return Ro`${t.map(({id:o,label:r,rows:s,empty:i})=>Ro`<div class="lf-queue-group" data-lf-queue=${o}>
+          <div class="lf-queue-heading" role="heading" aria-level="3">${r}</div>
+          ${s.length?Fh(s,this.#l,this.#a):Ro`<div class="lf-queue-empty">${i}</div>`}
+        </div>`)}
+    ${n.rows.length?Ro`<details class="lf-queue-group lf-queue-done" data-lf-queue="done">
+            <summary class="lf-queue-heading">${n.label}</summary>
+            ${Fh(n.rows,this.#l,this.#a)}
+          </details>`:qa}`}};customElements.get(qc)||customElements.define(qc,Dc);function _h(){return document.createElement(qc)}var Wh=(e,t)=>[...e.querySelectorAll(`${di}[${Da}]`)].find(n=>n.getAttribute(Da)===t)??null,zh=e=>e.closest(`${di}[${Da}]`)?.getAttribute(Da)??null,Hh=e=>[...e.querySelectorAll(di)].filter(t=>!t.closest(".lf-queue-done:not([open])")),Uh=e=>[...e.querySelectorAll(`${di}, .lf-queue-done > summary`)].filter(t=>t.matches("summary")||!t.closest(".lf-queue-done:not([open])"));var Lb=300,Ib=220,Mb="--lf-drawer-slot-width";function Gh(e,t,n=ue("div","lf-drawer-list")){let o=ue("div","lf-drawer-head"),r=ue("span","lf-auxiliary-title",t),s=_r({name:`Close ${t.toLowerCase()}`,title:`Close ${t.toLowerCase()} (Esc)`});return n.classList.add("lf-drawer-list"),o.append(r,s),e.append(o,n),Is(e),{list:n,close:s}}var Rn=ue("button","lf-btn lf-queue","Queue"),Kn=ue("button","lf-btn lf-others","");Kn.title="Leaves live on this machine, and what each is doing";var Ft=ue("nav","lf-ui lf-drawer-panel lf-others-panel");Ft.id="lf-leaves";Ft.setAttribute("aria-label","Leaves on this machine");Ft.tabIndex=-1;var Vh=Gh(Ft,"Leaves",qh(Kn)),Fc=Vh.list,Dt=ue("nav","lf-ui lf-drawer-panel lf-queue-panel");Dt.id="lf-queue";Dt.setAttribute("aria-label","Queue");Dt.tabIndex=-1;var Kh=Gh(Dt,"Queue",_h()),Lt=Kh.list,hr=new Map,Tt=()=>hr.has(Kl())?Kl():null,gr=e=>Tt()===e;function ls(){if(!ko())return!1;let{queues:e,done:t}=ct().effective;return e.onYou.length+e.onAgent.length+t.length>0||gr("queue")}var Fa=()=>Uh(Lt);function Yh({doors:e={},landEdge:t,auxiliarySurfaces:n,closePreview:o,leavesOffered:r,presentLeaves:s,presentQueue:i}){let c=Ba({side:"left",noun:"drawer panel",wide:Lb,min:Ib,prop:Mb,key:"lf-drawer-slot-width",when:()=>r()||ls(),land:t});function a(f,g){(f||Tt())&&n.select(f,g)}function m(f,g,v,k,N){let P=[v,...e[f]??[]],_=()=>{let T=hr.get(f)?.openedBy;return T&&T!==v&&T.checkVisibility()?T:Xr(v)};n.registerAuxiliarySurface({key:f,surface:g,scroller:()=>g.querySelector(".lf-drawer-list"),beside:f==="queue",underBand:!0,focus:()=>g.querySelector(".lf-drawer-list button, .lf-drawer-list a[href]")??g,arrival:"presentation",show({phase:T}){Eo(),o?.();for(let w of P)de(w,"aria-expanded","true");N?.(),g.classList.toggle("open",!0),T==="gesture"&&Ki(g,"left","in")},hide({returnFocus:T}){for(let $ of P)de($,"aria-expanded","false");if(!g.classList.contains("open"))return;T&&g.contains(document.activeElement)&&kn(_()),hr.get(f).openedBy=null;let w=Ki(g,"left","out"),D=()=>{gr(f)||(g.classList.toggle("open",!1),N?.())};w?w.finished.then(D,()=>{}):D()}}),hr.set(f,{panel:g,btn:v,close:k,entrances:P,openedBy:null})}m("leaves",Ft,Kn,Vh.close,s),m("queue",Dt,Rn,Kh.close,i);let p=Object.freeze([...hr.keys()]);function h(){c.handle(Ft,()=>Kn),c.handle(Dt,()=>Rn);for(let[f,g]of hr){g.btn.classList.add("lf-auxiliary-toggle");for(let v of g.entrances)v.onclick=()=>{g.openedBy=v,a(gr(f)?null:f)},de(v,"aria-expanded","false");g.close.onclick=()=>a(null)}tt(Dt,"In the Queue",Kr({id:"queue.panel",noun:"Item",plural:"items",rows:Fa,items:()=>Hh(Lt)}),()=>Fa().length>0)}return qt("drawer",()=>Tt()?{root:hr.get(Tt()).panel,title:`close ${Tt()}`,description:`Close the ${Tt()} drawer`,out:()=>{a(null,{returnFocus:!1}),yn()}}:null),{setOpenDrawer:a,drawersEdge:c,drawerNames:p,mountDrawers:h}}var ja=":is(button[data-lf-offer], [data-lf-offer][tabindex])";function Qh({panelIsOpen:e,setPanel:t,prepareTrip:n,arrive:o,refreshThread:r,revealThread:s,focusForNavigation:i,presentedControl:c,announce:a,repaint:m}){let p=So,h=af,f=lf,g=W=>W?rt(W.id):null,v=W=>W?Wh(Lt,W.id):null,k=W=>W?rt(W.sourceId):null,N=(W,ne)=>!!(ne&&W.some(C=>C.id===ne.id)),P=()=>new Set(f().map(({id:W})=>W)),_=W=>({target:g(W),source:k(W)}),T=W=>(W.thread&&!g(W)&&Sm(W.thread),_(W)),w=(W,{target:ne,source:C})=>(!ne||!C)&&W.thread;async function D(W,ne=null){if(!e())if(ne){if(!ne.handoff(()=>t(!0)))return{}}else t(!0);return await s(W.thread),await r(),_(W)}let $=W=>c?.(W)??W,J=new Set,Z=new Map,x=Ih(async W=>{if(!J.has(W)){J.add(W),d();try{for(let ne of h()){if(Rl(ne)?.all!==W)continue;let C=T(ne),{source:U}=w(ne,C)?await D(ne):C;await U?.[Pd(ne.sourceTag)?.verb]?.(W)}}finally{J.delete(W),d()}}}),B=Object.freeze({banner:x}),I=Es({region:"asks",renderer:B,order:Ts.asks,current:()=>Te?ct().semanticEpoch:null,failSoft:Ir(B),paint:(W,ne)=>te(ne)});function R(){for(let W of gn(ne=>ne["x-awaits"]?.all)){let ne=tn[W]["x-awaits"].all;if(Z.has(ne))continue;let C=ne[0].toUpperCase()+ne.slice(1),U=x.registerBulk(ne,C);Z.set(ne,C),yo(U,[`${C} all (999)`])}}function z(W){return[...Z].map(([ne,C])=>{let U=W.filter(se=>Rl(se)?.all===ne).length;return Object.freeze({busy:J.has(ne),offered:!!U,text:`${C} all (${U})`,title:`${C} every one still waiting on you`,outcome:ne})})}async function te(W){let ne=Object.freeze({bulk:Object.freeze(z(h()))});m();try{let C=await x.present(ne);return W()?(x.commit(),[C]):[]}catch(C){if(!W())return[];try{await x.retainCommitted()}catch(U){throw new Lr([C,U],"Ask presentation and retention failed")}throw C}}function d(){return I.present()}let A=null;function H(){return A?.isConnected&&ge()===A?!0:(A=null,!1)}let M=(W,ne)=>Zo(W,En(ne));function K(W=vo()){if(!W||W===document.body)return null;let ne=M(f(),W);if(ne)return ne;let C=M(p(),W);if(!C)return null;let U=g(C);return W===U||xe(W)&&cf(W)===U||H()?C:null}let F=()=>g(K()),X=W=>iu(wu(W),`Ask ${W.id}`).filter(({source:ne,control:C})=>Yl(W,ne)&&C.getAttribute("aria-busy")!=="true"),L=W=>{let ne=W&&k(W);return ne?X(ne):[]};function O(W){let ne=M(p(),Ri(W,document)),C=null;for(let U=W;ne&&U&&!(M(p(),U)?.id!==ne.id||(C=U,U.hasAttribute("data-lf-thread-surface")));U=$s(U));return C?{root:C,declarations:()=>{let U=k(ne);return U?bu(U).filter(({source:se})=>Yl(U,se)):[]}}:null}function ee(){let W=K(),ne=g(W),C=v(W),U=new Set(ne?[ne,...Nr(ne),...C?[C]:[]]:[]);for(let se of document.querySelectorAll(`[${xt.ask}]`))U.has(se)||se.removeAttribute(xt.ask);for(let se of U)de(se,xt.ask,"1")}function Y(W,ne=!1){let C=g(W),U=k(W);if(!C||!U)return null;let se=[...C.getClientRects()].some(b=>b.width&&b.height)?C:U.querySelector(ja)??X(U).map(({control:b})=>$(b))[0]??U;return A=ne?se:null,se}function ve(){let W=vo();return!W||W===document.body||xe(W)?null:K()?.id??null}function oe(W){if(!W||K()?.id===W)return;let ne=p().find(U=>U.id===W),C=ne&&Y(ne);C&&i(C)}let V="h1,h2,h3,h4,h5,h6";function pe(W,ne){if(tn[W.localName]?.["x-ask-surface"])return W;let C=ao(ne),U=C.bottom-C.top,se=G=>{if(!G)return!1;let ce=Rt(G),he=Rt(W);return ce.height>0&&ce.top<=he.top&&he.bottom-ce.top<=U},b=G=>Ri(W,G.getRootNode()),S=[...document.querySelectorAll(xi)].filter(G=>{let ce=b(G);return ce&&!xe(G)&&!G.closest("[hidden]")&&!Pe(W,G)&&G.parentElement&&Pe(W,G.parentElement)&&ce.compareDocumentPosition(G)&Node.DOCUMENT_POSITION_PRECEDING});return[S.findLast(G=>G.matches(V)),dt(W,xi)??S.at(-1)].find(se)??W}function $e(W,ne,C,U,se){return se(C)&&Rt(ne).top>=ao(U).top&&L(W).every(({control:b})=>se($(b)))}async function De(W){let ne=Fe({available:()=>N(p(),W)}),C=Td(o),U=T(W),{target:se}=w(W,U)?await D(W,ne):U;if(!ne()||!se||xe(se)&&!e()&&(!ne.handoff(()=>t(!0))||(await r(),!ne())||(se=g(W),!se)))return!1;let b=()=>{let he=g(W);if(!he||!k(W))return null;let Ee=!xe(he)&&Du(he);return{target:he,box:Ee,region:Ee&&pe(he,Ee)}},S=b();if(!S)return!1;let q=n({landing:()=>g(W),intent:ne}),G=!!(S.box&&q.plan(S.target,{there:he=>$e(W,S.region,S.target,S.box,he)}));return await C(()=>{let he=b();if(!he)return null;let{target:Ee,box:Le,region:qe}=he;return{where:Ee,reveal:W.sourceId!==W.id?[k(W)]:[],focus:Y(W,!P().has(W.id)),scroll:Le?G?[{at:Ee,align:qe,behavior:Cn(),block:"start"}]:[]:[{at:Ee,behavior:Cn(),block:"center"}]}},{intent:ne,departure:q,keep:!0})?(v(W)?.scrollIntoView({block:"nearest"}),!0):!1}function Me(W){let ne=De(W);return ne.catch(()=>{}),ne}function ye(W,ne){let C=Me(W).then(U=>{if(!U)return!1;let se=P().has(W.id)?"waiting on you":"answered",b=ne.findIndex(S=>S.id===W.id);return a(Ao("Ask",b+1,ne.length,se)),!0});return C.catch(()=>{}),C}let Te=!1,ke=null,le=null,we=()=>Te&&void d();function Re(){Te||(Te=!0,le=gu("In this question",O),ke=so(we),document.addEventListener(Tn,we),addEventListener("resize",m))}function We(){Te&&(Te=!1,ke?.(),ke=null,document.removeEventListener(Tn,we),globalThis.removeEventListener("resize",m)),le?.(),le=null,I.disconnect();for(let W of document.querySelectorAll(`[${xt.ask}]`))W.removeAttribute(xt.ask)}return{mount:Re,destroy:We,buildBulkAnswers:R,syncAsks:d,standingIn:F,captureStanding:ve,restoreStanding:oe,markHere:ee,arriveAtAsk:Me,goToAsk:ye}}var ui=e=>e.ends==="done",Nb=Object.freeze({widget:"ask",reply:"question"}),Yn=e=>e.kind==="task"?Nb[e.ends]??"task":e.kind;var Xh="waiting on you",Bb=Object.freeze({ask:"Ask",thread:"Thread",widget:"Move",page:"Task"}),qb=(e,t)=>t.kind==="widget"&&Yn(e)==="task"?"Task":Bb[t.kind],jc=e=>e.ends==="widget"?{kind:"ask",id:e.id,thread:e.thread}:e.thread!==null?{kind:"thread",id:e.thread,thread:e.thread}:e.subject.kind==="page"?{kind:"page",id:"page",thread:null}:{kind:"widget",id:e.subject.id,thread:null},Db=(e,t)=>e.kind===t.kind&&e.id===t.id,Fb=()=>[...document.querySelectorAll("h1")].find(e=>!xe(e))??document.querySelector("main")??document.body.firstElementChild;function Jh({arriveAtAsk:e,arriveAtThread:t,threadHere:n,threadTarget:o,prepareTrip:r,arrive:s,readableDestination:i,announce:c,post:a}){let m=R=>R.kind==="page"?Fb():R.thread!==null?o(R.thread):rt(R.id);function p(){let R=[],z=[],te=new Set;for(let d of ct().effective.queues.onYou){let A=jc(d);if(te.has(`${A.kind}:${A.id}`))continue;te.add(`${A.kind}:${A.id}`);let H=m(A),M=H&&!xe(H)?Ri(H,document):null;(M?R:z).push({...A,key:`${A.kind}:${A.id}`,noun:qb(d,A),place:M})}return R.sort((d,A)=>d.place===A.place?0:d.place.compareDocumentPosition(A.place)&Node.DOCUMENT_POSITION_FOLLOWING?-1:1),[...R,...z]}function h(R){let z=n(),te=z?.dataset.id??z?.dataset.thread;if(te){let H=R.find(M=>M.kind==="thread"&&M.id===te);if(H)return H}let d=Vi();if(!d)return null;let A=Zo(R.filter(H=>H.kind==="ask"),En(d));return A||(R.findLast(H=>{if(H.kind==="page")return m(H)===d;if(H.kind!=="widget")return!1;let M=m(H);return M&&(M===d||Pe(d,M))})??null)}function f(R,z){let te=h(R);if(te){let M=R.indexOf(te);return R[Math.max(0,Math.min(R.length-1,M+z))]}let d=Vi();if(!d)return z>0?R[0]:R.at(-1);let A=z>0?Node.DOCUMENT_POSITION_FOLLOWING:Node.DOCUMENT_POSITION_PRECEDING,H=R.filter(M=>{if(!M.place)return z>0;if(M.place===d||Pe(d,M.place))return!0;let K=d.compareDocumentPosition(M.place);return!(K&Node.DOCUMENT_POSITION_CONTAINS)&&K&A});return z>0?H[0]??R.at(-1):H.at(-1)??R[0]}function g(R){let z=Fe({available:()=>!!R()}),te=R();if(!te)return Promise.resolve(!1);let d=r({landing:R,intent:z});return d.plan(te),s(()=>{let A=R();return A&&{where:A,focus:A,scroll:[{at:A,when:()=>!i(A)}]}},{intent:z,departure:d})}function v(R){if(R.kind==="ask"){let z=So().find(te=>te.id===R.id);return z?e(z):Promise.resolve(!1)}return R.kind==="thread"?t(R.id):g(()=>m(R))}function k(){let R=p(),z=h(R),te=To(R,z,{identity:d=>d.key});return te&&{...te,qualifier:`${Xh} \xB7 ${z.noun}`}}function N(R){let z=p();if(!z.length)return;let te=f(z,R),d=v(te).then(A=>{A&&c(sn("queue",null,k)??Ao(null,z.indexOf(te)+1,z.length,`${Xh} \xB7 ${te.noun}`))});return d.catch(()=>{}),d}let P=R=>R?ct().effective.queues.onYou.find(z=>ui(z)&&Db(jc(z),R))??null:null,_=null;function T(){let R=h(p()),z=vo();return R||!Je.matches||z&&z!==document.body&&!Rs(z)&&!xe(z)||En(getSelection()?.focusNode)?(_=P(R),_):(_=ct().effective.queues.onYou.find(te=>te.id===_?.id&&ui(te))??null,_)}function w(R){a({kind:"task_end",task:R,outcome:"done"}),c("Done")}let D=()=>ct().effective.queues.onYou.length>0,$=()=>ct().effective.queues.onYou.filter(ui).map(R=>R.id).join(" "),J=!1,Z="",x=null;function B(){x??=so(()=>{D()===J&&$()===Z||(J=D(),Z=$(),ft())})}return Ge({id:"queue.walk",touch:!1,keys:["a","Shift+a"],routes:[{id:"queue.next",binding:"a",title:"Next waiting on you",description:"Next Ask, thread, task or move to resend waiting on you"},{id:"queue.previous",binding:"Shift+a",title:"Previous waiting on you",description:"Previous Ask, thread, task or move to resend waiting on you"}],title:"Waiting on you",line:"on you",when:D,repeat:!0,run:R=>N(R==="a"?1:-1)}),Ke("task",{title:"On a task waiting on you",at:()=>!!T(),rows:[{id:"queue.task.done",keys:["x"],title:"done",description:"Mark the task waiting on you done",touch:"Done",when:()=>!!T(),run:()=>{let R=T();R&&w(R.id)}}]}),{mount:B,arriveAtItem:R=>v(jc(R)),endTask:w}}var eg=Object.freeze({ask:"Ask",question:"Question",recovery:"Resend",answer:"Reply",work:"Working",task:"Task"}),jb=Object.freeze({done:"Done",failed:"Failed",dropped:"Dropped"}),_b="h1, h2, h3, h4, h5, h6",Wb=e=>e.charAt(0).toUpperCase()+e.slice(1);function zb(e){let t=_i(rt(e.id));return t?Wb(t):eg.ask}function Zh(e){if(!e||xe(e))return"";let t=[...document.querySelectorAll(_b)].findLast(o=>!xe(o)&&o.parentElement&&Pe(e,o.parentElement)&&!Pe(o,e)&&o.compareDocumentPosition(e)&Node.DOCUMENT_POSITION_FOLLOWING),n=t?Ys(t):"";return n?`\xA7 ${n}`:""}function tg({arriveAtItem:e,endTask:t,announce:n}){let o=()=>ct().effective,r=x=>x===null?null:o().thread.all.find(B=>B.id===x)??null,s=x=>o().workflows.find(B=>B.id===x)??null,i=As,c=()=>de(Rn,"data-lf-key-title",`Show or hide what is waiting on you and on ${i()}`);c();function a(x,B){if(x.subject.kind==="page")return"Whole page";let I=!B&&Yn(x)==="task"?Tl(rt(x.subject.id)):"";if(I)return`\xA7 ${I}`;if(!B){let te=rt(x.subject.id),d=te&&Zo(So(),te);return Zh(d?rt(d.id):te)}if(!B.anchor?.section)return"Whole page";let R=rt(B.anchor.section),z=Tl(R);return z?`\xA7 ${z}`:Zh(R)||Yr(B.anchor)}function m(x,B){let I=rt(x.subject.id),R=B?jl(B).topic:"";if(x.title)return x.title;if(x.kind==="work"&&x.detail)return x.detail;if(x.subject.kind==="widget"){let z=I&&Zo(So(),I);return z&&Ys(rt(z.id))||Ys(I)||R||x.id}return R||x.id}function p(x,B){return Yn(x)==="question"?B&&Gi(jl(B).latest):x.kind==="answer"?am(s(x.id)):x.kind==="work"?Gi(s(x.id)?.ts):x.kind==="task"&&x.running?[x.running.text,Gi(x.running.ts)].filter(Boolean).join(" \xB7 "):""}function h(x){if(x.ends==="widget"){let B=So().find(R=>R.id===x.id),I=B?Xm([B])[0]:"";return I?`Answered ${I}`:"Answered"}return[jb[x.state]??x.state,Gi(x.ended)].filter(Boolean).join(" ")}function f(x,B){let I=r(x.thread),R=Yn(x),z=R==="ask"?zb(x):eg[R],te=(B==="done"?[h(x),a(x,I)]:[a(x,I),p(x,I)]).filter(Boolean).join(" \xB7 "),d=m(x,I),A=R==="ask"||x.kind==="recovery"&&x.subject.kind==="widget"&&x.thread===null?x.subject.id:null;return Object.freeze({key:`${B}:${R}:${x.id}`,item:x,list:B,at:A,kind:R,word:z,title:d,where:te,live:x.kind==="work"||!!x.running,done:B==="you"&&ui(x),account:[z,d,te,B==="done"?x.detail:""].filter(Boolean).join(" \xB7 ")})}let g=new Map;function v(){let x=gr("queue");if(!x)return g=new Map,Object.freeze({open:x,queues:Object.freeze([]),done:Object.freeze({label:"",rows:Object.freeze([])})});let{queues:B,done:I}=o(),R=B.onYou.map(d=>f(d,"you")),z=B.onAgent.map(d=>f(d,"agent")),te=I.map(d=>f(d,"done"));return g=new Map([...R,...z,...te].map(d=>[d.key,d])),Object.freeze({open:x,queues:Object.freeze([Object.freeze({id:"you",label:`On you \xB7 ${R.length}`,rows:Object.freeze(R),empty:"Nothing is waiting on you."}),Object.freeze({id:"agent",label:`On ${i()} \xB7 ${z.length}`,rows:Object.freeze(z),empty:`Nothing is waiting on ${i()}.`})]),done:Object.freeze({label:`Done \xB7 ${te.length}`,rows:Object.freeze(te)})})}let k=!1,N=Ur(Lt,()=>{let x=v();return k||Lt.paint(x).then(()=>Lt.commit(),B=>console.error("leaf: Queue panel tick failed",B)),x}),P=!1;async function _(x){let B=ls();an(Rn,B),c(),B!==P?(P=B,ft()):Ae(),k=!0;let I;try{I=N()}finally{k=!1}try{let R=await Lt.present(I);return x()?(Lt.commit(),[R]):[]}catch(R){if(!x())return[];try{await Lt.retainCommitted()}catch(z){throw new Lr([R,z],"Queue presentation and retention failed")}throw R}}let T=!1,w=Es({region:"queue",renderer:Lt,order:Ts.queue,current:()=>T?ct().semanticEpoch:null,failSoft:Ir(Lt),paint:(x,B)=>_(B)}),D=()=>w.present();function $(x){let B=g.get(x);if(!B)return;let I=[...g.values()].filter(z=>z.list===B.list);e(B.item).then(z=>{if(!z)return;let te=B.list==="done"?"done":B.list==="you"?"waiting on you":`waiting on ${i()}`;n(Ao(B.word,I.indexOf(B)+1,I.length,te))}).catch(()=>{})}function J(x){let B=g.get(x);B?.done&&t(B.item.id)}Lt.configure({activate:$,finish:J,fallback:Dt}),Gr(x=>{let B=zh(x);return B?rt(B):null});function Z(){T||(T=!0,so(D),document.addEventListener(Tn,D))}return{mount:Z,present:D}}var fi=Object.assign(document.createElement("div"),{className:"lf-ui lf-key-badges lf-command-binding-badges"});fi.setAttribute("aria-hidden","true");function Hb(e){let t=[];for(let[n,o]of e){let r=Go(n),s=r.length?r.filter(i=>o.has(i.binding)):ze(n).filter(i=>o.has(i)).map(i=>({...n,binding:i}));for(let i of s){let c=i.bindingBadge!==void 0?i.bindingBadge:n.bindingBadge,a=je(i.control??n.control);if(a==null)continue;let m=mo(i),p=m?.row??n,h=m?.id??i.id,f=_s(a);if(c===void 0&&!(f?.row===p&&f.entry.id===h))continue;if(!(a instanceof Element))throw new TypeError(`leaf: ${i.id} has no Element hint control`);if(!a.isConnected)continue;let g=c===void 0?void 0:je(c)??null;if(g!=null&&!(g instanceof Element))throw new TypeError(`leaf: ${i.id} has no Element binding badge`);let v=t.find(k=>k.original===p&&k.id===h&&k.control===a);if(v||(v={original:p,id:h,control:a,bindingBadge:g,keys:[],contextual:!1,binding:i.binding},t.push(v)),v.bindingBadge!==g)throw new TypeError(`leaf: ${h} has two binding badge faces`);if(v.keys.includes(i.binding)||v.keys.push(i.binding),m){let k=e.get(p)??new Set,N=Go(p),P=N.length?N.filter(_=>_.id===h).map(_=>_.binding):ze(p);for(let _ of P)k.has(_)&&!v.keys.includes(_)&&v.keys.push(_)}m&&!v.contextual&&(v.binding=i.binding,v.contextual=!0)}}return t}function ng({presentedControl:e}){let t=!1,n=!1,o=new Map,r=Symbol("Control binding routes"),s=new Set;function i(T,w,D){let $=T.getBoundingClientRect();if(["left","right","top","bottom"].some(I=>Math.abs($[I]-D[I])>.5))return!1;let J=(D.left+D.right)/2,Z=(D.top+D.bottom)/2,x=Math.min(3,(D.right-D.left)/4,(D.bottom-D.top)/4),B=T.getRootNode();return[[J,Z],[J,D.top+x],[J,D.bottom-x],[D.left+x,Z],[D.right-x,Z]].every(([I,R])=>{let z=B.elementsFromPoint(I,R),te=z.indexOf(T);return te>=0&&z.slice(0,te).every(d=>Pe(d,w))})}let c=["display","opacity"];function a(T,w){let[D,$]=o.get(T)[w];D?T.style.setProperty(w,D,$):T.style.removeProperty(w)}function m(T){T.removeAttribute("data-lf-binding-badge"),Qe(T,o.get(T).text);for(let w of c)a(T,w);o.delete(T)}function p(T=new Set){for(let w of[...o.keys()])T.has(w)||m(w)}let h=new Map;function f(T=new Set){for(let w of s)T.has(w)||(vl(w,r,null),s.delete(w))}function g(){p(),f()}function v(){let T=ga(),w=Hb(T),D=new Map;for(let{control:d,keys:A}of w){D.has(d)||D.set(d,new Set);for(let H of A)D.get(d).add(H)}for(let[d,A]of D)vl(d,r,zs(null,[{id:"keyboard.control-route",title:"Control shortcuts",line:!1,keys:[...A]}])),s.add(d);f(new Set(w.map(({control:d})=>d)));let $=w.filter(({bindingBadge:d})=>d!==void 0);if(n=$.length>0,!$.length){p(),h.clear(),Vn().paint(fi,[]);return}let J=rn(),Z=d=>J&&!Pe(d,J),x=Vn(),B=new Map;for(let{bindingBadge:d}of $)d&&B.set(d,(B.get(d)??0)+1);let I=new Set,R=new Set;for(let{binding:d,control:A,bindingBadge:H}of $){if(Z(A)||!H?.isConnected||B.get(H)!==1||!x.visibleBounds(A))continue;if(!o.has(H)){let F={text:H.textContent};for(let X of c)F[X]=[H.style.getPropertyValue(X),H.style.getPropertyPriority(X)];o.set(H,F)}Qe(H,ut(d)),H.style.display="block",I.add(H);let M=H.checkVisibility()&&x.badgeBox(H),K=!!(M&&i(H,A,M)&&x.reserve(M));H.toggleAttribute("data-lf-binding-badge",K),K?(a(H,"opacity"),R.add(H)):H.style.opacity="0"}p(I);let z=[];for(let{binding:d,control:A,bindingBadge:H}of $){if(Z(A)||H&&R.has(H))continue;let M=e(A)??A;if(!M.checkVisibility())continue;let K=x.badgeBox(M);if(!K)continue;let F=h.get(A);F||(F=ue("span","lf-key-badge lf-command-binding-badge"),F.setAttribute("aria-hidden","true"),h.set(A,F)),Qe(F,ut(d)),z.push({chip:F,owner:M,corner:K,at:Fn(K.left,K.top)})}let te=new Set(z.map(({chip:d})=>d));for(let d of[...h.keys()])te.has(h.get(d))||h.delete(d);x.paint(fi,z)}let k=()=>n&&Ae(),N=null;function P(){t||(t=!0,N=Wr(k))}function _(){t&&N(),t=!1,n=!1,g(),h.clear(),Vn().paint(fi,[])}return{mount:P,paint:v,destroy:_}}var _a=ue("div","lf-ui lf-inspect lf-target-paint");_a.setAttribute("aria-hidden","true");var vr=ue("div","lf-ui lf-legend");vr.setAttribute("aria-hidden","true");function og({pageGeometry:e,syncGeneral:t,composer:n,closePreview:o,marginTargetAt:r,closeDrawMode:s,closeTargetPicker:i,closeReactionMode:c,banner:a,announce:m,repaint:p}){let h=!1;function f(d,{spoken:A=!0}={}){d&&(o(),s(),i(),c()),h=d,document.body.toggleAttribute("data-lf-design-mode",d),a.toggleAttribute("data-lf-design-mode",d),Bn.set(lm,d?"1":null),A&&m(d?`Design mode: a click comments on what it lands on \u2014 a widget, a control, a picture. ${Je.matches?"Exit Design mode on the banner leaves.":"Escape leaves."}`:"Design mode off"),t(),e.refreshAim(),D(),p()}let g=new Map,v=fo(()=>e.pageShifted()),k=d=>(d??"").split(/\s+/).filter(A=>A&&!A.startsWith("lf-")).sort().join(" "),N=d=>!xe(d.target)&&!(d.attributeName==="class"&&k(d.oldValue)===k(d.target.getAttribute("class"))),P=new MutationObserver(d=>{d.some(N)&&e.pageShifted()}),_=0,T=0;function w(){!h||_||(_=Bt(()=>{_=0,D()}))}function D(){if(!h){vr.replaceChildren(),g.clear(),v.disconnect(),P.disconnect();return}P.observe(document.body,{subtree:!0,childList:!0,attributes:!0,attributeOldValue:!0,characterData:!0});let d=[...document.querySelectorAll(Vs)].filter(Pu),A=new Set(d);for(let[L,{box:O}]of g)A.has(L)||(O.remove(),g.delete(L),v.unobserve(L));let H=new Set(gn(L=>L["x-owners"]));for(let L of d){if(g.has(L))continue;let O=ue("div","lf-legend-box lf-page-paint");O.dataset.for=L.id,H.has(L.tagName.toLowerCase())||O.append(ue("span","lf-legend-tag",_l(L))),g.set(L,{box:O}),vr.append(O),v.observe(L)}let M=new Map,K=Dn(),F=d.map(L=>{let O=g.get(L);return O.radius??=getComputedStyle(L).borderRadius,!T&&O.box.firstChild&&(T=O.box.firstChild.getBoundingClientRect().height),O.box.style.display!=="none"&&(O.tagW=O.box.firstChild?O.box.firstChild.offsetWidth:0),[O,zo(L,M)]}),X=[];for(let[{box:L,radius:O,tagW:ee},Y]of F){if(!Y){L.style.display="none";continue}let ve=Fn(Y.left-1,Y.top-1);Object.assign(L.style,{display:"block",left:ve.left+"px",top:ve.top+"px",width:Y.right-Y.left+2+"px",height:Y.bottom-Y.top+2+"px",borderRadius:O});let oe=Y.top-T<K;if(L.classList.toggle("lf-in",oe),!ee)continue;let V=Y.left-1,pe=oe?T:-T,$e=oe?Y.top:Y.top-T,De=0;for(;X.some(Me=>V<Me.left+Me.width&&Me.left<V+ee&&$e<Me.top+T&&Me.top<$e+T);)$e+=pe,De+=pe;L.firstChild.style.transform=De?`translateY(${De}px)`:"",X.push({left:V,top:$e,width:ee})}}let $=".lf-margin-entry, [data-lf-margin-for]";function J(d){let A=qr(d),H=dt(d,$),M=H&&(!A||Pe(H,A))&&r(d);if(M)return M;if(!A)return Ks(d);let K=dt(d,'[id]:not([id^="lf-"])');return K&&Pe(K,A)?K:null}let Z=()=>`${yd},[data-lf-offer]`;function x(d){let A=d?.nodeType===1?d:d?.parentElement;if(!A)return null;let H=r(A),M=J(A);if(!M)return null;let K=dt(A,Z()),F=K&&K!==M&&(H===M||Pe(K,M))?B(K):"";return{element:M,part:F}}function B(d){return d.getAttribute("aria-label")||d.textContent.replace(/\s+/g," ").trim()||d.tagName.toLowerCase()}let I=()=>[...gn(()=>!0),Z(),"svg","img","figure"].join(",");function R(d){let A=d?.nodeType===1?d:d?.parentElement;return!h||!A?!1:!!(qr(A)?J(A):dt(A,I()))}function z({element:d,part:A}){n.showFab(null),n.openComposer({section:d.id,...A&&{part:A}},"")}function te(){_&&kt(_),_=0,v.disconnect(),P.disconnect(),g.clear(),vr.replaceChildren(),document.body.removeAttribute("data-lf-design-mode"),a.removeAttribute("data-lf-design-mode"),h=!1}return Ke("design mode",{title:"In Design mode",at:()=>h,rows:[{id:"design.mode.comment",keys:[],label:"click",title:"Comment on appearance",description:"Click a widget, control, or picture; prose still selects",line:!1},{id:"design.mode.exit",keys:["l"],title:"exit Design mode",touch:"Exit Design mode",run:()=>f(!1)}]}),qt("design mode",()=>h?{title:"exit Design mode",out:()=>f(!1)}:null),Ge({id:"design.mode.enter",keys:["l"],description:"Enter Design mode: comment on how the page looks and works \u2014 a widget, a control, a picture \u2014 rather than its words",title:"design mode",touch:"Design mode",when:()=>!h,run:()=>f(!0)}),{destroy:te,active:()=>h,setActive:f,queueLegend:w,paintLegend:D,target:x,press:R,open:z,name:_l,inspectElement:_a,legendElement:vr}}var Ub=420,Gb=320,Vb="--lf-thread-panel-width";function rg({panelIsOpen:e,elements:{panel:t,closeBtn:n,panelFoot:o,threadsBox:r,shortcutBarEl:s,bottomStatusEl:i},scheduleThreadPreviewPosition:c,restateDrawerEdge:a,syncAuxiliarySurfaces:m,syncReactLayout:p,refreshFab:h,pageShifted:f,repaint:g,repaintPage:v}){let k=()=>e()&&!Ym();function N(){Bu(),Jm(),c?.();let B=e()&&!k(),I=(B?x.width():0)+"px";s.style.setProperty("--lf-shortcut-bar-right",I),i.style.setProperty("--lf-shortcut-bar-right",I);let R=B?t.offsetLeft:1/0,z=[...document.querySelectorAll(".lf-margin-projection .lf-margin-cluster")].some(te=>!te.classList.contains("lf-withheld")&&te.getBoundingClientRect().right>R);t.closest(".lf-chrome")?.toggleAttribute("data-lf-rail-covered",z),P(),_()}function P(){let B=o.getBoundingClientRect().height;if(k()&&i.checkVisibility()){let I=r.getBoundingClientRect(),R=i.getBoundingClientRect();for(let z of r.querySelectorAll(":scope > .lf-thread[open] > .lf-thread-reply")){let te=z.getBoundingClientRect();z.checkVisibility()&&Mr(te,R)&&te.bottom>I.top&&te.top<I.bottom&&(B=Math.max(B,innerHeight-Math.max(te.top,I.top)))}}i.style.setProperty("--lf-panel-foot-h",`${B}px`)}function _(){p()||h()}let T=(B=!1,I=!1)=>{B?v():I&&g()},w=0,D=0,$=fo(B=>{let I=!1,R=!1,z=!1;for(let{contentRect:te,target:d}of B){if(d!==document.body){I=!0,z=!0;continue}let A=te.width!==w,H=te.height!==D;A&&(I=!0),(A||H)&&(R=!0),w=te.width,D=te.height}I?T(R,z):R&&f()});function J(){x.handle(t,()=>n),addEventListener("resize",()=>{x.state(),a(),m(),f(),N()}),$.observe(document.body),$.observe(o),$.observe(s),$.observe(i)}function Z(B){B(),m(),N()}let x=Ba({side:"right",noun:"thread panel",wide:Ub,min:Gb,prop:Vb,key:"lf-thread-panel-width",land:Z});return{syncLayout:N,syncBottomStatus:P,mountLayoutObservers:J,landEdge:Z,commentsEdge:x}}function ig({auxiliarySurfaces:e,elements:{panel:t,toggleBtn:n,threadsBox:o,inPanel:r},key:s="threads",narrowing:i,threadAtStanding:c,placedAt:a,showThread:m,refreshThread:p,closeReactionMode:h,closePreview:f,syncGeneral:g}){let v=Gr(d=>{let A=t.contains(d)?dt(d,".lf-thread[data-id]"):null;return A?a(A.dataset.id)?.place??null:null}),k=()=>e.selectedSurface()===t;function N(){if(t.open)return;let d=document.activeElement;t.show(),d?.isConnected&&!t.contains(d)&&d.focus({preventScroll:!0})}function P(d,A){(d||k())&&e.select(d?s:null,A)}let _=0;async function T({status:d,waiting:A,thread:H,signal:M}={}){let K=++_,F=Fe({available:()=>K===_&&!M.aborted&&t.isConnected,fallback:o});return F.handoff(()=>P(!0)),await i.select({status:d,waiting:A}),!F()||!k()?!1:H?!!await m(H,{focus:!1,intent:F}):!0}function w(d,A){!d&&t.contains(document.activeElement)&&kn(n),t.classList.toggle("open",d),n.setAttribute("aria-expanded",String(d)),d?(N(),A==="gesture"&&Ki(t,"right","in"),p(),g()):t.open&&(++_,t.close()),d&&f?.()}let D=e.registerAuxiliarySurface({key:s,surface:t,scroller:()=>o,beside:!0,focus:()=>o,show:({phase:d})=>w(!0,d),hide:()=>w(!1)}),$=!1,J=null,Z=()=>{J=c()},x=d=>{let A=Fr(d)?null:J;if(J=null,k()){P(!1);return}let H=A??c();H?m(H,{focus:"thread"}):P(!0)};function B(){$||($=!0,n.addEventListener("pointerdown",Z),n.onclick=x,addEventListener("resize",h))}let I=()=>!i.threadSearchActive()||!r(k),R=qt("narrowing",()=>k()&&i.narrowed()?{root:t,title:"show all",description:"Show every thread again",lineWhen:I(),out:()=>i.widen()}:null),z=qt("panel",()=>k()?{root:t,title:"close threads",description:"Close the thread panel",lineWhen:I(),out:()=>{P(!1),yn()}}:null);function te(){v(),$&&(n.removeEventListener("pointerdown",Z),n.onclick===x&&(n.onclick=null),globalThis.removeEventListener("resize",h),$=!1),z(),R(),D?.()}return{panelIsOpen:k,setPanel:P,showView:T,mountThreadPanel:B,dispose:te}}var sg=e=>e.matches(Pr)||e.tagName==="INPUT"&&e.type!=="file",ag=e=>e.tagName==="INPUT"&&(e.type==="checkbox"||e.type==="radio");function _c(e,t){let n=document.activeElement,o=[],r=new Map,s=new Set(An().map(({body:i})=>i));for(let i of e.querySelectorAll("[id]")){let c=t.querySelector(`#${CSS.escape(i.id)}`);if(c?.localName!==i.localName)continue;let a={id:i.id,name:i.localName};if(i===n&&(a.focus=!0),i.localName==="details"&&i.open!==c.open&&(a.open=i.open),Bd(i)||(i.scrollTop&&!s.has(i)&&(a.scrollTop=i.scrollTop),i.scrollLeft&&(a.scrollLeft=i.scrollLeft)),sg(i)&&i.value!==c.value&&(a.value=i.value),ag(i)&&i.checked!==c.checked&&(a.checked=i.checked),i===n){let m=au(i);m&&(a.caret=m)}Object.keys(a).length!==2&&(o.push(a),r.set(a.id,i))}return{records:o,held:r}}function Wc(e,t=new Map,n=o=>o()){let o=[];for(let r of e??[]){let s=document.getElementById(r.id);!s||s===t.get(r.id)||s.localName===r.name&&(r.open!==void 0&&(s.open=r.open),r.value!==void 0&&sg(s)&&(s.value=r.value),r.checked!==void 0&&ag(s)&&(s.checked=r.checked),o.push([s,r]))}return n(()=>{for(let[r,s]of o)s.focus&&ho(r,s.caret)}),()=>{for(let[r,s]of o)r.isConnected&&(s.scrollTop&&(r.scrollTop=s.scrollTop),s.scrollLeft&&(r.scrollLeft=s.scrollLeft))}}var Kb="_leaf-revision";function zc(e){let t=new Map;for(let{name:n,value:o}of e.attributes)if(!n.startsWith("data-lf-"))if(n==="class"){let r=[...e.classList].filter(s=>!s.startsWith("lf-")).join(" ");r&&t.set(n,r)}else t.set(n,o);return t}var cg=e=>!e.hasAttribute("data-lf-runtime")&&(e.localName==="title"||e.localName==="style"||e.localName==="base"||e.localName==="meta"&&(e.hasAttribute("name")||e.hasAttribute("property"))||e.localName==="link"),Uc=(e,t,n)=>{n.set(e,t);let o=e.localName==="template"?e.content:e,s=[...(t.localName==="template"?t.content:t).childNodes].filter(i=>!i.matches?.("[data-lf-prepaint]"));for(let[i,c]of[...o.childNodes].entries())s[i]&&Uc(c,s[i],n);return n},lg=e=>e.querySelector("script[data-lf-runtime][data-lf-probe]")?.dataset.lfProbe.replace(/registry\.json$/,"")??"",Wa=document.querySelector("body > main"),Hc={authoredBodyAttributes:zc(document.body),authoredHeadNodes:new Set([...document.head.children].filter(cg)),authoredHtmlAttributes:zc(document.documentElement),source:Wa?Sd(Wa):null},Yb=Wa?Uc(Hc.source,Wa,new WeakMap):new WeakMap;function dg({compositionInput:e,openThread:t,refreshThread:n,midComposition:o,hasPending:r,readAndApply:s,retireProjectionCoverage:i,syncLayout:c,captureRetainedStanding:a=()=>null,restoreRetainedStanding:m=()=>!1,captureAskStanding:p=()=>null,restoreAskStanding:h=()=>{}}){let{authoredBodyAttributes:f,authoredHeadNodes:g,authoredHtmlAttributes:v}=Hc,k=ap,N=Hc.source,P=lg(document),_=Yb,T="lf-view",w="lf-revision-handoff",D=u=>be.versions.find(E=>E.version===u),$=()=>be.currentStamp===null?"Draft":`v${be.currentStamp}`,J=()=>{let u=new Set;return be.currentStamp===null&&be.currentRevision!==null&&u.add(be.currentRevision),be.active?.version===null&&u.add(be.active.revision),u},Z=()=>be.versions.length+J().size,x=()=>Z()>0,B=()=>Z()>1,I=()=>be.active!==null&&be.currentRevision!==null&&be.active.revision!==be.currentRevision,R=u=>ir.atBoundary(u);function z(){ir.close()}let te=()=>ir.numberedRoutes(),d={id:"version.open-number",keys:()=>te().map(({binding:u})=>u),routes:te,label:()=>{let u=te();return u.length>1?`${u[0].binding}\u2013${u.at(-1).binding}`:u[0]?.binding},description:"Open a numbered version",title:"open version",when:()=>B()&&te().length>0},A={id:"version.current",keys:["v"],title:"open the current page",run:()=>ve()},[H,M]=Kr({id:"version",noun:"Version",plural:"versions",rows:()=>ir.rows(),steps:["later","earlier","latest","earliest"],landed:u=>{let E=+u.dataset.lfVersion;Qt(E)?In(E):Xt(!1)}}),K={...H,description:"Walk the versions, marking what changed since the one you are on",title:"walk \u2014 marking changes",when:B},F={...M,when:B},X={title:"In the versions menu",root:()=>Ji,when:x,at:Zi,liveInCommandReference:!0,claims:Vr,rows:[K,F,d,{id:"version.leave-forward",keys:["Tab"],description:"Leave the versions menu forward",title:"leave forward",native:!0,repeat:!0,when:()=>R(-1),commandReferenceWhen:()=>!0,run:z},{id:"version.leave-backward",keys:["Shift+Tab"],description:"Leave the versions menu backward",title:"leave backward",native:!0,repeat:!0,when:()=>R(0),commandReferenceWhen:()=>!0,run:z},{id:"version.close",keys:["Escape"],description:"Close the versions menu",title:"close",promoteEscape:!1,run:()=>{z(),Lm(Xi)}}]},L={id:"version.open",keys:["Shift+v"],description:"The versions, and what each one changed",title:"versions",control:Xi,when:x},O=!1,ee=!1,Y=u=>{if(u===be.currentStamp)return;let E=D(u);if(!E)return;let Q=new URL(E.url,location.href);Q.searchParams.set("pin",""),location.href=Q.href},ve=()=>{if(be.active){if(_o){if(be.active.revision===be.currentRevision)return;ee=!0,z(),s();return}location.href=kd||"/"}};function oe(u,E){let Q=u.versions.at(-1)?.version,l=u.versions.map(y=>({revision:y.revision,version:y.version,name:`v${y.version}${y.version===Q?" (latest version)":""}`,note:E[y.version]??null,current:y.version===be.currentStamp,active:!1,comparable:Qt(y.version)}));for(let y of J()){let j=y===u.active.revision;l.push({revision:y,version:null,name:`${j?"Current":"This view"} \xB7 ${y===be.currentRevision?be.currentLabel??xd(y):u.active.label}`,note:null,current:y===be.currentRevision,active:j,comparable:!1})}return l.sort((y,j)=>j.revision-y.revision||(j.version??1/0)-(y.version??1/0)),Object.freeze(l.map(y=>Object.freeze(y)))}function V(u){let E=u!==null&&x(),Q=I(),l=_o&&!!u?.source_error,y=be.currentLabel??"Draft",j=Q?`; ${be.active.label} available`:"";return Object.freeze({picker:Object.freeze({offered:E,token:$(),compared:Te||ke!==null,news:Q,keyTitle:E?ke!==null?`${y}: loading a comparison with v${ke}${j}`:Te?`${y}: showing what changed since v${ye} \u2014 pick a version, or press Compare again to stop${j}`:`${y}: versions; read one, or mark what changed since it${j}`:y,ariaLabel:E?ke!==null?`${y}: loading comparison with v${ke}; open versions${j}`:Te?`${y}: comparing with v${ye}; open versions${j}`:`${y}: open versions${j}`:y}),latest:Object.freeze({disabled:l,keyTitle:l?u.source_error:"Open the current page",label:Gm({failed:l,activeLabel:Q?be.active.label:null}),news:l||Q}),rows:u===null||be.active===null?Object.freeze([]):oe(u,be.browser?.version_notes??{}),selection:Object.freeze({base:ke??(Te?ye:null),currentRevision:be.currentRevision,on:Te,pendingBase:ke,baseRevision:D(ye)?.revision??null})})}function pe(u=be.state){let E=V(u);return ir.present(E),an(Jr,E.latest.news),Ae(),E}function $e(u){pe(u);let E=B();E!==O&&(O=E,ft())}let De=()=>[xi,"aside",...gn(u=>u["x-owners"]&&(u["x-content"]??"markup")==="markup"),...gn(u=>u["x-verbatim"])].join(","),Me=()=>[...gn(u=>u["x-upgrade"]&&!u["x-verbatim"]&&u["x-content"]==="data"),...gn(u=>u["x-upgrade"]&&u["x-data"]),...Object.entries(tn.$decisions).filter(([,{retires:u}])=>Object.keys(u).length).map(([u])=>u),"svg"].join(","),ye=null,Te=!1,ke=null,le=[],we=new Map,Re=new Map,We=0;function W(u){if(!u.querySelector("[data-lf-source-words]"))return Li(u);let E=u.cloneNode(!0);for(let Q of E.querySelectorAll("[data-lf-source-words]"))Q.replaceWith(document.createTextNode(Q.dataset.lfSourceWords));return Li(E)}function ne(u){let E=[],[Q,l]=[De(),Me()],y=dl(u);for(let j of u.querySelectorAll(Q)){if(xe(j)||j.closest(l)||j.querySelector(Q))continue;let ae=W(j);for(let[me,ie]of Object.entries(tn[j.localName]?.["x-says"]??{})){let fe=j.getAttribute(me);fe&&(ae=ie==="before"?`${fe} ${ae}`:`${ae} ${fe}`)}ae&&E.push([j,ae])}for(let j of u.querySelectorAll(l)){if(!y(j)||xe(j)||j.parentElement?.closest(l))continue;let ae=tn[j.localName]??{},me=new Set;for(let fe of Object.values(ae["x-data"]??{}))me.add(fe.source);let ie=[...me].sort().map(fe=>[fe,j.getAttribute(fe)]);E.push([j,` ${j.tagName}#${j.id}${JSON.stringify(ie)}`])}return E}async function C(u,E){let Q=new URLSearchParams({revision:String(u),through_seq:String(E)}),l=await fetch($d(`api/view?${Q}`));if(!l.ok)throw new Error(`couldn't project revision r${u}`);let y=await l.json();if(!y.browser)throw new Error(`revision r${u} has no projection`);return y.browser}function U(u,E,Q){let l=new Map;for(let[,ie]of ne(u))l.set(ie,(l.get(ie)??0)+1);for(let[ie,fe]of ne(document.body)){let Oe=l.get(fe)??0;Oe>0?l.set(fe,Oe-1):(ie.classList.add("lf-ins-block"),le.push(ie))}let y=D(E)?.revision;if(y==null)throw new Error(`version v${E} has no revision`);let j=Q?.views?.[String(y)];if(!j)throw new Error(`revision r${y} has no projection`);let ae=Ed(j,Q.thread);for(let{tag:ie,verb:fe,spec:Oe}of Od())if(!(!Oe.record||Oe.record.kind==="body"))for(let Se of document.body.querySelectorAll(ie)){if(xe(Se)||Tu(Se))continue;let Ue=Oe.unit==="widget"?Se.id?[Se]:[]:[...Se.querySelectorAll(`${Oe.record.within} > [id]`)];for(let _e of Ue){let ro=u.getElementById(_e.id);if(!ro)continue;let io=wf(Se.id,_e.id,fe),jo=ae.desired.get(io),Nt=jo?jo.value:xl(ro,Oe.record),$i=xl(_e,Oe.record);if(Nt===$i)continue;let Or=Oe.record.kind==="attribute"&&$i&&rt($i)||_e;Or.classList.contains("lf-ins-block")||(Or.classList.add("lf-ins-block"),le.push(Or))}}let me=Me();for(let ie of le){if(!ie.matches(Vs)||ie.closest(me))continue;let fe=u.getElementById(ie.id);we.set(ie,fe?Li(fe):null)}return le.length}let se=u=>`lf-version-inline-${u.id}`,b=u=>Vd(zd(u,"wrote"));function S(u,E,Q){return E.units.length?Q===E.units.length?E.units.at(-1).end:E.units[Q].start:{node:u,offset:0}}function q(u,E,Q,l){let y=S(u,E,Q);if(y.node.nodeType===Node.ELEMENT_NODE){y.node.insertBefore(l,y.node.childNodes[y.offset]??null);return}let j=y.node;y.offset===0?j.parentNode.insertBefore(l,j):y.offset===j.data.length?j.parentNode.insertBefore(l,j.nextSibling):j.parentNode.insertBefore(l,j.splitText(y.offset))}function G(u,E,Q){let l=u.units[E],y=u.units[Q-1];if(!l||!y)return null;let j=document.createRange();return j.setStart(l.start.node,l.start.offset),j.setEnd(y.end.node,y.end.offset),j}function ce(){let u=[...Re.values()].flatMap(E=>E.ranges);u.length?CSS.highlights.set("lf-version-insert",new Highlight(...u)):CSS.highlights.delete("lf-version-insert")}function he(u){let E=we.get(u),Q=b(u),l=$(),y=ue("span","lf-ui lf-quiet lf-version-inline-label",E===null?`New since v${ye}`:`v${ye} \u2192 ${l}`);y.id=se(u),y.setAttribute("aria-label",E===null?`New since version ${ye}`:`Inline comparison from version ${ye} to ${l}`);let j=[y],ae=[],me=[{offset:0,node:y}],ie=0,fe=!1;for(let Ue of E===null?[]:zf(E,Q.text))if(Ue.kind==="delete"){let _e=ue("span","lf-ui lf-version-inline-deletion");_e.append(ue("del","",Ue.text)),j.push(_e),me.push({offset:ie,node:_e}),fe=!0}else{let _e=[...Ue.text].length;Ue.kind==="insert"&&(ae.push([ie,ie+_e]),fe=!0),ie+=_e}me.sort((Ue,_e)=>_e.offset-Ue.offset).forEach(({offset:Ue,node:_e})=>q(u,Q,Ue,_e));let Oe=b(u),Se=ae.map(([Ue,_e])=>G(Oe,Ue,_e)).filter(Boolean);return u.classList.toggle("lf-version-inline",fe),Re.set(u,{nodes:j,ranges:Se}),ce(),Fi(u),E===null?`v${ye} had nothing here`:`showing an inline diff from v${ye}`}function Ee(u){let E=Re.get(u);Re.delete(u),u.classList.remove("lf-version-inline");for(let Q of E?.nodes??[])Q.remove();return ce(),Fi(u),`inline diff from v${ye} hidden`}let Le=u=>Te&&we.has(u)&&(we.get(u)===null||we.get(u)!==Li(u))?{id:se(u),open:Re.has(u),offer:`v${ye} \u2192 ${$()}`}:null;function qe(u){if(!Le(u))return null;let E=Re.has(u)?Ee(u):he(u);return document.dispatchEvent(new CustomEvent("lf-comparison")),E}let Qt=u=>{let E=D(u);return be.currentRevision!==null&&E!==void 0&&E.revision<be.currentRevision};function Xt(u,E,Q=null){if(Te=u,ke=Q,u&&(ye=E),!u){We++;for(let l of[...Re.keys()])Ee(l);we.clear();for(let l of le)l.classList.remove("lf-ins-block");le.length=0}pe(),document.dispatchEvent(new CustomEvent("lf-comparison"))}async function In(u){Xt(!1,null,u);let E=++We,Q=D(u),l=Q?.revision;if(l==null){ke=null,pe(),Ze(`Couldn't load v${u}`);return}let y=Jt(Q.url),j,ae;try{for(;E===We;){let ie=be.lastEventSeq;if(!Number.isInteger(ie))throw new Error("the current reading has no log sequence");if([j,ae]=await Promise.all([y,C(l,ie)]),E!==We)return;if(be.lastEventSeq===ie)break}if(E!==We)return;await Tf(j)}catch{E===We&&(ke=null,pe(),Ze(`Couldn't load v${u}`));return}if(E!==We)return;let me=U(j,u,ae);Xt(!0,u),Ze(me?`${me} changed passage${me===1?"":"s"} since v${u}`:`No text changes since v${u}`)}let gs=u=>Te&&u===ye||ke===u?Xt(!1):In(u),yi=()=>Te?ye:null,ki=()=>ke??yi(),vs=()=>Te?[...le]:[];async function Jt(u){let E=await fetch(u);if(!E.ok)throw new Error(`couldn't load ${u} (${E.status})`);let Q=new DOMParser().parseFromString(await E.text(),"text/html");if(Q.querySelectorAll("body > main").length!==1)throw new Error(`${u} has no single authored main`);for(let l of Q.querySelectorAll("body > main [data-lf-prepaint]"))l.remove();return Q}let Mo=new Map;function No(u){return Mo.has(u.revision)||Mo.set(u.revision,Jt(u.url).catch(E=>{throw Mo.delete(u.revision),E})),Mo.get(u.revision)}function zt(u,E,Q){let l=Yu(u),y=zc(E),j=Se=>new Set(Se?.split(" ")),ae=j(y.get("class"));for(let Se of j(Q.get("class")))ae.has(Se)||u.classList.remove(Se);for(let Se of ae)u.classList.contains(Se)||u.classList.add(Se);let me=new Set(E.style),ie=document.createElement(u.localName).style;ie.cssText=Q.get("style")??"";for(let Se of ie)!l.styles.has(Se)&&!me.has(Se)&&u.style.removeProperty(Se);let fe=new Set(u.style);for(let Se of me){if(l.styles.has(Se))continue;let Ue=E.style.getPropertyValue(Se),_e=E.style.getPropertyPriority(Se);(!fe.has(Se)||u.style.getPropertyValue(Se)!==Ue||u.style.getPropertyPriority(Se)!==_e)&&u.style.setProperty(Se,Ue||" ",_e)}let Oe=Se=>Se!=="class"&&Se!=="style"&&!l.attributes.has(Se);for(let Se of Q.keys())Oe(Se)&&!y.has(Se)&&u.removeAttribute(Se);for(let[Se,Ue]of y)Oe(Se)&&de(u,Se,Ue);return y}function Mn(u,E){for(let y of g)y.remove();let Q=new Set;for(let y of u.head.children){if(!cg(y))continue;let j=document.importNode(y,!0);(j.localName==="link"||j.localName==="style")&&j.addEventListener("load",sr,{once:!0}),document.head.append(j),Q.add(j)}g=Q;let l=document.querySelector('meta[name="lf-revision"][data-lf-runtime]');l||(l=document.createElement("meta"),l.name="lf-revision",l.dataset.lfRuntime="1",document.head.append(l)),l.content=String(E.revision)}let Ar=u=>!!tn[u.localName]?.["x-upgrade"];function Bo(u){let E=new Map,Q=new Map;for(let l of pn(u))if(Ar(l))if(l.id)E.set(l,l.id);else{let y=Q.get(l.localName)??0;Q.set(l.localName,y+1),E.set(l,`${l.localName}#${y}`)}return E}function*pn(u){let E=u.localName==="template"?u.content:u;for(let Q of E.children)yield Q,yield*pn(Q)}let vt=["src","href","srcset","poster","data","style"],qo=(u,E)=>E&&u.includes(E)?u.split(E).join("/"):u,bs=(u,E,Q,l)=>vt.includes(u)?qo(E,P)===qo(Q,l):E===Q;function Si(u,E,Q){let l=(y,j)=>{let ae=y.cloneNode(!0);if(!j)return ae;for(let me of[ae,...pn(ae)])for(let ie of vt){let fe=me.getAttribute(ie);fe?.includes(j)&&me.setAttribute(ie,qo(fe,j))}return ae};return l(u,P).isEqualNode(l(E,Q))}let ht=u=>{let E=u.cloneNode(!1);for(let Q of u.childNodes)E.append(Q.cloneNode(!1));return E},eo=(u,E,Q)=>tn[u.localName]?.["x-patch"]==="members"&&Si(ht(u),ht(E),Q);function to(){let u=Nf();return{draftEditing:u,replyThread:u?.mirrored?bm():null,askStanding:u?null:p()}}async function Do(u){try{await u()}catch(E){Jo(`Revision continuity failed: ${E?.message??E}`)}}async function Ai(u,E){if(!E())return;let{draftEditing:Q,replyThread:l,askStanding:y}=u;h(y);let j=zr(E,()=>Bf(Q));if(!j()||Nl(Q,ge()))return;let ae=l?await vm(Q,async()=>(await n(),j()?wm(l,t,j):null)):qf(Q);!l&&ae&&j.handoff(()=>ho(ae)),j()&&Nl(Q,ae)}async function Tr(u,E){let Q=Fe(),l=Fo(),y=to(),j=ki();j!==null&&Xt(!1);let ae=document.querySelector("body > main"),me=_c(ae,N),ie=u.querySelector("body > main"),fe=Zl(u),Oe=lg(u),Se=Bo(N),Ue=Bo(ie);i(),Mo.delete(E.revision);let _e=dl(ae),ro=Ie=>(Ie.nodeType===Node.ELEMENT_NODE||Ie.parentElement!==null)&&!_e(Ie),io=[],jo=[],Nt=ct().document;Ol(ie);let $i=bf(ie,new Map),Or=Pl(ie,{kind:"page",revision:E.revision}),pd=[],nv=(Ie,Xe)=>{let $t=document.importNode(Ie,!0);if(Uc(Ie,$t,_),$t.nodeType===Node.ELEMENT_NODE){Ef($t),Ol($t,Xe);let bd=Pl($t,{kind:"page",revision:E.revision});jo.push(bd),Ll(bd),io.push($t)}return $t},hd;await Rf(ae,()=>(v=zt(document.documentElement,u.documentElement,v),de(document.documentElement,"data-lf-review",u.documentElement.getAttribute("data-lf-review")),f=zt(document.body,u.body,f),Mn(u,E),_.set(ie,ae),$m(N,ie,{pairs:_,arrive:nv,generated:ro,declared:Ar,reaches:(Ie,Xe)=>eo(Ie,Xe,Oe),unchanged:(Ie,Xe)=>{let $t=k[Se.get(Ie)];return!!$t&&fe[Ue.get(Xe)]===$t},same:(Ie,Xe)=>Si(Ie,Xe,Oe),sameValue:(Ie,Xe,$t)=>bs(Ie,Xe,$t,Oe),touched:Ie=>pd.push(Ie)}),sr(),hd=Wc(me.records,me.held,Q.handoff),Cf(ae),Ws(),{roots:[...io,...pd],widgets:io.flatMap(Ie=>[Ie,...pn(Ie)]).filter(Ie=>Ar(Ie)&&Ie.id).map(Ie=>Ie.id)})),k=fe,N=ie,P=Oe;let gd=new Map([...Nt.authored].filter(([Ie])=>Nt.descriptors.get(Ie)?.document.kind==="thread"));for(let[Ie,Xe]of $i)gd.set(Ie,Xe);let vd=new Map;for(let Ie of jo)for(let[Xe,$t]of Ie.descriptors)vd.set(Xe,$t);let sl=new Map;for(let[Ie,Xe]of Or.descriptors)sl.set(Ie,vd.get(Ie)??Nt.descriptors.get(Ie)??Xe);for(let[Ie,Xe]of Nt.descriptors)Xe.document.kind==="thread"&&sl.set(Ie,Xe);let ov=new Set([...Nt.descriptors].filter(([Ie,Xe])=>Xe.document.kind==="page"&&!Or.descriptors.has(Ie)).map(([Ie])=>Ie));return Ll({bindings:[]},ov),{document:{...Nt,revision:E.revision,stamp:E.version??null,authored:gd,descriptors:sl},land:()=>Do(async()=>{c(),Q()&&(Zt(l,Q),hd(),await Ai(y,Q)),j!==null&&In(j),Ze(`Updated to ${E.label}`,{background:!0})})}}async function hn(u){let E=u.active;if(!_o||be.currentRevision===null||E.revision<=be.currentRevision)return null;let Q=()=>E.revision>be.currentRevision&&!r()&&(!o()||ee)&&!Zi();if(!Jl||E.executable!==Jl)return{revision:E.revision,activates:Q,install:Er(E)};let l;try{l=await No(E),await $f(l.querySelector("body > main"))}catch(y){return Jo(`revision ${E.revision} failed to load: ${y?.message??y}`),null}return{revision:E.revision,activates:Q,install:()=>(ee=!1,Tr(l,E))}}let Er=u=>()=>{ee=!1;let E=Fo(),Q=to();Bn.set(T,JSON.stringify(E)),Bn.set(w,JSON.stringify({revision:u.revision,url:location.href,view:E,retainedStanding:a(),...Q,carry:_c(document.querySelector("body > main"),N).records,comparison:ki(),pointer:on()}));let l=new URL(location.href);return l.searchParams.set(Kb,String(u.revision)),df(l),location.reload(),new Promise(()=>{})};function Fo(){Ti();let u=Wi(),E=Nn(An(),u),Q=Object.assign(zi(null,u),{revision:be.currentRevision,activeRegion:E?.id,regions:Object.fromEntries(bt)});for(let l of An()){if(!Xo(l))continue;let y=zi(l,u);($l(l)==="bounded"||l.id===E?.id)&&(bt.set(l.id,y),Q.regions[l.id]=y)}return Q}function Zt(u,E){let Q=new Map(An().map(me=>[me.id,me])),l=Q.get(u.activeRegion)??Cl(ge())??Qs(Uu());l&&zn(l.host,E);let y=new Set,j=l&&u.regions?.[l.id],ae=l&&Qo(Q.get(l.id));j&&(Hi(j)||Ui(j,ae)&&ae!==Gt)?(Hr(j,Q.get(l.id),E),y.add(ae)):(Hr(u,null,E),y.add(Gt)),!y.has(Gt)&&(Hi(u)||Ui(u,Gt))&&(Hr(u,null,E),y.add(Gt));for(let[me,ie]of Object.entries(u.regions??{})){let fe=Q.get(me);if(!fe||!Xo(fe))continue;let Oe=Qo(fe);y.has(Oe)||!Hi(ie)&&!Ui(ie,Oe)||(Hr(ie,fe,E),y.add(Oe))}}let bt=new Map,Ti=()=>{let u=new Set(An().map(({id:E})=>E));for(let E of bt.keys())u.has(E)||bt.delete(E)};function Ei(u=null){Ti();let E=document.querySelector("body > main"),Q=An().filter(j=>Pe(j.host,E)&&(!u||u.has(Qo(j)))&&Xo(j));if(!Q.length)return;let l=new Map(Q.map(j=>[j.id,Wi(j.body)])),y=Nn(Q,[...l.values()].flat());for(let j of Q)($l(j)==="bounded"||j.id===y?.id)&&bt.set(j.id,zi(j,l.get(j.id)))}let Cr=!1,$r=new Set,no=u=>{$r.add(u?.target===document?Gt:u?.target),!Cr&&(Cr=!0,Bt(()=>{Cr=!1;let E=$r.has(void 0)?null:new Set($r);$r.clear(),!en.size&&ju()&&Ei(E)}))},Nn=(u=An(),E=Wi())=>{let Q=Cl(ge());if(Q&&u.some(({id:y})=>y===Q.id))return Q;let l=u.find(({id:y})=>y===qu()?.id);return l||u.map(y=>[y,zu(y,E).next().value?.[1]]).filter(([,y])=>y).sort(([,y],[,j])=>y.top-j.top)[0]?.[0]},en=new Map;function Mt(u,E,Q=null){let l=Nn(u),y=l?[l,...u.filter(({id:ae})=>ae!==l.id)]:u,j=new Set;for(let ae of y){let me=bt.get(ae.id),ie=Qo(ae);Q&&!Pe(ie,Q)||!me||j.has(ie)||!Hi(me)&&!Ui(me,ie)||(Hr(me,ae,E),j.add(ie))}}function Ci(u,E){if(en.size||!E())return;let Q=u.map(({region:l})=>l).filter(l=>Xo(l));Mt(Q,E),Ei()}function ws({phase:u,owner:E,regions:Q,cancelled:l,retained:y,shifted:j}){if(u==="shift"){let fe=Fe();Bt(()=>Ci(j,fe));return}if(l||[...en.keys()].some(fe=>fe!==E&&Pe(E,fe))){en.delete(E);return}if(u==="before"){if(y&&en.has(E)){en.get(E).currentIntent=Fe();return}let fe=Wi();for(let Oe of Q)Xo(Oe)&&bt.set(Oe.id,zi(Oe,fe));en.set(E,{currentIntent:Fe(),regions:Q.map(({id:Oe})=>Oe)});return}let ae=en.get(E);if(en.delete(E),!ae?.currentIntent())return;let me=new Map(An().map(fe=>[fe.id,fe])),ie=ae.regions.map(fe=>me.get(fe)).filter(fe=>fe&&Xo(fe));Mt(ie,ae.currentIntent,E)}let Rr=!1;function ys(){if(Rr)return;Rr=!0,Fu(ws),document.addEventListener("scroll",no,{capture:!0,passive:!0});let u=()=>{let E=ge();E?.matches(Pr)&&Pe(E,document.querySelector("body > main"))&&no()};document.addEventListener("focusin",u),document.addEventListener("input",u),no()}function ks(){ys();let u=performance.getEntriesByType("navigation")[0]?.type,E=(()=>{let ae=Bn.get(w);Bn.set(w,null);try{let me=JSON.parse(ae||"null");return _o&&u==="reload"&&me?.url===location.href&&Number.isInteger(me.revision)&&me.revision<=be.currentRevision&&Number.isInteger(me.view?.revision)&&me.view.revision<be.currentRevision?me:null}catch{return null}})(),Q=(()=>{try{return JSON.parse(Bn.get(T)||"null")}catch{return null}})();addEventListener("pagehide",()=>{Ot()&&Bn.set(T,JSON.stringify(Fo()))});let l=E&&Wc(E.carry),y=Fe({fallback:e});return{landArrival:()=>Do(async()=>{if(y()){if(E){Jd(E.pointer),Zt(E.view,y),m(E.retainedStanding),l(),await Ai(E,y),E.comparison!==null&&D(E.comparison)&&In(E.comparison);return}u==="navigate"&&!oo&&Q&&Q.revision!==be.currentRevision&&Zt(Q,y)}}),savedView:Q}}let oo=null;function xr(){let u=performance.getEntriesByType("navigation")[0]?.type==="navigate",E=location.hash,Q=Fe();return function(){oo??=u&&Hn(E),!(!oo||!Q())&&(zn(oo,Q),Tc(oo))}}function rl(){ir.configure({activate:u=>{u.version!==null?Y(u.version):u.active&&ve()},compare:gs,latest:ve,toggle:Ae}),tt(Ji,"In the versions menu",[K,F,d,{id:"version.activate",keys:Mi,title:"open that version"},A],B),$e(null)}function il(){de(Jr,"title",`${Jr.dataset.lfKeyTitle} (${Ma(L.id)} ${bn(A)})`)}return Ke("versions",X),{closeVersionMenu:z,PICKER:L,paintShortcuts:il,renderVersions:$e,inlineComparison:Le,toggleInlineComparison:qe,comparisonBase:yi,comparisonChanges:vs,prepareActivation:hn,aimArrival:xr,installArrival:ks,mount:rl}}import{html as ew,nothing as tw,render as nw}from"/vendor/browser-runtime.js";import{LitElement as Qb,html as Xb}from"/vendor/browser-runtime.js";var Gc="leaf-banner-approval-face",Jb=Object.freeze({reason:"Approval waits until this page has read its current state",text:"Approve version",title:"Approval waits until this page has read its current state"}),Vc=class extends Qb{static properties={model:{attribute:!1}};constructor(){super(),this.model=Jb}createRenderRoot(){return this}present(t){this.model=t,this.isConnected&&this.performUpdate()}get reason(){return this.model.reason}updated(){let t=this.parentElement;if(!(t instanceof HTMLButtonElement))return;let{reason:n,title:o}=this.model;de(t,"aria-disabled",n?"true":null),de(t,"aria-description",n||null),de(t,"title",o)}render(){return Xb`${this.model.text}`}};customElements.get(Gc)||customElements.define(Gc,Vc);function ug(e){let t=document.createElement(Gc);return t.style.display="contents",e.append(t),t}import{html as cs,nothing as fg,render as xo}from"/vendor/browser-runtime.js";var Kc="leaf-banner-status",Zb=Object.freeze({tone:"",summary:"Connecting\u2026",queues:"",queuesWidest:"",explanation:"Connecting\u2026",publication:null}),Yc=class extends HTMLElement{#e=ue("button","lf-status-button");#t=ue("div","lf-ui lf-status-detail");#i=ue("span","lf-dot");#o=null;#n=ue("button","lf-status-queues");#s="";#r="";#l=ue("span","lf-status-text");#a=ue("span","lf-status-notice");#c=ue("span","lf-status-words");constructor(){super(),this.#a.setAttribute("aria-hidden","true"),this.#c.append(this.#l,this.#a),this.#e.type="button",this.#e.setAttribute("aria-expanded","false"),this.#e.setAttribute("aria-describedby","lf-status-detail"),this.#n.type="button",this.#n.title="Show or hide the Queue panel",this.#n.setAttribute("aria-controls","lf-queue"),this.#t.id="lf-status-detail",this.#t.tabIndex=-1,this.#t.setAttribute("popover","auto"),this.#t.setAttribute("role","group"),this.#t.setAttribute("aria-label","Page status"),this.#e.popoverTargetElement=this.#t,this.#t.lfInvoker=this.#e,this.#t.addEventListener("toggle",t=>{let n=t.newState==="open";de(this.#e,"aria-expanded",n),n&&document.activeElement===this.#e&&this.#t.focus({preventScroll:!0}),this.#o?.()})}configure({onToggle:t}){this.#o=t,this.present(Zb)}get dot(){return this.#i}get queues(){return this.#n}presentNotice({message:t,visible:n}){Qe(this.#a,t),de(this,"data-lf-notice",n?"":null)}present(t){if(!Object.isFrozen(t)||t.publication&&!Object.isFrozen(t.publication))throw new Error("Banner status presentation models must be immutable");if(t.publication&&this.#t.matches(":popover-open")&&this.#t.hidePopover(),this.#n.toggleAttribute("hidden",!t.queues),de(this.#i,"class","lf-dot"+(t.tone?" "+t.tone:"")),de(this.#e,"title",t.explanation),de(this.#l,"title",t.explanation),xo(t.explanation,this.#t),t.publication){xo(fg,this.#e),xo(cs`${this.#i}${this.#c}${this.#t}`,this),xo(cs`<span class="lf-publication-copy">${t.publication.copy}</span>${t.publication.examplesUrl?cs`<a
+                  class="lf-publication-link"
+                  href=${t.publication.examplesUrl}
+                  >${t.publication.examples+" "}</a
+                >`:fg}<a class="lf-publication-install" href=${t.publication.installUrl}
+            >${t.publication.install}</a
+          >`,this.#l);return}if(xo(cs`${this.#e}${this.#t}`,this),xo(cs`${this.#i}${this.#c}`,this.#e),xo(t.summary,this.#l),xo(t.queues,this.#n),t.queues){let n=t.queuesWidest===this.#s?this.#r:t.queuesWidest,o=t.queues.length>n.length?t.queues:n;(t.queuesWidest!==this.#s||o!==this.#r)&&(this.#s=t.queuesWidest,this.#r=o,yo(this.#n,[o]))}}};customElements.get(Kc)||customElements.define(Kc,Yc);function mg(e){let t=document.createElement(Kc);return t.className="lf-banner-status",t.configure({onToggle:e}),t}var Vt=ue("header","lf-ui lf-banner");Vt.id="lf-banner";Id(Vt);var wr=mg(Ae);ta(()=>wr.presentNotice(ea()));var ow=wr.dot,wg=wr.queues,It=ue("button","lf-btn lf-auxiliary-toggle lf-threads-toggle"),yg=ue("span","lf-threads-label","Threads");It.append(bo("comment","lf-threads-icon"),yg);It.title="Show or hide the thread panel";It.setAttribute("aria-expanded","false");var br=null,ds=0;function rw(){let e=br===null?"Threads":`Threads: ${br}`,t=br===null?"Threads":`Open threads: ${br}`;Qe(yg,e),de(It,"data-lf-count",br===null?null:String(br)),It.toggleAttribute("data-unread-threads",ds>0);let n=ds?`${ds} unread ${ds===1?"thread":"threads"}`:null;de(It,"aria-label",n?`${t}, ${n}`:t),de(It,"data-lf-key-title",n?`Show or hide the thread panel; ${n}`:"Show or hide the thread panel")}function kg(e,t){br=e,ds=t,rw()}var cn=ue("button","lf-btn primary lf-signoff");cn.title="Approve this work; the page stays open for follow-up";var Xc=ug(cn);at({key:"leaves",control:Kn,rank:nt.leaves,conditional:!0});at({key:"latest",control:Jr,rank:nt.latest,conditional:!0,urgent:"new"});at({key:"queue",control:Rn,rank:nt.queue,conditional:!0});at({key:"versions",control:Xi,rank:nt.versions});at({key:"approval",control:cn,rank:nt.approval,seat:{desk:"row",phone:"menu"},present:!1});at({key:"threads",control:It,rank:nt.threads,seat:"row"});var iw={working:"working",listening:"listening",stalled:"away",away:"away",unheld:"",closed:""},sw={thinking:"thinking",tool:"using a tool",awaiting_approval:"waiting for approval",awaiting_input:"waiting for input",awaiting_user:"waiting for you",replying:"replying"},Qn=e=>`${e} move${e===1?"":"s"}`;function Zc({activity:e}){let{counts:t}=e,n=[];return t.queued&&n.push(`${Qn(t.queued)} queued`),t.pending&&n.push(`${Qn(t.pending)} waiting`),Object.freeze({tone:iw[e.kind],work:sw[e.observed_kind]||"working",left:!!e.dropped,silentSince:Zs(e.ts),listening:!!(t.pending||t.queued),waiting:Object.freeze(n)})}var Va=Object.assign(document.createElement("link"),{rel:"icon",type:"image/svg+xml",href:cl("/icon.svg")});Va.dataset.lfRuntime="";document.head.append(Va);var ed=null,pg=new Map;function aw(e){let t=pg.get(e);if(t===void 0){let n=ed.cloneNode(!0),o=n.ownerDocument.createElementNS("http://www.w3.org/2000/svg","style");o.textContent=`.lf-tone { fill: ${e} }`,n.append(o),t="data:image/svg+xml,"+encodeURIComponent(new XMLSerializer().serializeToString(n)),pg.set(e,t)}return t}async function Sg(){let e=await fetch(cl("/icon.svg"));if(!e.ok)throw new Error(`leaf: the tab icon failed to load (${e.status})`);let t=new DOMParser().parseFromString(await e.text(),"image/svg+xml"),n=t.querySelector("parsererror");if(n)throw new Error(`leaf: icon.svg is not SVG \u2014 ${n.textContent.replace(/\s+/g," ").trim()}`);if(!t.querySelector(".lf-tone"))throw new Error("leaf: icon.svg carries no lf-tone element, which is where the page's status is painted");ed=t.documentElement,Ag()}function Ag(){if(!ed)return;let e=aw(getComputedStyle(ow).backgroundColor);Va.getAttribute("href")!==e&&Va.setAttribute("href",e)}var Qc,hg,lw=Object.freeze({ask:["Ask","Asks"],question:["question","questions"],recovery:["move to send again","moves to send again"],answer:["reply","replies"],work:["move in hand","moves in hand"],task:["task","tasks"]});function cw(e){let t=new Map;for(let n of e)t.set(Yn(n),[...t.get(Yn(n))??[],n]);return[...t].map(([n,o])=>{let r=`${o.length} ${lw[n][o.length===1?0:1]}`;return n==="task"?`${r} (${o.map(s=>s.title).join(" \xB7 ")})`:r})}function dw(){let{onYou:e,onAgent:t}=ct().effective.queues,n=As(),o=(s,i)=>s.length?`${s.length} on ${i}`:"",r=(s,i)=>s.length?`Waiting on ${i}: ${cw(s).join(", ")}.`:"";return{summary:[o(e,"you"),o(t,n)].filter(Boolean).join(" \xB7 "),explanation:[r(e,"you"),r(t,n)].filter(Boolean).join(" "),widest:`9 on you \xB7 9 on ${n}`}}var uw=new Set(["broken","unreachable","publication"]),Jc=null,us=e=>{Jc=e;let{kind:t,tone:n,summary:o,publication:r=null,actionableWork:s=null}=e,{explanation:i}=e,c=uw.has(t)?{summary:"",explanation:"",widest:""}:dw();c.explanation&&(i=`${i}${i.endsWith(".")?"":"."} ${c.explanation}`);let a=null;if(r){let[p,h]=gw(r),f=r.kind==="example"?"Other examples":null;i=p+(f?`${f} `:"")+h,a=Object.freeze({copy:p,examples:f,install:h,installUrl:r.install_url,examplesUrl:f?"/examples/":null})}wr.present(Object.freeze({tone:n,summary:o,queues:c.summary,queuesWidest:c.widest,explanation:i,publication:a})),Ag();let m=Qc!==void 0&&(Qc!==t||s!==null&&s!==hg);Qc=t,hg=s,m&&Ne(i)};function td(e,t,n){let o=Ut("wa-copy-button","lf-banner-copy");return o.successLabel=t,o.errorLabel=n,o.tooltip="none",o.addEventListener("wa-copy",()=>Ze(t,{announce:!1})),o.addEventListener("wa-error",()=>Ze(n,{announce:!1})),o.append(e),o}var Tg=e=>Zs(e.committed??e.installed),Eg=e=>["committed","installed"].filter(t=>e[t]).map(t=>`${t}: ${e[t]}`),Oo=null,za=null,gg="";function fw(e){let t=e.preview;if(!t)return;let o=`${t.interaction==="user"?"User":"Preview"} \xB7 ${t.checkout}${t.commit?`@${t.commit}`:""}`,r=Tg(t),s=`${t.commit&&t.dirty?`${o}+`:o}${r?` \xB7 ${r}`:""}`,i=new URL(location.href);i.searchParams.delete("t"),gg=["Leaf preview",`example: ${t.example}`,`checkout: ${t.checkout}`,`interaction: ${t.interaction}`,...t.commit?[`commit: ${t.commit}`]:[],...t.dirty!==void 0?[`dirty: ${t.dirty}`]:[],...Eg(t),`started: ${t.started}`,`layer generation: ${e.layer.generation}`,...e.layer.fingerprint?[`layer fingerprint: ${e.layer.fingerprint}`]:[],...e.active?[`revision: ${e.active.revision}`]:[],`event sequence: ${e.events.at(-1)?.seq??0}`,`url: ${i}`].join(`
+`),Oo||(Oo=ue("button","lf-btn lf-preview",s),Oo.type="button",Oo.setAttribute("aria-label","Copy preview diagnostics"),za=td(Oo,"Copied preview diagnostics","Couldn't copy preview diagnostics"),za.copyLabel="Copy preview diagnostics",at({key:"preview",control:za,focusTarget:Oo,rank:nt.preview})),za.value=gg,Qe(Oo,s),de(Oo,"title",`${t.example} \xB7 started ${t.started} \xB7 copy diagnostics`)}var Po=null,Ha=null,vg="";function mw(e){if(e.preview)return;let t=e.layer.producer??{},n=e.layer.fingerprint,o=t.commit?`${t.commit}${t.dirty?"+":""}`:n&&`sha256:${n.replace(/^sha256:/,"").slice(0,12)}`;if(!o)return;let r=t.commit?`${t.commit.slice(0,8)}${t.dirty?"+":""}`:o,s=Tg(t),i=Eg(t),c=new URL(location.href);c.searchParams.delete("t"),vg=["Leaf layer",...t.commit?[`commit: ${t.commit}`]:[],...t.dirty!==void 0?[`dirty: ${t.dirty}`]:[],...i,...n?[`fingerprint: ${n}`]:[],`generation: ${e.layer.generation}`,...e.active?[`revision: ${e.active.revision}`]:[],`url: ${c}`].join(`
+`),Po||(Po=ue("button","lf-btn lf-layer-reference"),Po.type="button",Ha=td(Po,"Copied Leaf version","Couldn't copy Leaf version"),at({key:"layer",control:Ha,focusTarget:Po,rank:nt.layer})),Ha.value=vg;let a=`Leaf ${r}${s?` \xB7 ${s}`:""}`;Ha.copyLabel=`${a} \xB7 copy version`,nw(ew`Leaf <code class="lf-layer-version">${r}</code>${s?` \xB7 ${s}`:tw}`,Po),de(Po,"title",[...i,t.dirty?"+ means this layer includes uncommitted changes \xB7 copy diagnostics":"Copy Leaf layer version and diagnostics"].join(`
+`)),de(Po,"aria-label",`${a} \xB7 copy version`)}var pw="Server offline \u2014 reconnecting. Keep this page open so pending changes can send.",hw="The server no longer accepts this tab's key. Open the link Leaf printed in a new tab, and keep this one open so pending changes can send.",bg="Page couldn't apply current state \u2014 reload",gw=e=>[`${e.kind==="example"?"This is an example on the Leaf website.":"This website is a Leaf page."} ${e.agent} replies and revises this private copy. `,"Install Leaf"];function vw({comments:e,answers:t}){if(e+t===1)return e?"your comment":"your answer";let n=(o,r)=>`${o} ${r}${o===1?"":"s"}`;return[e&&n(e,"comment"),t&&n(t,"answer")].filter(Boolean).join(" and ")}function bw({age:e,agent:t,dated:n,shortDate:o,detail:r,handling:s,kind:i,listening:c,overdue:a,saved:m,work:p}){if(i==="closed")return["Leaf closed","Leaf closed"];if(i==="unheld")return["No session",`No session holds this page. ${m} It picks up again when a session does.`];if(i==="working"){let h=vw(s),f=r?" \u2014 "+r:h?" \u2014 picked up "+h:"";return[`${t} ${p}${e&&e!==Vu?" \xB7 "+e:""}${f}`,r||!h?`${t} is ${p}${f}`:`${t} picked up ${h} and hasn't said what it's doing yet`]}if(i==="listening"){let h=`${t} awaits \u2014 ${r||"select text to comment"}`;return c?[`${t} listening`,`${t} is listening${r?" \u2014 "+r:""}.`]:[h,h]}return i==="stalled"?[o,`${n}${r?": "+r:""}. ${m}`]:a?[`Nudge ${t} in terminal`,`${n}. ${m} Nothing is answering them, so nudge it in the terminal.`]:[`${t} away`,`${t} isn't watching right now. ${m} It picks them up next turn.`]}var Lo=null,Ua=null,mi="";function ww(){let e=be.sessionReference;e&&(mi=`Session ${e}`,Lo||(Lo=ue("button","lf-btn lf-session-reference",mi),Lo.type="button",Ua=td(Lo,"Copied session reference","Couldn't copy session reference"),at({key:"session",control:Ua,focusTarget:Lo,rank:nt.session})),Ua.value=be.sessionReference,Ua.copyLabel=`${mi} \xB7 copy reference`,Qe(Lo,mi),de(Lo,"aria-label",`${mi} \xB7 copy reference`),de(Lo,"title",`${mi} \xB7 copy reference`))}function yw(e){if(ww(),e instanceof Error){us({kind:"broken",tone:"offline",summary:bg,explanation:bg});return}if(e===null){us({kind:"unreachable",tone:"offline",...be.keyRefused?{summary:"Key refused \u2014 open Leaf's link in a new tab",explanation:hw}:{summary:"Server offline \u2014 reconnecting; keep page open",explanation:pw}});return}mw(e),fw(e);let t=e.publication;if(t){us({kind:"publication",tone:"",publication:t});return}let{activity:n}=e,{kind:o,detail:r}=n,s=Zc(e),{agent:i}=e,c=n.counts.total?`${Qn(n.counts.total)} ${n.counts.total===1?"is":"are"} saved.`:"Your moves are saved.",a=`${i} last checked in ${s.silentSince}`,m=o==="working"&&n.ts?Zs(n.ts):"",[p,h]=bw({age:m,agent:i,dated:s.left?`${i} left this when its turn ended ${s.silentSince}`:a,shortDate:s.left?`${i}\u2019s turn ended ${s.silentSince}`:a,detail:r,handling:{comments:n.counts.handling_comments,answers:n.counts.handling-n.counts.handling_comments},kind:o,listening:s.listening,overdue:n.counts.overdue,saved:c,work:s.work}),f=m?`${h} (${m})`:h;n.observed&&n.observed!==r&&(f+=` \xB7 ${n.observed}`),s.waiting.length&&["working","listening"].includes(o)&&(f+=`${f.endsWith(".")?"":"."} ${s.waiting.join(" \xB7 ")}.`);let g=["awaiting_approval","awaiting_input","awaiting_user"].includes(n.observed_kind)?n.observed_kind:null;g&&o==="working"&&(f+=`${f.endsWith(".")?"":"."} It waits in its own session, not on this page.`),us({kind:o,tone:s.tone,summary:p,explanation:f,actionableWork:g})}var Ka=Ur(document.body,yw),nd=()=>document.querySelector('meta[name="lf-review"]')?.content==="sign-off",Io=!1;function Cg({approveVersion:e,paintApproval:t}){Io=nd(),Qi(cn,Io),na(document.body,t),so(()=>Jc&&us(Jc));for(let r of[Rn,Kn])an(r,!1);Vt.append(wr,wr.queues,Vl);let n=wr.queues,o=fo(()=>{let r=n.checkVisibility()&&n.getBoundingClientRect().bottom<=Vt.getBoundingClientRect().bottom+.5;de(n,"inert",r?null:"")});for(let r of[Vt,Vl,n])o.observe(r);kw(),cn.onclick=async()=>{if(!Ga){if(Xc.reason){Ze(Xc.reason);return}Ga=!0,cn.setAttribute("aria-busy","true"),t();try{await e()}finally{Ga=!1,cn.removeAttribute("aria-busy"),t()}}}}function $g(e,t,n){let o=e;o!==Io&&(Io=o,Qi(cn,Io),Io&&yo(cn,["Approve version","\u2713 Version approved"]),n(),t())}function kw(){Io&&yo(cn,["Approve version","\u2713 Version approved"]),yo(It,["Threads","Threads: 999"])}var Ga=!1;function Rg(e,t,n){let o=[...n,...e].some(s=>s.kind==="done"&&s.version===be.currentStamp),r=o?"Approved. Press z to take it back while it is still your last gesture":be.currentStamp===null?"There is no stamped version to approve yet":!Io||!document.body.hasAttribute(xt.presented)||t===null?"Approval waits until this page has read its current state":t.length?"Answer every Ask before approving this work":null;Xc.present(Object.freeze({reason:r??(Ga?"Approving this version":null),text:o?"\u2713 Version approved":"Approve version",title:r??"Approve this work; the page stays open for follow-up"})),Om(cn,r===null?"approval open":null),Ae()}var od=[],rd=Object.freeze([]),pi=()=>ko()&&(od.length>0||gr("leaves")),Sw=()=>Object.freeze({offered:pi(),label:`All leaves (${rd.length})`,rows:rd}),Qa=()=>Fc.present(Sw()),Ya=()=>[...Ft.querySelectorAll("a.lf-others-row")];function xg(){tt(Ft,"In the leaves drawer",Kr({id:"leaf",noun:"Leaf",plural:"leaves",rows:Ya}),()=>Ya().length>0)}function Aw(e){let{kind:t,counts:n,detail:o}=e.activity,r=Zc(e),s=p=>p+(o?" \u2014 "+o:""),i=`${r.left?"Left":"Quiet"} (${r.silentSince})`,c=r.work.replace(/^./,p=>p.toUpperCase()),a=t==="working"?s(c):t==="listening"?r.listening?s("Listening"):s("Awaits"):t==="stalled"?s(i):t==="away"?n.overdue?i:"Away":t==="unheld"?"Unheld":"Closed",m=r.waiting.length?`${a} \xB7 ${r.waiting.join(" \xB7 ")}`:a;return{tone:r.tone,line:m}}var Tw=({counts:e})=>{let t=[];return e.active&&t.push(`${Qn(e.active)} active`),e.handling&&t.push(`${Qn(e.handling)} being handled`),e.queued&&t.push(`${Qn(e.queued)} queued`),e.picked_up&&t.push(`${Qn(e.picked_up)} picked up; turn ended`),e.pending&&t.push(`${Qn(e.pending)} waiting`),t.length?t.join("; "):null},Ew=(e,t,n)=>[t,e.session_cwd,n,Tw(e.activity)].filter(Boolean).join(`
+`);function Cw(e){let t=pi();od=e===null?[]:e.others.filter(o=>o.activity.kind!=="closed");let n=e?[{key:"self",href:null,title:document.title,entry:e},...od.map(o=>({key:o.page_key,href:o.url,title:o.title,entry:o}))]:[];return rd=Object.freeze(n.map(({key:o,href:r,title:s,entry:i})=>{let{tone:c,line:a}=Aw(i);return Object.freeze({key:o,self:o==="self",href:r,title:s,tone:c,line:a,account:Ew(i,s,a)})})),t!==pi()&&ft(),Qa()}var Og=Ur(Fc,Cw);import{html as $w,nothing as hi}from"/vendor/browser-runtime.js";var Xa=ue("div","lf-ui lf-go-to-hints");Xa.setAttribute("aria-hidden","true");function Pg({panelIsOpen:e,elements:{banner:t,toggleBtn:n,threadsBox:o},hintChrome:r,directDestinations:s,setPanel:i,setOpenDrawer:c,scrollToElement:a,leavesOffered:m,othersLinks:p,activateMarginEntry:h,marginEntryKind:f,visibleMarginEntries:g,glideTo:v,placeThreadEdge:k,seenScroller:N,stopGlide:P,coveringAuxiliarySurface:_,enterPageMap:T,leavePageMap:w,pageMapIsActive:D}){let $=b=>[...ve(),bn(b)].filter(Boolean).join(" "),J=()=>Uo("a[href]").filter(b=>dt(b,"main")),Z=()=>qs('[role="tab"]'),x=()=>qs("details > summary"),B=()=>qs(Eu);function I(b){let S=null;if(b.addEventListener("click",q=>S=q,{capture:!0,once:!0}),b.click(),!(!S||S.defaultPrevented)&&sf(b)&&b.target==="_blank"){let q=b.getAttribute("aria-label")?.trim()||Al(b)||"Link";Ne(`Opened ${q} in a new tab`)}}let R=[{id:"navigation.panel.threads",key:"Shift+t",description:()=>e()?"Close the Threads panel":"Go to the Threads panel",title:()=>e()?"close Threads panel":"Threads panel",control:()=>n,when:()=>!0,go:()=>{i(!0),o.focus({preventScroll:!0})},active:(...b)=>e(...b),close:()=>i(!1),toggle:!0},{id:"navigation.drawer.queue",key:"Shift+q",description:()=>Tt()==="queue"?"Close the Queue panel":"Go to the Queue panel",title:()=>Tt()==="queue"?"close Queue panel":"Queue panel",control:()=>Rn,when:()=>ls(),go:()=>{c("queue"),(Fa()[0]??Dt).focus({preventScroll:!0})},active:()=>Tt()==="queue",close:()=>c(null),toggle:!0},{id:"navigation.drawer.leaves",key:"Shift+l",description:()=>Tt()==="leaves"?"Close the Leaves drawer":"Go to the Leaves drawer",title:()=>Tt()==="leaves"?"close Leaves drawer":"Leaves drawer",control:()=>Kn,when:(...b)=>m(...b),go:()=>{c("leaves"),(p()[0]??Ft).focus({preventScroll:!0})},active:()=>Tt()==="leaves",close:()=>c(null),toggle:!0},{id:"navigation.page-map",key:"Shift+m",description:"Open the Page Map dialog",title:"Page Map dialog",control:()=>Vm,when:()=>!0,go:(...b)=>T(...b),active:D,close:(...b)=>w(...b)}];function z(b){a(b,void 0,"nearest"),b.focus({preventScroll:!0}),b.click()}let te="Margin entry",d=[...g?[{kind:te,list:g,go:h,exposure:"self"}]:[],{kind:"Tab",list:Z,go:z},{kind:"Control",list:B,go:z},{kind:"Link",list:J,go:I},{kind:"Fold",list:x,go:b=>{a(b.parentElement,void 0,"nearest"),b.focus({preventScroll:!0})}}],A=[{id:"margin-entries",key:"m",word:"margin targets",matches:({kind:b})=>b===te},{id:"threads",key:"t",word:"Thread controls",matches:({kind:b,member:S})=>b===te&&f(S)==="comment"},{id:"asks",key:"a",word:"Ask controls",matches:({kind:b,member:S})=>b===te&&f(S)==="ask"},{id:"hyperlinks",key:"h",word:"hyperlinks",matches:({kind:b})=>b==="Link"},{id:"folds",key:"f",word:"folds",matches:({kind:b})=>b==="Fold"}],H=["k","j"],M=["p"],K=["g","Shift+g"],F=A.map(({key:b})=>b),X=new Set([...H,...M,...K,...F,...s().flatMap(b=>ze(b))].filter(b=>/^[a-z]$/.test(b))),L=ni.filter(b=>!X.has(b)),O=b=>b.innerText?.replace(/\s+/g," ").trim(),ee=b=>[...b.labels??[]].map(O).filter(Boolean).join(" ");function Y(b=null){let S=Vn(),q=new Set,G=[];for(let[Ee,Le]of d.entries())for(let qe of Le.list()){if(q.has(qe)||!qe.isConnected||!qe.checkVisibility()||qe.matches(":disabled")||qe.getAttribute("aria-disabled")==="true"||dt(qe,"[inert]"))continue;let Xt=S.badgeBox(qe);if(!Xt||!S.exposes(qe,Xt,Le.exposure))continue;q.add(qe);let In=qe.getAttribute("aria-label")?.trim()||ee(qe)||Al(qe)||O(qe)||Le.kind;G.push({...Le,order:Ee,member:qe,rect:Xt,says:In})}G.sort((Ee,Le)=>Ee.rect.top-Le.rect.top||Ee.rect.left-Le.rect.left||Ee.order-Le.order);let ce=Aa(G.length,L),he=G.map((Ee,Le)=>({...Ee,code:ce[Le]}));return b?he.filter(b.matches):he}let ve=()=>[bn(U)].filter(Boolean),oe=()=>[...ve(),Te?.key,...ke.prefix()].filter(Boolean),V=Ta(),pe=(b,S)=>{let q=[...b.code],G=b.member.dataset?.lfMarginEntryKey,ce=dt(b.member,"[data-lf-margin-for]")?.dataset.lfMarginFor||b.member.id||b.member.dataset.lfMarginFor||b.member.getAttribute("aria-controls");return Object.freeze({key:V(b.member),className:`lf-key-badge lf-key-hint lf-go-to-hint${S?" lf-current":""}`,hintCode:b.code,kind:b.kind,marginEntryKey:G||null,targetId:ce||null,commandId:null,address:null,sequence:$n(q,lr(q,[...ke.prefix()]))})},$e=b=>$w`
+    <span
+      class=${b.className}
+      data-lf-hint-code=${b.hintCode??hi}
+      data-lf-go-to-kind=${b.kind??hi}
+      data-lf-go-to-margin-entry=${b.marginEntryKey??hi}
+      data-lf-go-to-target=${b.targetId??hi}
+      data-lf-go-to-command=${b.commandId??hi}
+      data-lf-go-to-address=${b.address??hi}
+      >${Un(b.sequence)}</span
+    >
+  `,De=b=>{let S=je(b.control);if(!S||!t.contains(S)||!S.checkVisibility()||!St(b)||ze(b).length===0)return null;let q=S.getBoundingClientRect();if(!q.width||!q.height)return null;let G=[...ve(),bn(b)].filter(Boolean);return{model:Object.freeze({key:V(b),className:"lf-key-badge lf-key-hint lf-go-to-hint",hintCode:null,kind:null,marginEntryKey:null,targetId:null,commandId:b.id,address:G.join(" "),sequence:$n(G,lr(G,oe()))}),target:q,belowTarget:!0,left:q.left,top:q.top}},Me=()=>C.rows.map(De).filter(Boolean),ye=!1,Te=null,ke=Ea({layer:Xa,walk:"go-to-target",read:()=>Y(Te),identity:b=>b.member,scene:Vn,layout:(b,{current:S,reading:q})=>b.flatMap(G=>{let ce=q.badgeBox(G.member);return!G.member.checkVisibility()||!ce||!q.exposes(G.member,ce,G.exposure)?[]:{candidate:G,model:pe(G,G===S),target:ce,belowTarget:!1,left:ce.left,top:ce.top}}),template:$e,take:b=>{le(!1),b.go(b.member)},words:{describe:b=>`${b.kind}, ${b.says}`,take:"go there",all:"All go-to hints."},chrome:r,extras:Me});function le(b){if(b&&!ye&&Ko(ge()))return;if(b&&P(N()),ye=b,document.body.toggleAttribute(xt.goto,b),Te=null,!b)return ke.disarm(),Ae();let S=ke.arm();Ne(`Go to \u2014 ${S.length?`${S.length} visible targets; type a hint or press Tab to hear them. `:"No visible targets. "}${ku(C.rows)}`),Ae()}let we=()=>d.some(b=>b.list().length>0),Re=()=>!Te&&!ke.prefix();function We(b){Te=A.find(({key:G})=>G===b);let S=ke.refresh(),q=S.length?`${S.length} visible ${Te.word}; type a hint or press Tab to hear them.`:`No visible ${Te.word}.`;S.length?Ze(q):Ne(q),Ae()}function W(){return!ye||!Te||ke.candidates().length?null:`No visible ${Te.word}.`}let ne=null,C={title:"Go to",escape:"inner",root:()=>_()??document,reach:"with g armed",sequence:oe,sequencePrefix:ve,liveInCommandReference:!0,at:()=>ye,claims:Vr,get rows(){return ne??=[{id:"navigation.thread.edge",keys:H,routes:[{id:"navigation.thread.top",binding:"k",title:"Put the focused thread at the top of its list"},{id:"navigation.thread.bottom",binding:"j",title:"Put the focused thread at the bottom of its list"}],title:"thread top / bottom",when:()=>Re()&&!!Ul(),run:b=>{let S=Ul();le(!1),k(S,b==="k"?"start":"end")}},{id:"navigation.page.focus",keys:M,description:"Focus the page",title:"page",when:()=>Re()&&!_(),run:()=>{le(!1),yn()}},{id:"navigation.target",runFromCommandReference:!1,keys:()=>ke.prefix()?ni:L,label:"letters",sequenceSteps:()=>[...Te?[Te.key]:[],...ke.prefix()?[...ke.prefix(),"\u2026"]:["letters"]],completeSequenceSteps:()=>[...Te?[Te.key]:[],"letters"],description:"Type a visible target's hint",title:"visible target",when:()=>ye?!0:we(),run:ke.type},{id:"navigation.target.filter",keys:F,routes:A.map(({id:b,key:S,word:q})=>({id:`navigation.target.filter.${b}`,binding:S,title:`Show only visible ${q}`})),label:F.join(" / "),sequenceSteps:["kind"],description:"Filter visible targets by kind",title:"filter by kind",when:()=>Re()&&we(),run:We},{id:"navigation.target.walk",keys:["Tab","Shift+Tab"],routes:[{id:"navigation.target.next",binding:"Tab",title:"Hear the next visible target"},{id:"navigation.target.previous",binding:"Shift+Tab",title:"Hear the previous visible target"}],title:"browse hints",repeat:!0,when:()=>ye?ke.candidates().length>0:we(),run:b=>ke.walk(b==="Tab"?1:-1)},{id:"navigation.target.choose",keys:["Enter"],description:"Go to the target just announced",title:"go to target",when:ke.walking,run:ke.choose},...R.map(b=>({id:b.id,keys:[b.key],label:ut(b.key),description:b.description,title:b.title,control:b.control,when:()=>Re()&&b.when(),run:()=>{let S=b.toggle&&b.active();le(!1),S?b.close():b.go()}})),...s().map(b=>({...b,touch:!1,when:()=>Re()&&St(b),run:S=>{le(!1),b.run?b.run(S):je(b.control).click()}})),{id:"navigation.page.edge",keys:K,routes:[{id:"navigation.page.top",binding:"g",title:"Go to the top of the page"},{id:"navigation.page.bottom",binding:"Shift+g",title:"Go to the bottom of the page"}],title:"top / bottom",when:Re,run:b=>{le(!1);let S=N();v(S,b==="g"?0:S.scrollHeight)}},{id:"navigation.go-to.back",keys:["Escape"],sequenceControl:!0,description:()=>ke.prefix()?"Remove the last hint letter":Te?"Show all visible targets":"Cancel the sequence",title:()=>ke.prefix()?"back one letter":Te?"all targets":"cancel",run:()=>{if(!ke.backOneLetter()){if(Te){Te=null,ke.invalidate(),Ne("All go-to targets.");return}le(!1),Ne("Go to cancelled")}}}]}},U={id:"navigation.go-to.open",touch:!1,keys:["g"],description:"Show hints for targets, panels, and page edges",title:"go to",covering:!0,run:()=>le(!0)},se=()=>ye;Ke("go to",C),Ge(U);for(let b of s())b.touch&&Ge({...b,keys:[],lineWhen:()=>!1});return{goToStatus:W,formatGoToAddress:$,setGoToSequence:le,paintGoToHints:ke.paint,goToSequenceActive:se,mountGoToSequence:ke.mount}}function Lg(e,t,n,o){Ke(e,{title:t,root:ge,at:()=>{let r=ge();return!!r?.matches?.(n)&&!xe(r)},when:()=>Uo(n).some(r=>!xe(r)),rows:o})}Lg("link","On a link","a[href]",[{id:"link.follow",keys:["Enter"],title:"Follow"}]);Lg("disclosure","On a disclosure",rp,[{id:"disclosure.toggle",keys:()=>op(ge()),description:"Open or close it",title:()=>ip(ge())?"close":"open",run:()=>ge().click()}]);Ge({id:"browser.caret",touch:!1,keys:["F7"],title:"Caret browsing",description:"Select text with the browser's keyboard caret, then press c to comment",line:!1});var id=()=>{let e=vo();return!!e&&e!==document.body},sd=()=>null;function Ig({pageState:e}){sd=()=>{if(!id()||rr().length||wn(ge())&&Nm()||Ko(ge())||xe(vo()))return null;let t=da();return Ve()||e()?null:t||er()||!Rs(ge())?document.body:null},Ke("standing",{title:"Standing on something",root:ge,escape:"inner",at:id,rows:[{id:"navigation.release",keys:["Escape"],description:"Let go of what you are standing on",title:"let go",when:()=>!!sd(),run:mu}]})}qt("page",()=>{if(rr().length)return null;if(id())return sd()?null:{title:"back to the page",description:"Back out onto the page",out:yn};let e=window.frameElement;return e?.hasAttribute("data-lf-contained")?{title:"return to containing page",description:"Leave this sample and return to its containing page",out:()=>e.dispatchEvent(new Event("lf-sample-return"))}:null});function Mg({goToSequenceActive:e,setGoToSequence:t,reactArmed:n,setReact:o}){let r=i=>Op(i,{beforeCommand:yc}),s=i=>{i.isComposing||r(i)||(e()||n())&&!Zd.includes(i.key)&&(t(!1),o(!1),r(i))};document.addEventListener("keydown",s),document.addEventListener(Tn,()=>{let i=new CustomEvent("lf-held-keys",{detail:{}});document.dispatchEvent(i);let{keys:c,release:a}=i.detail;if(!c)return;let m=()=>{if(!c.length){a();return}let p=c.shift();p.key.length===1&&du(ge())?document.execCommand("insertText",!1,p.key):s(p),uo(m)};uo(m)},{once:!0}),document.addEventListener("focusin",()=>{if(lu())return;let i=ge();n()&&(wn(i)||Ko(i))&&o(!1),e()&&(wn(i)||Ko(i))&&t(!1)})}Je.addEventListener("change",Ae);var Ja=new Map;function Ng(e,t){let n=Ja.get(e.id);if(n)return n.press=e,e.id;let o=ue("button","lf-btn");return o.type="button",t==="gesture"&&o.addEventListener("mousedown",r=>r.preventDefault()),o.addEventListener("click",()=>{let{press:r}=Ja.get(e.id);if(t==="menu"){let s=fa();Eo(),r.row.retainStanding?xm(s):Xr(o)?.focus({preventScroll:!0})}St(r.row)&&Ip(r)}),at({key:`command:${e.id}`,control:o,rank:t==="menu"?nt.commands:nt.steps,seat:t,present:!1}),Ja.set(e.id,{press:e,button:o}),e.id}function Bg(){let{commands:e,steps:t}=Df();for(let{presses:s}of t)for(let i of s)Ng(i,"gesture");let n=t.find(({scope:s})=>ic(s)),o=new Set([...e.map(s=>Ng(s,"menu")),...n?.presses.map(s=>s.id)??[]]),r=[];for(let[s,{press:i,button:c}]of Ja){let a=Je.matches&&o.has(s);if(a){Qe(c,je(i.words));let m=!St(i.row);c.disabled!==m&&(c.disabled=m)}r.push([c,a])}Pm(r)}function qg({markHere:e,paintStanding:t,paintSelectedMarginEntries:n,paintTouchControls:o,renderShortcutBar:r,paintGoToHints:s,paintTargetPickerHints:i,paintCommandHints:c,paintCoreControls:a,paintVersionShortcuts:m,paintInputs:p}){function h(){e(),t?.(),n(),o(),r()}function f(){p(),s(),i(),c(),a(),m()}return{paintStandingContent:h,paintStandingGeometry:f}}var Dg=(e,{threadsBox:t,openThreads:n})=>(e()?t.navigationThreads():null)??n({visibleOnly:e()}),Fg=(e,t)=>{let n=t(),o=n?.dataset.id??n?.dataset.thread;return e.find(r=>r.dataset.id===o)},Rw=(e,t,n,o)=>{let r=Dg(t,o),s=Fg(r,e);return To(r,s,{identity:i=>i.dataset.id,qualifier:t()&&n.narrowed()?"shown":""})};function xw(e,t,n,o){let r=e.map(c=>({thread:c,target:o(c.dataset.id)})).filter(({target:c})=>c);if(!t||!r.length)return Ni(e,null,n);let s=n>0?Node.DOCUMENT_POSITION_FOLLOWING:Node.DOCUMENT_POSITION_PRECEDING,i=r.filter(({target:c})=>{let a=t.compareDocumentPosition(c);return!(a&Node.DOCUMENT_POSITION_CONTAINS)&&a&s});return n>0?i[0]?.thread??e.at(-1):i.at(-1)?.thread??e[0]}async function jg(e,t,n,o,r){let{openPageThread:s,scrollToThread:i}=t;if(!n())return!!await s(e.dataset.id,{focus:"thread",intent:r});if(!r())return!1;o.revealNavigation(e.dataset.id);let c=e.contains(document.activeElement);return ca(e,{preventScroll:!0}),c&&qm(e,o),i(e.dataset.id,{keep:!0}),!0}function Ow(e,t,n,o,r){let{threadsBox:s}=r,{threadHere:i,threadAtStanding:c,threadTarget:a}=t,m=Dg(n,r),p=Fg(m,i),h=!p&&c(),f=h&&m.find(v=>v.dataset.id===h),g=p?Ni(m,p,e):f??xw(m,!n()||o.listedInPageOrder()?Vi():null,e,a);g&&(jg(g,t,n,s,Fe()),Ne(sn("thread","Thread",()=>Rw(i,n,o,r))??Ao("Thread",m.indexOf(g)+1,m.length)))}function _g(e,t){e.scrollIntoView({behavior:Cn(),block:t})}var Pw=140,jt=null,Wg=e=>jt?.box===e&&Math.abs(e.scrollTop-jt.wrote)<=1,Lw=e=>e()??Gt,Iw=e=>{let t=e(),n=El();return t&&!(n&&Pe(n.host,rn()))?t:Qo(n)};function Mw(e,t,n){let o=Iw(n);if(t==="page"){let s=ao(o);e*=s.bottom-s.top}let r=Wg(o)?jt.goal:o.scrollTop;ad(o,r+e)}function ad(e,t){if(t=Math.max(0,Math.min(e.scrollHeight-e.clientHeight,t)),ql()){e.scrollTo({top:t,behavior:"instant"});return}kt(jt?.raf);let n=e.scrollTop,o=performance.now(),r=s=>{if(!Wg(e)){jt=null;return}if(ql()){e.scrollTo({top:t,behavior:"instant"}),jt=null;return}let i=Math.max(0,Math.min(1,(s-o)/Pw));e.scrollTo({top:t-(t-n)*(1-i)**3,behavior:"instant"}),jt.wrote=e.scrollTop,i<1?jt.raf=uo(r):jt=null};jt={box:e,goal:t,wrote:n,raf:uo(r)}}function ld(e){jt?.box===e&&(kt(jt.raf),jt=null)}function zg({panelElements:{threadsBox:e,inPanel:t},openThreads:n,panelIsOpen:o,narrowing:r,coveringAuxiliaryScroller:s,threadDestinations:i}){let c=()=>{let g=fa()?.node??ge(),v=er(g);if(v&&Pe(g,v))return v;let k=dt(g,Gf);if(k)return k;let N=Qs(g)??El(),P=J=>!N||Pe(J,N.body),_=En(g),T=Ns(_)??_;if(T&&P(T)&&_!==N?.host&&_!==N?.body)return T;let w=Ve(),D=w&&Oi(w).startContainer;if(D&&P(D))return Ns(D);let $=getSelection()?.focusNode;return P($)&&Ns(En($))||Hu(N)},a={id:"reading.align.top",keys:["z"],title:"Align current item at top",description:"Align the current reading item at the top, keeping focus and selection",touch:"Align current item at top",retainStanding:!0,covering:!0,when:()=>!!c(),run:()=>{let g=c();if(g){for(let v of Xs(g))ld(v);Js(g,g,"start",Cn())}}},m=()=>t(o),p=(g,v)=>Mw(g,v,s),h=g=>Ow(g,i,o,r,{threadsBox:e,openThreads:n});Ge({id:"thread.walk",touch:!1,keys:["t","Shift+t"],routes:[{id:"thread.next",binding:"t",title:"Next open thread"},{id:"thread.previous",binding:"Shift+t",title:"Previous open thread"}],title:"threads",covering:!0,when:()=>n({visibleOnly:o()}).length>0&&(!rn()||m())&&!(r.threadSearchActive()&&m()),repeat:!0,run:g=>h(g==="t"?1:-1)}),Ge({id:"page.move",touch:!1,keys:["d","u"],routes:[{id:"page.down",binding:"d",description:"Move 60% of a page down",title:"page down"},{id:"page.up",binding:"u",description:"Move 60% of a page up",title:"page up"}],title:"page down / up",covering:!0,repeat:!0,run:g=>p(g==="d"?.6:-.6,"page")}),Ge({id:"scroll.move",touch:!1,keys:["j","k"],routes:[{id:"scroll.down",binding:"j",description:"Scroll down a little",title:"scroll down"},{id:"scroll.up",binding:"k",description:"Scroll up a little",title:"scroll up"}],title:"scroll down / up",covering:!0,repeat:!0,run:g=>p(g==="j"?60:-60,"pixel")});async function f(g){let v=Fe(),k=()=>n({visibleOnly:!1}).find(P=>P.dataset.id===g);o()&&k()?.hidden&&await r.revealThread(g);let N=k();return N?jg(N,i,o,e,v):!1}return{alignTop:a,arriveAtThread:f,seenScroller:()=>Lw(s),stepReading:p,stepThread:h}}lp();sr();_u();var yr=document.querySelector("script[data-lf-entry]");yr&&(yr.lfReadiness=nf,yr.lfRenderingSettled=Xd,yr.lfObserveQueuedWork=Ad,yr.lfNativeLayers=rr);var Nw=Fe(),el=Rd==="overlay",On=el?await import("./runtime/annotation-overlay/index.js"):null;yr&&On&&(yr.lfFloatingSelections=On.floatingSelections);On?.mountAnnotationControls();var dn=Lh({id:"lf-threads"}),{panel:bi,closeBtn:Bw,panelFoot:Vg,threadsBox:Pn,narrowingView:qw}=dn,fd=Em(dn),Yt=()=>Wt.selectedSurface()===bi,re,Jn=Tm({view:qw,listRoot:Pn,readThreads:cm,ready:()=>be.statePhase==="ready",repaint:()=>re.presentThread()}),md=()=>Rg(re.pendingApprovals(),re.approvalBlockingAsks(),re.acceptedApprovals()),un,wi,xn,Kt,Xn,fn,Kg,gi,Ye,Ce,mn,Yg=(e,t)=>{Ye.setDraftDrawing(e,t),vi.paint()},Dw={undoStroke:e=>mn.undoStroke(e),remove:e=>mn.removeDrawing(e),replace:Yg},ms,Zn,Et,Ln,kr,Wt=Qm({chromeRoot:qn,band:lt,syncLayout:()=>xn.syncLayout(),afterChange:()=>{re.renderAnnotations(),ft(),Ae(),Sr?.refreshHover()},reachChanged:()=>{Ce.fabAnchorAt()&&re.invalidateDom()}}),tl=zg({panelElements:dn,openThreads:fd.openThreads,panelIsOpen:Yt,narrowing:Jn,coveringAuxiliaryScroller:Wt.coveringScroller,threadDestinations:{openPageThread:(...e)=>re.threadDestinations.openPageThread(...e),scrollToThread:(...e)=>gt.scrollToThread(...e),threadHere:()=>re.threadDestinations.threadHere(),threadAtStanding:()=>re.threadDestinations.threadAtStanding(),threadTarget:(...e)=>re.threadDestinations.threadTarget(...e)}}),Qg={barriers:Ra,lineBox:()=>lt.getBoundingClientRect(),viewportTop:Dn},ps=ph(),nl=On?.createVisualMarkPaint(),Sr=On?.createAnchorPaint({targetPaint:nl,pointer:on,standingThreadId:Gl,hoveredPanelThreadId:()=>{let{x:e,y:t}=on(),n=document.elementFromPoint(e,t)?.closest(".lf-thread");return n?.parentElement===Pn?n.dataset.id:null},panelThreadForId:e=>e?Pn.querySelector(`:scope > .lf-thread[data-id="${CSS.escape(e)}"]`):null}),vi=bp({drawings:()=>[...On?.postedDrawings(Qr(),ps)??[],...mn.drawings()]}),Ct=og({pageGeometry:{refreshAim:()=>Ln.refreshAim(),pageShifted:()=>Ln.pageShifted()},syncGeneral:()=>gi.sync(),composer:{showFab:(...e)=>Ce.showFab(...e),openComposer:(...e)=>Ye.openComposer(...e)},closePreview:(...e)=>re.overlay?.closePreview(...e),marginTargetAt:(...e)=>re.overlay?.marginTargetAt(...e),closeDrawMode:()=>mn.setDrawMode(!1,{spoken:!1}),closeTargetPicker:()=>Zn.closeTargetPicker(),closeReactionMode:()=>Et.setReact(!1),banner:Vt,announce:Ne,repaint:Ae});ms=Qp({marginTargetAt:(...e)=>re.overlay?.marginTargetAt(...e),refreshAim:()=>Ln.refreshAim(),commentOnTarget:(...e)=>Ce.commentOnTarget(...e),standDown:(...e)=>Ce.standDown(...e),drawModeActive:()=>mn.drawModeActive(),designMode:Ct,targetPicker:{active:()=>Zn.choosing(),choose:(...e)=>Zn.chooseTarget(...e)}});Ln=Sh({refreshAnchorHover:Sr?.refreshHover,aim:{isOn:ms.aimIsOn,target:ms.aimedTarget},pointer:on,designMode:Ct,targetPaint:Um,visualMarkPaint:nl,shiftDrawings:vi.shifted,queueLegend:Ct.queueLegend,activeActionAnchor:()=>Ce.fabAnchorAt(),refreshActionBar:()=>Ce.refreshFab()});var gt=kh({anchors:ps,surfaces:Wt,currentThreads:Qr,refreshThread:()=>re.refreshThread(),focusForNavigation:(e,t)=>(re?.overlay?.focusForNavigation??ho)(e,t),threadFocusTarget:(e,t)=>re.threadDestinations.threadFocusTarget(e,t),announce:Ne});Kt=Fm({threadsBox:Pn,setPanel:(...e)=>un.setPanel(...e),revealThread:Jn.revealThread,cardTarget:e=>re?.overlay?.cardTarget(e)});jm(Kt.landIn,Jn);var ol=yh({commentOnTarget:(...e)=>Ce.commentOnTarget(...e),openThread:(...e)=>re.threadDestinations.openPageThread(...e),withdrawReaction:(...e)=>re.withdraw(...e),labelAnchor:Yr,invalidateThread:()=>re.refreshThread(),invalidatePageGeometry:Ln.invalidate,messageReferenceRoot:bi,draftQuote:Zf,focused:ge,paintKeys:ft}),_t=dg({compositionInput:Pt,openThread:(e,t)=>re.threadDestinations.openPageThread(e,{...t,travel:!1}),refreshThread:()=>re.refreshThread(),midComposition:()=>re.midComposition(),hasPending:()=>re.hasPending(),readAndApply:(...e)=>re.readAndApply(...e),retireProjectionCoverage:()=>re.retireProjectionCoverage(),syncLayout:()=>xn.syncLayout(),captureRetainedStanding:()=>re?.overlay?.captureStanding()??null,restoreRetainedStanding:e=>re?.overlay?.restoreStanding(e)??!1,captureAskStanding:()=>fn.captureStanding(),restoreAskStanding:e=>fn.restoreStanding(e)}),hs=Sp({uploadMedia:Zu,inputHint:()=>Ce.commentHint()});re=Cm({panel:bi,firstUnreadBtn:dn.firstUnreadBtn,accompaniedThread:(...e)=>Kt.accompaniedThread(...e),accompanyThread:(...e)=>Kt.accompanyThread(...e),threadAvailable:!wt,reportPageError:Jo,createEngagement:Ap,targetPickerOpen:()=>Zn.targetPickerOpen(),wireInput:hs.wireInput,anchorPlacement:ps,anchorPaint:Sr,anchorControls:ol,drawingPaint:vi,pageGeometry:Ln,anchorTravel:gt,readThreadDraft:()=>({open:et,anchor:em,about:tm,drawing:nm}),activeActionAnchor:()=>Ce.fabAnchorAt(),compositionSurface:{active:()=>et&&Ce?.fabAnchorAt()?{anchor:Ce.fabAnchorAt()}:null,node:()=>Be,open:(...e)=>Ce.commentOnTarget(...e),outlet:()=>Ce?.fabInlineOutlet()??null,seat:(...e)=>Ce.seatFab(...e),restore:(...e)=>Ce?.restoreFab(...e)??!1,finishPlacement:()=>Ce?.finishPlacement()},landInThread:(...e)=>Kt.landInThread(...e),landSent:(...e)=>Kt.landSent(...e),showThread:(...e)=>Kt.showThread(...e),panelIsOpen:Yt,registerReactSurface:(...e)=>Et.registerReactSurface(...e),sendReaction:um,updateFab:(...e)=>Ce.updateFab(...e),createMarginProjection:On?.createMarginProjection,annotationCommands:{designModeActive:Ct.active,pointerModeActive:()=>Ct.active()||mn.drawModeActive(),comparisonBase:_t.comparisonBase,comparisonChanges:_t.comparisonChanges,inlineComparison:_t.inlineComparison,toggleInlineComparison:_t.toggleInlineComparison,leavePageMap:(...e)=>Xn.leavePageMap(...e),openPageMap:(...e)=>Xn.openPageMap(...e),pageMapDialogContains:(...e)=>Xn.pageMapDialogContains(...e),renderPageMapDialog:(...e)=>Xn.renderPageMapDialog(...e),scrollThreadIntoView:mm,goToAsk:(...e)=>fn.goToAsk(...e)},state:{prepareActivation:e=>_t.prepareActivation(e),acceptData:tp,notifyDataSubscribers:Ql,isSignoffDeclared:nd,renderStatus:Ka,renderVersions:_t.renderVersions,stateSignoff:e=>$g(e,xn.syncLayout,md),renderOthers:wt?()=>{}:Og},feed:{prepareActivation:e=>_t.prepareActivation(e),notifyDataSubscribers:Ql,renderStatus:Ka}});re.registerThreadPanel({required:!0,controller:fd,threadsBox:Pn,view:{narrowing:Jn,panelIsOpen:Yt,scrollToElement:gt.scrollToElement,setThreadCounts:kg,onListChanged:Ae,refreshAnchorHover:Sr?.refreshHover,travel:{showThread:(...e)=>Kt.showThread(...e),retainPanelLanding:e=>Bm(e,Yt,Pn),retainNarrowing:Jn.retainNarrowing}}});wt&&Ss.setHostAvailable(!1);uu(Gu);fu({surface:Wt.coveringSurface,landing:Wt.coveringFocus});Ig({pageState:()=>!!(Ce.fabAnchorAt()||Ct.active()||mn.drawModeActive()||re.overlay?.optionsRung())});Xn=Km({inventory:re.annotations,activeInAnnotations:re.overlay?.pageMapActive,releaseAnnotations:re.overlay?.releaseForMap,annotationFocus:re.overlay?.mapFocusTarget});fn=Qh({panelIsOpen:Yt,focusForNavigation:re.overlay?.focusForNavigation??ho,presentedControl:re.overlay?.presentedControl,setPanel:(...e)=>un.setPanel(...e),prepareTrip:gt.prepareTrip,arrive:gt.arrive,refreshThread:()=>re.refreshThread(),revealThread:e=>Jn.revealThread(e),announce:Ne,repaint:Ae});var dd=Jh({arriveAtAsk:fn.arriveAtAsk,arriveAtThread:tl.arriveAtThread,threadHere:()=>re.threadDestinations.threadHere(),threadTarget:e=>re.threadDestinations.threadTarget(e),prepareTrip:gt.prepareTrip,arrive:gt.arrive,readableDestination:gt.readableDestination,announce:Ne,post:e=>re.post(e)}),Xg=tg({arriveAtItem:dd.arriveAtItem,endTask:dd.endTask,announce:Ne}),Jg=ng({presentedControl:e=>re.overlay?.presentedControl(e)??e}),Zg=mh({isAskControl:e=>e?.matches?.(ja),standingIn:fn.standingIn});Kg=Ah({elements:dn,openThreads:fd.openThreads,narrowing:Jn,setPanel:(...e)=>un.setPanel(...e),panelIsOpen:Yt,stepThread:(...e)=>tl.stepThread(...e),firstUnread:()=>re.read.firstUnread(),unreadCount:()=>re.read.unreadCount()});gi=Ch({wireInput:hs.wireInput,createPageComment:re.createPageComment,designModeActive:Ct.active,panelIsOpen:Yt,setPanel:(...e)=>un.setPanel(...e),panelBox:dn.generalInput,panelSend:dn.generalSend,showThread:Kt.showThread,threadsToggle:It});Ye=om({panelIsOpen:Yt,setReact:(...e)=>Et.setReact(...e),reactionTokens:Wl,designModeActive:Ct.active,openPageThread:re.threadDestinations.openPageThread,threadTransitionOrigin:re.overlay?.threadTransitionOrigin,anchorStands:(...e)=>Ce.anchorStands(...e),anchorTravelAt:(...e)=>Ce.anchorTravelAt(...e),bringForward:(...e)=>Ce.bringForward(...e),fabAnchorAt:(...e)=>Ce.fabAnchorAt(...e),fabPointAt:(...e)=>Ce.fabPointAt(...e),fabFrameAt:()=>Ce.fabFrameAt(),fabPositioned:(...e)=>Ce.fabPositioned(...e),beginFabFocus:(...e)=>Ce.beginFabFocus(...e),endFabFocus:(...e)=>Ce.endFabFocus(...e),landFabFocus:(...e)=>Ce.landFabFocus(...e),showFab:(...e)=>Ce.showFab(...e),createComment:re.createComment,landSent:Kt.landSent,refreshThread:re.refreshThread,wireInput:hs.wireInput,drawingEdits:Dw});var ev=Hf({restore:gt.restoreSelection});Ce=Hp({rememberSelection:ev.remember,createPlacement:On?.createFloatingResponsePlacement,panelElements:dn,panelIsOpen:Yt,landIn:Kt.landIn,threadHere:()=>re.threadDestinations.threadHere(),threadAtStanding:()=>re.threadDestinations.threadAtStanding(),replyThreadAtStanding:()=>re.threadDestinations.replyThreadAtStanding(),threadTarget:e=>re.threadDestinations.threadTarget(e),standingTarget:Zg,composerHolds:Ye.composerHolds,responseOptionsAreOpen:Ye.responseOptionsAreOpen,markAt:Sr?.markAt,scrollToElement:gt.scrollToElement,scrollToRange:gt.scrollToRange,visualActionAnchor:ol.visualActionAnchor,hideComposer:Ye.hideComposer,openComposer:Ye.openComposer,carryComposerToReply:Ye.carryComposerToReply,resetResponseOptions:Ye.resetResponseOptions,responseOptionsAvailable:Ye.responseOptionsAvailable,setResponseOptions:Ye.setResponseOptions,syncResponseOptions:Ye.syncResponseOptions,designModeActive:Ct.active,designTarget:Ct.target,openOnDesign:Ct.open,isReactArmed:()=>Et.isReactArmed(),reactionContextContains:(...e)=>Et.reactionContextContains(...e),reactionTokens:Wl,setReact:(...e)=>Et.setReact(...e),collapseShortcutBar:(...e)=>xa(...e),closeVersionMenu:_t.closeVersionMenu,versionMenuIsOpen:Zi,openPageThread:re.threadDestinations.openPageThread,drawModeActive:()=>mn.drawModeActive(),refreshThread:re.refreshThread,dismissThreadView:()=>re.overlay?.inlineThreadView.dismiss(),pageComment:gi,responseHome:el?qn:Vg,revealResponseHome:el?null:()=>un.setPanel(!0)});Et=dm({marginEntryChoices:re.overlay?.marginEntryChoices,marginEntryContextContains:re.overlay?.marginEntryContextContains,foldMarginEntryOptions:re.overlay?.foldMarginEntryOptions,openMarginEntryOptions:re.overlay?.openMarginEntryOptions,unfoldedMarginEntries:re.overlay?.unfoldedMarginEntries,designModeActive:Ct.active,hideComposer:Ye.hideComposer,syncResponseOptions:Ye.syncResponseOptions,fabAnchorAt:Ce.fabAnchorAt,fabReturnTo:Ce.fabReturnTo,fabTargetAt:Ce.fabTargetAt,hasPageSelectionTarget:Ce.hasPageSelectionTarget,showFab:Ce.showFab,showFabOptions:Ce.showFabOptions,updateFab:Ce.updateFab,standingThread:ma,standingTarget:Zg});Zn=fh({scrollToRange:gt.scrollToRange,hintChrome:Qg,commentOnTarget:Ce.commentOnTarget,updateFab:Ce.updateFab,fabAnchorAt:Ce.fabAnchorAt,pointerModeActive:()=>Ct.active()||mn.drawModeActive(),armChanged:()=>ms.armChanged()});mn=Yp({anchors:{aimTargetAt:Yo,resolveAnchor:At},pageGeometry:{refreshAim:Ln.refreshAim},pointer:on,visibleTargets:Zn.visibleTargets,anchoredDrawing:Ye.draftDrawing,heldDrawings:Ye.heldDrawings,watchHeldDrawings:Ye.watchHeldDrawings,draftKey:Ye.draftKey,openAnchoredDrawing:(e,t)=>Ye.openComposer(e,"",{carry:!0,drawing:t}),replaceDrawing:Yg,setDesignMode:Ct.setActive,closeTargetPicker:Zn.closeTargetPicker,closeReactionMode:()=>Et.setReact(!1),banner:Vt,announce:Ne,paintDrawings:vi.paint,shiftDrawingPaint:vi.shifted,repaint:Ae});xn=rg({panelIsOpen:Yt,elements:{panel:bi,closeBtn:Bw,panelFoot:Vg,threadsBox:Pn,shortcutBarEl:lt,bottomStatusEl:fr},scheduleThreadPreviewPosition:re.overlay?.scheduleThreadPreviewPosition,restateDrawerEdge:()=>wi.drawersEdge.state(),syncAuxiliarySurfaces:Wt.sync,syncReactLayout:Et.syncReactLayout,refreshFab:Ce.refreshFab,pageShifted:Ln.pageShifted,repaint:Ae,repaintPage:hu});un=ig({narrowing:Jn,auxiliarySurfaces:Wt,elements:{panel:bi,toggleBtn:It,threadsBox:Pn,inPanel:dn.inPanel},threadAtStanding:re.threadDestinations.threadAtStanding,placedAt:ps.placedAt,showThread:Kt.showThread,refreshThread:re.refreshThread,closeReactionMode:()=>Et.setReact(!1),closePreview:(...e)=>{gi.close(),re.overlay?.closePreview(...e)},syncGeneral:gi.sync});window.frameElement?.hasAttribute("data-lf-contained")&&(window.frameElement.lfShowThread=async(e,{surface:t,status:n,waiting:o,signal:r})=>{if(t==="panel")return un.showView({thread:e,status:n,waiting:o,signal:r});let s=Fe({available:()=>!r.aborted});return s.handoff(()=>un.setPanel(!1)),!!await re.threadDestinations.openPageThread(e,{focus:"thread",travel:!1,intent:s})});wi=Yh({doors:{queue:[wg]},landEdge:xn.landEdge,auxiliarySurfaces:Wt,closePreview:re.overlay?.closePreview,leavesOffered:pi,presentLeaves:Qa,presentQueue:Xg.present});var Fw=Mf({arriveEditor:gt.arriveEditor,revealReply:(e,t)=>{let n=Qr().find(o=>or(o)===e);return n?re.threadDestinations.openPageThread(n.id,{focus:"reply",intent:t}):null}});kr=Pg({panelIsOpen:Yt,elements:{banner:Vt,toggleBtn:It,threadsBox:Pn},hintChrome:Qg,directDestinations:()=>[_t.PICKER,Fw,ev.command,tl.alignTop],setPanel:un.setPanel,setOpenDrawer:wi.setOpenDrawer,scrollToElement:gt.scrollToElement,leavesOffered:pi,othersLinks:Ya,activateMarginEntry:re.overlay?.activateMarginEntry,marginEntryKind:re.overlay?.marginEntryKind,visibleMarginEntries:re.overlay?.visibleMarginEntries,glideTo:ad,placeThreadEdge:_g,seenScroller:tl.seenScroller,stopGlide:ld,coveringAuxiliarySurface:Wt.coveringSurface,enterPageMap:Xn.enterPageMap,leavePageMap:Xn.leavePageMap,pageMapIsActive:Xn.pageMapIsActive});var Hg=qg({markHere:fn.markHere,paintStanding:Sr?.paintStanding,paintSelectedMarginEntries:()=>re.overlay?.paintSelectedMarginEntries([{kind:"ask",target:fn.standingIn()},{kind:"comment",target:ps.placedAt(Gl())?.place}]),paintTouchControls:Bg,renderShortcutBar:()=>ch(kr.goToStatus),paintGoToHints:kr.paintGoToHints,paintTargetPickerHints:Zn.paintTargetPickerHints,paintCommandHints:Jg.paint,paintCoreControls:Eh,paintVersionShortcuts:_t.paintShortcuts,paintInputs:hs.paintInputs}),tv=Ut("button","lf-skip","Skip to Leaf controls");tv.onclick=()=>{for(let e of Fs(Vt))if(e.focus({preventScroll:!0}),e.matches(":focus"))return;ho(Vt)};wt?gl({paintStandingGeometry:hs.paintInputs,reflectKeys:bl}):(document.adoptedStyleSheets=[...document.adoptedStyleSheets,...hf,mf,pf],qn.append(Vt,Rm,Ji,Ft,Dt,bi,vr,Xa,fi,ii,mr,...nl?[nl.layer]:[],vi.layer,Wm,zm,Be,Qu,Af,He,Wt.scrim,fr,lt,_a),document.body.prepend(tv),document.body.append(qn),dn.mountReadingRegion(),dn.mountOverlay(),_t.mount(),Cg({approveVersion:()=>re.post({kind:"done",version:be.currentStamp}),paintApproval:md}),Wt.mount(),Jn.mount(),await Kg.mount(),gi.mount(qn),Ye.mount(),Ce.mount(),rm(),Et.mount(),Zn.mount(),mn.mount(),ms.mount(),Hm(),Sr?.mount(),ol.mount(),Ln.mount(),Xn.mount(qn),fn.mount(),dd.mount(),Xg.mount(),Jg.mount(),re.mountAnnotations(),re.overlay?.mount(),re.mountThread(),re.mountRead(),Dm(Pn),wi.mountDrawers(),un.mountThreadPanel(),xn.mountLayoutObservers(),kr.mountGoToSequence(),dh({placeBottomStatus:xn.syncBottomStatus,setGoToSequence:kr.setGoToSequence,setReact:Et.setReact}),Mg({goToSequenceActive:kr.goToSequenceActive,setGoToSequence:kr.setGoToSequence,reactArmed:Et.isReactArmed,setReact:Et.setReact}),xg(),np(document),gl({reflectFirstScopes:yu,reflectKeys:bl,paintStandingContent:Hg.paintStandingContent,syncLayout:xn.syncLayout,pageShifted:Ln.pageShifted,paintStandingGeometry:Hg.paintStandingGeometry}));var jw=Cs?import("./runtime/interaction-gallery-frame.js").then(({mountReplay:e})=>e({toggleBtn:It,panelIsOpen:Yt,setPanel:un.setPanel,detachComposer:Ye.detachComposer,fabInput:Pt,fabFrameAt:()=>Ce.fabFrameAt(),openComposer:Ye.openComposer,closePreview:re.overlay?.closePreview,openThread:re.threadDestinations.openPageThread,threadTransitionOrigin:re.overlay?.threadTransitionOrigin,currentDrawer:Tt,setOpenDrawer:wi.setOpenDrawer})):Promise.resolve(),_w=re.beginRead(),fs,cd,Ug;async function ud(){let e=document.querySelector("[data-interaction-gallery]");if(!(e&&e===Ug))try{if(!e&&!fs)return;fs||(cd??=import("./runtime/bundle-DSLKMMGA.js"),fs=await cd),fs?.installInteractionGallery()}catch(t){Ug=e,fs||(cd=null),Jo(`interaction gallery failed to start: ${t?.message??t}`)}}wt||(na(document.body,()=>{ud()}),document.addEventListener(of,e=>e.detail.present(ud())));!Cs&&!wt&&(ep({commentsEdge:xn.commentsEdge,drawersEdge:wi.drawersEdge,restoreAuxiliarySurface:Wt.restore,setDesignMode:Ct.setActive}),On?.restoreAnnotations(),jr());ff({followFragment:gt.followFragment,returnToFragment:gt.returnToFragment});var Za=_t.aimArrival(),{landArrival:Ww,savedView:Gg}=wt?{landArrival:()=>{},savedView:null}:_t.installArrival(),zw=wt?null:Ye.pendingComposer();async function Hw(){if(document.body.hasAttribute(xt.presented)||(await ll(),document.body.hasAttribute(xt.presented)))return;yl(!0);try{let t=!wt&&Nw()&&Ye.openDraft(zw);await re.presentThread(),await ll(),t&&(await Ce.fabPositioned(),ft())}catch(t){throw yl(!1),t}if(ef(),!wt&&!Cs&&uo(()=>setTimeout(()=>{import("./runtime/bundle-D7LGKMSY.js").then(({observeUserView:t})=>t()).catch(()=>{})},0)),tf().then(Za),ol.publishVisualActions(),wt){Za(),document.dispatchEvent(new Event(Tn));return}Ce.updateFab(),Wt.present(),Qa(),ft(),ud(),md(),Ae(),re.overlay?.flushLayout(),Za();let e=Ww();document.dispatchEvent(new Event(Tn)),await e,Gg&&Gg.revision<be.currentRevision&&Ze(`Updated to ${be.currentLabel}`,{background:!0})}async function Uw(){let[e]=await Promise.all([xf({buildReactionBar:()=>wt?void 0:Et.buildReactBar({withdrawReaction:re.withdraw,postReaction:re.post})}),wt?Promise.resolve():Sg().catch(t=>console.error(t)),jw]);e&&(wt||(Zm({rail:el,onRead:On?.syncMarginResidency}),xn.syncLayout(),fn.buildBulkAnswers(),fn.syncAsks()),await rf(),Za(),document.body.setAttribute(xt.upgraded,"1"),re.startFeed(Hw,_w))}Uw().catch(e=>{let t=`page failed to start: ${e?.message??e}`;window.dispatchEvent(new CustomEvent("lf-startup-failed",{detail:{reason:t}})),Jo(t),Ka(e)});

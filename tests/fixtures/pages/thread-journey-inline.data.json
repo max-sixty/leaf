@@ -1,8 +1,0 @@
-{
-  "$captures": {
-    "review-patch": {
-      "file": "thread-journey-inline.patch",
-      "format": "unified-diff"
-    }
-  }
-}

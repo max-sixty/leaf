@@ -1,0 +1,1 @@
+var t=matchMedia("(prefers-color-scheme: dark)");function c(){let e=getComputedStyle(document.documentElement).colorScheme.split(/\s+/);return e.includes("dark")&&(t.matches||!e.includes("light"))?"dark":"light"}export{t as a,c as b};

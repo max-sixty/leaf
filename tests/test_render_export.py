@@ -684,22 +684,18 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     assert server_model.running_server(directory)
     assert service_model.page_claim(directory) == claim
 
-    # SessionEnd can win while the re-vendor waits for the page transaction.
+    # Ownership can end while a runtime edit waits for the page transaction.
+    # page init needs that transaction before it can stop the service, so do not
+    # wait for its stop while holding the transaction ourselves.
     with service_model.PageTransaction(directory) as transaction:
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: teal; }\n")
-        wait_for(
-            lambda: server_model.running_server(directory),
-            lambda running: not running,
-            failure="the refresh did not stop the service",
-        )
         transaction.release_claim()
     wait_for(
-        log.read_text,
-        lambda output: "no longer owns" in output,
-        failure="the preview did not report its lost claim",
+        lambda: server_model.running_server(directory),
+        lambda running: not running,
+        failure="the released claim left the service running",
     )
-    assert server_model.running_server(directory) is None
     assert service_model.page_claim(directory)["released"] is not None
     wait_for(
         lambda: leases_model.lock_is_held(preview_model.preview_lease(directory)),

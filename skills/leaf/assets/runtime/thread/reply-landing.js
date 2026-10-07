@@ -194,7 +194,7 @@ export function followBoxGrowth(input) {
   const reply = replyRowOf(held, input);
   // A separate transcript gives up height rather than being covered by the editor.
   // A reader at its tail keeps the turn beside the growing box; someone reading back
-  // keeps their own offset. The beforeinput reading precedes the editor's layout.
+  // keeps their own offset. The editor's before-edit reading precedes its layout.
   const transcript = separateTranscript(held);
   if (transcript) {
     const place = transcriptPlaces.get(input);
@@ -217,8 +217,8 @@ export function followBoxGrowth(input) {
   // A row pins only at its scroller's foot, so one the user scrolled past is brought back.
   if (!onScreen(reply)) revealWritingArea(held, input, reply);
 }
-// The editor's place before its own edit, and on arrival for a first edit delivered
-// without beforeinput: a pinned row's height, or a separate transcript's tail and room.
+// The editor's place before its own edit: a pinned row's height, or a separate
+// transcript's tail and room. Arrival also reads its initial place.
 export function readBoxPlace(input) {
   const held = input.closest(SAYS_IN);
   const reply = held && replyRowOf(held, input);

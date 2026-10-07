@@ -12323,7 +12323,7 @@ def test_align_current_item_more_restores_touch_context_and_reserves_z(browser, 
     page.locator("#align-yes").get_by_role("checkbox").focus()
     expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
     page.evaluate("scrollBy(0,-160)")
-    page.get_by_role("button", name="More page controls", exact=True).tap()
+    page.get_by_role("button", name="More page controls, questions waiting").tap()
     control = page.get_by_role("button", name="Align current item at top", exact=True)
     expect(control).to_be_enabled()
     control.tap()
@@ -12344,7 +12344,7 @@ def test_align_current_item_more_restores_touch_context_and_reserves_z(browser, 
       window.beforeAlign = [s.anchorNode,s.anchorOffset,s.focusNode,s.focusOffset];
       scrollBy(0,-80);
     }""")
-    page.get_by_role("button", name="More page controls", exact=True).tap()
+    page.get_by_role("button", name="More page controls, questions waiting").tap()
     control.tap()
     _expect_aligned(page, "#remembered")
     assert page.evaluate("""() => {
@@ -12355,7 +12355,7 @@ def test_align_current_item_more_restores_touch_context_and_reserves_z(browser, 
     page.keyboard.type("gz")
     expect(page.locator("#native")).to_have_value("gzEditor words")
     page.locator("#native").evaluate("input => input.setSelectionRange(1,3,'backward')")
-    page.get_by_role("button", name="More page controls", exact=True).tap()
+    page.get_by_role("button", name="More page controls, questions waiting").tap()
     expect(control).to_be_enabled()
     control.tap()
     _expect_aligned(page, "#native")
@@ -12365,7 +12365,7 @@ def test_align_current_item_more_restores_touch_context_and_reserves_z(browser, 
         "input => [input.selectionStart,input.selectionEnd,input.selectionDirection]"
     ) == [1, 3, "backward"]
     page.locator("#align-heading").focus()
-    page.get_by_role("button", name="More page controls", exact=True).tap()
+    page.get_by_role("button", name="More page controls, questions waiting").tap()
     expect(control).to_be_enabled()
     control.tap()
     _expect_aligned(page, "#align-heading")

@@ -8644,7 +8644,7 @@ def test_a_folded_compact_map_closes_its_banner_overflow_with_it(browser, serve)
     do is stay open behind it, promising a door the user has already been through."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 390, 700)
-    more = page.get_by_role("button", name="More page controls", exact=True)
+    more = page.get_by_role("button", name="More page controls, questions waiting")
     more.click()
     toggle = page.locator(".lf-page-map-toggle")
     expect(toggle).to_be_visible()

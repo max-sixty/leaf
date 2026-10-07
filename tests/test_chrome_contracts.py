@@ -2150,13 +2150,16 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
     # The door's news is the toolbar's to state, and it restates it on every paint. A
     # newer version puts the urgent latest chip in the menu, so the dot the door
-    # takes is the one the page arrived at rather than one the test wrote on it. The
+    # takes is the one the page arrived at rather than one the test wrote on it, beside
+    # the suggestion's question already waiting behind it. The
     # news is a dot and not an accent contour, which is the focus ring's face: a door
     # drawn that way read as focused while the user typed somewhere else.
     door = page.locator(".lf-banner-more")
     _publish(serve.page_dir, 3, html, "reworded the suggestion again")
     told(page)
-    expect(door).to_have_attribute("aria-label", "More page controls, new")
+    expect(door).to_have_attribute(
+        "aria-label", "More page controls, questions waiting, new"
+    )
     accent = token_colour(page, "--accent")
     face = door.evaluate(
         "d => ({dot: getComputedStyle(d, '::after').backgroundColor,"

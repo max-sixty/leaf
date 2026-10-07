@@ -189,13 +189,21 @@ const revealWritingArea = (held, input, reply) => {
   scrollIntoReadingBand(target, target, "nearest", "instant");
 };
 // A rewrite opening in its message shows the message whole, its head with Cancel and
-// Save above the words, where the band holds it, and otherwise the words' box.
-export function revealEditor(message, editor) {
+// Save above the words, where the band holds it, and otherwise the line its caret stands
+// on, where the next key types. A reply row pinned at the scroller's foot covers what
+// stands behind it, so the box's foot clears it too.
+export function revealEditor(message, caretLine) {
   const held = message.closest(SAYS_IN);
   if (!held) return;
   bringBackSurfaceOf(held, "instant");
-  const target = shownBox(message).height <= landingRoom(held) ? message : editor;
+  const target = shownBox(message).height <= landingRoom(held) ? message : caretLine;
   scrollIntoReadingBand(target, target, "nearest", "instant");
+  const reply = replyRowOf(held, held);
+  if (!replyPinned(reply)) return;
+  const margin = parseFloat(getComputedStyle(message).scrollMarginBlockEnd) || 0;
+  const over =
+    target.getBoundingClientRect().bottom + margin - reply.getBoundingClientRect().top;
+  if (over > 0) moveScrollerBy(scrollerFor(reply), over);
 }
 export function followBoxGrowth(input) {
   const held = input.closest(SAYS_IN);

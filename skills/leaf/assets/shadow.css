@@ -1034,6 +1034,8 @@ pre:hover + .lf-code-copy,
           background: transparent; color: var(--ink); font: inherit;
           max-height: none; overflow: visible; --lf-field-end-room: 0px; }
 .lf-msg-editor > .lf-compose-field > leaf-text:is(:focus, .lf-focus) { outline: none; }
+/* Its foot stands for its last line, whose height a reveal clears above it. */
+.lf-msg-edit-foot { display: block; block-size: 0; scroll-margin-block-start: 1lh; }
 .lf-thread-reply .lf-compose-field {
           --lf-compose-pad-inline-start: calc(var(--lf-thread-text-inset) - 1px);
           border: 1px solid var(--border-2);

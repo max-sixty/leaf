@@ -47,6 +47,7 @@
 import {
   clearDraft,
   draftHasContent,
+  forgetWritingPlace,
   loadDraft,
   mirrorDraft,
   saveDraft,
@@ -57,6 +58,8 @@ import {
 import { TEXT_FIELD } from "../control-selectors.js";
 import { keys } from "../keyboard/scopes.js";
 import { announce } from "../notifications.js";
+import { sizeObserver } from "../rendering.js";
+import { retainUserIntent } from "../user-intent.js";
 import { offer } from "../widget-elements.js";
 
 export const editContext = (id) => `rewrite:${id}`;
@@ -118,6 +121,7 @@ function closeMessageEdit(id, { discard }) {
   const ctx = editContext(id);
   clearDraft(ctx);
   tellDraft(ctx, null);
+  forgetWritingPlace(ctx);
 }
 
 /** One view's editor over one message's rewrite.
@@ -133,6 +137,7 @@ export class MessageEditor {
   #stop;
   #leave;
   #reveal;
+  #settling = null;
   // Where the caret stood when ↑ went down, while it is down: the editor's own ↑ moves
   // it to the start from anywhere on the first line before the key's binding reads it.
   #upFromStart = null;
@@ -156,7 +161,11 @@ export class MessageEditor {
     cancel.title = "Cancel, discarding your changes";
     cancel.textContent = "Cancel";
     actions.append(cancel);
-    this.node.append(this.input, actions);
+    // The box's last line, where the caret stands on opening: the field's own lines are
+    // in a closed tree, so a mark of no size after it is what a reveal can aim at.
+    this.foot = document.createElement("span");
+    this.foot.className = "lf-msg-edit-foot";
+    this.node.append(this.input, this.foot, actions);
     // The words a closed rewrite left, or the message's own. An empty draft is none.
     this.input.value = loadDraft(ctx) || said();
     // Words the message already says, and no words, are no change.
@@ -196,17 +205,20 @@ export class MessageEditor {
         // The send's own paint, which draws the new words on the message, closes the
         // editor too, so the message changes once: a paint of its own here drew the old
         // words between the box and the new ones.
-        const sent = sendDraft(ctx, owns, (attempt) => send(raw, { attempt, base }));
+        const flight = sendDraft(ctx, owns, (attempt) => send(raw, { attempt, base }));
         leave(false, { painting: false });
+        let sent = null;
         try {
-          await sent;
+          sent = await flight;
         } finally {
           sending.delete(id);
         }
-        // A refusal gives the words back to the draft, which the message says it holds
-        // beside the words it stands at: a message another tab has since rewritten shows
-        // that rewrite, which an editor opened at once would hide, and opening the words
-        // again writes them over what the user can now see.
+        // Saved words leave nothing to resume. A refusal gives them back to the draft,
+        // which the message says it holds beside the words it stands at: a message
+        // another tab has since rewritten shows that rewrite, which an editor opened at
+        // once would hide, and opening the words again writes them over what the user
+        // can now see.
+        if (sent) forgetWritingPlace(ctx);
         paint();
       },
       rows: [
@@ -262,12 +274,21 @@ export class MessageEditor {
   }
 
   // Focus the words with the caret after them, where a rewrite usually starts, and bring
-  // the editor into view.
+  // the editor into view, its last line, where the caret stands, at least. A long one's
+  // lines take their height only as the field draws them, after this, so the reveal
+  // follows the box's size until the user does anything.
   focus() {
     const end = this.input.value.length;
     this.input.focus({ preventScroll: true });
     this.input.setSelectionRange(end, end);
-    this.#reveal(this.node);
+    this.#reveal(this.foot);
+    this.#settling?.disconnect();
+    const mayReveal = retainUserIntent();
+    this.#settling = sizeObserver((entries, observer) => {
+      if (!mayReveal() || !this.node.isConnected) return observer.disconnect();
+      this.#reveal(this.foot);
+    });
+    this.#settling.observe(this.node);
   }
 
   // Close without landing, as another editor opening in the thread does.
@@ -276,6 +297,7 @@ export class MessageEditor {
   }
 
   dispose() {
+    this.#settling?.disconnect();
     this.#stop();
   }
 }

@@ -261,7 +261,7 @@ export class MessageView {
         land: () => this.#commands.edit.land(),
         paint: () => this.#commands.edit.paint(),
         previous: () => this.#commands.edit.previous(this.#model.id),
-        reveal: (editor) => this.#commands.edit.reveal(this.node, editor),
+        reveal: (caretLine) => this.#commands.edit.reveal(this.node, caretLine),
       });
     if (!editing && this.#editor) {
       this.#editor.dispose();

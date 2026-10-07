@@ -483,10 +483,26 @@ let writingPlace = (() => {
 const writingRoutes = new Map();
 const editorInput = (editor) =>
   typeof editor.input === "function" ? editor.input() : editor.input;
+// The places written in before the current one, newest last, one for each context, so
+// a place the user puts away hands Resume writing back to the one before it.
+let earlierPlaces = [];
 const keepWritingPlace = (place) => {
+  if (writingPlace && writingPlace.context !== place.context)
+    earlierPlaces = [
+      ...earlierPlaces.filter(({ context }) => context !== writingPlace.context),
+      writingPlace,
+    ].slice(-8);
   writingPlace = place;
   draftStore.set(WRITING_PLACE, JSON.stringify(place));
 };
+// Words discarded leave nowhere to resume: Resume writing goes back to the place
+// written in before them.
+export function forgetWritingPlace(ctx) {
+  earlierPlaces = earlierPlaces.filter(({ context }) => context !== ctx);
+  if (writingPlace?.context !== ctx) return;
+  writingPlace = earlierPlaces.pop() ?? null;
+  draftStore.set(WRITING_PLACE, writingPlace && JSON.stringify(writingPlace));
+}
 const writingEditor = () =>
   [...draftEditors].find((editor) => editorInput(editor) === focused());
 const keepWritingCaret = () => {

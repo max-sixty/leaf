@@ -339,7 +339,7 @@ export class ThreadView {
           );
           if (folded) this.#expandedSummaries.add(folded.id);
         },
-        reveal: (message, editor) => revealEditor(message, editor),
+        reveal: (message, caretLine) => revealEditor(message, caretLine),
       },
     };
     this.node = document.createElement(

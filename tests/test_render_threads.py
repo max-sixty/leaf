@@ -10719,3 +10719,63 @@ def test_a_rewrite_under_a_finger_keeps_its_message_head(browser, serve):
     for name in ("Cancel", "Save"):
         box = message.get_by_role("button", name=name, exact=True).bounding_box()
         assert now["y"] - 1 <= box["y"] + box["height"] / 2 <= now["y"] + now["height"] + 1
+
+
+def test_a_discarded_rewrite_hands_resume_writing_back(browser, serve):
+    """Resume writing returned to a rewrite Escape had just discarded, reopening it on
+    the message's own words, ahead of the reply the user had been writing. A rewrite
+    put away hands Resume writing back to the place written in before it."""
+    page, thread, message = _rewrite_surface(browser, serve, "panel")
+    reply = thread.locator(".lf-thread-reply leaf-text").first
+    reply.click()
+    page.keyboard.type("A reply in progress")
+    message.locator(".lf-msg-text").dblclick()
+    page.keyboard.type(" and more")
+    page.keyboard.press("Escape")
+    expect(reply).to_be_focused()
+    page.keyboard.press("Escape")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("value", "A reply in progress")
+    expect(message.locator(".lf-msg-editor")).to_have_count(0)
+
+
+def test_a_long_rewrite_opens_where_its_caret_stands(browser, serve):
+    """A message taller than the panel opened its rewrite with the caret, after its last
+    word, far below the panel's foot, so the first key jumped the view. It opens with
+    the line its caret stands on in view."""
+    url = serve(THREAD_DIFF_PAGE)
+    long = "\n\n".join(
+        f"Paragraph {n}: the steel pair held through the frost of February." for n in range(30)
+    )
+    mine = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "rewritten",
+            "author": "user",
+            "revision": 1,
+            "text": long,
+            "anchor": {"section": "cd-q"},
+        },
+    )
+    page = open_page(browser, url)
+    resized(page, 1400, 900)
+    page.locator(".lf-threads-toggle").click()
+    thread = page.locator(f'.lf-thread:has(.lf-msg[data-mid="{mine["id"]}"])')
+    thread.locator(".lf-thread-reply leaf-text").focus()
+    page.keyboard.press("ArrowUp")
+    editor = thread.locator(f'.lf-msg[data-mid="{mine["id"]}"] .lf-msg-editor leaf-text')
+    expect(editor).to_be_focused()
+    rendered(page)
+    last = editor.evaluate(
+        """n => { const box = n.getBoundingClientRect();
+          const line = parseFloat(getComputedStyle(n).lineHeight);
+          const list = document.querySelector('.lf-threads').getBoundingClientRect();
+          const reply = document.querySelector('.lf-threads .lf-thread-reply')
+            .getBoundingClientRect();
+          return [box.bottom - line, box.bottom, list.top,
+            Math.min(list.bottom, reply.top)]; }"""
+    )
+    assert last[2] <= last[0] and last[1] <= last[3] + 1, last

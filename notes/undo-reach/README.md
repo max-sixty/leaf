@@ -24,11 +24,11 @@ something the user didn't realize it would.
 
 `z` takes back the user's newest gesture, however old, or nothing (#1410). The
 server's `browser_undo_candidates`
-(`skills/leaf/scripts/leaf/served_state/document.py:30`) lists the user's
+(`skills/leaf/scripts/leaf/served_state/document.py`) lists the user's
 undoable gestures newest first and marks the head `newest` only when it is the
 user's newest event that isn't bookkeeping, an undo, or already withdrawn. So a
 reply sent since then ends the walk. `undoable()` in
-`skills/leaf/assets/runtime/projection/commands.js:58` takes the head only when it
+`skills/leaf/assets/runtime/projection/commands.js` takes the head only when it
 carries `newest`. A widget's own Undo control can still withdraw an older gesture
 it names. #1407 puts the view back where a thread settlement moved it when that
 settlement is undone, in the same tab only.
@@ -42,12 +42,12 @@ Undo is one-way. Nothing puts back what an undo took:
 
 - An `undo` event names one gesture in `undoes`; nothing leaves the log
   (`skills/leaf/scripts/leaf/events.md`, "Undo").
-- `taken_back` (`skills/leaf/scripts/leaf/events.py:6`) returns the flat set of
+- `taken_back` (`skills/leaf/scripts/leaf/events.py`) returns the flat set of
   every id any undo names, and every Python fold reads it.
-- The append door's `UndoReading.error` (`events.py:71`) refuses an undo whose
+- The append door's `UndoReading.error` (`events.py`) refuses an undo whose
   target isn't an unwithdrawn gesture of the user's own, so an undo can't name an
-  undo. `UNDOABLE_KINDS` (`skills/leaf/scripts/leaf/schema.py:19`) is resolve,
-  unresolve, action, and done; an unanswered reaction is also undoable.
+  undo. `UNDOABLE_KINDS` (`skills/leaf/scripts/leaf/schema.py`) is resolve,
+  unresolve, action, done, and task_end; an unanswered reaction is also undoable.
 - `events.md` states "An undo cannot itself be undone."
 
 ## The candidates
@@ -85,8 +85,8 @@ Ctrl-R" (newest + name + redo), "Show, then take, with redo", and "Changes panel
 - **This visit only.** `commands.js` records the undo candidates present at the
   first reading, and `undoable()` refuses a head among them. Browser only.
 - **Say what `z` takes.** `document.py` adds each candidate's words from
-  `GestureWords` (`skills/leaf/scripts/leaf/gesture_words.py:86`, `says` at
-  line 161). Today `served_state/browser.py` builds those words only for a page
+  `GestureWords.says` (`skills/leaf/scripts/leaf/gesture_words.py`). Today
+  `served_state/browser.py` builds those words only for a page
   that shows history, so every state read would pay for them. `undoSentence` and
   the notice read them in place of the per-kind words.
 - **Show, then take.** `document.py` marks each candidate the agent has picked up,
@@ -105,7 +105,7 @@ Ctrl-R" (newest + name + redo), "Show, then take, with redo", and "Changes panel
   (`.claude/skills/developing-leaf/references/glossary.md`) and keyboard and touch
   routes. It is served the `history` reading on demand, which today reaches only a
   page placing `lf-activity`, filtered to the user's own gestures. That reading
-  stops at 50 rows (`LIMIT` in `skills/leaf/scripts/leaf/history.py:28`), another
+  stops at 50 rows (`LIMIT` in `skills/leaf/scripts/leaf/history.py`), another
   arbitrary limit the panel would need to page past. Its Undo and Redo go through
   the one `withdraw` door.
 
@@ -123,28 +123,28 @@ It has three costs:
 1. **A restored gesture reads at its original log position.** Every fold reads
    effects in log order, so a restored gesture shows nothing once a later event on
    the same target stands. Any spoken reply, the agent's included, reopens a
-   thread (`build_threads`, `events.py:203`), and a later pick on the same widget
+   thread (`build_threads`, `events.py`), and a later pick on the same widget
    supersedes an earlier one. A redo that would paint nothing must be refused at
    the door, and the one general check is to fold the log with and without the
    redo and compare what the page shows. Re-sending the gesture as a new event
    avoids this but loses its identity: the agent reads a fresh pick, and history
    can't pair the undo with what it undid.
 2. **Readers that follow `undoes` one level must follow the chain.** These are
-   `GestureWords.says` (`gesture_words.py:161`), the coverage lookup in
-   `served_state/browser.py:206`, `projection/presentation.js:157`, and the undo
-   case in `delivery.py:159`.
+   `GestureWords.says` (`gesture_words.py`), the coverage lookup in
+   `served_state/browser.py`, `projection/presentation.js`, and the undo
+   case in `delivery.py`.
 3. **A redo restores an answer obligation.** An undo owes the agent no answer, but
    a redo brings back the restored gesture's obligation, which the stop hook
    enforces. The delivery must carry it, and the undo handling text in
-   `skills/leaf/assets/registry.json` ("Treat the two as cancelling out", line
-   374) needs a clause for a redo.
+   `skills/leaf/assets/registry.json` (the Undo handling clause, "Treat the two as
+   cancelling out") needs a clause for a redo.
 
 The rest of the redo change: `UndoReading.error` admits an undo naming the user's
 own standing undo when folding without it changes the page; `document.py` serves a
 redo list; `projection/model.js` lets a local redo override the server's reading
 that the target is withdrawn, as a pending forward action does; `commands.js`
 binds `Z`; `lf-activity.js`'s "undone" label
-(`skills/leaf/packages/default/widgets/lf-activity.js:189`), `events.md`, and
+(`skills/leaf/packages/default/widgets/lf-activity.js`), `events.md`, and
 `skills/leaf/references/event-batches.md` learn the redo.
 
 Vim's undo tree is a different thing: `g-` and `g+` restore any past state,
@@ -178,8 +178,9 @@ Serve it to the user with:
 uv run leaf-dev preview --source notes/undo-reach/playground.html --slot undo-reach --user
 ```
 
-Start the preview as a long-running command from the chat that will receive
-feedback, then open the keyed URL it prints. Follow `/developing-leaf`,
+Start the preview from the chat that will receive feedback, then open the keyed
+URL it prints. Desktop Codex detaches the watcher and returns; other harnesses
+keep the preview running as their handoff contract requires. Follow `/developing-leaf`,
 “Preview a page”, for the harness's feedback route and handoff. A restart builds a
 fresh page and log; answer pending feedback before restarting.
 
@@ -191,8 +192,8 @@ simulated viewport the "What's in view" rule depends on, so it stays.
 
 1. The user picks a reach rule and add-ons in the playground and presses "Build
    this undo". Their submitted instruction is the spec.
-2. Merge main into `undo-reach` before building, and check whether main has moved
-   the undo code above.
+2. Build in the task's current checkout, and read the current undo owners before
+   editing them.
 3. Build the pick in the runtime and Python owners named above, with the door's
    rule in `events.md`'s Undo section and the shortcut words in `commands.js`.
    Every new action gets a keyboard and a touch route (root `AGENTS.md`).

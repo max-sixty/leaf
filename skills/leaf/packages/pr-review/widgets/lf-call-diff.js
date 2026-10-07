@@ -243,6 +243,8 @@ customElements.define(
       const summary = toolbar.querySelector(".lf-call-summary");
       const dataRows = records.filter((record) => !record.meta);
       const roots = records.filter((record) => record.root);
+      const groupRows = new Map(roots.map((root) => [root.groupKey, []]));
+      for (const record of dataRows) groupRows.get(record.groupKey).push(record);
       const added = dataRows.filter((record) => record.status === "added").length;
       const removed = dataRows.filter((record) => record.status === "removed").length;
       keepsText(
@@ -263,25 +265,38 @@ customElements.define(
         const group = groups.get(record.groupKey);
         const node =
           oldRows.get(record.key) ?? (record.root ? group.summary : buildLine());
-        const count = record.root
-          ? groupLabel(records.filter((row) => row.groupKey === record.groupKey))
-          : null;
+        const count = record.root ? groupLabel(groupRows.get(record.groupKey)) : null;
         renderLine(record, node, this, count);
         rows.set(record.key, node);
         return { node, key: record.key, label: labelOf(record) };
       });
-      for (const [key, { group, body }] of groups) {
-        const groupRows = records.filter((record) => record.groupKey === key);
-        setChildren(
+      const placements = [...groups].map(([key, { group, body }]) => {
+        const [root, ...children] = groupRows.get(key);
+        return {
+          group,
           body,
-          groupRows
-            .filter((record) => !record.root)
-            .map((record) => rows.get(record.key)),
+          summary: rows.get(root.key),
+          children: children.map((record) => rows.get(record.key)),
+        };
+      });
+      // Connect destinations and transfer surviving rows before any old body or
+      // group is drained. Native moves can then keep their controls live even
+      // when a capture puts the same call under a newly arriving root.
+      const arrivals = placements
+        .map(({ group }) => group)
+        .filter((group) => group.parentNode !== this);
+      if (arrivals.length) setChildren(this, [...this.childNodes, ...arrivals]);
+      const focused = this.getRootNode().activeElement;
+      for (const { group, body, children } of placements) {
+        const transfers = children.filter(
+          (node) => node.parentNode !== body && node.isConnected,
         );
-        setChildren(group, [
-          rows.get(groupRows.find((record) => record.root).key),
-          body,
-        ]);
+        if (transfers.some((node) => node.contains(focused))) group.open = true;
+        if (transfers.length) setChildren(body, [...body.childNodes, ...transfers]);
+      }
+      for (const { group, body, summary, children } of placements) {
+        setChildren(body, children);
+        setChildren(group, [summary, body]);
       }
       setChildren(this, [
         toolbar,

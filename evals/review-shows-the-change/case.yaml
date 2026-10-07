@@ -8,6 +8,13 @@
 # review and preview-state guidance (2026-10-06); hover and static siblings passed
 # both arms. A separate executed artifact check repaired the GIF and preview in
 # both arms; it establishes feasibility, not an instruction effect.
+# Additional contexts reconstruct the native-editor handoff in Codex task
+# 01a112f0-ec4f-78c1-bff1-04852e647dce. The interaction-fix context failed
+# 2/2 on frozen HEAD and on a routing-only draft. Keeping full-page comparisons
+# in agent verification passed 2/2 valid serial runs. The judgment/context rule
+# passed preserved-layout plus temporary small-detail and whole-workflow choice
+# guardrails once each. These score handoff text from completed fixture checks,
+# not a replay or new browser verification of the source implementation.
 description: review-shows-the-change
 metadata:
   purpose: 'Maintainer review: agent verifies preservation; user inspects the change or decides an open question.'
@@ -64,6 +71,85 @@ assert:
       An optional illustrative sample may remain when the actual review request
       is the changed contract. Do not demand specific wording.
 variants:
+  interaction-fix:
+    metadata:
+      purpose: 'A tested interaction repair keeps factual verification with the agent and gives the user evidence at the scale of the feature.'
+    vars:
+      prompt: |
+        You are finishing a Leaf implementation task for Max. Read the repository's
+        developing-leaf skill at `../../.claude/skills/developing-leaf/SKILL.md`
+        relative to the leaf skill's base directory.
+
+        Max asked for the underlying fix for a reply box moving downward while
+        lines are deleted. A follow-up moved native edit boundaries into the
+        editor so context-menu paste and Android input follow the same sizing rule.
+        The implementation and independent review are complete. No design choice
+        remains. The intended appearance and existing shortcuts are preserved.
+        The same eight appearance journeys produce identical captures on baseline
+        and candidate. Native add/delete, paste, draft mirroring, and floating
+        overflow checks pass; measured add/delete frames keep the first line fixed.
+
+        Both full-page previews already run:
+        Before: https://preview.example.test/baseline/#plan-stop
+        After: https://preview.example.test/candidate/#plan-stop
+        Matched native recordings show the repaired gesture on a focused review
+        page at https://review.example.test/#reply-editing. All evidence has been
+        inspected. An earlier handoff in this conversation ended with labeled
+        Before and Fixed full-page links and told Max to try Shift+Return and
+        Backspace. The current draft ends with the Before and After URL pair.
+
+        Finish the handoff reply for this local implementation.
+    assert:
+      - type: javascript
+        metric: reads-maintainer-skill
+        value: file://reference-read.cjs
+        config:
+          path: \.claude/skills/developing-leaf/SKILL\.md
+      - type: llm-rubric
+        metric: useful-review
+        value: |
+          Pass if the handoff reports the agent's completed equivalence check of
+          appearance and preserved behavior and hands over the verified result.
+          Optional evidence of the repaired gesture may link the focused recorded
+          review. Fail if it asks Max to verify preserved appearance or
+          interactions, invents a decision that needs his opinion, or makes him
+          work through broad previews to find the repaired gesture. Judge who
+          owns the verification and how easily the feature can be assessed, not
+          whether a particular artifact format or optional link appears.
+  preserved-layout:
+    metadata:
+      purpose: 'A layout-mechanism refactor with identical behavior needs an agent verification result.'
+    vars:
+      prompt: |
+        You are finishing a Leaf maintainer task for Max. Read the repository's
+        developing-leaf skill at `../../.claude/skills/developing-leaf/SKILL.md`
+        relative to the leaf skill's base directory.
+
+        A reply-containment refactor replaces callers' local offsets with one
+        layout owner. No visible or interaction change is intended, and no design
+        question remains. You ran the same open, type, scroll, resize, and return
+        journeys at desktop and phone widths on both versions. Every checked frame
+        and hit-test rectangle is identical. The source diff shows the ownership
+        change. Two full-page previews run at https://preview.example.test/old/
+        and https://preview.example.test/new/. The draft reply labels them Before
+        and After and says "Compare how the replies move."
+
+        Finish the handoff reply for this local implementation.
+    assert:
+      - type: javascript
+        metric: reads-maintainer-skill
+        value: file://reference-read.cjs
+        config:
+          path: \.claude/skills/developing-leaf/SKILL\.md
+      - type: llm-rubric
+        metric: useful-review
+        value: |
+          Pass if the handoff reports what the agent compared and that the checked
+          results were identical, without asking Max to validate preservation.
+          It may explain the changed ownership contract or point to the source
+          diff. Fail if it assigns Max work already settled by the agent's checks
+          or invents a visible difference or remaining design choice. Artifact
+          format alone does not decide the score.
   documentation:
     metadata:
       purpose: 'Review changed instructions while the agent verifies equivalent runtime behavior.'

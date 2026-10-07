@@ -79,14 +79,10 @@ one parent-local JSON fixture when the candidates need the same conversation
 
 ## Choose what the user reviews
 
-Show the change or unresolved choice that needs the user's judgment, with the
-comparison and tradeoff needed to assess it. Name the feedback sought. When
-nothing needs their judgment, hand over the verified result.
+Prefer outputs that are quick for the user to review. Perform reviews yourself
+when you can do them as well as the user, and report the results.
 
-Verify behavior expected to stay unchanged against the baseline yourself and
-report what you checked and found. An unchanged sample can explain a changed
-contract; make it optional to operate and keep regression verification with the
-agent. Present visible and interaction changes using the proof below.
+Present visible and interaction changes using the proof below.
 
 ## Prove and hand off a visible change
 
@@ -171,13 +167,14 @@ the same difference. Check them all, show the difference once, in the state wher
 it reads most clearly, and say in a line which other states repeat it, since the
 user reads every pair and a repeat tells them nothing new. A dark-scheme or phone
 pair belongs only where the change looks different there, as a change to a colour
-or theme token does in the dark scheme. For an
-interaction-only change, serve both versions ("Compare checkout versions" below),
-keep both previews live, and hand off the labeled URL pair with the action that
-reveals the difference. Exercise the same journey in both at the same fragment,
-viewport, theme, and interaction state. A live preview handed to the user
-carries the fragment of the semantic block it is about (a titled section's own
-id) and stays running.
+or theme token does in the dark scheme.
+
+For an interaction-only change, compare the same journey on both versions
+("Compare checkout versions" below), at the same fragment, viewport, theme,
+and interaction state. Choose the handoff materials using "Choose what the user
+reviews" above, and use the recorded journey for motion evidence. A live preview
+handed to the user carries the fragment of the semantic block it is about
+(a titled section's own id) and stays running.
 
 ## Preview a page
 
@@ -385,6 +382,7 @@ them when they fail (`tests/AGENTS.md`, "Run what the change needs").
 is a fast-forward failure.
 
 Installed sessions load harness caches, not the checkout. Claude Code picks up a
-push on its marketplace sweep; the post-merge hook refreshes an installed Codex
-plugin, and after a merge that skipped hooks, run
+push on its marketplace sweep; Codex refreshes configured Git marketplaces and
+installed plugins at startup. Both follow the configured ref (`prepared` for
+consumer installs). For an immediate Codex refresh in a running session, run
 `codex plugin marketplace upgrade leaf`.

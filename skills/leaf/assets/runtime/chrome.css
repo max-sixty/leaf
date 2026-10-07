@@ -150,60 +150,6 @@
 [aria-busy="true"] :is(button, [role="button"]) {
   cursor: progress;
 }
-/* Pasted media stays in the draft's Markdown, but the writing surface shows the thing
-   rather than its transport. The strip takes its own row beside every text-box shape;
-   the compact response bar overrides that row below. */
-:is(.lf-thread-reply, .lf-general, .lf-say):has(> .lf-composer-media:not([hidden])) {
-  flex-wrap: wrap; }
-:is(.lf-thread-reply, .lf-general, .lf-say) > .lf-composer-media {
-  display: flex; flex: 1 0 100%; gap: 6px; min-width: 0; overflow-x: auto;
-  padding: 2px; box-sizing: border-box; }
-.lf-composer-media[hidden] { display: none !important; }
-.lf-composer-media-item { position: relative; flex: none; display: block; }
-.lf-media-open { display: block; width: fit-content; max-width: 100%; padding: 0;
-  border: 0; border-radius: var(--r); background: transparent; color: inherit;
-  font: inherit; }
-button.lf-media-open { cursor: zoom-in; }
-.lf-media-open:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
-  --lf-focus-ring: media; outline-offset: 2px; }
-.lf-composer-media-open { width: 68px; height: 52px; overflow: hidden;
-  border: 1px solid var(--border-2); background: var(--paper); }
-.lf-composer-media-open img { display: block; width: 100%; height: 100%;
-  object-fit: cover; }
-.lf-composer-media-remove { position: absolute; top: -5px; right: -5px;
-  width: 20px; height: 20px; padding: 0; border: 1px solid var(--border-2);
-  border-radius: var(--r); background: var(--card); color: var(--ink); font: inherit;
-  line-height: 17px; cursor: pointer; box-shadow: 0 1px 4px var(--shade); }
-.lf-composer-media-remove:is(:hover, :focus-visible) { border-color: var(--accent); }
-/* A drawing the draft carries is one tile: its own ink fitted to a thumbnail, then the
-   stroke undo and the removal, each a full-height press inside the tile's edge rather
-   than a corner badge an overflowing strip would cut. */
-.lf-composer-drawing { display: flex; align-items: stretch; box-sizing: border-box;
-  border: 1px solid var(--border-2); border-radius: var(--r);
-  background: var(--paper); overflow: hidden; }
-.lf-composer-drawing > .lf-composer-media-open { padding: 4px;
-  box-sizing: border-box; border: 0; border-radius: 0; }
-.lf-composer-drawing > .lf-composer-media-open > svg { display: block; width: 100%;
-  height: 100%; overflow: visible; }
-.lf-composer-drawing > .lf-composer-media-open path { fill: none;
-  stroke: var(--accent); stroke-width: 2px; stroke-linecap: round;
-  stroke-linejoin: round; }
-.lf-composer-drawing > .lf-composer-media-open { align-self: center; }
-.lf-composer-drawing > button { flex: none; display: grid; place-items: center;
-  inline-size: max(26px, var(--aim-floor)); min-block-size: var(--aim-floor);
-  padding: 0; border: 0;
-  border-inline-start: 1px solid var(--border-2); background: transparent;
-  color: var(--ink-2); cursor: pointer; }
-.lf-composer-drawing > button:hover { color: var(--accent); background: var(--chip); }
-.lf-composer-drawing > button:is(:focus-visible, .lf-focus-visible) {
-  outline: var(--focus-ring); --lf-focus-ring: composer-drawing;
-  outline-offset: calc(-1 * var(--focus-ring-w)); }
-.lf-composer-drawing > button > svg { inline-size: 14px; block-size: 14px; }
-/* Sent media can live in chrome-owned threads or page-owned widget threads.
-   Scale the complete image in both surfaces; a tall capture must not become the whole
-   thread, and nothing is cropped. */
-.lf-message-media img { display: block;
-  max-width: 100%; max-height: min(60vh, 480px); border-radius: var(--r); }
 /* Holding ⌥ changes what a click means, and nothing on the page said so — the sequence's
    whole cost is that it is invisible. Two things say it, and the division matters:
    the item under the pointer wears the aim's box (.lf-aim, in the chrome's scope
@@ -654,12 +600,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* Open, the control takes the open surface's accent and ground, without the underline
      an auxiliary toggle wears: the card's top edge meets it there. */
   .lf-page-comment[aria-expanded="true"] { color: var(--accent); background: var(--chip); }
-  /* The card's box lays out as every composer does, its pasted media in a row of its
-     own (the unscoped rule above, for the boxes a shadow tree also holds). */
+  /* The card gives the shared attachment shelf its own row. */
   .lf-page-composer { --quote-inset: 10px; --pre-inset: 10px; }
   .lf-page-composer:has(> .lf-composer-media:not([hidden])) { flex-wrap: wrap; }
-  .lf-page-composer > .lf-composer-media { display: flex; flex: 1 0 100%; gap: 6px;
-    min-width: 0; overflow-x: auto; padding: 2px; box-sizing: border-box; }
   /* The card hangs from the control: its top edge on the banner's foot and its right
      edge on the control's, with no border along the edge it hangs from, so control and
      card read as one piece while it is open. On a phone, where the control is behind
@@ -1396,12 +1339,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     display: none !important;
   }
   .lf-fab-bar.lf-response-open { flex-wrap: wrap; }
-  /* The choices are one row, the width the bar's side can hold. A side is chosen for
-     the field, which is narrower than Suggest and six reactions at
-     their resting 38px: beside the open Threads panel at 1024px the bar had 256px for
-     a 288px row, and the reactions dropped whole beneath Suggest. So the reactions give
-     up their spare inline padding before the row breaks, down to the floor every
-     response action keeps; a still narrower side wraps the controls. */
+  /* A side is chosen for the field, which can be narrower than Suggest and six
+     reactions at their resting 38px. The reactions give up spare inline padding
+     before the choices wrap; each response action keeps its minimum width. */
   .lf-fab-bar.lf-response-open > .lf-response-options {
     display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px;
     max-width: 100%;
@@ -1459,8 +1399,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-composer { display: none; }
   .lf-fab-bar .lf-composer > :not(.lf-compose-field, .lf-composer-media) {
     display: none !important; }
-  .lf-fab-bar .lf-composer-media { display: flex; gap: 6px; flex: none;
-    max-width: 148px; padding: 0; overflow-x: auto; }
+  .lf-fab-bar .lf-composer-media { flex: none; max-width: 148px; padding: 0; }
   .lf-fab-bar .lf-composer-media-open { width: 42px; height: 34px; }
   /* A suggestion renders verbatim — its characters are what the next version
      carries (see msgNode) — so this is where they keep their own line breaks. */

@@ -2099,6 +2099,102 @@ def test_comment_on_the_page_stands_in_more_on_a_phone(browser, serve):
     )
 
 
+def paste_image(field, pixels, *, count=1):
+    """Paste page media and wait for the input to finish admitting every upload."""
+    with field.page.expect_response(
+        lambda response: response.url.endswith("/api/media")
+    ):
+        field.evaluate(
+            """(box, {encoded, count}) => {
+              const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+              const transfer = new DataTransfer();
+              for (let index = 0; index < count; index += 1)
+                transfer.items.add(new File([bytes], `rendering-${index}.png`, {type: 'image/png'}));
+              box.dispatchEvent(new ClipboardEvent('paste', {
+                bubbles: true, cancelable: true, clipboardData: transfer,
+              }));
+            }""",
+            {"encoded": base64.b64encode(pixels).decode(), "count": count},
+        )
+    expect(field).not_to_have_attribute("aria-busy", "true")
+
+
+def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
+    """An attachment keeps its face and keyboard routes inside a widget tree."""
+    page = open_page(
+        browser, serve(next(p for p in EXAMPLES if p.stem == "pr-walkthrough"))
+    )
+    page.locator("#pr-exact-patch .lf-diff-file-comment").first.click()
+    bar = page.locator('lf-diff .lf-fab-bar[data-lf-presentation="inline"]')
+    field = bar.locator("leaf-text")
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
+    paste_image(field, pixels)
+    image_open = bar.get_by_role("button", name="View pasted image 1", exact=True)
+    remove = bar.get_by_role("button", name="Remove pasted image 1", exact=True)
+    expect(image_open.locator("img")).to_be_visible()
+    expect(bar.locator(".lf-composer-media-item")).to_have_css(
+        "border-radius", button_radius(page)
+    )
+    expect(image_open).to_have_css("cursor", "zoom-in")
+    assert remove.evaluate("""button => {
+      const box = button.getBoundingClientRect();
+      const root = button.getRootNode();
+      return [box.top + 1, box.bottom - 1].every(y =>
+        button.contains(root.elementFromPoint(box.left + box.width / 2, y)));
+    }"""), "the whole removal control must accept a press inside the scrolling shelf"
+    field.press("Shift+Tab")
+    expect(remove).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    expect(image_open).to_be_focused()
+    expect(image_open).to_have_css("outline-style", "solid")
+    page.keyboard.press("Enter")
+    viewer = page.get_by_role("dialog", name="Image preview")
+    expect(viewer).to_be_visible()
+    expect(viewer.locator("img")).to_have_attribute(
+        "src", "/media/051bee487bfb5d13.png"
+    )
+    page.keyboard.press("Escape")
+    expect(viewer).to_be_hidden()
+    rendered(page)
+    expect(image_open).to_be_focused()
+    image_open.click()
+    expect(viewer).to_be_visible()
+    viewer.get_by_role("button", name="Close image preview", exact=True).click()
+    expect(viewer).to_be_hidden()
+    rendered(page)
+    expect(image_open).to_be_focused()
+    page.keyboard.press("Tab")
+    expect(remove).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(bar.locator(".lf-composer-media")).to_be_hidden()
+    expect(field).to_be_focused()
+    field.press("Tab")
+    expect(bar).to_have_class(re.compile(r"\blf-response-open\b"))
+    page.keyboard.press("Escape")
+    expect(field).to_be_focused()
+    bar.locator(".lf-compose-submit").focus()
+    page.keyboard.press("Escape")
+    expect(bar).to_be_hidden()
+
+    page.locator("#pr-exact-patch .lf-diff-file-comment").first.click()
+    paste_image(field, pixels)
+    with sending(page, "the image in a file comment"):
+        field.press("ControlOrMeta+Enter")
+    sent = page.locator("#pr-exact-patch .lf-message-media img")
+    expect(sent).to_be_visible()
+    sizing = sent.evaluate("""image => {
+      const box = image.getBoundingClientRect();
+      return {width: box.width, height: box.height, ratio:
+        image.naturalWidth / image.naturalHeight, ceiling: Math.min(innerHeight * .6, 480)};
+    }""")
+    assert sizing["height"] <= sizing["ceiling"]
+    assert sizing["width"] == pytest.approx(sizing["height"] * sizing["ratio"], abs=1)
+    sent.click()
+    expect(viewer).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(viewer).to_be_hidden()
+
+
 def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     browser, serve
 ):
@@ -2123,20 +2219,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     reply = thread.locator("leaf-text")
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
 
-    with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        reply.evaluate(
-            """(box, encoded) => {
-              const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
-              const transfer = new DataTransfer();
-              transfer.items.add(new File([bytes], 'rendering.png', {type: 'image/png'}));
-              box.dispatchEvent(new ClipboardEvent('paste', {
-                bubbles: true,
-                cancelable: true,
-                clipboardData: transfer,
-              }));
-            }""",
-            base64.b64encode(pixels).decode(),
-        )
+    paste_image(reply, pixels)
 
     image_markdown = "![Pasted image](/media/051bee487bfb5d13.png)"
     expect(reply).to_have_js_property("value", "")
@@ -2144,7 +2227,7 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     expect(draft_image).to_be_visible()
     expect(draft_image).to_have_attribute("src", "/media/051bee487bfb5d13.png")
     remove = thread.locator(".lf-composer-media-remove")
-    expect(remove).to_have_css("border-radius", button_radius(page))
+    expect(remove.locator("..")).to_have_css("border-radius", button_radius(page))
     expect(thread.get_by_role("button", name="Send", exact=True)).to_have_attribute(
         "aria-disabled", "false"
     )
@@ -2252,24 +2335,7 @@ def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(
     field.click()
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
 
-    with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        field.evaluate(
-            """(box, encoded) => {
-              const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
-              const transfer = new DataTransfer();
-              for (let index = 0; index < 4; index += 1) {
-                transfer.items.add(new File(
-                  [bytes], `rendering-${index}.png`, {type: 'image/png'}
-                ));
-              }
-              box.dispatchEvent(new ClipboardEvent('paste', {
-                bubbles: true,
-                cancelable: true,
-                clipboardData: transfer,
-              }));
-            }""",
-            base64.b64encode(pixels).decode(),
-        )
+    paste_image(field, pixels, count=4)
 
     expect(field).to_have_js_property("value", "")
     shelf = page.locator(".lf-fab-bar .lf-composer-media")
@@ -3411,7 +3477,7 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
             expect(second).to_have_attribute("aria-checked", "false")
             with page.expect_request("**/api/event") as sent:
                 second.click()
-            assert sent.value.post_data_json["detail"]["options"] == ["held-second"]
+            assert sent.value.post_data_json["detail"]["value"] == ["held-second"]
             expect(first).to_have_attribute("aria-checked", "false")
             expect(second).to_have_attribute("aria-checked", "true")
         else:
@@ -3443,7 +3509,7 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
             assert any(
                 event["kind"] == "action"
                 and event.get("widget") == "held-choice"
-                and event["detail"]["options"] == ["held-second"]
+                and event["detail"]["value"] == ["held-second"]
                 for event in events_model.read_events(serve.page_dir)
             )
         return
@@ -10150,18 +10216,7 @@ def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(
     expect(field).to_be_visible()
     field.click()
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
-    with page.expect_response(lambda response: response.url.endswith("/api/media")):
-        field.evaluate(
-            """(box, encoded) => {
-              const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
-              const transfer = new DataTransfer();
-              transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
-              box.dispatchEvent(new ClipboardEvent('paste', {
-                bubbles: true, cancelable: true, clipboardData: transfer,
-              }));
-            }""",
-            base64.b64encode(pixels).decode(),
-        )
+    paste_image(field, pixels)
     expect(bar.locator(".lf-composer-media img")).to_be_visible()
     content = "\n".join(
         f"Line {n}: the draft shares room with its picture and response choices."

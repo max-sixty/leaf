@@ -72,12 +72,180 @@
   const scope = rootPath === "/" ? "" : rootPath;
   root.dataset.lfPageScope = scope;
 
+  // Tab memory has one storage policy, including before the module graph starts.
+  // Initial package drawings and their later controllers read the same values.
+  const stored = (open, name, prefix = "") => ({
+    read(key) {
+      try {
+        return { available: true, value: open().getItem(prefix + key) };
+      } catch {
+        return { available: false, value: null };
+      }
+    },
+    get(key) {
+      return this.read(key).value;
+    },
+    set(key, value) {
+      try {
+        if (value === null) open().removeItem(prefix + key);
+        else open().setItem(prefix + key, value);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    where(key) {
+      return { store: name, key: prefix + key };
+    },
+    keys() {
+      try {
+        return Object.keys(open())
+          .filter((key) => key.startsWith(prefix))
+          .map((key) => key.slice(prefix.length));
+      } catch {
+        return [];
+      }
+    },
+  });
+  const tabStore = stored(() => sessionStorage, "session", scope);
+  root.lfStorage = { stored, tabStore };
+
+  // A package's synchronous producer draws real instance markup before modules can
+  // run. Delivery calls paint just after the parser closes each declared host; the
+  // module calls it again to adopt those exact nodes, or to draw a later arrival.
+  // Only mechanical tab state enters this drawing. Semantic initial values still
+  // come from the authored document, so keep its original structure and node routes
+  // before a producer moves or replaces anything. These inert copies are the source
+  // of version comparison, never current application state.
+  const producers = new Map();
+  const drawings = new WeakMap();
+  const sources = new WeakMap();
+  const sourceScopes = new WeakSet();
+  const origins = new WeakMap();
+  const parents = new WeakMap();
+  const keepsAttribute = (node, name, value) => {
+    if (node.getAttribute(name) !== value) node.setAttribute(name, value);
+  };
+  const offerElement = (node, cls, pressable = false) => {
+    if (node instanceof HTMLButtonElement && !node.hasAttribute("type"))
+      keepsAttribute(node, "type", "button");
+    keepsAttribute(node, "class", cls ? `${cls} lf-ui` : "lf-ui");
+    keepsAttribute(node, "data-lf-gen", "1");
+    keepsAttribute(
+      node,
+      "data-lf-offer",
+      pressable
+        ? node.localName
+        : node instanceof HTMLButtonElement ||
+            (node.localName === "input" && ["checkbox", "radio"].includes(node.type))
+          ? node.type
+          : "",
+    );
+    return node;
+  };
+  const offer = (tag, cls, label, inputType, pressable = false) => {
+    const node = document.createElement(tag);
+    if (inputType !== undefined) {
+      if (tag !== "input")
+        throw new TypeError("only an input offer can declare an input type");
+      node.type = inputType;
+    }
+    offerElement(node, cls, pressable);
+    if (label !== undefined) node.textContent = label;
+    return node;
+  };
+  const authoredCopy = (node, target = null) => {
+    if (target === null) {
+      // A cloned live document retains custom-element definitions, so attaching
+      // its source tree could run widget constructors and connected callbacks.
+      // Import into a document with no browsing context or widget registry instead.
+      target = document.implementation.createHTMLDocument("");
+      target.replaceChildren();
+    }
+    const source = sources.get(node) ?? node;
+    const copy =
+      source.nodeType === Node.DOCUMENT_NODE
+        ? target
+        : target.importNode(source, false);
+    origins.set(copy, origins.get(source) ?? node);
+    copy.removeAttribute?.("data-lf-opening");
+    const held = source.localName === "template" ? source.content : source;
+    const into = copy.localName === "template" ? copy.content : copy;
+    if (source.localName === "template") origins.set(into, origins.get(held) ?? held);
+    for (const child of held.childNodes) {
+      if (child.matches?.("[data-lf-prepaint], script[data-lf-initial]")) continue;
+      into.append(authoredCopy(child, target));
+    }
+    return copy;
+  };
+  const rememberSource = (source) => {
+    sources.set(origins.get(source), source);
+    const held = source.localName === "template" ? source.content : source;
+    for (const child of held.childNodes) rememberSource(child);
+  };
+  root.lfInitial = {
+    register(tag, render) {
+      // The widget loader imports unregistered producers for later revisions and
+      // thread markup that were absent from the initially delivered document.
+      if (!producers.has(tag)) producers.set(tag, render);
+    },
+    has(tag) {
+      return producers.has(tag);
+    },
+    paint(host) {
+      if (drawings.has(host)) return drawings.get(host);
+      const render = producers.get(host.localName);
+      if (!render) throw new Error(`no initial renderer for <${host.localName}>`);
+      for (const node of [host, ...host.querySelectorAll("*")])
+        if (!parents.has(node)) parents.set(node, node.parentElement);
+      rememberSource(authoredCopy(host));
+      for (let node = host; node; node = node.parentNode) sourceScopes.add(node);
+      const drawing = render(host, { tabStore, offer, offerElement });
+      if (drawing?.then)
+        throw new TypeError(
+          `initial renderer for <${host.localName}> must be synchronous`,
+        );
+      drawings.set(host, drawing);
+      return drawing;
+    },
+    mount(template) {
+      const host = template.content.firstElementChild;
+      // The host stays inert while any part of its source is still arriving. Put
+      // its complete source in place, then draw deepest-first in this same task:
+      // no frame can show an unfinished or uninitialized instance.
+      template.replaceWith(host);
+      for (const node of [host, ...host.querySelectorAll("*")].reverse())
+        if (producers.has(node.localName)) this.paint(node);
+    },
+    restoreSource(root) {
+      for (const template of root.querySelectorAll("template[data-lf-initial-source]"))
+        template.replaceWith(template.content);
+      for (const delivery of root.querySelectorAll("script[data-lf-initial]"))
+        delivery.remove();
+      for (const placeholder of root.querySelectorAll("[data-lf-prepaint]"))
+        placeholder.remove();
+      return root;
+    },
+    authoredCopy,
+    reading(node) {
+      return sources.get(node) ?? (sourceScopes.has(node) ? authoredCopy(node) : node);
+    },
+    offer,
+    offerElement,
+    origin(node) {
+      return origins.get(node);
+    },
+    parent(node) {
+      return parents.has(node) ? parents.get(node) : node.parentElement;
+    },
+  };
+
   // A holder that shows one member at a time (`x-views`, painted `data-lf-views`) opens
   // on the member holding the element the address's fragment names, else on the member
   // this browser tab last showed, else on its first member. A reload puts the member
   // last shown first, because the address need not have followed what was shown: a set
   // below the page's own tab strip changes its member and leaves the fragment.
-  const OPEN_KEY = `${scope}lf-open:`;
+  const OPEN_KEY = "lf-open:";
   const reloaded = performance.getEntriesByType("navigation")[0]?.type === "reload";
   const named = (members) => {
     if (!location.hash) return null;
@@ -90,12 +258,7 @@
     return target && members.find((member) => member.contains(target));
   };
   const kept = (holder, members) => {
-    let id;
-    try {
-      id = sessionStorage.getItem(OPEN_KEY + holder.id);
-    } catch {
-      return null;
-    }
+    const id = tabStore.get(OPEN_KEY + holder.id);
     return members.find((member) => member.id === id);
   };
   const choose = (holder, members) =>
@@ -129,32 +292,17 @@
     { once: true },
   );
 
-  // The marks under `node` taken off, and what delivery wrote in for the first paint
-  // (`x-prepaint`, `data-lf-prepaint`). No revision's markup carries either, so a copy
-  // of the page taken to stand for what its author wrote is read without them.
-  const unmarked = (node) => {
-    for (const member of node.querySelectorAll(`[${OPENING}]`))
-      member.removeAttribute(OPENING);
-    for (const written of node.querySelectorAll("[data-lf-prepaint]")) written.remove();
-    return node;
-  };
-
   // The holder's module asks once, as it upgrades, which member opens, and from then on
   // shows that member itself, so the mark comes off. It records each member it shows,
   // which a reload reopens (storage.js).
   root.lfViews = {
-    unmarked,
     opening(holder, members) {
       for (const member of holder.querySelectorAll(`:scope > [${OPENING}]`))
         member.removeAttribute(OPENING);
       return choose(holder, members);
     },
     keep(holder, member) {
-      try {
-        sessionStorage.setItem(OPEN_KEY + holder.id, member.id);
-      } catch {
-        // A tab that cannot remember still shows the member.
-      }
+      tabStore.set(OPEN_KEY + holder.id, member.id);
     },
   };
 })();

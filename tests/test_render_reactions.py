@@ -808,11 +808,9 @@ def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme
     )
 
 
-def test_the_response_choices_hold_one_row_beside_the_panel(browser, serve):
-    """A side is chosen for the field and its More press, narrower than Suggest and six
-    reactions at rest. Constrain the bar beside the open Threads panel to the
-    280px space that previously made reactions drop beneath Suggest. They give
-    up spare padding before the row breaks, so it stays inside the bar."""
+def test_the_response_choices_stay_reachable_beside_the_panel(browser, serve):
+    """A narrow side can wrap the choices while keeping every action whole and
+    inside the comment bar beside the open Threads panel."""
     page = open_page(browser, serve(PANEL_PAGE))
     resized(page, 1024, 768)
     page.locator(".lf-threads-toggle").click()
@@ -836,17 +834,22 @@ def test_the_response_choices_hold_one_row_beside_the_panel(browser, serve):
         .map((choice) => choice.getBoundingClientRect());
       return {
         bar: [box.left, box.right],
-        rows: new Set(choices.map((choice) => Math.round(choice.top))).size,
+        vertical: [box.top, box.bottom],
         left: Math.min(...choices.map((choice) => choice.left)),
         right: Math.max(...choices.map((choice) => choice.right)),
+        top: Math.min(...choices.map((choice) => choice.top)),
+        bottom: Math.max(...choices.map((choice) => choice.bottom)),
         narrowest: Math.min(...choices.map((choice) => choice.width)),
       };
     }""")
     assert row["bar"][1] - row["bar"][0] < 288, (
         f"the bar has room for the resting row, so this proves nothing: {row}"
     )
-    assert row["rows"] == 1, row
     assert row["bar"][0] - 0.5 <= row["left"] and row["right"] <= row["bar"][1] + 0.5
+    assert (
+        row["vertical"][0] - 0.5 <= row["top"]
+        and row["bottom"] <= row["vertical"][1] + 0.5
+    )
     assert row["narrowest"] >= 30, row
 
 

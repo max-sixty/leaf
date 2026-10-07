@@ -1192,7 +1192,7 @@ test("the publisher carries the server's Ask reading, page asks before thread as
 test("a standing report supplies desired widget state", () => {
   const valueSpec = {
     unit: "widget",
-    record: { kind: "value", attr: "choice", value: "choice" },
+    record: { kind: "value", attr: "choice" },
   };
   const source = {
     ...descriptor,
@@ -1206,7 +1206,7 @@ test("a standing report supplies desired widget state", () => {
     kind: "report",
     widget: source.id,
     action: "preview",
-    detail: { choice: "reported" },
+    detail: { value: "reported" },
     revision: 1,
     id: "report-1",
     seq: 1,

@@ -456,15 +456,14 @@ def test_a_comment_box_opens_where_a_panel_beside_the_page_leaves_it_in_sight(
     page = open_page(browser, serve(walkthrough))
     resized(page, 1440, 900)
     panel = page.get_by_role("dialog", name="Threads", exact=True)
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    expect(panel).to_be_visible()
     opener = page.locator("#pr-exact-patch .lf-diff-file-comment").first
     opener.scroll_into_view_if_needed()
     opener.click()
     page.keyboard.type("draft words")
     box = page.locator("leaf-text.lf-fab-input")
     expect(page.locator("#pr-exact-patch leaf-text.lf-fab-input")).to_be_focused()
+    page.locator(".lf-threads-toggle").click()
+    expect(panel).to_be_visible()
     page_at_rest(page)
     edge = panel.locator(".lf-edge").first.bounding_box()
     middle = edge["y"] + edge["height"] / 2
@@ -1231,7 +1230,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
     ]
-    assert [event["detail"]["options"] for event in actions] == [
+    assert [event["detail"]["value"] for event in actions] == [
         ["review-cache-auto"],
         ["review-billing-legacy"],
     ]
@@ -1377,7 +1376,7 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
     ]
-    assert [event["detail"]["options"] for event in actions] == [
+    assert [event["detail"]["value"] for event in actions] == [
         ["comparison-policy-shared"]
     ]
 
@@ -3187,7 +3186,7 @@ def test_keys_answer_a_question_from_its_marks(browser, serve):
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]
     assert acts[-1]["widget"] == "live-question"
-    assert acts[-1]["detail"] == {"options": ["lq-keep"]}
+    assert acts[-1]["detail"] == {"value": ["lq-keep"]}
 
 
 def test_the_ask_walk_position_shares_the_shortcut_line(browser, serve):

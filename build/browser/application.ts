@@ -121,7 +121,10 @@ function advance(
 
 interface ActionSpec {
   unit: string;
-  record?: { kind: string; value: string; attr?: string };
+  record?:
+    | { kind: "body" }
+    | { kind: "attribute" | "value"; attr: string }
+    | { kind: "position"; within: string };
   writer: "user" | "agent";
 }
 

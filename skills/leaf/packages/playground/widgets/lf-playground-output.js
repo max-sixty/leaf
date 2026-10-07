@@ -11,16 +11,6 @@ customElements.define(
       once(this);
     }
 
-    renderValues(values, controls) {
-      for (const slot of this.querySelectorAll("lf-playground-value")) {
-        const name = slot.getAttribute("for");
-        keepsText(
-          slot,
-          `${values[name]}${controls.get(name).getAttribute("unit") ?? ""}`,
-        );
-      }
-    }
-
     renderInstruction(instruction) {
       keepsText(this, instruction);
     }

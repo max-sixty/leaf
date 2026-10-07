@@ -533,7 +533,7 @@ def test_a_start_on_a_widget_task_holds_the_moves_delivered_before_it(page_dir):
             "revision": 1,
             "widget": "choice",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
         },
     )
     task = written(leaf("task", "open", page_dir, "choice", "Build the chosen plan"))
@@ -555,7 +555,7 @@ def test_a_start_on_a_widget_task_holds_the_moves_delivered_before_it(page_dir):
             "revision": 1,
             "widget": "choice",
             "action": "choose",
-            "detail": {"options": ["backfill-first"]},
+            "detail": {"value": ["backfill-first"]},
         },
     )
     [workflow] = state_json(page_dir)["workflows"]
@@ -748,7 +748,7 @@ def test_an_asks_task_ends_only_at_its_answer_and_a_questions_at_the_agents_end(
             "revision": 1,
             "widget": "choice",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
         },
     )
     answered = leaf("task", "end", page_dir, ask["id"], "done")

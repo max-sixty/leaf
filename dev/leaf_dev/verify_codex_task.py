@@ -185,8 +185,8 @@ def journey(
         )
         task.say(
             "I wrote a Leaf source at ./source.html. "
-            f"Run `{command}` as a long-running shell command and leave it running "
-            "so I can review it. The command connects feedback automatically. "
+            f"Run `{command}` so I can review it. "
+            "Keep its preview available; feedback connects automatically. "
             "Handle the comments I leave on the page."
         )
     else:

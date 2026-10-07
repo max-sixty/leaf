@@ -122,13 +122,22 @@ jobs:
       # but slowed each test 1.3–1.46×, so three take the idle share without
       # saturating the deadlines browser tests wait under.
       - name: 🧪 Python tests
+        id: python-tests
+        background: true
         run: >-
           uv run pytest tests -n 3 -v --junitxml=.tmp/test-results/results.xml
           ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }}
 
+      # The website build can overlap Python; Docker must wait because its host
+      # interface changes interrupt Chrome's loopback requests in browser tests.
       - name: Build website
         if: github.event_name == 'pull_request'
         run: uv run leaf-dev site
+
+      # wait runs even when the build fails. Propagate Python's result and finish
+      # its artifacts before starting Docker or the unconditional upload below.
+      - name: Wait for Python tests
+        wait: python-tests
 
       - name: 🧪 Website worker tests
         if: github.event_name == 'pull_request'

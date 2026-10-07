@@ -1531,7 +1531,7 @@ Sortable.prototype = /** @lends Sortable.prototype */{
         }
         ghostRelativeParentInitialScroll = getRelativeScrollOffset(ghostRelativeParent);
       }
-      ghostEl = dragEl.cloneNode(true);
+      ghostEl = options.cloneElement ? options.cloneElement(dragEl) : dragEl.cloneNode(true);
       toggleClass(ghostEl, options.ghostClass, false);
       toggleClass(ghostEl, options.fallbackClass, true);
       toggleClass(ghostEl, options.dragClass, true);
@@ -1567,7 +1567,7 @@ Sortable.prototype = /** @lends Sortable.prototype */{
     }
     pluginEvent('setupClone', this);
     if (!Sortable.eventCanceled) {
-      cloneEl = clone(dragEl);
+      cloneEl = this.options.cloneElement ? this.options.cloneElement(dragEl) : clone(dragEl);
       cloneEl.removeAttribute("id");
       cloneEl.draggable = false;
       cloneEl.style['will-change'] = '';
@@ -1752,9 +1752,9 @@ Sortable.prototype = /** @lends Sortable.prototype */{
         dragOverEvent('revert');
         if (!Sortable.eventCanceled) {
           if (nextEl) {
-            rootEl.insertBefore(dragEl, nextEl);
+            rootEl.moveBefore(dragEl, nextEl);
           } else {
-            rootEl.appendChild(dragEl);
+            rootEl.moveBefore(dragEl, null);
           }
         }
         return completed(true);
@@ -1779,9 +1779,9 @@ Sortable.prototype = /** @lends Sortable.prototype */{
           capture();
           if (elLastChild && elLastChild.nextSibling) {
             // the last draggable element is not the last node
-            el.insertBefore(dragEl, elLastChild.nextSibling);
+            el.moveBefore(dragEl, elLastChild.nextSibling);
           } else {
-            el.appendChild(dragEl);
+            el.moveBefore(dragEl, null);
           }
           parentEl = el; // actualization
 
@@ -1798,7 +1798,7 @@ Sortable.prototype = /** @lends Sortable.prototype */{
         targetRect = getRect(target);
         if (_onMove(rootEl, el, dragEl, dragRect, target, targetRect, evt, false) !== false) {
           capture();
-          el.insertBefore(dragEl, firstChild);
+          el.moveBefore(dragEl, firstChild);
           parentEl = el; // actualization
 
           changed();
@@ -1846,9 +1846,9 @@ Sortable.prototype = /** @lends Sortable.prototype */{
           setTimeout(_unsilent, 30);
           capture();
           if (after && !nextSibling) {
-            el.appendChild(dragEl);
+            el.moveBefore(dragEl, null);
           } else {
-            target.parentNode.insertBefore(dragEl, after ? nextSibling : target);
+            target.parentNode.moveBefore(dragEl, after ? nextSibling : target);
           }
 
           // Undo chrome's scroll adjustment (has no effect on other browsers)
@@ -2654,9 +2654,9 @@ Revert.prototype = {
     }
     var nextSibling = getChild(this.sortable.el, this.startIndex, this.options);
     if (nextSibling) {
-      this.sortable.el.insertBefore(dragEl, nextSibling);
+      this.sortable.el.moveBefore(dragEl, nextSibling);
     } else {
-      this.sortable.el.appendChild(dragEl);
+      this.sortable.el.moveBefore(dragEl, null);
     }
     this.sortable.animateAll();
     if (putSortable) {

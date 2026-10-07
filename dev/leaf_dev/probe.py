@@ -184,7 +184,9 @@ def probe(
     recording.gif. View the action timeline, filmstrip, DOM, console and network:
 
     \b
-      uv run playwright show-trace DIR/worktree/trace.zip
+      uv run leaf-dev trace-server DIR/worktree/trace.zip
+
+    The server prints its viewer URL and opens no browser window.
 
     Recordings add observation overhead; they are behavior evidence, not timing
     benchmarks. Plain recording inserts no pauses. --actions adds visible input

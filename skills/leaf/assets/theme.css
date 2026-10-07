@@ -828,24 +828,32 @@ main {
 /* Where a box sticking here stops: the sticky headers standing over the top of its
  * scroller, stacked. On the root it starts at the banner's height (above). Every other
  * box that scrolls starts it again from its own top. A box the theme makes scroll
- * states that beside its overflow, so it holds from the first paint, before the
- * runtime runs (a bounded block, a table, a board; a workspace pane's body from minus
- * its top padding, layouts.css). The runtime marks every box it finds scrolling,
- * whoever made it scroll (reach.js, `paintSlot`), and the mark restarts the slot at no
- * specificity ([data-lf-scrolls], shadow.css), so a box the page or a package makes
- * scroll restarts too, and one that states its own start keeps it. A box that sticks
- * keeps the value it met for its own `top`, so a sticking box that scrolls headers
- * restarts the slot for them itself (a column's sidebar, layouts.css). A sticky header
- * (a page tab strip, a diff's file header) has a stated height and sticks at the
- * `--lf-top` it inherits; what it stands over takes that value plus its height, which
- * the header's holder passes on under a second name, since a custom property cannot
- * read itself. The stacked value goes on a box that does not itself scroll, since a
- * box that scrolls is read where it stands. A landing clears the headers over a whole
- * scroller through its `scroll-padding` and one over part of it through
- * `scroll-margin` on the rows under it, and the runtime's reading of what is on screen
- * takes the value at each element (geometry.js, `headerInset`). Registered so that
- * reading is a length. */
+ * states that beside its overflow, so it holds from the first paint, before the runtime
+ * runs (a bounded block, a table, a board; a workspace pane's body from minus its top
+ * padding, layouts.css). The runtime marks every box it finds scrolling, whoever made
+ * it scroll (reach.js, `paintSlot`), and the mark restarts the slot ([data-lf-scrolls],
+ * state.css), so a box the page or a package makes scroll restarts too. The mark sits
+ * above packages and Layouts, so it outranks a value stacked onto a box that scrolls (a
+ * page tab's panel the page makes scroll), and it restarts at `--lf-top-start`, which a
+ * box that starts its slot other than at 0 states beside its `--lf-top` (a workspace
+ * pane's body, a thread list). A box that clips without scrolling says
+ * `overflow: clip`, since `hidden` scrolls, for a script, and so holds the headers
+ * inside it. A box that sticks keeps the value it met for its own `top`, so a sticking
+ * box that scrolls headers restarts the slot for them itself (a column's sidebar,
+ * layouts.css).
+ * A sticky header (a page tab strip, a diff's file header) has a stated height and
+ * sticks at the `--lf-top` it inherits; what it stands over takes that value plus its
+ * height, which the header's holder passes on under a second name, since a custom
+ * property cannot read itself. The stacked value goes on a box that does not itself
+ * scroll, since a box that scrolls is read where it stands. A landing clears the
+ * headers over a whole scroller through its `scroll-padding` and one over part of it
+ * through `scroll-margin` on the rows under it, and the runtime's reading of what is on
+ * screen takes the value at each element (geometry.js, `headerInset`). Registered so
+ * that reading is a length. */
 @property --lf-top { syntax: "<length>"; inherits: true; initial-value: 0px; }
+/* Where a box that scrolls starts the slot for what it holds, read by the restart above;
+ * its own, so not inherited, which would start a scroller inside it there too. */
+@property --lf-top-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
 /* The same for a box sticking at its scroller's foot: what it stands over takes its
  * height and offset as `--lf-bottom`, and the runtime's reading of what is on screen
  * leaves that band out too (geometry.js, `footerInset`). A long open thread's reply
@@ -865,8 +873,9 @@ main {
 /* The column: the reading measure, and the one rule that sets it. Text keeps it wherever
  * it stands: a paragraph, a list item or a heading is never set wider than the column,
  * however wide the box around it. So does a block allocated the column
- * (`data-lf-space="column"`): a widget whose content is read as lines of text declares
- * it (`x-space: column`), and an occurrence asks for it with `data-width`. Both start at
+ * (`data-lf-space="column"`): a widget whose content is read as lines of text, or a box
+ * that frames prose (an Ask, a callout, which declares it as an idiom), declares it
+ * (`x-space: column`), and an occurrence asks for it with `data-width`. Both start at
  * their holder's start edge, so in a flow wider than the column (a wide page, a pane, a
  * sidebar Layout's body) the widget's box and the prose around it share one left edge
  * and one width. It caps the width and sets no margin, so a widget's own arrangement,
@@ -885,6 +894,19 @@ main {
   :where([data-lf-space="column"]) {
     box-sizing: border-box;
     --lf-reach: min(var(--col), var(--lf-room, 0px));
+  }
+  /* A box allocated the column widens to the widest allocation among its own blocks, so
+   * an Ask or a callout around a chart or table that declares `wide` or `available`
+   * frames that block rather than clipping it to the measure. On a column page the box
+   * stays in the column and the block breaks out of it (layouts.css); in a wider flow
+   * the box takes the room. Only its children count: a block inside one of them, such as
+   * a table in an option or a folded disclosure, is held to that child's width, so an
+   * option list keeps the measure whatever one option holds. */
+  :where([data-lf-space="column"]:has(> [data-lf-space="wide"])) {
+    max-inline-size: var(--wide);
+  }
+  :where([data-lf-space="column"]:has(> [data-lf-space="available"])) {
+    max-inline-size: none;
   }
   /* A bounded block scrolls within its stated height. A widget can assign that bound to
    * an inner reader instead, keeping its own caption outside the scroller. */
@@ -1718,4 +1740,18 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   padding: var(--lf-pane-top) var(--pane-inset) var(--pane-inset);
   container-type: inline-size;
   --lf-block-frame: 1;
+}
+
+/* Board and swipe motion carry a compact card label without duplicating its live
+ * controls. The motion owner sets position and travel; this face stays bounded. */
+.lf-motion-preview {
+  box-sizing: border-box; max-width: 24rem; max-height: 3.5rem;
+  padding: 12px; border: 1px solid var(--rule); border-radius: var(--r);
+  background: var(--card); color: var(--ink); font: inherit;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  pointer-events: none;
+}
+.lf-motion-preview.lf-inhand {
+  max-width: none; /* Keep Sortable’s card width so its grip stays under the pointer. */
+  opacity: 1; box-shadow: 0 8px 24px var(--shade);
 }

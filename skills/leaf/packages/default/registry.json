@@ -17,6 +17,7 @@
   },
   "lf-ask": {
     "description": "A complete question for the user, with its context and one answer widget.",
+    "x-space": "column",
     "x-instructions": "Begin with a direct heading that states the question without relying on surrounding prose. Include the evidence needed to answer and exactly one non-quoted widget declaring a local Ask through x-awaits. Keep an ordinary semantic section around the Ask when the document needs a section landmark.",
     "type": "object",
     "properties": {
@@ -677,8 +678,8 @@
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tab": {
-    "description": "One labeled view in a tab set, optionally summarized in a side-list queue.",
-    "x-instructions": "Use summary for the few words a side-list queue needs for scanning, such as severity, age, or suggested outcome. Keep ids distinct across tabs: they share the page's one id space.",
+    "description": "One labeled view in a tab set, optionally summarized and grouped in a side-list queue.",
+    "x-instructions": "Use summary for the few words a side-list queue needs for scanning, such as severity, age, or suggested outcome. Where a queue's items fall into kinds the user works through in turn, such as merge, close, and FYI, give each item its kind as group and place each kind's items together in the order the user should take them; neighbouring tabs with the same group stand under one heading. Keep ids distinct across tabs: they share the page's one id space.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -690,6 +691,9 @@
         "type": "string"
       },
       "summary": {
+        "type": "string"
+      },
+      "group": {
         "type": "string"
       }
     },

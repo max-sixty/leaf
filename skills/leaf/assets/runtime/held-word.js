@@ -1,15 +1,17 @@
 /* Press and hold to read, release to press.
 
    Some controls show only part of their word: a reaction shows its glyph, and a diff
-   file's row cuts its path short at the folders. The whole word is the control's
-   tooltip, which a finger never sees, so such a control wears `HOLDS_WORD`, and a press
-   held on it reads the word. The control under the pointer wears `data-lf-held-word`
-   for as long as the press is held, and its surface paints the word for that state as
-   it does while the keyboard stands on the control (shadow.css for a reaction, theme.css
-   for a margin entry's label, the diff package's shadow.css for a file's path). Sliding
-   onto a neighbouring control of the same parent reads that one instead, and the
-   release presses the control it ends on, or none when it ends off them. So a tap still
-   presses, and a finger that reads the wrong word slides off before letting go.
+   file's row narrower than its path cuts it short, from the folders. The whole word is
+   the control's tooltip, which a finger never sees, so such a control wears `HOLDS_WORD`,
+   and a press held on it reads the word. The control under the pointer wears
+   `data-lf-held-word` for as long as the press is held, and its surface paints the word
+   for that state as it does while the keyboard stands on the control (shadow.css for a
+   reaction, theme.css for a margin entry's label, the diff package's shadow.css for a
+   file's path, only while the row cuts it short; a row showing its whole path paints
+   nothing and keeps the gesture). Sliding onto a neighbouring control of the same parent
+   reads that one instead, and the release presses the control it ends on, or none when
+   it ends off them. So a tap still presses, and a finger that reads the wrong word
+   slides off before letting go.
 
    The release presses by dispatching the control's click, counted as the pointer's
    (surfaces read the count to tell a pointer from the keyboard), and the browser's own

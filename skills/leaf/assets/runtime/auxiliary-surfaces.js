@@ -37,8 +37,8 @@
 import { openPopovers } from "./keyboard/layer-stack.js";
 import { registerAuxiliaryModality } from "./keyboard/register.js";
 import { hides, placeHolder } from "./geometry.js";
-import { under } from "./shadow.js";
-import { deepFocus, tabStops } from "./focus.js";
+import { hostIn, under } from "./shadow.js";
+import { deepFocus, onStanding, tabStops } from "./focus.js";
 import { userStore } from "./storage.js";
 import { pagePresented } from "./presentation.js";
 import { keeps, keepsHidden } from "./keeps.js";
@@ -54,7 +54,13 @@ export const standsBeside = () =>
     getComputedStyle(document.body).getPropertyValue("--lf-auxiliary-beside"),
   ) > 0;
 
-export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterChange }) {
+export function createAuxiliarySurfaces({
+  chromeRoot,
+  band,
+  syncLayout,
+  afterChange,
+  reachChanged,
+}) {
   const controllers = new Map();
   const scrim = document.createElement("div");
   scrim.className = "lf-auxiliary-scrim";
@@ -220,9 +226,19 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
     };
   }
 
+  // What the page can seat the user in changes with what stands over it: a surface
+  // opening, closing, arriving, or its edge or the window moving. One reading a frame,
+  // since a drag or a resize syncs on every event.
+  let reachQueued = false;
   function sync() {
     const selected = controllers.get(selectedKey);
     cover(selected && selected !== arriving && selected.covers() ? selected : null);
+    if (reachQueued) return;
+    reachQueued = true;
+    nextRender(() => {
+      reachQueued = false;
+      reachChanged();
+    });
   }
 
   function select(
@@ -305,12 +321,16 @@ export function createAuxiliarySurfaces({ chromeRoot, band, syncLayout, afterCha
       },
       true,
     );
-    document.addEventListener("focusin", (event) => {
+    // Standing anywhere outside the covering surface, the document's representative of
+    // where the user stands, is taken back into it.
+    onStanding((node) => {
+      const at = node && hostIn(node, document);
       if (
+        !at ||
         !active ||
         placingFocus ||
-        active.surface.contains(event.target) ||
-        nativeLayerContains(event.target)
+        active.surface.contains(at) ||
+        nativeLayerContains(at)
       )
         return;
       place(active.focus() ?? active.surface);

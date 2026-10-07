@@ -294,11 +294,24 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    field subtracts its border; messages and metadata take the full inset. */
 :root, .lf-page-thread, .lf-thread { --lf-thread-text-inset: 13px; }
 .lf-thread-transcript { min-width: 0; padding-inline: var(--lf-thread-text-inset) 0; }
+/* Conversation flow is separate from the outer flex body that retains reply room. */
+.lf-thread-content { display: flow-root; min-width: 0;
+          anchor-scope: --lf-thread-headline;
+          --lf-thread-action-room: max(28px, var(--aim-floor));
+          --lf-thread-notice-room: max(28px, var(--aim-floor));
+          --lf-thread-reaction-room: 0px; }
 /* A semantic separator draws its boundary without sizing the transcript. */
 .lf-read-boundary { height: 0; }
-.lf-msg { margin: 16px 0 0; }
+/* One animated phase feeds every painted part of a message. Animating the
+   background itself lets Firefox's compositor leave an inheriting sticky head
+   behind; a typed inherited ground keeps both paints on the same frame. */
+@property --lf-msg-ground { syntax: "<color>"; inherits: true; initial-value: transparent; }
+@property --lf-msg-arrival { syntax: "<number>"; inherits: false; initial-value: 0; }
+.lf-msg { margin: 16px 0 0; --lf-msg-rest-ground: transparent;
+          --lf-msg-ground: color-mix(in srgb,
+            var(--hi-tint) calc(var(--lf-msg-arrival) * 100%), var(--lf-msg-rest-ground));
+          background-color: var(--lf-msg-ground); }
 .lf-thread-transcript > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) { margin-top: 0; }
-.lf-msg.agent { position: relative; }
 /* All message headers share one shrinking policy, including sticky margin heads.
    An author may ellipsize while time and receipt use their own intrinsic room. */
 .lf-msg-head { display: flex; align-items: baseline; gap: var(--sp-2);
@@ -310,19 +323,59 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-msg-head b { flex: 0 1 auto; min-width: 0; overflow: hidden;
           text-overflow: ellipsis; font-size: var(--lf-msg-name-size);
           font-weight: 600; color: var(--ink); }
-/* Thread actions and held news keep a row outside the transcript. Neither delivery
-   nor a summary can dim or hide them; news takes only the space the actions leave. */
-.lf-thread-controls { display: grid; align-items: center; gap: var(--sp-2);
-          grid-template-columns: minmax(0, 1fr) max-content;
-          min-height: max(28px, var(--aim-floor));
-          padding-inline: var(--lf-thread-text-inset) 0;
+/* Held news and header words spend separate retained allocations. A receipt may
+   change inside its metadata box, but cannot grow underneath the notice. */
+.lf-msg-head > .lf-held-header-item {
+          flex: 0 0 var(--lf-held-header-width);
+          max-inline-size: var(--lf-held-header-width);
+          box-sizing: border-box; overflow: hidden; }
+.lf-msg-meta.lf-held-header-item > time { flex-shrink: 0; }
+/* Independent controls overlay the first header's line outside message folds.
+   The line has a stationary box, and its notice begins at the metadata edge
+   ThreadView retains while news waits. Neither arrival nor changing words sizes
+   a message header, its reaction control, or the full-width body below it. */
+.lf-thread-controls { position: absolute; position-anchor: --lf-thread-headline;
+          inset-inline-start: anchor(left); inset-block-start: anchor(center); translate: 0 -50%;
+          inline-size: calc(anchor-size(width) + var(--lf-thread-action-room) + var(--sp-2));
+          block-size: var(--lf-thread-action-room);
+          display: flex; align-items: center; pointer-events: none;
           font-size: var(--t-6); }
+.lf-thread-controls > * { pointer-events: auto; }
+.lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
+  > .lf-msg:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
+          anchor-name: --lf-thread-headline;
+          min-height: var(--lf-thread-action-room); align-items: center;
+          box-sizing: border-box;
+          margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
+          padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2) + var(--lf-thread-reaction-room)); }
+.lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
+  > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint)
+  > .lf-summary-checkpoint > .lf-summary-header {
+          anchor-name: --lf-thread-headline;
+          min-height: var(--lf-thread-action-room); box-sizing: border-box;
+          margin-inline-end: calc(var(--lf-thread-action-room) + var(--sp-2));
+          padding-inline-end: calc(var(--lf-thread-notice-room) + var(--sp-2)); }
+.lf-thread-content:has(> .lf-thread-controls):has(> .lf-thread-transcript
+  > .lf-msg.agent:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-react-strip) {
+          --lf-thread-reaction-room: calc(max(26px, var(--aim-floor)) + var(--sp-2)); }
+.lf-thread-content:has(> .lf-thread-controls) > .lf-thread-transcript
+  > .lf-msg.agent:nth-child(1 of .lf-msg, .lf-thread-checkpoint) > .lf-msg-head {
+          anchor-name: --lf-thread-headline, --lf-msg-head; }
 .lf-thread-meta-actions { display: inline-flex; flex: none; align-items: center;
           gap: 4px; margin-inline-start: auto; }
-.lf-thread-controls > .lf-thread-meta-actions { grid-column: 2; }
-.lf-thread-controls > .lf-thread-news { grid-column: 1; justify-self: start;
-          max-width: 100%; overflow: hidden; text-overflow: ellipsis;
-          white-space: nowrap; }
+.lf-thread-controls > .lf-thread-meta-actions {
+          min-height: var(--lf-thread-action-room); }
+.lf-thread-controls > .lf-thread-news {
+          position: absolute;
+          inset-inline-start: calc(var(--lf-thread-news-start, 0px) + var(--sp-2));
+          inline-size: var(--lf-reserved-width, max-content);
+          max-inline-size: max(0px, min(
+            calc(100% - var(--lf-thread-news-start, 0px) - 2 * var(--sp-2) - var(--lf-thread-action-room) - var(--lf-thread-reaction-room)),
+            calc(var(--lf-thread-news-visible-end, 100%) - var(--lf-thread-news-start, 0px) - var(--sp-2))));
+          box-sizing: border-box; min-width: 0;
+          min-height: var(--lf-thread-action-room);
+          overflow: hidden; text-overflow: ellipsis;
+          white-space: nowrap; text-align: start; }
 /* What a seat holds while it would move the page under the reader (thread/held-news.js).
    The rows it appears in already stand at the height of a control beside it: the head
    controls row's Resolve, the resolved row's Reopen. Centred rather than on the row's baseline,
@@ -533,17 +586,25 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           display: none; }
 .lf-react-strip > .lf-react-palette:not(:popover-open, :has(> [aria-pressed="true"])) {
           display: none; }
-/* A reply with no feedback keeps no row. Its add control sits over the unused
-   top-right corner and appears only for the message under pointer or keyboard focus.
+/* A reply with no feedback keeps no row. Its add control follows the message
+   header's right edge and centre, including when thread actions narrow that header;
+   the full-width message body does not place it. It appears only for the message
+   under pointer or keyboard focus.
    The picker is an overlaid menu below that control; opening it never moves this
    message or the threads after it. At rest only feedback already left earns
    flow space. */
+.lf-msg.agent { anchor-scope: --lf-msg-head; }
+.lf-msg.agent > .lf-msg-head { anchor-name: --lf-msg-head; }
+.lf-msg.agent:has(> .lf-react-strip) > .lf-msg-head {
+          --lf-react-row: max(26px, var(--aim-floor));
+          padding-inline-end: var(--lf-react-row); }
 .lf-react-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
           margin-top: 0; anchor-scope: --lf-react-trigger; }
 .lf-react-strip:has(.lf-react[aria-pressed="true"]) { margin-top: 4px; }
 .lf-react-strip > .lf-react-trigger {
           appearance: none; position: absolute; z-index: 2; anchor-name: --lf-react-trigger;
-          inset-block-start: -3px; inset-inline-end: -2px;
+          position-anchor: --lf-msg-head;
+          inset-block-start: anchor(center); inset-inline-end: anchor(right); translate: 0 -50%;
           box-sizing: border-box; inline-size: 26px; block-size: 26px; padding: 0;
           display: inline-flex; align-items: center; justify-content: center;
           border-radius: var(--r);
@@ -589,15 +650,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    stands on every reply for good; either way it is more than an overlay on the corner
    can hold. Hung there at the floor's size it covered the last words of the reply's
    first line at 360px, so the head row it stands beside holds its height and the
-   trigger stands in that row. The head's words keep their shared baseline and are
-   centred on the trigger by padding. */
+   trigger stands in that row. Its words and trigger share the header's centre. */
 @media (pointer: coarse), (hover: none) {
-  .lf-react-strip > .lf-react-trigger { inset-block-start: 0; }
   .lf-msg.agent > .lf-msg-head {
           --lf-react-row: max(26px, var(--aim-floor));
           box-sizing: border-box; min-height: var(--lf-react-row);
-          padding-block-start: max(0px, (var(--lf-react-row) - 1lh) / 2);
-          padding-inline-end: var(--lf-react-row); }
+          align-items: center; padding-inline-end: var(--lf-react-row); }
 }
 .lf-msg-meta { display: flex; align-items: baseline; gap: var(--sp-2); min-width: 0; }
 .lf-msg-sending { color: var(--muted); font-weight: 600; white-space: nowrap; }
@@ -611,10 +669,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * every declared tree, and a diff's lines scroll in one. No offsets: relative moves
  * nothing. */
 [data-lf-holds] { position: relative; }
-/* A box that scrolls starts the sticky-header slot again at its own top (theme.css, at
- * `--lf-top`), whoever made it scroll: reachScrollers marks it. At no specificity, so a
- * box that states where its own slot starts keeps that. */
-:where([data-lf-scrolls]) { --lf-top: 0px; }
 /* The layer's marks for a box that shows less than it holds across (reachScrollers, for
  * why the sweep and not a rule beside each overflow decides who wears them). Scrolling
  * is the honest answer when the room ran short, and on a platform drawing overlay
@@ -962,3 +1016,5 @@ pre:hover + .lf-code-copy,
 .lf-reply-continuity:not(details) { display: flex; flex-direction: column;
   min-block-size: var(--lf-thread-body-extent, 0px); }
 .lf-reply-space { flex: 1 0 0; min-block-size: 0; }
+.lf-reply-continuity > .lf-thread-reply leaf-text:not(:state(placeholder-shown)) {
+  block-size: var(--lf-reply-writing-room, auto); }

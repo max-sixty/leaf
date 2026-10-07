@@ -175,8 +175,9 @@
    * surplus. */
   @property --lf-breakout-width { syntax: "*"; inherits: false; initial-value: 100%; }
   @media screen {
-    /* `data-lf-space` is the room an element takes: what its tag declares (x-space), or
-     * the page's own occurrence saying so (`data-width`). Delivery paints it into the
+    /* `data-lf-space` is the room an element takes: what its tag or idiom declares
+     * (x-space), or the page's own occurrence saying so (`data-width`). Delivery paints
+     * it into the
      * served document (revision_delivery.py, `mark_declared`), so a width is in the first
      * paint rather than a reflow once leaf.js resolves. In a message the runtime withholds
      * the room deliberately, the document's rather than the panel's, by not painting it.
@@ -204,6 +205,10 @@
        * with nothing reported. Size containment zeroes the box's say in any ancestor's
        * intrinsic width; what it holds already scrolls. */
       contain: inline-size;
+      /* The allocation is the box's outer width, as the column's is (theme.css), so a
+       * padded callout granted `wide` stands at `--wide` beside a wide table rather than
+       * its padding and border past it. */
+      box-sizing: border-box;
     }
     /* `wide` is one width wherever the block stands. The breakout above only grows a
      * block past its holder, so in a holder already wider than `--wide`, such as a wide
@@ -217,7 +222,11 @@
     [data-lf-space="available"] {
       --lf-reach: var(--lf-room, 0px);
     }
-    [data-lf-space] [data-lf-space] {
+    /* A breakout inside another takes its holder's width. A box allocated the column is
+     * no holder of that kind: one that draws a frame withholds the room as any frame does
+     * (below), and one that does not, such as an Ask, lets a breakout through as a section
+     * does, and widens to one of its own blocks in a wider flow (theme.css). */
+    [data-lf-space]:not([data-lf-space="column"]) [data-lf-space] {
       --lf-room: 100%;
     }
     /* A widget whose upgrade failed is showing the message and the source it choked on
@@ -452,8 +461,10 @@
       min-block-size: 0;
       overflow: auto;
       /* A sticking box stops at its scroller's padding edge, so the body's own top
-       * inset is taken back to put the stop at the scrollport's top (theme.css). */
-      --lf-top: calc(-1 * var(--lf-pane-top, 0px));
+       * inset is taken back to put the stop at the scrollport's top: the body's own
+       * start (`--lf-top-start`, theme.css). */
+      --lf-top-start: calc(-1 * var(--lf-pane-top, 0px));
+      --lf-top: var(--lf-top-start);
       overscroll-behavior: contain;
       scrollbar-gutter: stable;
     }

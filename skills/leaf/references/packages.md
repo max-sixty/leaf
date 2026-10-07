@@ -4,6 +4,9 @@ A package is the directory Leaf authors, shares, and adds to a page. It may hold
 theme, one widget, a family of widgets, helper modules, libraries, external-data
 contracts, or any combination of them. The layer is different: it is the checked
 result that `page init` vendors after composing the kernel and packages.
+Creating, checking, installing, and using a package requires no browser build or
+npm command. Write widgets and helper modules as browser-loadable JavaScript;
+Leaf copies them directly and they use the shipped `/runtime/widget-api.js`.
 
 ## Package reach
 
@@ -90,12 +93,11 @@ package/
 ├── theme.css           rules in the layer's shared cascade layer
 ├── shadow.css          rules that also reach declared shadow trees
 ├── instructions/       Markdown instructions named for their audiences
-├── runtime/            browser modules and replacements by vendored path
+├── runtime/            package-owned browser modules
 ├── widgets/            entry modules and their private helpers
 ├── vendor/             third-party libraries or data files
 ├── scripts/            command-line tools `leaf package run` runs; never vendored
 ├── icon.svg            optional replacement by path
-└── leaf.js             optional runtime replacement
 ```
 
 No individual file is required. The kernel supplies the files every complete layer
@@ -118,8 +120,15 @@ vocabulary in the kernel; a package without widgets is an unscoped page theme.
 A widget module's adopted sheet joins the same layer. Shadow files concatenate:
 a declared `x-shadow` root built with `shadowStage` receives every package's `shadow.css`
 in layer order, and the document reads each package's `shadow.css` just ahead of its
-`theme.css`. Runtime, icon, widget,
-and vendor files replace by path. A later package replaces a tag's complete element
+`theme.css`. Icon, widget,
+and vendor files replace by path. Runtime modules add package-owned paths; they
+cannot replace the kernel or default package's JavaScript, including `leaf.js`.
+Those modules are private and may be compiled together in an installation.
+Package checks refuse imports of private kernel modules as well as replacements,
+so source checkouts and prepared installations expose the same extension contract.
+`/runtime/widget-api.js` is the public behavior-module interface, shared with
+the running kernel rather than copied into each widget.
+A later package replaces a tag's complete element
 declaration and one member inside a shared `$` declaration. A tag can be added or
 replaced whole, but it has no deletion marker.
 Shared `$` entries compose by member, and map-valued members compose one level further
@@ -162,12 +171,6 @@ order. Later packages win collisions. `page init`
 records package selections under `$layer.packages`; a plain re-init resolves them again
 in the same order. `page init --no-packages PAGE` clears the explicit list.
 
-A replacement `runtime/layer-client.js` must retain the quoted
-`"__LEAF_LAYER_GENERATION__"` placeholder exactly once. `page init` replaces it
-with the same fresh epoch it writes into the merged registry; without that pair,
-a runtime loaded before a re-vendor could speak the replacement registry as though
-the two files were one contract.
-
 A replacement `icon.svg` must be valid SVG and contain an element with
 `class="lf-tone"`. The runtime paints the page's status on that element; without it,
 the tab mark cannot say whether the page is working, waiting, or offline.
@@ -181,6 +184,8 @@ element or widget. A shape the project reuses across pages is an idiom — decla
 under `$idioms` in the package's
 `registry.json` (a selector, a description, an example) and style it in the layer's
 `theme.css`; the page's merged `registry.json` then carries it beside the shipped ones.
+An idiom may declare one `x-` key, `x-space`, the width it takes, as `.callout` keeps
+the column; delivery paints it on every element the selector matches.
 
 A package's rules read the box a widget is given and the theme's tokens, never the Layout
 or style class around it, so a widget behaves the same in a shipped Layout as on a page

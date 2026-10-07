@@ -44,6 +44,7 @@ from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.hosting import LeafHTTPServer
 from leaf.http import page_delivery
+from leaf.leases import take_lease, waiter_lease_path
 from leaf.machine import pid_alive
 from leaf.render_checks import rendered
 from leaf.revision_artifact import capture_artifact
@@ -1195,6 +1196,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     local_result = runner.invoke(journey.journey, ["local"])
     assert local_result.exit_code == 0, local_result.output
     assert json.loads(local_result.stdout) == {
+        "target": "local",
         "harness": "website",
         "origin": "http://127.0.0.1:8080",
         "version": "a" * 40,
@@ -1203,6 +1205,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     remote_result = runner.invoke(journey.journey, ["https://leaf-dev.example/"])
     assert remote_result.exit_code == 0, remote_result.output
     assert json.loads(remote_result.stdout) == {
+        "target": "https://leaf-dev.example",
         "harness": "website",
         "origin": "https://leaf-dev.example",
         "version": "served",
@@ -1225,6 +1228,66 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
         "https://leaf-dev.example",
         "http://127.0.0.1:8787",
     ]
+
+
+def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples():
+    """`journey-chart` charts the samples the journey kept, so a later reading needs
+    no transcription: each target's latest version only, each sign a sample saw."""
+
+    def sample(target, version, titled, working, progress, replied, **named):
+        comment = {
+            "sinceAdmissionMs": {
+                "titled": titled,
+                "progress": progress,
+                "published": replied - 500,
+                "replied": replied,
+            },
+            "sinceSendMs": {"workVisible": working, "responseVisible": replied + 1000},
+        }
+        harness = target if target in ("claude-code", "codex") else "website"
+        return {
+            "target": target,
+            "harness": harness,
+            **named,
+            "version": version,
+            "comment": comment,
+        }
+
+    old, new = "a" * 40, "b" * 40 + "+working-tree"
+    samples = [
+        sample("claude-code", old, 1800, 7000, None, 17500),
+        sample("codex", old, 4700, 200, None, 69600),
+        sample("claude-code", new, 1300, 7000, 6900, 18600),
+        sample("codex", old, 4600, 300, None, 102900),
+        # Each local run serves on a port of its own, but is the same target.
+        sample("local", old, 900, 300, None, 30000, origin="http://127.0.0.1:8080"),
+        sample("local", new, 800, 300, None, 25000, origin="http://127.0.0.1:9090"),
+    ]
+    path = journey.samples_path()
+    path.parent.mkdir(parents=True)
+    path.write_text("".join(json.dumps(s) + "\n" for s in samples))
+    result = CliRunner().invoke(journey.journey_chart)
+    assert result.exit_code == 0, result.output
+    markup = result.stdout
+    assert markup.startswith('<lf-chart id="journey-signs"')
+    rows = journey.chart_rows(samples)
+    assert {r["row"] for r in rows} == {
+        "Claude Code at bbbbbbbb+working-tree",
+        "Codex App Server at aaaaaaaa",
+        "local at bbbbbbbb+working-tree",
+    }
+    # Older versions are left out; Codex's two runs of one version stay.
+    assert sorted(r["s"] for r in rows if r["sign"] == "reply") == [
+        18.6,
+        25.0,
+        69.6,
+        102.9,
+    ]
+    # A step the run never reached draws no dot.
+    assert [r["row"] for r in rows if r["sign"] == "first words"] == [
+        "Claude Code at bbbbbbbb+working-tree"
+    ]
+    assert json.dumps(rows) in markup
 
 
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
@@ -2925,7 +2988,7 @@ def test_a_rejected_streamed_reply_still_releases_its_website_turn(page_dir):
     ids=["click", "arrive", "elsewhere"],
 )
 def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
-    browser, serve, read_elsewhere, reveal
+    browser, serve, read_elsewhere, reveal, request
 ):
     """A resolve during a turn cannot hide its completed answer from Open Threads.
 
@@ -2952,6 +3015,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     )
     harness = website_server.WebsiteCodexHarness("codex")
     turn = hosted_follower(harness, page_dir, prepared)
+    watcher = take_lease(waiter_lease_path(page_dir, "hosted-thread"))
+    assert watcher is not None
+    request.addfinalizer(watcher.close)
     turn.begin()
     # Present the accepted turn before resolving it: coalescing these server writes
     # would never exercise a workflow receipt disappearing beside the news control.
@@ -2961,10 +3027,50 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     metadata = thread.locator(
         ".lf-thread-transcript > .lf-msg:first-child > .lf-msg-head"
     )
-    expect(metadata.locator(".lf-msg-sending")).to_have_count(1)
+
+    def held_header():
+        return metadata.evaluate("""head => {
+          const rect = selector => head.querySelector(selector).getBoundingClientRect();
+          const author = rect('b');
+          const time = rect('time');
+          const meta = rect('.lf-msg-meta');
+          const news = head.closest('.lf-thread').querySelector('.lf-thread-news')
+            .getBoundingClientRect();
+          return {authorX: author.x, timeX: time.x, metadataRight: meta.right,
+            newsLeft: news.left};
+        }""")
+
+    receipt = metadata.locator(".lf-msg-sending")
+    expect(receipt).to_have_text("Replying")
     news = thread.locator(".lf-thread-news")
     expect(news).to_be_visible()
     news_left = news.bounding_box()["x"]
+    held = held_header()
+    assert held["metadataRight"] <= held["newsLeft"], held
+
+    def receipt_words():
+        return receipt.evaluate("""node => {
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          return range.getBoundingClientRect().width;
+        }""")
+
+    receipt_width = receipt_words()
+    initial_receipt = receipt.inner_text()
+    assert receipt.evaluate("node => node.scrollWidth <= node.clientWidth")
+    # Losing the provider watcher changes Replying to the longer stale receipt
+    # while its answer still waits. The words spend their own retained box.
+    watcher.close()
+    told(page)
+    rendered(page)
+    expect(receipt).to_have_text("Update stale")
+    expect(receipt).to_have_attribute("title", "Update stale")
+    assert receipt_words() > receipt_width, (
+        initial_receipt,
+        receipt_width,
+        receipt_words(),
+    )
+    assert held_header() == held
     cmd_resolve(page_dir, comment["id"])
     told(page)
     rendered(page)
@@ -2976,6 +3082,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     expect(thread).to_be_visible()
     expect(metadata.locator(".lf-msg-sending")).to_have_count(0)
     assert news.bounding_box()["x"] == news_left
+    assert held_header() == held
     if read_elsewhere:
         write(box, "A separate thread")
         box.press("ControlOrMeta+Enter")
@@ -3018,6 +3125,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         # card stands as drawn, open, so the reopening is no news.
         expect(news).to_have_text("1 new reply")
         assert news.bounding_box()["x"] == news_left
+        assert held_header() == held
         expect(
             thread.locator(".lf-msg.agent").filter(has_text="deployment verified")
         ).to_have_count(0)
@@ -4659,6 +4767,30 @@ def test_a_title_written_after_the_reply_is_still_timed():
     assert journey.recorded_steps(events, comment, published)["titled"] == 2.25
     assert journey.recorded_steps(answered["events"], comment, published) == {
         "titled": None,
+        "progress": None,
+        "published": 12.0,
+        "replied": 12.5,
+    }
+
+
+def test_a_progress_update_is_timed_apart_from_the_answer():
+    """An agent says what it will do in the thread before the work, as an ephemeral
+    update; the journey times that update as `progress` and keeps waiting for the
+    reply that answers."""
+    comment, _title, reply = TURN_LOG
+    progress = {
+        "kind": "reply",
+        "parent": comment["id"],
+        "text": "Recording the release on the board.",
+        "ephemeral": True,
+        "ts": "2026-10-04T12:00:03.000-07:00",
+    }
+    assert journey.deployment_answer([progress]) is None
+    assert journey.deployment_answer([progress, reply]) is reply
+    published = {"activated_at": "2026-10-04T19:00:12+00:00"}
+    assert journey.recorded_steps([comment, progress, reply], comment, published) == {
+        "titled": None,
+        "progress": 3.0,
         "published": 12.0,
         "replied": 12.5,
     }
@@ -5219,6 +5351,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "asks": 1,
             "sinceAdmissionMs": {
                 "titled": 2250.0,
+                "progress": None,
                 "published": 12000.0,
                 "replied": 12500.0,
             },

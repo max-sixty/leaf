@@ -295,11 +295,11 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     assert restamped.digest != revendored.digest
     assert restamped.executable == revendored.executable
 
-    # Vendoring writes that epoch into `runtime/layer-client.js`, which every
+    # Vendoring writes that epoch into `runtime/layer-generation.js`, which every
     # document evaluates, so a real re-vendor reaches the digest through the
     # module rather than through the stamp beside it.
     files_model.replace_files(
-        [(page_dir / "runtime" / "layer-client.js", b"// re-vendored epoch", False)]
+        [(page_dir / "runtime" / "layer-generation.js", b"// re-vendored epoch", False)]
     )
     reissued = activate()
     assert reissued.executable != restamped.executable
@@ -1010,7 +1010,11 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
     actions = [
         ("g1", "add", {"option": "o-user", "text": "Try a canary."}),
         ("g1", "choose", {"value": ["o-user"]}),
-        ("summary", "edit", {"value": "  Ship after migration.\n\nKeep  two spaces.\n"}),
+        (
+            "summary",
+            "edit",
+            {"value": "  Ship after migration.\n\nKeep  two spaces.\n"},
+        ),
         ("b1", "move", {"unit": "card-y", "value": "c-done", "rank": "i"}),
         ("b1", "move", {"unit": "card-x", "value": "c-done", "rank": "9"}),
     ]
@@ -1131,6 +1135,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
     drawing = {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
+        "box": [640.5, 96],
         "viewport": [1200, 900],
         "scheme": "light",
     }
@@ -2266,7 +2271,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
 
 def test_inferred_reply_attempt_is_idempotent(page_dir):
     """An attempt is an opaque durable key, and the append door holds every
-    writer to the record contract's shape for one — the delivery carriers mint
+    writer to the record contract's shape for one — the delivery transports mint
     theirs from a digest, so a short hand-written label is not a retry key."""
     attempt = "retry-inferred-reply-1"
     comment = append_carried_log_record(

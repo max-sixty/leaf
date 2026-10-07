@@ -29,7 +29,7 @@ import { shownRect } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, upFrom } from "./shadow.js";
-import { deepFocus } from "./focus.js";
+import { deepFocus, onStanding } from "./focus.js";
 
 const regions = new Map();
 const transitionWatchers = new Set();
@@ -128,7 +128,8 @@ export const readingRegionFor = (node) => {
 // (`releaseFocus`) or a press on nothing puts the user. Anything in the chrome names
 // nothing new, so opening a menu leaves the pane the user was reading as the answer.
 // A key press is not among them: its target is where focus already stands, which
-// arrived by `focusin`, or the body, which is where a click on words leaves it.
+// arrived as a change where the user stands (focus.js, `onStanding`), or the body,
+// which is where a click on words leaves it.
 //
 // The page's own answer is kept apart from a surface's. A region in the chrome, such as
 // the Threads list, answers while it shows; once it has closed, the user is back in the
@@ -141,21 +142,30 @@ let pageRegionId = null;
 // That focus belongs to the same press; pointerdown has already named its place.
 let pressing = false;
 const pageRoot = () => document.querySelector("body > main");
-const actedIn = (event) => {
-  const at = event.composedPath()[0];
+const actedAt = (at, arriving) => {
   const region = readingRegionFor(at);
-  if (event.type === "pointerdown") pressing = true;
   if (region) {
     recentRegionId = region.id;
     if (under(region.host, pageRoot())) pageRegionId = region.id;
   } else if (
     (at === document.body || under(at, pageRoot())) &&
-    !(event.type === "focusin" && at === document.body && pressing)
+    !(arriving && at === document.body && pressing)
   )
     recentRegionId = pageRegionId = null;
 };
-for (const type of ["pointerdown", "wheel", "touchstart", "focusin"])
-  addEventListener(type, actedIn, { capture: true, passive: true });
+for (const type of ["pointerdown", "wheel", "touchstart"])
+  addEventListener(
+    type,
+    (event) => {
+      if (type === "pointerdown") pressing = true;
+      actedAt(event.composedPath()[0], false);
+    },
+    { capture: true, passive: true },
+  );
+// An arrival, by whatever route, a move inside a widget's shadow tree included.
+onStanding((node) => {
+  if (node) actedAt(node, true);
+});
 for (const type of ["pointerup", "pointercancel"])
   addEventListener(type, () => (pressing = false), { capture: true });
 export const recentReadingRegion = () => readingRegion(recentRegionId);

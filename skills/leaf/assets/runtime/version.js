@@ -72,7 +72,7 @@ import {
 } from "./drafts.js";
 import { heldThreadId, replyDestination } from "./thread/focus.js";
 import { restoreReplyEditing } from "./thread/replies.js";
-import { focusDestination } from "./focus.js";
+import { focusDestination, onStanding } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { patchTree } from "./dom-children.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
@@ -237,7 +237,6 @@ export function createVersionController({
   midComposition,
   hasPending,
   readAndApply,
-  forgetAuthoredOwners,
   retireProjectionCoverage,
   syncLayout,
   captureRetainedStanding = () => null,
@@ -1413,15 +1412,6 @@ export function createVersionController({
         same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
         sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot),
         touched: (element) => touched.push(element),
-        // An element going is not the same as its name going. Authored state capture
-        // still needs to forget removed upgraded owners here; the complete incoming
-        // descriptor inventory below decides which identities actually retired.
-        retire: (element) => {
-          if (!element.id || !registry[element.localName]) return;
-          for (const claimant of live.querySelectorAll(`#${CSS.escape(element.id)}`))
-            if (claimant !== element) return;
-          if (upgraded(element)) forgetAuthoredOwners(new Set([element.id]));
-        },
       });
       // The revision's sheets, in its head and in its body alike, keep off the layer.
       keepPageRulesOffLayer();
@@ -1832,7 +1822,7 @@ export function createVersionController({
       if (at?.matches(TEXT_BOX) && under(at, document.querySelector("body > main")))
         queueRecord();
     };
-    document.addEventListener("focusin", recordEditing);
+    onStanding(recordEditing);
     document.addEventListener("input", recordEditing);
     queueRecord();
   }

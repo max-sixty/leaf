@@ -2,7 +2,7 @@
 
 ## One envelope on every transport
 
-Every route into your context presents an immutable object of the same shape:
+Every transport into your context presents an immutable object of the same shape:
 
 ```json
 {
@@ -27,7 +27,7 @@ machine's immutable delivery store.
 
 Some harnesses deliver it inline; others deliver a pointer that `leaf delivery read <id>`
 resolves to the same object. Your harness contract names which. The envelope states
-receipt and response routes once:
+once how to confirm receipt and how to answer:
 
 - `acknowledge` says how to confirm receipt after the complete envelope is in
   context. Follow that instruction. When it is `null`, your harness confirms
@@ -111,17 +111,19 @@ the events. `leaf page events` reads the
 full log without acking it.
 
 Receipt and work have separate evidence. Confirming a direct delivery records its
-moves as **Picked up** in the current turn. Other harnesses record that opening when
-they observe the delivery entering a turn: as a hook hands it over, as the agent
+moves as **Picked up** in the current turn. **Picked up** means the delivery is in
+your context, whether or not you have read it yet. Other harnesses record that
+opening when the delivery enters the turn's context: as a hook hands it over, as the agent
 reads a pointer with `leaf delivery read`, or as a turn Leaf started begins. Leaf
-derives overall page activity from that evidence. Starting the move with `leaf task start <page> <event-id>`
-([conversation handoff](conversation-loop.md#when-to-write)) strengthens its
+derives overall page activity from that evidence. Taking the move in hand, with a
+progress update in its thread or `leaf task start <page> <event-id>`
+([conversation handoff](conversation-loop.md#when-to-write)), strengthens its
 receipt to **Working** while it remains outstanding. That neither acknowledges the
 delivery nor answers the move.
 
 Whatever the harness, treat a page-and-sequence pair already handled in this task as a
 retry, even if a later delivery also includes newer events; your harness contract owns
-the wait and acknowledgement route.
+how you wait and acknowledge.
 
 `leaf wait` ends one of two ways: exit 0 with the next input, or exit 2 with the
 ending named on stderr. The input is one JSON envelope, or, where the harness's hook

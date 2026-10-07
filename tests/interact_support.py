@@ -122,7 +122,7 @@ def append_command(page_dir, command):
 def append_carried_log_record(page_dir, event):
     """Seed already-interpreted input for a storage or transport test.
 
-    These tests declare input the carrier must deliver, without a document that
+    These tests declare input the transport must deliver, without a document that
     could decide its meaning. Semantic attention cases use `append_command`.
     A raw fixture can explicitly declare `attention=False` for quiet input.
     """
@@ -352,7 +352,7 @@ def lock_contention(
 def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
     """Collect every activity reading a turn writes, instead of a page taking it.
 
-    Every carrier and harness calls the writers through `leaf.codex`, so that one binding
+    Every App Server client and harness calls the writers through `leaf.codex`, so that one binding
     takes them all. Pass empty lists for a test that wants them to touch nothing.
     """
     monkeypatch.setattr(
@@ -696,7 +696,7 @@ def bind_task_lifetime_to_worker(page):
     changes only that existing task's lifetime provenance, under its session
     lock: its generation, turn, provider observation, and page acquisition stay
     intact. Recording another claim would create a replacement generation and
-    briefly leave the already-running carrier with no pages to own.
+    briefly leave the already-running adapter with no pages to own.
     """
     claim = service_model.page_claim(page)
     with cleanup_model.flocked(cleanup_model.session_lock_path(claim["id"])):
@@ -796,7 +796,7 @@ def _decided(page_dir, words):
             "revision": files_model.latest_revision(page_dir),
             "widget": "d1",
             "action": "edit",
-            "detail": {'value': "Cut the flag; backfill first."},
+            "detail": {"value": "Cut the flag; backfill first."},
         },
     )
     return lambda words, attrs="": (page_dir / "index.html").write_text(
@@ -1027,7 +1027,8 @@ def _report_says_attr(registry):
 
 def _report_authored_detail(registry):
     registry["lf-task"]["x-state"]["status"]["detail"] = {
-        "type": "object", "additionalProperties": False
+        "type": "object",
+        "additionalProperties": False,
     }
 
 
@@ -1657,7 +1658,7 @@ def under_codex(spawn, codex_program):
 
 @pytest.fixture
 def codex_claimed_page(tmp_path, under_codex, codex_env):
-    """A Codex-owned server before delivery starts, for carrier lifecycle tests.
+    """A Codex-owned server before delivery starts, for adapter lifecycle tests.
 
     Public handoff connects delivery too. These tests choose their own transport
     or exercise a direct wait, so setup takes the lower-level claim and serve.
@@ -1840,7 +1841,7 @@ def edit(page_dir, text, widget="note", version=1):
             "revision": revision,
             "widget": widget,
             "action": "edit",
-            "detail": {'value': text},
+            "detail": {"value": text},
         },
     )
 

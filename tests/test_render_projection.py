@@ -31,6 +31,7 @@ from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
+from leaf.render_gate.readings import DevtoolsIssues
 from leaf.schema import ELEMENT_ID
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
@@ -377,8 +378,9 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
     expect(observed).to_have_text(re.compile(r"^Observed 3h ago$"))
 
 
-def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
-    """A delayed lazy import cannot paint a widget after its host has disconnected."""
+@pytest.mark.parametrize("reconnect", [False, True])
+def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve, reconnect):
+    """A delayed paint leaves with its owner, while a same-batch move retains it."""
     authored = leaf_page(
         "pull request disconnect",
         '<lf-pull-request id="reviewed-pr" source="pr-1842"></lf-pull-request>',
@@ -412,9 +414,32 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
             page.goto(url, wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         assert held, "the positive control did not hold the lazy Markdown import"
-        page.locator("#reviewed-pr").evaluate("element => element.remove()")
+        page.locator("#reviewed-pr").evaluate(
+            """(element, reconnect) => {
+              window.detachedPr = element;
+              window.detachedPrMarkup = element.innerHTML;
+              const parent = element.parentElement;
+              element.remove();
+              if (reconnect) parent.append(element);
+            }""",
+            reconnect,
+        )
         held.pop(0).continue_()
-        page.wait_for_timeout(100)
+        page.evaluate(
+            """async () => {
+              const {loadMarkdown} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+              await loadMarkdown();
+            }"""
+        )
+        wait_until_ready(page)
+        if reconnect:
+            expect(page.locator(".lf-pr-title")).to_have_text(
+                "Keep delayed rendering safe"
+            )
+        else:
+            assert page.evaluate(
+                "() => window.detachedPr.innerHTML === window.detachedPrMarkup"
+            )
     finally:
         while held:
             held.pop(0).continue_()
@@ -467,6 +492,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         },
     )
     page = open_page(browser, url)
+    assert not DevtoolsIssues(page).findings()
     widget = page.locator("#request-calls")
     lines = widget.locator(".lf-call-line")
 
@@ -481,6 +507,11 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     groups = widget.locator(":scope > .lf-call-group")
     expect(groups).to_have_count(1)
     group = groups.first
+    summary = group.locator(":scope > summary")
+    root_location = widget.locator(".lf-call-root-location .lf-call-location").first
+    expect(root_location).to_have_text("gateway/limits.py:38")
+    expect(root_location).to_be_visible()
+    expect(summary.locator("a, button")).to_have_count(0)
     assert group.evaluate("el => getComputedStyle(el).backgroundColor") == page.locator(
         "#code-surface"
     ).evaluate("el => getComputedStyle(el).backgroundColor")
@@ -583,7 +614,11 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator("#patch [data-line-type]")).to_have_count(0)
     entries = page.evaluate("history.length")
-    lines.nth(1).locator(".lf-call-location").click()
+    summary.click()
+    expect(group).not_to_have_attribute("open", "")
+    expect(root_location).to_be_visible()
+    root_location.click()
+    expect(group).not_to_have_attribute("open", "")
     context = page.locator(
         'lf-diff [data-lf-datum=\'["gateway/limits.py","both",38,38]\']'
     )
@@ -592,6 +627,8 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "Opened gateway/limits.py:38 in the exact patch"
     )
     expect(context).to_be_focused()
+    summary.click()
+    expect(group).to_have_attribute("open", "")
 
     search = page.locator("#patch .lf-diff-search input")
     search.fill("nothing-matches")
@@ -616,11 +653,28 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     )
     told(page)
     expect(context).to_contain_text("class Limiter:  # raw source")
-    lines.nth(1).locator(".lf-call-location").click()
+    root_location.click()
     expect(context).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:38 in the exact patch"
     )
+
+    # Native tab order exposes source navigation even with the call tree closed.
+    summary.click()
+    expect(group).not_to_have_attribute("open", "")
+    page.keyboard.press("Shift+Tab")
+    expect(root_location).to_be_focused()
+    assert root_location.evaluate("node => node.matches(':focus-visible')")
+    page.keyboard.press("Enter")
+    expect(context).to_be_focused()
+    expect(group).not_to_have_attribute("open", "")
+    expect(context).to_be_in_viewport()
+    summary.click()
+    expect(group).to_have_attribute("open", "")
+    page.keyboard.press("Space")
+    expect(group).not_to_have_attribute("open", "")
+    page.keyboard.press("Enter")
+    expect(group).to_have_attribute("open", "")
 
     page.evaluate("() => getSelection().removeAllRanges()")
     lines.nth(2).click(modifiers=["Alt"])
@@ -651,7 +705,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     shifted = page.locator(
         'lf-diff [data-lf-datum=\'["gateway/limits.py","both",100,102]\']'
     )
-    widget.locator(".lf-call-line").nth(1).locator(".lf-call-location").click()
+    root_location.click()
     expect(shifted).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:100 in the exact patch"
@@ -672,6 +726,17 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
         "line 2 appears before a changed root"
     )
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "request-call-diff",
+        "calldiff diff main → feature\n  missing_location()",
+    )
+    told(page)
+    expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
+        "line 2 has no source location; capture --locs output"
+    )
+    expect(widget.locator(".lf-call-root-location, .lf-call-group")).to_have_count(0)
 
     resized(page, 390, 900)
     assert root_overflow(page) == 0
@@ -726,6 +791,52 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
         groups.first.locator(".lf-call-group-body .lf-call-body").first
     ).to_have_text("├─ three()")
     expect(row).to_be_focused()
+
+    # Equal root names can share a stable call row while its group changes. The
+    # closed destination may already exist or arrive in this capture; both expose
+    # the user's focused row while a transfer without focus leaves its group closed.
+    first_work = "  work()  app.py:1\n"
+    second_work = "  work()  app.py:20\n"
+    third_work = "  work()  app.py:60\n"
+    unfocused = "  ├─ other_helper()  utils.py:3\n"
+    shared = "  └─ helper()  utils.py:2\n"
+    capture(first_work + unfocused + shared, second_work, third_work)
+    told(page)
+    expect(groups).to_have_count(3)
+    expect(groups.nth(1)).not_to_have_attribute("open", "")
+    location = widget.locator(".lf-call-location", has_text="utils.py:2")
+    location.focus()
+    location.evaluate(
+        """node => {
+          window.heldCallDiffControl = node;
+          window.heldCallDiffRow = node.closest('.lf-call-line');
+        }"""
+    )
+    for destination, roots in (
+        ("app.py:20", (first_work, second_work + shared, third_work + unfocused)),
+        (
+            "app.py:40",
+            (
+                "  work()  app.py:30\n",
+                "  work()  app.py:40\n" + shared,
+                third_work + unfocused,
+            ),
+        ),
+    ):
+        capture(*roots)
+        told(page)
+        expect(
+            location.locator("xpath=ancestor::details").locator(
+                ".lf-call-group-summary .lf-call-location"
+            )
+        ).to_have_text(destination)
+        expect(location).to_be_visible()
+        expect(location).to_be_focused()
+        expect(groups.last).not_to_have_attribute("open", "")
+        assert location.evaluate(
+            """node => node === window.heldCallDiffControl &&
+              node.closest('.lf-call-line') === window.heldCallDiffRow"""
+        ), "a surviving call's group change replaced its row or control"
 
 
 def test_visual_review_guides_one_typed_still_run(browser, serve):
@@ -2329,9 +2440,8 @@ def test_a_revision_that_moves_the_block_the_user_types_in_keeps_them_there(
 ):
     """A revision that reorders siblings moves the element the user is typing in.
 
-    The patch keeps that element, so the carry leaves it alone, and moving it blurs it to
-    the page body in the same call. The patch's placement holds the user's place across
-    the move: they stay in the box, caret included.
+    The patch keeps that element, so the carry leaves it alone. Native placement retains
+    the browser's own state across the move: they stay in the box, caret included.
     """
     first = leaf_page(
         "Moved first",
@@ -2375,6 +2485,56 @@ def test_a_revision_that_moves_the_block_the_user_types_in_keeps_them_there(
         "focused": True,
         "caret": [6, 9, "backward"],
     }, f"the revision's move took the user out of their box: {standing}"
+
+
+def test_a_revision_reorders_a_live_sample_without_replacing_its_document(
+    browser, serve
+):
+    """Moving a retained sample keeps its child document and focused unsent editor.
+
+    A removal and reinsertion keeps the iframe element but reloads its document.
+    Draft persistence can recover the words while still dropping the child's focus,
+    so identity, words, and focus together establish that the child stayed live.
+    """
+    first = leaf_page(
+        "Sample first",
+        """
+<h1 id="sample-title">Live sample revision</h1>
+<p id="sample-before">This paragraph comes first.</p>
+<lf-sample id="sample-held" label="Live draft" window>
+  <template id="sample-source" data-sample>
+    <h1>Practice draft</h1>
+    <lf-draft id="sample-draft"><pre>Authored sample words.</pre></lf-draft>
+  </template>
+</lf-sample>
+""",
+    )
+    paragraph = '<p id="sample-before">This paragraph comes first.</p>\n'
+    second = (
+        first.replace("Sample first", "Sample second")
+        .replace(paragraph, "")
+        .replace("</lf-sample>\n", "</lf-sample>\n" + paragraph)
+    )
+    page = open_page(browser, live_url(serve(first)))
+    sample = page.locator("#sample-held")
+    expect(sample.get_by_role("button", name="Reset", exact=True)).to_be_enabled()
+    frame = sample.locator("iframe")
+    frame.evaluate("frame => window.heldSampleDocument = frame.contentDocument")
+    child = page.frame_locator("#sample-held iframe")
+    child.locator(".lf-draft-body").click()
+    editor = child.locator("#sample-draft leaf-text")
+    write(editor, "Unsent sample words.")
+    expect(editor).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Sample second")
+    expect(page.locator("#sample-held + #sample-before")).to_be_attached()
+    assert frame.evaluate(
+        "frame => frame.contentDocument === window.heldSampleDocument"
+    ), "the revision's retained sample move replaced its child document"
+    expect(editor).to_have_js_property("value", "Unsent sample words.")
+    expect(editor).to_be_focused()
 
 
 def test_a_declared_widget_with_no_id_survives_a_revision_that_left_it_alone(
@@ -5035,7 +5195,9 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     page = open_page(browser, live_url(url))
     fraction = page.locator("#t-feeders > .lf-chips")
     expect(fraction).to_contain_text("1/2 done")
-    expect_banner_control_offered(page.locator(".lf-queue"), offered=False)  # nothing waits on the user
+    expect_banner_control_offered(
+        page.locator(".lf-queue"), offered=False
+    )  # nothing waits on the user
 
     sent = CliRunner().invoke(
         cli_model.cli,
@@ -5434,6 +5596,125 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
     expect(row).to_have_attribute("state", "idle")
     expect(row.locator(".lf-doing")).to_have_text("checking the second mount")
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
+
+
+@pytest.mark.parametrize("holding", ["defer", "preparation", "async"])
+def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
+    browser, serve, holding
+):
+    """Report prose, coverage, and clocks consume the widget's canonical proof.
+
+    A local editing hold and an asynchronous face/preparation are distinct owners of
+    completion. Each holds only its widget; report narration cannot jump ahead by
+    inferring that the coordinate was committed because its DOM node still exists.
+    """
+    page = open_page(browser, serve(ROSTER_PAGE))
+    d = serve.page_dir
+    row = page.locator("#ag-wren")
+    first = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "report",
+            str(d),
+            "ag-wren",
+            "state",
+            "value=working",
+            "text=first report",
+        ],
+    )
+    assert first.exit_code == 0, first.output
+    told(page)
+    expect(row.locator(".lf-doing")).to_have_text("first report")
+    page.evaluate(
+        """async holding => {
+          const api = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {clockValue, tickClock} = await window.__lfRuntimeImport('/runtime/presence.js');
+          const {readApplicationPresentation} = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          const owner = document.getElementById('ag-wren');
+          window.__proofClock = 0;
+          window.__proofReads = [];
+          api.watchUpdates(owner, updates => {
+            clockValue(() => window.__proofClock);
+            window.__proofReads.push(updates.map(update => update.text));
+          });
+          window.__proofTick = async () => {
+            window.__proofClock += 1;
+            await tickClock(message => { throw new Error(message); });
+          };
+          window.__proofPending = () => {
+            const proof = readApplicationPresentation();
+            return api.updateSequence(owner).some(update => update.text === 'held report') &&
+              proof.pending.some(region => region.startsWith('widget:ag-wren:')) &&
+              !proof.pending.includes('projection:chrome');
+          };
+          // The watcher gets its first clock reading before the held publication.
+          await Promise.resolve();
+          const other = api.widgetController(document.getElementById('ag-finch'));
+          other.present(new Promise(resolve => { window.__proofOtherResume = resolve; }));
+          window.__proofOtherPending = () =>
+            readApplicationPresentation().pending.includes('widget:ag-finch:preparation');
+          const controller = api.widgetController(owner);
+          if (holding === 'defer') {
+            window.__proofResume = controller.defer();
+          } else {
+            let resolve;
+            const completion = new Promise(done => { resolve = done; });
+            if (holding === 'preparation') {
+              controller.present(completion);
+              window.__proofResume = resolve;
+            } else {
+              const render = owner.renderState.bind(owner);
+              let pendingState;
+              owner.renderState = state => { pendingState = state; };
+              Object.defineProperty(owner, 'updateComplete', {get: () => completion, configurable: true});
+              window.__proofResume = () => {
+                owner.renderState = render;
+                render(pendingState);
+                delete owner.updateComplete;
+                resolve();
+              };
+            }
+          }
+        }""",
+        holding,
+    )
+    if holding == "preparation":
+        # A same-epoch reopen has no semantic notification. The next clock paint
+        # must still check proof rather than bypassing its readiness guard.
+        reads = page.evaluate("window.__proofReads.length")
+        page.evaluate("window.__proofTick()")
+        assert page.evaluate("window.__proofReads.length") == reads
+    second = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "page",
+            "report",
+            str(d),
+            "ag-wren",
+            "state",
+            "value=idle",
+            "text=held report",
+        ],
+    )
+    assert second.exit_code == 0, second.output
+    page.wait_for_function("window.__proofPending()")
+    page.evaluate("window.__proofTick()")
+    assert not page.evaluate(
+        "window.__proofReads.some(read => read.includes('held report'))"
+    )
+    expect(row.locator(".lf-doing")).to_have_text("first report")
+    expect(page.locator("body")).not_to_have_attribute("data-lf-applied", "2")
+    if holding != "preparation":
+        expect(row).to_have_attribute("state", "working")
+    page.evaluate("window.__proofResume()")
+    expect(row).to_have_attribute("state", "idle")
+    expect(row.locator(".lf-doing")).to_have_text("held report")
+    expect(page.locator("body")).to_have_attribute("data-lf-applied", "2")
+    assert page.evaluate("window.__proofOtherPending()"), (
+        "an unrelated widget's preparation must not block the report or coverage"
+    )
+    page.evaluate("window.__proofOtherResume()")
 
 
 def test_a_worker_that_has_never_reported_dates_from_its_version(browser, serve):
@@ -8987,22 +9268,16 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
 
 
 REORDERED_PROJECTION = """
-import {projectData} from '/runtime/widget-api.js';
+import {projectData, html, render, repeat} from '/runtime/widget-api.js';
 customElements.define('lf-ranked', class extends HTMLElement {
   connectedCallback() {
     window.lfRanked = this;
     this.show(['api', 'worker', 'queue']);
   }
   show(keys) {
-    projectData(this, keys.map(key => ({key})), row => row.key, ({key}, prior) => {
-      if (prior) return prior;
-      const row = document.createElement('p');
-      const note = document.createElement('input');
-      note.setAttribute('aria-label', `Note on ${key}`);
-      note.value = `${key} is ready`;
-      row.append(note);
-      return row;
-    });
+    render(repeat(keys, key => key, key => html`<p><input aria-label=${`Note on ${key}`} .value=${`${key} is ready`}></p>`), this);
+    projectData(this, keys.map((key, index) => ({key, node: this.querySelectorAll('p')[index], label: `Service ${key}`, identity: key, origin: {derived: [{widget: key}]}})));
+
   }
 });
 """
@@ -9045,12 +9320,27 @@ def test_a_reordered_projection_keeps_the_user_in_the_row_they_stand_in(browser,
     expect(note).to_be_focused()
     assert note.evaluate("(box) => [box.selectionStart, box.selectionEnd]") == [2, 5]
 
+    page.evaluate("""async () => {
+      const {projectData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+      const root = document.querySelector('#services');
+      projectData(root, [...root.querySelectorAll('p')].filter(node => node.dataset.lfDatum !== 'worker').map(node => ({node, key: node.dataset.lfDatum})));
+    }""")
+    assert note.evaluate("node => node.isConnected")
+    expect(note).to_be_focused()
+    assert note.evaluate("node => [node.selectionStart, node.selectionEnd]") == [2, 5]
+    assert (
+        note.evaluate(
+            "node => [...node.parentElement.attributes].filter(attr => attr.name.startsWith('data-lf-') || attr.name === 'aria-description').map(attr => attr.name)"
+        )
+        == []
+    )
+
     # A row the renderer hides with `visibility: hidden` still holds focus until the
     # browser blurs it a frame later, so the hold hands the user to the stand-in.
     page.evaluate(
         """async () => {
           const {holdFocus} = await window.__lfRuntimeImport('/runtime/focus.js');
-          const row = document.querySelector('[data-lf-datum="worker"]');
+          const row = document.querySelector('input[aria-label="Note on worker"]').parentElement;
           const restore = holdFocus(row.parentElement);
           row.style.visibility = 'hidden';
           window.landed = restore(document.querySelector('[data-lf-datum="api"] input'));
@@ -9423,6 +9713,41 @@ def test_command_hub_readings_follow_their_seat_across_revisions(browser, serve)
         "lf-fleet-view",
     ]
     expect(page.locator(f"#side-readings > {READING_PANELS}")).to_have_count(3)
+
+
+@pytest.mark.parametrize("opened", [False, True])
+def test_command_hub_keeps_its_seated_readings_when_the_command_moves(
+    browser, serve, opened
+):
+    """A move retains the panels and the reader's open state in their existing seat."""
+    page = open_page(browser, serve(COMMAND_HUB_EXAMPLE))
+    panels = page.locator(f"#hub-readings > {READING_PANELS}")
+    expect(panels).to_have_count(3)
+    if opened:
+        page.locator("#hub-readings").get_by_role("button", name="5 stopped").click()
+        expect(page.locator("#hub-readings")).to_have_attribute("data-lf-open", "")
+    result = page.evaluate(
+        """async () => {
+          const command = document.getElementById('hub-plan');
+          const seat = document.getElementById('hub-readings');
+          const panels = [...seat.children];
+          const before = seat.innerHTML;
+          const parent = command.parentElement;
+          const next = command.nextSibling;
+          await new Promise(resolve => {
+            const observer = new MutationObserver(() => {
+              observer.disconnect(); resolve();
+            });
+            observer.observe(document.body, {childList: true, subtree: true});
+            command.remove();
+            parent.insertBefore(command, next);
+          });
+          return {sameNodes: panels.every(panel => panel.parentElement === seat),
+            sameMarkup: seat.innerHTML === before};
+        }"""
+    )
+    assert result == {"sameNodes": True, "sameMarkup": True}
+    expect(panels).to_have_count(3)
 
 
 def test_command_hub_readings_seat_is_filled_when_it_connects(browser, serve):

@@ -313,14 +313,8 @@ def code_copy_by_keyboard(page: Page) -> None:
 
 def diff_path_by_keyboard(page: Page) -> None:
     """A folded diff file's row under the keyboard, saying the whole path its row cuts
-    short at the folders."""
-    heads = page.locator("#pr-exact-patch .lf-diff-head")
-    cut = heads.evaluate_all(
-        "heads => heads.findIndex((head) => {"
-        " const dir = head.querySelector('.lf-diff-dir');"
-        " return dir && dir.scrollWidth > dir.clientWidth; })"
-    )
-    head = heads.nth(cut)
+    short."""
+    head = page.locator("#pr-exact-patch .lf-diff-head[data-path-cut]").first
     head.scroll_into_view_if_needed()
     page.keyboard.press("Shift")
     head.focus()
@@ -375,6 +369,12 @@ def versions_menu(page: Page) -> None:
     page.locator(".lf-version-menu .lf-version-row").first.wait_for()
 
 
+def ask_by_keyboard(page: Page) -> None:
+    """The next open Ask, reached with `a`: its ring and its marker in view."""
+    page.keyboard.press("a")
+    page.locator("lf-ask").first.wait_for()
+
+
 def go_to(page: Page) -> None:
     """The Go-to sequence armed from the keyboard, its destinations on the line."""
     page.keyboard.press("g")
@@ -421,6 +421,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         page_comment_long,
         option_long,
         options_in_pane,
+        ask_by_keyboard,
         card_grabbed,
         code_note,
         theme_hierarchy,
@@ -566,11 +567,14 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
+    State("alert-queue", "alert-review", at_rest),
     State(
         "alert-queue-touch", "alert-review", at_rest, viewport=(390, 844), touch=True
     ),
     State("alert-option-long", "alert-review", option_long),
     State("alert-options-in-pane", "alert-review", options_in_pane),
+    State("ideas-ask", "ideas-to-implement", ask_by_keyboard),
+    State("progress-callout", "live-progress", at_rest),
     State(
         "alert-options-in-pane-touch",
         "alert-review",
@@ -729,19 +733,24 @@ def stills(base_ref: str | None) -> None:
                 for arm, arm_dir in arms.items():
                     # Every state starts from its authored fixture. A prior Send or
                     # Resolve must not become the next state's initial event log.
-                    with serving_source(
-                        arm_dir,
-                        ROOT / "examples" / f"{state.source}.html",
-                        scratch / f"{arm}-{state.name}",
-                    ) as address:
-                        folder = out / state.name
-                        folder.mkdir(exist_ok=True)
-                        try:
+                    # The base refuses a source written in vocabulary only the head
+                    # declares; that state has no base still, and the head's still
+                    # stands alone in its folder.
+                    folder = out / state.name
+                    folder.mkdir(exist_ok=True)
+                    try:
+                        with serving_source(
+                            arm_dir,
+                            ROOT / "examples" / f"{state.source}.html",
+                            scratch / f"{arm}-{state.name}",
+                        ) as address:
                             capture(browser, address, state, folder / f"{arm}.png")
-                        except (PlaywrightError, PageNotReady) as error:
-                            failed[state.name] = (
-                                f"on {arm}: {str(error).splitlines()[0]}"
-                            )
+                    except click.ClickException as error:
+                        failed[state.name] = (
+                            f"on {arm}: {error.message.strip().splitlines()[-1].split('; ')[0]}"
+                        )
+                    except (PlaywrightError, PageNotReady) as error:
+                        failed[state.name] = f"on {arm}: {str(error).splitlines()[0]}"
             read = differences(
                 browser,
                 [state.name for state in STATES if state.name not in failed],

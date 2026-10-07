@@ -35,8 +35,8 @@ from interact_support import (
     _body_record_with_nested_widget,
     _body_record_with_prose,
     _mutated_registry_check,
-    _report_body_record,
     _report_authored_detail,
+    _report_body_record,
     _report_no_record,
     _report_position_record,
     _report_says_attr,
@@ -3939,6 +3939,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "drawing": {
                 "format": "leaf-drawing/2",
                 "strokes": [[[0, 0], [9, 9]]],
+                "box": [640, 120],
                 "viewport": [1200, 900],
                 "scheme": "light",
             },
@@ -5206,9 +5207,9 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
         f"the reply door froze a picture the page has not got into the log:\n"
         f"{posted.output}"
     )
-    assert (
-        "/media/0000000000000001.png isn't in the page directory" in posted.output
-    ), posted.output
+    assert "/media/0000000000000001.png isn't in the page directory" in posted.output, (
+        posted.output
+    )
     assert not [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
 
 

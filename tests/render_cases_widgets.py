@@ -192,6 +192,24 @@ SHADOW_VISUAL_LAYER = {
 SHADOW_VISUAL_WIDGETS = {
     "lf-test-shadow-visual.js": browser_source("widgets/shadow-visual.js")
 }
+SHADOW_SCROLLER_PAGE = leaf_page(
+    "shadow scroller",
+    """
+<h1 id="title">Shadow scroller</h1>
+<lf-test-shadow-scroller id="shadow-scroller" parts="part"></lf-test-shadow-scroller>
+""",
+)
+SHADOW_SCROLLER_LAYER = {
+    "lf-test-shadow-scroller": {
+        **SHADOW_VISUAL_LAYER["lf-test-shadow-visual"],
+        "description": "A visual part in a shadow-stage scroller.",
+        "x-example": '<lf-test-shadow-scroller id="shadow-scroller" parts="part">'
+        "</lf-test-shadow-scroller>",
+    }
+}
+SHADOW_SCROLLER_WIDGETS = {
+    "lf-test-shadow-scroller.js": browser_source("widgets/shadow-scroller.js")
+}
 # Every supported structural diagram whose authored ids reach a drawn box. State
 # machines carry nested boxes and ER entities carry attribute tables, while sequence
 # and class diagrams exercise source ids outside the flowchart renderer.
@@ -668,7 +686,7 @@ def _filler(name, count):
 
 
 # Bound to a feed rather than written inline, because that is the form a review arrives in
-# and the only one whose lines are commentable data: `projectData` keys each row by file,
+# and the only one whose lines are commentable data: `projectData` labels each retained row by file,
 # side and source line, which is the coordinate a remark on a line is recorded at.
 # Prose either side of it so the patch has somewhere to be scrolled from and somewhere to
 # be scrolled to — a page whose whole diff fits on screen proves nothing about a header

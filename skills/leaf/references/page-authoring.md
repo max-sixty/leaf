@@ -142,8 +142,12 @@ and the margin", below).
 
 Long scrolling documents include a contents outline. It gives the reader a
 persistent route between sections and shows where they are in the document. A short
-document that can be read at a glance needs no outline. Put an empty `lf-toc` with a
-stable id in an `aside.sidebar`, directly inside `main` near the opening:
+document that can be read at a glance needs no outline. Keep navigation available at
+the desktop opening and while the document scrolls; in a narrow window, place it
+before the substantive reading.
+
+Write an empty `lf-toc` with a stable id. On a column page, put it in an
+`aside.sidebar`, directly inside `main` near the opening:
 
 ```html
 <aside class="sidebar" id="contents-sidebar">
@@ -151,9 +155,12 @@ stable id in an `aside.sidebar`, directly inside `main` near the opening:
 </aside>
 ```
 
-On a column page with room in the desktop margin, Leaf presents it as the contents
+With room in the desktop margin, Leaf presents the column's outline as the contents
 spine; in a narrow window it is an open outline in the page's flow ("The rail and the
-margin"). Workspaces and root page tabs use their own navigation.
+margin"). On a sidebar page, keep the outline and short verdict or status available
+in the opening overview inside the Layout's `aside` ("A wide page"). Keep that
+overview short enough to fit the window, with detailed evidence and history in the
+body or behind a disclosure. Workspaces and root page tabs use their own navigation.
 
 ### Layouts
 
@@ -174,12 +181,14 @@ Two arrange a box's children, on `main` or on any block:
 | `layout-tiles` | equal cells, as many to a row as fit |
 
 On `main`, every class but `layout-column` makes a wide page: every block, the title
-included, starts at one left edge and takes the page's width, while text, and a
-widget read as text such as an option list or a draft, keeps the reading measure. A
-wide, sidebar or tiles page is capped at the widest page and sets its title larger; a
-workspace takes the whole window and leaves its title to the theme. `layout-column`
-on a block keeps the measure but gives it no room to break out into, since that room
-is the page's.
+included, starts at one left edge and takes the page's width, while text keeps the
+reading measure, as do an Ask, a callout and a widget read as text, such as an option
+list or a draft. Give an Ask or a callout `data-width` where it holds a chart, a table,
+a playground or another surface that needs more room ("Bounds and widths"). A wide,
+sidebar or tiles page is capped at the widest page and sets its title larger; a
+workspace takes the whole window and leaves its title to the theme. `layout-column` on
+a block keeps the measure but gives it no room to break out into, since that room is
+the page's.
 
 A Layout is a starting point. The page's own `<style>` comes after it in the cascade, so
 an ordinary rule adjusts it — a different track share, a gap, an order — and a page
@@ -190,8 +199,8 @@ the widths and wrapping every page needs.
 ### A wide page
 
 When the regions are the page rather than exhibits in an argument — a board with its
-status, a release dashboard, a queue sorted into buckets, a long review whose contents
-and verdict stay beside the code — widen the page itself. `<main class="layout-wide">`
+status, a release dashboard, a long review whose contents and verdict stay beside the
+code — widen the page itself. `<main class="layout-wide">`
 holds one flow at the page's width. `<main class="layout-sidebar">` sets what the reader
 works through beside what they keep an eye on — status, counts, the verdict's
 follow-ups, the contents — which is the Layout's `aside`, with the page's `header` above
@@ -200,8 +209,13 @@ both:
 ```html
 <main class="layout-sidebar">
   <header><h1>…</h1><p class="lede">…</p></header>
-  <div id="body">…</div>        <!-- what the reader works through -->
-  <aside id="status">…</aside>  <!-- what they keep an eye on -->
+  <aside id="status">
+    <div class="overview">
+      <lf-toc id="contents"></lf-toc>
+      <p>…</p>                 <!-- short verdict or status -->
+    </div>
+  </aside>
+  <div id="body">…</div>        <!-- document and supporting evidence -->
 </main>
 ```
 
@@ -220,6 +234,8 @@ changes and questions it asks beside the document it judges; that panel is the
 `aside`, and sticks (below). Stack each
 track's regions inside it, so every region stands on the same two vertical lines, rather
 than a new split per row whose edges land somewhere new each time.
+
+"Contents navigation" sets where the overview's outline goes at each width.
 
 A track shorter than the window can stay in view while the body scrolls beside it:
 give the `aside` `align-self: stretch`, so it runs the body's height, and the block it
@@ -273,7 +289,9 @@ decide, is one `lf-tabs list="side"` as the body: its list is the queue and each
 `lf-tab`, so one opens beside the list and a link or an Ask opens its own, and a row
 whose item's Asks are all answered shows a check, with the picked answer beside it
 where the item holds one Ask. Write no script to select, hide or mark an item; the tab
-set does all three.
+set does all three. Where the items fall into kinds the user works through in turn,
+such as merge, close and FYI, give each `lf-tab` its kind as `group` and keep each
+kind's items together: the list sets each run under a heading of its group.
 
 The page itself does not scroll; a region does, where what it holds runs past it. Each
 pane's body scrolls on its own, and a widget that fills the body, such as a playground's
@@ -304,12 +322,14 @@ An individual block or section may request a responsive allocation with
 keeps the prose measure and starts where the prose does, including inside a wider
 section or on a wide page. `wide` uses the shared evidence width, `--wide`, in every
 Layout: past a column it grows to that width, and in a wider track or pane it holds
-to it at the track's start. A narrower frame still bounds it. `available` uses all room left by the page shell, frames,
-chrome, and a margin resident that takes its side, such as a sidebar standing in the
-margin or the contents map's spine; the markers beside it then stand as pins on it, and
-it moves below a note hanging level with it. The occurrence overrides a
-widget's package default, so `data-width="column"` can deliberately keep a normally wide
-widget with the prose.
+to it at the track's start. A narrower frame still bounds it. `available` uses all
+room left by the page shell, frames, chrome, and a margin resident that takes its side,
+such as a sidebar standing in the margin or the contents map's spine; the markers beside
+it then stand as pins on it, and it moves below a note hanging level with it. The
+occurrence overrides a widget's or idiom's default, so `data-width="column"` can
+deliberately keep a normally wide widget with the prose. An Ask or a callout keeps the
+column; give it the width its chart, table or playground needs, and in a wider flow it
+also widens to a block of its own that declares one.
 Use these names on the semantic block itself, including a native `table`, `lf-code`, or
 `lf-diff`; do not reproduce their responsive widths in page CSS.
 
@@ -731,7 +751,9 @@ findings, claims have evidence, decisions have controls, drawings add
 information, and visible prose is needed by the user. Draw any subject the page
 currently explains only in words when a picture would convey it.
 
-Follow the page's links and operate its navigation with pointer and keyboard.
+For a page with contents, start at its opening at desktop and phone widths and
+jump to a later section without first scrolling through the article to find the
+navigation. Follow the page's links and operate its navigation with pointer and keyboard.
 At each destination, check that the visible content and focus leave the user
 oriented and able to continue; compare equivalent moves across the page's views.
 

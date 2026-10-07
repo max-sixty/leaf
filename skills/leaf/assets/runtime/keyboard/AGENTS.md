@@ -55,14 +55,20 @@ browser's order.
 - A reply, or the first comment that starts a thread, leaves the user standing on
   the thread once sent. A thread in the margin card leaves them on the element it
   is about, with the card still up, so one Escape takes the card down and moving
-  elsewhere needs none. A box that stays open for more messages, such as a seat's
+  elsewhere needs none. The page comment card, which only starts a thread, goes
+  away on its send, as on Escape, handing them back to the control it hangs from.
+  A box that stays open for more messages, such as a seat's
   or the Threads panel's general box, keeps the user in it.
 - Threads selects one thread whenever it shows any, and focus on the list is focus
   on that thread's title: `g T`, and an Escape from the general box, land there.
   The list stands alone only while it shows no thread. A title selects the same
-  thread as its body, and focus on a title selects its thread, however it arrived,
-  so the focused thread is always the open one and its reply box is the one `c`
-  names. Enter or Space keeps it selected.
+  thread as its body, and the user's move onto a title selects its thread, by any
+  route, so the focused thread is always the open one and its reply box is the one
+  `c` names. The runtime putting them back on a title chooses nothing: it returns them
+  to the title they had chosen, or to the open one the list stands in with when a
+  change took theirs away, and a hold put back after the choice moved under it, which
+  leaves them on a closed title, is the one place the two part. Enter or Space keeps it
+  selected.
 - The versions menu opens from inside More, so More is its parent whichever route
   opened it (`g V` included), and Escape steps back to the version picker there.
 - A selected destination (thread, Ask, heading) has a let-go step back to the
@@ -111,8 +117,8 @@ or the Page Map. `n` walks a search that has closed, which a finger searches aga
 More. Choosing a match is the soft keyboard's Enter, or selecting the marked words.
 The ⌥ aim names a target, which a finger does by selecting words or through Select
 element. `c` and `e` act on a selection, the item the user stands on, or the page: a
-selection's Comment on selection step, a thread's own controls, and the Threads box all
-take a tap. One gap is accepted for now: the response bar's other responses, Suggest
+selection's Comment on selection step, a thread's own controls, and Comment on the page
+in More all take a tap. One gap is accepted for now: the response bar's other responses, Suggest
 and the reactions on a selection or item, open only by key, since the bar shows no
 ellipsis (`composing/selection.js`; `TODO.md` asks whether to restore a route). Ask
 digits duplicate the Decision's own control. The command reference and caret browsing

@@ -577,6 +577,24 @@ def test_observed_selection_offers_comment_without_replacing_the_editor(
     expect(field).to_have_js_property("value", words)
 
 
+def test_a_passages_comment_box_undoes_only_its_own_draft(browser, serve):
+    """The comment box moves from passage to passage, and its undo history belongs to
+    the draft it stands on: words typed and deleted on one passage are not what ⌘Z
+    brings into the next one's draft, even when both drafts read the same."""
+    page = open_page(browser, serve(LONG_PAGE))
+    field = page.locator(".lf-fab-input")
+    compose(page, "#p0")
+    page.keyboard.type("x")
+    page.keyboard.press("ArrowLeft")  # a caret move ends the typing's undo step
+    page.keyboard.press("End")
+    page.keyboard.press("Backspace")
+    expect(field).to_have_js_property("value", "")
+    compose(page, "#p1")
+    page.keyboard.press("ControlOrMeta+z")
+    page.keyboard.type("y")
+    expect(field).to_have_js_property("value", "y")
+
+
 def test_page_round_trip(browser, serve):
     """The loop the product is, driven through the real UI: select a passage and
     comment on it, drag a card to another column, rewrite a draft in place, then
@@ -3234,6 +3252,39 @@ def test_image_upload_completion_preserves_the_readers_focus_and_scroll(
     assert page.evaluate("document.activeElement === window.uploadFocus")
 
 
+def test_a_picture_still_uploading_stays_out_of_the_next_passages_draft(browser, serve):
+    """The comment box moves to another passage while a pasted picture uploads. The
+    picture was the first passage's, so it does not land in the second one's draft, and
+    the user is told it was not added rather than finding it somewhere they did not put
+    it."""
+    held = []
+    controlled = primed(
+        browser,
+        lambda page: page.route("**/api/media", lambda route: held.append(route)),
+    )
+    page = open_page(controlled, serve(LONG_PAGE))
+    compose(page, "#p3")
+    box = page.locator(".lf-fab-input")
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
+    box.evaluate(
+        """(box, encoded) => {
+          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+          box.dispatchEvent(new ClipboardEvent('paste', {
+            bubbles: true, cancelable: true, clipboardData: transfer,
+          }));
+        }""",
+        base64.b64encode(pixels).decode(),
+    )
+    holding(page, held, 1, "the pasted image")
+    compose(page, "#p1")
+    held.pop().continue_()
+    expect(page.locator(".lf-notice")).to_contain_text("Image not added")
+    expect(box).not_to_have_attribute("aria-busy", "true")
+    expect(page.locator(".lf-composer-media img")).to_have_count(0)
+
+
 def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     browser, serve
 ):
@@ -3667,6 +3718,11 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
         expect(field).to_have_js_property("value", words)
         assert field.evaluate("box => [box.selectionStart, box.selectionEnd]") == [5, 5]
         page.keyboard.press("Escape")
+        if surface == "panel":
+            # Escape ends the editing and lands on the card's title, a move within the
+            # thread, so the card still holds the resolution behind its notice.
+            expect(field).to_be_visible()
+            thread.get_by_role("button", name="Resolved", exact=True).click()
         expect(field).not_to_be_visible()
     elif resolution == "inactive-agent" and surface == "panel":
         # The open card holds the resolution behind its notice, words and all, until
@@ -3746,6 +3802,9 @@ def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
         expect(field).to_be_focused()
         expect(field).to_have_js_property("value", "")
         field.press("Escape")
+        if surface == "panel":
+            # The card holds the resolution behind its notice until the user asks.
+            thread.get_by_role("button", name="Resolved", exact=True).click()
         expect(field).not_to_be_visible()
         assert stored_draft_text(page, f"reply:{root['id']}") == ""
         return
@@ -5859,18 +5918,19 @@ def test_resume_writing_is_a_touch_action_and_does_not_steal_hint_addresses(
         "els => els.map(el => el.dataset.lfHintCode)"
     )
     assert labels and all("i" not in label for label in labels)
+    # With Threads shut, the page's draft resumes in the banner's page comment card.
     page.keyboard.press("i")
-    expect(general).to_be_focused()
-    page.keyboard.press("Escape")
+    card_box = page.locator(".lf-page-comment-card leaf-text")
+    expect(card_box).to_be_focused()
+    expect(card_box).to_have_js_property("value", "A page-wide draft")
     page.keyboard.press("Escape")
     context = browser.new_context(
         is_mobile=True, has_touch=True, viewport={"width": 390, "height": 844}
     )
     touch = open_page(browser, serve(LONG_PAGE), context=context)
     touch.keyboard.press("c")
-    general = touch.locator(".lf-general leaf-text")
+    general = touch.locator(".lf-page-comment-card leaf-text")
     write(general, "A touch draft")
-    touch.keyboard.press("Escape")
     touch.keyboard.press("Escape")
     touch.get_by_role("button", name="More page controls", exact=True).click()
     touch.get_by_role("button", name="Resume writing", exact=True).click()

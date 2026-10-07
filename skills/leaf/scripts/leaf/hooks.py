@@ -11,10 +11,13 @@ hook can identify an unknown session turn once, offer a pointer between steps, a
 leave receipt to the agent's actual delivery read.
 The payload names the session and turn: hook subprocesses need not have the tool
 process's environment. Stop or Interrupt closes that observed turn, including a
-turn not yet claimed by any page; a newer prompt protects its own epoch.
+turn not yet claimed by any page; a newer prompt protects its own epoch. A payload
+that names no turn can state when the turn ended (`ended_at`, in POSIX seconds),
+as the Interrupt from Pi's extension or Leaf's Claude Code hooks module does, and
+then leaves a turn opened or renewed since open.
 
 Hooks with no retained claim avoid page reading. Page-owning prompt and Stop hooks
-reach `hook_carrier`; Codex's tool hook reaches the delivery records in `codex`;
+reach `hook_transport`; Codex's tool hook reaches the delivery records in `codex`;
 and a second Claude Code Stop hook watches between turns (`cmd_watch`). The
 application entry routes `leaf hook` here before loading the CLI.
 
@@ -95,7 +98,12 @@ def cmd_hook(harness: str, payload: dict) -> None:
             else:
                 expected = record
     if event == "Interrupt":
-        close_session_turn(sid, turn_id, expected=expected)
+        # An extension that names no turn states when it saw the ending, since the
+        # watch that answers this runs after it, when a prompt may already have
+        # renewed the turn (`cmd_watch`).
+        close_session_turn(
+            sid, turn_id, expected=expected, ended_at=payload.get("ended_at")
+        )
         return
     if event == "PostToolUse":
         # Only Codex registers this hook (`hooks/codex.json`). Its output can
@@ -106,21 +114,12 @@ def cmd_hook(harness: str, payload: dict) -> None:
         if not owned_pages(sid):
             return
         from .codex import offer_hook_delivery
+        from .harness import HOOK_HARNESSES
 
-        prompt = offer_hook_delivery(sid, turn_id)
-        if prompt:
+        if prompt := offer_hook_delivery(sid, turn_id):
             import json
 
-            print(
-                json.dumps(
-                    {
-                        "hookSpecificOutput": {
-                            "hookEventName": "PostToolUse",
-                            "additionalContext": prompt,
-                        }
-                    }
-                )
-            )
+            print(json.dumps(HOOK_HARNESSES[harness].hook_context(event, prompt)))
         return
     # Retained claims may need reconnecting after active ownership expired.
     retained = event == "UserPromptSubmit" and any(
@@ -130,9 +129,9 @@ def cmd_hook(harness: str, payload: dict) -> None:
         if event == "Stop":
             close_session_turn(sid, turn_id, expected=expected)
         return
-    # Prompt and Stop debt and delivery reading belongs to their carrier.
+    # Prompt and Stop debt and delivery reading belongs to the hook transport.
     from .harness import HOOK_HARNESSES
-    from .hook_carrier import carry_turn
+    from .hook_transport import carry_turn
 
     ended = carry_turn(
         HOOK_HARNESSES[harness],
@@ -153,9 +152,15 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
     where it ends without waking it (`session.watch_between_turns`).
 
     It watches only while the session holds a page, and only where its harness
-    watches between turns. A watch started with an Interrupt payload, as Pi's
-    extension starts one when an Escape settles a run, is a watch at an
-    interrupted ending."""
+    watches between turns. Pi's extension and Leaf's Claude Code hooks module start
+    one with an Interrupt payload when the user stops a run: it answers the
+    Interrupt hook first, closing the turn, and then watches from an interrupted
+    ending. So that ending is one call, and the turn closes only once
+    the watch from before has exited, which would read the closed turn as the
+    Stop hook's ending."""
+    interrupted = payload.get("hook_event_name") == "Interrupt"
+    if interrupted:
+        cmd_hook(harness, payload)
     sid = payload.get("session_id") or ""
     if not owned_pages(sid):
         return None
@@ -166,9 +171,7 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
         return None
     from .session import watch_between_turns
 
-    return watch_between_turns(
-        watching, interrupted=payload.get("hook_event_name") == "Interrupt"
-    )
+    return watch_between_turns(watching, interrupted=interrupted)
 
 
 def main(harness: str, *, watch: bool = False) -> None:

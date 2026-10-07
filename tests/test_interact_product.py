@@ -1010,7 +1010,10 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert "- **Crawler**: crawl running" in transcript.output
 
 
-def test_ephemeral_reply_keeps_the_exact_input_and_its_start_owed(claimed):
+def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
+    """Progress on a move the agent owes is the user's first sign it is handled: one
+    write posts it in the thread and takes the move in hand, Working with the update's text as its line,
+    while the answer stays owed. The line is the banner's, so the update is one line."""
     published(claimed)
     root = append_command(
         claimed,
@@ -1021,27 +1024,41 @@ def test_ephemeral_reply_keeps_the_exact_input_and_its_start_owed(claimed):
             "text": "Check the schedule.",
         },
     )
-    run_leaf("task", "start", str(claimed), root["id"], "Checking the schedule")
-    before = page_state(claimed)["workflows"]
-    assert len(before) == 1 and before[0]["stage"] == "working"
 
-    progress = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(claimed),
-            "--for",
-            root["id"],
-            "--ephemeral",
-            "--text",
-            "Checking the camera.",
-        ],
-    )
-    assert progress.exit_code == 0, progress.output
-    update = json.loads(progress.output)
+    def progress(text, *address):
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                "thread",
+                "reply",
+                str(claimed),
+                *(address or ("--for", root["id"])),
+                "--ephemeral",
+                "--text",
+                text,
+            ],
+        )
+
+    refused = progress("Checking the camera.\n\nThen the clock.")
+    assert refused.exit_code != 0 and "one line" in refused.output
+
+    posted = progress("Checking the camera.")
+    assert posted.exit_code == 0, posted.output
+    update, start = map(json.loads, posted.output.splitlines())
     assert update["ephemeral"] is True and "responds" not in update
-    assert page_state(claimed)["workflows"] == before
+    assert (start["kind"], start["item"], start["text"]) == (
+        "start",
+        root["id"],
+        "Checking the camera.",
+    )
+    [working] = page_state(claimed)["workflows"]
+    assert (working["stage"], working["detail"]) == ("working", "Checking the camera.")
+    assert working["answer"]["for"] == root["id"]
+    # Naming the thread reaches the move it owes, and the newer line replaces the older.
+    again = progress("Checking the clock.", root["id"])
+    assert again.exit_code == 0, again.output
+    [working] = page_state(claimed)["workflows"]
+    assert working["detail"] == "Checking the clock."
 
     answer = CliRunner().invoke(
         cli_model.cli,
@@ -1061,7 +1078,14 @@ def test_ephemeral_reply_keeps_the_exact_input_and_its_start_owed(claimed):
     state = page_state(claimed)
     assert state["workflows"] == []
     [thread] = state["browser"]["thread"]["threads"]
-    assert thread["summaries"][0]["covers"] == [update["id"]]
+    assert thread["summaries"][0]["covers"] == [
+        update["id"],
+        json.loads(again.output.splitlines()[0])["id"],
+    ]
+    # Once nothing is owed, an update takes nothing in hand, so it may run long.
+    later = progress("The clock drifts.\n\nWatching it overnight.", root["id"])
+    assert later.exit_code == 0, later.output
+    assert [json.loads(line)["kind"] for line in later.output.splitlines()] == ["reply"]
 
 
 def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir):

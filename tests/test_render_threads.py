@@ -551,6 +551,79 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
     ), "the durable reply or its authored island was replaced after the edit"
 
 
+def assert_arrival_returns_to_own_fill(page, destination):
+    """The last painted cue frame equals the same box without its animation.
+
+    Hold the endpoint so a wrong fill cannot hide behind the effect's removal.
+    Reading pixels also covers transparent message ground over its thread surface.
+    """
+    destination.evaluate(
+        """node => {
+          const cue = node.getAnimations().find(a => a.animationName?.endsWith('-flash'));
+          if (!cue) throw new Error('the destination has no arrival cue');
+          cue.pause();
+          cue.effect.updateTiming({fill: 'forwards'});
+          cue.currentTime = cue.effect.getComputedTiming().endTime;
+        }"""
+    )
+    one_frame(page)
+    endpoint = Image.open(io.BytesIO(destination.screenshot())).convert("RGB")
+    destination.evaluate("node => node.getAnimations().forEach(a => a.cancel())")
+    one_frame(page)
+    resting = Image.open(io.BytesIO(destination.screenshot())).convert("RGB")
+    assert endpoint.size == resting.size
+    # Empty ground beside the prose; independent title animation can keep running.
+    for point in [
+        (2, endpoint.height // 2),
+        (endpoint.width - 3, endpoint.height // 2),
+    ]:
+        assert endpoint.getpixel(point) == resting.getpixel(point), {
+            "point": point,
+            "endpoint": endpoint.getpixel(point),
+            "resting": resting.getpixel(point),
+        }
+
+
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+def test_refresh_arrival_returns_to_the_thread_fill(browser, serve, scheme):
+    """A demo opening its seeded conversation on refresh fades to its actual surface."""
+    url = serve(
+        leaf_page(
+            "Refresh arrival",
+            """<style>#sample { height: 400px; }</style><h1>Workshop</h1>
+<script id="history" type="application/json">
+[{"id":"question","kind":"comment","author":"user","text":"Can we schedule lunch?"}]
+</script>
+<lf-sample id="sample" window>
+  <template id="sample-page" data-sample data-sample-events="history">
+    <h1>Schedule</h1><p>Lunch is the remaining question.</p>
+  </template>
+</lf-sample>
+<script type="module">
+  await customElements.whenDefined('lf-sample');
+  const sample = document.querySelector('#sample');
+  await sample.ready;
+  await sample.showThread('question', {surface: 'panel'});
+</script>""",
+        )
+    )
+    page = open_page(
+        browser,
+        url,
+        color_scheme=scheme,
+        init_script="""document.addEventListener('animationstart', event => {
+          if (!event.animationName.endsWith('-flash')) return;
+          const cue = event.target.getAnimations().find(a => a.animationName === event.animationName);
+          cue.pause();
+        }, true);""",
+    )
+    page.reload()
+    thread = page.frame_locator("#sample iframe").locator(".lf-thread[open]")
+    expect(thread).to_be_visible()
+    expect(thread).to_have_class(re.compile(r"\bflash\b"))
+    assert_arrival_returns_to_own_fill(page, thread)
+
+
 @pytest.mark.parametrize("resolved", [False, True])
 def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
     """A direct reply link opens and cues the exact message, even in a long thread or
@@ -598,6 +671,7 @@ def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
             const arrived = (event) => {
               if (event.target !== destination) return;
               window.__arrival = event.animationName;
+              destination.getAnimations().find(a => a.animationName === event.animationName).pause();
               destination.removeEventListener('animationstart', arrived);
             };
             destination.addEventListener('animationstart', arrived);
@@ -616,6 +690,7 @@ def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
     expect(destination).to_be_focused()
     expect(thread).not_to_have_class(re.compile(r"\bflash\b"))
     expect(destination).to_have_class(re.compile(r"\bflash\b"))
+    assert_arrival_returns_to_own_fill(page, destination)
     sizes = page.evaluate(
         """([thread, destination, list]) => ({
           thread: thread.getBoundingClientRect().height,
@@ -8918,7 +8993,19 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
             )
             one_frame(page)
             pixels = Image.open(io.BytesIO(message.screenshot())).convert("RGB")
-            assert pixels.getpixel((1, 1)) == pixels.getpixel((1, pixels.height - 4))
+            # The scrollport can clip the message's top edge. Sample inside the
+            # sticky header's visible paint, clear of its words and controls.
+            head_point = message.evaluate(
+                """node => {
+                  const box = node.getBoundingClientRect();
+                  const head = node.querySelector('.lf-msg-head').getBoundingClientRect();
+                  return [Math.round(head.right - box.left) - 2,
+                    Math.round(head.top + head.height / 2 - box.top)];
+                }"""
+            )
+            assert pixels.getpixel(tuple(head_point)) == pixels.getpixel(
+                (head_point[0], pixels.height - 4)
+            )
     held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)

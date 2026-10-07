@@ -320,7 +320,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
    makes this runtime-private in the one CSS namespace scoping cannot protect. */
 @keyframes lf-runtime-4f3c2a8d-working { to { opacity: .5; } }
 @keyframes lf-runtime-4f3c2a8d-flash {
-  0% { background: var(--hi-tint); } 100% { background: var(--card); }
+  /* The target owns its resting fill, including transparency and focus paint.
+     An omitted endpoint lets the browser interpolate to that underlying value. */
+  from { background-color: var(--hi-tint); }
 }
 @keyframes lf-runtime-4f3c2a8d-grow {
   0% { opacity: 0; transform: translateY(-6px) scale(.985); }

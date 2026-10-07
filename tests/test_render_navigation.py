@@ -6864,7 +6864,8 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
             document.querySelector('#' + code).getBoundingClientRect().top;
           const before = {chip: chipTop(), target: targetTop()};
           const standing = [];
-          document.scrollingElement.scrollTo({top: 260, behavior: 'smooth'});
+          // Keep this target above the viewport's top clamp throughout the sweep.
+          document.scrollingElement.scrollTo({top: 180, behavior: 'smooth'});
           for (let frame = 0; frame < 8; frame++) {
             // After the frame's own callbacks, not inside one: a reading taken from a
             // callback registered a frame earlier is queued ahead of the runtime's
@@ -6876,6 +6877,7 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
               standing.push({
                 chips: document.querySelectorAll(sel).length,
                 gap: chipTop() === null ? null : targetTop() - chipTop(),
+                scroll: document.scrollingElement.scrollTop,
               });
           }
           return {before, standing};

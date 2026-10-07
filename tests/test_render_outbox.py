@@ -43,6 +43,7 @@ from render_harness import (
     _traffic,
     _until,
     banner_control,
+    beside_a_pane,
     consume_browser_errors,
     draft_control,
     expect_asks_answered,
@@ -2285,16 +2286,18 @@ def test_the_comment_field_follows_its_passage_out_of_view(browser, serve):
     expect(page.locator(".lf-fab-input")).to_be_focused()
 
 
-PANED_LONG_PAGE = leaf_page(
-    "paned long",
-    """<header><h1 id="t">Paned</h1></header>
-<lf-pane id="reading" label="Reading"><div id="reading-body">{paras}</div></lf-pane>
-""".format(
+PANED_LONG_REGIONS, PANED_LONG_HEAD = beside_a_pane(
+    '<lf-pane id="reading" label="Reading"><div id="reading-body">{paras}</div></lf-pane>'.format(
         paras="\n".join(
             f"<p id='p{i}'>Paragraph {i}. " + "Filler. " * 20 + "</p>"
             for i in range(60)
         )
-    ),
+    )
+)
+PANED_LONG_PAGE = leaf_page(
+    "paned long",
+    '<header><h1 id="t">Paned</h1></header>' + PANED_LONG_REGIONS,
+    head=PANED_LONG_HEAD,
     layout="workspace",
 )
 

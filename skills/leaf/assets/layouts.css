@@ -337,25 +337,28 @@
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
   }
   .layout-tiles > * { margin: 0; }
-  /* Workspace: a full-height page, filling the window between the banner and the bottom
-   * bar: its header and footer take their content's height, the body takes the rest,
-   * arranged as the body itself says: a page's grid of panes, a pane, or a widget that
-   * composes its own regions. Each pane's body scrolls on its own, a widget's generated
-   * panes included, and `--lf-full-height` on main tells a widget the body has a definite
-   * height to fill (a style query). Where the window is too small to hold the regions, the
-   * workspace flows and the page scrolls.
+  /* Workspace: a screen the reader moves through, such as a queue, a review or a run's
+   * log beside its chart, between the banner and the bottom bar. Its header and footer
+   * take their content's height and its one body the rest, arranged as the body itself
+   * says: a page's grid of panes, a pane, or a widget that composes its own regions.
+   *
+   * The window is the workspace's, so it takes the whole of it: no cap at the widest
+   * page, and a gutter, a gap between panes and a header only as large as keeps them
+   * apart. Each pixel of frame is one the regions give up, and at 1920px the cap and the
+   * wide page's gutters held them to 1,472px of the 1,896px this leaves. The type is the
+   * theme's: a workspace usually takes working density (`.density-working`, theme.css),
+   * which the Layout neither sets nor reads.
+   *
+   * Its height is the window's only where panes stand side by side (below). A body that
+   * is one region, a pane or a widget such as a tab queue or a visual review, takes its
+   * content's height and the page scrolls it: held to the window, it would scroll the
+   * same content in a box shorter than the window, with nothing beside it to keep in
+   * view.
    *
    * A pane is any element in the pane role (`data-lf-reading-role="pane"`, theme.css),
    * which delivery paints into the served document from the element's declaration, so
    * the first paint already holds the panes. A box a widget generates in that role also
-   * carries `data-lf-generated`, which the widget writes as it builds the box.
-   *
-   * The window is the workspace's, so it takes the whole of it: no cap at the widest
-   * page, and a gutter, a gap between panes and a header only as large as keeps them
-   * apart. Each pixel of frame is one the panes give up, and at 1920px the cap and the
-   * wide page's gutters held them to 1,472px of the 1,896px this leaves. The type is the
-   * theme's: a workspace usually takes working density (`.density-working`, theme.css),
-   * which the Layout neither sets nor reads. */
+   * carries `data-lf-generated`, which the widget writes as it builds the box. */
   main.layout-workspace {
     padding-inline: 12px;
     padding-block-start: var(--sp-2);
@@ -373,6 +376,8 @@
     --lf-block-frame: 1;
   }
   main.layout-workspace > header > * { margin-block: 0; }
+  /* The body stands directly under the header, whatever margin its widget gives it. */
+  main.layout-workspace > :not(header, footer) { margin-block: 0; }
   /* A body that is not itself a pane is a reading region of the Layout's own, which the
    * runtime registers from this mark (reading-regions.js, `syncLayoutRegion`), so a pane
    * it carries scrolls with it wherever something asks which box scrolls that pane. */
@@ -390,9 +395,8 @@
    *
    * The grid is of the panes the page wrote. A widget that is the body composes its
    * own regions and draws its own frame, and a pane it generates may stand directly in
-   * it (`data-lf-generated`), as a visual review's evidence does; that pane is the
-   * widget's region rather than a cell of a page's grid, so neither the frame nor the
-   * ring is drawn for it. */
+   * it (`data-lf-generated`); that pane is the widget's region rather than a cell of a
+   * page's grid, so neither the frame nor the ring is drawn for it. */
   main.layout-workspace
     > :not(header, footer):has(> [data-lf-reading-role="pane"]:not([data-lf-generated])) {
     gap: 1px;
@@ -405,8 +409,38 @@
     border-radius: 0;
     box-shadow: 0 0 0 1px var(--rule);
   }
+  /* Full-height: where panes stand side by side in the body, a page's grid of them or a
+   * widget's own, such as a playground's controls beside its preview, the workspace
+   * fills the window and they share its height, each scrolling its own body, so the
+   * reader keeps one in view while reading down another. Where the window is too small
+   * to hold the regions, the workspace flows and the page scrolls.
+   *
+   * Panes stand side by side where the body is the page's grid of regions, a pane among
+   * its cells, as a log pane beside its chart or rows of panes are, or where a widget's
+   * generated panes are siblings and no pane the page wrote holds them. A body that is
+   * one pane is one region, whatever its own body holds.
+   *
+   * Only `main` reads the panes, with a `:has()` on the box it styles; what stands under
+   * it reads the answer from `--lf-full-height`, the token that tells a widget the body
+   * has a definite height to fill, with a style query. A `:has()` on `main` ahead of a
+   * rule for a box under it would restyle the whole page on every write below `main`
+   * (`test_no_has_rule_restyles_the_whole_document`). The `:has()` reaches the page's
+   * panes by child steps rather than searching every descendant: on a page of 40,000
+   * elements, a search for sibling panes at any depth added about half a millisecond to
+   * each write inside a pane, and child steps add nothing measurable. */
   @media screen and (min-width: 720px) and (min-height: 480px) {
-    main.layout-workspace {
+    main.layout-workspace:has(
+        > :not(header, footer, [data-lf-reading-role="pane"])
+          > [data-lf-reading-role="pane"]:not([data-lf-generated])
+          ~ :not(script, style, template),
+        > :not(header, footer, [data-lf-reading-role="pane"])
+          > :not(script, style, template)
+          ~ [data-lf-reading-role="pane"]:not([data-lf-generated]),
+        [data-lf-reading-role="pane"][data-lf-generated]:not(
+            [data-lf-reading-role="pane"]:not([data-lf-generated]) *
+          )
+          ~ [data-lf-reading-role="pane"][data-lf-generated]
+      ) {
       --lf-full-height: 1;
       display: flex;
       flex-direction: column;
@@ -414,11 +448,12 @@
       padding-block-end: 0;
       box-sizing: border-box;
     }
+  }
+  @container style(--lf-full-height: 1) {
     main.layout-workspace > :is(header, footer) { flex: none; }
     main.layout-workspace > :not(header, footer) {
       flex: 1 1 0;
       min-block-size: 0;
-      margin-block: 0;
     }
     /* A page's grid of panes shares the body's height among its rows. Only that grid:
      * a Layout sets the size of the box it arranges, and a widget that is the body lays
@@ -430,8 +465,7 @@
     }
     /* The body takes the window's height to pass on to its panes. A pane it does not
      * pass the height to, one inside a section of the body, takes its content's height
-     * instead, so the body scrolls as a whole rather than run past the window's foot. A
-     * body that is a pane scrolls its own body already.
+     * instead, so the body scrolls as a whole rather than run past the window's foot.
      *
      * Each box that scrolls here also says where a box sticking inside it stops
      * (`--lf-top`, theme.css): at its own top edge. The theme's answer, the banner's
@@ -445,17 +479,15 @@
     /* A pane is already a grid of header, body and footer (theme.css), whose body row
      * takes what a definite height leaves and its content's height otherwise; here it
      * may shrink below its content, and scrolls. That holds for a pane something gives a
-     * height: an authored pane the workspace sizes, which is the body itself or a cell of
-     * it, and a generated pane at any depth, which its widget sizes. An authored pane
-     * inside a section of the body, or inside another pane's body, is content there and
-     * scrolls with what holds it. */
-    main.layout-workspace > [data-lf-reading-role="pane"],
+     * height: an authored pane the workspace sizes, a cell of the body, and a generated
+     * pane at any depth, which its widget sizes. An authored pane inside a
+     * section of the body, or inside another pane's body, is content there and scrolls
+     * with what holds it. */
     main.layout-workspace > :not(header, footer) > [data-lf-reading-role="pane"],
     main.layout-workspace [data-lf-reading-role="pane"][data-lf-generated] {
       min-block-size: 0;
     }
-    :is(main.layout-workspace > [data-lf-reading-role="pane"],
-      main.layout-workspace > :not(header, footer) > [data-lf-reading-role="pane"],
+    :is(main.layout-workspace > :not(header, footer) > [data-lf-reading-role="pane"],
       main.layout-workspace [data-lf-reading-role="pane"][data-lf-generated])
       > :not(header, footer) {
       min-block-size: 0;

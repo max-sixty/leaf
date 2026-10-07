@@ -14,6 +14,7 @@ from .readings import (
     stacked_panes,
     sweep,
     swept_overflow,
+    unheld_regions,
     unreserved_height_advice,
 )
 from .scheme import _render_scheme
@@ -132,6 +133,7 @@ def _render_version_attempt(
         widths = sweep(page, RENDER_VIEWPORTS, open_widgets(registry))
         advice.extend(shrunk_label_advice(widths))
         advice.extend(overflowing_region_advice(widths, desktop["height"]))
+        advice.extend(unheld_regions(widths, desktop["width"]))
         swept.extend(swept_overflow(widths, RENDER_VIEWPORTS))
         swept.extend(stacked_panes(widths, desktop["width"]))
         arrangement.extend(arrangement_changes(widths))

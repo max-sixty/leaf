@@ -81,6 +81,7 @@ from render_harness import (
     REPLY_HOST_PAGE,
     CutOff,
     active_digit_bindings,
+    beside_a_pane,
     compare_with,
     consume_browser_errors,
     displayed,
@@ -761,17 +762,19 @@ def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):
     starts it at 0, since each scrolls; neither stacks a header, so a cell scrolled to
     just below the pane's top edge reads as shown from where it stands."""
     filler = "<p>Filler.</p>" * 40
+    regions, head = beside_a_pane(
+        '<lf-pane id="p1" label="Detail">'
+        "<header><h2>Detail</h2></header><div><p>Lead paragraph.</p>"
+        '<table id="t1"><tbody><tr><td id="c1">one</td><td>1</td></tr>'
+        "<tr><td>two</td><td>2</td></tr></tbody></table>" + filler + "</div></lf-pane>"
+    )
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Pane table",
-                '<header><h1>Pane table</h1></header><lf-pane id="p1" label="Detail">'
-                "<header><h2>Detail</h2></header><div><p>Lead paragraph.</p>"
-                '<table id="t1"><tbody><tr><td id="c1">one</td><td>1</td></tr>'
-                "<tr><td>two</td><td>2</td></tr></tbody></table>"
-                + filler
-                + "</div></lf-pane>",
+                "<header><h1>Pane table</h1></header>" + regions,
+                head=head,
                 layout="workspace",
             )
         ),
@@ -1458,10 +1461,12 @@ def test_root_tab_targets_remain_global(browser, serve):
 
 
 def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
-    """An Ask in a document is prose and a control, not a workspace's region.
-
-    The control is the same Ask as a full-height workspace's body, which hands its height to
-    the answer."""
+    """An Ask in a document is prose and a control, not a workspace's region. So is the
+    same Ask as a workspace's whole body, where no panes stand side by side to share the
+    window's height, and an Ask inside a pane of a workspace that fills the window. A
+    heading and a playground, whose panes stand side by side, is the control that the
+    workspace hands its height to
+    (`test_an_ask_with_more_than_one_answer_part_keeps_each_parts_height`)."""
     source = SWIPE_PAGE.replace(
         "  <p>Pass removes an item from this design; Keep carries it into implementation.</p>\n",
         "",
@@ -1489,17 +1494,31 @@ def test_an_ordinary_two_part_ask_retains_document_flow(browser, serve):
     )
     page = open_page(browser, serve(held))
     resized(page, 1280, 720)
-    expect(page.locator("#session-triage-decision")).to_have_css("display", "flex")
+    assert page.locator("main").evaluate(
+        "main => getComputedStyle(main).getPropertyValue('--lf-full-height') === ''"
+    )
+    expect(page.locator("#session-triage-decision")).to_have_css("display", "block")
     page.close()
 
     # The workspace's full height reaches every Ask in it; an Ask held in a pane is
     # that pane's content, not the body, and keeps its document flow.
-    in_pane = held.replace(
-        '<lf-ask id="session-triage-decision">',
-        '<lf-pane id="triage-pane" label="Triage"><div>\n<lf-ask id="session-triage-decision">',
-    ).replace("</lf-ask>\n", "</lf-ask>\n</div></lf-pane>\n")
+    in_pane = (
+        held.replace(
+            '<lf-ask id="session-triage-decision">',
+            '<div id="triage-split"><lf-pane id="triage-pane" label="Triage"><div>\n'
+            '<lf-ask id="session-triage-decision">',
+        )
+        .replace(
+            "</lf-ask>\n",
+            "</lf-ask>\n</div></lf-pane>\n"
+            '<lf-pane id="triage-notes" label="Notes"><div><p>Notes.</p></div></lf-pane>'
+            "</div>\n",
+        )
+        .replace("</head>", regions_side_by_side("triage-split") + "</head>")
+    )
     page = open_page(browser, serve(in_pane))
     resized(page, 1280, 720)
+    fills_the_window(page, page.locator("main"), True)
     expect(page.locator("#session-triage-decision")).to_have_css("display", "block")
 
 
@@ -1607,9 +1626,10 @@ SECTIONED_PANE_PAGE = leaf_page(
     "a pane in a section",
     f"""<div id="cells">
   <section><h2>Section heading</h2>{LONG_PANE}</section>
-  <section><h2>Beside it</h2><p>A short cell.</p></section>
+  <lf-pane id="beside-one" label="Beside it"><div><p>A short cell.</p></div></lf-pane>
+  <lf-pane id="beside-two" label="And beside that"><div><p>Another.</p></div></lf-pane>
 </div>""",
-    head=regions_side_by_side("cells"),
+    head=regions_side_by_side("cells", "2fr 1fr 1fr"),
     layout="workspace",
 )
 THREE_PART_ASK_PAGE = leaf_page(
@@ -1631,8 +1651,10 @@ THREE_PART_ASK_PAGE = leaf_page(
 def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     """Only a box that passes the height on holds what it contains. A section in the
     body's grid is a grouping, so a pane in one takes its natural height and the body,
-    which fills the window, scrolls it. The control is the same pane as the workspace's
-    body, which fills the window."""
+    which fills the window for the panes beside it, scrolls it. The same pane as the
+    workspace's whole body has nothing beside it to share the window's height with, so
+    it takes its content's height and the page scrolls it, rather than scrolling the same
+    reading in a box smaller than the window."""
     page = open_page(browser, serve(SECTIONED_PANE_PAGE))
     resized(page, 1280, 720)
     pane = page.locator("#workspace-pane")
@@ -1649,8 +1671,46 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     direct = leaf_page("a pane as the workspace body", LONG_PANE, layout="workspace")
     page = open_page(browser, serve(direct))
     resized(page, 1280, 720)
-    pane_posture(page, page.locator("#workspace-pane"), "bounded")
-    fills_the_window(page, page.locator("main"), True)
+    pane_posture(page, page.locator("#workspace-pane"), "flow")
+    fills_the_window(page, page.locator("main"), False)
+    assert page.evaluate(
+        """async () => {
+          const leaf = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          return leaf.effectiveScroller('workspace-pane') === document.scrollingElement;
+        }"""
+    )
+    page.close()
+
+    # Panes inside the lone pane's body are its content, not regions beside it, so the
+    # pane is still the one region and the page carries it.
+    holding_panes = leaf_page(
+        "a pane holding panes as the workspace body",
+        """<lf-pane id="host" label="Host"><div>
+  <lf-pane id="first-inner" label="First"><div><p>One.</p></div></lf-pane>
+  <lf-pane id="second-inner" label="Second"><div><p>Two.</p></div></lf-pane>
+  <div style="height: 1400px"></div>
+</div></lf-pane>""",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(holding_panes))
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#host"), "flow")
+    fills_the_window(page, page.locator("main"), False)
+    page.close()
+
+    # Two panes written straight into `main` are two bodies, which the workspace sizes
+    # neither of, so it does not hold them either.
+    in_main = leaf_page(
+        "two panes in main",
+        LONG_PANE
+        + LONG_PANE.replace("workspace-pane", "second-pane").replace(
+            "pane-end", "second-end"
+        ),
+        layout="workspace",
+    )
+    page = open_page(browser, serve(in_main))
+    resized(page, 1280, 720)
+    fills_the_window(page, page.locator("main"), False)
 
 
 ZONE_PACKAGE = {
@@ -1805,7 +1865,8 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     assert end["clear"], end
     page.close()
 
-    root = leaf_page("a workspace", LONG_PANE, layout="workspace")
+    regions, head = beside_a_pane(LONG_PANE)
+    root = leaf_page("a workspace", regions, head=head, layout="workspace")
     page = open_page(browser, serve(root))
     resized(page, 1280, 420)
     pane_posture(page, page.locator("#workspace-pane"), "flow")
@@ -1821,15 +1882,14 @@ def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
     """A comment in a pane stands as a pin in the pane's own lane, over the block it
     serves. Leaf inserts nothing into the pane, so a pane whose one body element is that
     block keeps it as its one body and goes on scrolling it."""
-    source = leaf_page(
-        "a comment in a pane",
+    regions, head = beside_a_pane(
         """
   <lf-pane id="workspace-pane" label="Only a paragraph">
     <p id="only">A paragraph that is the whole body of its pane.</p>
   </lf-pane>
-""",
-        layout="workspace",
+"""
     )
+    source = leaf_page("a comment in a pane", regions, head=head, layout="workspace")
     page = open_page(browser, serve(source))
     resized(page, 1000, 720)
     pane_posture(page, page.locator("#workspace-pane"), "bounded")
@@ -1854,8 +1914,7 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
     section: it takes its natural height and the outer body scrolls it, so reading keys
     and continuity name the box that actually moves. The control is the outer pane,
     which fills the same window."""
-    source = leaf_page(
-        "regions inside a pane body",
+    regions, head = beside_a_pane(
         """
   <lf-pane id="host" label="Host"><div id="host-body">
     <p>Host start</p>
@@ -1868,8 +1927,10 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
       <div><p>Start</p><div style="height: 900px"></div><p>End</p></div>
     </lf-pane>
   </div></lf-pane>
-""",
-        layout="workspace",
+"""
+    )
+    source = leaf_page(
+        "regions inside a pane body", regions, head=head, layout="workspace"
     )
     page = open_page(browser, serve(source))
     resized(page, 1280, 720)

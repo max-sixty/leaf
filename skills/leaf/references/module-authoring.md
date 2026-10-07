@@ -180,19 +180,22 @@ the served document as `data-lf-reading-role`, which the kernel's theme and the
 workspace Layout lay out as a pane from the first paint, so every package's pane takes
 the same rules; its module registers the pane's body as described below.
 
-Whether a pane's body scrolls is the workspace Layout's (`layouts.css`). Where the
-window is large enough, the workspace is full-height: it fills the window, and the
-Layout gives its body a definite height, so a pane that is the body or a direct cell of
-it may shrink below its content and scrolls its body; a pane inside a section of the
-body, or inside another pane's body, flows with what holds it, and elsewhere every pane
-takes its content's height. Nothing in a module measures a minimum or chooses a
+Whether a pane's body scrolls is the workspace Layout's (`layouts.css`). Where panes
+stand side by side in the workspace's body and the window is large enough, the
+workspace is full-height: it fills the window, and the Layout gives its body a definite
+height, so a pane that is a direct cell of the body may shrink below its content and
+scrolls its body; a pane inside a section of the body, or inside another pane's body,
+flows with what holds it, and elsewhere every pane, a lone one that is the body
+included, takes its content's height. Nothing in a module measures a minimum or chooses a
 posture. While the workspace is full-height, the Layout sets `--lf-full-height: 1` on
 `main`, and a widget that should grow to fill the height it is given, such as a
 playground's stage, keys its rules on `@container style(--lf-full-height: 1)`. A behavior
 module that composes regions out of boxes it generates, such as a playground's controls
 beside its preview, takes the pane rules by marking those boxes
 `data-lf-reading-role="pane"` and `data-lf-generated`, with the pane grammar of one
-header, one body, and one footer. A generated pane scrolls its body wherever it stands in
+header, one body, and one footer. Generated panes standing side by side make the
+workspace full-height as a page's grid does, and one alone, such as a visual review's
+evidence, flows with the page. A generated pane scrolls its body wherever it stands in
 a full-height workspace, since its widget sizes it, and its widget draws the frame around
 it: the workspace joins only the panes a page wrote into its hairline grid. The
 attributes are the module's to write and never an author's, since `page check` refuses `data-lf-` markup. Keep the

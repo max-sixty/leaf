@@ -1471,20 +1471,9 @@
         min-inline-size: 0;
         min-block-size: 0;
       }
-      #aw-conversations {
-        display: flex;
-        flex-direction: column;
-        gap: var(--sp-3);
-      }
-      #aw-conversations > h2 {
-        margin: 0;
-        flex: none;
-      }
       #aw-annotations {
         inline-size: 100%;
-        block-size: 100%;
         min-block-size: 0;
-        flex: 1 1 0;
       }
       #aw-navigation {
         display: flex;
@@ -1497,7 +1486,6 @@
         }
         #aw-annotations {
           block-size: clamp(18rem, 55svh, 30rem);
-          flex: none;
         }
       }
     </style>
@@ -5819,14 +5807,10 @@ stateDiagram-v2
           </div>
         </lf-pane>
 
-        <aside
-          id="aw-conversations"
-          aria-labelledby="aw-conversations-heading"
-          tabindex="-1"
-        >
-          <h2 id="aw-conversations-heading">Conversations and actions</h2>
+        <lf-pane id="aw-conversations" label="Conversations and actions">
+          <header><h2>Conversations and actions</h2></header>
           <lf-annotation-rail id="aw-annotations"></lf-annotation-rail>
-        </aside>
+        </lf-pane>
       </div>
       <footer>
         <p id="aw-comment-route">

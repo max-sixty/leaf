@@ -1196,9 +1196,11 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
 def test_published_workspaces_keep_their_allocation_without_site_note(
     hosted, browser, name
 ):
-    """A published workspace owns main and keeps its bounded reading regions: the
-    page does not scroll, and each region scrolls on its own, whether that is a pane's
-    body or the workspace's body itself, as where a side-list queue is the body."""
+    """A published workspace owns main and keeps its allocation. Where panes stand side
+    by side, it keeps its bounded reading regions: the page does not scroll, and each
+    region scrolls on its own, whether that is a pane's body or the workspace's body
+    itself. Where its body is one region, as where a side-list queue is the body,
+    nothing in it scrolls on its own and the page carries it."""
     page = open_page(browser, f"{hosted}/examples/{name}/")
     page.set_viewport_size({"width": 1200, "height": 900})
     expect(page.locator("body > main.layout-workspace")).to_have_count(1)
@@ -1215,8 +1217,13 @@ def test_published_workspaces_keep_their_allocation_without_site_note(
               child => !child.matches('header, footer') && !child.matches(pane)),
             ...[...main.querySelectorAll(pane)].map(bodyOf),
           ];
-          return page.scrollHeight === page.clientHeight && regions.length > 0
-            && regions.every(region => getComputedStyle(region).overflowY === 'auto');
+          const scrolls = region => getComputedStyle(region).overflowY === 'auto';
+          const held =
+            getComputedStyle(main).getPropertyValue('--lf-full-height').trim() === '1';
+          if (regions.length === 0) return false;
+          return held
+            ? page.scrollHeight === page.clientHeight && regions.every(scrolls)
+            : !regions.some(scrolls);
         }"""
     )
 

@@ -154,12 +154,10 @@ and its chrome coordinate.
   newcomer out of view rather than pushing down the card being read. The user sees
   it only in the count; give that arrival a visible route while preserving the
   current reading.
-- **Hold the shipped workspaces to the overflow advice.** `alert-review` shows one
-  alert's decision at a time, but `page check --render` still advises that its queue
-  (`ar-queue`) runs 106px past its region at every width from 720 to 1920px, and
-  `rust-sort`'s stage pane 100px at 720px. Fit both, then make
-  `test_page_fixture_renders` fail on that advice for workspace examples, with
-  `rust-sort`'s source pane the one reader allowed to scroll; today it asserts only
+- **Hold the shipped workspaces to the overflow advice.** `page check --render` still
+  advises that `rust-sort`'s stage pane runs 100px past its region at 720px. Fit it,
+  then make `test_page_fixture_renders` fail on that advice for workspace examples,
+  with `rust-sort`'s source pane the one reader allowed to scroll; today it asserts only
   the gate's failures ([plan](notes/chrome-and-covers.md)).
 - **Decide whether the desktop bottom bar goes.** Its key hints would move behind `?`
   and its status into the banner; the bar is how a desktop user learns the keys

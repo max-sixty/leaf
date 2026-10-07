@@ -324,6 +324,65 @@ def test_a_screen_region_that_runs_past_its_room_gets_advice(browser, serve):
     assert "holds 2 open Asks" in advice and 'lf-tabs list="side"' in advice, advice
 
 
+def test_panes_wrapped_one_to_a_cell_get_advice(browser, serve):
+    """The workspace fills the window where a pane is a cell of the body's grid, so panes
+    each wrapped in a column of their own leave every region at its content's height and
+    the page scrolls them together, though the author set them side by side as regions
+    to keep in view. The gate names the body at the desktop width, as advice. The same
+    two panes as cells fill the window, and the advice goes."""
+    lines = "".join(f"<p>Log line {n}.</p>" for n in range(60))
+    source = leaf_page(
+        "run log",
+        f"""
+  <header><h1>Run 412</h1></header>
+  <div id="regions">
+    <div><lf-pane id="log" label="Log"><div>{lines}</div></lf-pane></div>
+    <div><lf-pane id="chart" label="Latency"><div><p>The p99 rose at 14:02.</p></div>
+      </lf-pane></div>
+  </div>
+""",
+        head="<style>#regions { display: grid; grid-template-columns: 1fr 1fr; }</style>",
+        layout="workspace",
+    )
+
+    reading = render_gate_model.render_version(browser, serve(source, packages=()))
+
+    assert reading.failures == []
+    (advice,) = [line for line in reading.advice if "side by side" in line]
+    assert re.match(
+        r"at \d+px wide, <div id=regions> sets 2 regions side by side, 0 of them "
+        r"panes, so the workspace does not fill the window",
+        advice,
+    ), advice
+
+    panes = source.replace("<div><lf-pane", "<lf-pane").replace(
+        "</lf-pane></div>", "</lf-pane>"
+    )
+    reading = render_gate_model.render_version(browser, serve(panes, packages=()))
+    assert not [line for line in reading.advice if "side by side" in line], (
+        reading.advice
+    )
+
+    # A side-list queue lays out its own list and panel, which are not the page's
+    # cells, so a pane inside one of its items is no reason for the advice.
+    queue = leaf_page(
+        "queue",
+        """
+  <header><h1>Queue</h1></header>
+  <lf-tabs id="queue" list="side">
+    <lf-tab id="item-a" label="Item A"><lf-pane id="detail-a" label="Detail A">
+      <div><p>The first item's detail.</p></div></lf-pane></lf-tab>
+    <lf-tab id="item-b" label="Item B"><p>A plain item.</p></lf-tab>
+  </lf-tabs>
+""",
+        layout="workspace",
+    )
+    reading = render_gate_model.render_version(browser, serve(queue))
+    assert not [line for line in reading.advice if "side by side" in line], (
+        reading.advice
+    )
+
+
 STACK = "{ #regions { grid-template-columns: 1fr; } }"
 SPLIT = "{ #regions { grid-template-columns: 1fr 1fr; } }"
 

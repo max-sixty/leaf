@@ -561,6 +561,31 @@ def stacked_panes(readings, desktop: int) -> list[str]:
     ]
 
 
+def unheld_regions(readings, desktop: int) -> list[str]:
+    """Advice naming each workspace body that, at the `desktop` width, sets regions
+    side by side and holds a pane, where the workspace does not fill the window, as
+    where panes are wrapped one to a cell.
+
+    The workspace fills the window only where a pane is a cell of the body's grid
+    (layouts.css), so such a body leaves every region at its content's height and the
+    page scrolls them together: the author meant regions the reader keeps in view side
+    by side and got a document. Advice rather than a failure: the page still shows
+    everything, and regions that read as one flow are the author's call."""
+    return [
+        f"at {width}px wide, {body['at']} sets {body['cells']} regions side by side, "
+        f"{body['panes']} of them panes, so the workspace does not fill the window "
+        "and the page scrolls them together; make each region an `lf-pane`, a direct "
+        "cell of the body, to give each its own scrolling (page-authoring.md, A "
+        "workspace)"
+        for width, reading in readings
+        if width == desktop
+        for body in reading["panes"]
+        if not body["held"]
+        and body["cellsBeside"] > 1
+        and body["panes"] < body["cells"]
+    ]
+
+
 def margin_changes(page, readings, height: int) -> list[int]:
     """The widths at which the page's margin content changes, narrowest first.
 

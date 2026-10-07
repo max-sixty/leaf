@@ -603,15 +603,15 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
       .lf-version[data-lf-news])::after {
     content: ""; position: absolute; inset-block-start: 2px; inset-inline-end: 2px;
     width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
-  /* Horizontally anchored to its own press. Every side the rule does not use is said
-     out loud because the popover UA rule is inset: 0 with margin: auto, which otherwise
-     centres the menu. */
+  /* Horizontally anchored to its own press. A stable width keeps controls in place when
+     the clock changes the Leaf version's age from one digit to two. Every side the rule
+     does not use is said out loud because the popover UA rule is inset: 0 with margin:
+     auto, which otherwise centres the menu. */
   .lf-banner-menu { position: fixed; position-anchor: --lf-banner-more;
     right: anchor(right);
     left: auto; bottom: auto; margin: 0; z-index: var(--lf-z-menu);
     display: none; flex-direction: column; align-items: stretch; gap: 1px;
-    min-width: max(anchor-size(width), 180px);
-    max-width: calc(100vw - 16px);
+    box-sizing: border-box; width: min(280px, calc(100vw - 16px));
     max-height: calc(100dvh - var(--lf-banner-h) - 20px); overflow-y: auto;
     overscroll-behavior: contain;
     background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
@@ -634,7 +634,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* A secondary control doing something has to go on saying so. The menu's resting
      rule clears the same two declarations the row's does, so `.on` needs the same
      answer here: the treatment the open auxiliary surface already keeps in the menu on its
-     own specificity. The menu reserves no width, so nothing is spent restating it. */
+     own specificity. */
   .lf-banner-menu .lf-btn.on {
     background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
   /* Comment on the page is a symbol on the row and its words behind More, where every

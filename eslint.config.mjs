@@ -707,6 +707,21 @@ export default [
     rules: publicRuntimeBoundary,
   },
   {
+    // Compiler tests load their newly generated temporary output. Those paths
+    // are build results, not authored browser imports hiding dependency edges.
+    files: ["build/**/*.test.mjs"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...publicRuntimeBoundary["no-restricted-syntax"]
+          .slice(1)
+          .filter(
+            (rule) => rule.selector !== 'ImportExpression:not([source.type="Literal"])',
+          ),
+      ],
+    },
+  },
+  {
     // The runtime's own fold tests. A private owner is what they are about, so the
     // facade rule would forbid their subject; the entry stays out of reach, because a
     // test is not a page and booting one would import the whole layer to read one fold.
@@ -834,11 +849,11 @@ export default [
     files: [
       "skills/leaf/scripts/leaf/render-checks/replay.js",
       "skills/leaf/scripts/leaf/render-checks/runtime.js",
+      "skills/leaf/scripts/leaf/render-checks/widgets.js",
     ],
     rules: {
-      // Render checks compare the publisher's historical selections. That validation
-      // reading is deliberately private rather than part of the package-facing widget
-      // controller.
+      // Render checks use their diagnostic adapter alongside the public widget API.
+      // Validation and visual-part owners remain private to the kernel.
       "no-restricted-imports": [
         "error",
         {
@@ -850,8 +865,8 @@ export default [
           ],
           patterns: [
             {
-              regex: "^/runtime/(?!widget-api\\.js$|validation\\.js$)",
-              message: "Render checks use the public API or validation adapter.",
+              regex: "^/runtime/(?!widget-api\\.js$|check-api\\.js$)",
+              message: "Render checks use the public API or diagnostic adapter.",
             },
             {
               regex: "^\\.{1,2}/(?:.*/)?runtime/",

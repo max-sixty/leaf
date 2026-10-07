@@ -252,7 +252,8 @@ def test_a_settled_ask_keeps_its_heading_above_the_answer(browser, serve):
         },
     )
     page = open_page(browser, live_url(url))
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.locator(".lf-thread", has=page.locator("#th-done")).locator(
         ".lf-thread-summary"

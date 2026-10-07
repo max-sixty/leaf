@@ -79,6 +79,11 @@ export function motion(el, keyframes, ms) {
   return played;
 }
 
+// How long an arrival flash lasts: a thread revealed in Threads, and Threads itself
+// once the page comment card has sent a thread there. chrome.css's `.flash` animation
+// states the same length.
+export const FLASH_MS = 1200;
+
 // How long room takes to go back. Long enough that the eye can follow a paragraph's
 // worth of page closing, short enough that the act still reads as having happened at
 // the press: the board's own FLIP is 150ms over a card's width, and this is a taller

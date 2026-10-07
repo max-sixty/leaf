@@ -57,7 +57,7 @@
 
 import { afterPresentation } from "/runtime/presentation.js";
 import { keeps, layoutPx as px, atLayoutPrecision } from "/runtime/keeps.js";
-import { anchorElement, anchorName } from "/runtime/anchor-names.js";
+import { anchorElement, anchorName, carriedAnchor } from "/runtime/anchor-names.js";
 import { holdFocus } from "/runtime/focus.js";
 import { shownBand } from "/runtime/geometry.js";
 import {
@@ -165,36 +165,19 @@ export const floatingSelections = () => [...stood.values()];
 const physicalContext = (context) =>
   context?.nodeType === Node.TEXT_NODE ? context.parentElement : context;
 
-// An element the scroll around it carries as it carries the words beside it: one with a
-// box of its own, in flow where that scroll moves it. A line break renders as a break in
-// the words rather than a box, so it anchors nothing.
-const carriedAlong = (node) =>
-  node instanceof Element &&
-  !/^(br|wbr)$/.test(node.localName) &&
-  anchorElement(node) === node &&
-  node.getClientRects().length > 0 &&
-  /^(static|relative)$/.test(getComputedStyle(node).position);
-
 // The box a surface anchors to for `context`. Words standing directly in a box that
 // scrolls them move with that scroll, which an anchor on the box itself does not
-// follow. The nearest element beside them in that box moves with them, so the surface
-// anchors there and the browser carries it through that scroll with the words. A
-// motion layer would carry the same scroll, but Chrome can paint it a frame before or
-// after the words it carries; it stays for a scroll no anchor reaches, as inside a
-// shadow tree or around words with no element beside them.
+// follow, so they anchor to the nearest element beside them that the scroll carries
+// (`carriedAnchor`). A motion layer would carry the same scroll, but Chrome can paint
+// it a frame before or after the words it carries; it stays for a scroll no anchor
+// reaches, as inside a shadow tree or around words with no element beside them.
 function anchorFor(context) {
   const physical = physicalContext(context);
   if (!physical) return null;
   const anchor = anchorElement(physical);
   if (context === physical || anchor !== physical || !scrollContainer(physical))
     return anchor;
-  for (
-    let before = context.previousSibling, after = context.nextSibling;
-    before || after;
-    before = before?.previousSibling, after = after?.nextSibling
-  )
-    for (const node of [before, after]) if (carriedAlong(node)) return node;
-  return anchor;
+  return carriedAnchor(physical, context) ?? anchor;
 }
 
 // A presenter can retain this reading beside its reference rectangle before a

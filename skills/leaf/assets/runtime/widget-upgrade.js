@@ -8,11 +8,16 @@
 import { reportPageError } from "./layer-client.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 
+const initialized = new WeakSet();
+
 // One-shot guard for connectedCallback: re-connection (a parent wrapping or moving an
-// already-upgraded child) must be harmless, so upgrade order can't matter.
+// already-upgraded child) must be harmless. A clone starts its own lifetime even when
+// it copied the painted upgrade mark; that mark never owns initialization.
 export function once(el) {
-  if (el.hasAttribute(PAGE_PAINT_ATTRIBUTE.done)) return false;
-  el.setAttribute(PAGE_PAINT_ATTRIBUTE.done, "1");
+  if (initialized.has(el)) return false;
+  initialized.add(el);
+  if (!el.hasAttribute(PAGE_PAINT_ATTRIBUTE.done))
+    el.setAttribute(PAGE_PAINT_ATTRIBUTE.done, "1");
   return true;
 }
 

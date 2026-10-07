@@ -17,6 +17,10 @@
 .lf-margin-toolbar, .lf-margin-lane, .lf-margin-motion {
     position: absolute; left: 0; top: 0; width: 0; height: 0; }
 .lf-margin-lane, .lf-margin-motion { z-index: 2; }
+/* A carrier stands rows in the window, where its anchor puts it (margin-layout.js),
+   painted while the element it is anchored to has scrolled out of view. */
+.lf-margin-carrier { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 2;
+    position-visibility: always; }
 .lf-margin-cluster { position: absolute; z-index: 2;
     display: inline-flex; align-items: center; gap: 4px; white-space: nowrap;
     padding-right: var(--focus-ring-room); pointer-events: auto; }

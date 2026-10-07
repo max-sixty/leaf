@@ -236,11 +236,11 @@ jobs:
         if: steps.check.outputs.count != '0' || steps.check.outputs.conflict_count != '0' || github.event_name == 'workflow_dispatch'
       - run: uv sync --frozen
         if: steps.check.outputs.count != '0' || steps.check.outputs.conflict_count != '0' || github.event_name == 'workflow_dispatch'
-      - run: uv run playwright install --with-deps chromium webkit --only-shell
-        name: Install Chromium headless shell and WebKit
+      - run: uv run playwright install --with-deps chromium webkit firefox --only-shell
+        name: Install Chromium headless shell, WebKit and Firefox
         if: steps.check.outputs.count != '0' || steps.check.outputs.conflict_count != '0' || github.event_name == 'workflow_dispatch'
-      - run: uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.webkit.launch().close(); p.stop()"
-        name: Launch both browsers
+      - run: uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.webkit.launch().close(); p.firefox.launch().close(); p.stop()"
+        name: Launch all browsers
         if: steps.check.outputs.count != '0' || steps.check.outputs.conflict_count != '0' || github.event_name == 'workflow_dispatch'
       - run: echo "CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN" >> "$GITHUB_ENV"
         name: Export the Cloudflare log token for agents that read the logs

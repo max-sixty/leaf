@@ -9,31 +9,12 @@ import {
   projectData,
   relabel,
   selectableOffer,
+  html,
+  render,
+  repeat,
   watchData,
-  keepsText,
+  once,
 } from "/runtime/widget-api.js";
-
-function evidence(tree, kind, label, text, prior) {
-  const group =
-    prior ??
-    Object.assign(document.createElement("section"), {
-      id: `lf-${tree.id}-${kind}`,
-      className: `lf-worktree-evidence lf-worktree-${kind}`,
-    });
-  let heading = group.querySelector(":scope > strong");
-  if (!heading) {
-    heading = document.createElement("strong");
-    group.append(heading);
-  }
-  keepsText(heading, label);
-  let pre = group.querySelector(":scope > pre");
-  if (!pre) {
-    pre = document.createElement("pre");
-    group.append(pre);
-  }
-  keepsText(pre, text);
-  return group;
-}
 
 function summary(record) {
   return [
@@ -46,13 +27,8 @@ function summary(record) {
   ].join(" · ");
 }
 
-function renderDatum(tree, record, prior) {
-  const datum =
-    prior ??
-    Object.assign(document.createElement("section"), {
-      className: "lf-worktree-snapshot",
-    });
-  let head = datum.querySelector(":scope > .lf-worktree-head");
+function renderDatum(tree, record) {
+  let head = tree.head;
   if (!head) {
     head = selectableOffer("button", "lf-worktree-head");
     head.addEventListener("click", (event) => {
@@ -85,7 +61,7 @@ function renderDatum(tree, record, prior) {
         run: () => head.click(),
       },
     ]);
-    datum.prepend(head);
+    tree.head = head;
   }
   relabel(
     head,
@@ -100,63 +76,46 @@ function renderDatum(tree, record, prior) {
   // own. Only a change is written.
   keeps(head, "aria-expanded", tree.hasAttribute("data-lf-open"));
 
-  let source = datum.querySelector(":scope > .lf-worktree-source");
-  if (!source) {
-    source = document.createElement("p");
-    source.className = "lf-worktree-source";
-    head.after(source);
-  }
-  const sourceText = record.missing
-    ? "Observed evidence · waiting for the host"
-    : `Observed evidence · ${ago(record.observedAt)}`;
-  keepsText(source, sourceText);
-
-  const priorEvidence = new Map(
-    [...datum.querySelectorAll(":scope > .lf-worktree-evidence")].map((node) => [
-      node.classList.contains("lf-worktree-files") ? "files" : "diff",
-      node,
-    ]),
+  const evidence = record.missing
+    ? []
+    : [
+        ...(record.files
+          ? [{ kind: "files", label: "Files", text: record.files }]
+          : []),
+        ...(record.diff ? [{ kind: "diff", label: "Diff", text: record.diff }] : []),
+        ...(!record.files && !record.diff
+          ? [{ kind: "diff", label: "Diff", text: "No diff was produced." }]
+          : []),
+      ];
+  render(
+    html`<section class="lf-worktree-snapshot">
+      ${head}
+      <p class="lf-worktree-source">
+        ${record.missing ? "Observed evidence · waiting for the host" : `Observed evidence · ${ago(record.observedAt)}`}
+      </p>
+      ${repeat(
+        evidence,
+        ({ kind }) => kind,
+        ({ kind, label, text }) =>
+          html`<section
+            id=${`lf-${tree.id}-${kind}`}
+            class=${`lf-worktree-evidence lf-worktree-${kind}`}
+          >
+            <strong>${label}</strong>
+            <pre>${text}</pre>
+          </section>`,
+      )}
+    </section>`,
+    tree,
   );
-  const wanted = [];
-  if (!record.missing) {
-    if (record.files) {
-      wanted.push(
-        evidence(tree, "files", "Files", record.files, priorEvidence.get("files")),
-      );
-    }
-    if (record.diff) {
-      wanted.push(
-        evidence(tree, "diff", "Diff", record.diff, priorEvidence.get("diff")),
-      );
-    }
-    if (!record.files && !record.diff) {
-      wanted.push(
-        evidence(
-          tree,
-          "diff",
-          "Diff",
-          "No diff was produced.",
-          priorEvidence.get("diff"),
-        ),
-      );
-    }
-  }
-  let cursor = source.nextElementSibling;
-  for (const node of wanted) {
-    if (node !== cursor) datum.insertBefore(node, cursor);
-    cursor = node.nextElementSibling;
-  }
-  for (const node of priorEvidence.values()) {
-    if (!wanted.includes(node)) node.remove();
-  }
-  return datum;
+  return tree.querySelector(".lf-worktree-snapshot");
 }
 
 customElements.define(
   "lf-worktree",
   class extends HTMLElement {
     connectedCallback() {
-      if (this.stopWatching) return;
+      if (!once(this)) return;
       if (!this.revealWorktree) {
         this.revealWorktree = () => {
           this.toggleAttribute("data-lf-open", true);
@@ -164,14 +123,7 @@ customElements.define(
         };
         this.addEventListener("lf-reveal", this.revealWorktree);
       }
-      this.stopWatching = watchData(this, "worktrees", (snapshot) =>
-        this.show(snapshot),
-      );
-    }
-
-    disconnectedCallback() {
-      this.stopWatching?.();
-      this.stopWatching = null;
+      watchData(this, "worktrees", (snapshot) => this.show(snapshot));
     }
 
     show(snapshot) {
@@ -181,19 +133,20 @@ customElements.define(
       const record = present
         ? { id: this.id, ...records[this.id] }
         : { id: this.id, missing: true };
+      const node = renderDatum(this, record);
       projectData(
         this,
-        [record],
-        ({ id }) => id,
-        (next, prior) => renderDatum(this, next, prior),
-        {
-          snapshot,
-          identify: present ? ({ id }) => id : null,
-          originOf: () =>
-            snapshot
+        [
+          {
+            node,
+            key: this.id,
+            ...(present ? { identity: this.id } : {}),
+            origin: snapshot
               ? { ...snapshot.origin, ...(present ? { path: [this.id] } : {}) }
               : null,
-        },
+          },
+        ],
+        { snapshot },
       );
     }
   },

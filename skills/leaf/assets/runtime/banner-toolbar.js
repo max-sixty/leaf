@@ -9,10 +9,12 @@
  *
  * Three seats partition the run, and measured geometry never changes the partition:
  *
- * - `row`: Threads, and on a desk Approval, the page's standing reading loop.
+ * - `row`: Threads, and on a desk Approval and Comment on the page, the page's
+ *   standing reading loop: reading it, starting a conversation about it, deciding it.
  * - `menu`: every secondary action, in one stable seat behind More. On a phone
- *   Approval joins them, so the banner keeps one row: the status in words, Threads and
- *   More. More wears its news dot while the approval behind it is still open.
+ *   Approval and Comment on the page join them, so the banner keeps one row: the
+ *   status in words, Threads and More. More wears its news dot while the approval
+ *   behind it is still open.
  * - `gesture`: the next step of something the user is doing right now, such as
  *   commenting on the words a touch just selected, or a finger's way out of the mode it
  *   stands in. It exists only while that gesture or mode holds it, and it is the one
@@ -56,6 +58,7 @@ export const BANNER_CONTROL_RANK = Object.freeze({
   blanket: 80,
   versions: 90,
   approval: 100,
+  pageComment: 105,
   threads: 110,
   // The way out of the mode or picker the user stands in, under a finger.
   steps: 120,

@@ -505,6 +505,19 @@ def browser(_browser, request):
 
 
 @pytest.fixture
+def firefox_browser(_playwright, request):
+    """Desktop Firefox, including its compositor's inherited-colour painting."""
+    from render_harness import WatchedBrowser, clean_browser
+
+    firefox = _playwright.firefox.launch()
+    try:
+        with clean_browser(request.node):
+            yield WatchedBrowser(firefox)
+    finally:
+        firefox.close()
+
+
+@pytest.fixture
 def webkit_browser(_playwright, request):
     """Desktop WebKit, where wheel gestures can exercise nested scroll boundaries."""
     from render_harness import WatchedBrowser, clean_browser

@@ -45,7 +45,7 @@ races are arrangements, not probabilities**), and fix that cause.
 
 The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer.
 `wt setup` installs Playwright's Chromium headless
-shell, WebKit, and Chrome, the example assets, and the npm trees; `uv run` syncs
+shell, WebKit, Firefox, and Chrome, the example assets, and the npm trees; `uv run` syncs
 Python.
 
 ```sh

@@ -2656,7 +2656,8 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     # The panel stands over the right of the page, and each box ends where the panel
     # begins. Opened by key: in the mode a press on the Threads button is a comment
     # about the button.
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.wait_for_function(LEGEND_TRUE)
     # The legend's repaint above consumed the reflow's edge, and the aim was refreshed

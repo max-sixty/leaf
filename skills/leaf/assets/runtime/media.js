@@ -7,10 +7,11 @@
    declares its public page root because a website module may live under an immutable
    release URL shared with a sample. All three resolve
    the same canonical `/media/…` text without rewriting durable content. The viewer's
-   native dialog remains a direct chrome child while its light-DOM Lit face owns the
-   generated title, control, and image. */
+   native dialog remains a direct chrome child, with its title, retained Close control,
+   and image rendered synchronously by Lit. A queued close from an earlier opening
+   leaves a reopened viewer's image and focus intact. */
 
-import { LitElement, html } from "../vendor/browser-runtime.js";
+import { html, render } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 import { handBack } from "./focus.js";
 import { closeControl } from "./widget-elements.js";
@@ -50,52 +51,26 @@ export function writePastedMedia(text, paths) {
   return text + separator + images;
 }
 
-const VIEWER_FACE_TAG = "leaf-media-viewer-face";
+const viewerClose = closeControl({
+  name: "Close image preview",
+  title: "Close image preview (Esc)",
+});
+viewerClose.onclick = () => mediaViewer.close();
 
-class MediaViewerFace extends LitElement {
-  static properties = {
-    model: { attribute: false },
-  };
-
-  #close = closeControl({
-    name: "Close image preview",
-    title: "Close image preview (Esc)",
-  });
-
-  constructor() {
-    super();
-    this.model = null;
-    this.#close.onclick = () => this.closeViewer();
-  }
-
-  createRenderRoot() {
-    return this;
-  }
-
-  present(model) {
-    this.model = model;
-    if (this.isConnected) this.performUpdate();
-  }
-
-  focusClose() {
-    this.#close.focus({ preventScroll: true });
-  }
-
-  render() {
-    return html`
+function presentViewer(model) {
+  render(
+    html`
       <div class="lf-media-viewer-head">
         <strong id="lf-media-viewer-title">Image preview</strong>
-        ${this.#close}
+        ${viewerClose}
       </div>
       <div class="lf-media-viewer-stage">
-        ${this.model ? html`<img src=${this.model.url} alt=${this.model.alt} />` : null}
+        ${model ? html`<img src=${model.url} alt=${model.alt} />` : null}
       </div>
-    `;
-  }
+    `,
+    mediaViewer,
+  );
 }
-
-if (!customElements.get(VIEWER_FACE_TAG))
-  customElements.define(VIEWER_FACE_TAG, MediaViewerFace);
 
 export const mediaViewer = document.createElement("dialog");
 mediaViewer.id = "lf-media-viewer";
@@ -103,20 +78,18 @@ mediaViewer.className = "lf-ui lf-media-viewer";
 mediaViewer.setAttribute("closedby", "any");
 mediaViewer.setAttribute("aria-modal", "true");
 mediaViewer.setAttribute("aria-labelledby", "lf-media-viewer-title");
-const viewerFace = document.createElement(VIEWER_FACE_TAG);
-viewerFace.style.display = "contents";
-viewerFace.closeViewer = () => mediaViewer.close();
-mediaViewer.append(viewerFace);
+presentViewer(null);
 
 let origin = null;
 const open = (url, alt, from) => {
   origin = from;
-  viewerFace.present(Object.freeze({ url, alt }));
+  presentViewer({ url, alt });
   if (!mediaViewer.open) mediaViewer.showModal();
-  viewerFace.focusClose();
+  viewerClose.focus({ preventScroll: true });
 };
 mediaViewer.addEventListener("close", () => {
-  viewerFace.present(null);
+  if (mediaViewer.open) return;
+  presentViewer(null);
   if (origin) handBack(origin);
   origin = null;
 });

@@ -2127,7 +2127,8 @@ def test_sign_off_waits_for_the_page_while_comments_stay_live(browser, serve):
 
 
 def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
-    """An informational page offers Threads and More without an approval action."""
+    """An informational page offers Comment on the page, Threads and More without an
+    approval action."""
     page = open_page(browser, serve(LONG_PAGE))
     # The banner is built in one pass, so a control standing in it is what makes the
     # absence beside it worth reading rather than a row that never rendered.
@@ -2136,9 +2137,10 @@ def test_a_page_that_asks_nothing_carries_no_terminal_control(browser, serve):
         "header"
     )
     row = page.locator(".lf-banner-actions > *:visible")
-    expect(row).to_have_count(2)
-    expect(row.nth(0)).to_have_class(re.compile(r"\blf-threads-toggle\b"))
-    expect(row.nth(1)).to_have_class(re.compile(r"\blf-banner-more\b"))
+    expect(row).to_have_count(3)
+    expect(row.nth(0)).to_have_class(re.compile(r"\blf-page-comment\b"))
+    expect(row.nth(1)).to_have_class(re.compile(r"\blf-threads-toggle\b"))
+    expect(row.nth(2)).to_have_class(re.compile(r"\blf-banner-more\b"))
     approval = page.locator(".lf-signoff")
     expect(approval).to_have_count(1)
     expect(approval).to_be_hidden()

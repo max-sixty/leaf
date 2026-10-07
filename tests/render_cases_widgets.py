@@ -668,7 +668,7 @@ def _filler(name, count):
 
 
 # Bound to a feed rather than written inline, because that is the form a review arrives in
-# and the only one whose lines are commentable data: `projectData` keys each row by file,
+# and the only one whose lines are commentable data: `projectData` labels each retained row by file,
 # side and source line, which is the coordinate a remark on a line is recorded at.
 # Prose either side of it so the patch has somewhere to be scrolled from and somewhere to
 # be scrolled to — a page whose whole diff fits on screen proves nothing about a header

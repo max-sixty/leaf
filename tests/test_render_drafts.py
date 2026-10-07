@@ -5918,18 +5918,19 @@ def test_resume_writing_is_a_touch_action_and_does_not_steal_hint_addresses(
         "els => els.map(el => el.dataset.lfHintCode)"
     )
     assert labels and all("i" not in label for label in labels)
+    # With Threads shut, the page's draft resumes in the banner's page comment card.
     page.keyboard.press("i")
-    expect(general).to_be_focused()
-    page.keyboard.press("Escape")
+    card_box = page.locator(".lf-page-comment-card leaf-text")
+    expect(card_box).to_be_focused()
+    expect(card_box).to_have_js_property("value", "A page-wide draft")
     page.keyboard.press("Escape")
     context = browser.new_context(
         is_mobile=True, has_touch=True, viewport={"width": 390, "height": 844}
     )
     touch = open_page(browser, serve(LONG_PAGE), context=context)
     touch.keyboard.press("c")
-    general = touch.locator(".lf-general leaf-text")
+    general = touch.locator(".lf-page-comment-card leaf-text")
     write(general, "A touch draft")
-    touch.keyboard.press("Escape")
     touch.keyboard.press("Escape")
     touch.get_by_role("button", name="More page controls", exact=True).click()
     touch.get_by_role("button", name="Resume writing", exact=True).click()

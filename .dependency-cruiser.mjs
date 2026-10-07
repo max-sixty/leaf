@@ -96,6 +96,7 @@ const forbiddenClosures = Object.fromEntries([
     "thread/landing.js",
     "thread/messages.js",
     "thread/narrowing.js",
+    "thread/page-comment.js",
     "thread/panel.js",
     "thread/placement.js",
     "thread/presentation.js",

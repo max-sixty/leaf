@@ -35,8 +35,11 @@ export const projectView = applicationState.projectView;
 export const selectWidgets = applicationState.selectWidgets;
 export const attachApplicationPresentation = (region, renderer) =>
   presentation.attach(region, renderer);
+const widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
+export const widgetRegions = (widget) =>
+  ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
 export const attachWidgetPresentation = (widget, kind, renderer) =>
-  presentation.attach(`widget:${widget}:${kind}`, renderer);
+  presentation.attach(widgetRegion(widget, kind), renderer);
 
 // Where a document-wide renderer stands in one presentation pass. The projection
 // materializes provenance words and coordinate chrome inside authored elements, the
@@ -120,10 +123,7 @@ export const whenWidgetsPresented = (widgets) =>
       document: documentToken,
       semanticEpoch: readApplication().semanticEpoch,
     }),
-    widgets.flatMap((widget) => [
-      `widget:${widget}:render`,
-      `widget:${widget}:preparation`,
-    ]),
+    widgets.flatMap(widgetRegions),
   );
 export const whenApplicationRegionsPresented = (regions, current) =>
   presentation.whenCurrentRegionsPresented(
@@ -136,6 +136,11 @@ export const whenApplicationRegionsPresented = (regions, current) =>
         : null,
     regions,
   );
+export const applicationRegionsPresented = (regions) =>
+  presentation.currentRegionsPresented(currentApplicationPresentation, regions);
+export const projectionRegionsPresented = (widgets) =>
+  applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
+export const watchPresentation = presentation.subscribe;
 export const readApplicationPresentation = presentation.read;
 export function setPresentationFailureReporter(report) {
   if (typeof report !== "function")

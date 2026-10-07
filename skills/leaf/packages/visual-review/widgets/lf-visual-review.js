@@ -90,14 +90,6 @@ function link(className, label) {
   return anchor;
 }
 
-function orderChildren(parent, children) {
-  let cursor = parent.firstElementChild;
-  for (const child of children) {
-    if (child === cursor) cursor = cursor.nextElementSibling;
-    else parent.insertBefore(child, cursor);
-  }
-}
-
 customElements.define(
   "lf-visual-review",
   class extends HTMLElement {
@@ -142,12 +134,10 @@ customElements.define(
         targets.map((target) => this.#threadOutlet(target)),
       );
       if (firstConnection) this.#controller.subscribe(() => this.#paintAvailability());
-      this.stopWatching ??= watchData(this, "run", (snapshot) => this.#show(snapshot));
+      if (firstConnection) watchData(this, "run", (snapshot) => this.#show(snapshot));
     }
 
     disconnectedCallback() {
-      this.stopWatching?.();
-      this.stopWatching = null;
       this.#threadSurface?.unregister();
       this.#threadSurface = null;
       for (const entry of this.#caseEntries.values()) {
@@ -528,7 +518,6 @@ customElements.define(
           return;
         }
         keepsHidden(this.#inspector, false);
-        this.#casesBody.querySelector(":scope > .lf-vr-empty")?.remove();
         const ids = this.#run.cases.map(({ id }) => id);
         if (new Set(ids).size !== ids.length)
           throw new Error("visual run repeats a case id");
@@ -568,14 +557,8 @@ customElements.define(
       setChildren(this.#casesBody, [empty]);
       projectData(
         this,
-        [{ id: "unavailable", node: empty }],
-        ({ id }) => id,
-        ({ node }) => node,
-        {
-          nested: true,
-          labelOf: () => "Visual run unavailable",
-          snapshot,
-        },
+        [{ key: "unavailable", node: empty, label: "Visual run unavailable" }],
+        { snapshot },
       );
       setText(this.#progress, "No cases reviewed");
       layoutChanged(this);
@@ -588,8 +571,6 @@ customElements.define(
         if (wanted.has(id)) continue;
         this.#sizes?.unobserve(entry.shotHost);
         entry.stopReading?.();
-        entry.option.remove();
-        entry.article.remove();
         this.#caseEntries.delete(id);
       }
       const options = [];
@@ -604,24 +585,19 @@ customElements.define(
         options.push(entry.option);
         articles.push(entry.article);
       }
-      orderChildren(this.#queue, options);
-      orderChildren(this.#casesBody, articles);
+      setChildren(this.#queue, options);
+      setChildren(this.#casesBody, articles);
       for (const entry of this.#caseEntries.values()) this.#syncCaptureWidth(entry);
       projectData(
         this,
-        cases,
-        ({ id }) => id,
-        ({ id }) => this.#caseEntries.get(id).article,
-        {
-          nested: true,
-          labelOf: (record, index) => `Case ${index + 1}: ${record.title}`,
-          identify: ({ id }) => id,
-          snapshot: this.#snapshot,
-          originOf: (_, index) => ({
-            ...this.#snapshot.origin,
-            path: ["cases", index],
-          }),
-        },
+        cases.map((record, index) => ({
+          node: this.#caseEntries.get(record.id).article,
+          key: record.id,
+          identity: record.id,
+          label: `Case ${index + 1}: ${record.title}`,
+          origin: { ...this.#snapshot.origin, path: ["cases", index] },
+        })),
+        { snapshot: this.#snapshot },
       );
     }
 

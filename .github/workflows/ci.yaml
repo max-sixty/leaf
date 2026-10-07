@@ -82,9 +82,9 @@ jobs:
 
       # The runner supplies installed Chrome for the two launcher tests. The rest of
       # the browser suite uses the headless shell matching the locked Playwright, and
-      # the phone contract uses its WebKit, the engine iPhone browsers run on.
-      - name: Install Chromium headless shell and WebKit
-        run: uv run playwright install --with-deps chromium webkit --only-shell
+      # the phone contract uses WebKit, and native send-flash paint uses Firefox.
+      - name: Install Chromium headless shell, WebKit and Firefox
+        run: uv run playwright install --with-deps chromium webkit firefox --only-shell
 
       - name: Install the Linux browser font contract
         run: sudo apt-get install -y fonts-dejavu

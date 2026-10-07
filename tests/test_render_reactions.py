@@ -846,7 +846,10 @@ def test_the_response_choices_stay_reachable_beside_the_panel(browser, serve):
         f"the bar has room for the resting row, so this proves nothing: {row}"
     )
     assert row["bar"][0] - 0.5 <= row["left"] and row["right"] <= row["bar"][1] + 0.5
-    assert row["vertical"][0] - 0.5 <= row["top"] and row["bottom"] <= row["vertical"][1] + 0.5
+    assert (
+        row["vertical"][0] - 0.5 <= row["top"]
+        and row["bottom"] <= row["vertical"][1] + 0.5
+    )
     assert row["narrowest"] >= 30, row
 
 

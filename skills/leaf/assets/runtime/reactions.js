@@ -426,14 +426,10 @@ export function createReactionController({
       marginOffer?.contains(active) ||
       active === document.body ||
       active?.closest?.(".lf-react-palette");
-    // Only what stands now: a control the choices covered is no way back, and a press
-    // armed from nowhere has only the bar's field.
-    const places = !owed
-      ? []
-      : (from ? [input, from, trigger] : [input]).filter((node) =>
-          node?.checkVisibility?.(),
-        );
-    const back = places.length > 0;
+    // Which candidates the user may go back to is read before the close, since it ends
+    // the reading of where the press came from; which of them stand is read after it,
+    // since the close itself may show one, as putting the bar back does its field.
+    const candidates = from ? [input, from, trigger] : [input];
     closeLayer(
       () => {
         closeSurface(reactSurface);
@@ -445,7 +441,11 @@ export function createReactionController({
         lowerMarginSurface();
         if (fabAnchorAt()) showFab(fabAnchorAt());
       },
-      back && (() => handBack(...places)),
+      owed &&
+        (() => {
+          const places = candidates.filter((node) => node?.checkVisibility?.());
+          if (places.length) handBack(...places);
+        }),
     );
   }
 

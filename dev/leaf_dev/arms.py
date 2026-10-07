@@ -38,7 +38,7 @@ from typing import Self
 
 import click
 from leaf.codex import APP_SERVER_ENV
-from leaf.harness import IDENTITY_VARIABLES
+from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 
 from leaf_dev import ROOT
 from leaf_dev.page_fixtures import prepare_page, read_fixture
@@ -62,11 +62,14 @@ PAYLOAD = (
     "worker/pyproject.toml",
 )
 
+# The harnesses an arm's child runs, named as the shipped harness names itself.
+HARNESSES = (ClaudeCodeHarness.name, CodexHarness.name)
+
 # The models evals run, pinned so runs on different days compare: each harness's
 # agents, the judge behind `llm-rubric` assertions, and the screenshot judge.
 MODELS = {
-    "cc": "claude-opus-5-5",
-    "codex": "gpt-6.1-sol",
+    ClaudeCodeHarness.name: "claude-opus-5-5",
+    CodexHarness.name: "gpt-6.1-sol",
     "judge": "claude-sonnet-5-5",
     "screenshots": "gpt-6.1-sol",
 }
@@ -347,8 +350,9 @@ def claude_child(
     (cwd / "tmp").mkdir(exist_ok=True)
     home = claude_home(cwd.with_name(f"{cwd.name}-home"))
     command = [
-        "claude", "-p", *args, "--model", MODELS["cc"], "--strict-mcp-config",
-        "--permission-mode", "bypassPermissions", "--output-format", "stream-json",
+        "claude", "-p", *args, "--model", MODELS[ClaudeCodeHarness.name],
+        "--strict-mcp-config", "--permission-mode", "bypassPermissions",
+        "--output-format", "stream-json",
         "--verbose", *(arg for d in dirs for arg in ("--add-dir", str(d))),
     ]  # fmt: skip
     child_env = claude_environment(home, TMPDIR=str(cwd / "tmp"), **(env or {}))
@@ -365,7 +369,7 @@ def run_agent(
     err: Path,
     dirs: Iterable[Path] = (),
     env: dict | None = None,
-    harness: str = "cc",
+    harness: str = ClaudeCodeHarness.name,
 ) -> list[dict]:
     """Run an isolated harness turn, optionally resuming its preceding session.
 
@@ -374,7 +378,7 @@ def run_agent(
     have the same TURN_LIMIT; a timeout retains their partial native evidence and
     marks `out.with_suffix(".timed-out")` without fabricating completion.
     """
-    if harness == "codex":
+    if harness == CodexHarness.name:
         with (
             LiveChild(
                 cwd,
@@ -394,7 +398,7 @@ def run_agent(
                 if record.get("type") == "result":
                     break
         return read_trace(out)
-    if harness != "cc":
+    if harness != ClaudeCodeHarness.name:
         raise ValueError(f"unknown eval harness: {harness}")
     with out.open("w") as stdout, err.open("w") as stderr:
         try:
@@ -419,16 +423,16 @@ class LiveChild:
 
     `claude -p` terminates its background shells, such as a `leaf wait`, once stdin
     closes, so stdin stays open until the caller calls `close`. A session still
-    running `limit` seconds after it started is killed and `timed_out` touched."""
+    running `limit` seconds after it started is killed and `timed_out` touched.
 
-    def __new__(cls, *args, harness="cc", **kwargs):
-        if harness == "codex":
-            from leaf_dev.eval_codex import CodexChild
+    `transport` is how Leaf reaches the session where the harness has more than one
+    way; Claude Code has one."""
 
-            return CodexChild(*args, **kwargs)
-        if harness != "cc":
-            raise ValueError(f"unknown eval harness: {harness}")
-        return super().__new__(cls)
+    transport: str | None = None
+
+    def __new__(cls, *args, harness=ClaudeCodeHarness.name, **kwargs):
+        child = child_class(harness)
+        return super().__new__(cls) if child is cls else child(*args, **kwargs)
 
     def __init__(
         self,
@@ -440,7 +444,7 @@ class LiveChild:
         timed_out: Path,
         dirs: Iterable[Path] = (),
         env: dict | None = None,
-        harness: str = "cc",
+        harness: str = ClaudeCodeHarness.name,
     ) -> None:
         self.prompt, self.stderr, self.timed_out = prompt, stderr, timed_out
         self.popen = claude_child(
@@ -488,6 +492,17 @@ class LiveChild:
         if self.proc.poll() is None:
             self.proc.kill()
             self.proc.wait()
+
+
+def child_class(harness: str) -> type:
+    """The live session class that runs `harness`, and so the transport it takes."""
+    if harness == CodexHarness.name:
+        from leaf_dev.eval_codex import CodexChild
+
+        return CodexChild
+    if harness != ClaudeCodeHarness.name:
+        raise ValueError(f"unknown eval harness: {harness}")
+    return LiveChild
 
 
 def now() -> str:

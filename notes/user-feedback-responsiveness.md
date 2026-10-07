@@ -27,7 +27,7 @@ can still prove the delegate is live.
 Read deterministic sequence and state at their owners: projection tests for
 sent/queued/opened/active/stale/settled evidence; real gestures for local results;
 agent traces for claim ordering. Use `leaf-dev journey` as the vertical test: it
-times a real request on any harness from the page's own log, and on `cc` and
+times a real request on any harness from the page's own log, and on `claude-code` and
 `codex` splits the agent's turn into delivery, model and tool phases.
 
 ```bash

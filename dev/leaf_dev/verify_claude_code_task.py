@@ -1,7 +1,7 @@
 """Run a real interactive Claude Code session with Leaf's plugin and check what it
 leaves.
 
-    uv run leaf-dev verify-cc-task [--hooks-module]
+    uv run leaf-dev verify-claude-code-task [--hooks-module]
 
 The suite stands in for Claude Code around Leaf's hooks (`hooks.json`, and
 `tests/claude_code_driver.mjs` for the hooks module); this runs Claude Code itself,
@@ -45,7 +45,7 @@ page's banner read. That is the reading that compares the two carriers.
 
 It needs tmux, and spends a few model turns on the host's Claude Code login, so CI
 does not run it. The session's screen at the end of each step, Claude Code's debug
-log and the page's log stay in a run directory under `.tmp/verify-cc/`. The session's home, page and state
+log and the page's log stay in a run directory under `.tmp/verify-claude-code/`. The session's home, page and state
 home live in a temporary directory, removed when every check passes and kept, with
 its path printed, when one fails.
 """
@@ -106,7 +106,7 @@ class ClaudeCode:
     def __init__(
         self, root: Path, run: Path, cwd: Path, argv: list[str], env: dict
     ) -> None:
-        self.pane = f"leaf-verify-cc-{os.getpid()}"
+        self.pane = f"leaf-verify-claude-code-{os.getpid()}"
         self.exited, self.kept = root / "exited", run / "screen.txt"
         self.session: str | None = None
         # The environment's values reach the pane through tmux, so no file holds
@@ -421,14 +421,14 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
     is_flag=True,
     help="Turn the plugin's `hooks_module` option on.",
 )
-def verify_cc_task(hooks_module: bool) -> None:
+def verify_claude_code_task(hooks_module: bool) -> None:
     """Run an interactive Claude Code session with Leaf's plugin and check what it
     carries."""
-    require(shutil.which("tmux") is not None, "verify-cc-task drives tmux")
-    run = run_directory(ROOT / ".tmp" / "verify-cc")
+    require(shutil.which("tmux") is not None, "verify-claude-code-task drives tmux")
+    run = run_directory(ROOT / ".tmp" / "verify-claude-code")
     # Outside any repository, so the session loads no project instructions. Claude
     # Code records trust by the resolved path.
-    root = Path(tempfile.mkdtemp(prefix="leaf-verify-cc-")).resolve()
+    root = Path(tempfile.mkdtemp(prefix="leaf-verify-claude-code-")).resolve()
     state, work, payload = root / "state", root / "work", root / "plugin"
     work.mkdir()
     page = work / "page"
@@ -447,7 +447,7 @@ def verify_cc_task(hooks_module: bool) -> None:
         "pluginConfigs": {"leaf@inline": {"options": {"hooks_module": hooks_module}}}
     }
     argv = [
-        "claude", "--model", MODELS["cc"], "--plugin-dir", str(payload),
+        "claude", "--model", MODELS["claude-code"], "--plugin-dir", str(payload),
         "--settings", json.dumps(settings), "--strict-mcp-config",
         "--permission-mode", "default", "--add-dir", str(payload),
         "--allowedTools", "Bash Read Write Edit Glob Grep Skill",

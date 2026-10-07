@@ -63,7 +63,7 @@ def execute_scenario(
     work: Path,
     *,
     shots: Path,
-    harness: str = "cc",
+    harness: str = "claude-code",
     condition: str = "leaf",
 ) -> dict:
     """Render the scenario's page; no author is invoked to construct it."""

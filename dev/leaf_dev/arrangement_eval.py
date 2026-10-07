@@ -73,7 +73,7 @@ class Run:
     payload: Path
     directory: Path
     shots: Path
-    harness: str = "cc"
+    harness: str = "claude-code"
     condition: str = "leaf"
 
     @property
@@ -521,7 +521,13 @@ def expected_checks(case: str, *, condition="leaf") -> list[str]:
 
 
 def execute_scenario(
-    case: str, payload: Path, work: Path, *, shots: Path, harness="cc", condition="leaf"
+    case: str,
+    payload: Path,
+    work: Path,
+    *,
+    shots: Path,
+    harness="claude-code",
+    condition="leaf",
 ) -> dict:
     """Execute only the selected condition; Promptfoo owns the condition matrix."""
     work.mkdir(parents=True, exist_ok=True)

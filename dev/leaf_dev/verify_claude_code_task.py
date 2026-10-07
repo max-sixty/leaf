@@ -447,7 +447,7 @@ def verify_claude_code_task(hooks_module: bool) -> None:
         "pluginConfigs": {"leaf@inline": {"options": {"hooks_module": hooks_module}}}
     }
     argv = [
-        "claude", "--model", MODELS["claude-code"], "--plugin-dir", str(payload),
+        "claude", "--model", MODELS[ClaudeCodeHarness.name], "--plugin-dir", str(payload),
         "--settings", json.dumps(settings), "--strict-mcp-config",
         "--permission-mode", "default", "--add-dir", str(payload),
         "--allowedTools", "Bash Read Write Edit Glob Grep Skill",

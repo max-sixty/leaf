@@ -19,6 +19,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from leaf.harness import ClaudeCodeHarness
 from leaf.render_checks import rendered
 from leaf.structure import SourceDocument
 
@@ -73,7 +74,7 @@ class Run:
     payload: Path
     directory: Path
     shots: Path
-    harness: str = "claude-code"
+    harness: str = ClaudeCodeHarness.name
     condition: str = "leaf"
 
     @property
@@ -526,7 +527,7 @@ def execute_scenario(
     work: Path,
     *,
     shots: Path,
-    harness="claude-code",
+    harness=ClaudeCodeHarness.name,
     condition="leaf",
 ) -> dict:
     """Execute only the selected condition; Promptfoo owns the condition matrix."""

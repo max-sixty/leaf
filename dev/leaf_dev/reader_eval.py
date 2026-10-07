@@ -11,6 +11,8 @@ general page acceptance or judge reliability.
 
 from pathlib import Path
 
+from leaf.harness import ClaudeCodeHarness
+
 from leaf_dev import ROOT
 from leaf_dev.arms import build_source
 from leaf_dev.arrangement_eval import Run, capture_phase, listing
@@ -63,7 +65,7 @@ def execute_scenario(
     work: Path,
     *,
     shots: Path,
-    harness: str = "claude-code",
+    harness: str = ClaudeCodeHarness.name,
     condition: str = "leaf",
 ) -> dict:
     """Render the scenario's page; no author is invoked to construct it."""

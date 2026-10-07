@@ -17,6 +17,7 @@ from html import unescape
 from pathlib import Path
 
 import click
+from leaf.harness import ClaudeCodeHarness
 from leaf.service import requires_agent_attention
 
 from leaf_dev import ROOT
@@ -267,7 +268,7 @@ class Run:
     case: str
     payload: Path
     dir: Path
-    harness: str = "claude-code"
+    harness: str = ClaudeCodeHarness.name
 
     @property
     def state(self) -> Path:
@@ -1742,7 +1743,7 @@ def execute_scenario(
     payload: Path,
     work: Path,
     *,
-    harness: str = "claude-code",
+    harness: str = ClaudeCodeHarness.name,
     condition: str = "leaf",
 ) -> dict:
     """One Promptfoo provider call owns all phases, live rounds, and evidence."""

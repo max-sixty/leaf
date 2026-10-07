@@ -28,6 +28,7 @@ from pathlib import Path
 
 import click
 import yaml
+from leaf.harness import ClaudeCodeHarness
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -90,12 +91,12 @@ def select_cases(globs: tuple[str, ...]) -> list[str]:
 
 def native_provider(harness: str, payload: Path, work: Path) -> dict:
     """A native agent provider that can read the arm's skill and nothing else of ours."""
-    if harness == "claude-code":
+    if harness == ClaudeCodeHarness.name:
         child = claude_child(work)
         return {
             "id": "anthropic:claude-agent-sdk",
             "config": {
-                "model": MODELS["claude-code"],
+                "model": MODELS[ClaudeCodeHarness.name],
                 "apiKeyRequired": False,
                 "working_dir": str(work),
                 "persist_session": False,

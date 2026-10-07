@@ -15,6 +15,7 @@ from functools import partial
 from pathlib import Path
 
 from leaf.event_log import read_events
+from leaf.harness import ClaudeCodeHarness
 
 from leaf_dev.arms import (
     accepted_starts,
@@ -63,7 +64,7 @@ def stop_blocked(record: dict) -> bool:
 
 
 def run_session(
-    arm: Path, case: str, run: Path, *, harness: str = "claude-code"
+    arm: Path, case: str, run: Path, *, harness: str = ClaudeCodeHarness.name
 ) -> None:
     """Drive delivery timing through the same feedback loop as larger examples."""
     run.mkdir(parents=True, exist_ok=True)
@@ -253,7 +254,7 @@ def execute_scenario(
     payload: Path,
     work: Path,
     *,
-    harness: str = "claude-code",
+    harness: str = ClaudeCodeHarness.name,
     condition: str = "leaf",
 ) -> dict:
     run_session(payload, case, work, harness=harness)

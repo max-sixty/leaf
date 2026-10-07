@@ -81,6 +81,53 @@ def test_typing_may_grow_its_field(browser):
     judge_watches()
 
 
+def test_hidden_returns_protect_only_the_resumed_reading(browser, serve):
+    """The return boundary ends at presentation, including two rapid absences."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Return boundary",
+                '<div id="above"></div><p id="reading">Read here.</p>',
+            )
+        ),
+    )
+    held = []
+    page.route("**/api/news", lambda route: held.append(route))
+    page.evaluate("""async () => {
+      window.returnBoundary = await window.__lfRuntimeImport('/runtime/reading-continuity.js');
+      window.returnVisibility = 'visible';
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true, get: () => window.returnVisibility,
+      });
+      window.setReturnVisibility = value => {
+        window.returnVisibility = value;
+        document.dispatchEvent(new Event('visibilitychange'));
+      };
+      setReturnVisibility('hidden'); setReturnVisibility('visible');
+      document.getElementById('above').style.height = '40px';
+    }""")
+    paint(page)
+    judge_watches()
+    page.evaluate("""() => {
+      returnBoundary.completeReadingReturn(returnBoundary.readingReturn());
+      // Before its completion frames run, another absence opens another return.
+      setReturnVisibility('hidden'); setReturnVisibility('visible');
+    }""")
+    paint(page)
+    page.evaluate("document.getElementById('above').style.height = '80px'")
+    paint(page)
+    judge_watches()
+    page.evaluate(
+        "returnBoundary.completeReadingReturn(returnBoundary.readingReturn())"
+    )
+    paint(page)
+    page.evaluate("document.getElementById('above').style.height = '120px'")
+    paint(page)
+    judge_watches()
+    consume_browser_errors(page, "moved without input")
+
+
 @pytest.mark.parametrize("cause", ["typing", "passive"])
 def test_editcontext_growth_keeps_input_credit_with_its_actual_field(
     browser, serve, cause

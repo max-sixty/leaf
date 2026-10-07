@@ -38,9 +38,13 @@ baseline rather than restating a feature table for each project.
 separates host readiness, submission, and streaming behind an adapter. Its
 [Claude Code session module](https://github.com/backnotprop/plannotator/blob/v0.28.4/apps/hook/hooks/mod/register.ts)
 is released in v0.28.4 and enabled by default on supported interactive hosts
-(rechecked 2026-10-05). If supported host APIs can own idle/wake/turn
-execution, Leaf can simplify that orchestration. Durable input, pickup, and
-response identity still belong to Leaf. The decisive case is a running turn
+(rechecked 2026-10-05). Leaf's opt-in
+[Claude hooks module](../hooks/claude-code.ts) now owns watching between turns,
+including interruption and delivery during a running turn. It landed with
+real-host verification in [PR #1936](https://github.com/max-sixty/leaf/pull/1936).
+The remaining cutover waits for Claude Code to load modules without an opt-in;
+the module's header owns that condition. Durable input, pickup, and response
+identity still belong to Leaf. The decisive case is a running turn
 ending without reading its offered hook pointer: the existing
 [delivery tests](../tests/test_interact_session.py) cover falling back to the
 queue without losing that input. An offer or queue acknowledgment is not pickup. I
@@ -70,11 +74,11 @@ Opaque widget JSON persistence does not prove that a decision keeps its meaning.
 **Page-level threads.** I operated [Agentation's toolbar](https://www.agentation.com/)
 and contextual composer, typed a local draft, and dismissed it without sending.
 Plannotator's [global composer mode](https://github.com/backnotprop/plannotator/blob/main/packages/ui/components/CommentPopover.tsx)
-shares draft machinery. Leaf already has “Comment on the page” in its
-[composer owner](../skills/leaf/assets/runtime/thread/panel.js). Improve entry
-and continuation there, keeping targeted/global placement distinct while sharing
-editing and delivery. Multiple independent global threads and revision-surviving
-drafts still need direct interaction proof.
+shares draft machinery. Leaf's banner “Comment on the page” opens a creation card
+owned by [page-comment.js](../skills/leaf/assets/runtime/thread/page-comment.js);
+Threads holds continuation. That separation landed in
+[PR #1930](https://github.com/max-sixty/leaf/pull/1930). Recovery of a global
+conversation among anchored threads remains a usability question.
 
 **UI stability.** Lavish's [bounded mobile sheet](https://github.com/kunchenguid/lavish-axi/blob/main/src/chrome.css)
 and Plannotator's central placement function offer useful mechanisms. Their
@@ -111,16 +115,6 @@ following are the baseline, not proposed additions.
   sends empty user input and a structured `leaf_delivery` tool result. Desktop
   access and rendering remain unverified. Prove agent wake-up and exact
   input/reply identity while keeping automatic user-message text out of chat.
-- **#2 — Native Claude Code watcher, Leaf experiment.** Plannotator's
-  [released module](https://github.com/backnotprop/plannotator/blob/v0.28.4/apps/hook/hooks/mod/register.ts)
-  runs in the interactive session and calls `$.prompt.submit({text})`; Claude
-  waits for idle and adds a plugin-origin message. Session/turn callbacks supply
-  lifecycle evidence. This could replace Leaf's background Stop wake and socket
-  choreography after interruption, uncertain-submit and lifetime tests pass.
-  Preserve durable input, reader receipts and unanswered-work debt. v0.28.4 ships
-  the module, default-on for interactive Claude 2.1.287+ on Unix-like hosts with
-  `/bin/sh`; `PLANNOTATOR_CLAUDE_MOD=0` opts out.
-  Local 2.1.289 meets the version gate, but the module was not operated here.
 - **#3 — Prevent superseded executions from closing continued work.** Leaf
   already preserves the task when a session ends, and `task start` records a
   later execution's session on the same task, plus its turn when it holds the
@@ -145,8 +139,8 @@ following are the baseline, not proposed additions.
   API. Prove list and board consume one task outcome without agent-maintained
   duplicate status markup. Preserve arbitrary authored HTML.
 - **#7 — Page threads visibility, usability hypothesis.** Leaf already has
-  Location → Page beneath View. Promote that predicate to a visible count/toggle
-  and distinguish Start a page thread from Reply. Compare context-blind recovery
+  Location → Page beneath View and separate creation and reply controls. Test a
+  visible count/toggle for that predicate. Compare context-blind recovery
   of a global conversation among anchored threads before adopting the change.
 - **#8 — Shared visual-viewport fixed-panel bounds.**
   [Lavish's sheet](https://github.com/kunchenguid/lavish-axi/blob/main/src/chrome.css)
@@ -155,8 +149,8 @@ following are the baseline, not proposed additions.
   affected surfaces. This condition is source-identified, not a reproduced bug;
   keyboard-only shrink needs first-frame caret/Send and draft/focus proof.
 
-Report captures show Agentation’s targeted composer/desktop-only notice and
-Leaf’s seeded gallery Page filter, reply draft and separate creation footer.
+The October 5 report captures show Agentation’s targeted composer/desktop-only
+notice and Leaf’s then-current gallery Page filter, reply draft and creation footer.
 No live peer bridge or signed-in workspace was exercised. These recommendations
 extend the committed feature research.
 
@@ -506,9 +500,10 @@ page directory and event log remain the durable record.
   can run local commands. An HTTP document API has broader client reach.
 - **An application serving many users.** Leaf accompanies an existing coding
   task; frameworks such as CopilotKit provide the application and agent runtime.
-- **Hosted availability independent of the machine.** A standing Leaf server can
-  outlive a session, and an export opens offline, but neither supplies a hosted
-  collaboration service. An export has no agent or server behind its actions.
+- **Durable hosted collaboration.** leaf.page runs agents in private trial
+  containers, but their storage is ephemeral and the site has no durable user
+  identity or state store ([website contract](../worker/README.md)). A standing
+  local server and an offline export do not supply that service either.
 - **Direct document editing.** Leaf's user comments or uses authored controls;
   unrestricted editing of the document calls for an editor rather than an
   agent-mediated revision.

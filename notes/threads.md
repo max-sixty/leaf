@@ -8,7 +8,6 @@ overlapping summary as the discussion grows. Their contracts live in
 [threads](../skills/leaf/references/threads.md),
 [session lifetime](../skills/leaf/scripts/leaf/session-lifetime.md), and
 [the module Thread API](../skills/leaf/references/module-authoring.md#widget-local-thread-placement).
-The [playground](thread-navigation/README.md) retains the design comparisons.
 
 ## Current standing
 
@@ -36,9 +35,17 @@ pickup cannot prove the external operation succeeded.
 
 A package that needs interactive authored messages inline must ask Leaf to move
 its single live instance out of the panel. That needs focus, retained-node, and
-presentation-proof contracts. Page-wide Thread placement also needs Leaf-owned
-arbitration when multiple widgets request the same Thread; the current API places
-only exact datum Threads belonging to the consuming widget.
+presentation-proof contracts. Core already arbitrates exact widget seats before
+the selected page presentation. Inline views open authored interactive messages
+in Threads; broader placement by unrelated widgets would need an ownership rule
+beyond the current exact-datum API. Test a package that needs the live instance
+before extending the placement contract.
+
+## Notification transitions
+
+If notices, accessibility announcements or badges need a shared transition feed,
+test the existing publication subscriptions before adding a typed notification bus.
+It would report domain changes without becoming another state store.
 
 ## Shared evidence
 

@@ -4,20 +4,19 @@
  * frame. Feature state and paint enter as fixed constructor capabilities; no feature
  * imports the thread presenter to request a refresh.
  *
- * `pageShifted` runs on every scroll event, so each capability it calls writes only
- * what changed (keeps.js). Target paint stands in the planes of what carries its target
- * (target-paint-geometry.js, `paintStand`), where the browser moves it with every
- * scroll, so its shifted callback finds nothing to write unless the scroll changed what
- * the paint stands over.
+ * `pageScrolled` runs on every scroll event, so each capability it calls writes only
+ * what changed (keeps.js). Target paint and the design legend stand in the planes of
+ * what carries their targets (target-paint-geometry.js, `paintStand`), where the browser
+ * moves them with every scroll, so a scroll finds nothing to write unless it changed
+ * what the paint stands over. `pageShifted` answers layout, which moves the legend's
+ * targets too.
  */
 
 import { watchScrolls } from "./arrivals.js";
 import { cancelRender, nextRender } from "./rendering.js";
-import { documentPoint } from "./geometry.js";
-import { inChrome } from "./passages.js";
 import { coarsePointer } from "./pointer.js";
 import { LAYOUT } from "./widget-elements.js";
-import { keeps, keepsText, layoutPx } from "./keeps.js";
+import { keepsText } from "./keeps.js";
 
 export function createPageGeometry({
   refreshAnchorHover,
@@ -28,6 +27,7 @@ export function createPageGeometry({
   visualMarkPaint,
   shiftDrawings,
   queueLegend,
+  legendScrolled,
   activeActionAnchor,
   refreshActionBar,
 }) {
@@ -56,39 +56,26 @@ export function createPageGeometry({
     const target = aimTarget();
     const aimed = target?.element ?? null;
     document.body.classList.toggle("lf-over-item", Boolean(aimed));
-    const rect = aimed && targetPaint.paintAim(aimed, target.surface);
-    if (!rect) {
+    const shown = aimed && targetPaint.paintAim(aimed, target.surface);
+    if (!shown) {
       targetPaint.clearAim();
       paintInspect(null);
       return;
     }
-    paintInspect(designMode.active() ? target : null, {
-      left: rect.left,
-      top: rect.top,
-    });
+    paintInspect(designMode.active() ? target : null);
   }
 
-  // The design name shares the aim box's top-left corner and document plane. It sits
-  // above the box where room permits and inside it beneath the banner otherwise.
-  function paintInspect(target, corner) {
+  // The design name stands at the aim box's corner, in its planes (target-paint.js,
+  // `labelAim`).
+  function paintInspect(target) {
     const inspect = designMode.inspectElement;
     inspect.classList.toggle("lf-shown", Boolean(target));
-    if (!target) {
-      delete inspect.dataset.lfPaintPlane;
-      return;
-    }
-    keeps(inspect, "data-lf-paint-plane", inChrome(target.element) ? "chrome" : "page");
+    if (!target) return;
     const name = target.part
       ? `${target.part} · ${designMode.name(target.element)}`
       : designMode.name(target.element);
     keepsText(inspect, name);
-    const above = corner.top - inspect.offsetHeight - 2;
-    const at = documentPoint(
-      Math.max(2, corner.left),
-      above >= 0 ? above : corner.top + 2,
-    );
-    inspect.style.left = layoutPx(at.left);
-    inspect.style.top = layoutPx(at.top);
+    targetPaint.labelAim(inspect);
   }
 
   function queueActionPlacement() {
@@ -99,16 +86,22 @@ export function createPageGeometry({
     });
   }
 
-  function pageShifted() {
+  // A scroll moves what stands under the pointer and which paint its cuts show; the
+  // design legend stands in the planes that carry it, so it steps only its tags.
+  function pageScrolled() {
     refreshAnchorHover?.();
     refreshAim();
     targetPaint.shifted();
     visualMarkPaint?.shifted();
     shiftDrawings();
-    // Sideways widget scrolling changes which item lies under a stationary overlay,
-    // while page scrolling may bring previously unpaintable items into view.
-    queueLegend();
+    legendScrolled();
     if (activeActionAnchor()) queueActionPlacement();
+  }
+
+  // Layout moves what the legend names as well.
+  function pageShifted() {
+    pageScrolled();
+    queueLegend();
   }
 
   function invalidate() {
@@ -126,7 +119,7 @@ export function createPageGeometry({
     mounted = true;
     // Scroll does not bubble: one door hears the root, nested page scrollers such as
     // boards and code blocks, and scrollers inside a widget's shadow stage.
-    stopScrolls = watchScrolls(pageShifted);
+    stopScrolls = watchScrolls(pageScrolled);
     document.addEventListener(LAYOUT, pageShifted);
     addEventListener("resize", onResize, { passive: true });
   }

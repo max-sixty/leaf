@@ -9,6 +9,7 @@ from importlib import import_module
 import click
 
 COMMANDS = {
+    "distribution": "distribution",
     "bench-check": "bench_check",
     "bench-latency": "bench_latency",
     "bugback": "bugback",
@@ -23,6 +24,7 @@ COMMANDS = {
     "probe": "probe",
     "profile": "profile",
     "publish-media": "page_fixtures",
+    "publish-distribution": "distribution",
     "record-demo": "record_demo",
     "refresh-previews": "example_previews",
     "site": "site",

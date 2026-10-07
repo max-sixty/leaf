@@ -65,7 +65,7 @@
   // a range, whose `value` is not words.
   const TYPED = new Set(["text", "search", "url", "email", "tel", "number"]);
   const typed = (field) =>
-    field instanceof HTMLInputElement
+    field.localName === "input"
       ? TYPED.has(field.type)
       : field instanceof Element && field.matches(FIELDS);
   function* valueOwners(field) {

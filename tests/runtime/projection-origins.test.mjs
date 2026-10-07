@@ -42,7 +42,7 @@ test("user, reported and restated origins stand separately on one unit", () => {
 });
 
 test("a recorded verb standing at its authored value overrides nothing", () => {
-  const record = { kind: "value", attr: "status", value: "status" };
+  const record = { kind: "value", attr: "status" };
   const authored = new Map([
     [
       "t-parser",

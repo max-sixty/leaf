@@ -158,7 +158,7 @@ def constructed_content(
         owner.setdefault("state", []).append(reading)
         if not record:
             continue
-        value = event["detail"].get(record["value"])
+        value = event["detail"].get("value")
         kind = record["kind"]
         if kind == "body":
             owner.setdefault("authored", {})["content"] = owner["content"]

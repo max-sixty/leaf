@@ -50,6 +50,9 @@
     // CodeMirror writes every attribute of its content element when it mounts a view,
     // the tab-size style that element already holds among them.
     /^style on div\.cm-content/,
+    // CodeMirror reapplies this line decoration when the editor view updates, even
+    // when the last line still holds the same words and the class is unchanged.
+    /^class on div\.cm-line\.lf-field-last in shadow of leaf-text/,
     // Web Awesome's components reflect each property onto the attribute it came from
     // as they update, and restate what their own shadow trees hold.
     /^[\w-]+ on wa-/,

@@ -37,52 +37,7 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 //
 // Values are the store's own vocabulary, strings and null, so nothing here has an
 // opinion about encoding: an absent key reads back as null, and writing null removes it.
-const stored = (open, name, scope = "") => ({
-  read(key) {
-    try {
-      return { available: true, value: open().getItem(scope + key) };
-    } catch {
-      return { available: false, value: null };
-    }
-  },
-  get(key) {
-    return this.read(key).value;
-  },
-  set(key, value) {
-    try {
-      if (value === null) open().removeItem(scope + key);
-      else open().setItem(scope + key, value);
-      return true;
-    } catch {
-      /* a page that cannot remember still renders */
-      return false;
-    }
-  },
-  // Where this store puts a key, as the platform's own two names for its stores plus
-  // the key the backing actually holds. The browser gate asks: it seeds a store
-  // before the page has run, so it cannot ask a store that does not exist yet, and the
-  // alternative is a second copy of the scope rule kept over there to go stale. So do
-  // the drafts (`whereDraft`), whose storage listener reads another tab's key raw, and
-  // the tests that seed or read a stored draft.
-  where(key) {
-    return {
-      store: name,
-      key: scope + key,
-    };
-  },
-  // What this scope holds, spelled as the callers spell it. The drafts are what needs
-  // it: a composer's key is the passage it is on, so which draft to reopen at load is a
-  // question about the set rather than about a key someone already knows.
-  keys() {
-    try {
-      return Object.keys(open())
-        .filter((key) => key.startsWith(scope))
-        .map((key) => key.slice(scope.length));
-    } catch {
-      return [];
-    }
-  },
-});
+const { stored, tabStore: initialTabStore } = document.documentElement.lfStorage;
 // Two of the three are scoped to the page (PAGE_SCOPE), and the odd one out is the reason
 // there are three backings: what the user arranges is theirs wherever they are reading,
 // while what they typed here belongs to this page. tabStore is the only one on the helper
@@ -90,7 +45,7 @@ const stored = (open, name, scope = "") => ({
 // collapsed group) — a module reaches its drafts through saveDraft/watchDraft, the chrome
 // the user arranges is the runtime's own, and an export nothing imports is a promise
 // nobody asked for.
-export const tabStore = stored(() => sessionStorage, "session", PAGE_SCOPE);
+export const tabStore = initialTabStore;
 // Which member a holder that shows one at a time (`x-views`) opens on as it upgrades, and
 // the record of each member it shows, which a reload reopens. The prepaint owns both
 // (prepaint.js), since it shows the same member at the first paint, before any module
@@ -98,9 +53,12 @@ export const tabStore = stored(() => sessionStorage, "session", PAGE_SCOPE);
 const views = (holder) => holder.ownerDocument.documentElement.lfViews;
 export const openingView = (holder, members) => views(holder).opening(holder, members);
 export const keepView = (holder, member) => views(holder).keep(holder, member);
-// A copy of the page with the prepaint's marks taken off, which is what its author
-// wrote (version.js).
-export const unmarkedCopy = (node) => views(node).unmarked(node.cloneNode(true));
+// What the author wrote: the early coordinator restores original widget sources
+// before copying and takes off its marks and delivery's placeholders (version.js).
+export const unmarkedCopy = (node) =>
+  (
+    node.ownerDocument?.documentElement?.lfInitial ?? document.documentElement.lfInitial
+  ).authoredCopy(node);
 export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.

@@ -313,7 +313,7 @@ def test_a_retraction_outlives_the_version_that_made_it():
             "kind": "action",
             "widget": "draft-ops",
             "action": "edit",
-            "detail": {"text": USER_EDIT},
+            "detail": {"value": USER_EDIT},
         },
         {
             "kind": "note",
@@ -405,7 +405,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
                 "kind": "action",
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+                "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             },
             {"kind": "comment", "text": "And the heater?"},
         ),
@@ -448,9 +448,9 @@ def test_each_served_action_says_whether_it_still_stands():
     state = model.reading(
         page,
         (
-            {**edit, "detail": {"text": USER_EDIT}},
-            {**edit, "detail": {"text": CORRECTED}},
-            {**edit, "detail": {"text": AUTHORED}},
+            {**edit, "detail": {"value": USER_EDIT}},
+            {**edit, "detail": {"value": CORRECTED}},
+            {**edit, "detail": {"value": AUTHORED}},
             {"kind": "undo", "undoes": "e3"},
         ),
     )

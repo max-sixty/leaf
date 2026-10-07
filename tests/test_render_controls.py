@@ -7652,6 +7652,7 @@ RING_SCOPES_STARTING_WITHOUT_PANEL = {
     "a contents link",
     "a thread card",
     "the Page Map dialog",
+    "a landed diff line",
 }
 RING_SCOPE_WIDTH = {
     "a contents link": 1600,

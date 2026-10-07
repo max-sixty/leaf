@@ -10,13 +10,23 @@
 import { offer } from "./widget-elements.js";
 import { watchArrivals } from "./arrivals.js";
 import { anchorName, anchorView, refreshAnchorView } from "./anchor-names.js";
-import { focusDestination } from "./focus.js";
+import { focusDestination, onStanding } from "./focus.js";
+import { upFrom } from "./shadow.js";
 import { chromeRoot } from "./chrome.js";
 import { claimReachStop, releaseReachStop } from "./reach.js";
 
 const controls = new WeakMap();
 const wired = new WeakMap();
 const routes = new WeakMap();
+
+// Focus can reveal and scroll a source before the observer's next task. Its keyboard
+// route must see the control in that same gesture, widgets included.
+onStanding((node) => {
+  for (let at = node; at; at = upFrom(at)) {
+    const copy = controls.get(at);
+    if (copy) return refreshAnchorView(copy);
+  }
+});
 
 export function copyCodeBlock(pre, source) {
   let copy = controls.get(pre);
@@ -30,9 +40,6 @@ export function copyCodeBlock(pre, source) {
     pre.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "touch" && copy.isConnected) focusDestination(pre);
     });
-    // Focus can reveal and scroll a source before the observer's next task. Its
-    // keyboard route must see the control in that same gesture, widgets included.
-    pre.addEventListener("focusin", () => refreshAnchorView(copy));
     pre.addEventListener("pointerenter", () => refreshAnchorView(copy));
     controls.set(pre, copy);
   }

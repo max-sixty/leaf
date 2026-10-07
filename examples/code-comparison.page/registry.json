@@ -1,5 +1,6 @@
 {
   "lf-playground": {
+    "x-initial": "/vendor/lf-playground-initial.js",
     "description": "The built code-reader comparison with explicit candidate configurations.",
     "type": "object",
     "properties": {

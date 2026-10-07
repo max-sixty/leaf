@@ -1052,9 +1052,9 @@ export function watchPassageRoot(root) {
 // taken before a widget was fenced reads its words as ordinary page prose, and a quote
 // from the paragraph above could run straight into them. The marking and the forgetting
 // are one door for that reason.
-export function fencePassageParts(root) {
+export function fencePassageParts(root, children = root.children) {
   passageFences.add(root);
-  for (const child of root.children) passageFences.add(child);
+  for (const child of children) passageFences.add(child);
   forgetReading();
 }
 // What the page says, once, as one string with a way back to the nodes it came from. Built

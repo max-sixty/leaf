@@ -7,6 +7,7 @@ import { elementReading } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
 import { bodyText } from "../widget-upgrade.js";
 import { authoredRank } from "./model.js";
+import { initialParent, initialSource } from "../initial-render.js";
 
 /* The authored initial condition, read once from validated source before upgrade.
    These typed values are inputs to the complete widget projection; no cloned DOM,
@@ -63,10 +64,10 @@ export function domValue(el, record) {
 // document answers for itself.
 export function rememberAuthoredParents(root = document, parent = root.parentElement) {
   if (root.nodeType === Node.ELEMENT_NODE && !authoredParents.has(root))
-    authoredParents.set(root, parent);
+    authoredParents.set(root, root.parentElement ? initialParent(root) : parent);
   for (const element of root.querySelectorAll("*"))
     if (!authoredParents.has(element))
-      authoredParents.set(element, element.parentElement);
+      authoredParents.set(element, initialParent(element));
 }
 
 // A body record is licensed only for x-content: data, whose validated source is one
@@ -105,10 +106,11 @@ function initialState(widget, spec) {
       .sort();
   else if (record?.kind === "value") value = widget.getAttribute(record.attr);
   else if (record?.kind === "body") value = decodeBodyRecord(widget);
-  return { action: null, value, detail: record ? { [record.value]: value } : {} };
+  return { action: null, value, detail: record ? { value } : {} };
 }
 
 export function stageAuthoredStates(root = document, existing = authoredStates()) {
+  root = initialSource(root);
   const captured = new Map();
   const byTag = new Map();
   for (const { tag, verb, spec } of stateSpecs()) {

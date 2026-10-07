@@ -796,7 +796,7 @@ def _decided(page_dir, words):
             "revision": files_model.latest_revision(page_dir),
             "widget": "d1",
             "action": "edit",
-            "detail": {"text": "Cut the flag; backfill first."},
+            "detail": {"value": "Cut the flag; backfill first."},
         },
     )
     return lambda words, attrs="": (page_dir / "index.html").write_text(
@@ -996,18 +996,13 @@ def _mutated_registry_check(page_dir, mutate):
 
 
 def _report_body_record(registry):
-    registry["lf-task"]["x-state"]["status"]["record"] = {
-        "kind": "body",
-        "value": "status",
-    }
+    registry["lf-task"]["x-state"]["status"]["record"] = {"kind": "body"}
 
 
 def _report_position_record(registry):
     registry["lf-task"]["x-state"]["status"]["record"] = {
         "kind": "position",
         "within": "lf-column",
-        "value": "status",
-        "rank": "status",
     }
 
 
@@ -1025,20 +1020,15 @@ def _report_says_attr(registry):
     task["x-says"] = {"owner": "before"}
     task["x-state"]["status"] = {
         "writer": "agent",
-        "detail": {
-            "type": "object",
-            "properties": {"owner": {"type": "string"}},
-            "required": ["owner"],
-            "additionalProperties": False,
-        },
         "unit": "widget",
-        "record": {"kind": "value", "attr": "owner", "value": "owner"},
+        "record": {"kind": "value", "attr": "owner"},
     }
 
 
-def _report_detail_drift(registry):
-    registry["lf-task"]["x-state"]["status"]["detail"]["properties"]["status"] = {
-        "type": "string"
+def _report_authored_detail(registry):
+    registry["lf-task"]["x-state"]["status"]["detail"] = {
+        "type": "object",
+        "additionalProperties": False,
     }
 
 
@@ -1051,7 +1041,7 @@ def _report_without_upgrade(registry):
 
 
 def _user_verb_update(registry):
-    registry["lf-options"]["x-state"]["choose"]["update"] = "options"
+    registry["lf-options"]["x-state"]["choose"]["update"] = True
 
 
 def _agent_verb_answers(registry):
@@ -1851,7 +1841,7 @@ def edit(page_dir, text, widget="note", version=1):
             "revision": revision,
             "widget": widget,
             "action": "edit",
-            "detail": {"text": text},
+            "detail": {"value": text},
         },
     )
 

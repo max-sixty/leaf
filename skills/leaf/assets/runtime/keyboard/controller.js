@@ -5,7 +5,7 @@ import { dispatchKey } from "./dispatch.js";
 import { MODIFIER_KEYS } from "./bindings.js";
 import { beforeShortcutCommand } from "./shortcut-bar.js";
 import { claimsEsc, focused } from "./scopes.js";
-import { placingChrome, takesLetters, typesText } from "../focus.js";
+import { onStanding, takesLetters, typesText } from "../focus.js";
 import { nextFrame } from "../rendering.js";
 import { PRESENTATION } from "../presentation.js";
 export function mountKeyboard({
@@ -65,9 +65,8 @@ export function mountKeyboard({
   // Focus entering a box, or a control that claims Escape, disarms the sequence — a
   // digit typed in a box is text, and a chip left blooming would promise a cancel the
   // control would consume. The paint that answers the move is repaint.js's. A chrome
-  // placement moves no one (focus.js, `placeChrome`), so it disarms nothing either.
-  document.addEventListener("focusin", () => {
-    if (placingChrome()) return;
+  // placement moves no one (focus.js, `placeChrome`), so it publishes nothing to disarm.
+  onStanding(() => {
     // The same question `setGoToSequence` asks before arming, so it takes the same answer: two
     // readings of where the user is standing would refuse to arm somewhere they then
     // failed to disarm.

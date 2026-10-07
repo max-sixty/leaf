@@ -18,6 +18,7 @@ from leaf.revision_delivery import (
     compose_document,
     deliver_resource,
     json_script,
+    mark_declared,
     media_size,
     rebase_document,
 )
@@ -26,6 +27,70 @@ from leaf.structure import SourceDocument
 PAGE_ROOT = "/p/user"
 ROOT = PAGE_ROOT + "/revisions/r1-0123456789abcdef"
 ADDRESS = DeliveryAddress(PAGE_ROOT, ROOT)
+
+
+def test_initial_producers_are_captured_once_and_called_after_each_complete_host():
+    source = (
+        "<html><head><title>Initial</title></head><body><main>"
+        '<lf-early id="first"><p>First</p></lf-early>'
+        '<lf-early id="second"><p>Second</p></lf-early>'
+        "<template><lf-unused></lf-unused></template>"
+        "</main></body></html>"
+    )
+    registry = {
+        "lf-early": {"x-initial": "/vendor/early.js"},
+        "lf-unused": {"x-initial": "/vendor/unused.js"},
+    }
+    resources = {
+        "/runtime/prepaint.js": Resource(
+            b"window.prepaint = true;", "application/javascript"
+        ),
+        "/vendor/early.js": Resource(
+            b'window.initial = "</script>";', "application/javascript"
+        ),
+        "/runtime/annotation-overlay/annotation-theme.css": Resource(b"", "text/css"),
+        "/runtime/chrome.css": Resource(b"", "text/css"),
+        "/runtime/marks.css": Resource(b"", "text/css"),
+        "/runtime/annotation-overlay/annotation-chrome.css": Resource(b"", "text/css"),
+        "/runtime/annotation-overlay/annotation-marks.css": Resource(b"", "text/css"),
+    }
+    delivered = compose_document(
+        source,
+        1,
+        None,
+        executable=None,
+        widgets={},
+        resources=resources,
+        registry=registry,
+        delivery=Delivery(
+            address=ADDRESS,
+            runtime="<script data-lf-runtime>window.boot = true;</script>",
+        ),
+    )
+    parsed = SourceDocument(delivered.removeprefix("\ufeff"))
+    scripts = parsed.tree.find_all("script")
+    calls = [script for script in scripts if "lfInitial.mount" in script.text]
+    assert len(calls) == 2
+    assert [script.previous_sibling.tag for script in calls] == ["lf-early", "lf-early"]
+    assert delivered.count("data-lf-initial-source") == 2
+    assert delivered.count('window.initial = "<\\/script>";') == 1
+    assert (
+        delivered.index("window.prepaint")
+        < delivered.index("window.initial")
+        < delivered.index("window.boot")
+    )
+    assert mark_declared(source, registry, resources) == source
+
+
+def test_capture_refuses_a_declared_initial_producer_that_is_absent(tmp_path):
+    with pytest.raises(
+        ArtifactError, match=r"/page/early\.js: cannot capture dependency"
+    ):
+        capture_artifact(
+            tmp_path,
+            SourceDocument(PAGE),
+            {"lf-early": {"x-initial": "/page/early.js"}},
+        )
 
 
 def test_document_rewrites_only_resource_references_with_exact_source_spans():

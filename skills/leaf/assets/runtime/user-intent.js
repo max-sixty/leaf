@@ -13,6 +13,7 @@
    scroll `touchstart`, a key `keydown`, and find-in-page takes focus from the window,
    which is `blur`. */
 import { focused } from "./keyboard/scopes.js";
+import { onStanding } from "./focus.js";
 
 let intent = 0;
 const leave = () => intent++;
@@ -29,11 +30,13 @@ for (const type of ["pointermove", "pointerdown", "wheel"])
     capture: true,
     passive: true,
   });
-for (const type of ["focusin", "keydown"])
-  addEventListener(type, () => (placeInput = "focus"), {
-    capture: true,
-    passive: true,
-  });
+addEventListener("keydown", () => (placeInput = "focus"), {
+  capture: true,
+  passive: true,
+});
+onStanding((node) => {
+  if (node) placeInput = "focus";
+});
 export const recentPlaceInput = () => placeInput;
 
 // Focus a repaint took from the source and dropped on a container holding it, as a

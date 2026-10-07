@@ -191,12 +191,43 @@ def declares_string(field_schema) -> bool:
     return allowed == {"string"}
 
 
+def detail_schema(entry: dict, spec: dict) -> dict:
+    """The event payload contract: an effect's fixed fields or custom command data.
+
+    Recorded values use `value`; positions add `unit` and `rank`, and a report
+    declaring `update` adds required nonempty `text`. Attribute values inherit
+    the destination's exact schema. Derived schemas are readings, never inserted
+    into the registry beside the effect that owns them.
+    """
+    record = spec.get("record")
+    if record is None:
+        return spec["detail"]
+    kind = record["kind"]
+    if kind == "value":
+        value = entry["properties"][record["attr"]]
+    elif kind == "attribute":
+        value = {"type": "array", "items": {"type": "string"}, "uniqueItems": True}
+    else:
+        value = {"type": "string"}
+    properties = {"value": value}
+    if kind == "position":
+        properties.update(unit={"type": "string"}, rank={"type": "string"})
+    if spec.get("update"):
+        properties["text"] = {"type": "string", "minLength": 1}
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": list(properties),
+        "additionalProperties": False,
+    }
+
+
 def decides(spec: dict) -> bool:
     """Whether one verb is a deciding verb: its detail declares the reserved
     `outcome`, which says which retirable members leave the page (x-retired-when,
     x-withdrawn-as). The browser reads the answer from `$decisions`
     (`registry.contract.stamp_decisions`)."""
-    return "outcome" in spec["detail"].get("properties", {})
+    return not spec.get("record") and "outcome" in spec["detail"].get("properties", {})
 
 
 def deciding_verbs(entry: dict) -> list[str]:

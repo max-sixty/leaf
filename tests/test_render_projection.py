@@ -826,8 +826,8 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
         capture(*roots)
         told(page)
         expect(
-            location.locator("xpath=ancestor::details").locator(
-                ".lf-call-group-summary .lf-call-location"
+            location.locator("xpath=ancestor::details/preceding-sibling::*[1]").locator(
+                ".lf-call-location"
             )
         ).to_have_text(destination)
         expect(location).to_be_visible()
@@ -3315,14 +3315,8 @@ def test_a_projected_attribute_opens_an_ask_captured_from_authored_markup(
         "x-upgrade": True,
         "x-state": {
             "phase": {
-                "detail": {
-                    "type": "object",
-                    "properties": {"phase": {"enum": ["closed", "open"]}},
-                    "required": ["phase"],
-                    "additionalProperties": False,
-                },
                 "unit": "widget",
-                "record": {"kind": "value", "attr": "phase", "value": "phase"},
+                "record": {"kind": "value", "attr": "phase"},
             },
             "answer": {
                 "detail": {
@@ -3368,7 +3362,7 @@ customElements.define("lf-conditional", class extends HTMLElement {
                 "revision": 1,
                 "widget": "question",
                 "action": "phase",
-                "detail": {"phase": phase},
+                "detail": {"value": phase},
             },
         )
         told(page)
@@ -5207,7 +5201,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
 
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["page", "report", str(d), "t-parser", "status", "status=review"],
+        ["page", "report", str(d), "t-parser", "status", "value=review"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -5232,7 +5226,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # fraction chip recounts across the tree.
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["page", "report", str(d), "t-parser", "status", "status=done"],
+        ["page", "report", str(d), "t-parser", "status", "value=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -5312,7 +5306,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
                 "revision": 1,
                 "widget": "t-parser",
                 "action": "status",
-                "detail": {"status": "done"},
+                "detail": {"value": "done"},
             },
         )
         told(page)
@@ -5400,8 +5394,8 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
             str(d),
             "ag-wren",
             "state",
-            "state=waiting",
-            "doing=rebasing onto main",
+            "value=waiting",
+            "text=rebasing onto main",
         ],
     )
     assert sent.exit_code == 0, sent.output
@@ -5470,8 +5464,8 @@ def test_the_update_feed_reads_reports_by_typed_target(browser, serve):
             str(d),
             "ag-wren",
             "state",
-            "state=working",
-            "doing=checking the mount prices",
+            "value=working",
+            "text=checking the mount prices",
         ],
     )
     assert report.exit_code == 0, report.output
@@ -5492,7 +5486,7 @@ def test_the_update_feed_reads_reports_by_typed_target(browser, serve):
         "target": {"kind": "widget", "id": "ag-wren"},
         "source": "report",
         "action": "state",
-        "detail": {"state": "working", "doing": "checking the mount prices"},
+        "detail": {"value": "working", "text": "checking the mount prices"},
         "text": "checking the mount prices",
         "ts": by_source["report"]["ts"],
         "revision": 1,
@@ -5557,8 +5551,8 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
             str(d),
             "ag-wren",
             "state",
-            "state=working",
-            "doing=checking the first mount",
+            "value=working",
+            "text=checking the first mount",
         ],
     )
     assert first.exit_code == 0, first.output
@@ -5582,8 +5576,8 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
             str(d),
             "ag-wren",
             "state",
-            "state=idle",
-            "doing=checking the second mount",
+            "value=idle",
+            "text=checking the second mount",
         ],
     )
     assert second.exit_code == 0, second.output
@@ -5625,8 +5619,8 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
             str(d),
             "ag-wren",
             "state",
-            "state=working",
-            "doing=first report",
+            "value=working",
+            "text=first report",
         ],
     )
     assert first.exit_code == 0, first.output
@@ -5699,8 +5693,8 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
             str(d),
             "ag-wren",
             "state",
-            "state=idle",
-            "doing=held report",
+            "value=idle",
+            "text=held report",
         ],
     )
     assert second.exit_code == 0, second.output
@@ -5786,8 +5780,8 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
             str(d),
             "ag-finch",
             "state",
-            "state=idle",
-            "doing=picking up",
+            "value=idle",
+            "text=picking up",
         ],
     )
     assert sent.exit_code == 0, sent.output
@@ -5808,8 +5802,8 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
             str(d),
             "ag-wren",
             "state",
-            "state=working",
-            "doing=on to the baffles",
+            "value=working",
+            "text=on to the baffles",
         ],
     )
     assert sent.exit_code == 0, sent.output
@@ -5877,7 +5871,7 @@ def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
 
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["page", "report", str(d), "t-parser", "status", "status=done"],
+        ["page", "report", str(d), "t-parser", "status", "value=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -5962,8 +5956,8 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     url = serve(REPLAYED_PAGE)
     d = serve.page_dir
     for widget, action, detail in [
-        ("approach", "choose", {"options": ["opt-shim"]}),
-        ("work", "move", {"card": "card-importer", "to": "col-done", "rank": "0i"}),
+        ("approach", "choose", {"value": ["opt-shim"]}),
+        ("work", "move", {"unit": "card-importer", "value": "col-done", "rank": "0i"}),
     ]:
         append_command(
             d,
@@ -6033,7 +6027,7 @@ def test_render_accepts_actions_made_after_the_authored_change(
             "revision": 2,
             "widget": "approach",
             "action": "choose",
-            "detail": {"options": ["opt-shim"]},
+            "detail": {"value": ["opt-shim"]},
         },
     )
     assert (
@@ -6060,14 +6054,8 @@ def test_render_separates_old_and_new_verbs_on_one_element(
     )
     declaration["x-state"] = {
         verb: {
-            "detail": {
-                "type": "object",
-                "properties": {"value": {"type": "string"}},
-                "required": ["value"],
-                "additionalProperties": False,
-            },
             "unit": "widget",
-            "record": {"kind": "value", "attr": verb, "value": "value"},
+            "record": {"kind": "value", "attr": verb},
         }
         for verb in ("first", "second")
     }
@@ -6160,8 +6148,8 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     # to leave both where they stand. Splitting the clause into another verb would make
     # the two reports compete for one fold key.
     for widget, verb, fields in [
-        ("ab-baffles", "status", ["status=done"]),
-        ("ab-wren", "state", ["state=blocked", "doing=waiting on the fixture"]),
+        ("ab-baffles", "status", ["value=done"]),
+        ("ab-wren", "state", ["value=blocked", "text=waiting on the fixture"]),
     ]:
         sent = CliRunner().invoke(
             cli_model.cli,
@@ -6232,24 +6220,16 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
         "type": "string",
         "pattern": "^[0-9]+$",
     }
-    record = {"kind": "value", "attr": "count", "value": "count"}
-    count_detail = {
-        "type": "object",
-        "properties": {"count": {"type": "string", "pattern": "^[0-9]+$"}},
-        "required": ["count"],
-        "additionalProperties": False,
-    }
+    record = {"kind": "value", "attr": "count"}
     declarations["lf-tally"]["x-state"] = {
         "set": {
-            "detail": count_detail,
             "unit": "widget",
             "record": record,
         },
         "observe": {
             "writer": "agent",
-            "detail": count_detail,
             "unit": "widget",
-            "record": {"kind": "value", "attr": "seen", "value": "count"},
+            "record": {"kind": "value", "attr": "seen"},
         },
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
@@ -6287,7 +6267,7 @@ customElements.define("lf-tally", class extends HTMLElement {
                 "revision": 1,
                 "widget": widget,
                 "action": action,
-                "detail": {"count": count},
+                "detail": {"value": count},
             },
         )
 
@@ -6332,22 +6312,10 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     owner["x-content"] = "members"
     owner["x-state"] = {
         "move": {
-            "detail": {
-                "type": "object",
-                "properties": {
-                    "piece": {"type": "string"},
-                    "to": {"type": "string"},
-                    "rank": {"type": "string"},
-                },
-                "required": ["piece", "to", "rank"],
-                "additionalProperties": False,
-            },
-            "unit": "piece",
+            "unit": "unit",
             "record": {
                 "kind": "position",
                 "within": "lf-zone",
-                "value": "to",
-                "rank": "rank",
             },
         }
     }
@@ -6369,14 +6337,8 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     piece.setdefault("required", []).append("pinned")
     piece["x-state"] = {
         "move": {
-            "detail": {
-                "type": "object",
-                "properties": {"pinned": {"type": "string"}},
-                "required": ["pinned"],
-                "additionalProperties": False,
-            },
             "unit": "widget",
-            "record": {"kind": "value", "attr": "pinned", "value": "pinned"},
+            "record": {"kind": "value", "attr": "pinned"},
         }
     }
     piece.pop("x-example", None)
@@ -6424,7 +6386,7 @@ customElements.define("lf-piece", class extends HTMLElement {
             "revision": 1,
             "widget": "owner",
             "action": "move",
-            "detail": {"piece": "piece", "to": "zone-b", "rank": "0i"},
+            "detail": {"unit": "piece", "value": "zone-b", "rank": "0i"},
         },
         {
             "kind": "action",
@@ -6432,7 +6394,7 @@ customElements.define("lf-piece", class extends HTMLElement {
             "revision": 1,
             "widget": "piece",
             "action": "move",
-            "detail": {"pinned": "yes"},
+            "detail": {"value": "yes"},
         },
     ):
         append_command(serve.page_dir, event)
@@ -6508,32 +6470,20 @@ def test_the_render_gate_catches_a_relative_state_renderer(
     declarations["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
     declarations["lf-tally"]["x-state"] = {
         "step": {
-            "detail": {
-                "type": "object",
-                "properties": {"count": {"type": "string", "pattern": "^[0-9]+$"}},
-                "required": ["count"],
-                "additionalProperties": False,
-            },
             "unit": "widget",
-            "record": {"kind": "value", "attr": "count", "value": "count"},
+            "record": {"kind": "value", "attr": "count"},
         },
         "caption": {
-            "detail": {
-                "type": "object",
-                "properties": {"text": {"type": "string"}},
-                "required": ["text"],
-                "additionalProperties": False,
-            },
             "unit": "widget",
-            "record": {"kind": "body", "value": "text"},
+            "record": {"kind": "body"},
         },
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(RELATIVE_WIDGET_MODULE)
     url = serve(RELATIVE_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     for widget, action, detail in [
-        ("tally-fitted", "step", {"count": "3"}),
-        ("tally-fitted", "caption", {"text": "Two greys at the north feeder."}),
+        ("tally-fitted", "step", {"value": "3"}),
+        ("tally-fitted", "caption", {"value": "Two greys at the north feeder."}),
     ]:
         append_command(
             serve.page_dir,
@@ -6696,7 +6646,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
         "revision": 1,
         "widget": "drift-note",
         "action": "settle",
-        "detail": {"offset": "0"},
+        "detail": {"value": "0"},
     }
 
     class TheLogArrivesLate(http_model.PageEndpoint):
@@ -7166,12 +7116,11 @@ def test_a_settled_holder_in_a_reply_joins_the_panel_wearing_its_mark(
 
 
 @pytest.mark.parametrize("shadow", [False, True])
-def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
+def test_withdrawing_a_custom_settlement_clears_the_layers_mark(
     browser, serve, tmp_path, monkeypatch, shadow
 ):
-    """Authored reconstruction states markup, not a logged decision. A holder may
-    validly record a value its deciding verb carries; restoring that value after
-    undo must not re-mark the withdrawn action or keep its slot retired."""
+    """A custom deciding payload can drive a widget's presentation alongside the
+    layer's retirement. Undo clears both its presentation and the retired slot."""
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     registry_path = tmp_path / ".leaf" / "registry.json"
@@ -7187,7 +7136,6 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
     decide = holder["x-state"]["decide"]
     decide["detail"]["properties"]["decision"] = {"enum": ["open", "shelved"]}
     decide["detail"]["required"].append("decision")
-    decide["record"] = {"kind": "value", "attr": "decision", "value": "decision"}
     registry_path.write_text(json.dumps(declarations))
     stage = (
         "if (once(this)) shadowStage(this, [...this.children]);"
@@ -7205,7 +7153,7 @@ customElements.define("lf-trial", class extends HTMLElement {
   #stop;
   connectedCallback() { STAGE this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { keeps(this, "decision", state.decide.value); }
+  renderState(state) { keeps(this, "decision", state.decide.detail.decision ?? "open"); }
 });
 """.replace("STAGE", stage)
     )
@@ -7789,13 +7737,7 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
                     "x-state": {
                         "edit": {
                             "unit": "widget",
-                            "record": {"kind": "body", "value": "text"},
-                            "detail": {
-                                "type": "object",
-                                "properties": {"text": {"type": "string"}},
-                                "required": ["text"],
-                                "additionalProperties": False,
-                            },
+                            "record": {"kind": "body"},
                         }
                     },
                     "x-example": '<lf-delayed-body id="example"><pre>Text</pre></lf-delayed-body>',
@@ -7859,7 +7801,7 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
             "kind": "action",
             "widget": "reply-body",
             "action": "edit",
-            "detail": {"text": "User's exact words.\n"},
+            "detail": {"value": "User's exact words.\n"},
             "revision": 1,
         },
     )
@@ -8050,7 +7992,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "revision": 1,
             "widget": "rp-live",
             "action": "choose",
-            "detail": {"options": ["rp-shim"]},
+            "detail": {"value": ["rp-shim"]},
         },
     )
     page = open_page(browser, live_url(url))
@@ -8387,7 +8329,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     assert [
         (event["action"], event["detail"]) for event in actions(serve.page_dir)
     ] == [
-        ("choose", {"options": ["tq-logs"]}),
+        ("choose", {"value": ["tq-logs"]}),
         ("answer", {}),
     ]
     consume_browser_errors(page, "400")
@@ -8854,7 +8796,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
 
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["page", "report", str(d), "api-errors", "status", "status=done"],
+        ["page", "report", str(d), "api-errors", "status", "value=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -8910,7 +8852,7 @@ def test_command_hub_lists_wait_behind_their_counts(browser, serve):
 
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["page", "report", str(d), "api-sdk", "status", "status=blocked"],
+        ["page", "report", str(d), "api-sdk", "status", "value=blocked"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -8927,7 +8869,7 @@ def test_command_hub_lists_wait_behind_their_counts(browser, serve):
     # stopped list waits.
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["page", "report", str(d), "w-1", "state", "state=waiting", "doing=parked"],
+        ["page", "report", str(d), "w-1", "state", "value=waiting", "text=parked"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -8979,8 +8921,8 @@ def test_command_hub_reads_one_publication_before_worker_presentation_commits(
             str(serve.page_dir),
             "w-1",
             "state",
-            "state=waiting",
-            "doing=ready for review",
+            "value=waiting",
+            "text=ready for review",
         ],
     )
     assert sent.exit_code == 0, sent.output
@@ -9236,9 +9178,9 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
         for event in reversed(events_model.read_events(d))
         if event.get("widget") == "ledger-cargo"
     )
-    assert "Alice" not in edit["detail"]["text"]
-    assert "a@example.test" not in edit["detail"]["text"]
-    assert edit["detail"]["text"].count("[redacted]") == 2
+    assert "Alice" not in edit["detail"]["value"]
+    assert "a@example.test" not in edit["detail"]["value"]
+    assert edit["detail"]["value"].count("[redacted]") == 2
     saved = page.locator("#atlas-record .lf-activity-row").first
     expect(saved).to_contain_text("You edited")
     expect(saved.locator('a[href="#ledger-cargo"]')).to_have_count(1)
@@ -9298,8 +9240,8 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
             str(d),
             "w-2",
             "state",
-            "state=waiting",
-            "doing=parked for review",
+            "value=waiting",
+            "text=parked for review",
         ],
     )
     assert sent.exit_code == 0, sent.output
@@ -9316,8 +9258,8 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
             str(d),
             "w-2",
             "state",
-            "state=blocked",
-            "doing=waiting on evidence",
+            "value=blocked",
+            "text=waiting on evidence",
         ],
     )
     assert sent.exit_code == 0, sent.output
@@ -9436,7 +9378,7 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
     round_trip(page)
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["page", "report", str(d), "goal-parser", "status", "status=review"],
+        ["page", "report", str(d), "goal-parser", "status", "value=review"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -9628,7 +9570,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
             "revision": 1,
             "widget": "parser-dedupe",
             "action": "status",
-            "detail": {"status": "stalled"},
+            "detail": {"value": "stalled"},
             "ts": (datetime.now().astimezone() - timedelta(hours=3)).isoformat(),
         },
     )
@@ -9655,7 +9597,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
             "revision": 3,
             "widget": "parser-dedupe",
             "action": "status",
-            "detail": {"status": "stalled"},
+            "detail": {"value": "stalled"},
             "ts": (datetime.now().astimezone() - timedelta(minutes=90)).isoformat(),
         },
     )
@@ -9927,19 +9869,10 @@ def test_project_widget_can_join_the_orchestration_projection(
             "x-state": {
                 "phase": {
                     "writer": "agent",
-                    "detail": {
-                        "type": "object",
-                        "properties": {
-                            "phase": {"enum": ["active", "blocked", "done"]}
-                        },
-                        "required": ["phase"],
-                        "additionalProperties": False,
-                    },
                     "unit": "widget",
                     "record": {
                         "kind": "value",
                         "attr": "phase",
-                        "value": "phase",
                     },
                 }
             },

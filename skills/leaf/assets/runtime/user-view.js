@@ -11,7 +11,7 @@ import { sessionIsActive } from "./layer-client.js";
 import { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 import { pageReadiness } from "./presentation.js";
 import { coarsePointer } from "./pointer.js";
-import { readingRegions } from "./reading-regions.js";
+import { unconcealedReadingRegions } from "./reading-regions.js";
 import { watchSemantic } from "./semantic-state.js";
 
 const REPORT_MS = 10_000;
@@ -63,7 +63,7 @@ export function observeUserView() {
       reduced_motion: reducedMotion(),
       pointer: coarsePointer.matches ? "coarse" : "fine",
       scroll: { x: window.scrollX, y: window.scrollY },
-      visible_regions: readingRegions()
+      visible_regions: unconcealedReadingRegions()
         .filter(({ body }) => seenRect(body, clips) !== null)
         .map(({ id }) => id),
     };

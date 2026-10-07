@@ -98,7 +98,11 @@ Each helper's header under `runtime/` explains its contract.
 
 A registry-declared widget implements a total, idempotent `renderState(state)`.
 Record user state through `widgetController(owner).dispatch()` with detail matching
-the declared browser schema. Ordinary script-owned elements do not acquire a
+the effect's payload contract in [packages.md, "User state"](packages.md#user-state).
+For a recorded body, attribute, or scalar value, send `detail: {value}`. For a position,
+send `detail: {unit, value, rank}`: the moved element's id, destination container's id,
+and the key from `rankAt`. A verb with no record uses its declared `detail` schema.
+Ordinary script-owned elements do not acquire a
 semantic controller; use the general helpers for their local behavior.
 
 `renderState` receives the state of every declared verb, keyed by verb name, including

@@ -364,9 +364,10 @@ export function widgetController(owner) {
     const resolve = () => (implementation ??= createWidgetController(owner));
     controller = Object.freeze(
       Object.fromEntries(
-        ["read", "subscribe", "dispatch", "reference", "defer", "present"].map(
-          (method) => [method, (...args) => resolve()[method](...args)],
-        ),
+        ["read", "subscribe", "dispatch", "defer", "present"].map((method) => [
+          method,
+          (...args) => resolve()[method](...args),
+        ]),
       ),
     );
     controllers.set(owner, controller);

@@ -149,7 +149,10 @@ it may land either side of the append; the HTTP transport's one fault boundary
 the browser retries the same attempt.
 
 Transports own only their input boundary: which kinds and fields they accept and
-how they answer retries.
+how they answer retries. Both writers share recorded-effect applicability: selected
+ids must belong to the recording widget, and a position must name an owned unit,
+an admissible destination, and a valid rank in the named revision. Reports name
+page widgets; user actions may also name widgets in frozen thread markup.
 
 Browser POSTs are commands. The append transaction stamps the accepted event with
 server-owned `meaning`; callers cannot send it, and retry identity
@@ -182,8 +185,15 @@ undone: the markup decides the order an undo would have restored. The door refus
 a move made on an older revision whose container the newest one authors
 differently.
 
+Recorded effects own their payload schema (`registry.contract.detail_schema`):
+`detail.value` carries a body's string, an attribute set's ids, or the scalar
+attribute's own schema. Positions require `{unit, value, rank}` for the moved
+item, destination and rank key. `update: true` on an agent verb adds required
+nonempty `detail.text`. Custom verbs without a record keep their declared detail
+schema. All payloads are closed objects.
+
 Dependency identities come from the fold unit and the attribute-set and position
-record fields. Literal detail strings do not become dependencies by matching HTML ids. The log does not freeze ancestry:
+record values. Literal detail strings do not become dependencies by matching HTML ids. The log does not freeze ancestry:
 retraction tests use the current document's containment of those identities.
 A child a `creates` verb adds is that action's fold unit, so it stands on the action's
 own coordinate until the action is undone or retracted. Admission stamps the child tag

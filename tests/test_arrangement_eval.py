@@ -61,7 +61,7 @@ def test_comparison_snapshots_exclude_later_leaf_feedback(tmp_path, monkeypatch)
         else:
             state = json.loads(run.leaf("page", "state", str(run.authored_page)).stdout)
             selected = next(
-                item["detail"]["options"]
+                item["detail"]["value"]
                 for item in state["state"]
                 if item["widget"] == "decision"
             )
@@ -94,7 +94,7 @@ def test_comparison_snapshots_exclude_later_leaf_feedback(tmp_path, monkeypatch)
     state = json.loads(run.leaf("page", "state", str(run.authored_page)).stdout)
     assert state["active"]["revision"] != choice["revision"]
     assert next(
-        item["detail"]["options"]
+        item["detail"]["value"]
         for item in state["state"]
         if item["widget"] == "decision"
     ) == ["b"]

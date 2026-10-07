@@ -155,28 +155,44 @@ function reflectButtons() {
     if (control.disabled !== disabled) control.disabled = disabled;
     buttonReadings.set(control, command);
     rememberScopedElement(control);
-    if (wiredButtons.has(control)) continue;
-    wiredButtons.add(control);
-    control.addEventListener("click", (event) => {
-      if (event.defaultPrevented || event.button !== 0) return;
-      const command = buttonCommands().get(control);
-      if (!command) return;
-      event.preventDefault();
-      if (
-        (command.scope.when && !command.scope.when()) ||
-        !commandAvailable(
-          command.row,
-          command.entry === command.row ? null : command.entry,
-        )
+    wireButton(control);
+  }
+}
+function wireButton(control) {
+  if (wiredButtons.has(control)) return;
+  wiredButtons.add(control);
+  control.addEventListener("click", (event) => {
+    if (event.defaultPrevented || event.button !== 0) return;
+    const command = buttonCommands().get(control);
+    if (!command) return;
+    event.preventDefault();
+    if (
+      (command.scope.when && !command.scope.when()) ||
+      !commandAvailable(
+        command.row,
+        command.entry === command.row ? null : command.entry,
       )
-        return;
-      command.row.run(
-        commandBinding(
-          command.row,
-          command.entry === command.row ? null : command.entry,
-        ),
-      );
-    });
+    )
+      return;
+    command.row.run(
+      commandBinding(command.row, command.entry === command.row ? null : command.entry),
+    );
+  });
+}
+// A button is pressed as soon as it can be reached, which can be before the frame that
+// paints its declaration: a key run in the same task that focused a new thread card
+// clicked a Resolve the paint had not yet wired, and nothing happened. So a declaration
+// wires the buttons it names as elements when it is made. A control named by a getter
+// may not exist yet, and is wired at paint as before; the listener resolves its command
+// at the press either way.
+function wireDeclaredButtons(scope) {
+  if (scope.contextual || scope.sequence) return;
+  for (const row of scope.rows) {
+    if (!row.run || typeof row.routes === "function") continue;
+    for (const entry of row.routes?.length ? row.routes : [row]) {
+      const control = entry.control ?? row.control;
+      if (control instanceof HTMLButtonElement) wireButton(control);
+    }
   }
 }
 
@@ -448,6 +464,7 @@ function attachScope(where, declaration, { validateAtPaint = true } = {}) {
   elementScopes.set(where, scope);
   rememberScopedElement(where);
   if (validateAtPaint) unpainted.add(scope);
+  wireDeclaredButtons(scope);
   paintKeys();
   return scope.rows;
 }

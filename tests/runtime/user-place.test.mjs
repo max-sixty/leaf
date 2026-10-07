@@ -160,7 +160,7 @@ test("a wheel leaves the precise pointer position intact", () => {
   assert.deepEqual(pointerAt(), { x: 120.5, y: 240.25 });
 });
 
-test("a node the render replaced hands the place across under its identity", () => {
+test("a node the render replaced hands the place across under its identity", async () => {
   const { scroller, item, at, scrolled, scrollTo } = laidOut();
   const nodes = ["a", "b", "c"].map((id, index) => item(id, 1000 + index * 150));
   scroller.append(...nodes);
@@ -180,6 +180,12 @@ test("a node the render replaced hands the place across under its identity", () 
   place.finish(hold);
   assert.equal(scrolled(), 1060);
   assert.equal(rebuilt.getBoundingClientRect().top, 0);
+  // Anchoring comes back at the next rendering pass, so a render taking its hold in the
+  // same script as this one's release writes nothing.
+  assert.equal(scroller.style.getPropertyValue("overflow-anchor"), "none");
+  const next = place.take();
+  place.finish(next);
+  await new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve)));
   assert.equal(scroller.style.getPropertyValue("overflow-anchor"), "");
   scroller.remove();
 });

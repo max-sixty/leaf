@@ -434,8 +434,8 @@ def report(dir: str, widget: str, verb: str, fields: tuple) -> None:
     """Report a state change onto a page widget, as a worker.
 
     The verb and its fields are the widget's own agent-written x-state verb —
-    `leaf page report <page> t-parser status status=review` moves a
-    task. The page paints the report live as provisional news; it stands until a
+    `leaf page report <page> t-parser status value=review text="Ready for review"`
+    moves a task. The page paints the report live as provisional news; it stands until a
     version absorbs or overrules it, and the page's watcher wakes to fold it in.
     """
     from leaf.thread import cmd_report

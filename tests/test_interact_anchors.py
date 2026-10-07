@@ -339,7 +339,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
             "revision": files_model.latest_revision(page_dir),
             "widget": "thread-picks",
             "action": "choose",
-            "detail": {"options": ["thread-option"]},
+            "detail": {"value": ["thread-option"]},
         },
     )
     events = events_model.read_events(page_dir)
@@ -1560,8 +1560,8 @@ def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
     words = "Use <a literal> & keep the source unchanged."
     moves = [
         ("add", {"option": identity, "text": words}),
-        ("choose", {"options": [identity]}),
-        ("choose", {"options": ["flag-first"]}),
+        ("choose", {"value": [identity]}),
+        ("choose", {"value": ["flag-first"]}),
     ]
     for action, detail in moves:
         append_command(
@@ -2113,7 +2113,7 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
             "revision": 1,
             "widget": "group-a",
             "action": "choose",
-            "detail": {"options": ["option-a"]},
+            "detail": {"value": ["option-a"]},
         },
     )
     assert asks_on_you(state_json(page_dir)) == [
@@ -2211,7 +2211,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
             "revision": 1,
             "widget": "ps-q",
             "action": "choose",
-            "detail": {"options": ["ps-cookie"]},
+            "detail": {"value": ["ps-cookie"]},
         },
     )
     out = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
@@ -2219,7 +2219,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     state = json.loads(out.stdout)
     assert [
         (s["widget"], s["action"], s["detail"], s["thread"]) for s in state["state"]
-    ] == [("ps-q", "choose", {"options": ["ps-cookie"]}, thread)]
+    ] == [("ps-q", "choose", {"value": ["ps-cookie"]}, thread)]
 
 
 def test_message_markup_may_not_declare_the_document(page_dir):

@@ -35,7 +35,14 @@
    whose thread stands for the element it is about (`landSent`). */
 import { landingBand, seenRect, shownBox, shownWindow } from "../geometry.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
-import { focusDestination, restoringFocus, takesLetters, whenLeft } from "../focus.js";
+import {
+  focusDestination,
+  handingBack,
+  onStanding,
+  takesLetters,
+  whenLeft,
+} from "../focus.js";
+import { under } from "../shadow.js";
 import { scrollBehavior } from "../motion.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { closestAcross } from "../passages.js";
@@ -207,12 +214,7 @@ pageScope("text entry", {
 // landing its title would take the user away from the turn they were answering.
 export function standOnThread(thread) {
   if (fitsWhole(thread)) return focusThread(thread);
-  keepingPlace = true;
-  try {
-    focusThread(thread, { preventScroll: true });
-  } finally {
-    keepingPlace = false;
-  }
+  handingBack(() => focusThread(thread, { preventScroll: true }));
 }
 
 // A thread's own keys, live wherever the user stands in one: the card, the message a
@@ -298,7 +300,6 @@ export const retainPanelLanding = (source, panelIsOpen, threadsBox) =>
 // costs a variable rather than buying one, and the walk's own end-of-clamp press is
 // the same shape one scope out.
 const standing = () => closestAcross(focused(), ".lf-thread");
-let keepingPlace = false;
 const land = (thread, behavior, threadsBox, arriving = false) => {
   if (!thread || !threadsBox.contains(thread)) return;
   if (takesLetters(focused())) return;
@@ -400,9 +401,12 @@ export function wireThreadLanding(threadsBox) {
         thread: event.target.closest?.(".lf-thread") ?? null,
       };
   });
-  threadsBox.addEventListener("focusin", () => {
+  // A press held in the list lands when the hand comes up (`finishPress`), and a return
+  // puts the user back in a place the list already showed them: neither lands here.
+  onStanding((node, cause) => {
+    if (!node || !under(node, threadsBox)) return;
     nextRender(readVisibleTitle);
-    if (pressedPointer !== null || keepingPlace || restoringFocus()) return;
+    if (pressedPointer !== null || cause === "return") return;
     const thread = standing();
     // Native focus and reply entry reveal their own writing area. Re-landing the
     // thread here would turn that focus move into a second navigation gesture.

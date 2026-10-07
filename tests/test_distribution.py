@@ -64,12 +64,32 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
     )
     leaf("package", "check", "custom")
     page_dir = tmp_path / "page"
-    leaf("page", "init", "--package", "./custom", "--package", "diagram", page_dir)
+    leaf(
+        "page",
+        "init",
+        "--package",
+        "./custom",
+        "--package",
+        "diagram",
+        "--package",
+        "playground",
+        page_dir,
+    )
     source = PAGE.replace(
         "<lf-options>", '<lf-options id="plan-options" choose>'
     ).replace(
         "<h2>Plan</h2>",
         '<h2>Plan</h2><lf-risk-note id="risk">Custom package works.</lf-risk-note>',
+    )
+    source = source.replace(
+        "</main>",
+        '<lf-playground id="prepared-playground">'
+        '<lf-playground-control name="label" label="Label" kind="text" '
+        'value="Prepared"></lf-playground-control>'
+        "<lf-playground-preview><p>Native initial drawing works.</p>"
+        "</lf-playground-preview><lf-playground-output>Use "
+        '<lf-playground-value for="label"></lf-playground-value>.'
+        "</lf-playground-output></lf-playground></main>",
     )
     (page_dir / "index.html").write_text(source)
     leaf("page", "check", page_dir, "--render")
@@ -93,8 +113,31 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
         expect(tab.locator("body")).to_have_attribute("data-lf-presented", "1")
         expect(tab.locator("lf-risk-note")).to_have_text("Custom package works.")
         assert tab.evaluate("customElements.get('lf-risk-note') !== undefined")
+        playground = tab.locator("#prepared-playground")
+        expect(playground.locator("input[type=text]")).to_have_value("Prepared")
+        expect(playground.locator("lf-playground-output")).to_contain_text(
+            "Use Prepared."
+        )
+        assert playground.evaluate(
+            "async host => { "
+            "const { initialRender } = await import(document.querySelector('[data-lf-offline]') "
+            "? 'leaf:/runtime/widget-api.js' : '/runtime/widget-api.js'); "
+            "const drawing = initialRender(host); "
+            "return document.documentElement.lfInitial.has(host.localName) && "
+            "drawing.output === host.querySelector('lf-playground-output') && "
+            "drawing.inputs.get('label') === host.querySelector('input[type=text]'); }"
+        )
         choice = tab.locator("#flag-first .lf-pick")
         if target == address:
+            assert playground.evaluate(
+                "host => { let changes = 0; const readings = []; "
+                "host.addEventListener('lf-playground-change', () => changes++); "
+                "const reset = host.querySelector('.lf-playground-reset'); "
+                "reset.click(); readings.push(changes); "
+                "const parent = host.parentNode, next = host.nextSibling; host.remove(); "
+                "reset.click(); readings.push(changes); parent.insertBefore(host, next); "
+                "reset.click(); readings.push(changes); return readings; }"
+            ) == [1, 1, 2]
             with tab.expect_response(
                 lambda response: (
                     response.url.split("?")[0].endswith("/api/event")

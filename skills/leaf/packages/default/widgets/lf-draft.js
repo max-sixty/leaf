@@ -471,7 +471,7 @@ customElements.define(
       return this.#controller.dispatch({
         kind: "action",
         verb: "edit",
-        detail: { text },
+        detail: { value: text },
         ...(attempt && { attempt }),
       });
     }
@@ -521,7 +521,7 @@ customElements.define(
       const key = JSON.stringify([
         authored,
         standing,
-        actions.map((event) => [event.seq, event.revision, event.detail.text]),
+        actions.map((event) => [event.seq, event.revision, event.detail.value]),
       ]);
       if (key === this.#historyKey) return;
       this.#historyKey = key;
@@ -550,7 +550,7 @@ customElements.define(
       list.append(this.#snapshot("Version text", authored, null, standing));
       let previous = null;
       actions.forEach((event, index) => {
-        const text = event.detail.text;
+        const text = event.detail.value;
         list.append(
           this.#snapshot(
             `Edit ${index + 1} · ${revisionLabel(event.revision)}`,

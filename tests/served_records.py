@@ -73,8 +73,8 @@ def build() -> dict:
                         "widget": "feeder-board",
                         "action": "move",
                         "detail": {
-                            "card": "card-baffle",
-                            "to": "col-doing",
+                            "unit": "card-baffle",
+                            "value": "col-doing",
                             "rank": "0i",
                         },
                     },
@@ -129,7 +129,7 @@ def build() -> dict:
                         "kind": "action",
                         "widget": "ship",
                         "action": "choose",
-                        "detail": {"options": ["ship-now"]},
+                        "detail": {"value": ["ship-now"]},
                     },
                     {
                         "kind": "pickup",
@@ -169,7 +169,7 @@ def build() -> dict:
                         "kind": "action",
                         "widget": "ship",
                         "action": "choose",
-                        "detail": {"options": ["ship-now"]},
+                        "detail": {"value": ["ship-now"]},
                     },
                     {"kind": "comment", "text": "Rebuild the chart."},
                     {

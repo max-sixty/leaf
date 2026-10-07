@@ -111,8 +111,9 @@ import {
 } from "./capture.js";
 import { repaint } from "../repaint.js";
 import { drawn, handBack, holdFocus, letGo, takesLetters } from "../focus.js";
-import { focused } from "../keyboard/scopes.js";
+import { commandScope, focused, projectCommandScope } from "../keyboard/scopes.js";
 import { shadowHost, under } from "../shadow.js";
+import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldAsk } from "../standing-target.js";
 
 import { coarsePointer, pointerAt } from "../pointer.js";
@@ -895,6 +896,8 @@ export function createResponseSurface({
   // through a click all the more — a drawer any press removes cannot be watched while
   // working, which is the drawer's point. Each closes by its own button, its key, or Esc.
   function standDown(target) {
+    // A native modal owns its press; the composer behind it remains inert.
+    if (nativeLayers().some((layer) => layer.kind === "modal")) return;
     const visual = visualAt(target);
     const sameVisual =
       visual &&
@@ -1320,20 +1323,26 @@ export function createResponseSurface({
     },
   });
 
+  // Tab opens responses from the editor, while attachments keep native traversal.
+  // Project this alongside the input owner's submit scope rather than replacing it.
+  const composerOptions = commandScope("In the composer", [
+    {
+      id: "comment.options",
+      keys: ["Tab"],
+      description: "Show other responses",
+      title: "other responses",
+      when: () => fabOptionsAvailable() && !responseOptionsAreOpen(),
+      run: () => showFabOptions(),
+    },
+  ]);
+  projectCommandScope(fabInput, composerOptions, composerOptions);
+
   // The composer's own rung is its own scope rather than the box's, because the box may not
   // have focus — the user clicked away and the composer still stands, holding their draft.
   pageScope("composer", {
     title: "In the composer",
     at: () => composerOpen && !placement?.withheld(),
     rows: [
-      {
-        id: "comment.options",
-        keys: ["Tab"],
-        description: "Show other responses",
-        title: "other responses",
-        when: () => fabOptionsAvailable() && !responseOptionsAreOpen(),
-        run: () => showFabOptions(),
-      },
       {
         id: "composer.close",
         keys: ["Escape"],

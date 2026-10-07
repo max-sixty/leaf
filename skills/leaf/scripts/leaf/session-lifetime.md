@@ -154,9 +154,10 @@ opening or ending rewrites claims. Each acquisition has its own unique ID, so
 rollback compares claim publication rather than derived lifecycle fields or
 second-resolution timestamps. The first observed harness lifetime may enrich an
 unknown prompt-created lifetime; replacing known provenance starts a generation.
-SessionEnd marks the generation ended without
-page discovery or page locks. A resumed harness ID gets a new generation, leaving
-old claims inactive. Activity-backed ownership freshness remains per page: one
+SessionEnd ends a process-backed generation without page discovery or page locks;
+a resumed process-backed harness ID gets a new generation, leaving old claims
+inactive. Desktop Codex unloading closes its instance observations and retains
+the chat generation, so resuming that chat retains its page ownership. Activity-backed ownership freshness remains per page: one
 visible sibling does not renew every page in a multiplexed harness. Where nothing answers for the declaration, activity reports the page
 unheld rather than repeating it. Unheld is not a fault: a standing page spends most
 of its life unheld and picks up again when a session takes it.
@@ -170,7 +171,8 @@ extension (`hooks/pi.ts`), keeps a turn from ending while it leaves one of this 
 Stop hook)
 or a delivered move unanswered and unstarted, stamps that turn's ending and the
 next one's opening, surfaces unacknowledged user events at the next prompt, and
-releases the session's page claims when it exits. The Stop hook keeps a turn
+ends process-backed ownership when the session exits and retains desktop chat
+ownership when its instance unloads. The Stop hook keeps a turn
 going through the harness's continuation channel (`Harness.hook_context`): the
 non-error `additionalContext` Claude Code and Pi's extension read, or a block where,
 as in Codex, the harness's Stop output has nothing else. It continues a turn only for what the turn owes: input
@@ -264,8 +266,9 @@ delivery and page-reading stacks.
 
 SessionEnd calls the launcher's `session-end` entry, which runs its standalone
 stdlib state owner directly. That program supports Python 3.9 and publishes
-one ended session generation. Every claim referencing it becomes inactive without
-page discovery, page locks or claim rewrites, including claims made by another
+the session transition: process-backed generations end, while desktop chat
+generations retain ownership and close their instance observations. It needs no
+page discovery, page locks or claim rewrites, including for claims made by another
 checkout when this plugin has no uv environment.
 Managed Leaf delegates SessionEnd to the same owner. Registrations suppress errors
 and return success when the application cannot answer. The harness owns their
@@ -544,9 +547,22 @@ the page goes idle or changes hands.
 
 ### Adapter lifetime
 
+Desktop Codex unloads an idle running instance without ending the chat. Its
+activity-backed lifecycle retains the generation at `SessionEnd`, closes an open
+turn, and retires hook capability observations while keeping the claimed-page
+marker. The next prompt and tool hook therefore resume the same ownership and
+delivery route. Per-page activity expiry, release and transfer still retire them.
+Process-backed harness sessions invalidate their generation at `SessionEnd`.
+
+Desktop user previews also detach their input watcher from the launching command.
+The launcher captures the claim's lifetime and cwd and holds delivery preparation
+until the watcher commits that acquisition and confirms its input subscription.
+The watcher exits on explicit service stop or lost ownership, without touching
+page files just to renew itself.
+
 The detached Codex adapter follows active session/page ownership, including when
 all owned pages declare idle. Idle pages deliver no input and direct waits end;
 a later start or waiting declaration resumes delivery through the existing adapter. The adapter
 waits for page news while idle and retires once ownership ends through release,
-transfer, expiry or SessionEnd. Serving a closed page therefore does not lose
-its adapter before the agent's next declaration.
+transfer, expiry or a process-backed SessionEnd. Serving a closed page therefore
+does not lose its adapter before the agent's next declaration.

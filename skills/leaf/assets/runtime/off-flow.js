@@ -12,8 +12,8 @@
      typed, deleted, or pasted into a box it holds;
    - focus moving from one of its controls to another, as sequential navigation reveals
      the control it reaches. Only a move within it: focus arriving from outside is a
-     landing, or a node the runtime replaced handing focus to its successor, which is
-     no move of the user's.
+     landing, and a return (focus.js, `onStanding`), such as a node the runtime
+     replaced handing focus to its successor, is no move of the user's.
 
    Each asks what the browser asks of an ordinary control: whether the window shows all of
    it, below the banner and above the bottom bar. A surface waiting hidden for room to
@@ -28,6 +28,7 @@
 import { shownWindow } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
 import { under } from "./shadow.js";
+import { onStanding } from "./focus.js";
 
 const surfaces = new Map();
 
@@ -57,11 +58,14 @@ export function declareOffFlowSurface(
     (event) => follow(surface, event.target, scrollBehavior()),
     { capture: true },
   );
-  surface.addEventListener("focusin", (event) => {
-    if (event.relatedTarget && under(event.relatedTarget, surface))
-      follow(surface, event.target, scrollBehavior());
-  });
 }
+// A move within a surface, a widget's shadow tree inside it included.
+onStanding((node, cause, left) => {
+  if (!node || !left || cause === "return") return;
+  for (const surface of surfaces.keys())
+    if (under(node, surface) && under(left, surface))
+      follow(surface, node, scrollBehavior());
+});
 
 // Bring back the surface holding `node`, where the window does not show all of it; a
 // node in flow needs nothing.

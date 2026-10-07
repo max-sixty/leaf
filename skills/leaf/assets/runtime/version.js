@@ -72,7 +72,7 @@ import {
 } from "./drafts.js";
 import { heldThreadId, replyDestination } from "./thread/focus.js";
 import { restoreReplyEditing } from "./thread/replies.js";
-import { focusDestination } from "./focus.js";
+import { focusDestination, onStanding } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { patchTree } from "./dom-children.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
@@ -105,6 +105,7 @@ import {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 import { LIVE_ROOT, PAGE_SCOPE, tabStore, unmarkedCopy } from "./storage.js";
+import { initialOrigin, restoreInitialSource } from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
@@ -195,22 +196,26 @@ const versionedHeadNode = (node) =>
 // applies the difference between two revisions, so it needs the revision the page is
 // standing on as source — not the page, which by then carries a tokenizer's spans, a
 // user's open disclosure, a tab stop the runtime lent, and whatever a page module
-// built. The module graph can define chrome-only elements before this clone, but authored
-// markup cannot contain those tags, so the authored main is untouched but for the marks
-// the prepaint painted for the first paint and the structure delivery wrote in for it
-// (`data-lf-prepaint`), which the copy takes off. Runtime-owned head nodes carry
-// `data-lf-runtime` and are excluded from the separate head baseline above. The source
-// and live main are therefore the same tree but for what delivery wrote in, which the
-// pairing below walks past, so it is a plain walk of the two together.
+// built. The early coordinator keeps the source of each initially rendered host
+// before its package moves or replaces anything. unmarkedCopy uses those sources
+// and removes delivery's placeholders and invocation scripts. Each copied source
+// node retains its route to the original live node, so pairing still works when a
+// producer has rearranged children. Runtime-owned head nodes carry data-lf-runtime
+// and are excluded from the separate head baseline above. A later arriving source
+// that has not been initially rendered pairs by the ordinary parallel walk.
 const pairSources = (source, live, pairs) => {
+  live = initialOrigin(source) === source ? live : initialOrigin(source);
   pairs.set(source, live);
   const held = source.localName === "template" ? source.content : source;
   const shown = live.localName === "template" ? live.content : live;
   const children = [...shown.childNodes].filter(
-    (child) => !child.matches?.("[data-lf-prepaint]"),
+    (child) => !child.matches?.("[data-lf-prepaint], script[data-lf-initial]"),
   );
-  for (const [at, child] of [...held.childNodes].entries())
-    if (children[at]) pairSources(child, children[at], pairs);
+  for (const [at, child] of [...held.childNodes].entries()) {
+    const original = initialOrigin(child);
+    const peer = original === child ? children[at] : original;
+    if (peer) pairSources(child, peer, pairs);
+  }
   return pairs;
 };
 // Where a delivered document's captured resources are addressed: the directory its
@@ -1091,10 +1096,8 @@ export function createVersionController({
     const doc = new DOMParser().parseFromString(await response.text(), "text/html");
     if (doc.querySelectorAll("body > main").length !== 1)
       throw new Error(`${url} has no single authored main`);
-    // Delivery wrote it in for a first paint, and no revision's author did.
-    for (const written of doc.querySelectorAll("body > main [data-lf-prepaint]"))
-      written.remove();
-    return doc;
+    // First-paint delivery wrappers have no place in the authored revision.
+    return restoreInitialSource(doc);
   }
   // Repeated comparisons of the same immutable revision share its document fetch.
   const revisionDocuments = new Map();
@@ -1822,7 +1825,7 @@ export function createVersionController({
       if (at?.matches(TEXT_BOX) && under(at, document.querySelector("body > main")))
         queueRecord();
     };
-    document.addEventListener("focusin", recordEditing);
+    onStanding(recordEditing);
     document.addEventListener("input", recordEditing);
     queueRecord();
   }

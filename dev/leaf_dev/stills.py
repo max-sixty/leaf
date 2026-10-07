@@ -444,6 +444,26 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
 }
 
 
+def playground_controls(page: Page) -> None:
+    """The playground's controls and instruction, with keyboard focus on its range."""
+    page.keyboard.press("Tab")
+    control = page.get_by_role("slider", name="Concurrent release events")
+    control.focus()
+    control.press("ArrowRight")
+    page.locator(".lf-playground-controls").scroll_into_view_if_needed()
+
+
+def margin_gallery(page: Page) -> None:
+    """The margin gallery's real controls and labels in a finger-sized column."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Page & layout", exact=True
+    ).click()
+    settle(page)
+    page.locator(
+        "#bg-margin-controls-samples .margin-entry-gallery-group"
+    ).first.evaluate("group => group.scrollIntoView({block: 'start'})")
+
+
 @dataclass(frozen=True)
 class State:
     name: str
@@ -455,6 +475,21 @@ class State:
 
 
 STATES = (
+    State("playground-controls", "notification-playground", playground_controls),
+    State(
+        "playground-controls-phone",
+        "notification-playground",
+        playground_controls,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "margin-gallery-phone",
+        "developer/feature-gallery",
+        margin_gallery,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("release-draft", "release-notes", draft_edit),
     State(
         "release-draft-phone",

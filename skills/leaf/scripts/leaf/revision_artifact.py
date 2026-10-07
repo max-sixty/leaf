@@ -657,6 +657,9 @@ def _capture_artifact(
             ):
                 capture("/" + path.relative_to(page_dir).as_posix())
     resources["/registry.json"] = Resource(_json(registry), "application/json")
+    for tag, entry in registry.items():
+        if tag.startswith("lf-") and (initial := entry.get("x-initial")):
+            capture(initial)
 
     if widget_sources is None:
         widget_sources = {

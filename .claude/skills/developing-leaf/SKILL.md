@@ -184,7 +184,9 @@ id) and stays running.
 `uv run leaf-dev preview <example> --export` writes one file that opens offline.
 `uv run leaf-dev preview <example>` serves a live page at `.tmp/previews/<example>`
 in the foreground, like a dev server, so run it as a long-running command
-(`run_in_background` in Claude Code). `--source <file>` serves any authored HTML
+(`run_in_background` in Claude Code). A desktop Codex `--user` preview instead
+detaches its watcher and returns its URL: the page and feedback stay available
+when Codex unloads the chat's idle instance. `--source <file>` serves any authored HTML
 file in place of a shipped example. It follows source and runtime edits at one
 URL; each start rebuilds the page from the fixture, and `--slot <name>` runs another copy.
 
@@ -200,9 +202,10 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 
 ### In Codex
 
-1. Start the preview with `--user` as a long-running command from the current
+1. Start the preview with `--user` from the current
    chat. It connects Leaf feedback to this Codex chat before printing the URL;
-   each restart reconnects the rebuilt page automatically.
+   desktop Codex returns after the detached watcher subscribes to source edits.
+   Each restart reconnects the rebuilt page automatically.
 2. Call `mcp__codex_app__open_in_codex` with the printed keyed URL and the semantic
    block's fragment, as a browser target with `placement: "right"`.
 3. Tell the user to comment on the surrounding review page to steer this chat.
@@ -285,8 +288,9 @@ git worktree add --detach "$baseline_root" "$baseline_commit"
 
 Choose sources that isolate the change: one shared source for a runtime change,
 or each checkout's copy when the authored content changed. Run the two previews
-as separate long-running commands, adding `--user` to both when their URLs go to
-the user:
+as separate commands, adding `--user` to both when their URLs go to the user.
+Keep foreground previews running; desktop Codex user previews return after
+startup:
 
 ```bash
 uv run --project "$candidate_root" leaf-dev preview --source <baseline-source.html> \

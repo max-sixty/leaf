@@ -169,10 +169,10 @@ def unanswered(obligations: list[dict], of: str = "") -> str:
 def _turn_wrote(obligation: dict, state: dict) -> bool:
     """Whether the claimant's open turn finished the reply it owes this move.
 
-    A `turn` answer is written by the claimant's own turn, and the App Server client commits
-    it once the turn ends, after the agent's last command. So the move is answered
-    now when the turn's final message is complete, with text, in the reply draft
-    bound to it."""
+    A `turn` answer is written by the claimant's own turn, and the App Server
+    client commits it once the turn ends, after the agent's last command. So the
+    move is answered now when the turn's final message is complete, with text, in
+    the reply draft bound to it."""
     draft = obligation.get("response") or {}
     return bool(
         obligation["answer"]["kind"] == "turn"
@@ -193,7 +193,7 @@ def acknowledged_obligations(state: dict) -> list[dict]:
     ]
 
 
-def blocking_obligations(state: dict, *, carried: bool) -> list[dict]:
+def blocking_obligations(state: dict, *, watched: bool) -> list[dict]:
     """The owed answers that keep the agent from idling the page, and from which
     the Stop hook takes the ones that hold its turn (`turn_obligations`).
 
@@ -202,12 +202,12 @@ def blocking_obligations(state: dict, *, carried: bool) -> list[dict]:
     the queue opens, where the prompt hook records it `opened` and it blocks from
     then on. A turn answer the open turn has finished is committed by the
     claimant's App Server client once the turn ends, so it is answered while the
-    session's watcher (`carried`) is live."""
+    session's watcher (`watched`) is live."""
     return [
         obligation
         for obligation in acknowledged_obligations(state)
         if obligation["stage"] != "queued"
-        and not (carried and _turn_wrote(obligation, state))
+        and not (watched and _turn_wrote(obligation, state))
     ]
 
 
@@ -231,7 +231,7 @@ def started_in_turn(obligation: dict, state: dict) -> bool:
     )
 
 
-def turn_obligations(state: dict, *, carried: bool) -> list[dict]:
+def turn_obligations(state: dict, *, watched: bool) -> list[dict]:
     """The owed answers that hold the claimant's turn open: the blocking ones its
     open turn has not started.
 
@@ -244,7 +244,7 @@ def turn_obligations(state: dict, *, carried: bool) -> list[dict]:
     since closing the page answers nothing."""
     return [
         obligation
-        for obligation in blocking_obligations(state, carried=carried)
+        for obligation in blocking_obligations(state, watched=watched)
         if not started_in_turn(obligation, state)
     ]
 

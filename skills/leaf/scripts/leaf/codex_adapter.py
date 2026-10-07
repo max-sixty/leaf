@@ -21,9 +21,9 @@ turn. It observes the user's turns and Leaf delivery turns alike. Losing the
 connection disconnects the folds; reconnecting reconciles them with the provider's
 transcript, because a terminal task keeps running after this adapter disconnects.
 
-`codex.py` owns the protocol, the per-turn fold every App Server client runs, the delivery
-records, and the page writers both transports share. What is here is the process
-around them.
+`codex.py` owns the protocol, the per-turn fold every App Server client runs, the
+delivery records, and the page writers both transports share. What is here is the
+process around them.
 """
 
 import json

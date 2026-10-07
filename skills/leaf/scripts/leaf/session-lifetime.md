@@ -15,7 +15,7 @@ second fold.
 | the item in hand: a move's event id or an open task's id, the line, and the claimant turn that wrote it, or none for another session's | a `start` event in `events.jsonl` (`tasks.py`) | `leaf task start`, or `leaf thread reply --ephemeral` on a move owed, from a turn of the session driving the page | the item ending: a move's answer, or a task's end; a later `put_down` event, which `leaf status waiting` and `idle` write; and as a belief, a short grace after the turn that wrote it closes, about a quarter of an hour with no renewal, or at once when the claimant's lifetime has ended |
 | live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's task connection | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding names the claim turn it belongs to (the delivery's turn once its reply opens, the turn standing at reservation before then), clears after durable commit or terminal failure, and survives a lost connection; it stands only while that is still the claim's turn and the turn is open (`activity.reply_binding_stands`), and a turn's answer committed after its binding lapsed yields to a reply another writer already gave |
-| turn identity, when it last opened or took a prompt, and open or closed state | the session lifecycle record | a prompt, a direct delivery, or an App Server client following a provider turn opens `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the id is the harness's where it names one (Codex's hooks and App Server name the same turn) and one Leaf mints otherwise; the Stop hook stamps `turn_closed` on whatever turn is open, and a carrier on the turn it follows | the next opening of another id; the next closing stamps it, and a closed id never reopens |
+| turn identity, when it last opened or took a prompt, and open or closed state | the session lifecycle record | a prompt, a direct delivery, or an App Server client following a provider turn opens `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the id is the harness's where it names one (Codex's hooks and App Server name the same turn) and one Leaf mints otherwise; the Stop hook stamps `turn_closed` on whatever turn is open, and an App Server client on the turn it follows | the next opening of another id; the next closing stamps it, and a closed id never reopens |
 | the harness's own word on the claimant's session: `idle`, `waiting` on a dialog, or `busy`, dated by its last change | the harness's record, read at each state read (`Harness.live_turn`): for Claude Code, the `status` of the session's newest registry record whose process runs | the harness | read live, so it moves with the harness; absent where the harness publishes nothing, as for a background job whose worker has retired |
 | the turn ending this page nudged its session after | `messaged_ending` in the page's claim record: the turn id and its close stamp, or for an interrupted turn its last opening | browser-event admission, once the harness's nudge lands | a later ending, a close under a new id or an interrupt after a new prompt renewed the same one, differs |
 | wait lease | `waiter.lock`, or `sessions/<session>.wait` for a harness session | the live `leaf wait` process, or Claude Code's background Stop hook watching between turns (`leaf hook --harness claude-code --watch`), holding an exclusive kernel lock on a stable file; file existence does not prove liveness | descriptor close or process exit, including a crash |
@@ -340,18 +340,18 @@ watch, a model wait, the adapter, or the host:
   After an interrupted run it starts the watch with the
   Interrupt payload, which first answers the Interrupt hook, closing the turn,
   and then wakes only for input admitted after its first look.
-- A model wait: a sequence of direct watchers the model itself runs, where the wait prints the
-  batch (a Codex task's own loop, a bare shell, a Claude Code session under plain
-  `--print`): `leaf wait --ack <delivery-id>` advances the captured cursors and
-  becomes the next watcher.
-- The adapter: one detached process, which a Codex task uses on either transport: it holds the same task-wide wait lease
-  plus an adapter lease of its own, and stores exact batches from every page in
-  one task-wide delivery.
-- The host: a harness that drives App Server itself, which the website's per-user container
-  uses: it starts the turn directly and needs nothing between them.
+- A model wait: a sequence of `leaf wait` runs the model itself starts, where the
+  wait prints the batch (a Codex task's own loop, a bare shell, a Claude Code
+  session under plain `--print`): `leaf wait --ack <delivery-id>` advances the
+  captured cursors and becomes the next wait.
+- The adapter: one detached process a Codex task uses on either transport. It
+  holds the same task-wide wait lease plus an adapter lease of its own, and stores
+  exact batches from every page in one task-wide delivery.
+- The host: a harness that drives App Server itself, as the website's per-user
+  container does. It starts the turn directly and needs nothing between them.
 
 Every watcher watches every page the session holds, re-reading the set on each
-pass, and produces the same envelope (`../../references/event-batches.md`, "One envelope
+pass, and every transport hands over the same envelope (`../../references/event-batches.md`, "One envelope
 on every transport").
 
 A watcher the session's own turns start is the one that stops while its session
@@ -546,7 +546,7 @@ the page goes idle or changes hands.
 
 The detached Codex adapter follows active session/page ownership, including when
 all owned pages declare idle. Idle pages deliver no input and direct waits end;
-a later start or waiting declaration resumes the existing adapter. The adapter
+a later start or waiting declaration resumes delivery through the existing adapter. The adapter
 waits for page news while idle and retires once ownership ends through release,
 transfer, expiry or SessionEnd. Serving a closed page therefore does not lose
 its adapter before the agent's next declaration.

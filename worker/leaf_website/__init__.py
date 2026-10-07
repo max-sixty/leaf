@@ -82,9 +82,9 @@ def website_harness(thread_id: str, pid: int) -> EmbeddedHarness:
     """This container's own harness declaration, for the pages it claims.
 
     Nothing in the environment says what this is: the container drives App
-    Server itself and starts every turn, so it declares itself: the name
-    a user sees, and the App Server process its session lives and dies with.
-    Leaf's claim users then dispatch on that declaration exactly as they do on
+    Server itself and starts every turn, so it declares itself, supplying the
+    name a user sees and the App Server process its session lives and dies
+    with. Leaf's claim users then dispatch on that declaration exactly as they do on
     a session the environment did imply."""
     return EmbeddedHarness(session=thread_id, agent=WEBSITE_AGENT, pid=pid)
 

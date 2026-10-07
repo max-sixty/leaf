@@ -59,9 +59,10 @@ class Harness:
     - the host, a program that drives App Server and starts every turn itself.
 
     The *transport* is how one delivery enters a turn's context: the hooks
-    (`hook_delivers`), the wait's output, Codex's queue, or a turn Leaf starts
-    over App Server. The envelope states what the transport decides
-    (`../../references/event-batches.md`). The methods below answer for each
+    (`hook_delivers`, or Codex's tool hook offering a pointer), the wait's
+    output, Codex's queue, or a turn Leaf starts over App Server. The envelope
+    states what the transport decides (`../../references/event-batches.md`).
+    The methods below answer for each
     harness's watcher and transports:
 
     - Claude Code runs Leaf's Stop hooks as each turn ends: one watches the

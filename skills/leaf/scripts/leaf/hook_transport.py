@@ -91,7 +91,7 @@ class PagePlan:
     batch: dict | None
     owed: list[dict]
     acknowledged: list[dict]
-    carried: bool
+    watched: bool
     preview: bool
 
 
@@ -116,7 +116,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                 if claim is None or claim["id"] != session_id:
                     continue
                 pending = unacknowledged(page.events, state["cursor"])
-                carried = harness.watcher_live(listening=state["listening"])
+                watched = harness.watcher_live(listening=state["listening"])
                 plans.append(
                     PagePlan(
                         page_dir,
@@ -128,9 +128,9 @@ def read_plans(session_id: str) -> list[PagePlan]:
                         batch_data(page_dir, page, pending)
                         if pending and harness.hooks_carry()
                         else None,
-                        turn_obligations(state, carried=carried),
+                        turn_obligations(state, watched=watched),
                         acknowledged_obligations(state),
-                        carried,
+                        watched,
                         (page_dir / PREVIEW_FILE).exists(),
                     )
                 )
@@ -154,7 +154,7 @@ def stop_continues(plans: list[PagePlan], *, repeated: bool) -> bool:
     needs_attention = any(
         plan.owed
         or (
-            not plan.carried
+            not plan.watched
             and (
                 plan.pending
                 or (plan.state["status"]["state"] != "idle" and not plan.preview)
@@ -181,7 +181,7 @@ def remedies(
                     ANSWER_ASK_INSTRUCTION,
                 )
             )
-        if not plan.carried:
+        if not plan.watched:
             pending = sum(
                 (str(plan.page), event["id"]) not in handed for event in plan.pending
             )

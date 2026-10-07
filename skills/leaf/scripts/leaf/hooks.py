@@ -13,8 +13,8 @@ The payload names the session and turn: hook subprocesses need not have the tool
 process's environment. Stop or Interrupt closes that observed turn, including a
 turn not yet claimed by any page; a newer prompt protects its own epoch. A payload
 that names no turn can state when the turn ended (`ended_at`, in POSIX seconds),
-as an extension's Interrupt does, and then leaves a turn opened or renewed since
-open.
+as the Interrupt from Pi's extension or Leaf's Claude Code hooks module does, and
+then leaves a turn opened or renewed since open.
 
 Hooks with no retained claim avoid page reading. Page-owning prompt and Stop hooks
 reach `hook_transport`; Codex's tool hook reaches the delivery records in `codex`;
@@ -155,7 +155,7 @@ def cmd_watch(harness: str, payload: dict) -> str | None:
     watches between turns. Pi's extension and Leaf's Claude Code hooks module start
     one with an Interrupt payload when the user stops a run: it answers the
     Interrupt hook first, closing the turn, and then watches from an interrupted
-    ending. So the extension's ending is one call, and the turn closes only once
+    ending. So that ending is one call, and the turn closes only once
     the watch from before has exited, which would read the closed turn as the
     Stop hook's ending."""
     interrupted = payload.get("hook_event_name") == "Interrupt"

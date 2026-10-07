@@ -1224,20 +1224,20 @@ def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differ
         },
     }
 
-    def blocking(obligation: dict, *, carried: bool) -> list[dict]:
+    def blocking(obligation: dict, *, watched: bool) -> list[dict]:
         state = {
             "activity": {"obligations": [obligation]},
             "cursor": 1,
             "claim_turn": "leaf-turn",
         }
-        return activity_model.blocking_obligations(state, carried=carried)
+        return activity_model.blocking_obligations(state, watched=watched)
 
-    assert blocking(obligation, carried=True) == []
+    assert blocking(obligation, watched=True) == []
     # Nothing is left to commit the draft once its watcher is gone.
-    assert blocking(obligation, carried=False) == [obligation]
+    assert blocking(obligation, watched=False) == [obligation]
     # A plain reply is `leaf thread reply`'s to write, whatever a draft says.
     plain = {**obligation, "answer": {**obligation["answer"], "kind": "reply"}}
-    assert blocking(plain, carried=True) == [plain]
+    assert blocking(plain, watched=True) == [plain]
 
 
 def test_embedded_codex_delivery_keeps_non_obligation_events_in_the_page_batch(
@@ -4826,9 +4826,9 @@ def test_a_reply_binding_lapses_when_a_turn_it_does_not_name_opens(page_dir):
     The observer bound the delivery's reply to its turn and then lost the
     connection with the turn still running. While that turn is the claim's, the
     turn's own messages owe the answer. Once a later turn opens without the
-    observer taking the binding over, nothing says those messages will be
+    App Server client taking the binding over, nothing says those messages will be
     committed, so the move is answered with `leaf thread reply` again, and a
-    observer that reconnects and commits the delivery turn's final message after
+    client that reconnects and commits the delivery turn's final message after
     all yields to that answer.
     """
     comment = append_carried_log_record(
@@ -4905,7 +4905,7 @@ def test_a_reply_binding_lapses_when_its_turn_closes(page_dir):
     """A turn that has ended writes nothing more, so its binding lapses with it.
 
     The observer bound the delivery's reply to its turn and then lost the
-    connection. When the session's turn closes without an observer committing the
+    connection. When the session's turn closes without an App Server client committing the
     turn's final message, nothing says one will, so the move is answered with
     `leaf thread reply` again.
     """

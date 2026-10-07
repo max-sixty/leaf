@@ -15,7 +15,7 @@ from leaf.state import EVENTS_FILE, flocked, now_iso
 
 
 def read_cursor(page_dir: Path) -> int:
-    """The seq the agent's transport has confirmed through; 0 before any.
+    """The seq whose receipt is confirmed through; 0 before any.
 
     A cursor is a position in this log, so one past its end belongs to a log that
     is gone — what `page init` on a directory whose log was moved or renamed away

@@ -1243,7 +1243,7 @@ def live_rounds(trace: list[dict]) -> list[dict]:
     The driver emits eval_received only after admitted attention inputs have
     opened pickups. A window begins at the post so it includes the ACK and claim
     operations whose tool result first lets the driver observe that receipt.
-    Hook output text does not prove receipt on either inline or pointer routes.
+    Hook output text does not prove receipt on either inline or pointer deliveries.
     """
     rounds = []
     for n, post in enumerate(

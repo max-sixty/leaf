@@ -626,11 +626,11 @@ def serve_flags(command):
 def start(dir: str, host: str | None, standing: bool) -> None:
     """Start a page's server and print its URL.
 
-    Returns once the server and this harness's watcher are ready; the server itself keeps running in a
-    session of its own. `leaf server stop` takes one down, and a session server
-    goes down with the session that claimed it besides. A page already served
-    reconnects delivery and prints that server's URL. `--standing` claims no
-    page and prepares no agent delivery.
+    Returns once the server and this harness's watcher are ready; the server
+    itself keeps running in a session of its own. `leaf server stop` takes one
+    down, and a session server goes down with the session that claimed it
+    besides. A page already served reconnects delivery and prints that server's
+    URL. `--standing` claims no page and prepares no agent delivery.
     """
     from leaf.hosting import claim_and_start
 

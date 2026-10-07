@@ -209,6 +209,19 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
 
 
+def test_gallery_pending_title_opens_when_the_reader_requests_it(browser, serve):
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    sample = page.frame_locator("#bg-title-sheen-sample iframe")
+    expect(sample.locator(".lf-thread-panel")).not_to_have_attribute("open", "")
+
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
+    page.locator("#bg-title-sheen-show").click()
+    expect(sample.locator(".lf-thread-panel")).to_have_attribute("open", "")
+    expect(sample.locator('.lf-thread-topic[data-lf-pending-title=""]')).to_have_text(
+        "Generating title"
+    )
+
+
 def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 1440, 900)

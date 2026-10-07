@@ -35,7 +35,7 @@
  * `hooks.json`.
  *
  * TODO: once Claude Code loads modules without an opt-in, make this module the
- * only carrier and drop the background Stop registration, `loop-guard.py`, and
+ * only watcher and transport and drop the background Stop registration, `loop-guard.py`, and
  * the interrupt half of the nudge.
  *
  * A module's processes inherit Claude Code's own environment, which names no
@@ -49,9 +49,9 @@
 import type { EngineInterface, Register } from 'claude-code'
 
 // `hooks.json`'s timeout for the prompt hook, inside which it confirms what it
-// hands over (`CONFIRM_WITHIN` in `hook_carrier.py`).
+// hands over (`CONFIRM_WITHIN` in `hook_transport.py`).
 const HOOK_TIMEOUT_MS = 20_000
-// The line an inline delivery opens with (`INLINE_DELIVERY` in `hook_carrier.py`),
+// The line an inline delivery opens with (`INLINE_DELIVERY` in `hook_transport.py`),
 // and the line the turn goes on with once the module has appended one.
 const INLINE_DELIVERY = 'Leaf has new input for your turn.'
 const DELIVERED = "Leaf added the page's new input to your context above; answer it before you end the turn."

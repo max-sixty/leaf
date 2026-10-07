@@ -149,7 +149,7 @@ in `leaf-assets.json` and the README's image URLs that name it.
   active. `--hooks-module` turns the plugin's hooks module on, and then also fails
   when Escape leaves the turn open or nothing watching. Each step prints when its
   comments were picked up and answered and whether the page nudged the session,
-  the reading that compares the two carriers. It spends the host's Claude Code
+  the reading that compares the two watchers. It spends the host's Claude Code
   login, so CI does not run it.
 
 ## Codex

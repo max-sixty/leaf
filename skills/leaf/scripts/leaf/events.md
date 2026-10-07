@@ -21,7 +21,7 @@ page and is not a global identifier. The kinds:
 | `done` | user | the banner, only on a page declaring `<meta name="lf-review" content="sign-off">` | `version`, the stamp approved | approval of the declared sign-off; a page that asks nothing gets no terminal control |
 | `action` | user | `POST /api/event` from a widget | `widget`, `action`, `detail`; server-stamped `meaning` | the user edited the document through the widget |
 | `report` | agent or worker | `leaf page report` | as `action`, validated by an `x-state` verb declaring `writer: "agent"` | provisional state that stands until a stamped revision answers it |
-| `pickup` | page | the delivery carrier; a harness failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named attention-bearing inputs reached the durable Codex queue or entered an exact agent turn, or the harness gave up on them with no answer coming; includes page errors and reports; idempotent per event, phase, session, and turn; never a work claim |
+| `pickup` | page | the delivery transport; a harness failure receipt | `events`, `phase` (`queued`, `opened`, or `failed`), `session`, `turn`; `failure` with `failed` | the named attention-bearing inputs reached the durable Codex queue or entered an exact agent turn, or the harness gave up on them with no answer coming; includes page errors and reports; idempotent per event, phase, session, and turn; never a work claim |
 | `note` | agent | `leaf page stamp` | `version`, `revision`, changelog `text`, `restated`, `settles` (`report` ids it answered, and `task` ids its `--completes` ends) | one public version mapped to an immutable revision, naming the decisions it took back, the reports it answered and the widget tasks it completed |
 | `error` | page | the runtime | | the page reported a failure in front of the user; heard like a report, never counted against the user |
 | `task` | agent | `leaf task open` | `owner` (`agent`, or `user` with `--on user`); `subject`: `{kind: thread, id}` (an open thread, for the agent's own task only), `{kind: widget, id}` (a live page widget, which for the agent's own task declares `x-work` or holds an unsettled move), `{kind: element, id}` (any other element of the page), or `{kind: page}`; `title`; server-stamped `revision` on a widget task | the agent takes on work it owes there, or puts a task on the user; the agent's stands through replies, resolutions, versions and session ends, and the user's until their Done (`tasks.py`) |
@@ -122,7 +122,7 @@ or an open task on a thread or widget) and its standing inputs, or sign-off
 approval. `workflows.obligation_reading` compares those canonical readings before
 and after the gesture under the active revision's vocabulary. The decision survives
 later replies, versions and task endings: a cancellation already delivered to the
-carrier stays input even after the work it withdrew ends.
+agent stays input even after the work it withdrew ends.
 Reports and errors always carry attention; agent messages do not. `leaf wait`,
 delivery selection, pickup, the unpicked-input Stop guard and the idle gate read
 that one field through `service.requires_agent_attention`. The pending transport

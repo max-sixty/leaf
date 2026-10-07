@@ -23,7 +23,7 @@ Commands:
 ## codex
 Usage: leaf codex [OPTIONS] COMMAND [ARGS]...
 
-  Launch Codex or run Leaf's detached delivery carrier.
+  Launch Codex or run Leaf's delivery adapter.
 
 Options:
   --help  Show this message and exit.

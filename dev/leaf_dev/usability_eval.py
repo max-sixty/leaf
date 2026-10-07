@@ -531,7 +531,7 @@ def append_elided_history(run: Run, page: Path) -> None:
 
     The wait cannot capture half the history before its acknowledgement. Nothing
     rewrites the log: this fixture uses the same admission and receipt boundaries
-    as the CLI and carriers, under their one transaction lease.
+    as the CLI and hooks, under their one transaction lease.
     """
     state, html = active_html(run, page)
     arm_python(

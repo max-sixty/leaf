@@ -1,4 +1,4 @@
-"""The prompt and Stop hooks as a session's carrier, under Claude Code or Pi: they
+"""The prompt and Stop hooks as a session's transport, under Claude Code or Pi: they
 carry the page input pending on the session's pages into its turn and enforce the
 agent conversation loop. `hooks` reaches this module for active ownership or a
 reconnect notice about a page the session previously served.
@@ -8,7 +8,7 @@ of a background task opens, idle or between two tool calls, and adds what the
 hook returns to that turn's context; what the Stop hook returns reaches the
 model the same way, and continues the turn (`Harness.hook_context`). Leaf's Pi
 extension calls both at the same points of a run. So these two hooks are the
-session's carrier (`Harness.hook_delivers`): each freezes the input pending on
+session's transport (`Harness.hook_delivers`): each freezes the input pending on
 the session's pages and hands over its complete envelope inline, or its
 immutable pointer.
 
@@ -78,7 +78,7 @@ def restart(obligations: list[dict]) -> str:
 class PagePlan:
     """A session-owned page read once under its transaction.
 
-    Selected input, response debt and carrier readiness come from one log,
+    Selected input, response debt and watcher readiness come from one log,
     cursor, status and ownership snapshot. Planning never records a pickup.
     """
 
@@ -116,7 +116,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                 if claim is None or claim["id"] != session_id:
                     continue
                 pending = unacknowledged(page.events, state["cursor"])
-                carried = harness.carrier_live(listening=state["listening"])
+                carried = harness.watcher_live(listening=state["listening"])
                 plans.append(
                     PagePlan(
                         page_dir,
@@ -140,7 +140,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
 
 
 def stop_continues(plans: list[PagePlan], *, repeated: bool) -> bool:
-    """Continue for newly owed input, or first-report debt/carrier housekeeping.
+    """Continue for newly owed input, or first-report debt/watcher housekeeping.
 
     Repeated Stop ignores already reported housekeeping and response debt, but
     genuinely new input still enters the current turn and owes an answer.
@@ -276,8 +276,8 @@ CONFIRM_WITHIN = 10.0
 # TODO: without the module, Claude Code prints a Stop hook's inline delivery in
 # full in the terminal. Hiding it there means handing over a pointer, which needs a
 # record of offered, unread deliveries that a repeated Stop and the watch both
-# respect; otherwise each re-offers it as new. Moot once the module is the only
-# Claude Code carrier.
+# respect; otherwise each re-offers it as new. Moot once the module is Claude
+# Code's only watcher and transport.
 INLINE_DELIVERY = (
     "Leaf has new input for your turn. Read this complete delivery before answering."
 )

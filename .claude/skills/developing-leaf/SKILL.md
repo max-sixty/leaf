@@ -228,7 +228,7 @@ this working tree installed as their plugin, through both transports of automati
 server handoff. It checks each comment is answered once, a comment during queue-backed
 work is picked up and answered in that same turn, and each turn is closed under
 App Server's id. Run it after a change to `codex.py`,
-`codex_adapter.py`, `hooks.py`, `hook_carrier.py`, or the claim's turn in
+`codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's turn in
 `service.py`; the suite scripts App Server, and only this run shows what Codex
 itself sends. It spends a few turns on the host's Codex login, and CI has none.
 

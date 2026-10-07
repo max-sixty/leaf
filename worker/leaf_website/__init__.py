@@ -82,7 +82,7 @@ def website_harness(thread_id: str, pid: int) -> EmbeddedHarness:
     """This container's own harness declaration, for the pages it claims.
 
     Nothing in the environment says what this is: the container drives App
-    Server itself and starts every turn, so it states its own carrier, the name
+    Server itself and starts every turn, so it declares itself: the name
     a user sees, and the App Server process its session lives and dies with.
     Leaf's claim users then dispatch on that declaration exactly as they do on
     a session the environment did imply."""
@@ -392,7 +392,7 @@ class HostedTurn(CarriedTurn):
 
     A completion notification is the ordinary ending. A connection that drops, a
     silence past `STREAM_SILENCE`, and any fault in this code are endings as well,
-    and this carrier closes those by interrupting the provider turn, so a turn the
+    and this host closes those by interrupting the provider turn, so a turn the
     page has stopped watching is not left running.
     """
 

@@ -7,7 +7,7 @@ application publication described in [AGENTS.md](../AGENTS.md). This note holds
 remaining evaluation work and proposed improvements; it does not define a second
 lifecycle contract.
 
-The browser paints a gesture's semantic result before its POST completes. Carriers
+The browser paints a gesture's semantic result before its POST completes. Transports
 record queue acceptance and turn entry; the agent selects work through a claim;
 durable replies and revisions settle the exact input. Delivery evidence does not
 prove external work succeeded, and page activity does not imply work on every message.

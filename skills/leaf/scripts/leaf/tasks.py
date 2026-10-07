@@ -534,7 +534,7 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
         },
     )
     # Work in hand reopens a page the agent had closed: `idle` says it was done with
-    # the page, and every carrier stands down for an idle page. The reopening is a
+    # the page, and every watcher stands down for an idle page. The reopening is a
     # bare declaration, with no `put_down` to take this start back.
     if page.status["state"] == "idle":
         page.set_status("waiting", "")

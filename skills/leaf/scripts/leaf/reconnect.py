@@ -2,7 +2,7 @@
 
 A session ending invalidates ownership without deleting its last claim or disabling
 its desired service. Resume and prompt hooks inspect those retained claims, including
-older generations that the normal carrier no longer owns. Either lost ownership
+older generations that the normal watcher no longer owns. Either lost ownership
 or a dead serving incarnation needs reconnecting; the old server may still answer
 during its orphan grace period.
 
@@ -83,7 +83,7 @@ def publishing_notices(
     render and print inside. Sorted service/page locks serialize stop, transfer,
     and recovery; the session lock is last and stays held through output. A stale
     lifecycle yields None without reserving anything. None for the harness skips
-    reconnect inspection, while retaining the carrier's publication fence.
+    reconnect inspection, while retaining the notice's publication fence.
     """
     pages = (
         sorted(

@@ -5,7 +5,7 @@ Leaf environment. One atomic record owns harness lifetime, generation, turn iden
 and dated opening/ending evidence. Claims reference its generation; an ending
 invalidates them without page discovery, page locks or claim rewrites.
 
-The session lock also serializes Codex delivery route reservation, making its
+The session lock also serializes Codex transport reservation, making its
 revision a compare-and-swap token for observations. Lock order is page then
 session. Session transitions never acquire page locks or call an external harness;
 only short state publications and reservations run under the session lock.

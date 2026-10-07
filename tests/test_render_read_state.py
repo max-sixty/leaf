@@ -1070,11 +1070,11 @@ def test_a_reopening_in_a_page_seat_waits_where_reopen_stood(browser, serve, poi
     """An agent's reply to a resolved thread reopens it. Drawn at once, the reopened
     thread grew in place under the reader: its new turn and its reply box pushed the
     page after it down. It stands as drawn, resolved, and its resolved row says what is
-    waiting in Reopen's place and face, at the row's height under either pointer (a
-    chip's face stood 6px shorter than Reopen at a fine pointer). On a phone a tap opens
-    it; on the desktop `r` on the thread, which reopens a resolved thread, does. The
-    thread shows open, with the new turn after the earlier ones and a reply box. Nothing
-    before the opening is input, so the shift watch checks that the hold moved nothing."""
+    waiting in Reopen's place, preserving the row's height under either pointer. On a
+    phone a tap opens it; on the desktop `r` on the thread, which reopens a resolved
+    thread, does. The thread shows open, with the new turn after the earlier ones and
+    a reply box. Nothing before the opening is input, so the shift watch checks that
+    the hold moved nothing."""
     context = (
         browser.new_context(
             viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True

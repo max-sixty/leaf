@@ -50,6 +50,33 @@ export function anchorElement(target) {
   return part && part !== target ? part : target;
 }
 
+// An element `scroller`'s own scroll carries as it carries what the scroller holds: a
+// child with a box of its own, in flow where that scroll moves it, so a box anchored to
+// it moves with that scroll in the frame that scrolls. A line break renders as a break
+// in the words rather than a box, so it anchors nothing. The child nearest `near`, one
+// of the scroller's child nodes, where one is given; null where the scroller holds none
+// or lies inside a shadow tree, whose anchor names a document box cannot reach.
+export function carriedAnchor(scroller, near = null) {
+  if (scroller.getRootNode() !== document) return null;
+  const carried = (node) =>
+    node instanceof Element &&
+    !/^(br|wbr)$/.test(node.localName) &&
+    anchorElement(node) === node &&
+    node.getClientRects().length > 0 &&
+    /^(static|relative)$/.test(getComputedStyle(node).position);
+  if (!near) {
+    for (const child of scroller.children) if (carried(child)) return child;
+    return null;
+  }
+  for (
+    let before = near.previousSibling, after = near.nextSibling;
+    before || after;
+    before = before?.previousSibling, after = after?.nextSibling
+  )
+    for (const node of [before, after]) if (carried(node)) return node;
+  return null;
+}
+
 // The name `el` answers to as an anchor, given it first where it has none.
 export const anchorName = (el) => nameAnchor(anchorReading(el));
 

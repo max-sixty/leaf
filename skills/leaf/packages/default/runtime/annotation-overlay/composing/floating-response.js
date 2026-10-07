@@ -23,7 +23,7 @@ import {
 } from "/runtime/resolved-target.js";
 import { pageRange, pageText } from "/runtime/passages.js";
 import { pageSelection, selectionAnchor } from "/runtime/composing/capture.js";
-import { holdFocus, focusDestination } from "/runtime/focus.js";
+import { closeLayer, holdFocus, focusDestination } from "/runtime/focus.js";
 import { coarsePointer } from "/runtime/pointer.js";
 import { LAYOUT } from "/runtime/widget-elements.js";
 import { under } from "/runtime/shadow.js";
@@ -400,9 +400,11 @@ export function createFloatingResponsePlacement({
     fabWithheld = true;
     const held = holdFocus(fabBar);
     const toPanel = held && panelIsOpen() && !fabFits();
-    fabBar.style.visibility = "hidden";
-    if (toPanel) focusDestination(threadsBox, "return");
-    else fabWithheldFocus = held;
+    closeLayer(
+      () => (fabBar.style.visibility = "hidden"),
+      toPanel && (() => focusDestination(threadsBox, "return")),
+    );
+    if (!toPanel) fabWithheldFocus = held;
   }
   // The bar is in view again, by whichever placement put it there.
   function stoodAgain() {

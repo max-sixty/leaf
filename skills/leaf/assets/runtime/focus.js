@@ -774,6 +774,19 @@ export const openerOf = (layer) => openers.get(layer) ?? null;
 // takes the user on, or where it names none, the first inner landing does.
 let closing = 0;
 let deferredLanding = null;
+let landingLayer = false;
+// A landing a closer builds away from its `closeLayer` call, as a surface's landing on
+// an entry, which several closes share. It runs only as a close's landing: called at any
+// other time it would be a layer return beside the close, which readers hear as a
+// second move and holds read as a newer word, so it throws. Lint lets `handBack` stand
+// only in a close's `land` argument or in a function this wraps (`layer-returns`).
+export function layerLanding(land) {
+  return (...args) => {
+    if (!landingLayer)
+      throw new Error("A layer's landing runs only as the layer closes");
+    return land(...args);
+  };
+}
 export function closeLayer(close, land = null) {
   closing += 1;
   let deferred = null;
@@ -790,7 +803,15 @@ export function closeLayer(close, land = null) {
     return;
   }
   const landing = land || deferred;
-  if (landing) landing();
+  if (landing) {
+    const outer = landingLayer;
+    landingLayer = true;
+    try {
+      landing();
+    } finally {
+      landingLayer = outer;
+    }
+  }
   const at = deepFocus();
   if (!at || at === document.body || at === published) return;
   stood = at;

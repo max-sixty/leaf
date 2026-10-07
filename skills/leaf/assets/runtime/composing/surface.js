@@ -114,6 +114,7 @@ import {
   drawn,
   handBack,
   holdFocus,
+  layerLanding,
   letGo,
   takesLetters,
   focusDestination,
@@ -375,14 +376,14 @@ export function createResponseSurface({
     const origin = fabOrigin();
     const toPanel = leavingBar && panelIsOpen() && !(placement?.fits() ?? true);
     const target = leavingBar ? returnDestination(fabAnchor, origin) : null;
-    return () => {
+    return layerLanding(() => {
       if (toPanel) focusDestination(threadsBox, "return");
       // The proxy may have gone hidden since the gesture opened the box — a fold that
       // closed under it, a row that re-rendered — and the page is the landing then, as it
       // is for a box that had no proxy to begin with.
       else if (leavingBar && !toPage) handBack(target);
       else if (leavingBar || (toPage && document.activeElement === origin)) letGo();
-    };
+    });
   }
   function putAwayFab() {
     const land = landingFromBar(false);

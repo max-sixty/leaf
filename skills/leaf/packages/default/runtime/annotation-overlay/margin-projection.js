@@ -127,6 +127,7 @@ import {
   focusDestination,
   handBack,
   holdFocus,
+  layerLanding,
   letGo,
   onPress,
   onStanding,
@@ -994,7 +995,8 @@ export function createMarginProjection({
   }
 
   // Folding a cluster the user stood in hands them back to its toggle.
-  const landOnToggle = (entry) => () => handBack(hosts.get(entry.key)?.more);
+  const landOnToggle = (entry) =>
+    layerLanding(() => handBack(hosts.get(entry.key)?.more));
   function setOptionsOpen(
     entry,
     open,
@@ -1925,13 +1927,14 @@ export function createMarginProjection({
   // Closing the card hands a user who stood in it on (focus.js, `closeLayer`). A close
   // aimed at the card itself, its Close or its Escape, hands them back to the margin
   // entry it hangs from (`landOnEntry`); any other, a mode or a rerender, lets them go.
-  const landOnEntry = (button) =>
-    handBack(button, ...(button?.lfEntry ? mapControlPlaces(button.lfEntry) : []));
-  function closePreview(landing = letGo) {
+  const landOnEntry = layerLanding((button) =>
+    handBack(button, ...(button?.lfEntry ? mapControlPlaces(button.lfEntry) : [])),
+  );
+  function closePreview(land = letGo) {
     const button = previewMarginEntry;
     // Hiding the card takes focus inside it to the body.
     const heldInside = preview.contains(focused());
-    closeLayer(() => hidePreview(), heldInside && (() => landing(button)));
+    closeLayer(() => hidePreview(), heldInside && (() => land(button)));
     paintKeys();
   }
   function hidePreview() {

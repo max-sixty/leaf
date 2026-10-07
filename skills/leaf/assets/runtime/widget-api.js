@@ -45,6 +45,7 @@ export {
   focused,
   handBack,
   holdFocus,
+  layerLanding,
   openLayer,
   openerOf,
   rove,

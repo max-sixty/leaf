@@ -18,6 +18,7 @@ const {
   focused,
   handBack,
   holdFocus,
+  layerLanding,
   onStanding,
   openLayer,
   openerOf,
@@ -312,4 +313,17 @@ test("a close inside another lands the user where the outer close names no landi
   );
   assert.equal(focused(), other);
   assert.deepEqual(heard, [[other, "return"]]);
+});
+
+test("a landing built away from its close runs only as a layer closes", () => {
+  const { first, other } = scene();
+  focusDestination(other, "move");
+  const land = layerLanding((node) => handBack(node));
+  assert.throws(() => land(first), /runs only as the layer closes/);
+  assert.equal(focused(), other);
+  closeLayer(
+    () => {},
+    () => land(first),
+  );
+  assert.equal(focused(), first);
 });

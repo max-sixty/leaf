@@ -516,14 +516,52 @@ export const placementsRule = {
 
 // A layer hands the user back as it closes in one act (`closeLayer(close, land)` in
 // focus.js), so the platform's own hand-back and the owner's reach readers once, as where
-// the user ends up. A `handBack(...)` called anywhere else is a layer return beside it,
-// which readers hear as a second move and holds read as a newer word. The rule refuses a
-// call outside the arguments of a `closeLayer` call, or outside a landing a closer hands
-// to one: a function bound to a name or property beginning `land`, as a surface's
-// `landOnEntry` is. `letGo` lands the user on the page by a route too, as `g p` does, so
-// it is no layer return of itself. The option names the files that may still call it.
+// the user ends up. A return made anywhere else is a layer return beside it, which
+// readers hear as a second move and holds read as a newer word. The rule refuses
+// `handBack(...)` outside a close's `land` argument (the `close` argument is the hide,
+// which places nothing) and outside a landing built away from the call, which
+// `layerLanding(...)` wraps and which throws if it runs at any other time. It refuses a
+// `focusDestination(..., "return")` there too where a statement before it in its
+// function hides something, which is a layer return spelled out by hand. `letGo` lands
+// the user on the page by a route, as `g p` does, so it is no layer return of itself.
+// The option names the files that may still return the user directly.
 const LAYER_RETURN_MESSAGE =
-  "Hand the user back as the layer closes, inside closeLayer(close, land) or a landing named land… (runtime/focus.js): a return beside it reaches readers as a second move.";
+  "Hand the user back as the layer closes, in closeLayer(close, land)'s land or a layerLanding (runtime/focus.js): a return beside it reaches readers as a second move.";
+const HIDING_CALLS = new Set(["hide", "hidePopover", "close"]);
+// Whether `node` hides something by the platform's own means: a dialog's or popover's
+// close, `hidden = true`, or a style that takes the box out of view. A function it
+// defines runs later, so what that does is not this statement's.
+function hidesSomething(node) {
+  if (!node || typeof node.type !== "string" || /Function/u.test(node.type))
+    return false;
+  if (
+    node.type === "CallExpression" &&
+    node.callee.type === "MemberExpression" &&
+    !node.callee.computed &&
+    HIDING_CALLS.has(node.callee.property.name)
+  )
+    return true;
+  if (
+    node.type === "AssignmentExpression" &&
+    node.left.type === "MemberExpression" &&
+    !node.left.computed &&
+    ((node.left.property.name === "hidden" && node.right.value === true) ||
+      (node.left.property.name === "visibility" && node.right.value === "hidden") ||
+      (node.left.property.name === "display" && node.right.value === "none"))
+  )
+    return true;
+  return Object.entries(node).some(
+    ([key, value]) =>
+      key !== "parent" &&
+      (Array.isArray(value) ? value.some(hidesSomething) : hidesSomething(value)),
+  );
+}
+const isCall = (node, name) =>
+  node?.type === "CallExpression" &&
+  ((node.callee.type === "Identifier" && node.callee.name === name) ||
+    (node.callee.type === "MemberExpression" &&
+      !node.callee.computed &&
+      node.callee.property.name === name));
 export const layerReturnsRule = {
   meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
   create(context) {
@@ -532,18 +570,30 @@ export const layerReturnsRule = {
       .split(path.sep)
       .join("/");
     if ((context.options[0] ?? []).includes(file)) return {};
-    const landing = (name) => typeof name === "string" && /^land/u.test(name);
-    const allowed = (node) => {
-      for (let at = node.parent; at; at = at.parent) {
-        if (
-          at.type === "CallExpression" &&
-          at.callee.type === "Identifier" &&
-          at.callee.name === "closeLayer"
-        )
-          return true;
-        if (at.type === "FunctionDeclaration" && landing(at.id?.name)) return true;
-        if (at.type === "VariableDeclarator" && landing(at.id?.name)) return true;
-        if (at.type === "Property" && landing(at.key?.name)) return true;
+    // Whether `node` stands in a close's landing: its `land` argument, or a function
+    // `layerLanding` wraps.
+    const landing = (node) => {
+      for (let at = node; at.parent; at = at.parent) {
+        const { parent } = at;
+        if (isCall(parent, "closeLayer") && parent.arguments[1] === at) return true;
+        if (isCall(parent, "layerLanding") && parent.arguments[0] === at) return true;
+      }
+      return false;
+    };
+    // Whether a statement before `node` in its own function hides something.
+    const afterHide = (node) => {
+      for (let at = node; at.parent; at = at.parent) {
+        const { parent } = at;
+        if (/Function/u.test(parent.type)) return false;
+        const run =
+          parent.type === "SequenceExpression"
+            ? parent.expressions
+            : parent.type === "SwitchCase"
+              ? parent.consequent
+              : Array.isArray(parent.body)
+                ? parent.body
+                : null;
+        if (run?.slice(0, run.indexOf(at)).some(hidesSomething)) return true;
       }
       return false;
     };
@@ -555,17 +605,21 @@ export const layerReturnsRule = {
       },
       CallExpression(node) {
         const { callee } = node;
-        const called =
+        const handsBack =
           (callee.type === "Identifier" && names.has(callee.name)) ||
           (callee.type === "MemberExpression" &&
             !callee.computed &&
             callee.property.name === "handBack");
-        if (called && !allowed(node))
+        const returnsAfterHide =
+          isCall(node, "focusDestination") &&
+          node.arguments[1]?.value === "return" &&
+          afterHide(node);
+        if ((handsBack || returnsAfterHide) && !landing(node))
           context.report({ node, message: LAYER_RETURN_MESSAGE });
       },
       // Handed on as a value, it is called where no closeLayer frames it.
       Identifier(node) {
-        if (!names.has(node.name) || allowed(node)) return;
+        if (!names.has(node.name) || landing(node)) return;
         const { parent } = node;
         if (
           (parent.type === "CallExpression" && parent.callee === node) ||

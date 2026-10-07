@@ -309,6 +309,12 @@
   border-top: 1px solid color-mix(in srgb, var(--code-border) 60%, transparent);
 }
 
+.lf-call-root-link {
+  display: block;
+  width: fit-content;
+  padding: var(--sp-1) var(--sp-3);
+}
+
 .lf-call-line {
   display: grid;
   grid-template-columns: 2rem max-content max-content;

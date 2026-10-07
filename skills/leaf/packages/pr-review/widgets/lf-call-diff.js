@@ -114,11 +114,17 @@ function buildGroup(owner, key, open) {
   group.open = open;
   const summary = buildLine("summary");
   const body = el("div", "lf-call-group-body lf-text-scroller");
+  const rootLink = el("a", "lf-call-location lf-call-root-link");
+  rootLink.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    await travelToLine(owner, rootLink.record);
+  });
   group.dataset.callGroup = key;
   summary.classList.add("lf-call-group-summary");
   group.append(summary, body);
   group.addEventListener("toggle", () => updateDisclosureControl(owner));
-  return { body, group, summary };
+  return { body, group, summary, rootLink };
 }
 
 function groupLabel(records) {
@@ -159,8 +165,10 @@ function renderLine(record, line, owner, count = null) {
     html`<span class="lf-call-marker" aria-hidden="true"
         >${record.status === "added" ? "+" : record.status === "removed" ? "−" : " "}</span
       ><span class="lf-call-body">${record.body}</span>${
-        record.location
-          ? html`<a
+        record.location && record.root
+          ? html`<span class="lf-call-location">${record.location}</span>`
+          : record.location
+            ? html`<a
               class="lf-call-location"
               href=${`#${owner.getAttribute("diff")}`}
               @click=${async (event) => {
@@ -170,7 +178,7 @@ function renderLine(record, line, owner, count = null) {
               }}
               >${record.location}</a
             >`
-          : html`<a class="lf-call-location" hidden></a>`
+            : html`<a class="lf-call-location" hidden></a>`
       }${count === null ? "" : html`<span class="lf-call-group-count" data-lf-gen="1">${count}</span>`}`,
     line,
   );
@@ -270,16 +278,23 @@ customElements.define(
         rows.set(record.key, node);
         return { node, key: record.key, label: labelOf(record) };
       });
-      for (const [key, { group, body }] of groups) {
+      for (const [key, { group, body, rootLink }] of groups) {
         const groupRows = records.filter((record) => record.groupKey === key);
+        const root = groupRows.find((record) => record.root);
+        rootLink.record = root;
+        keeps(rootLink, "href", `#${this.getAttribute("diff")}`);
+        keepsText(rootLink, `Open ${root.location} in the exact patch`);
         setChildren(
           body,
-          groupRows
-            .filter((record) => !record.root)
-            .map((record) => rows.get(record.key)),
+          [
+            rootLink,
+            ...groupRows
+              .filter((record) => !record.root)
+              .map((record) => rows.get(record.key)),
+          ],
         );
         setChildren(group, [
-          rows.get(groupRows.find((record) => record.root).key),
+          rows.get(root.key),
           body,
         ]);
       }

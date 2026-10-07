@@ -9208,6 +9208,9 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
     argv = ["claude", "-p", "hello"]
     monkeypatch.setattr(harness_model, "process_argv", lambda pid: argv)
     assert hooks_model.cmd_watch("claude-code", stop) is None
+    # Its stream-json output alone changes nothing; streamed input does.
+    argv = ["claude", "-p", "hello", "--output-format", "stream-json"]
+    assert not harness_model.session_harness().watches_between_turns()
     argv = ["claude", "-p", "--input-format", "stream-json"]
     assert harness_model.session_harness().watches_between_turns()
     monkeypatch.setattr(harness_model, "process_argv", launched)
@@ -9296,10 +9299,11 @@ def test_a_watch_at_an_interrupted_ending_wakes_only_for_later_input(
     claimed, monkeypatch
 ):
     """A harness that says its turn was interrupted, as Pi's extension does when an
-    Escape settles a run, starts the watch with that Interrupt payload. The user
-    stopped the turn the pending input was handed to, so that input waits for
-    their next prompt, and only input arriving after the watch starts wakes the
-    session. A watch at a Stop ending wakes for the same pending input at once."""
+    Escape settles a run, starts the watch with that Interrupt payload, which
+    closes the turn before its first look. The user stopped the turn the pending
+    input was handed to, so that input waits for their next prompt, and only
+    input arriving after the watch starts wakes the session. A watch at a Stop
+    ending wakes for the same pending input at once."""
     leases_model.mark_hooks("s1")
     serving(claimed, 1)
     session_model.cmd_waiting(claimed, "")
@@ -9307,7 +9311,6 @@ def test_a_watch_at_an_interrupted_ending_wakes_only_for_later_input(
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "handed over"}
     )
-    cleanup_model.close_session_turn("s1")
 
     waiting = threading.Event()
     await_news = session_model.Watch.await_news
@@ -9329,6 +9332,7 @@ def test_a_watch_at_an_interrupted_ending_wakes_only_for_later_input(
     # A watch decides on its first pass; this one went on to wait for news.
     assert waiting.wait(STATED_TIMEOUT), "the watch never completed its first pass"
     assert outcome == []
+    assert cleanup_model.session_record("s1")["turn_closed"] is not None
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "after"}
     )
@@ -9343,6 +9347,23 @@ def test_a_watch_at_an_interrupted_ending_wakes_only_for_later_input(
         f"{claimed} has new input"
     )
     assert not waiting.is_set()
+
+
+def test_a_late_interrupt_leaves_a_turn_opened_after_it_open(claimed):
+    """A carrier's watch closes an interrupted turn only after the carrier saw it
+    end, and a Claude Code or Pi turn has no id, so a prompt in between renews
+    the same turn. The Interrupt payload states when the turn ended, and a turn
+    opened or renewed since then is not closed by it."""
+    cleanup_model.prompt_turn("s1")
+    ended = time.time()
+    time.sleep(0.01)
+    cleanup_model.prompt_turn("s1")
+    interrupt = {"hook_event_name": "Interrupt", "session_id": "s1"}
+    hooks_model.cmd_hook("claude-code", {**interrupt, "ended_at": ended})
+    assert cleanup_model.session_record("s1")["turn_closed"] is None
+
+    hooks_model.cmd_hook("claude-code", {**interrupt, "ended_at": time.time()})
+    assert cleanup_model.session_record("s1")["turn_closed"] is not None
 
 
 def test_a_page_served_mid_wait_joins_the_running_watch(

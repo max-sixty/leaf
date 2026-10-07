@@ -3324,10 +3324,10 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
     if new_input:
         page.wait_for_function("window.visibleThreadPresentationHeld === true")
-        resolve = thread.get_by_role("button", name="Resolve thread", exact=True)
+        reaction = thread.get_by_role("button", name="Add reaction", exact=True).first
         if new_input == "Tab":
             page.keyboard.press("Tab")
-            expect(resolve).to_be_focused()
+            expect(reaction).to_be_focused()
         elif new_input == "widget":
             choice = message.locator("#held-choice")
             first = choice.locator("#held-first").get_by_role("checkbox")
@@ -3356,11 +3356,11 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
             pytest.approx(scroll, abs=1)
         )
         if new_input == "Tab":
-            expect(resolve).to_be_focused()
+            expect(reaction).to_be_focused()
             page.keyboard.press("Shift+Tab")
             expect(thread.locator(".lf-thread-summary")).to_be_focused()
             page.keyboard.press("Tab")
-            expect(resolve).to_be_focused()
+            expect(reaction).to_be_focused()
         elif new_input == "widget":
             round_trip(page)
             expect(first).to_have_attribute("aria-checked", "false")

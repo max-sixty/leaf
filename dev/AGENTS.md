@@ -30,7 +30,7 @@ reaches a module by importing it from this package, never through `sys.path`,
   an A/B's pair of them, whose base defaults to the merge base with `main`
   (`base_ref`); pages served from an authored source on an arm; the machine's load
   average a timed command prints; the isolated `claude -p` children evals run; and
-  the throwaway Codex and Pi homes a Codex or Pi child runs under.
+  the throwaway Claude Code, Codex and Pi homes a child of each runs under.
 - `page_fixtures.py` builds a page directory from an authored source;
   `example_data.py` reads the catalog, names, and each page's companions.
 - `browser.py` launches Chrome, and opens and settles a tab, the same way for every
@@ -136,6 +136,20 @@ in `leaf-assets.json` and the README's image URLs that name it.
   card under its `demo/`, and publishes them the same way.
 - `leaf-dev publish-media FILE...` adds media the example pages show under its
   `examples/media/`, and moves the pin.
+
+## Claude Code
+
+- `leaf-dev verify-cc-task` runs a real interactive Claude Code session, in a tmux
+  pane, with this working tree as its plugin under a throwaway home holding only
+  the host's login. It posts comments while the session is idle, during a shell
+  command, after an Escape, and after an Escape that stopped a turn the watch had
+  woken, and fails when a comment is not answered exactly once, a comment posted
+  during a turn is not picked up in it, or quitting leaves the session's claim
+  active. `--hooks-module` turns the plugin's hooks module on, and then also fails
+  when Escape leaves the turn open or nothing watching. Each step prints when its
+  comments were picked up and answered and whether the page nudged the session,
+  the reading that compares the two carriers. It spends the host's Claude Code
+  login, so CI does not run it.
 
 ## Codex
 

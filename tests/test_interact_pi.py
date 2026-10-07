@@ -171,8 +171,7 @@ def test_the_pi_extension_keeps_a_run_going_for_input_that_arrives_in_it(
 ):
     """Input that arrives during a run with nothing watching, as under
     `pi --print`, is handed over as the run is about to settle, and keeps it
-    going. An Escape settles a run without going on from there, and closes the
-    turn."""
+    going."""
     pi = start_pi("print")
     pi.emit("before_agent_start")
     pi.emit("agent_start")
@@ -185,25 +184,34 @@ def test_the_pi_extension_keeps_a_run_going_for_input_that_arrives_in_it(
     [batch] = json.loads(entry["content"].split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
 
-    pi.emit("agent_start")
-    pi.emit("agent_settled", idle=True)
-    assert cleanup_model.session_record("pi-s1")["turn_closed"] is not None
-
 
 def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, pi):
-    """Input steered into a run the user then stops with Escape is not handed to
-    a new run of its own (`session.watch_between_turns`). The hook confirmed it as
-    it handed it over, so the user's next prompt carries it as a move still owed
-    its answer, picked up again in that run."""
+    """Input handed to a run the user then stops with Escape is not handed to a
+    new run of its own (`session.watch_between_turns`). The Escape settles the
+    run without going on from there, and the watch the extension starts then
+    closes the turn. The hook confirmed the input as it handed it over, so the
+    user's next prompt carries it as a move still owed its answer, picked up
+    again in that run."""
     pi.emit("before_agent_start")
     pi.emit("agent_start")
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "handed over"}
     )
-    # The watch steers it into the run.
-    assert pi.delivered(until=comment["id"]) == [comment["id"]]
+    # The watch wakes, and the run's next turn end adds the delivery to the
+    # session and keeps the run going to read it.
+    handed = wait_for(
+        lambda: pi.emit("turn_end"), bool, failure="no turn end took the input"
+    )
+    assert handed["continue"] is True
+    [entry] = handed["entries"]
+    [batch] = json.loads(entry["content"].split("\n")[1])["batches"]
+    assert [event["id"] for event in batch["events"]] == [comment["id"]]
     pi.emit("agent_settled", idle=True)
-    assert cleanup_model.session_record("pi-s1")["turn_closed"] is not None
+    wait_for(
+        lambda: cleanup_model.session_record("pi-s1")["turn_closed"],
+        bool,
+        failure="the Escape left the turn open",
+    )
 
     prompt = pi.emit("before_agent_start", idle=True)
     assert f"--for {comment['id']}" in prompt["message"]["content"]
@@ -213,6 +221,40 @@ def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, 
         [comment["id"]],
         cleanup_model.session_record("pi-s1")["turn"],
     )
+
+
+def test_input_during_a_run_is_picked_up_only_once_pi_takes_it(page_dir, pi):
+    """A move reads Picked up once its delivery is in the session's context. Pi
+    queues a steer behind a running tool and Escape clears that queue, so input
+    arriving during a run waits for the run's next turn end; a run stopped
+    before then never took it, and the user's next prompt hands it over."""
+    pi.emit("before_agent_start")
+    pi.emit("agent_start")
+    comment = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "during a tool"}
+    )
+    wait_for(
+        lambda: leases_model.wait_is_live(None, "pi-s1"),
+        lambda live: not live,
+        failure="the watch did not wake on the comment",
+    )
+
+    def stage() -> str:
+        [workflow] = page_state(page_dir)["workflows"]
+        return workflow["stage"]
+
+    pi.emit("agent_settled", idle=True)
+    wait_for(
+        lambda: cleanup_model.session_record("pi-s1")["turn_closed"],
+        bool,
+        failure="the Escape left the turn open",
+    )
+    assert stage() != "picked_up"
+
+    prompt = pi.emit("before_agent_start", idle=True)
+    [batch] = json.loads(prompt["message"]["content"].split("\n")[1])["batches"]
+    assert [event["id"] for event in batch["events"]] == [comment["id"]]
+    assert stage() == "picked_up"
 
 
 def test_a_reload_keeps_the_pi_session_and_its_watch(page_dir, pi):

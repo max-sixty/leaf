@@ -3,16 +3,19 @@
 // stdin.
 //
 // Arguments: the session id, then the plugin's options as JSON. Each stdin line is
-// `{"emit": <event>, "e": <input>, "answer": <result>, "delay": <ms>}`: the
+// `{"emit": <event>, "e": <input>, "answer": <result>, "hold": <bool>}`: the
 // driver runs that event's hooks over `e`, the bottom of the chain, which stands
-// for the settings hooks, answering after `delay` with `answer`, or else with the
-// input it reached, and prints `{"holding": <event>}` as a delay starts and
-// `{"event", "result", "reached"}` once they resolve, `reached` being that input.
-// Every prompt the module submits prints as `{"submitted": <text>}` and every row
-// it appends as `{"appended": <text>}`, and every watch it starts as `{"watching":
-// <its payload>}`. The first line printed is `{"pid",
-// "events"}`: the process the module's processes see as their parent, and the
-// events it hooks.
+// for the settings hooks, answering with `answer`, or else with the input it
+// reached, and prints `{"event", "result", "reached"}` once they resolve,
+// `reached` being that input. A held event's bottom prints `{"holding": <event>}`
+// and answers only once a line `{"release": true}` arrives; lines go on being
+// read meanwhile. Every prompt the module submits prints as `{"submitted":
+// <text>}` and every row it appends as `{"appended": <text>}`, and every watch it
+// starts as `{"watching": <its payload>}`. Once a watch has exited and what its
+// exit set going in the module has run as far as it can without waiting on
+// anything outside, `{"watched": <its payload>}` prints. The first line printed
+// is `{"pid", "events"}`: the process the module's processes see as their parent,
+// and the events it hooks.
 import { spawn } from "node:child_process";
 import * as path from "node:path";
 import * as readline from "node:readline";
@@ -44,7 +47,14 @@ function stream(request) {
   let output = "";
   child.stdout.on("data", (text) => (output += text));
   const ended = new Promise((resolve) =>
-    child.on("close", (code, signal) => resolve({ code, signal })),
+    child.on("close", (code, signal) => {
+      resolve({ code, signal });
+      // The module reads the exit through promises alone, so by the next
+      // macrotask it has done all it does without waiting on `$`.
+      if (request.argv.includes("--watch")) {
+        setImmediate(() => print({ watched: JSON.parse(request.input) }));
+      }
+    }),
   );
   let stop;
   const stopped = new Promise((resolve) => (stop = resolve));
@@ -110,18 +120,27 @@ await register(
 );
 print({ pid: process.pid, events: [...hooks.keys()] });
 
+let release;
 for await (const line of readline.createInterface({ input: process.stdin })) {
-  const { emit, e, answer, delay } = JSON.parse(line);
+  const { emit, e, answer, hold, release: releasing } = JSON.parse(line);
+  if (releasing) {
+    release();
+    continue;
+  }
   let reached;
   const chain = (hooks.get(emit) ?? []).reduceRight(
     (next, hook) => (input) => hook($, input, next),
     async (input) => {
       reached = input;
-      if (delay) print({ holding: emit });
-      await new Promise((resolve) => setTimeout(resolve, delay ?? 0));
+      if (hold) {
+        print({ holding: emit });
+        await new Promise((resolve) => (release = resolve));
+      }
       return answer ?? input;
     },
   );
-  const result = await chain(e);
-  print({ event: emit, result: result ?? null, reached: reached ?? null });
+  const done = Promise.resolve(chain(e)).then((resolved) =>
+    print({ event: emit, result: resolved ?? null, reached: reached ?? null }),
+  );
+  if (!hold) await done;
 }

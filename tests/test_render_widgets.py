@@ -1399,6 +1399,22 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     page.keyboard.press("ArrowRight")
     expect(rtl.first).to_have_attribute("aria-selected", "true")
 
+    # Paging observes the live motion preference too, in both text directions.
+    page.emulate_media(reduced_motion="reduce")
+    for strip_id, sign in (("framed", 1), ("rtl", -1)):
+        paged = page.evaluate(
+            """([id, sign]) => {
+          const strip = document.querySelector(`#${id} > .lf-tabstrip`);
+          strip.scrollLeft = 0;
+          const expected = sign * Math.min(
+            0.8 * strip.clientWidth, strip.scrollWidth - strip.clientWidth);
+          strip.querySelector('.lf-tabstrip-scroll[data-to="end"] > span').click();
+          return {expected, actual: strip.scrollLeft};
+        }""",
+            [strip_id, sign],
+        )
+        assert paged["actual"] == pytest.approx(paged["expected"], abs=1), paged
+
 
 def test_tab_reaches_the_open_panel_and_no_closed_one(browser, serve):
     """Tab from the open tab lands on its panel, whose prose holds nothing focusable,
@@ -4399,6 +4415,20 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     assert rect["left"] >= 0 and rect["right"] <= viewport["width"]
     assert rect["top"] >= 0 and rect["bottom"] <= viewport["height"]
     bubble.hover()
+    expect(bubble).to_be_visible()
+
+    # A real pointer crosses the space between the phrase and its card; a single
+    # hover jump skips that space and cannot establish the hover-content route.
+    page.mouse.move(0, 0)
+    expect(bubble).to_be_hidden()
+    gloss.hover()
+    expect(bubble).to_be_visible()
+    card = bubble.bounding_box()
+    page.mouse.move(
+        card["x"] + card["width"] / 2,
+        card["y"] + card["height"] / 2,
+        steps=20,
+    )
     expect(bubble).to_be_visible()
 
     # WCAG's hover-content route: Escape dismisses the card without requiring the

@@ -43,17 +43,27 @@
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-gloss-popover {
+  --lf-gloss-gap: 8px;
   position: fixed; inset: auto; position-area: block-end center;
   position-try-fallbacks: flip-block, flip-inline;
   box-sizing: border-box;
   width: max-content; max-width: min(22rem, calc(100vw - 24px));
-  margin: 8px 0; padding: 10px 13px 11px;
+  margin: var(--lf-gloss-gap) 0; padding: 10px 13px 11px;
   border: 1px solid var(--border-2);
   border-radius: var(--r); background: var(--card); color: var(--ink);
   box-shadow: 0 10px 28px var(--shade);
   font-family: var(--serif); font-size: var(--t-5); line-height: 1.45;
   text-align: left; white-space: normal;
   overflow-wrap: anywhere;
+  overflow: visible;
+}
+/* Keep the space to the phrase inside the card's hover region, above and below
+ * so CSS anchor flipping preserves the same pointer route. */
+@media screen {
+  .lf-gloss-popover::before {
+    content: ""; position: absolute;
+    inset: calc(-1 * var(--lf-gloss-gap)) 0; z-index: -1;
+  }
 }
 .lf-gloss-popover::backdrop { background: transparent; }
 @media print {

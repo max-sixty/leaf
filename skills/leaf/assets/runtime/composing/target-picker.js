@@ -19,9 +19,8 @@ import {
 import { bannerFoot, shownParts } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
-import { carriedAnchor } from "../anchor-names.js";
-import { scrollsContent } from "../scroll-motion.js";
-import { anchoredBy, paintSet } from "../target-paint-geometry.js";
+import { anchorFor } from "../anchor-names.js";
+import { paintSet } from "../target-paint-geometry.js";
 import { handBack, releaseFocus } from "../focus.js";
 import {
   createHintSession,
@@ -530,8 +529,8 @@ export function createTargetPicker({
   });
 
   // A mark for each box the match's words take, while a covering surface leaves any of
-  // it in sight, standing over what holds the words: words alone in a scroller are
-  // carried by the start of what it holds.
+  // it in sight, standing over what holds the words and carried by what carries them
+  // (`anchorFor`).
   function paintSearchMatches() {
     const segments = matches[active];
     const owner = segments && matchIsRangeable(segments) ? matchOwner(segments) : null;
@@ -542,11 +541,7 @@ export function createTargetPicker({
           reading.exposes(null, reading.clearPart(box, clip)),
         )
       : [];
-    const anchor = !owner
-      ? null
-      : scrollsContent(owner)
-        ? carriedAnchor(owner, segments[0].node)
-        : anchoredBy(owner, markRoot);
+    const anchor = owner && anchorFor(segments[0].node);
     while (markBoxes.length < boxes.length)
       markBoxes.push(el("span", "lf-page-search-match"));
     marks.place(

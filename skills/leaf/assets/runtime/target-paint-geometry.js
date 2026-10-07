@@ -9,6 +9,7 @@
 
 import {
   anchorElement,
+  anchorHolder,
   anchorName,
   anchorReading,
   inTopLayer,
@@ -194,20 +195,26 @@ export function paintStand(box = null) {
 // box only where it is laid out before that box, earlier in the document and outside
 // the top layer; null otherwise, and where the browser has no anchors.
 export function anchoredBy(el, root) {
-  if (!CSS.supports("anchor-name", "--lf-anchor")) return null;
   const anchor = anchorElement(el);
-  const order = anchor.compareDocumentPosition(root);
-  if (
-    !(order & Node.DOCUMENT_POSITION_FOLLOWING) ||
-    order & Node.DOCUMENT_POSITION_CONTAINED_BY ||
-    inTopLayer(anchor)
-  )
-    return null;
+  if (!reaches(anchor, root)) return null;
   return anchor === el ||
     (scrollsWith(el, anchor) && !scrollsContent(anchor)) ||
     scrollsWith(anchor, el)
     ? anchor
     : null;
+}
+
+// Whether an anchor on `anchor`, or on the box holding a content start, positions a box
+// at `root`.
+function reaches(anchor, root) {
+  if (!CSS.supports("anchor-name", "--lf-anchor")) return false;
+  const holder = anchorHolder(anchor);
+  const order = holder.compareDocumentPosition(root);
+  return (
+    Boolean(order & Node.DOCUMENT_POSITION_FOLLOWING) &&
+    !(order & Node.DOCUMENT_POSITION_CONTAINED_BY) &&
+    !inTopLayer(holder)
+  );
 }
 
 // Each level's motions in a stand that stands in motion layers: the scroll of the box
@@ -547,7 +554,12 @@ export function paintSet(root, { onNear = () => {} } = {}) {
         )
           near.add(target);
       }
-      const carriedBy = anchor !== undefined ? anchor : anchoredBy(target, root);
+      const carriedBy =
+        anchor === undefined
+          ? anchoredBy(target, root)
+          : anchor && reaches(anchor, root)
+            ? anchor
+            : null;
       // A box no frame cuts is carried by its anchor alone, or by its target's layers
       // standing open.
       if (!framed)

@@ -17,8 +17,8 @@
 import { html, nothing, repeat } from "../vendor/browser-runtime.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { keys } from "./keyboard/scopes.js";
-import { RetainedFace, RowFocus } from "./retained-face.js";
-import { focusDestination } from "./focus.js";
+import { RetainedFace } from "./retained-face.js";
+import { focusDestination, holdFocus } from "./focus.js";
 
 const QUEUE_AT = "data-lf-at";
 const QUEUE_ROW = "data-lf-row";
@@ -81,11 +81,10 @@ class QueueList extends RetainedFace {
   #activate = null;
   #finish = null;
   #fallback = null;
-  #focus = new RowFocus(this, {
-    rows: `button[${QUEUE_ROW}]`,
-    key: QUEUE_ROW,
-    keys: rowKeys,
-  });
+  // Across a repaint the user keeps their row, or the nearest that survived it
+  // (focus.js, keyed `holdFocus`); a panel opened from its edge lands on its first row.
+  #restoreFocus = null;
+  #landOn = undefined;
   #wired = new WeakSet();
 
   constructor() {
@@ -108,10 +107,10 @@ class QueueList extends RetainedFace {
       document.activeElement === this.parentElement &&
       first !== undefined
     ) {
-      this.#focus.land(first);
+      this.#landOn = first;
       return;
     }
-    this.#focus.hold(this.model, this.committed);
+    this.#restoreFocus = holdFocus(this, { key: QUEUE_ROW });
   }
 
   // Whether the row keyed `key` ends its task at Done in the reading drawn now.
@@ -151,7 +150,14 @@ class QueueList extends RetainedFace {
         { id: "queue.done.press", keys: PRESS, title: "mark it done" },
       ]);
     }
-    this.#focus.restore(this.#fallback);
+    const [landOn, restore] = [this.#landOn, this.#restoreFocus];
+    [this.#landOn, this.#restoreFocus] = [undefined, null];
+    if (landOn !== undefined) {
+      const row = this.querySelector(`${ROW}[${QUEUE_ROW}="${CSS.escape(landOn)}"]`);
+      const place = row ?? this.#fallback;
+      if (place) focusDestination(place, "move");
+    }
+    restore?.(this.#fallback);
   }
 
   #activateRow = (event) => {

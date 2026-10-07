@@ -26,7 +26,7 @@
    route) and `g Shift+Q`.
 
    Rows join, leave and change only while the panel is open, and the list holds its
-   focus across them (`RowFocus`); a closed panel holds no rows. The panel is offered
+   focus across them (focus.js, keyed `holdFocus`); a closed panel holds no rows. The panel is offered
    while any list has an item, or while it stands so its control can still close it. */
 import {
   addressableLabel,

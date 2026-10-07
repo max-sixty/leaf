@@ -25,7 +25,7 @@
 
 import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
-import { focusDestination, handBack, holdFocus, letGo } from "./focus.js";
+import { focusDestination, handBack, holdFocus, letGo, closeLayer } from "./focus.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
@@ -122,12 +122,13 @@ export function createPageMapDialog({
   function activateItem(item, entry) {
     releaseAnnotations?.(entry);
     const destination = annotationFocus?.(entry);
-    leavePageMap();
-    handBack(destination, pageMapInvoker(), bannerControlDoor(versionBtn));
     // A location without a presented annotation lands on its exact authored target.
     // Commands that open a Thread or Ask retain their own navigation capability.
-    if (!destination && targetFor(entry)?.isConnected)
-      focusDestination(targetFor(entry), "move");
+    closeLayer(leavePageMap, () =>
+      !destination && targetFor(entry)?.isConnected
+        ? focusDestination(targetFor(entry), "move")
+        : handBack(destination, pageMapInvoker(), bannerControlDoor(versionBtn)),
+    );
     inventory.activate(item);
   }
 
@@ -175,8 +176,10 @@ export function createPageMapDialog({
       return;
     }
     const returnTo = from;
-    dialog.close();
-    handBack(returnTo);
+    closeLayer(
+      () => dialog.close(),
+      () => handBack(returnTo),
+    );
     contributionSource(offered).registration.activate(record.key, {
       origin: control,
       surface: "map",
@@ -430,8 +433,7 @@ export function createPageMapDialog({
     // being already on the control that reopens the dialog.
     dialog.addEventListener("cancel", (event) => {
       event.preventDefault();
-      leavePageMap();
-      letGo();
+      closeLayer(leavePageMap, letGo);
     });
     dialog.addEventListener("close", () => {
       if (dialog.open) return;
@@ -442,12 +444,15 @@ export function createPageMapDialog({
     dialogClose.onclick = () => {
       const returnTo = from;
       const invoker = pageMapInvoker();
-      dialog.close();
-      handBack(
-        returnTo,
-        invoker,
-        annotationFocus?.(null),
-        bannerControlDoor(versionBtn),
+      closeLayer(
+        () => dialog.close(),
+        () =>
+          handBack(
+            returnTo,
+            invoker,
+            annotationFocus?.(null),
+            bannerControlDoor(versionBtn),
+          ),
       );
     };
     root.append(dialog);

@@ -7,7 +7,7 @@
  * This owner declares the panel's Escape ladder, which is the way out of a thread in
  * it: narrowing unwinds before the panel closes. Closing the panel lands the user on
  * the document. Leaving text entry belongs to thread/landing.js. */
-import { handBack, letGo, focusDestination } from "./focus.js";
+import { letGo, focusDestination } from "./focus.js";
 import { pageRung } from "./keyboard/register.js";
 import { slide } from "./motion.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -69,10 +69,6 @@ export function createThreadPanelController({
   }
 
   function paintPanel(open, phase) {
-    // Closing while focus is inside would drop it on body, the user's place lost
-    // silently; it lands on the one control that reopens what just closed, which is where
-    // the pointer already is. The Escape step below lands the user on the page instead.
-    if (!open && panel.contains(document.activeElement)) handBack(toggleBtn);
     panel.classList.toggle("open", open);
     toggleBtn.setAttribute("aria-expanded", String(open));
     if (open) {
@@ -104,6 +100,10 @@ export function createThreadPanelController({
     // takes the covering boundary only where it leaves less than a usable page.
     beside: true,
     landing: () => threadsBox,
+    // Closing while focus is inside would drop it on body, the user's place lost
+    // silently; it lands on the one control that reopens what just closed, which is where
+    // the pointer already is. The Escape step below lands the user on the page instead.
+    opener: () => toggleBtn,
     show: ({ phase }) => paintPanel(true, phase),
     hide: () => paintPanel(false),
   });
@@ -162,10 +162,7 @@ export function createThreadPanelController({
           title: "close threads",
           description: "Close the thread panel",
           lineWhen: yieldsToSearch(),
-          out: () => {
-            setPanel(false);
-            letGo();
-          },
+          out: () => setPanel(false, { land: letGo }),
         }
       : null,
   );

@@ -37,9 +37,10 @@
    the in-between node a label press goes through.
 
    The selector vocabulary lives in control-selectors.js, which imports nothing.
-   This module imports only that vocabulary and rendering.js: importing a gesture
-   owner would cycle through its focus dependency. */
+   This module imports only that vocabulary, rendering.js and keeps.js: importing a
+   gesture owner would cycle through its focus dependency. */
 import { nextRender } from "./rendering.js";
+import { keeps } from "./keeps.js";
 import { MODIFIER_KEYS, TEXT_BOX, TAB_STOP } from "./control-selectors.js";
 
 // The stops Tab walks inside `root` right now, in document order: the candidates above
@@ -105,7 +106,7 @@ export function focusDestination(
   if (!CAUSES.has(cause)) throw new TypeError(`focusDestination: no cause ${cause}`);
   placed(cause, () => {
     destination.focus({ preventScroll: !scroll });
-    if (!standsIn(destination) && lendable(destination)) lendStop(destination);
+    if (!landedOn(destination) && lendable(destination)) lendStop(destination);
   });
   if (caret && holdsCaret(destination)) destination.setSelectionRange(...caret);
 }
@@ -134,7 +135,7 @@ const placed = (cause, move) => {
 // Whether focus stands on `node`, or inside a shadow tree it hosts, as it does inside a
 // text field's editor: the field is where the user is. A light child of it is somewhere
 // else, so a container a placement lands on is landed on itself.
-const standsIn = (node) =>
+const landedOn = (node) =>
   node.matches(":focus") || Boolean(node.shadowRoot?.activeElement);
 
 // A stop is lent only to a drawn element that is no control of its own: a control that
@@ -176,7 +177,7 @@ function lendStop(destination) {
   lent.add(destination);
   destination.tabIndex = -1;
   destination.focus({ preventScroll: true });
-  if (!standsIn(destination)) {
+  if (!landedOn(destination)) {
     giveBack();
     return;
   }
@@ -413,6 +414,8 @@ const read = new WeakSet();
 function stand(event) {
   if (read.has(event)) return;
   read.add(event);
+  // What a closing layer does with focus is no standing (`closeLayer`).
+  if (closing) return;
   // A node a press on a label goes through on its way to the control is no standing; a
   // runtime placement during the press ends it.
   if (heldByLabel()) {
@@ -637,14 +640,95 @@ const within = (scope, node) => {
   for (let at = node; at; at = at.parentNode ?? at.host) if (at === scope) return true;
   return false;
 };
-export function holdFocus(scope) {
+//
+// A list of keyed items names its place by `key`, the attribute each item carries. The
+// hold then reads the item the user stands in and the order of every item at the hold,
+// and its restore, after the held node, tries the item now carrying the same key, then
+// the nearest item that survived after it, then before it, before the caller's own
+// stand-ins: the user is never left on the body because the row they stood on left the
+// list.
+export function holdFocus(scope, { key = null } = {}) {
+  const node = heldIn(scope);
+  if (!node) return null;
+  const restore = holdOn(node);
+  if (!key) return restore;
+  let item = node;
+  while (item && !item.matches?.(`[${key}]`)) item = item.parentNode ?? item.host;
+  if (!item || item === scope || !within(scope, item)) return restore;
+  const items = () => [...scope.querySelectorAll(`[${key}]`)];
+  const keys = items().map((each) => each.getAttribute(key));
+  const at = keys.indexOf(item.getAttribute(key));
+  const order = [keys[at], ...keys.slice(at + 1), ...keys.slice(0, at).reverse()];
+  // In an item, the control like the one the user stood on, as Remove for Remove, read
+  // in the item's own tree, or the item itself where it holds none.
+  let control = node;
+  while (control.getRootNode() !== item.getRootNode())
+    control = control.getRootNode().host;
+  const like =
+    control === item
+      ? null
+      : control.localName +
+        [...control.classList].map((name) => `.${CSS.escape(name)}`).join("");
+  const find = (value) => {
+    const found = items().find((each) => each.getAttribute(key) === value);
+    return (found && like && found.querySelector(like)) || found || null;
+  };
+  // The item keyed the same is the same place, so the caret goes with the user; a
+  // neighbour is another place, which this hold lands on with no caret.
+  const neighbour = (value) => () => {
+    const place = find(value);
+    if (!place || !drawn(place)) return null;
+    focusDestination(place, "return");
+    return landedOn(place);
+  };
+  const [same, ...rest] = order;
+  return (...standIns) =>
+    restore(() => find(same), ...rest.map(neighbour), ...standIns);
+}
+const heldIn = (scope) => {
   const held = heldByLabel();
-  if (held) return within(scope, held) ? holdOn(held) : null;
+  if (held) return within(scope, held) ? held : null;
   const standing = scope.getRootNode().activeElement;
   if (standing && standing !== document.body && scope.contains(standing))
-    return holdOn(deepFocus(standing));
+    return deepFocus(standing);
   const lost = dropped();
-  return lost && scope.contains(lost) ? holdOn(lost) : null;
+  return lost && scope.contains(lost) ? lost : null;
+};
+
+// Whether the user stands in `scope`, across every shadow tree between them.
+export const standingIn = (scope) => {
+  const at = focused();
+  return Boolean(at) && at !== document.body && within(scope, at);
+};
+
+// The roving stop of a group: `stop` is the one item Tab reaches, and every other item
+// is reached by the group's own arrows. Null leaves the group no stop.
+export function rove(items, stop) {
+  for (const item of items) keeps(item, "tabindex", item === stop ? 0 : -1);
+}
+
+// Closing a layer the user may stand in and handing them on, as one act. `close` hides
+// the layer and places nothing itself; whatever focus does while it runs, the platform's
+// own hand-back as a dialog or popover closes included, reaches no reader of where the
+// user stands and is no placement. `land`, where the closer names one, then puts the
+// user where the close takes them: `handBack(...)`, `letGo`, a route; that placement is
+// heard and counted as any is. Where `land` names none and the close left the user on
+// another node, as a platform hand-back does, readers hear it once as a `return`, which
+// is the layer's own and no newer word to a hold. One the close hid them under and no
+// landing put right is a drop, as any is.
+let closing = 0;
+export function closeLayer(close, land = null) {
+  closing += 1;
+  try {
+    close();
+  } finally {
+    closing -= 1;
+  }
+  if (land) land();
+  const at = deepFocus();
+  if (!at || at === document.body || at === published) return;
+  stood = at;
+  publish(at, "return");
 }
 
 // The same reading with no scope, for an owner that learns which place it holds from
@@ -686,7 +770,7 @@ function holdOn(held) {
             return false;
           return land(() => {
             focusDestination(destination, "return", { caret });
-            return standsIn(destination);
+            return landedOn(destination);
           });
         });
       if (place === true) return true;
@@ -694,7 +778,7 @@ function holdOn(held) {
       if (place === held && deepFocus() === held) return true;
       const landed = land(() => {
         focusDestination(place, "return", { caret });
-        return standsIn(place);
+        return landedOn(place);
       });
       if (landed) {
         // Two holds in a row with no input between carry the same place on, so the
@@ -902,7 +986,7 @@ export function handBack(...destinations) {
       if (placements !== at) return true;
       if (!node.isConnected || !node.checkVisibility()) return false;
       focusDestination(node, "return");
-      return standsIn(node);
+      return landedOn(node);
     });
   };
   if (landed()) return;

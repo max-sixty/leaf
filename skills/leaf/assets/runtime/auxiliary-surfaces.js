@@ -38,7 +38,15 @@ import { openPopovers } from "./keyboard/layer-stack.js";
 import { registerAuxiliaryModality } from "./keyboard/register.js";
 import { hides, placeHolder } from "./geometry.js";
 import { hostIn, under } from "./shadow.js";
-import { deepFocus, onStanding, tabStops, focusDestination } from "./focus.js";
+import {
+  deepFocus,
+  onStanding,
+  tabStops,
+  focusDestination,
+  closeLayer,
+  handBack,
+  standingIn,
+} from "./focus.js";
 import { userStore } from "./storage.js";
 import { pagePresented } from "./presentation.js";
 import { keeps, keepsHidden } from "./keeps.js";
@@ -177,6 +185,7 @@ export function createAuxiliarySurfaces({
     beside = false,
     underBand = false,
     landing,
+    opener,
     show,
     hide,
     arrival = "mount",
@@ -191,11 +200,12 @@ export function createAuxiliarySurfaces({
       ) ||
       !scroller ||
       !landing ||
+      !opener ||
       !show ||
       !hide
     )
       throw new Error(
-        "leaf: an auxiliary surface needs a key, an id and an accessible name, a scroller, a focus destination, and visibility callbacks",
+        "leaf: an auxiliary surface needs a key, an id and an accessible name, a scroller, a focus destination, an opener, and visibility callbacks",
       );
     if (controllers.has(key))
       throw new Error(`leaf: duplicate auxiliary surface ${key}`);
@@ -206,6 +216,7 @@ export function createAuxiliarySurfaces({
       covers: () => !beside || !standsBeside(),
       underBand,
       landing,
+      opener,
       show,
       hide,
       arrival,
@@ -234,10 +245,11 @@ export function createAuxiliarySurfaces({
     });
   }
 
-  function select(
-    key,
-    { remember = true, returnFocus = true, phase = "gesture" } = {},
-  ) {
+  // Closing hands a user who stood in the surface back to its opener, the control that
+  // opens it again (`handBack`, which lets go where none takes them), or wherever the
+  // closer's `land` puts them instead, as the Escape step's `letGo` does. A surface's own
+  // `hide` moves no focus, so the close places the user once (focus.js, `closeLayer`).
+  function select(key, { remember = true, phase = "gesture", land } = {}) {
     if (key !== null && !controllers.has(key))
       throw new Error(`leaf: unknown auxiliary surface ${key}`);
     if (selectedKey === key) return;
@@ -258,7 +270,13 @@ export function createAuxiliarySurfaces({
     // the boundary lifts before the previous surface hides, so the focus it hands back
     // lands on a live page.
     if (!selected || arriving || !selected.covers()) cover(null);
-    previous?.hide({ returnFocus });
+    if (previous) {
+      // Read before the hide, which forgets the door a press opened the surface from.
+      const opener = previous.opener();
+      const landing =
+        land ?? (standingIn(previous.surface) && (() => handBack(opener)));
+      closeLayer(() => previous.hide(), landing);
+    }
     if (selected && !arriving) selected.show({ phase });
     sync();
     syncLayout();

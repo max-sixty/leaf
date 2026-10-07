@@ -57,6 +57,7 @@ const exactClosures = {
     "queued-work.js",
     "focus.js",
     "control-selectors.js",
+    "keeps.js",
     "keyboard/bindings.js",
     "keyboard/layer-stack.js",
     "keyboard/register.js",

@@ -25,7 +25,6 @@ import {
   dragging,
   focusDestination,
   holdFocus,
-  keeps,
   keepsHidden,
   keepsText,
   layoutChanged,
@@ -39,6 +38,7 @@ import {
   retainUserIntent,
   widgetController,
   worksInside,
+  rove,
 } from "/runtime/widget-api.js";
 
 const VERDICTS = {
@@ -223,9 +223,13 @@ customElements.define(
       const keysMoved = available !== this.#keysAvailable;
       keepsText(this.#progress, progress);
 
+      const all = piles.flatMap(({ cards }) => cards);
+      rove(
+        all.map(({ card }) => card),
+        all.find(({ active }) => active)?.card ?? null,
+      );
       for (const { pile, verdict, cards } of piles) {
-        for (const { card, active, returnable, returning } of cards) {
-          keeps(card, "tabindex", active ? 0 : -1);
+        for (const { card, returnable, returning } of cards) {
           const button = card.querySelector(":scope > .lf-swipe-return");
           if (!button) continue;
           keepsHidden(button, !returnable);

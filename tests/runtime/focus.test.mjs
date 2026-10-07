@@ -12,7 +12,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { focusDestination, focused, holdFocus, onStanding } =
+const { closeLayer, focusDestination, focused, holdFocus, onStanding, rove } =
   await import("/runtime/focus.js");
 const { retainUserIntent } = await import("/runtime/user-intent.js");
 
@@ -200,4 +200,51 @@ test("delayed work follows a hold that carries the user to the node replacing th
   assert.equal(mayFocus(), true);
   key(newer);
   assert.equal(mayFocus(), false);
+});
+
+test("a keyed hold lands on the row keyed the same, or the nearest that survived", () => {
+  scene();
+  const list = document.createElement("ul");
+  const row = (key) => {
+    const item = document.createElement("button");
+    item.dataset.row = key;
+    return item;
+  };
+  list.append(row("a"), row("b"), row("c"));
+  document.body.append(list);
+  focusDestination(list.children[1], "move");
+  const same = holdFocus(list, { key: "data-row" });
+  list.replaceChildren(row("a"), row("b"), row("c"));
+  assert.equal(same(), true);
+  assert.equal(focused(), list.children[1]);
+
+  const gone = holdFocus(list, { key: "data-row" });
+  list.replaceChildren(row("a"), row("c"));
+  assert.equal(gone(), true);
+  assert.equal(focused().dataset.row, "c");
+});
+
+test("closing a layer tells the readers only where the user ends up", () => {
+  const { box, first, other } = scene();
+  focusDestination(first, "move");
+  heard.length = 0;
+  closeLayer(
+    () => {
+      first.blur();
+      box.hidden = true;
+      other.focus();
+    },
+    () => focusDestination(document.body.querySelector("button"), "return"),
+  );
+  assert.deepEqual(heard, [[other, "return"]]);
+});
+
+test("a roving group offers one Tab stop", () => {
+  scene();
+  const items = [0, 1, 2].map(() => document.createElement("button"));
+  rove(items, items[1]);
+  assert.deepEqual(
+    items.map((item) => item.getAttribute("tabindex")),
+    ["-1", "0", "-1"],
+  );
 });

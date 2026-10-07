@@ -6,7 +6,7 @@ import { drawnEdge } from "./drawn-edge.js";
 import { slide } from "./motion.js";
 import { declareOccluder } from "./geometry.js";
 import { currentAuxiliarySurface } from "./auxiliary-surfaces.js";
-import { handBack, letGo } from "./focus.js";
+import { letGo } from "./focus.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageRung } from "./keyboard/register.js";
 import { pagePresented } from "./presentation.js";
@@ -172,6 +172,7 @@ export function createDrawers({
       underBand: true,
       landing: () =>
         panel.querySelector(".lf-drawer-list button, .lf-drawer-list a[href]") ?? panel,
+      opener: returnDoor,
       arrival: "presentation",
       show({ phase }) {
         dismissBannerControls();
@@ -185,13 +186,11 @@ export function createDrawers({
         panel.classList.toggle("open", true);
         if (phase === "gesture") slide(panel, "left", "in");
       },
-      hide({ returnFocus }) {
+      hide() {
         for (const door of entrances) keeps(door, "aria-expanded", "false");
         if (!panel.classList.contains("open")) return;
-        // Before the slide, which makes the drawer inert and would drop focus to body.
-        if (returnFocus && panel.contains(document.activeElement))
-          handBack(returnDoor());
-        // The door a press opened it from is that opening's, not the next one's.
+        // The door a press opened it from is that opening's, not the next one's; the
+        // surfaces' owner read it (`opener`) before this hide.
         drawers.get(key).openedBy = null;
         // Slid out before hidden, and hidden only if still closed on arrival — a
         // reopen mid-slide leaves the panel standing rather than racing the finish.
@@ -264,10 +263,7 @@ export function createDrawers({
           description: `Close the ${currentDrawer()} drawer`,
           // A drawer's parent is the document, so its step lands the user there rather
           // than on the edge button that reopens it.
-          out: () => {
-            setOpenDrawer(null, { returnFocus: false });
-            letGo();
-          },
+          out: () => setOpenDrawer(null, { land: letGo }),
         }
       : null,
   );

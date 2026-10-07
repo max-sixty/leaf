@@ -55,7 +55,7 @@ import {
 } from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
 import { claimsEsc, saying } from "./keyboard/scopes.js";
-import { handBack, focusDestination, focused } from "./focus.js";
+import { handBack, focusDestination, focused, closeLayer } from "./focus.js";
 import { repaint } from "./repaint.js";
 
 import {
@@ -183,10 +183,11 @@ export function createReactionController({
       if (designModeActive()) event.about = "design";
       sent = sendReaction(event, chip, anchorWord(anchor), commands.postReaction);
     }
-    hideComposer();
-    showFab(null, { returnFocus: "none" });
-    setReact(false);
-    restoreTargetFocus();
+    closeLayer(() => {
+      hideComposer();
+      showFab(null, { returnFocus: "none" });
+      setReact(false);
+    }, restoreTargetFocus);
     getSelection()?.removeAllRanges();
     await sent;
   }

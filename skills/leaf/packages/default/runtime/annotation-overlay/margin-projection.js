@@ -132,6 +132,8 @@ import {
   onStanding,
   pressLed,
   focused,
+  closeLayer,
+  rove,
 } from "/runtime/focus.js";
 import { TEXT_FIELD } from "/runtime/control-selectors.js";
 import { closeControl, el, offer } from "/runtime/widget-elements.js";
@@ -1137,7 +1139,7 @@ export function createMarginProjection({
         return distance < nearest.distance ? { row, distance } : nearest;
       }, null)?.row;
     }
-    for (const row of markerRows()) keeps(row, "tabindex", row === stop ? 0 : -1);
+    rove(markerRows(), stop);
   }
 
   function syncRoving() {
@@ -2039,8 +2041,7 @@ export function createMarginProjection({
       // for a host that has gone or an entry whose own state holds its actions open.
       out: () => {
         const standing = unfoldedUnder();
-        closePreview(standing);
-        if (!standing) letGo();
+        closeLayer(() => closePreview(standing), !standing && letGo);
       },
     };
   }
@@ -2096,16 +2097,23 @@ export function createMarginProjection({
   function activate(item, entry, { focusMap = true } = {}) {
     if (expandedOptionsKey && expandedOptionsKey !== entry.key)
       setOptionsOpen(entry, false);
-    closePreview();
-    leavePageMap();
     const landsOnTarget = focusMap && !entryHasMarginHost(entry);
-    if (focusMap && !landsOnTarget) handBack(...mapControlPlaces(entry));
-    sourceItem(item).activate();
     // A Page Map-only location has no margin entry to receive the handoff. Reveal its
     // target first, then lend that authored element a programmatic tab stop so keyboard
     // focus and the visible arrival name the same place.
-    if (landsOnTarget && targetFor(entry)?.isConnected)
-      focusDestination(targetFor(entry), "move");
+    closeLayer(
+      () => {
+        closePreview();
+        leavePageMap();
+      },
+      focusMap &&
+        (() => {
+          if (!landsOnTarget) return handBack(...mapControlPlaces(entry));
+          sourceItem(item).activate();
+          if (targetFor(entry)?.isConnected) focusDestination(targetFor(entry), "move");
+        }),
+    );
+    if (!landsOnTarget) sourceItem(item).activate();
   }
 
   function openThreadChoice(entry, button) {

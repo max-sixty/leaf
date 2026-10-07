@@ -46,7 +46,7 @@ import {
   keySequenceTemplate,
   neutralStates,
 } from "./presentation.js";
-import { handBack, tabStops, focusDestination, focused } from "../focus.js";
+import { handBack, tabStops, focusDestination, focused, closeLayer } from "../focus.js";
 import { closeControl } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { ELEMENTS, pageScope, pageScopes } from "./register.js";
@@ -805,12 +805,21 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   }
   commandReferenceDialog.classList.toggle("open", open);
   if (open && !commandReferenceDialog.open) commandReferenceDialog.showModal();
-  else if (!open && commandReferenceDialog.open) commandReferenceDialog.close();
-  // A closed dialog's search box keeps focus until the browser's next focus fixup, so the
-  // repaint below would read the user as still typing there, and the shortcut bar would
-  // keep the More it hands back to standing down. Release it with the dialog.
-  if (!open && commandReferenceDialog.contains(document.activeElement))
-    document.activeElement.blur();
+  // The reference is a bounded interaction rather than a level of the page: it claims the
+  // whole keyboard while it stands and hands the user back itself, to the control the
+  // press displaced, or to the page where that control has gone — the layer it stood in
+  // may have closed under the user while the reference was up — which is where a user
+  // who pressed `?` from the page was all along. A closed dialog's search box keeps focus
+  // until the browser's next focus fixup, so the repaint below would read the user as
+  // still typing there, and the shortcut bar would keep the More it hands back to
+  // standing down: the close releases it with the dialog, and hands the user back once
+  // the repaint below has drawn that More again.
+  if (!open)
+    closeLayer(() => {
+      if (commandReferenceDialog.open) commandReferenceDialog.close();
+      if (commandReferenceDialog.contains(document.activeElement))
+        document.activeElement.blur();
+    });
 
   // The results are a real overflow region and must enter the modal Tab loop.
   if (open) reachScrollers(commandReferenceDialog);
@@ -824,11 +833,6 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
       "move",
     );
   repaint();
-  // The reference is a bounded interaction rather than a level of the page: it claims the
-  // whole keyboard while it stands and hands the user back itself, to the control the
-  // press displaced, or to the page where that control has gone — the layer it stood in
-  // may have closed under the user while the reference was up — which is where a user
-  // who pressed `?` from the page was all along.
   if (handingBack) handBack(restore);
 }
 

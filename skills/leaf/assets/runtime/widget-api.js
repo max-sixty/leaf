@@ -34,10 +34,21 @@ export { landingInsets, shownBand, shownBox, shownParts } from "./geometry.js";
 export { placeKeeper } from "./user-place.js";
 export { inUi, uiInside, upFrom } from "./shadow.js";
 // Putting the user on an element, saying what moved them there; holding their place,
-// caret included, across a move or re-render of the node they stand on; and where they
-// stand. TEXT_FIELD is the tag of the box a widget offers for the user to write
+// caret included, across a move or re-render of the node they stand on, by key in a
+// list; where they stand and whether it is in a scope; handing them back as a layer
+// closes; running something once they move off an element; and a group's roving Tab
+// stop. TEXT_FIELD is the tag of the box a widget offers for the user to write
 // Markdown in; TEXT_BOX matches it and any native textarea.
-export { focusDestination, focused, holdFocus } from "./focus.js";
+export {
+  closeLayer,
+  focusDestination,
+  focused,
+  handBack,
+  holdFocus,
+  rove,
+  standingIn,
+  whenLeft,
+} from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place and keeping the
 // user standing in a node it moves.

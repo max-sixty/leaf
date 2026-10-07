@@ -13,13 +13,13 @@ from click import ClickException
 from interact_support import PAGE
 from leaf_dev import ROOT
 from leaf_dev import distribution as distribution_model
-from leaf_dev.arms import environment, serving
+from leaf_dev.arms import environment
 from leaf_dev.distribution import prepare
 from playwright.sync_api import expect
 
 
 def test_prepared_install_authors_custom_packages_and_exports_without_builds(
-    tmp_path, browser
+    tmp_path, spawn, request
 ):
     install = tmp_path / "install"
     prepare(install)
@@ -74,35 +74,39 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
     leaf("page", "check", page_dir, "--render")
     leaf("page", "stamp", page_dir, "--text", "Prepared installation verified")
     exported = tmp_path / "export.html"
-    with serving(install, state, page_dir) as address:
-        for target in (address, exported.as_uri()):
-            if target != address:
-                leaf("page", "export", page_dir, "--out", exported)
-            tab = browser.new_page()
-            try:
-                tab.goto(target)
-                expect(tab.locator("body")).to_have_attribute("data-lf-presented", "1")
-                expect(tab.locator("lf-risk-note")).to_have_text(
-                    "Custom package works."
+    server = spawn(
+        [str(install / "bin/leaf"), "server", "run", "--temporary", str(page_dir)],
+        env=consumer_env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    address = json.loads(server.stdout.readline())["url"]
+    # Acquire the browser after spawn so fixture teardown ends the clients first.
+    browser = request.getfixturevalue("browser")
+    for target in (address, exported.as_uri()):
+        if target != address:
+            leaf("page", "export", page_dir, "--out", exported)
+        tab = browser.new_page()
+        tab.goto(target)
+        expect(tab.locator("body")).to_have_attribute("data-lf-presented", "1")
+        expect(tab.locator("lf-risk-note")).to_have_text("Custom package works.")
+        assert tab.evaluate("customElements.get('lf-risk-note') !== undefined")
+        choice = tab.locator("#flag-first .lf-pick")
+        if target == address:
+            with tab.expect_response(
+                lambda response: (
+                    response.url.split("?")[0].endswith("/api/event")
+                    and response.request.method == "POST"
                 )
-                assert tab.evaluate("customElements.get('lf-risk-note') !== undefined")
-                choice = tab.locator("#flag-first .lf-pick")
-                if target == address:
-                    with tab.expect_response(
-                        lambda response: (
-                            response.url.split("?")[0].endswith("/api/event")
-                            and response.request.method == "POST"
-                        )
-                    ) as admitted:
-                        choice.click()
-                    assert admitted.value.ok
-                    expect(choice).to_have_attribute("aria-checked", "true")
-                else:
-                    # A stamped offline version is a read-only historical document.
-                    expect(choice).to_have_attribute("aria-disabled", "true")
-                    expect(choice).to_have_attribute("aria-checked", "true")
-            finally:
-                tab.close()
+            ) as admitted:
+                choice.click()
+            assert admitted.value.ok
+            expect(choice).to_have_attribute("aria-checked", "true")
+        else:
+            # A stamped offline version is a read-only historical document.
+            expect(choice).to_have_attribute("aria-disabled", "true")
+            expect(choice).to_have_attribute("aria-checked", "true")
     # Both source and prepared installations reject the same private override.
     replacement = custom / "runtime/context.js"
     replacement.write_text("export const privateState = {};\n")

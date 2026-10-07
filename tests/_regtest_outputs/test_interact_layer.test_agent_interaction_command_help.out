@@ -105,6 +105,10 @@ Usage: leaf thread reply [OPTIONS] PAGE [THREAD]
   message in it, posts a new agent message there instead, refused while that
   thread owes a reply.
 
+  --ephemeral posts progress without answering. On a move you owe, it also takes
+  the move in hand as `leaf task start` does, with its one line as the Working
+  line.
+
   --quote, --section, and --part move the thread's current anchor; --detach
   removes it when the subject leaves the page. The original anchor stays in the
   log. A reply validates and activates any changed source before posting.
@@ -119,8 +123,8 @@ Options:
   --text TEXT     reply text (default: stdin)
   --markup TEXT   widget markup to render after the text, validated here
   --awaits        the reply's prose asks the user a question
-  --ephemeral     progress update; folds when the next ordinary agent reply
-                  arrives
+  --ephemeral     progress update; on a move you owe, one line that takes it in
+                  hand. Folds when the next ordinary agent reply arrives
   --title TEXT    name the thread for the panel unless it has a name: a few
                   words, at most 80 characters
   --help          Show this message and exit.

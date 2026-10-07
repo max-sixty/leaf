@@ -50,6 +50,7 @@ import {
   HIDDEN,
   PRESS,
   answersWithin,
+  backgroundFlash,
   beginWalk,
   capturePlace,
   claimTraversals,
@@ -60,7 +61,6 @@ import {
   keepsText,
   layoutChanged,
   listWalkPosition,
-  motion,
   nextRender,
   offer,
   once,
@@ -419,15 +419,7 @@ customElements.define(
         // motion's shared gate answers reduced motion and initial presentation.
         if (previous && reason === "reveal") {
           const name = button.querySelector(":scope > .lf-tab-name");
-          const style = getComputedStyle(name);
-          this.#revealMotion = motion(
-            name,
-            [
-              { backgroundColor: "var(--hi-tint)" },
-              { backgroundColor: style.backgroundColor },
-            ],
-            650,
-          );
+          this.#revealMotion = backgroundFlash(name, 650);
         }
         if (switched) this.#open(active, from);
         else if (reason === "history") this.#land();

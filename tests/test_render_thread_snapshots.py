@@ -17,7 +17,7 @@ from leaf import event_log
 from leaf.served_state import context as served_context
 from leaf_dev import ROOT
 from leaf_dev.thread_journey import NEXT_WORDS, WORDS, delivery_journey
-from leaf_dev.thread_snapshots import CASES, COMPARED, SnapshotRun
+from leaf_dev.thread_snapshots import CASES, COMPARED, SnapshotRun, visible_capture
 from PIL import Image
 from pytest_image_snapshot import ImageMismatchError, ImageNotFoundError
 from render_harness import consume_browser_errors, leaf_page, open_page
@@ -130,6 +130,33 @@ def test_snapshot_comparison_saves_evidence_without_opening_a_viewer(
     image_snapshot(black, expected)
     with Image.open(expected) as saved:
         assert saved.getpixel((0, 0)) == (0, 0, 0)
+
+
+def test_response_pixels_exclude_chrome_but_keep_frame_and_shadow(
+    image_snapshot, pytestconfig, tmp_path, monkeypatch
+):
+    """Chrome outside the visible band cannot fail the response appearance oracle."""
+    clip = {"x": 10, "y": 10, "width": 100, "height": 100}
+    window = {"left": 10, "top": 26, "right": 110, "bottom": 110}
+    approved = Image.new("RGB", (100, 100), "white")
+    expected = tmp_path / "expected.png"
+    visible_capture(approved, clip, window).save(expected)
+    accepted = expected.read_bytes()
+    monkeypatch.setattr(pytestconfig.option, "image_snapshot_update", False)
+    current = approved.copy()
+    current.paste("black", (0, 0, 100, 16))
+    image_snapshot(visible_capture(current, clip, window), expected, threshold=0.01)
+    # The top frame edge, left shadow, interior words/focus, and bottom shadow
+    # all remain in the oracle, including its first and last visible pixels.
+    for box in ((16, 16, 30, 20), (0, 30, 4, 44), (30, 40, 44, 54), (16, 96, 30, 100)):
+        changed = current.copy()
+        changed.paste("black", box)
+        with pytest.raises(ImageMismatchError):
+            image_snapshot(
+                visible_capture(changed, clip, window), expected, threshold=0.01
+            )
+    assert expected.read_bytes() == accepted
+    assert approved.getpixel((0, 0)) == (255, 255, 255)
 
 
 # A colour scheme changes only pixels, so where no image is compared its cases would

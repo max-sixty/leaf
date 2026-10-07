@@ -3,7 +3,7 @@
 // (skills/leaf/assets/AGENTS.md). The browser fixture installs it on every page a test
 // opens (render_harness.watched), so every test checks it.
 //
-// A trusted `beforeinput` names an edit attempt; its actual input establishes held
+// A trusted native edit names an attempt; its actual input establishes held
 // words when the edit leaves text: a
 // textarea, an input that takes text, an editable element, or the host of a
 // `leaf-text`'s closed editor, whose `value` is the text. At every frame while any field
@@ -35,9 +35,9 @@
 // source survives a later native no-op, while a cancelled typing attempt revokes
 // its key credit. A different field, value or actual newer edit cannot borrow it;
 // words are judged only after native paint.
-// A trusted paste may edit a closed editor without native beforeinput. Its own host
-// input commits that edit only within the same paste callback; a cancelled or no-edit
-// paste never suspends observation, and its unused attempt ends with the dispatch.
+// A trusted native edit may enter a closed editor without DOM beforeinput.
+// Its host input commits that edit only within the same native callback; a cancelled
+// or no-edit attempt never suspends observation beyond its dispatch.
 // Native value controls link their editor through `input` and expose the committed
 // `value`; an enclosing temporary value editor also declares its editing state as
 // `open`. A trusted put-away gesture's exact close, retaining that value, ends that
@@ -118,67 +118,52 @@
   // the same turn, announcing it with an `input` of its own or not, are still the words
   // the user typed.
   const edited = new Map();
-  const pasting = new Map();
-  addEventListener(
-    "paste",
-    (event) => {
-      const field = event.composedPath()[0];
-      if (event.isTrusted && typed(field)) {
-        const input = (event) => {
-          // A host's canonical input need not compose through an enclosing widget.
-          if (!event.composed) readInput(event);
-        };
-        pasting.set(field, {
-          source: window.lfInputWork.current(),
-          words: text(field),
-          input,
-        });
-        field.addEventListener("input", input);
-      }
-    },
-    true,
-  );
-  addEventListener(
-    "beforeinput",
-    (event) => {
-      if (!event.isTrusted) return;
-      const field = event.composedPath()[0];
-      const editingKey = key?.event;
-      key = null;
-      if (!typed(field)) return;
-      edited.set(field, {
-        typedOrder: window.lfInputWork.current().order,
-        key: editingKey,
-        attempt: event,
-        words: "",
-        ready: false,
-      });
-      watching();
-    },
-    true,
-  );
-  const endPaste = (field) => {
-    field.removeEventListener("input", pasting.get(field).input);
-    pasting.delete(field);
+  const hostEdits = new Map();
+  window.lfInputWork.subscribeEdits((source) => {
+    const { event, node: field } = source;
+    if (!typed(field)) return;
+    if (event.type !== "beforeinput") {
+      const input = (event) => {
+        // A host's canonical input need not compose through an enclosing widget.
+        if (!event.composed) readInput(event);
+      };
+      hostEdits.set(field, { source, words: text(field), input });
+      field.addEventListener("input", input, true);
+      return;
+    }
+    const editingKey = key?.event;
+    key = null;
+    edited.set(field, {
+      typedOrder: source.order,
+      key: editingKey,
+      attempt: event,
+      words: "",
+      ready: false,
+    });
+    watching();
+  });
+  const endHostEdit = (field) => {
+    field.removeEventListener("input", hostEdits.get(field).input, true);
+    hostEdits.delete(field);
   };
   const readInput = (event) => {
     const edit = edited.get(event.composedPath()[0]);
     const field = event.composedPath()[0];
-    const paste = pasting.get(field);
+    const attempt = hostEdits.get(field);
     if (
       !edit &&
       field.localName === "leaf-text" &&
       drawn(field) &&
-      paste &&
-      window.lfInputWork.current()?.event === paste.source.event &&
-      text(field) !== paste.words
+      attempt &&
+      window.lfInputWork.current()?.event === attempt.source.event &&
+      text(field) !== attempt.words
     ) {
       edited.set(field, {
-        typedOrder: paste.source.order,
+        typedOrder: attempt.source.order,
         words: text(field),
         ready: true,
       });
-      endPaste(field);
+      endHostEdit(field);
     }
     // leaf-text's native input precedes its host value update; its own input
     // announces the updated host. Read that announcement before page handlers.
@@ -261,7 +246,7 @@
   };
   const look = (source, afterFrame = false) => {
     // Input-work orders identify new gestures, not callback execution time. Native
-    // beforeinput/input are stages of the key's default; a newer pointer or paste
+    // beforeinput/input are stages of the key's default; a newer pointer or command
     // gesture supersedes it, while an old sourced callback cannot end a newer key.
     if (
       key &&
@@ -272,7 +257,7 @@
       source.event.type !== "input"
     )
       key = null;
-    if (!source && afterFrame) for (const field of pasting.keys()) endPaste(field);
+    if (!source && afterFrame) for (const field of hostEdits.keys()) endHostEdit(field);
     for (const [
       field,
       { typedOrder, key: editingKey, attempt, words: heard, ready },
@@ -289,10 +274,10 @@
       else holding.delete(field);
     }
     for (const [field, held] of holding) {
-      // A paste transaction announces its new value from the host after writing it.
+      // A native editor edit announces its new value from the host after writing it.
       // The nested input listener checkpoints before that announcement is read.
-      const paste = pasting.get(field);
-      if (paste && paste.source.event === source?.event) continue;
+      const attempt = hostEdits.get(field);
+      if (attempt && attempt.source.event === source?.event) continue;
       const owners = [...valueOwners(field)];
       const editor = held.editor;
       const linked = editor && owners.includes(editor);

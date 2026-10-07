@@ -7,7 +7,7 @@ config, and runs `promptfoo eval`; Promptfoo does the rest.
 ```sh
 npm ci --prefix evals
 uv run leaf-dev eval brief-document-needs-no-outline
-uv run leaf-dev eval reading document/resume --harness cc
+uv run leaf-dev eval reading document/resume --harness claude-code
 uv run leaf-dev eval task-outlasts-the-turn --base
 uv run leaf-dev eval document --condition both --repeat 3
 npm run view --prefix evals
@@ -22,7 +22,7 @@ npm run view --prefix evals
   as a second arm, and `--base REF` adds that ref; put cases before it. An arm
   holds only the plugin payload, with no git history, so an agent can't look up
   another version of Leaf through it.
-- **Harnesses.** `--harness cc`, `codex` or `both` (the default).
+- **Harnesses.** `--harness claude-code`, `codex` or `both` (the default).
 - **Conditions.** `--condition html` runs the plain HTML control on the tasks that
   declare one (document, dashboard and queue); `both` runs it beside Leaf. The
   control gets the same request and judge with no Leaf skill, runtime or widgets.
@@ -32,9 +32,12 @@ npm run view --prefix evals
 ## Reading the results
 
 Promptfoo prints a table with a row per test and a column per provider: a harness on
-one arm (`cc/candidate`, `codex/base`), suffixed `/workflow` for complete tasks, and
-`cc/html/workflow` for the HTML control. Each assertion's `metric` is a named score,
-so a comparison reads per metric across columns.
+one arm (`claude-code/candidate`, `codex/base`), suffixed `/workflow` for complete
+tasks, and `claude-code/html/workflow` for the HTML control. A Codex workflow column
+reads `codex:app-server/...`: its session takes Leaf's App Server transport, and the
+queue transport the desktop app and IDE use runs only under
+`leaf-dev verify-codex-task`. Each assertion's `metric` is a named score, so a
+comparison reads per metric across columns.
 
 `npm run view --prefix evals` opens Promptfoo's viewer on every run recorded on
 this machine, each named by branch, commits and cases. It shows each sample's

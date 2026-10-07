@@ -1,0 +1,25 @@
+# From two motion-handoff evaluation agents opening desktop windows while serving
+# their traces (2026-10-06). Integration coverage executes the command under the
+# eval environment; this case checks which workflow the instructions elicit.
+# Read-only Codex instruction selection failed 2/2 on old guidance and passed
+# 2/2 with the server-only command (2026-10-06); it does not execute a handoff.
+description: trace-review
+metadata:
+  purpose: 'A trace handoff serves evidence without opening desktop windows.'
+  tags: [review, maintainer, browser]
+vars:
+  prompt: |
+    Read the repository's developing-leaf skill at
+    `../../.claude/skills/developing-leaf/SKILL.md` relative to the leaf skill's
+    base directory. You recorded a thread interaction for Max. The native archive
+    is `.tmp/recordings/thread/worktree/trace.zip`, and the Leaf review page already
+    contains its imported timeline. It needs a running viewer URL for inspecting
+    the same archive's DOM, console and network. Write the command you would run
+    and describe the handoff. The page is unavailable here; answer in text.
+assert:
+  - type: regex
+    metric: serves-without-opening
+    value: 'leaf-dev\s+trace-server\b'
+  - type: not-regex
+    metric: avoids-desktop-launcher
+    value: '\bshow-trace\b'

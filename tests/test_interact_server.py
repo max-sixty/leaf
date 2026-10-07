@@ -1503,15 +1503,6 @@ def test_server_round_trip(server, page_dir):
     drawn = event_model.read_events(page_dir)[-1]
     assert drawn["drawing"] == drawing
     assert "text" not in drawn
-    status, _ = fetch(
-        f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "comment", "revision": 2, "drawing": drawing}
-        ).encode(),
-    )
-    assert status == 200
-    page_drawing = event_model.read_events(page_dir)[-1]
-    assert "anchor" not in page_drawing and page_drawing["drawing"] == drawing
     transcript = CliRunner().invoke(
         cli_model.cli, ["page", "transcript", str(page_dir)]
     )
@@ -1656,10 +1647,12 @@ def test_server_round_trip(server, page_dir):
             "anchor": {"section": "feeder-board"},
             "drawing": {**drawing, "strokes": [[[float("nan"), 0.2], [0.5, 0.2]]]},
         },
+        # Every drawing stands on an element, whose box its offsets are measured in.
+        {"kind": "comment", "revision": 2, "drawing": drawing},
         # The box and the window are sizes, the words are bounded and the scheme is one
         # of two: all come off the rendered page, so their shape is all the door can
-        # hold them to. The window is always recorded, since the agent's picture of the
-        # drawing is laid out in it.
+        # hold them to. The box and the window are always recorded, since the agent
+        # reads the strokes against the one and its picture is laid out in the other.
         *(
             {
                 "kind": "comment",
@@ -1690,7 +1683,7 @@ def test_server_round_trip(server, page_dir):
                     key: value for key, value in drawing.items() if key != missing
                 },
             }
-            for missing in ("viewport", "scheme")
+            for missing in ("box", "viewport", "scheme")
         ),
         # Design is the field's only subject: the retired ownership alias and a browser
         # inventing a second subject are both refused at the door.

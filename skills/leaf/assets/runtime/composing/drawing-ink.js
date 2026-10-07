@@ -9,9 +9,9 @@
  * Fixed, CSS-anchored marks follow their source through scroll without extending the
  * document's overflow. Equal complete descriptions retain the actual SVG node.
  *
- * An anchored mark is drawn at its target's current size (`strokesIn`), so it stays on
- * its element in a narrower window. It scales with the element's box only, so text that
- * reflows moves under the mark and a circled word can leave its circle.
+ * A mark is drawn at its target's current size (`strokesIn`), so it stays on its element
+ * in a narrower window. It scales with the element's box only, so text that reflows
+ * moves under the mark and a circled word can leave its circle.
  */
 
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
@@ -86,15 +86,13 @@ export function createDrawingInk({ drawings }) {
   // still consume distinct prior nodes in order.
   function mark(drawing, target, className, id = "") {
     if (!validDrawing(drawing)) return null;
-    const box = target ? shownBox(target) : { left: -scrollX, top: -scrollY };
-    if (target && (!box?.width || !box?.height)) return null;
-    const strokes = strokesIn(drawing, target && box);
+    const box = shownBox(target);
+    if (!box?.width || !box?.height) return null;
+    const strokes = strokesIn(drawing, box);
     const frame = drawingFrame(strokes);
     const { width, height } = frame;
     if (!width || !height) return null;
-    const holder = target
-      ? anchorElement(target)
-      : (document.querySelector("main") ?? document.body);
+    const holder = anchorElement(target);
     const at = holder.getBoundingClientRect();
     const anchor = anchorName(holder);
     const left = atLayoutPrecision(box.left + frame.x - at.left);
@@ -147,7 +145,7 @@ export function createDrawingInk({ drawings }) {
       const painted = mark(drawing, target, className, id);
       if (painted) {
         marks.push(painted);
-        if (target) nextObserved.add(target);
+        nextObserved.add(target);
       }
     }
 

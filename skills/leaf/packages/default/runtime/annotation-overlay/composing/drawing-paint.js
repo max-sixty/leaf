@@ -10,8 +10,8 @@ export function postedDrawings(threads, anchors) {
   const drawings = [];
   for (const thread of threads) {
     if (thread.resolved || !thread.root.drawing) continue;
-    const place = thread.root.anchor ? anchors.placedAt(thread.id) : null;
-    if (thread.root.anchor && (!place || place.status === "outdated")) continue;
+    const place = anchors.placedAt(thread.id);
+    if (!place || place.status === "outdated") continue;
     drawings.push({
       drawing: thread.root.drawing,
       target: targetElement(place) ?? targetPlace(place),

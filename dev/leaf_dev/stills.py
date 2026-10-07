@@ -313,14 +313,8 @@ def code_copy_by_keyboard(page: Page) -> None:
 
 def diff_path_by_keyboard(page: Page) -> None:
     """A folded diff file's row under the keyboard, saying the whole path its row cuts
-    short at the folders."""
-    heads = page.locator("#pr-exact-patch .lf-diff-head")
-    cut = heads.evaluate_all(
-        "heads => heads.findIndex((head) => {"
-        " const dir = head.querySelector('.lf-diff-dir');"
-        " return dir && dir.scrollWidth > dir.clientWidth; })"
-    )
-    head = heads.nth(cut)
+    short."""
+    head = page.locator("#pr-exact-patch .lf-diff-head[data-path-cut]").first
     head.scroll_into_view_if_needed()
     page.keyboard.press("Shift")
     head.focus()

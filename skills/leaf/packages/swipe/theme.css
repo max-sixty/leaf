@@ -214,10 +214,7 @@
   user-select: none;
 }
 
-.lf-swipe-exit {
-  z-index: 100;
-  pointer-events: none;
-}
+.lf-swipe-exit { z-index: 100; }
 
 .lf-swipe-controls {
   display: grid;

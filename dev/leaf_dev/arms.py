@@ -38,7 +38,7 @@ from typing import Self
 
 import click
 from leaf.codex import APP_SERVER_ENV
-from leaf.harness import IDENTITY_VARIABLES
+from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 
 from leaf_dev import ROOT
 from leaf_dev.page_fixtures import prepare_page, read_fixture
@@ -52,21 +52,26 @@ PAYLOAD = (
     ".agents/plugins",
     ".claude-plugin",
     ".codex-plugin",
+    "LICENSE",
     "bin",
     "hooks",
     "skills",
     "package.json",
+    "leaf-distribution.json",
     "pyproject.toml",
     "uv.lock",
     "dev/pyproject.toml",
     "worker/pyproject.toml",
 )
 
+# The harnesses an arm's child runs, named as the shipped harness names itself.
+HARNESSES = (ClaudeCodeHarness.name, CodexHarness.name)
+
 # The models evals run, pinned so runs on different days compare: each harness's
 # agents, the judge behind `llm-rubric` assertions, and the screenshot judge.
 MODELS = {
-    "cc": "claude-opus-5-5",
-    "codex": "gpt-6.1-sol",
+    ClaudeCodeHarness.name: "claude-opus-5-5",
+    CodexHarness.name: "gpt-6.1-sol",
     "judge": "claude-sonnet-5-5",
     "screenshots": "gpt-6.1-sol",
 }
@@ -296,6 +301,42 @@ def pi_home(path: Path) -> Path:
     return path
 
 
+def claude_home(path: Path) -> Path:
+    """Make `path` a home (`HOME`) holding the host's Claude Code login, so a Claude
+    Code child run under it reads none of the host's settings, plugins, hooks,
+    instructions or sessions. A macOS login is in the keychain, which the home
+    links to; elsewhere it is a copy of the host's credentials."""
+    # The home may hold a copy of the user's login, so no one else may enter it.
+    path.mkdir(mode=0o700, exist_ok=True)
+    path.chmod(0o700)
+    keychains = Path.home() / "Library/Keychains"
+    if keychains.is_dir() and not (path / "Library/Keychains").is_symlink():
+        (path / "Library").mkdir(parents=True, exist_ok=True)
+        (path / "Library/Keychains").symlink_to(keychains)
+    credentials = (
+        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude"))
+        / ".credentials.json"
+    )
+    if credentials.is_file():
+        (path / ".claude").mkdir(parents=True, exist_ok=True)
+        shutil.copy(credentials, path / ".claude/.credentials.json")
+    return path
+
+
+def claude_environment(home: Path, **extra: str) -> dict[str, str]:
+    """The environment of a Claude Code child under `home` (`claude_home`): its
+    config is the home's, never one `CLAUDE_CONFIG_DIR` names, and it shares the
+    host's uv cache and keeps no memory."""
+    env = environment(
+        HOME=str(home),
+        UV_CACHE_DIR=os.environ.get("UV_CACHE_DIR", str(Path.home() / ".cache/uv")),
+        CLAUDE_CODE_DISABLE_AUTO_MEMORY="1",
+        **extra,
+    )
+    env.pop("CLAUDE_CONFIG_DIR", None)
+    return env
+
+
 def scratch() -> Path:
     """A fresh directory for a child's cwd, outside any repository."""
     return Path(tempfile.mkdtemp(prefix="leaf-eval-"))
@@ -309,34 +350,14 @@ def claude_child(
     `args` follow `-p`, so a prompt goes first. `dirs` are what the child may read
     beyond `cwd`, and `env` adds to `environment()`. Output is verbose stream-json."""
     (cwd / "tmp").mkdir(exist_ok=True)
-    # The home may hold a copy of the user's login, so no one else may enter it.
-    home = cwd.with_name(f"{cwd.name}-home")
-    home.mkdir(mode=0o700, exist_ok=True)
-    home.chmod(0o700)
-    keychains = Path.home() / "Library/Keychains"
-    if keychains.is_dir() and not (home / "Library/Keychains").is_symlink():
-        (home / "Library").mkdir(parents=True, exist_ok=True)
-        (home / "Library/Keychains").symlink_to(keychains)
-    credentials = (
-        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude"))
-        / ".credentials.json"
-    )
-    if credentials.is_file():
-        (home / ".claude").mkdir(parents=True, exist_ok=True)
-        shutil.copy(credentials, home / ".claude/.credentials.json")
+    home = claude_home(cwd.with_name(f"{cwd.name}-home"))
     command = [
-        "claude", "-p", *args, "--model", MODELS["cc"], "--strict-mcp-config",
-        "--permission-mode", "bypassPermissions", "--output-format", "stream-json",
+        "claude", "-p", *args, "--model", MODELS[ClaudeCodeHarness.name],
+        "--strict-mcp-config", "--permission-mode", "bypassPermissions",
+        "--output-format", "stream-json",
         "--verbose", *(arg for d in dirs for arg in ("--add-dir", str(d))),
     ]  # fmt: skip
-    child_env = environment(
-        HOME=str(home),
-        UV_CACHE_DIR=os.environ.get("UV_CACHE_DIR", str(Path.home() / ".cache/uv")),
-        CLAUDE_CODE_DISABLE_AUTO_MEMORY="1",
-        TMPDIR=str(cwd / "tmp"),
-        **(env or {}),
-    )
-    child_env.pop("CLAUDE_CONFIG_DIR", None)
+    child_env = claude_environment(home, TMPDIR=str(cwd / "tmp"), **(env or {}))
     return {"args": command, "cwd": cwd, "env": child_env}
 
 
@@ -350,7 +371,7 @@ def run_agent(
     err: Path,
     dirs: Iterable[Path] = (),
     env: dict | None = None,
-    harness: str = "cc",
+    harness: str = ClaudeCodeHarness.name,
 ) -> list[dict]:
     """Run an isolated harness turn, optionally resuming its preceding session.
 
@@ -359,7 +380,7 @@ def run_agent(
     have the same TURN_LIMIT; a timeout retains their partial native evidence and
     marks `out.with_suffix(".timed-out")` without fabricating completion.
     """
-    if harness == "codex":
+    if harness == CodexHarness.name:
         with (
             LiveChild(
                 cwd,
@@ -379,7 +400,7 @@ def run_agent(
                 if record.get("type") == "result":
                     break
         return read_trace(out)
-    if harness != "cc":
+    if harness != ClaudeCodeHarness.name:
         raise ValueError(f"unknown eval harness: {harness}")
     with out.open("w") as stdout, err.open("w") as stderr:
         try:
@@ -404,16 +425,16 @@ class LiveChild:
 
     `claude -p` terminates its background shells, such as a `leaf wait`, once stdin
     closes, so stdin stays open until the caller calls `close`. A session still
-    running `limit` seconds after it started is killed and `timed_out` touched."""
+    running `limit` seconds after it started is killed and `timed_out` touched.
 
-    def __new__(cls, *args, harness="cc", **kwargs):
-        if harness == "codex":
-            from leaf_dev.eval_codex import CodexChild
+    `transport` is how Leaf reaches the session where the harness has more than one
+    way; Claude Code has one."""
 
-            return CodexChild(*args, **kwargs)
-        if harness != "cc":
-            raise ValueError(f"unknown eval harness: {harness}")
-        return super().__new__(cls)
+    transport: str | None = None
+
+    def __new__(cls, *args, harness=ClaudeCodeHarness.name, **kwargs):
+        child = child_class(harness)
+        return super().__new__(cls) if child is cls else child(*args, **kwargs)
 
     def __init__(
         self,
@@ -425,7 +446,7 @@ class LiveChild:
         timed_out: Path,
         dirs: Iterable[Path] = (),
         env: dict | None = None,
-        harness: str = "cc",
+        harness: str = ClaudeCodeHarness.name,
     ) -> None:
         self.prompt, self.stderr, self.timed_out = prompt, stderr, timed_out
         self.popen = claude_child(
@@ -473,6 +494,17 @@ class LiveChild:
         if self.proc.poll() is None:
             self.proc.kill()
             self.proc.wait()
+
+
+def child_class(harness: str) -> type:
+    """The live session class that runs `harness`, and so the transport it takes."""
+    if harness == CodexHarness.name:
+        from leaf_dev.eval_codex import CodexChild
+
+        return CodexChild
+    if harness != ClaudeCodeHarness.name:
+        raise ValueError(f"unknown eval harness: {harness}")
+    return LiveChild
 
 
 def now() -> str:
@@ -625,18 +657,23 @@ def token_counts(trace: list[dict]) -> dict[str, int | None]:
 
 
 def accepted_starts(trace: list[dict], item: str) -> dict[str, int]:
-    """Bash call ids whose successful `leaf task start` result takes ITEM in hand.
+    """Bash call ids whose successful result takes ITEM in hand: a `leaf task start`,
+    or a `leaf thread reply --ephemeral` on a move owed, which writes the same start.
 
     A start prints the record it appended as one JSON line. Compound Bash output may
     contain other lines; only a `start` record naming ITEM counts, never an attempted
-    command. Values are the result's trace index.
+    command, and only from a command that writes one, so a read of the log printing
+    an old start does not. Values are the result's trace index.
     """
     calls = {
         block["id"]
         for block in blocks(trace)
         if block.get("type") == "tool_use"
         and block["name"] == "Bash"
-        and re.search(r"\btask\s+start\b", block["input"].get("command", ""))
+        and re.search(
+            r"\btask\s+start\b|\bthread\s+reply\b(?:[^\n]|\\\n)*--ephemeral\b",
+            block["input"].get("command", ""),
+        )
     }
     accepted = {}
     for index, record in enumerate(trace):

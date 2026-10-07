@@ -55,6 +55,30 @@ state rather than the ordinary gesture. The trial showed that exploration could
 produce repairs, but overlapping agents repeated evidence and left attribution
 and cost unclear. It did not establish a routine operating model.
 
+## Misses at handover
+
+The October 2026 message-rewrite feature is a known historical miss for the
+calibration pilot. At unpushed commit `4ba3fb014` (local branch `edit-message`), in
+the Threads panel at 1400×900, ↑ from a thread's empty reply box grows the user's
+message from 53px to 108px and pushes the reply box down 55px, and Escape then
+lands on the thread's title rather than the reply box. The user found both within
+twenty seconds of first use. The session's tests, before/after stills, shift watch
+and ten review rounds had not. The tests asserted saved text and logged events,
+the stills covered no state the feature opens, the shift watch credits motion a
+gesture causes to that gesture, and every reviewer read the diff. The session's own
+screenshot of the open editor showed the taller message, but was looked at alone
+rather than beside the thread it replaced. A three-agent survey afterwards listed
+41 problems. A later reviewer given only the feature's description and the task,
+told to use it from the reply box with ordinary input and note what moves and
+where focus lands, found both defects in one pass.
+
+This machine's session logs hold 22 other handovers of a changed browser UI in the
+twelve days before. In 4, the user reported an obvious defect on first use. In
+three of those the session had driven the feature, but by a route other than the
+user's: a locator click instead of the key that opens the box, keys instead of
+clicks on the presets, or Chrome alone. The fourth outlined a change in an image
+pair where the pixels differed by at most 9 levels.
+
 ## Continuity and cost
 
 Use Tend's existing summary as the next run's receipt: mission, page and conditions,

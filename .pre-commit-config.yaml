@@ -77,8 +77,11 @@ repos:
       - id: typos
   # actionlint's schema rejects `concurrency.queue`, which tend's generated
   # workflows set; `.github/actionlint.yaml` ignores that one key for those files.
+  # Pin upstream's native parallel-step support until it is released. This also
+  # checks wait targets rather than ignoring the new syntax:
+  # https://github.com/rhysd/actionlint/pull/695
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.12
+    rev: bf6b9188a5fd7b4e7b7d244a865a60165bdc6783
     hooks:
       - id: actionlint
   # actionlint already shellchecks the `run:` blocks in the workflows above. This

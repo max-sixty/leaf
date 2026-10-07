@@ -453,7 +453,7 @@ def test_a_widget_task_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
 
 
 def test_a_start_reopens_a_page_its_agent_closed(page_dir):
-    """`idle` says the agent is done with the page, and every carrier stands down for
+    """`idle` says the agent is done with the page, and every watcher stands down for
     it; taking work in hand there reopens the page rather than working under Closed."""
     publish(page_dir)
     written(leaf("status", page_dir, "idle"))

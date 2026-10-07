@@ -1,0 +1,44 @@
+# Added with `--lf-top-start`. A box a package makes scroll restarts `--lf-top` at 0,
+# and a sticky header stops below its scroller's top padding, so in a padded scroller
+# the rows scroll past visibly in the band above the stuck header. The scroller states
+# its own start at minus that padding, as a workspace pane's body does. Three Claude
+# Code trials told the wordings apart: base 0/3 (its module-authoring.md names no
+# start), candidate 3/3, every candidate stating `--lf-top-start`.
+description: package-scroller-headers-stand-on-its-edge
+metadata:
+  purpose: A padded package scroller states --lf-top-start so its sticky headers stand on its top edge.
+  tags:
+  - packages
+  - styles
+vars:
+  prompt: |
+    I'm writing a Leaf package widget, lf-incidents, that lists a service's
+    incidents grouped by week. Its shadow tree holds one list box capped at 24rem
+    tall that scrolls on its own, with 12px of padding on every side so the rows
+    don't touch its border. Each week's heading row should stay in view at the top
+    of the list while the user scrolls through that week's incidents, with no rows
+    showing above it.
+
+    Read the references you need and show the widget's shadow.css for the list
+    box, the week groups and their heading rows. Return CSS in your reply.
+assert:
+- type: javascript
+  metric: reads-module-authoring
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/module-authoring\.md
+- type: llm-rubric
+  metric: headers-stand-on-the-edge
+  value: |
+    Pass only if the list box keeps its 12px top padding and sets `--lf-top-start`
+    to minus that padding (for example `calc(-1 * 12px)` or `-12px`) with
+    `--lf-top` read from it, so the heading rows stick flush with its top edge.
+    Fail if the list box drops its top padding, sets `--lf-top` to a negative value
+    without `--lf-top-start` (the runtime's restart replaces it with
+    `--lf-top-start`), or leaves the headings sticking 12px below its top edge.
+- type: llm-rubric
+  metric: headings-stick-at-the-slot
+  value: |
+    Pass only if the heading rows are `position: sticky` with `top` read from
+    `var(--lf-top)`, and the list box restarts `--lf-top` for what it holds. Fail if
+    a heading sticks at a fixed offset with no `--lf-top`.

@@ -8,3 +8,6 @@ node_modules/
 docs/example-*.jpg
 .claude/settings.local.json
 evals/results/
+# Claude Code writes this beside the types it lays in .claude-plugin/types/ when it
+# loads hooks/claude-code.ts from a checkout.
+/tsconfig.json

@@ -1,8 +1,10 @@
-"""Leaf's side of one Codex task, shared by every carrier that holds one open.
+"""Leaf's side of one Codex task, shared by every App Server client that holds
+one open.
 
-A carrier is whatever keeps a Codex task reachable on Leaf's behalf: the detached
-process in `codex_adapter.py`, which observes a task it does not own, and the
-website's embedded harness in `leaf_website` (`worker/`), which owns the tasks it starts.
+An App Server client is whatever connects to a Codex task's App Server on Leaf's
+behalf: the detached process in `codex_adapter.py`, which observes a task it does
+not own, and the website's host in `leaf_website` (`worker/`), which owns the tasks
+it starts.
 What both need is here — the App Server connection and the request shapes one Leaf
 turn is opened with, the per-turn fold from a turn's notifications into its
 activity, its reply and its ending (`TurnFold`), the loop that reads a started
@@ -10,16 +12,16 @@ turn's own connection to its end (`CarriedTurn`), the writers that put those
 readings on a claimed page, and the durable records a delivery passes through.
 
 A delivery record under the state home is the handoff between Leaf capturing a
-user's moves and a carrier taking them. One record is offered once, accepted once,
+user's moves and a transport taking them. One record is offered once, accepted once,
 and receipted per page batch, whichever transport carried it — an App Server turn or
 the `codex queue` command, or the tool hook — so preparing, accepting, opening
-and abandoning one live here rather than beside either carrier. The immutable
+and abandoning one live here rather than beside either client. The immutable
 payload itself belongs to `delivery`; what this module keeps is which task holds it and how far it has got.
 
 Starting a delivery's App Server turn is shared as well: `start_app_server_delivery`
 reserves the reply seat, sends `turn/start`, and says whether a failed start may have
 left a turn running. Which delivery is offered, when, and what an uncertain start
-means for the turn it may have made are each carrier's own policy: the adapter's offer
+means for the turn it may have made are each client's own policy: the adapter's offer
 loop and the website's turn follower each keep theirs.
 
 Codex's tool hook imports this module after every tool call of a task holding a page
@@ -271,7 +273,7 @@ def _stop_private_app_servers() -> None:
 def retry_delay(failures: int) -> int:
     """Seconds to hold off after this many consecutive failures, the first being 1.
 
-    Every carrier retries the same kinds of failure — a connection that dropped, a
+    Every client retries the same kinds of failure — a connection that dropped, a
     turn the provider refused, a delivery that could not be offered — so they hold
     off on one ladder: a second after the first, doubling to a half-minute ceiling.
     The first retry is prompt because the common failure is a provider restart that
@@ -348,7 +350,7 @@ def app_server_turn_start_params(thread_id: str, payload: dict) -> dict:
 def start_app_server_delivery(send, thread_id: str, payload: dict) -> dict:
     """Start one delivery's turn on an idle thread with its reply seat reserved.
 
-    `send(method, params)` is the carrier's request on its own connection, under
+    `send(method, params)` is the client's request on its own connection, under
     its own request ids. The task thread id is the Leaf session id. Immediately
     before the request, this boundary captures its epoch; the returned identity
     is adopted only against that epoch or its own synchronous provider prompt.
@@ -364,7 +366,7 @@ def start_app_server_delivery(send, thread_id: str, payload: dict) -> dict:
     A request that went out with no answer
     raises `AppServerDeliveryUncertain` with the seat still reserved: a turn carrying
     this delivery may be running, and until something sees it, no other writer may
-    answer for the delivery. Each carrier decides what an uncertain start means for
+    answer for the delivery. Each client decides what an uncertain start means for
     the turn it may have made.
     """
     from .thread import release_delivery_reply, reserve_delivery_reply
@@ -479,9 +481,9 @@ def recv_notification(
 
     `socket.recv` raises `TimeoutError` every second a subscription has nothing to
     say, and a turn that is thinking or running a command says nothing for a while.
-    A carrier that gives a silence bound lets that timeout through once the quiet
+    A client that gives a silence bound lets that timeout through once the quiet
     outlasts it, which ends the turn on the same path a dropped socket takes rather
-    than waiting on it for the carrier's life. A carrier whose task can sit waiting
+    than waiting on it for the client's life. A client whose task can sit waiting
     on a person gives none: a terminal approval is silent for as long as nobody
     answers it, and the turn is still running.
     """
@@ -535,7 +537,7 @@ class AppServerEvents:
     """Fold one turn's notifications into activity and terminal readings.
 
     The turn is fixed when the fold is made, and a notification naming any other
-    turn reads as nothing: which turn a notification belongs to is the carrier's
+    turn reads as nothing: which turn a notification belongs to is the client's
     routing, not something this fold follows.
 
     A turn's reply is its opening and its final answer. The opening is a `commentary`
@@ -948,7 +950,7 @@ class AppServerReplyStream:
 def _locked_task_pages(session_id: str, *, expected: dict | None):
     """Lock this task's current page set in its stable path order.
 
-    Ownership is the whole test. Both carriers that reach here — the detached
+    Ownership is the whole test. Both clients that reach here — the detached
     adapter and an embedded harness — write App Server readings onto the pages
     their own session holds, and the claim's session id says which those are.
     Discovery is only a candidate read, so each claim is checked again under
@@ -1006,7 +1008,7 @@ class TurnFold:
     """One Codex turn, folded onto the pages its task claims from its first
     notification to its ending.
 
-    Every carrier that watches a turn does this same work with what the turn says.
+    Every client that watches a turn does this same work with what the turn says.
     Each notification folds into the turn's activity and final-answer readings,
     and the activity reaches every page the task claims. The reply streams into
     the seat of the delivery the turn carries, when that delivery owes a `turn`
@@ -1019,20 +1021,20 @@ class TurnFold:
     session generation; an old fold cannot clear or close a newer lifetime that
     reuses the provider ID. Historical answer settlement borrows no live authority.
     `close` closes only that generation and id; delivery acceptance only records which turn
-    took the moves. A carrier opens a fold's turn only while it runs, so a turn
+    took the moves. A client opens a fold's turn only while it runs, so a turn
     read back from a snapshot after it ended is committed without reopening it.
 
-    What differs between carriers is only how notifications reach the fold.
+    What differs between clients is only how notifications reach the fold.
     `CarriedTurn` reads a connection the turn owns, from the start that made the
     turn to its end. The adapter's `TaskConnection` reads one subscription the whole
     task shares and routes each notification to the fold of the turn it names.
     That is also why the ways a read can stop other than a completion — a lost
-    connection, a silence, an adapter going — belong to each carrier rather than
+    connection, a silence, an adapter going — belong to each client rather than
     to the fold.
 
     `close` runs whatever the answer did. Committing the answer re-reads a page
     the turn's own work may have left unopenable, and the turn has ended either
-    way: until the carrier's account of it is written, the page goes on telling
+    way: until the client's account of it is written, the page goes on telling
     its user the agent is working, with nothing but the claim's fifteen-minute
     grace to correct it.
     """
@@ -1194,7 +1196,7 @@ class TurnFold:
 class CarriedTurn(TurnFold):
     """One delivery's Codex turn, read on the connection that started it.
 
-    The turn exists because `turn/start` answered with it, so a carrier knows
+    The turn exists because `turn/start` answered with it, so a client knows
     which turn is its own before reading a notification and nothing recovers the
     binding off the stream. The connection belongs to the turn for the turn's
     whole life: `thread/start` and `thread/resume` subscribe it, `turn/start`
@@ -1202,7 +1204,7 @@ class CarriedTurn(TurnFold):
 
     Every way the read can stop other than the completion composes a terminal of
     its own in `ended`, so a turn ends exactly once however it ended. What each
-    carrier adds is what Leaf calls the turn — the page turn it opens and the seat
+    client adds is what Leaf calls the turn — the page turn it opens and the seat
     its answer commits into — which it opens in `begin`, and any account beyond
     the fold's that it owes in `close`.
     """
@@ -1249,9 +1251,9 @@ class CarriedTurn(TurnFold):
     def ended(self, error: BaseException) -> dict | None:
         """Compose the terminal of a turn whose stream ended it.
 
-        A carrier returns None instead to leave the provider turn running and
+        A client returns None instead to leave the provider turn running and
         account for nothing, which is only honest where somebody else is watching
-        it. Where nobody is, the carrier ends the turn before it composes this:
+        it. Where nobody is, the client ends the turn before it composes this:
         closing a connection ends no turn, and App Server runs it either way.
         """
         fault = type(error).__name__
@@ -1263,7 +1265,7 @@ class CarriedTurn(TurnFold):
         }
 
     def begin(self) -> None:
-        """Open Leaf's names for this turn, in whatever a carrier writes them."""
+        """Open Leaf's names for this turn, in whatever a client writes them."""
         raise NotImplementedError
 
 
@@ -1891,11 +1893,12 @@ def accept_codex_delivery(
 
     A turn id proves entry into that provider turn; None proves durable queue
     acceptance. A hook pointer's read also supplies the observation that must
-    still stand under the route lock. All transports commit accepted state first,
+    still stand under the delivery lock. All transports commit accepted state first,
     then receipt each batch through finish_codex_batch, which recovery also uses.
 
     A retry finishes only outstanding receipts, preserving its original acceptance
-    evidence. Acceptance opens no turn: its carrier observes that separately.
+    evidence. Acceptance opens no turn: an App Server client observes that
+    separately.
     Return successfully completed page/event addresses for binding verification.
     """
     path = record_path(session_id, delivery_id)

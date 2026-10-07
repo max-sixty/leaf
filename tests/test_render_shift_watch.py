@@ -44,6 +44,22 @@ def paint(page):
     page.screenshot()
 
 
+def held_stretch(page):
+    """Idle frames the sensor keeps unchanged readings for, on a CPU as slow as a CI
+    runner's, so a credited move that follows is compared from a held frame
+    (`shift_watch.js`, "Unchanged frames") with the frame timing CI has."""
+    page.context.new_cdp_session(page).send(
+        "Emulation.setCPUThrottlingRate", {"rate": 6}
+    )
+    page.evaluate(
+        """count => new Promise((done) => {
+          const next = () => (--count ? requestAnimationFrame(next) : done());
+          requestAnimationFrame(next);
+        })""",
+        60,
+    )
+
+
 def field_page(browser, key=""):
     page = browser.new_page()
     page.goto("data:text/html," + quote(FIELD))
@@ -63,6 +79,62 @@ def test_typing_may_grow_its_field(browser):
     page = field_page(browser, "grow")
     page.locator("#field").fill("a")
     judge_watches()
+
+
+@pytest.mark.parametrize("cause", ["typing", "passive"])
+def test_editcontext_growth_keeps_input_credit_with_its_actual_field(
+    browser, serve, cause
+):
+    """Native EditContext growth is typing; carrying its field still violates stability."""
+    context = browser.new_context(
+        user_agent="Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Native typing geometry", '<h1>Edit a reply</h1><div id="above"></div>'
+            )
+        ),
+        context=context,
+    )
+    page.evaluate(
+        """cause => {
+      const field = document.createElement('leaf-text'); field.id = 'field';
+      field.style.cssText = 'display:block;width:300px';
+      document.querySelector('main').append(field);
+      field.addEventListener('input', () => {
+        const source = lfInputWork.current();
+        window.nativeGeometryInput = {type:source.event.type,
+          trusted:source.event.isTrusted,field:source.node === field};
+        if(cause === 'typing') document.getElementById('above').style.height = '40px';
+      });
+    }""",
+        cause,
+    )
+    field = page.locator("#field")
+    field.focus()
+    paint(page)
+    before = field.bounding_box()
+    page.keyboard.insert_text("First line\nSecond line\nThird line")
+    expect(field).to_have_js_property("value", "First line\nSecond line\nThird line")
+    assert page.evaluate("window.nativeGeometryInput") == {
+        "type": "textupdate",
+        "trusted": True,
+        "field": True,
+    }
+    paint(page)
+    assert field.bounding_box()["height"] > before["height"]
+    judge_watches()
+    if cause == "typing":
+        assert field.bounding_box()["y"] == pytest.approx(before["y"] + 40)
+        consume_browser_errors(page, "typing in leaf-text#field moved leaf-text#field")
+    else:
+        assert field.bounding_box()["y"] == pytest.approx(before["y"])
+        page.evaluate("document.getElementById('above').style.height = '40px'")
+        judge_watches()
+        consume_browser_errors(page, "leaf-text#field moved without input")
 
 
 @pytest.mark.parametrize(
@@ -1390,12 +1462,15 @@ def test_typing_keeps_its_field_when_chrome_reports_only_larger_sources(browser)
     consume_browser_errors(page, "typing in textarea#field moved textarea#field")
 
 
-def test_a_retained_control_keeps_its_pose_when_a_new_sticky_owner_adopts_it(browser):
+@pytest.mark.parametrize("subject", ["button", "span"])
+def test_a_retained_landmark_keeps_its_pose_when_a_new_sticky_owner_adopts_it(
+    browser, subject
+):
     page = browser.new_page()
     page.goto(
         "data:text/html,"
-        + quote("""<!doctype html><body style="margin:0">
-<button id="action" style="position:absolute;left:10px;top:10px">Act</button>
+        + quote(f"""<!doctype html><body style="margin:0">
+<{subject} id="action" style="position:absolute;left:10px;top:10px">Act</{subject}>
 <p id="other" style="position:absolute;left:10px;top:150px">Following reading</p></body>""")
     )
     page.evaluate(PAINTED)
@@ -1411,7 +1486,7 @@ def test_a_retained_control_keeps_its_pose_when_a_new_sticky_owner_adopts_it(bro
     page.evaluate(PAINTED)
     judge_watches()
     errors = take_browser_errors(page)
-    assert any("button#action moved without input" in error for error in errors), errors
+    assert any(f"{subject}#action" in error for error in errors), errors
     assert all("moved without input" in error for error in errors), errors
 
 
@@ -1875,6 +1950,7 @@ def test_real_floating_plane_retains_local_motion(
     if guard_mode == "passive":
         page.keyboard.press("Shift")
         paint(page)
+    held_stretch(page)
     before, holder_before = field.bounding_box(), holder.bounding_box()
     page.evaluate("window.beforeField=document.querySelector('#field')")
     page.evaluate("""()=>{
@@ -2594,6 +2670,7 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
     expect(page.locator("#holder")).to_have_attribute("data-lf-plane", "window")
     paint(page)
     judge_watches()
+    held_stretch(page)
     before = page.locator("#field").bounding_box()
     holder_before = page.locator("#holder").bounding_box()
     if case.startswith("clamp"):
@@ -2624,3 +2701,145 @@ def test_observed_attachment_credits_only_the_measured_scroll_placement(
     )
     if case.endswith("fault"):
         consume_browser_errors(page, "textarea#field moved without input")
+
+
+FRAMES = """count => new Promise((done) => {
+  const next = () => (--count ? requestAnimationFrame(next) : done());
+  requestAnimationFrame(next);
+})"""
+
+
+# Each case restyles its own words, without moving them, through a change no DOM
+# write announces, and names the words and the style it settles on, if it settles.
+RESTYLES = {
+    "popover": ("tip.showPopover()", "#tip", ("display", "block")),
+    "custom state": ("custom.internals.states.add('on')", "#custom", None),
+    "sheet text": ("sheet.replaceSync('#replaced{opacity:.5}')", "#replaced", None),
+    "adopted sheet": ("document.adoptedStyleSheets = [sheet, other]", "#adopted", None),
+    "checked": ("box.checked = true", "#checked", None),
+    "paused animation": ("fade.currentTime = 500", "#faded", None),
+    "form reset": ("form.reset()", "#named", None),
+    "range text": ("ranged.setRangeText('', 0, 1)", "#ranged", None),
+    # Still running when the sensor checks: shadow trees hold their own animations.
+    "shadow transition": ("inner.style.opacity = '.2'", "#host", ("opacity", "1")),
+    # A rule's own declaration, which the sensor does not hear: only its check can
+    # find the change.
+    "unannounced": ("rules.cssRules[0].style.opacity = '.5'", "#unheard", None),
+}
+
+
+def restyle_page(browser):
+    """The words RESTYLES changes, once the frames that load announced are read."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><style>
+#box:checked ~ #checked, custom-words:state(on), :placeholder-shown { opacity: .5 }
+</style><input type="checkbox" id="box"><p id="checked">Checked</p>
+<p id="replaced">Replaced</p><p id="adopted">Adopted</p><p id="faded">Faded</p>
+<p id="unheard">Unheard</p><custom-words id="custom">Custom</custom-words>
+<div id="tip" popover>Tip</div><div id="host"></div>
+<form id="form"><input id="named" placeholder="Name"></form>
+<textarea id="ranged" placeholder="Text">x</textarea>
+<script>
+customElements.define("custom-words", class extends HTMLElement {
+  constructor() { super(); this.internals = this.attachInternals(); }
+});
+window.sheet = new CSSStyleSheet();
+window.other = new CSSStyleSheet();
+window.rules = new CSSStyleSheet();
+other.replaceSync("#adopted { opacity: .5 }");
+rules.replaceSync("#unheard { opacity: 1 }");
+document.adoptedStyleSheets = [sheet, rules];
+window.fade = faded.animate([{opacity: 1}, {opacity: 0}], {duration: 1000, fill: "both"});
+fade.pause();
+named.value = "Ada";
+host.attachShadow({ mode: "open" }).innerHTML =
+  '<p id="inner" style="transition: opacity 3s linear">Inner</p>';
+window.inner = host.shadowRoot.getElementById("inner");
+</script>""")
+    )
+    paint(page)
+    page.evaluate(FRAMES, 10)
+    return page
+
+
+@pytest.mark.parametrize("call", RESTYLES)
+def test_an_unchanged_frame_misses_no_restyle(browser, call):
+    """An idle frame keeps its last reading (`shift_watch.js`, "Unchanged frames").
+
+    Each change that restyles without a DOM write is announced, so the periodic
+    full reading finds nothing; a change no source announces fails the test, naming
+    the innermost node that changed.
+    """
+    page = restyle_page(browser)
+    script, words, settled = RESTYLES[call]
+    page.evaluate(script)
+    expect(page.locator(words)).to_have_css(*(settled or ("opacity", "0.5")))
+    # More frames than the sensor's check interval.
+    page.evaluate(FRAMES, 90)
+    judge_watches()
+    if call == "unannounced":
+        consume_browser_errors(
+            page,
+            "missed a change to #text in p#unheard (opacity) and to 1 other node:",
+        )
+
+
+def test_the_verdict_checks_a_change_the_test_ends_on(browser):
+    """A test that ends before the periodic check still has its last unannounced
+    change found (`shift_watch.js`, "Unchanged frames")."""
+    page = restyle_page(browser)
+    page.evaluate(RESTYLES["unannounced"][0])
+    judge_watches()
+    consume_browser_errors(page, "missed a change to #text in p#unheard (opacity)")
+
+
+# Each case moves the words below #field's holder with a change the sensor may not
+# announce; the shift Chrome paints still has its verdict.
+UNHEARD_SHIFTS = {
+    "shadow transition": "grow.style.height = '200px'",
+    "form reset": "form.reset()",
+    "range text": "sized.setRangeText(LINES.slice(0, 4), 0, 0)",
+    "unheard rule": "rules.cssRules[0].style.height = '24px'",
+}
+
+
+@pytest.mark.parametrize("change", UNHEARD_SHIFTS)
+def test_a_shift_is_judged_on_complete_readings(browser, change):
+    """A layout-shift entry makes the reading that judges it complete
+    (`shift_watch.js`, "Unchanged frames"), so no announcement list decides whether
+    a shift without input is found."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<!doctype html><body style="margin:0">
+<div id="host"></div><div id="ruled"></div>
+<form id="form"><textarea id="sized" style="field-sizing:content;display:block">
+</textarea></form>
+<p id="below">Words below</p>
+<script>
+host.attachShadow({ mode: "open" }).innerHTML =
+  '<div id="grow" style="height:10px;transition:height 450ms linear"></div>';
+window.grow = host.shadowRoot.getElementById("grow");
+window.rules = new CSSStyleSheet();
+rules.replaceSync("#ruled { height: 10px }");
+document.adoptedStyleSheets = [rules];
+window.LINES = String.fromCharCode(10).repeat(6);
+sized.value = LINES;
+</script>""")
+    )
+    paint(page)
+    page.evaluate(FRAMES, 10)
+    page.evaluate(UNHEARD_SHIFTS[change])
+    page.evaluate(FRAMES, 40)
+    judge_watches()
+    errors = take_browser_errors(page)
+    assert any(" moved without input by " in error for error in errors), errors
+    # The unheard rule is also the sensor's own finding when its periodic check
+    # happens to fall on the frame after the change, before the paint is heard.
+    unheard = "shift watch missed a change to " if change == "unheard rule" else None
+    assert all(
+        " moved without input by " in error or (unheard and unheard in error)
+        for error in errors
+    ), errors

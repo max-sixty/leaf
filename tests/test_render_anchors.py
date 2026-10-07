@@ -5922,7 +5922,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
 
     # News updates the root's workflow line in both views, in place.
     inline_status = thread.locator(
-        ":scope > .lf-thread-transcript > .lf-msg:first-child > .lf-msg-head .lf-msg-sending"
+        ":scope > .lf-thread-content > .lf-thread-transcript > .lf-msg:first-child > .lf-msg-head .lf-msg-sending"
     )
     panel_status = panel_thread.locator(
         ".lf-thread-transcript > .lf-msg:first-child > .lf-msg-head .lf-msg-sending"

@@ -7,8 +7,8 @@ The user follows your work on the page:
 | Surface | What it shows | Written by |
 | --- | --- | --- |
 | Banner | one sentence for the whole page: the line of the item you have in hand, or what you want back | `leaf task start`, `leaf status <page> waiting "<detail>"` |
-| Beside a thread or widget | **Working** and your line, above the message or on the control the work answers | `leaf task start <page> <id> "<line>"` |
-| Thread | your answer to the user's message | `leaf thread reply` |
+| Beside a thread or widget | **Working** and your line, above the message or on the control the work answers | `leaf thread reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
+| Thread | what you will do, your progress, and your answer to the user's message | `leaf thread reply` |
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
 
 Leaf itself marks each user move **Sent**, **Queued**, and **Picked up**, including
@@ -62,16 +62,30 @@ page's authenticated `GET /api/user-view`; captured render previews record none.
 Everything you work on for the user is an item on your queue: a user move you owe
 an answer, named by the move's event id as its delivery gives it, or a task you
 opened. Take the item in hand before starting its work, with one line saying what
-you are doing:
+you are doing.
+
+When the item is a message in a thread that asks for work, your first command
+after its delivery, before you read or edit anything, says in its thread what you
+are about to do:
+
+```bash
+leaf thread reply <page> --for <event-id> --ephemeral --text "<what you will do, in a line>"
+```
+
+The user reads it at once, and it takes the move in hand: the move reads
+**Working** with that line beside its thread and in the banner, and the
+update folds under "Previous updates" when your answer arrives
+([progress updates](threads.md#progress-updates)). Take any other item in hand,
+such as a task or a move on a page widget, which has no thread, with a start:
 
 ```bash
 leaf task start <page> <id> "reading the reconnect traces" && <command>
 ```
 
-The move or task then reads **Working** with your line, beside its thread or
-widget and in the banner. Start it again whenever the user would describe what you
-are doing differently: a new phase such as reading, editing, testing, or waiting on
-a result. Folding the start into the command that begins the step costs no extra
+Take the item in hand again whenever the user would describe what you are doing
+differently: a new phase such as reading, editing, testing, or waiting on a result.
+Another progress update in the thread says it to the user there; a start changes
+only the line, and folding it into the command that begins the step costs no extra
 tool call. Name the operation and its subject in one sentence; "Working on it"
 tells the user nothing the banner's dot does not already say.
 
@@ -92,14 +106,14 @@ nothing and needs no item.
 
 User input comes before the work in hand, in this order:
 
-1. Where the delivery's `acknowledge` names a receipt route, take it first, so the
+1. Where the delivery's `acknowledge` names a receipt command, take it first, so the
    user's moves read **Picked up**; where it is `null`, your harness has confirmed
    receipt already. Until you start an item, the banner can say only that you are
    working on their update.
-2. Start each move that asks for work before starting the work. Each delivered
-   event's `handling` clauses say how, with the reply carrying the result once it
-   lands. A move that asks for no work, such as a question, is answered by its
-   reply at once.
+2. Say what you will do in the thread of each move that asks for work, or start
+   it, as above, before starting the work. Each delivered event's `handling`
+   clauses say how, with the reply carrying the result once it lands. A move that
+   asks for no work, such as a question, is answered by its reply at once.
 3. If the move interrupted other work, start that work's item again once the move's
    own work is done, so the banner describes the work that continues rather than
    the last step before the interruption.

@@ -152,6 +152,7 @@ export {
 } from "./registry.js";
 export {
   FOLD_MS,
+  backgroundFlash,
   motion,
   onMotionPreferenceChange,
   reducedMotion,
@@ -193,6 +194,7 @@ export {
   el,
   layoutChanged,
   measure,
+  motionPreview,
   offer,
   offered,
   quoted,

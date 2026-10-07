@@ -98,9 +98,11 @@ response. Intermediate progress updates do not repeat it.
 ## Stay responsive
 
 A message with no sign that you have it reads as ignored, so when input arrives,
-show the user at once that you have it and what you will do, or answer it when it
-needs no work. Give work that would hold up the next message to background workers;
-you keep the page. `references/conversation-loop.md` says how.
+post a line in its thread at once saying what you will do, before you read or edit
+anything; a message that needs no work gets its answer at once instead. Give work
+that would hold up the next message to background workers; you keep the page.
+`references/conversation-loop.md`, "When to write" and "Long-running work", says
+how.
 
 ## Leaf soul
 

@@ -587,3 +587,12 @@ export function responseAction(
   control.replaceChildren(glyphNode, spaceNode, labelNode);
   return control;
 }
+
+// Motion carries the card's label, never a second live widget tree. Native chrome
+// avoids copied form groups, widget lifetimes and iframe browsing contexts.
+export function motionPreview(label) {
+  const preview = offer("div", "lf-motion-preview", label);
+  preview.inert = true;
+  preview.setAttribute("aria-hidden", "true");
+  return preview;
+}

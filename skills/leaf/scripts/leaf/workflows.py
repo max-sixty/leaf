@@ -36,7 +36,7 @@ in: on the page, until the markup records it or a later version supersedes it
 (`page_action_unsettled`); in frozen thread markup, which no version rewrites,
 until the agent's next spoken turn in that thread or a resolution after it.
 Delivery is separate from workflows. Admission records whether a user's move
-changes outstanding Asks, pending answers, work in hand or approval; carriers keep
+changes outstanding Asks, pending answers, work in hand or approval; delivery keeps
 that decision even after these workflows settle.
 
 A user move on a widget whose own Ask the user has not finished answering — a

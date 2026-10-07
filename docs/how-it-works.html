@@ -238,20 +238,21 @@ leaf server start ./review</code></pre>
               </p>
               <p id="answer-flow">
                 For a comment requesting a policy change, the agent reads the delivery
-                and follows its receipt instructions. It then starts work on that event,
-                so the user can see which input it is handling. The agent reads the
-                current page and thread, revises the policy, and answers in the thread.
-                This example uses a CLI command to post the reply; the harness routes
-                below explain when Leaf captures a turn's messages instead.
+                and follows its receipt instructions. Its first command says in the
+                thread what it will do, a progress update that also starts work on that
+                event, so the user sees at once which input it is handling. The agent
+                reads the current page and thread, revises the policy, and answers in
+                the thread. This example uses a CLI command to post the reply; the
+                harness routes below explain when Leaf captures a turn's messages
+                instead.
               </p>
               <pre
                 id="response-commands"
-              ><code class="language-bash">leaf task start ./review &lt;event-id&gt; "Checking the importer's queue policy"
+              ><code class="language-bash">leaf thread reply ./review --for &lt;event-id&gt; --ephemeral --text "Checking the importer's queue policy."
 leaf page state ./review
 leaf page state ./review &lt;thread-id&gt;
-# Revise ./review/index.html; check and review the result.
-leaf page check ./review --render
-leaf page stamp ./review --text "Importer now drops the oldest queued job"
+# Revise ./review/index.html.
+leaf page check ./review
 leaf thread reply ./review --for &lt;event-id&gt; --text "The importer policy is updated."
 leaf status ./review waiting "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
@@ -547,7 +548,7 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                   <tr>
                     <td>
                       <strong>Receive feedback</strong><br />Read a feedback batch,
-                      confirm receipt when its delivery route requires it, or wait for
+                      confirm receipt when its transport requires it, or wait for
                       feedback directly.
                     </td>
                     <td><code>leaf delivery read</code><br /><code>leaf wait</code></td>
@@ -694,8 +695,9 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                 <tr id="stages-working">
                   <td>Working</td>
                   <td>
-                    The agent started the move with <code>leaf task start</code>, which
-                    names the work in one line, or started a task on the move's widget.
+                    The agent took the move in hand with one line naming the work, as a
+                    progress update in its thread or with <code>leaf task start</code>,
+                    or started a task on the move's widget.
                   </td>
                 </tr>
                 <tr id="stages-replying">
@@ -777,9 +779,9 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
               end of each turn and wakes the agent when you send a move, and Leaf's
               prompt hook puts the move into the turn that opens. In Codex, a detached
               adapter queues the move as the task's next message or, where Leaf is a
-              client of the task's Codex App Server, starts a turn with it. Every route
-              hands the agent a delivery of the same shape, which says who confirms
-              receipt.
+              client of the task's Codex App Server, starts a turn with it. Every
+              transport hands the agent a delivery of the same shape, which says who
+              confirms receipt.
             </p>
             <p id="wait-ack">
               The harness does the delivering, so Leaf records a move as received only
@@ -844,9 +846,9 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
               </tbody>
             </table>
             <p id="route-instructions">
-              One task can receive feedback through several routes. Each delivery states
-              how to confirm receipt and how to answer, so the agent follows those
-              instructions for the input it has received.
+              One task can receive feedback through several transports. Each delivery
+              states how to confirm receipt and how to answer, so the agent follows
+              those instructions for the input it has received.
             </p>
             <details id="claude-integration">
               <summary>Claude Code integration</summary>
@@ -1110,8 +1112,7 @@ python -m leaf server _serve &lt;page&gt; --handshake &lt;fd&gt;</code></pre>
                       <p>
                         HTTP gesture posts and freshness polling with
                         <code>GET /api/news</code>; a changed token triggers a state
-                        read. The browser reaches the agent through Leaf's delivery
-                        route.
+                        read. The browser reaches the agent through a Leaf delivery.
                       </p>
                     </td>
                   </tr>
@@ -1142,10 +1143,14 @@ python -m leaf server _serve &lt;page&gt; --handshake &lt;fd&gt;</code></pre>
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-codex.md"
                   >Codex queue delivery</a
-                >, and
+                >,
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-codex-app-server.md"
                   >Codex App Server</a
+                >, and
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-pi.md"
+                  >Pi</a
                 >.
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/scripts/leaf/page-storage.md"
@@ -1198,11 +1203,11 @@ flowchart TD
               <li id="turn-end-claim">
                 <strong>A move started in this turn lets the turn end.</strong> Leaf
                 tells the agent to run work longer than a few minutes in background
-                workers, whose results wake it in a later turn, so a move the agent
-                started with <code>leaf task start</code> during this turn does not keep
-                the turn going. The move reads Working, with the agent's line beside it.
-                The next turn answers the move or starts it again; otherwise the move
-                soon reads <a href="#stages-stale">Update stale</a>.
+                workers, whose results wake it in a later turn, so a move the agent took
+                in hand during this turn does not keep the turn going. The move reads
+                Working, with the agent's line beside it. The next turn answers the move
+                or starts it again; otherwise the move soon reads
+                <a href="#stages-stale">Update stale</a>.
               </li>
               <li id="turn-end-watch">
                 <strong>Between turns, a page needs a watcher.</strong> Without Claude
@@ -1245,12 +1250,12 @@ flowchart TD
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-reply" at="5s" kind="intervention">
                 <strong>The work is named</strong> Before doing the work, the agent
-                writes
+                replies in your thread with what it will do,
                 <code
-                  >leaf task start … &lt;event-id&gt; "cutting the lede to two
-                  sentences"</code
-                >, which puts that line beside the thread and in the banner, and your
-                comment reads Working.
+                  >leaf thread reply … --ephemeral --text "Cutting the lede to two
+                  sentences."</code
+                >, which also puts that line in the banner, and your comment reads
+                Working.
               </lf-chronology-entry>
               <lf-chronology-entry id="updates-phase" at="1m" kind="intervention">
                 <strong>Each new phase gets a new line</strong> When the work moves from
@@ -1312,6 +1317,12 @@ flowchart LR
 
             <h3 id="updates-written-heading">Written by the agent</h3>
             <ul id="updates-written">
+              <li id="updates-written-progress">
+                <strong><code>leaf thread reply --for … --ephemeral</code></strong> What
+                it is about to do, in your thread, before it reads or edits anything.
+                The line also stands in the banner, your comment reads Working, and the
+                update folds under <em>Previous updates</em> once the answer arrives.
+              </li>
               <li id="updates-written-working">
                 <strong><code>leaf task start … &lt;id&gt; "…"</code></strong> The
                 current operation, in the banner:

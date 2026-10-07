@@ -219,11 +219,9 @@ def presence_with_activity(
         # since a record written before this existed is still a valid claim.
         "turn_closed": claim.get("turn_closed") if claim else None,
         # When that turn opened, and whether an open turn of this session's takes
-        # new input before it ends: its hooks carry input, so the Stop hook hands
-        # over what arrives. The banner reads such a turn as listening between two
-        # waits; a session whose carrier is a process it runs has no such turn.
+        # new input before it ends (`Harness.turn_takes_input`).
         "turn_opened": claim.get("turn_opened") if claim else None,
-        "turn_takes_input": bool(active and claim_harness(active).hooks_carry()),
+        "turn_takes_input": bool(active and claim_harness(active).turn_takes_input()),
         # When a browser last had the page visible (the server bumps viewed.json,
         # throttled, while a visible tab asks for news), or None for a page
         # nobody has ever viewed — which used to be indistinguishable from one the

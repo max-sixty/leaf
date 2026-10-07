@@ -53,7 +53,7 @@ export function declareOffFlowSurface(
 ) {
   surfaces.set(surface, { floats, away, bringBack });
   surface.addEventListener(
-    "beforeinput",
+    "lf-before-edit",
     (event) => follow(surface, event.target, scrollBehavior()),
     { capture: true },
   );

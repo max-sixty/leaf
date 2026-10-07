@@ -1,9 +1,11 @@
 /* User-supplied media from draft to full-image inspection.
 
    The draft and event log keep one representation: ordinary Markdown naming immutable
-   page media. A composer projects the generated image blocks as thumbnails beside its
-   text field, then materializes the same Markdown again when its visible words change or
-   Send reads the draft. Sent-message images open one native modal viewer. The document
+   page media. A composer projects appended generated image blocks as thumbnails beside
+   its text field, then materializes the same Markdown again when its visible words
+   change or Send reads the draft. Each appended block carries its own two-newline
+   separator; removing that suffix preserves every newline the user wrote.
+   Sent-message images open one native modal viewer. The document
    declares its public page root because a website module may live under an immutable
    release URL shared with a sample. All three resolve
    the same canonical `/media/…` text without rewriting durable content. The viewer's
@@ -21,9 +23,10 @@ import { closeControl } from "./widget-elements.js";
 // browser reads a reference by its directory, as Python's own readings do, and leaves the
 // name to the server.
 const CANONICAL_MEDIA_ROOT = "/media/";
-const PASTED_MEDIA = new RegExp(
-  String.raw`!\[Pasted image\]\((${CANONICAL_MEDIA_ROOT}[^\s)]+)\)`,
-  "g",
+const PASTED_IMAGE = String.raw`!\[Pasted image\]\((${CANONICAL_MEDIA_ROOT}[^\s)]+)\)`;
+const PASTED_MEDIA = new RegExp(PASTED_IMAGE, "g");
+const MEDIA_SUFFIX = new RegExp(
+  `(?:^|\\n\\n)${PASTED_IMAGE}(?:\\n\\n${PASTED_IMAGE})*(?![\\s\\S])`,
 );
 
 export const isCanonicalMediaUrl = (href) => href.startsWith(CANONICAL_MEDIA_ROOT);
@@ -32,23 +35,19 @@ export const scopedMediaUrl = (href) =>
   offlineInteractive ? runtimeResource(href) : new URL(pageUrl(href.slice(1))).pathname;
 
 export function readPastedMedia(value) {
-  const paths = [];
-  const text = value
-    .replace(PASTED_MEDIA, (_match, path) => {
-      paths.push(path);
-      return "";
-    })
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/^\n+|\n+$/g, "");
-  return { text, paths };
+  const suffix = MEDIA_SUFFIX.exec(value);
+  if (!suffix) return { text: value, paths: [] };
+  return {
+    text: value.slice(0, suffix.index),
+    paths: Array.from(suffix[0].matchAll(PASTED_MEDIA), (image) => image[1]),
+  };
 }
 
 export function writePastedMedia(text, paths) {
   if (!paths.length) return text;
   const images = paths.map((path) => `![Pasted image](${path})`).join("\n\n");
   if (!text) return images;
-  const separator = text.endsWith("\n\n") ? "" : text.endsWith("\n") ? "\n" : "\n\n";
-  return text + separator + images;
+  return text + "\n\n" + images;
 }
 
 const viewerClose = closeControl({

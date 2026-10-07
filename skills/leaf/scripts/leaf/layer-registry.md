@@ -21,7 +21,7 @@ immutable revisions. Re-vendoring composes page-owned declarations over the
 prospective layer before running this same candidate check. Each successful init
 records three deliberately different identities under `$layer`:
 
-- `generation` is a fresh epoch embedded in both `runtime/layer-client.js` and the
+- `generation` is a fresh epoch embedded in both `runtime/layer-generation.js` and the
   registry. State reports it and event requests carry it; the server repeats it on
   contract responses, so an old or half-loaded tab refuses a foreign answer rather
   than letting a replacement server interpret or append its event. That tab reloads

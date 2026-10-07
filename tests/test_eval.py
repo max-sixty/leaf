@@ -46,11 +46,16 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
         ["brief-document-needs-no-outline", "shot-pair-outlined"],
         payloads,
         tmp_path / "scratch",
-        ("cc", "codex"),
+        ("claude-code", "codex"),
         ("leaf",),
         tmp_path / "samples",
     )
-    labels = ["cc/base", "cc/candidate", "codex/base", "codex/candidate"]
+    labels = [
+        "claude-code/base",
+        "claude-code/candidate",
+        "codex/base",
+        "codex/candidate",
+    ]
     assert [provider["label"] for provider in config["providers"]] == labels
     assert [test["providers"] for test in config["tests"]] == [labels, labels]
     homes = []
@@ -61,7 +66,7 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
         assert (
             Path(settings["working_dir"]) / "evals/shot-pair-outlined/captures"
         ).is_dir()
-        if harness == "cc":
+        if harness == "claude-code":
             homes.append(settings["env"]["HOME"])
             assert settings["plugins"][0]["path"] == str(payloads[arm])
             assert settings["setting_sources"] == []
@@ -112,7 +117,7 @@ def test_native_javascript_assertions_and_asset_addresses_survive_preparation(
         ["example"],
         arms(tmp_path, "candidate"),
         tmp_path / "scratch",
-        ("cc",),
+        ("claude-code",),
         ("leaf",),
         tmp_path / "samples",
     )
@@ -173,21 +178,28 @@ def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(
         ["dashboard/reader-seeded", "document"],
         payloads,
         tmp_path / "scratch",
-        ("cc", "codex"),
+        ("claude-code", "codex"),
         ("leaf", "html"),
         tmp_path / "samples",
     )
     tests = {test["description"]: test for test in config["tests"]}
-    # The judge calibration runs on Claude Code; the HTML control has no base.
+    # The judge calibration runs on Claude Code; the HTML control has no base. A
+    # Codex workflow column names the one Leaf transport its session takes.
     assert {name: test["providers"] for name, test in tests.items()} == {
-        "dashboard/reader-seeded": ["cc/base/workflow", "cc/candidate/workflow"],
-        "document": [
-            "cc/base/workflow",
-            "cc/candidate/workflow",
-            "codex/base/workflow",
-            "codex/candidate/workflow",
+        "dashboard/reader-seeded": [
+            "claude-code/base/workflow",
+            "claude-code/candidate/workflow",
         ],
-        "document (html)": ["cc/html/workflow", "codex/html/workflow"],
+        "document": [
+            "claude-code/base/workflow",
+            "claude-code/candidate/workflow",
+            "codex:app-server/base/workflow",
+            "codex:app-server/candidate/workflow",
+        ],
+        "document (html)": [
+            "claude-code/html/workflow",
+            "codex:app-server/html/workflow",
+        ],
     }
     for condition, test in (
         ("leaf", tests["document"]),
@@ -214,7 +226,7 @@ def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(
     html = next(
         provider["config"]
         for provider in config["providers"]
-        if provider["label"] == "codex/html/workflow"
+        if provider["label"] == "codex:app-server/html/workflow"
     )
     assert (html["harness"], html["condition"], html["payload"], html["samples"]) == (
         "codex",
@@ -327,7 +339,7 @@ def test_command_passes_promptfoo_options_and_status_without_api_keys(
     monkeypatch.setenv("OPENAI_API_KEY", "must-not-reach-promptfoo")
 
     def run(*args):
-        return CliRunner().invoke(module.eval, ["--harness", "cc", *args])
+        return CliRunner().invoke(module.eval, ["--harness", "claude-code", *args])
 
     result = run("task-outlasts-the-turn", "--repeat", "3")
     assert result.exit_code == 100, result.output
@@ -336,7 +348,7 @@ def test_command_passes_promptfoo_options_and_status_without_api_keys(
     config = json.loads(
         next((tmp_path / "runs").glob("*/promptfooconfig.json")).read_text()
     )
-    assert [p["label"] for p in config["providers"]] == ["cc/candidate"]
+    assert [p["label"] for p in config["providers"]] == ["claude-code/candidate"]
     assert config["description"].endswith(
         "(working tree on 012345678): task-outlasts-the-turn"
     )

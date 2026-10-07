@@ -19,6 +19,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+from leaf.harness import ClaudeCodeHarness
 from leaf.render_checks import rendered
 from leaf.structure import SourceDocument
 
@@ -73,7 +74,7 @@ class Run:
     payload: Path
     directory: Path
     shots: Path
-    harness: str = "cc"
+    harness: str = ClaudeCodeHarness.name
     condition: str = "leaf"
 
     @property
@@ -521,7 +522,13 @@ def expected_checks(case: str, *, condition="leaf") -> list[str]:
 
 
 def execute_scenario(
-    case: str, payload: Path, work: Path, *, shots: Path, harness="cc", condition="leaf"
+    case: str,
+    payload: Path,
+    work: Path,
+    *,
+    shots: Path,
+    harness=ClaudeCodeHarness.name,
+    condition="leaf",
 ) -> dict:
     """Execute only the selected condition; Promptfoo owns the condition matrix."""
     work.mkdir(parents=True, exist_ok=True)

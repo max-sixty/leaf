@@ -319,7 +319,7 @@ def test_round_scoring_leaves_the_watch_with_leaf():
     ]
 
 
-@pytest.mark.parametrize("harness", ["cc", "codex"])
+@pytest.mark.parametrize("harness", ["claude-code", "codex"])
 def test_live_injection_reads_the_claimants_turn_from_the_isolated_home(
     tmp_path, harness
 ):

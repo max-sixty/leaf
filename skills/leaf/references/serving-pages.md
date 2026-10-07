@@ -112,11 +112,12 @@ over today, and give the user the new URL.
 
 ## Page lifetime
 
-Serving from an agent session claims the page and prepares the harness's feedback
-route before returning its URL. In Codex, this starts or joins the task's delivery
-adapter, or honors a direct wait already running. Re-serving restores delivery
-even when the existing server needs no restart. The harness-specific references
-describe how incoming comments reach your turn.
+Serving from an agent session claims the page and prepares the harness's watcher,
+which brings comments to your turns, before returning its URL. In Codex, this
+starts or joins the task's delivery adapter, or honors a direct wait already
+running. Re-serving restores delivery even when the existing server needs no
+restart. The harness-specific references describe how incoming comments reach
+your turn.
 
 On a page with no recorded lifetime, a normal `server start` from an agent
 session chooses a session lifetime. Its process retires when no live session

@@ -6,7 +6,7 @@ import {
   textNodesUnder,
   upFrom,
 } from "/runtime/widget-api.js";
-import { unrevealedVisualParts, visualPartProblems } from "/runtime/visual-parts.js";
+import { unrevealedVisualParts, visualPartProblems } from "/runtime/check-api.js";
 import { openRoots } from "./open-roots.js";
 
 const PAINT_PROBE = "--_leaf-render-paint-value";

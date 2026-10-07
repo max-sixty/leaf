@@ -16,9 +16,10 @@
  *
  * Piles remain labeled lists in quoted exhibits and on paper. Quoted decks stop at
  * that structure: no controls, tab stops, key scope, or pointer listeners are installed.
- * The active card alone takes horizontal motion. Its exit is a short generated visual
- * echo so the real card can occupy its recorded destination immediately; `motion` makes
- * that echo still under reduced motion and during initial state projection. */
+ * The active card alone takes horizontal motion. Its exit carries a compact label
+ * so the real card can occupy its recorded destination immediately without copying
+ * controls or sample frames. Native moves retain their state; `motion` makes the
+ * preview still under reduced motion and during initial state projection. */
 import {
   dragging,
   commands,
@@ -28,6 +29,7 @@ import {
   keepsText,
   layoutChanged,
   motion,
+  motionPreview,
   once,
   offer,
   paintKeys,
@@ -261,9 +263,7 @@ customElements.define(
 
     #returnControl(card) {
       const button = offer("button", "lf-swipe-return", "Return to queue");
-      const title =
-        card.querySelector(":scope > strong")?.textContent.trim() || card.id;
-      button.setAttribute("aria-label", `Return ${title} to queue`);
+      button.setAttribute("aria-label", `Return ${this.#title(card)} to queue`);
       button.hidden = true;
       button.addEventListener("click", async () => {
         const command = this.#returnable(card);
@@ -297,7 +297,7 @@ customElements.define(
         this.#cards(destination).indexOf(card) === bounded
       )
         return false;
-      destination.insertBefore(card, without[bounded] ?? null);
+      destination.moveBefore(card, without[bounded] ?? null);
       return true;
     }
 
@@ -329,24 +329,20 @@ customElements.define(
       void sent?.delivery;
     }
 
+    #title(card) {
+      return card.querySelector(":scope > strong")?.textContent.trim() || card.id;
+    }
+
     #exit(card, direction) {
       const rect = card.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
-      const echo = card.cloneNode(true);
-      echo.removeAttribute("id");
-      for (const node of echo.querySelectorAll("[id]")) node.removeAttribute("id");
-      echo.classList.remove("lf-swipe-dragging");
+      const echo = motionPreview(this.#title(card));
       echo.classList.add("lf-swipe-exit");
-      echo.dataset.lfGen = "1";
-      echo.setAttribute("aria-hidden", "true");
-      echo.setAttribute("inert", "");
       Object.assign(echo.style, {
         position: "fixed",
         inset: "auto",
         left: `${rect.left}px`,
         top: `${rect.top}px`,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
         margin: "0",
         transform: "none",
       });

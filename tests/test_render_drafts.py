@@ -1196,7 +1196,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     until_draft_settled(page, "edit:draft-ops")
     events = [e for e in events_model.read_events(d) if e["kind"] == "action"]
     assert events[-1]["action"] == "edit"
-    assert events[-1]["detail"] == {"text": ""}
+    assert events[-1]["detail"] == {"value": ""}
 
 
 def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
@@ -1358,7 +1358,7 @@ def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
         if event.get("action") == "edit"
     ]
     assert [event["detail"] for event in edits] == [
-        {"text": "Keep the revised unsent words."}
+        {"value": "Keep the revised unsent words."}
     ]
     consume_browser_errors(page, "400")
 

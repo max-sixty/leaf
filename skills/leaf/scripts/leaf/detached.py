@@ -41,8 +41,9 @@ def starting_detached(
     log: Path | None = None,
     cwd: Path | None = None,
     timeout: float | None = None,
+    module: str = "leaf",
 ):
-    """Spawn `python -m leaf ARGUMENTS --handshake FD` in a session of its own, and
+    """Spawn `python -m MODULE ARGUMENTS --handshake FD` in a session of its own, and
     yield its private announcement, then accept and confirm on context exit.
 
     Raises `StartRefused` with the child's reason when it refuses, exits, or does not
@@ -57,7 +58,7 @@ def starting_detached(
                 [
                     sys.executable,
                     "-m",
-                    "leaf",
+                    module,
                     *arguments,
                     "--handshake",
                     str(child.fileno()),

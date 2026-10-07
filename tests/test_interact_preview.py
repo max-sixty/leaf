@@ -23,8 +23,176 @@ from urllib.parse import urlsplit
 import pytest
 from conftest import LEAF_COMMAND
 from interact_support import ROOT, STATED_TIMEOUT, declare_idle, fetch, stamp, wait_for
-from leaf import codex_adapter, leases, server, service, session
+from leaf import codex_adapter, hosting, leases, server, service, session, state
 from leaf_dev import preview
+
+
+def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
+    tmp_path, under_codex, codex_env, codex_queue
+):
+    """The command returns; unloading its chat keeps the watcher, URL and carrier.
+
+    The copied Codex executable states the desktop ancestry. Its queue endpoint
+    records delivery, while Leaf's detached watcher and HTTP service are real.
+    """
+    source = tmp_path / "review.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Review</title></head><body>"
+        '<main><h1>Review</h1><p id="candidate">Original candidate</p></main>'
+        "</body></html>"
+    )
+    page = tmp_path / "previews" / "review"
+    sid = "desktop-preview"
+    task = under_codex(
+        shlex.join(
+            [
+                sys.executable,
+                "-m",
+                "leaf_dev.preview",
+                "--worker",
+                "--user",
+                "--source",
+                str(source),
+                "--runtime",
+                str(ROOT),
+                "--slot",
+                page.name,
+            ]
+        ),
+        codex_env
+        | codex_queue
+        | {
+            "CODEX_THREAD_ID": sid,
+            "LEAF_PREVIEWS_ROOT": str(page.parent),
+        },
+        app_server=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
+        assert task.returncode == 0, f"{output}{errors}"
+        url = next(line for line in output.splitlines() if line.startswith("http://"))
+        acquired = service.page_claim(page)["acquisition"]
+        before = state.session_record(sid)
+        ended = subprocess.run(
+            [*LEAF_COMMAND, "session-end"],
+            check=False,
+            input=json.dumps({"hook_event_name": "SessionEnd", "session_id": sid}),
+            env=codex_env,
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+        )
+        assert ended.returncode == 0, ended.stderr
+        assert state.session_record(sid)["generation"] == before["generation"]
+        assert state.hook_needed({"hook_event_name": "PostToolUse", "session_id": sid})
+        assert leases.lock_is_held(preview.preview_lease(page))
+        assert server.running_server(page)["url"] == url
+
+        source.write_text(
+            source.read_text().replace("Original candidate", "Revised candidate")
+        )
+        wait_for(
+            lambda: (page / "index.html").read_text(),
+            lambda text: "Revised candidate" in text,
+            failure="the detached preview did not follow its source after unload",
+        )
+        endpoint = urlsplit(url)._replace(path="/api/event").geturl()
+        status, body = fetch(
+            endpoint,
+            data=json.dumps(
+                {
+                    "kind": "comment",
+                    "revision": 1,
+                    "text": "Please revise this candidate",
+                    "attempt": "desktop-after-unload",
+                }
+            ).encode(),
+            token=None,
+        )
+        assert status == 200, body
+        queued = Path(codex_queue["PREVIEW_QUEUE_RECORD"])
+        wait_for(queued.exists, bool, failure="feedback after unload was not queued")
+        assert json.loads(queued.read_text())[:4] == [
+            "queue",
+            "--thread",
+            sid,
+            "--message",
+        ]
+        assert service.page_claim(page)["acquisition"] == acquired
+    finally:
+        if (page / "events.jsonl").exists():
+            hosting.cmd_stop(page)
+            with service.PageTransaction(page) as transaction:
+                transaction.release_claim()
+            wait_for(
+                lambda: leases.lock_is_held(preview.preview_lease(page)),
+                lambda held: not held,
+                failure="the explicitly stopped detached preview kept watching",
+            )
+
+
+def test_abandoned_desktop_preview_publishes_no_claim(tmp_path, spawn, codex_env):
+    """Outer preview acceptance owns both watcher readiness and HTTP publication."""
+    from interact_support import record_claim
+    from leaf.harness import claim_harness
+
+    source = tmp_path / "review.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Review</title></head>"
+        "<body><main><h1>Review</h1></main></body></html>"
+    )
+    page = tmp_path / "previews" / "review"
+    previous = record_claim(
+        page,
+        id="abandoned-desktop",
+        harness="codex",
+        activity="multiplexed",
+        ts=state.now_iso(),
+    )
+    intent = service.prepare_claim(claim_harness(previous), page)
+    caller, child = socket.socketpair()
+    task = spawn(
+        [
+            sys.executable,
+            "-m",
+            "leaf_dev.preview",
+            "--worker",
+            "--user",
+            "--source",
+            str(source),
+            "--runtime",
+            str(ROOT),
+            "--slot",
+            page.name,
+            "--prepared-claim",
+            json.dumps(intent),
+            "--handshake",
+            str(child.fileno()),
+        ],
+        env=codex_env | {"LEAF_PREVIEWS_ROOT": str(page.parent)},
+        pass_fds=(child.fileno(),),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    child.close()
+    caller.settimeout(STATED_TIMEOUT)
+    try:
+        with caller.makefile("rb") as announced:
+            ready = json.loads(announced.readline())
+        assert "url" in ready, ready
+        assert service.page_claim(page) is None
+        assert not (page / "service.json").exists()
+    finally:
+        caller.close()
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
+    assert task.returncode == 0, f"{output}{errors}"
+    assert service.page_claim(page) is None
+    assert server.running_server(page) is None
+    assert not leases.lock_is_held(preview.preview_lease(page))
 
 
 def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):

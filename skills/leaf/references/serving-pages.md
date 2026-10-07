@@ -126,6 +126,12 @@ process dies, and ends if that revival does not hold. Only `leaf server stop
 <page>` disables a service, and a `leaf wait` goes on watching a stopped page until
 it is idle.
 
+Desktop Codex can unload the chat's idle running instance while the app and chat
+remain open. Leaf keeps that chat's ownership, server and feedback route across
+the unload. Its pages retire after four hours without page use; a visible page
+or agent revision renews that activity. Process-backed terminal sessions still
+release ownership when their harness ends.
+
 `server start --standing`, or a serve started from the user's own shell, chooses
 a standing lifetime and prepares no agent delivery. Its process ignores session claims and remains live between
 sessions. Tell the user when starting one because they inherit a process only

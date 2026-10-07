@@ -3,7 +3,8 @@
 Every hook marks that it ran for its session (`leases.mark_hooks`), and a wait
 only wakes a session so marked (`Harness.hooks_carry`): a session launched
 without these hooks still gets the envelope printed, rather than waking to an
-empty turn. SessionEnd invalidates the session generation without reading pages.
+empty turn. SessionEnd retires the harness instance without reading pages;
+activity-backed desktop chats retain their generation across instance unloads.
 
 Codex's synchronous prompt hook records the provider turn even before the session
 claims a page. Once the session has claimed one (`state.hook_needed`), its tool
@@ -35,7 +36,7 @@ from .service import claim_records, owned_pages
 from .state import (
     advance_turn,
     close_session_turn,
-    end_session,
+    end_harness_instance,
     flocked,
     prompt_turn,
     session_lock_path,
@@ -52,7 +53,7 @@ def cmd_hook(harness: str, payload: dict) -> None:
         # lets its `leaf wait` only wake it (`Harness.hooks_carry`).
         mark_hooks(sid)
     if event == "SessionEnd":
-        end_session(sid)
+        end_harness_instance(sid)
         return
     if not sid:
         return

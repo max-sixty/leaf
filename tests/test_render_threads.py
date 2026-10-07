@@ -2100,7 +2100,7 @@ def test_comment_on_the_page_stands_in_more_on_a_phone(browser, serve):
 
 
 def paste_image(field, pixels, *, count=1):
-    """Paste page media through the composition input's upload boundary."""
+    """Paste page media and wait for the input to finish admitting every upload."""
     with field.page.expect_response(
         lambda response: response.url.endswith("/api/media")
     ):
@@ -2116,6 +2116,7 @@ def paste_image(field, pixels, *, count=1):
             }""",
             {"encoded": base64.b64encode(pixels).decode(), "count": count},
         )
+    expect(field).not_to_have_attribute("aria-busy", "true")
 
 
 def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):

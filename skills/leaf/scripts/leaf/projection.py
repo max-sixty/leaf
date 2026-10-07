@@ -48,7 +48,6 @@ def _report_updates(projection) -> list[dict]:
     for _coordinate, (event, spec) in projection.classified.values():
         if event["kind"] != "report":
             continue
-        update_field = spec.get("update")
         updates.append(
             {
                 "id": event["id"],
@@ -56,7 +55,7 @@ def _report_updates(projection) -> list[dict]:
                 "source": "report",
                 "action": event["action"],
                 "detail": event["detail"],
-                "text": event["detail"][update_field] if update_field else None,
+                "text": event["detail"]["text"] if spec.get("update") else None,
                 "ts": event["ts"],
                 "revision": event["revision"],
                 "seq": event["seq"],
@@ -542,7 +541,7 @@ def move_absorbed(
     owner = event["widget"]
     if owner not in orders:
         orders[owner] = authored_positions(owner, record, byid, spk, registry)
-    return orders[owner].get(event["detail"][record["value"]]) != among
+    return orders[owner].get(event["detail"]["value"]) != among
 
 
 def folded_positions(
@@ -575,14 +574,14 @@ def folded_positions(
             or move_absorbed(event, spec, byid, spk, registry, orders)
         ):
             continue
-        destination = order.get(event["detail"][record["value"]])
+        destination = order.get(event["detail"]["value"])
         if destination is None or unit not in ranks:
             continue
         for units in order.values():
             if unit in units:
                 units.remove(unit)
         destination.append(unit)
-        ranks[unit] = event["detail"][record["rank"]]
+        ranks[unit] = event["detail"]["rank"]
     return {
         container: sorted(units, key=lambda unit: (ranks[unit], unit))
         for container, units in order.items()
@@ -639,15 +638,15 @@ def recorded_state(
 
 
 def folded_value(e: dict, spec: dict):
-    """The state the folded action left: the detail field the record declares,
+    """The state the folded action left in detail.value,
     collapsed the way `spoken` collapses where it compares against words, and
     sorted where it compares against a set of marked elements."""
     record = spec.get("record")
     if not record:
         return NO_RECORD
-    value = e["detail"].get(record["value"])
+    value = e["detail"]["value"]
     if record["kind"] == "body":
-        return collapse(str(value))
+        return collapse(value)
     if record["kind"] == "attribute":
         return sorted(value)
     return value
@@ -682,7 +681,7 @@ def rewritten_bodies(actions: dict) -> dict:
     whose state is words rather than markup, so the passage reading can hold
     those words where the authored body was."""
     return {
-        unit: (e["action"], e["detail"][spec["record"]["value"]])
+        unit: (e["action"], e["detail"]["value"])
         for (_widget, unit, _verb), (e, spec) in actions.items()
         if (spec.get("record") or {}).get("kind") == "body"
     }

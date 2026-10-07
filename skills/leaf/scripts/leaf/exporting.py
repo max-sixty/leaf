@@ -142,7 +142,8 @@ def _module_urls(
 ) -> dict[str, str]:
     """Embed the module graph this file can reach, and no other module.
 
-    The one computed import an exported page makes is a widget's module, asked for only
+    The computed imports an exported page makes are widget modules and their declared
+    initial producers, asked for only
     where the widget's tag stands in markup about to be upgraded (`importWidgets` in
     `runtime/widget-loader.js`). Offline that markup is the captured page and the frozen
     markup its messages carry, since the embedded reading never activates another
@@ -151,6 +152,7 @@ def _module_urls(
     that draws no diff carries no diff renderer.
     """
     tags = {record["tag"] for document in markup for record in document.lf_elements}
+    registry = artifact.registry
     required = {f"/widgets/{tag}.js" for tag in tags}
     widgets = {
         alias: source
@@ -165,6 +167,11 @@ def _module_urls(
             if artifact.resources[path].mime == "application/javascript"
         ),
         *widgets.values(),
+        *(
+            initial
+            for tag in tags
+            if (initial := registry.get(tag, {}).get("x-initial"))
+        ),
     ]
     urls = {}
     while pending:

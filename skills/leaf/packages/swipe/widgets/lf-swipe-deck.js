@@ -246,7 +246,7 @@ customElements.define(
       if (!actions.swipe?.available || !queue || card.parentElement === queue)
         return null;
       const pending = actions.swipe.undo.find(
-        (event) => event.detail?.card === card.id && !Number.isInteger(event.seq),
+        (event) => event.detail?.unit === card.id && !Number.isInteger(event.seq),
       );
       if (pending) return { kind: "undo", target: pending.attempt ?? pending.id };
       if (!state.swipe?.units[card.id]) return null;
@@ -254,8 +254,8 @@ customElements.define(
         kind: "action",
         verb: "swipe",
         detail: {
-          card: card.id,
-          to: queue.id,
+          unit: card.id,
+          value: queue.id,
           rank: rankAt(state.swipe, queue.id, 0, card.id),
         },
       };
@@ -313,8 +313,8 @@ customElements.define(
       this.#restorePointer(false);
       const end = this.#cards(destination).length;
       const detail = {
-        card: card.id,
-        to: destination.id,
+        unit: card.id,
+        value: destination.id,
         rank: rankAt(this.#controller.read().state.swipe, destination.id, end, card.id),
       };
       this.#place(card, destination, end);
@@ -453,10 +453,12 @@ customElements.define(
       // projection motion() returns null, so standing units load directly at rest.
       const transitions = Object.values(state.swipe.units ?? {}).reverse();
       const transition = transitions.find(({ action, detail }) => {
-        const card = detail?.card
-          ? cards.find((candidate) => candidate.id === detail.card)
+        const card = detail?.unit
+          ? cards.find((candidate) => candidate.id === detail.unit)
           : null;
-        const destination = detail?.to ? document.getElementById(detail.to) : null;
+        const destination = detail?.value
+          ? document.getElementById(detail.value)
+          : null;
         return (
           action === "swipe" &&
           card?.parentElement?.getAttribute("verdict") === "unseen" &&
@@ -465,10 +467,10 @@ customElements.define(
         );
       });
       const detail = transition?.detail;
-      const movingCard = detail?.card
-        ? cards.find((candidate) => candidate.id === detail.card)
+      const movingCard = detail?.unit
+        ? cards.find((candidate) => candidate.id === detail.unit)
         : null;
-      const destination = detail?.to ? document.getElementById(detail.to) : null;
+      const destination = detail?.value ? document.getElementById(detail.value) : null;
       const verdict = destination?.getAttribute("verdict");
       const played = transition
         ? this.#exit(movingCard, verdict === "pass" ? -1 : 1)
@@ -525,7 +527,7 @@ export const interactionGalleryScenario = {
             [card.id]: {
               action: "swipe",
               value: keepPile.id,
-              detail: { card: card.id, to: keepPile.id, rank: "i" },
+              detail: { unit: card.id, value: keepPile.id, rank: "i" },
             },
           },
           value: Object.fromEntries(

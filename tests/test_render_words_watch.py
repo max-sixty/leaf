@@ -178,6 +178,212 @@ def test_words_a_native_paste_observes_only_its_actual_editor_edit(
         }""")
 
 
+@pytest.mark.parametrize("command", ["cut", "drop"])
+def test_words_native_editor_commands_commit_only_their_actual_edit(
+    browser, serve, command
+):
+    """Native cut and pointer drop update held words; unused commands grant no credit."""
+    page = open_page(browser, serve(leaf_page("Native edits", "<h1>Edit a reply</h1>")))
+    page.evaluate("""() => {
+      const field = document.createElement('leaf-text');
+      field.id = 'field'; document.querySelector('main').append(field);
+      const source = document.createElement('div');
+      source.id = 'drag-source'; source.draggable = true;
+      source.textContent = 'Drag words';
+      source.style.cssText = 'position:fixed;top:40px;left:40px;width:120px;height:30px';
+      source.addEventListener('dragstart', event =>
+        event.dataTransfer.setData('text/plain', 'Dropped words'));
+      document.body.append(source);
+      window.nativeCommandEvents = [];
+      for (const type of ['cut','drop']) field.addEventListener(type, event =>
+        window.nativeCommandEvents.push({type,trusted:event.isTrusted}), true);
+    }""")
+    field = page.locator("#field")
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.evaluate(
+        "async () => window.clipboardBeforeCommandTest = await navigator.clipboard.read()"
+    )
+
+    def perform():
+        if command == "cut":
+            field.evaluate("field => field.setSelectionRange(5, field.value.length)")
+            page.context.new_cdp_session(page).send(
+                "Input.dispatchKeyEvent",
+                {"type": "char", "key": "Unidentified", "commands": ["Cut"]},
+            )
+        else:
+            page.locator("#drag-source").drag_to(field)
+
+    def clobber(words):
+        field.evaluate("""field => {
+          field.value = ''; field.dispatchEvent(new Event('input', {bubbles:true}));
+        }""")
+        judge_watches()
+        consume_browser_errors(
+            page,
+            f'typed words left the screen without a key or press: "{words}" in leaf-text#field',
+        )
+
+    try:
+        write(field, "Keep these words")
+        perform()
+        if command == "cut":
+            expect(field).to_have_js_property("value", "Keep ")
+        else:
+            expect(field).not_to_have_js_property("value", "Keep these words")
+            assert "Dropped words" in field.evaluate("field => field.value")
+        assert page.evaluate("window.nativeCommandEvents") == [
+            {"type": command, "trusted": True}
+        ]
+        judge_watches()
+        clobber(field.evaluate("field => field.value"))
+
+        write(field, "Keep these words")
+        field.evaluate(
+            """(field, command) => {
+          field.addEventListener(command, event => {
+            event.preventDefault(); event.stopImmediatePropagation();
+            field.dispatchEvent(new Event('input', {bubbles:true}));
+          }, {capture:true, once:true});
+        }""",
+            command,
+        )
+        perform()
+        expect(field).to_have_js_property("value", "Keep these words")
+        judge_watches()
+        clobber("Keep these words")
+
+        write(field, "Keep these words")
+        field.evaluate(
+            """(field, command) => {
+          field.dispatchEvent(new Event(command, {bubbles:true, cancelable:true}));
+        }""",
+            command,
+        )
+        judge_watches()
+        clobber("Keep these words")
+
+        write(field, "Keep these words")
+        field.evaluate("""field => {
+          field.addEventListener('input', () => {
+            window.commandWordsBeforeClobber = field.value;
+            field.value = ''; field.dispatchEvent(new Event('input', {bubbles:true}));
+          }, {once:true});
+        }""")
+        perform()
+        expect(field).to_have_js_property("value", "")
+        words = page.evaluate("window.commandWordsBeforeClobber")
+        assert words != "Keep these words" and words.strip()
+        judge_watches()
+        consume_browser_errors(
+            page,
+            f'typed words left the screen without a key or press: "{words}" in leaf-text#field',
+        )
+    finally:
+        page.evaluate("""async () => {
+          const previous = window.clipboardBeforeCommandTest;
+          if (previous.length) await navigator.clipboard.write(previous);
+          else await navigator.clipboard.writeText('');
+        }""")
+
+
+def test_words_editcontext_tracks_the_exact_native_field_and_committed_words(
+    browser, serve
+):
+    """Nonbubbling platform text updates own edits; synthetic updates cannot hide loss.
+
+    An enclosing shadow root keeps the editor's host input from reaching window.
+    The watch still reads it before an older page handler can clobber the words.
+    """
+    context = browser.new_context(
+        user_agent="Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36"
+    )
+    page = open_page(
+        browser,
+        serve(leaf_page("Native EditContext", "<h1>Edit a reply</h1>")),
+        context=context,
+        init_script="""(() => {
+          const attach = Element.prototype.attachShadow;
+          window.editContextRoots = new WeakMap();
+          Element.prototype.attachShadow = function(options) {
+            const root = attach.call(this, options);
+            window.editContextRoots.set(this, root); return root;
+          };
+        })()""",
+    )
+    page.evaluate("""() => {
+      const holder = document.createElement('div');
+      document.querySelector('main').append(holder);
+      const root = holder.attachShadow({mode:'open'});
+      window.editContextHolder = root;
+      const field = document.createElement('leaf-text'); field.id = 'field';
+      root.append(field); window.editContextField = field;
+    }""")
+    field = page.locator("#field")
+    field.focus()
+    assert field.evaluate("""field => {
+      const content = editContextRoots.get(field).querySelector('.cm-content');
+      window.nativeEditingContext = content.editContext;
+      window.nativeTextUpdates = [];
+      nativeEditingContext.addEventListener('textupdate', event =>
+        nativeTextUpdates.push({trusted:event.isTrusted,bubbles:event.bubbles,
+          attached:event.target.attachedElements()[0] === content}));
+      return nativeEditingContext.attachedElements()[0] === content;
+    }""")
+    page.keyboard.insert_text("Keep these words")
+    expect(field).to_have_js_property("value", "Keep these words")
+    assert page.evaluate("window.nativeTextUpdates") == [
+        {"trusted": True, "bubbles": False, "attached": True}
+    ]
+    judge_watches()
+    field.evaluate(
+        "field => { field.remove(); field.dispatchEvent(new Event('input')); }"
+    )
+    judge_watches()
+    consume_browser_errors(
+        page, 'typed words left the screen without a key or press: "Keep these words"'
+    )
+
+    def fresh_field():
+        page.evaluate("""() => {
+          const fresh = document.createElement('leaf-text'); fresh.id = 'field';
+          editContextHolder.append(fresh); editContextField = fresh;
+        }""")
+        field.focus()
+        field.evaluate("""field => {
+          nativeEditingContext = editContextRoots.get(field).querySelector('.cm-content').editContext;
+        }""")
+        page.keyboard.insert_text("Keep these words")
+
+    fresh_field()
+    field.evaluate("""field => field.addEventListener('input', () => {
+      window.wordsBeforeNativeClobber = field.value;
+      field.remove(); field.dispatchEvent(new Event('input'));
+    }, {once:true})""")
+    page.keyboard.insert_text(" continued")
+    expect(field).to_have_count(0)
+    assert (
+        page.evaluate("window.wordsBeforeNativeClobber") == "Keep these words continued"
+    )
+    judge_watches()
+    consume_browser_errors(
+        page,
+        'typed words left the screen without a key or press: "Keep these words continued"',
+    )
+
+    fresh_field()
+    page.evaluate("""() => nativeEditingContext.dispatchEvent(new TextUpdateEvent('textupdate', {
+      updateRangeStart:0, updateRangeEnd:16, text:'Forged words',
+      selectionStart:12, selectionEnd:12,
+    }))""")
+    expect(field).to_have_js_property("value", "Forged words")
+    judge_watches()
+    consume_browser_errors(
+        page, 'typed words left the screen without a key or press: "Keep these words"'
+    )
+
+
 def test_words_scrolled_out_of_view_stay(browser):
     page = box_page(browser, "")
     scrolled(page)

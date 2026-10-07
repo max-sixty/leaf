@@ -19,11 +19,11 @@
 // Native effects it began retain only their sampled displacement within their
 // own subtree; their continued lifetime never owns unrelated page movement.
 // News starts passive rendering except the first frame shared with the gesture.
-// A typing field is observed at beforeinput, independently of Chrome's clipped or
-// shadowed source rectangles. Its subject, protected reading/control/declared-region
-// ancestors and visibly painted holders retain their poses. Transparent
-// coordinate carriers have no independent pose to protect: a compensated carrier
-// rebase can leave every painted subject stationary. Motion
+// A typing field is observed at its native edit start, independently of Chrome's
+// clipped or shadowed source rectangles. Its subject, protected reading/control and
+// declared-region ancestors, and visibly painted holders retain their poses.
+// Transparent coordinate carriers have no independent pose to protect: a compensated
+// carrier rebase can leave every painted subject stationary. Motion
 // already running on its ancestors belongs to the gesture that began that motion.
 // Continuing translation is credited from sampled animated property values, not
 // the ancestor's whole box: independent movement of it or its children still fails.
@@ -749,38 +749,32 @@
     nativeFrame(tick);
   };
   nativeFrame(tick);
-  document.addEventListener(
-    "beforeinput",
-    (event) => {
-      if (!event.isTrusted) return;
-      const field = event.composedPath()[0];
-      const holding = [];
-      for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
-      const start = nativePerformance.now();
-      const at = read(start, false);
-      begin(start, {
-        field,
-        at,
-        found: boxes(
-          holding.filter((node) => {
-            const paint = paintAt(node, at);
-            return (
-              node === field ||
-              paint.reading ||
-              paint.control ||
-              paint.reflow ||
-              paintedHolder(node)
-            );
-          }),
-        ),
-        moving: holding
-          .flatMap((node) => node.getAnimations())
-          .filter((animation) => animation.playState === "running" && moves(animation)),
-        until: Infinity,
-      });
-    },
-    true,
-  );
+  window.lfInputWork.subscribeEdits(({ node: field }) => {
+    const holding = [];
+    for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
+    const start = nativePerformance.now();
+    const at = read(start, false);
+    begin(start, {
+      field,
+      at,
+      found: boxes(
+        holding.filter((node) => {
+          const paint = paintAt(node, at);
+          return (
+            node === field ||
+            paint.reading ||
+            paint.control ||
+            paint.reflow ||
+            paintedHolder(node)
+          );
+        }),
+      ),
+      moving: holding
+        .flatMap((node) => node.getAnimations())
+        .filter((animation) => animation.playState === "running" && moves(animation)),
+      until: Infinity,
+    });
+  });
   // A viewport resize is input, and its new size is the fact. Chrome lays out the
   // resized viewport before dispatching resize, which precedes the frame's callbacks,
   // so tick() always runs after it; a layout-shift record delivered between the two,
@@ -939,7 +933,7 @@
     let escaped = false,
       containing = null;
     for (
-      let parent = own.reading ? up(node) : node;
+      let parent = own.reading ? own.parent : node;
       parent instanceof Element;
       parent = paintAt(parent, at)?.parent
     ) {

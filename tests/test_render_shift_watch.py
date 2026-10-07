@@ -65,6 +65,62 @@ def test_typing_may_grow_its_field(browser):
     judge_watches()
 
 
+@pytest.mark.parametrize("cause", ["typing", "passive"])
+def test_editcontext_growth_keeps_input_credit_with_its_actual_field(
+    browser, serve, cause
+):
+    """Native EditContext growth is typing; carrying its field still violates stability."""
+    context = browser.new_context(
+        user_agent="Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Native typing geometry", '<h1>Edit a reply</h1><div id="above"></div>'
+            )
+        ),
+        context=context,
+    )
+    page.evaluate(
+        """cause => {
+      const field = document.createElement('leaf-text'); field.id = 'field';
+      field.style.cssText = 'display:block;width:300px';
+      document.querySelector('main').append(field);
+      field.addEventListener('input', () => {
+        const source = lfInputWork.current();
+        window.nativeGeometryInput = {type:source.event.type,
+          trusted:source.event.isTrusted,field:source.node === field};
+        if(cause === 'typing') document.getElementById('above').style.height = '40px';
+      });
+    }""",
+        cause,
+    )
+    field = page.locator("#field")
+    field.focus()
+    paint(page)
+    before = field.bounding_box()
+    page.keyboard.insert_text("First line\nSecond line\nThird line")
+    expect(field).to_have_js_property("value", "First line\nSecond line\nThird line")
+    assert page.evaluate("window.nativeGeometryInput") == {
+        "type": "textupdate",
+        "trusted": True,
+        "field": True,
+    }
+    paint(page)
+    assert field.bounding_box()["height"] > before["height"]
+    judge_watches()
+    if cause == "typing":
+        assert field.bounding_box()["y"] == pytest.approx(before["y"] + 40)
+        consume_browser_errors(page, "typing in leaf-text#field moved leaf-text#field")
+    else:
+        assert field.bounding_box()["y"] == pytest.approx(before["y"])
+        page.evaluate("document.getElementById('above').style.height = '40px'")
+        judge_watches()
+        consume_browser_errors(page, "leaf-text#field moved without input")
+
+
 @pytest.mark.parametrize(
     "compensate,holder",
     [(True, "inert"), (False, "inert"), (True, "region"), (True, "painted")],
@@ -1390,12 +1446,15 @@ def test_typing_keeps_its_field_when_chrome_reports_only_larger_sources(browser)
     consume_browser_errors(page, "typing in textarea#field moved textarea#field")
 
 
-def test_a_retained_control_keeps_its_pose_when_a_new_sticky_owner_adopts_it(browser):
+@pytest.mark.parametrize("subject", ["button", "span"])
+def test_a_retained_landmark_keeps_its_pose_when_a_new_sticky_owner_adopts_it(
+    browser, subject
+):
     page = browser.new_page()
     page.goto(
         "data:text/html,"
-        + quote("""<!doctype html><body style="margin:0">
-<button id="action" style="position:absolute;left:10px;top:10px">Act</button>
+        + quote(f"""<!doctype html><body style="margin:0">
+<{subject} id="action" style="position:absolute;left:10px;top:10px">Act</{subject}>
 <p id="other" style="position:absolute;left:10px;top:150px">Following reading</p></body>""")
     )
     page.evaluate(PAINTED)
@@ -1411,7 +1470,7 @@ def test_a_retained_control_keeps_its_pose_when_a_new_sticky_owner_adopts_it(bro
     page.evaluate(PAINTED)
     judge_watches()
     errors = take_browser_errors(page)
-    assert any("button#action moved without input" in error for error in errors), errors
+    assert any(f"{subject}#action" in error for error in errors), errors
     assert all("moved without input" in error for error in errors), errors
 
 

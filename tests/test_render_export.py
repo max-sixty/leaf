@@ -1236,7 +1236,7 @@ customElements.define("lf-offline-test", class extends LitElement {
 
   choose() {
     return this.controller.dispatch({
-      kind: "action", verb: "choose", detail: {choice: "chosen"},
+      kind: "action", verb: "choose", detail: {value: "chosen"},
     });
   }
 
@@ -1275,14 +1275,8 @@ OFFLINE_REGISTRY = {
         "x-upgrade": True,
         "x-state": {
             "choose": {
-                "detail": {
-                    "type": "object",
-                    "properties": {"choice": {"type": "string"}},
-                    "required": ["choice"],
-                    "additionalProperties": False,
-                },
                 "unit": "widget",
-                "record": {"kind": "value", "attr": "choice", "value": "choice"},
+                "record": {"kind": "value", "attr": "choice"},
             }
         },
         "x-example": (

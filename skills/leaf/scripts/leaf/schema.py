@@ -62,9 +62,8 @@ _RECORD_ATTRIBUTE = {
     "properties": {
         "kind": {"const": "attribute"},
         "attr": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "value": {"type": "string", "minLength": 1},
     },
-    "required": ["kind", "attr", "value"],
+    "required": ["kind", "attr"],
     "additionalProperties": False,
 }
 _RECORD_POSITION = {
@@ -72,23 +71,14 @@ _RECORD_POSITION = {
     "properties": {
         "kind": {"const": "position"},
         "within": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
-        "value": {"type": "string", "minLength": 1},
-        # The detail field holding the unit's rank among its container's siblings.
-        # Comparison stays at the container's granularity (see $state), but a
-        # reader that has to *state* a position needs both halves: a record naming
-        # only the column would put a card back on the right list in the wrong place.
-        "rank": {"type": "string", "minLength": 1},
     },
-    "required": ["kind", "within", "value", "rank"],
+    "required": ["kind", "within"],
     "additionalProperties": False,
 }
 _RECORD_BODY = {
     "type": "object",
-    "properties": {
-        "kind": {"const": "body"},
-        "value": {"type": "string", "minLength": 1},
-    },
-    "required": ["kind", "value"],
+    "properties": {"kind": {"const": "body"}},
+    "required": ["kind"],
     "additionalProperties": False,
 }
 _RECORD_VALUE = {
@@ -96,12 +86,10 @@ _RECORD_VALUE = {
     "properties": {
         "kind": {"const": "value"},
         "attr": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "value": {"type": "string", "minLength": 1},
     },
-    "required": ["kind", "attr", "value"],
+    "required": ["kind", "attr"],
     "additionalProperties": False,
 }
-
 
 # A `when` predicate selects instances by attribute values (or by a flag's being
 # present or absent). One condition shape serves Asks and threads because they
@@ -186,9 +174,9 @@ REFERENCE_SCHEMA = {
 }
 
 
-# Each verb is {detail, unit, record}. `writer: "agent"` makes it a verb the agent
-# reports through `leaf page report` rather than one the user acts on;
-# absent, the user writes it. The two writers differ in what their state may be, not in its shape.
+# Each verb declares its coordinate and a recorded effect or custom detail schema.
+# `writer: "agent"` makes it a report through `leaf page report`; otherwise the
+# user writes it. The writers differ in what their state may be, not its shape.
 STATE_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -208,12 +196,17 @@ STATE_SCHEMA = {
             },
             "writer": {"const": "agent"},
             "creates": ACTION_CREATES,
-            # A report may carry one short prose update beside the structured state it
-            # records. Naming the detail field is what lets the common update feed
-            # expose those words without guessing from a widget, verb, or field name.
-            "update": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            # The effect owns the payload; update adds required nonempty detail.text.
+            "update": {"const": True},
         },
-        "required": ["detail", "unit"],
+        "required": ["unit"],
+        "allOf": [
+            {
+                "if": {"required": ["record"]},
+                "then": {"properties": {"detail": False, "creates": False}},
+                "else": {"required": ["detail"]},
+            }
+        ],
         "additionalProperties": False,
         # An agent's verb moves declared state only, never body words — so the
         # passage reading never has to model one — and never a part's place, which

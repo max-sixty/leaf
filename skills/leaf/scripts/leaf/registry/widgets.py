@@ -18,7 +18,6 @@ from .contract import (
     RegistryError,
     deciding_outcomes,
     deciding_verb,
-    declares_string,
     reference_relation_error,
     state_specs,
     visual_part_attribute,
@@ -70,6 +69,8 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
                 f"{path}: <{tag}> registry extensions are invalid: {errors[0].message}"
             )
         for verb, spec in state_specs(entry):
+            if spec.get("record"):
+                continue
             try:
                 Draft202012Validator.check_schema(spec["detail"])
             except SchemaError as error:
@@ -109,30 +110,6 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
                     "required and additionalProperties and nothing else, so the "
                     "keys a verb can carry are the ones it names"
                 )
-            if update := spec.get("update"):
-                detail = spec["detail"]
-                field = detail.get("properties", {}).get(update)
-                if field is None:
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` update field "
-                        f"`{update}` is not declared by its detail schema"
-                    )
-                if update not in detail.get("required", []):
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` update field "
-                        f"`{update}` must be required — every report in the feed "
-                        "needs words"
-                    )
-                if not declares_string(field):
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` update field "
-                        f"`{update}` must be a string"
-                    )
-                if field.get("minLength", 0) < 1:
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` update field "
-                        f"`{update}` must set minLength to at least 1"
-                    )
 
 
 def validate_widget_relations(

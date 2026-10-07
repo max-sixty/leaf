@@ -37,6 +37,7 @@ import { isFolding } from "./folding.js";
 import { threadKey } from "./model.js";
 import { seenRect, whenOffScreen } from "../geometry.js";
 import { gesturedOn } from "./held-news.js";
+import { PENDING } from "./identity.js";
 import { readingIsContinuous } from "../reading-continuity.js";
 
 const TAG = "leaf-thread-list";
@@ -46,6 +47,15 @@ const EMPTY_MODEL = Object.freeze({
   count: null,
   pageSeats: new Map(),
 });
+
+// Whether the user has a reply or a rewrite on its way in `thread`: a message the
+// ledger draws under its pending id, or new words standing over one of theirs
+// (`foldThreads`). A reaction is a mark, not a turn.
+const turnOnItsWay = (thread) =>
+  thread.msgs.some(
+    (message) =>
+      (message.id.startsWith(PENDING) && !message.token) || message.edited?.pending,
+  );
 
 class ThreadListView extends RetainedFace {
   #commands = null;
@@ -139,13 +149,12 @@ class ThreadListView extends RetainedFace {
       key,
       thread.msgs.map(({ id }) => id),
     );
-    // The user's own words sent in a card news kept make it theirs: the turn takes the
-    // card out as any turn of theirs does (thread-card.js, `#speak`). A reaction there,
-    // which sends no words, leaves it held for the news.
-    const theirs = gesturedOn(thread);
+    // A turn of the user's own on its way, a reply or a rewrite, makes a card news kept
+    // theirs: the turn takes the card out as any turn of theirs does (thread-card.js,
+    // `#speak`). A reaction, a move or words not yet sent leave it held for the news.
     const news = view.model.kept
-      ? view.model.kept === "news" && !(theirs && draft)
-      : !theirs;
+      ? view.model.kept === "news" && !turnOnItsWay(thread)
+      : !gesturedOn(thread);
     if (news && (seen || draft)) return "news";
     return draft ? "draft" : null;
   }

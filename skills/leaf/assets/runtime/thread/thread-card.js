@@ -1305,7 +1305,8 @@ export class ThreadView {
     const mayLand = travel.retainPanelLanding(this.node);
     const shownCard = () =>
       !this.node.hidden && this.node.isConnected ? this.node : null;
-    let mayRestore = () => false;
+    // Until the user arrives with the thread, the gesture's own lease stands for them.
+    let mayRestore = mayLand;
     const narrowing = travel.retainNarrowing();
     // The card leaves the view the turn was written in: hidden, or drawn only for the
     // turn's words on their way (thread-list-view.js, `keepsForWords`).

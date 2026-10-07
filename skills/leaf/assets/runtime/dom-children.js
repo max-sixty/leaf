@@ -42,11 +42,10 @@ export function setRenderedChildren(parent, nodes) {
 }
 
 // Put `nodes` in order under `parent`, walking past the children `passed` names, and
-// moving only a node that is not already where it belongs. A node that does move keeps
-// the user standing in it: the hold is read before the first move, while the focus it
-// reads is still intact, and only a pass that moves anything takes one.
+// moving only a node that is not already where it belongs. A retained move within one
+// shadow-including tree preserves the browser's own state, including iframe documents
+// and editor focus. New nodes and nodes adopted from another tree arrive by insertion.
 function order(parent, nodes, passed = () => false) {
-  let restoreFocus = null;
   let cursor = parent.firstChild;
   for (const node of nodes) {
     while (cursor && passed(cursor)) cursor = cursor.nextSibling;
@@ -54,10 +53,10 @@ function order(parent, nodes, passed = () => false) {
       cursor = cursor.nextSibling;
       continue;
     }
-    restoreFocus ??= holdFocus(parent) ?? (() => false);
-    parent.insertBefore(node, cursor);
+    if (node.getRootNode({ composed: true }) === parent.getRootNode({ composed: true }))
+      parent.moveBefore(node, cursor);
+    else parent.insertBefore(node, cursor);
   }
-  restoreFocus?.();
 }
 
 /* Apply the difference between two authored revisions to the page standing between them.

@@ -30,8 +30,9 @@ Seeded history is installed once, so a change to it is refused until a restart.
     uv run leaf-dev preview [EXAMPLE] [--source FILE] [--runtime CHECKOUT]
         [--slot NAME] [--user] [--export]
 
-The command execs the worker, `python -m leaf_dev.preview --worker`, into the
-selected checkout's environment (`start_preview_worker`).
+The command execs the selected checkout's own worker,
+`python -m leaf_dev.preview --worker`, into its environment
+(`start_preview_worker`). The worker and the server share that checkout's contracts.
 """
 
 import contextlib
@@ -722,12 +723,12 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
     """Become the preview, in the selected checkout's uv environment.
 
     That environment is the one `bin/leaf` syncs, which carries no dev group, so the
-    watcher's own dependency and this checkout's `leaf_dev`, which builds the page from
-    the fixture, are overlaid onto it rather than installed into it. `leaf_dev` names
-    no `leaf` of its own, so the overlay leaves the selected checkout's `leaf` in
-    place. The launcher is replaced rather than kept as a parent, so whatever stops
-    this process — Ctrl-C, or a runner's SIGTERM, which `uv run` forwards — reaches
-    the preview itself.
+    watcher's own dependency and its `leaf_dev`, which builds the page from the
+    fixture, are overlaid onto it rather than installed into it. The selected
+    checkout owns both the worker and `leaf`, so their startup and serving contracts
+    stay together when comparing versions. The launcher is replaced rather than
+    kept as a parent, so whatever stops this process — Ctrl-C, or a runner's
+    SIGTERM, which `uv run` forwards — reaches the preview itself.
     """
     command = [
         "uv",
@@ -739,7 +740,7 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
         "--with",
         WATCHER_PACKAGE,
         "--with-editable",
-        str(ROOT / "dev"),
+        str(runtime / "dev"),
         "python",
         "-m",
         "leaf_dev.preview",

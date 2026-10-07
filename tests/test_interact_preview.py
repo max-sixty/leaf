@@ -134,25 +134,43 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
             )
 
 
-def test_abandoned_desktop_preview_publishes_no_claim(tmp_path, spawn, codex_env):
+def test_abandoned_desktop_preview_publishes_no_claim(
+    tmp_path, spawn, under_codex, codex_env
+):
     """Outer preview acceptance owns both watcher readiness and HTTP publication."""
-    from interact_support import record_claim
-    from leaf.harness import claim_harness
-
     source = tmp_path / "review.html"
     source.write_text(
         "<!doctype html><html><head><title>Review</title></head>"
         "<body><main><h1>Review</h1></main></body></html>"
     )
     page = tmp_path / "previews" / "review"
-    previous = record_claim(
-        page,
-        id="abandoned-desktop",
-        harness="codex",
-        activity="multiplexed",
-        ts=state.now_iso(),
+    env = codex_env | {
+        "CODEX_THREAD_ID": "abandoned-desktop",
+        "LEAF_PREVIEWS_ROOT": str(page.parent),
+    }
+    preparing = under_codex(
+        shlex.join(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import json, sys; from pathlib import Path; "
+                    "from leaf.harness import session_harness; "
+                    "from leaf.service import prepare_claim; "
+                    "print(json.dumps(prepare_claim(session_harness(), Path(sys.argv[1]))))"
+                ),
+                str(page),
+            ]
+        ),
+        env,
+        app_server=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
     )
-    intent = service.prepare_claim(claim_harness(previous), page)
+    output, errors = preparing.communicate(timeout=STATED_TIMEOUT)
+    assert preparing.returncode == 0, f"{output}{errors}"
+    intent = json.loads(output)
     caller, child = socket.socketpair()
     task = spawn(
         [
@@ -172,7 +190,7 @@ def test_abandoned_desktop_preview_publishes_no_claim(tmp_path, spawn, codex_env
             "--handshake",
             str(child.fileno()),
         ],
-        env=codex_env | {"LEAF_PREVIEWS_ROOT": str(page.parent)},
+        env=env,
         pass_fds=(child.fileno(),),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,

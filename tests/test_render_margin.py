@@ -5246,7 +5246,9 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
           };
           const placed = () => new Promise(resolve => requestAnimationFrame(
             () => requestAnimationFrame(resolve)));
-          scrollBy(0, 250);
+          // Keep the first two positions below the banner's 8px boundary, so
+          // these readings exercise following the words rather than clamping.
+          scrollBy(0, 180);
           await placed();
           const high = positions();
           scrollBy(0, 40);

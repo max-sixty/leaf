@@ -1,7 +1,8 @@
 /* CallDiff's plain output is a unified call-tree diff: a two-character status gutter,
  * tree glyphs and call text, then an optional source location separated by two spaces.
  * The host owns analysis and the captured text; this widget only parses that display
- * grammar and projects each row as commentable evidence. */
+ * grammar and projects each row as commentable evidence. Each root keeps its native
+ * disclosure separate from its source link, which remains available when closed. */
 import {
   announce,
   html,
@@ -112,13 +113,17 @@ function buildToolbar(owner) {
 function buildGroup(owner, key, open) {
   const group = el("details", "lf-call-group");
   group.open = open;
+  // Source navigation and disclosure are separate controls: a link nested in summary
+  // disappears from some accessibility readings. Keep the summary as the tight root
+  // datum, and its source control beside it rather than around the whole call tree.
+  const location = el("div", "lf-call-root-location");
   const summary = buildLine("summary");
   const body = el("div", "lf-call-group-body lf-text-scroller");
   group.dataset.callGroup = key;
   summary.classList.add("lf-call-group-summary");
   group.append(summary, body);
   group.addEventListener("toggle", () => updateDisclosureControl(owner));
-  return { body, group, summary };
+  return { body, group, location, summary };
 }
 
 function groupLabel(records) {
@@ -151,6 +156,21 @@ async function travelToLine(owner, record) {
   });
 }
 
+function locationLink(record, owner) {
+  return record.location
+    ? html`<a
+        class="lf-call-location"
+        href=${`#${owner.getAttribute("diff")}`}
+        @click=${async (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          await travelToLine(owner, record);
+        }}
+        >${record.location}</a
+      >`
+    : html`<a class="lf-call-location" hidden></a>`;
+}
+
 function renderLine(record, line, owner, count = null) {
   keeps(line, "data-status", record.status);
   line.toggleAttribute("data-root", record.root);
@@ -159,18 +179,7 @@ function renderLine(record, line, owner, count = null) {
     html`<span class="lf-call-marker" aria-hidden="true"
         >${record.status === "added" ? "+" : record.status === "removed" ? "−" : " "}</span
       ><span class="lf-call-body">${record.body}</span>${
-        record.location
-          ? html`<a
-              class="lf-call-location"
-              href=${`#${owner.getAttribute("diff")}`}
-              @click=${async (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                await travelToLine(owner, record);
-              }}
-              >${record.location}</a
-            >`
-          : html`<a class="lf-call-location" hidden></a>`
+        record.root ? "" : locationLink(record, owner)
       }${count === null ? "" : html`<span class="lf-call-group-count" data-lf-gen="1">${count}</span>`}`,
     line,
   );
@@ -267,6 +276,10 @@ customElements.define(
           oldRows.get(record.key) ?? (record.root ? group.summary : buildLine());
         const count = record.root ? groupLabel(groupRows.get(record.groupKey)) : null;
         renderLine(record, node, this, count);
+        if (record.root) {
+          keeps(group.location, "data-status", record.status);
+          render(locationLink(record, this), group.location);
+        }
         rows.set(record.key, node);
         return { node, key: record.key, label: labelOf(record) };
       });
@@ -301,7 +314,7 @@ customElements.define(
       setChildren(this, [
         toolbar,
         rows.get(records[0].key),
-        ...[...groups.values()].map(({ group }) => group),
+        ...[...groups.values()].flatMap(({ group, location }) => [location, group]),
       ]);
       this.groups = groups;
       this.rows = rows;

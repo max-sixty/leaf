@@ -37,7 +37,7 @@ import { THREAD } from "../thread/selectors.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { takesLetters } from "../focus.js";
+import { onStanding, takesLetters } from "../focus.js";
 import { repaint } from "../repaint.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
@@ -759,8 +759,8 @@ export function createSelectionComposer({
     });
     suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);
     fabSuggest.onclick = () => setSuggestionMode(!suggestCheck.checked);
-    document.addEventListener("focusin", (event) => {
-      if (responseOptionsOpen && !fabBar.contains(event.composedPath()[0]))
+    onStanding((node) => {
+      if (node && responseOptionsOpen && !fabBar.contains(node))
         setResponseOptions(false);
     });
     fab.onclick = () => {

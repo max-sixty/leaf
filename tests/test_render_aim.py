@@ -437,6 +437,7 @@ def test_a_growing_text_comment_keeps_its_passage_clear_without_changing_sides(
     )
     write(field, content)
     expect(field).to_have_js_property("value", content)
+    rendered(page)
     expanded = field.bounding_box()
     assert page.locator(".lf-fab-bar").get_attribute("data-lf-placement") == placement
     assert page.evaluate(clear), (

@@ -17,6 +17,7 @@ from html import unescape
 from pathlib import Path
 
 import click
+from leaf.harness import ClaudeCodeHarness
 from leaf.service import requires_agent_attention
 
 from leaf_dev import ROOT
@@ -267,7 +268,7 @@ class Run:
     case: str
     payload: Path
     dir: Path
-    harness: str = "cc"
+    harness: str = ClaudeCodeHarness.name
 
     @property
     def state(self) -> Path:
@@ -531,7 +532,7 @@ def append_elided_history(run: Run, page: Path) -> None:
 
     The wait cannot capture half the history before its acknowledgement. Nothing
     rewrites the log: this fixture uses the same admission and receipt boundaries
-    as the CLI and carriers, under their one transaction lease.
+    as the CLI and hooks, under their one transaction lease.
     """
     state, html = active_html(run, page)
     arm_python(
@@ -1243,7 +1244,7 @@ def live_rounds(trace: list[dict]) -> list[dict]:
     The driver emits eval_received only after admitted attention inputs have
     opened pickups. A window begins at the post so it includes the ACK and claim
     operations whose tool result first lets the driver observe that receipt.
-    Hook output text does not prove receipt on either inline or pointer routes.
+    Hook output text does not prove receipt on either inline or pointer deliveries.
     """
     rounds = []
     for n, post in enumerate(
@@ -1742,7 +1743,7 @@ def execute_scenario(
     payload: Path,
     work: Path,
     *,
-    harness: str = "cc",
+    harness: str = ClaudeCodeHarness.name,
     condition: str = "leaf",
 ) -> dict:
     """One Promptfoo provider call owns all phases, live rounds, and evidence."""

@@ -304,7 +304,9 @@ export const cardMeasure = () => rootLength("--thread-card");
    positioning space. Its declared minimum is limited only by the boundary, never by
    its passage's column.
    The intended inline start caps growth, before a restored draft's own width can
-   shift it; a landed adjustment then keeps that start as typing widens the field. */
+   shift it. On the left, the surface instead holds its right edge clear of the
+   target and grows toward the boundary; keeping its initial left edge would let
+   a longer draft grow across the words it comments on. */
 export function commentPlacement() {
   let side = null;
   let inline = null;
@@ -419,7 +421,8 @@ export function commentPlacement() {
         // A draft can have lost its visible attachment before Send. Its card still
         // starts at that frame, then follows the card's attachment from this choice.
         ({ side, seen } = frame.placement);
-        carriedInline = frame.box.left - (column ?? clear?.left ?? boundary.left);
+        if (side !== "left")
+          carriedInline = frame.box.left - (column ?? clear?.left ?? boundary.left);
         const top = frame.box.top - line(clear, row);
         initialHold = { top, foot: top + frame.box.height };
       } else if (
@@ -667,8 +670,10 @@ export function commentPlacement() {
     landed({ x, y, middlewareData }) {
       initialHold = null;
       const { scale, column, attachmentInline, line } = middlewareData.scaled;
+      // A left-side surface grows toward the boundary, keeping its right edge beside
+      // the target. Holding its compact left edge would widen it over the target.
       if (vertical(side)) inline ??= x - column;
-      else carriedInline ??= (x - attachmentInline) * scale.x;
+      else if (side !== "left") carriedInline ??= (x - attachmentInline) * scale.x;
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;
       const spot = { top, foot: top + middlewareData.held.height * scale.y };
       // The reading this placement answered, so a turn that joined while it was worked

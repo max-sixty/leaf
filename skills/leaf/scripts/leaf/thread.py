@@ -193,8 +193,8 @@ class DeliveryReply:
         the transaction that appends the reply. That includes the ways out that
         raise: recording the draft's last state re-reads a page the turn's own work
         may have left unopenable, and a binding left standing refuses every other
-        writer the delivery's move — the carrier's receipt that no answer is coming
-        among them — until the claim itself goes.
+        writer the delivery's move — the harness's failure receipt that no answer
+        is coming among them — until the claim itself goes.
         """
         committed = False
         try:

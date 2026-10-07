@@ -30,7 +30,7 @@ import {
   sendMessage,
   tellDraft,
 } from "../drafts.js";
-import { FLASH_MS, motion } from "../motion.js";
+import { FLASH_MS, backgroundFlash } from "../motion.js";
 import { keys } from "../keyboard/scopes.js";
 import { commandShortcut } from "../keyboard/control-keys.js";
 import { keeps } from "../keeps.js";
@@ -175,11 +175,7 @@ export function createPageComment({
       ),
       wireBox(input, send, (_handle, flight) => {
         card.hidePopover();
-        motion(
-          threadsToggle,
-          [{ backgroundColor: "var(--hi-tint)" }, { backgroundColor: "transparent" }],
-          FLASH_MS,
-        );
+        backgroundFlash(threadsToggle, FLASH_MS);
         // A refusal can come long after the send, while delivery retries. The card opens
         // again on the words only where the user still stands where the send left them;
         // anywhere else it would take their keys, and the words wait in the draft for

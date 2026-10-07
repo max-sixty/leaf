@@ -627,32 +627,54 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
     assert read["shown"] == pytest.approx(read["head"]["bottom"], abs=0.5), read
 
 
+LONG_DIFF_PATH = "src/deeply/nested/module/file.rs"
+LONG_DIFF_PATCH = (
+    f"diff --git a/{LONG_DIFF_PATH} b/{LONG_DIFF_PATH}\n"
+    f"--- a/{LONG_DIFF_PATH}\n+++ b/{LONG_DIFF_PATH}\n"
+    "@@ -1 +1,81 @@\n fn main() {\n"
+    + "".join(f"+    let value_{i} = {i};\n" for i in range(80))
+)
+
+
+def long_diff(id):
+    return f'<lf-diff id="{id}"><pre>{LONG_DIFF_PATCH}</pre></lf-diff>'
+
+
+# Scrolls the box with the given id 400px down and reads how far below the top of its
+# content the diff's file header inside it stands. A sticky box stops at its scroller's
+# padding edge, so a box that states no start of its own pins it below its padding.
+PINNED_IN_BOX = """async (id) => {
+    const box = document.getElementById(id);
+    box.scrollTop = 400;
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const head = box.querySelector('lf-diff').shadowRoot
+        .querySelector('.lf-diff-file > details > summary');
+    return {
+        scrolled: box.scrollTop,
+        gap: head.getBoundingClientRect().top - (box.getBoundingClientRect().top
+            + box.clientTop + parseFloat(getComputedStyle(box).paddingTop)),
+    };
+}"""
+
+
 def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve):
     """A diff's file header pins at the top of the box that scrolls it, whoever made the
-    box scroll: a page rule, an inline style, and a column's sticky sidebar each start
-    `--lf-top` again, where each pinned the header the banner's height below the box's
-    top. The root keeps the banner's height though a page rule makes it scroll, and a
-    page's sticky box keeps the slot it met though another rule makes it scroll, so both
-    still stop at the banner's foot."""
-    path = "src/deeply/nested/module/file.rs"
-    rows = "".join(f"+    let value_{i} = {i};\n" for i in range(80))
-    patch = (
-        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
-        f"@@ -1 +1,81 @@\n fn main() {{\n{rows}"
-    )
-
-    def diff(id):
-        return f'<lf-diff id="{id}"><pre>{patch}</pre></lf-diff>'
-
+    box scroll: a page rule, an inline style, `overflow: hidden`, and a column's sticky
+    sidebar each start `--lf-top` again, where each pinned the header the banner's
+    height below the box's top. The root keeps the banner's height though a page rule
+    makes it scroll, and a page's sticky box keeps the slot it met though another rule
+    makes it scroll, so both still stop at the banner's foot."""
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Scrolling boxes",
-                f'<aside class="sidebar" id="side">{diff("in-side")}</aside>'
-                f'<h1>Scrolling boxes</h1><div id="box">{diff("in-box")}</div>'
+                f'<aside class="sidebar" id="side">{long_diff("in-side")}</aside>'
+                f'<h1>Scrolling boxes</h1><div id="box">{long_diff("in-box")}</div>'
                 '<div id="inline" style="max-height: 320px; overflow: auto">'
-                f"{diff('in-inline')}</div>"
+                f"{long_diff('in-inline')}</div>"
+                '<div id="hidden" style="max-height: 320px; overflow: hidden">'
+                f"{long_diff('in-hidden')}</div>"
                 '<div id="panel" class="tall"><p>Panel.</p></div>'
                 + "<p>Filler.</p>"
                 * 60,
@@ -667,35 +689,71 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
         "data-lf-margin", re.compile("sidebar")
     )
     page.wait_for_function(
-        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 3"
+        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 4"
     )
     read = page.evaluate(
-        """async () => {
-        const pinned = async (id) => {
-            const box = document.getElementById(id);
-            box.scrollTop = 400;
-            await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-            const head = box.querySelector('lf-diff').shadowRoot
-                .querySelector('.lf-diff-file > details > summary');
-            return {
-                scrolled: box.scrollTop,
-                gap: head.getBoundingClientRect().top
-                    - (box.getBoundingClientRect().top + box.clientTop),
-            };
-        };
-        return {
+        f"""async () => {{
+        const pinned = {PINNED_IN_BOX};
+        return {{
             box: await pinned('box'),
             inline: await pinned('inline'),
+            hidden: await pinned('hidden'),
             side: await pinned('side'),
             panel: getComputedStyle(document.querySelector('#panel')).top,
             root: getComputedStyle(document.documentElement).getPropertyValue('--lf-top'),
-        };
-    }"""
+        }};
+    }}"""
     )
-    for box in ("box", "inline", "side"):
+    for box in ("box", "inline", "hidden", "side"):
         assert read[box]["scrolled"] == 400, read
         assert read[box]["gap"] == pytest.approx(0, abs=1.5), read
     assert read["root"] != "0px" and read["panel"] == read["root"], read
+
+
+def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve):
+    """A page tab panel the page makes scroll is the box its diff's header pins to, though
+    the tab strip stacks its height onto what the panel holds: the panel's own scroll
+    restarts `--lf-top`. An undecided option card clips its rounded corners and scrolls
+    nothing, so a diff in an option pins under the banner as the page scrolls past it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Panel and option",
+                '<lf-tabs id="tabs"><lf-tab id="tab" label="Diff">'
+                f"{long_diff('in-tab')}</lf-tab></lf-tabs>"
+                '<lf-ask id="ask"><h2>Which?</h2><lf-options id="opts" choose>'
+                f'<lf-option id="opt-a"><strong>A</strong>{long_diff("in-option")}'
+                '</lf-option><lf-option id="opt-b"><strong>B</strong></lf-option>'
+                "</lf-options></lf-ask>" + "<p>Filler.</p>" * 60,
+                head="<style>#tab { max-height: 320px; overflow: auto; }</style>",
+            )
+        ),
+    )
+    resized(page, 1280, 900)
+    expect(page.locator("lf-tabs")).to_have_attribute("data-lf-tabs-flow", "page")
+    page.wait_for_function(
+        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 2"
+    )
+    read = page.evaluate(
+        f"""async () => {{
+        const tab = await ({PINNED_IN_BOX})('tab');
+        const diff = document.getElementById('in-option');
+        const head = diff.shadowRoot.querySelector('.lf-diff-file > details > summary');
+        const rows = [...diff.shadowRoot.querySelectorAll('[data-line]')];
+        rows[40].scrollIntoView({{block: 'start', behavior: 'instant'}});
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        return {{
+            tab,
+            option: head.getBoundingClientRect().top,
+            banner: parseFloat(getComputedStyle(document.documentElement)
+                .getPropertyValue('--lf-top')),
+        }};
+    }}"""
+    )
+    assert read["tab"]["scrolled"] == 400, read
+    assert read["tab"]["gap"] == pytest.approx(0, abs=1.5), read
+    assert read["option"] == pytest.approx(read["banner"], abs=1), read
 
 
 def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):

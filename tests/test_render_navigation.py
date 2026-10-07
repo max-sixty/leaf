@@ -1,5 +1,6 @@
 """Comment marks, Go-to addresses, and keyboard navigation tests."""
 
+import io
 import json
 import re
 
@@ -9,9 +10,11 @@ from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import server as server_model
 from leaf.render_checks import one_frame, rendered
+from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_PAGE,
+    HOLD_MOTION,
     PANEL_PAGE,
     QUEUE_ROW_SAYS,
     SEATED_ASK_LAYER,
@@ -2471,6 +2474,135 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         expect(tabs.get_by_role("tab").nth(1)).to_have_attribute(
             "aria-selected", "true"
         )
+
+
+def color_cue_markup():
+    return leaf_page(
+        "Color cue surfaces",
+        '<h1>Review</h1><section id="review"><lf-tabs id="views">'
+        + "".join(
+            f'<lf-tab id="{name}" label="{name}">'
+            f'<lf-ask id="ask-{name}"><h2>Choose {name}?</h2>'
+            f'<lf-options id="choice-{name}" choose>'
+            f'<lf-option id="yes-{name}">Yes</lf-option>'
+            f'<lf-option id="no-{name}">No</lf-option></lf-options>'
+            "</lf-ask></lf-tab>"
+            for name in ("first", "second")
+        )
+        + "</lf-tabs></section>",
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("target", ["banner", "tab"])
+def test_color_cues_fade_to_the_live_surface(request, serve, engine, target):
+    """Transient paint fades smoothly and returns to current hover or theme fill."""
+    page = open_page(request.getfixturevalue(engine), serve(color_cue_markup()))
+    page.emulate_media(reduced_motion="no-preference")
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    if target == "tab":
+        page.keyboard.press("a")
+        expect(page.locator("#ask-first")).to_be_focused()
+        page.keyboard.press("a")
+        expect(page.locator("#ask-second")).to_be_focused()
+        cue_target = page.locator('#views [aria-controls="second"] .lf-tab-name')
+    else:
+        page.keyboard.press("c")
+        box = page.locator(".lf-page-comment-card leaf-text")
+        expect(box).to_be_focused()
+        write(box, "Review both choices.")
+        page.keyboard.press("Enter")
+        expect(page.locator(".lf-page-comment-card")).not_to_be_visible()
+        cue_target = page.locator(".lf-threads-toggle")
+    colours = cue_target.evaluate(
+        """async node => {
+          const cue = node.getAnimations()[0];
+          if (!cue) throw new Error('the gesture has no color cue');
+          cue.pause();
+          const duration = cue.effect.getComputedTiming().endTime;
+          const colours = [];
+          for (const fraction of [0, .25, .5, .75, .99]) {
+            cue.currentTime = duration * fraction;
+            await new Promise(requestAnimationFrame);
+            colours.push(getComputedStyle(node).backgroundColor);
+          }
+          return colours;
+        }"""
+    )
+    assert len(set(colours)) >= 4, colours
+    if target == "tab":
+        page.emulate_media(color_scheme="dark")
+    else:
+        cue_target.hover()
+    fills = cue_target.evaluate(
+        """async node => {
+          const cue = node.getAnimations()[0];
+          cue.effect.updateTiming({fill: 'forwards'});
+          cue.currentTime = cue.effect.getComputedTiming().endTime;
+          await new Promise(requestAnimationFrame);
+          const end = getComputedStyle(node).backgroundColor;
+          cue.cancel();
+          await new Promise(requestAnimationFrame);
+          return {end, rest: getComputedStyle(node).backgroundColor};
+        }"""
+    )
+    assert fills["end"] == fills["rest"], fills
+
+
+@pytest.mark.parametrize("target", ["banner", "tab"])
+def test_firefox_paints_a_natural_color_cue(firefox_browser, serve, target):
+    """Observe the ordinary compositor path without pausing or reading its styles."""
+    page = open_page(firefox_browser, serve(color_cue_markup()))
+    page.emulate_media(reduced_motion="no-preference")
+    if target == "tab":
+        page.keyboard.press("a")
+        expect(page.locator("#ask-first")).to_be_focused()
+        selector = '#views [aria-controls="second"] .lf-tab-name'
+    else:
+        page.keyboard.press("c")
+        box = page.locator(".lf-page-comment-card leaf-text")
+        expect(box).to_be_focused()
+        write(box, "Review both choices.")
+        selector = ".lf-threads-toggle"
+    page.evaluate(
+        """selector => {
+          window.__colorCue = {point: null, error: null};
+          const node = document.querySelector(selector);
+          const observe = () => {
+            const cue = node.getAnimations()[0];
+            if (!cue) { requestAnimationFrame(observe); return; }
+            cue.finished.then(() => {
+              const box = node.getBoundingClientRect();
+              window.__colorCue.point = [box.left + 3, box.top + box.height / 2];
+            }, error => { window.__colorCue.error = String(error); });
+          };
+          requestAnimationFrame(observe);
+        }""",
+        selector,
+    )
+    frames = []
+    with page.screencast.start(
+        on_frame=lambda frame: frames.append(frame),
+        quality=100,
+        size=page.viewport_size,
+    ):
+        page.keyboard.press("a" if target == "tab" else "Enter")
+        page.wait_for_function(
+            "() => window.__colorCue.point || window.__colorCue.error"
+        )
+        result = page.evaluate("() => window.__colorCue")
+        assert result["error"] is None, result
+        point = result["point"]
+    colours = [
+        Image.open(io.BytesIO(frame["data"]))
+        .convert("RGB")
+        .getpixel(tuple(round(coordinate) for coordinate in point))
+        for frame in frames
+    ]
+    # Yellow to the light surface must paint intermediate colors, not a discrete
+    # color change that paused animation/style reads could conceal in Firefox.
+    blues = {blue for red, _green, blue in colours if red > 245 and 205 < blue < 240}
+    assert len(blues) >= 3 and max(blues) - min(blues) >= 12, colours
 
 
 @pytest.mark.parametrize("reduced", [False, True])
@@ -7813,32 +7945,104 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     page.keyboard.press("Escape")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="reach.js reads which boxes declare a scroll only when it sweeps them, so a "
-    "box a narrower window turns into a scroller gets no stop or continuation mark",
-)
-def test_a_box_that_starts_scrolling_at_a_narrower_window_takes_a_stop(browser, serve):
-    """A box that scrolls only below some width is reachable once the window narrows to
-    it, as it is when the page loads at that width."""
+def test_a_box_that_starts_scrolling_after_it_arrives_takes_a_stop(browser, serve):
+    """A box that starts scrolling after the page loads is reachable, shows its edge
+    mark, and starts the sticky-header slot again, as it does when the page loads with
+    it scrolling: whether a shorter window, a narrower container, or a page script made
+    it scroll, by a class it adds as it adapts to the box's size or by a box it inserts,
+    and announced it with `layoutChanged`. A box the window grows out of scrolling gives
+    all three back. The window's case asks its height, which no box's size follows. A
+    table first drawn when its disclosure opens is read in the size delivery that draws
+    it, and a script announcing from a size delivery is heard, both without a
+    ResizeObserver loop. A column's sidebar the page loads seated in the margin, where
+    the Layout makes it scroll, takes its stop as one the window widened into the
+    margin does. A size container a page animates for as long as it plays holds back
+    neither the others nor the page's settling, though a script announces it."""
+    wide = '<div class="wide">A block held to nine hundred pixels wide.</div>'
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Narrow scroller",
-                '<section id="s"><h2 id="h">Box</h2><div id="wide-box">'
-                '<p id="wide-p">A paragraph held to nine hundred pixels wide.</p>'
-                "</div></section>",
-                head="<style>@media (width < 600px) { #wide-box { overflow-x: auto; } }"
-                " #wide-box p { width: 900px; }</style>",
+                "Late scrollers",
+                '<div id="meter"></div>'
+                f'<div id="by-window">{wide}</div>'
+                f'<div id="holder"><div id="by-container">{wide}</div></div>'
+                f'<div id="by-script">{wide}</div>'
+                '<details id="more"><summary>More</summary><table id="drawn"><tbody>'
+                "<tr><td>Cell</td></tr></tbody></table></details>",
+                head="<style>.wide { width: 900px; }"
+                "@media (height < 860px) { #by-window { overflow-x: auto; } }"
+                "#holder { container-type: inline-size; width: 800px; }"
+                "@container (width < 600px) { #by-container { overflow-x: auto; } }"
+                "#by-script.scrolls, #by-insert { overflow-x: auto; }"
+                "@keyframes pulse { from { width: 120px; } to { width: 160px; } }"
+                "#meter { container-type: inline-size; block-size: 8px;"
+                " animation: pulse 1s linear infinite; }</style>",
             )
         ),
     )
     resized(page, 1200, 900)
-    resized(page, 390, 844)
-    box = page.locator("#wide-box")
-    expect(box).to_have_attribute("data-lf-more-after", "")
-    expect(box).to_have_attribute("tabindex", "0")
+    names = ("window", "container", "script")
+    boxes = {name: page.locator(f"#by-{name}") for name in names}
+    for box in boxes.values():
+        expect(box).not_to_have_attribute("data-lf-scrolls", "")
+
+    resized(page, 1200, 800)
+    page.evaluate(
+        """async () => {
+        document.getElementById('holder').style.width = '400px';
+        const { layoutChanged } = await window.__lfRuntimeImport('/runtime/widget-api.js');
+        const box = document.getElementById('by-script');
+        new ResizeObserver((entries, observer) => {
+            observer.disconnect();
+            box.classList.add('scrolls');
+            layoutChanged(box);
+        }).observe(box);
+        const inserted = document.createElement('div');
+        inserted.id = 'by-insert';
+        inserted.innerHTML = '<div class="wide">An inserted block.</div>';
+        document.querySelector('main').append(inserted);
+        layoutChanged(inserted);
+        layoutChanged(document.getElementById('meter'));
+    }"""
+    )
+    boxes["insert"] = page.locator("#by-insert")
+    for box in boxes.values():
+        expect(box).to_have_attribute("data-lf-more-after", "")
+        expect(box).to_have_attribute("tabindex", "0")
+        expect(box).to_have_attribute("data-lf-scrolls", "")
+
+    resized(page, 1200, 900)
+    window_box = boxes["window"]
+    expect(window_box).not_to_have_attribute("data-lf-scrolls", "")
+    expect(window_box).not_to_have_attribute("data-lf-more-after", "")
+    expect(window_box).not_to_have_attribute("tabindex", "0")
+
+    rendered(page)
+
+    page.evaluate(
+        "() => { document.getElementById('meter').style.animation = 'none'; }"
+    )
+    rendered(page)
+    page.locator("#more > summary").click()
+    expect(page.locator("#drawn")).to_have_attribute("data-lf-scrolls", "")
+
+    entries = "".join(f"<li>Sidebar entry {n}</li>" for n in range(40))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Seated sidebar",
+                f'<aside class="sidebar" id="side"><ul>{entries}</ul></aside>'
+                "<h1>Seated sidebar</h1>" + "<p>Filler.</p>" * 30,
+            )
+        ),
+        context=browser.new_context(viewport={"width": 1600, "height": 900}),
+    )
+    expect(page.locator("main")).to_have_attribute(
+        "data-lf-margin", re.compile("sidebar")
+    )
+    expect(page.locator("#side")).to_have_attribute("tabindex", "0")
 
 
 def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):

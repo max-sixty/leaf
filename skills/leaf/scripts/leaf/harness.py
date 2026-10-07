@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from leaf.files import read_json
-from leaf.leases import adapter_is_live, hooks_ran, wait_is_live
+from leaf.leases import adapter_is_live, hooks_ran, step_hook_ran, wait_is_live
 from leaf.machine import ancestry, pid_alive, process_argv
 
 
@@ -100,8 +100,11 @@ class Harness:
         page's events for it. That is the whole proof for a carrier that is one
         process holding one lease. Where the session's own hooks carry its input,
         the watch is started again as every turn ends, so the carrier stands
-        across the turn as well as between turns. A carrier that has to prove
-        more overrides this."""
+        across the turn as well as between turns. Where the harness runs no watch
+        between turns (`watches_between_turns`), as under Claude Code's plain
+        `--print`, the session ends with its run and its claims with it, so no
+        page is left owed a carrier. A carrier that has to prove more overrides
+        this."""
         return listening or self.hooks_carry()
 
     def ensure_delivery(self) -> None:
@@ -127,6 +130,24 @@ class Harness:
         the delivery for its reader to confirm, so a session whose hooks never run
         still reads its input rather than being woken to an empty turn."""
         return self.hook_delivers and hooks_ran(self.session)
+
+    def turn_takes_input(self) -> bool:
+        """Whether an open turn of this session takes new input before it ends: its
+        hooks hand pending input into the turn between steps and as it would end.
+        The banner reads such a turn as listening between two waits
+        (`activity.takes_input`)."""
+        return self.hooks_carry()
+
+    def receive_pointer(self, payload: dict) -> None:
+        """Confirm a pointer this session read whose `acknowledge` names nobody,
+        the receipt its hooks left to the read.
+
+        Hooks that deliver confirm each batch the session still holds; a harness
+        whose hooks hand nothing over has no pointer of its own to confirm."""
+        if self.hook_delivers:
+            from .delivery import receive_held
+
+            receive_held(payload, self.session)
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         """What to do about events past this page's cursor that nothing will
@@ -457,6 +478,17 @@ class CodexHarness(EnvironmentHarness):
             "LEAF_SESSION_ID names a Codex session but no codex process runs "
             f"above this one ({chain}); leaf takes the session's lifetime from it"
         )
+
+    def turn_takes_input(self) -> bool:
+        """Codex's tool hook offers input between steps once one has proven that
+        Codex runs Leaf's hooks for this task (`codex.offer_hook_delivery`), and
+        its Stop hook keeps the turn going over input nothing else will carry."""
+        return step_hook_ran(self.session)
+
+    def receive_pointer(self, payload: dict) -> None:
+        from .codex_state import accept_codex_delivery_read
+
+        accept_codex_delivery_read(self.session, payload["id"])
 
     def carrier_live(self, *, listening: bool) -> bool:
         """A wait lease says only that some process can read page events. The

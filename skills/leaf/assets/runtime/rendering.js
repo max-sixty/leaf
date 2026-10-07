@@ -162,11 +162,14 @@ export function afterScript(callback) {
     owedThisScript.set(callback, enqueueWork(callback));
 }
 
-/** A `ResizeObserver` whose deliveries the settled reading counts. */
-export function sizeObserver(callback) {
+/** A `ResizeObserver` whose deliveries the settled reading counts, unless it watches
+ * boxes that may move for as long as the page plays, which `counted: false` says. */
+export function sizeObserver(callback, { counted = true } = {}) {
   return new ResizeObserver((entries, observer) => {
-    heard = true;
-    unsettle();
+    if (counted) {
+      heard = true;
+      unsettle();
+    }
     callback(entries, observer);
   });
 }

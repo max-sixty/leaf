@@ -634,7 +634,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* A secondary control doing something has to go on saying so. The menu's resting
      rule clears the same two declarations the row's does, so `.on` needs the same
      answer here: the treatment the open auxiliary surface already keeps in the menu on its
-     own specificity. The menu reserves no width, so nothing is spent restating it. */
+     own specificity. */
   .lf-banner-menu .lf-btn.on {
     background: var(--chip); box-shadow: inset 0 -2px var(--accent); }
   /* Comment on the page is a symbol on the row and its words behind More, where every

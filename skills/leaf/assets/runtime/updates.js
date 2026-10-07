@@ -22,10 +22,9 @@
    A module showing freshness therefore still sees when the log last heard from a worker
    after a stamp absorbs the worker's report.
 
-   An agent-written x-state verb may name one required non-empty string detail field
-   with `update`.
-   That is the envelope's `text`; consumers never infer prose from a field, verb, or
-   widget name. The state boundary performs this normalization once.
+   An agent-written x-state verb may declare `update: true`, requiring non-empty
+   `detail.text`. That is the envelope's `text`; consumers never infer prose from
+   a field, verb, or widget name. The state boundary exposes it once.
 
    `updateSequence` filters the server-normalized update feed. `watchUpdates` and
    `watchHistory` are `watchProjection` (`projection-watch.js`) with their own reading,

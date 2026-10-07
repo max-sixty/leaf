@@ -132,9 +132,9 @@ alerts" to "Key expiry alerts". Check the page and stamp the new version. {quiet
 # The user's moves, in order: two cards into Doing at ranks around the authored "1"
 # and "2", and one into Done that they then undid.
 BOARD_MOVES = [
-    {"card": "card-docs", "to": "col-doing", "rank": "0i"},
-    {"card": "card-audit", "to": "col-doing", "rank": "1i"},
-    {"card": "card-rotate", "to": "col-done", "rank": "1"},
+    {'unit': "card-docs", 'value': "col-doing", "rank": "0i"},
+    {'unit': "card-audit", 'value': "col-doing", "rank": "1i"},
+    {'unit': "card-rotate", 'value': "col-done", "rank": "1"},
 ]
 BOARD_DOING = ["card-docs", "card-inventory", "card-audit", "card-alerts"]
 
@@ -182,7 +182,7 @@ PICK = {
     "kind": "action",
     "widget": "copy-mode",
     "action": "choose",
-    "detail": {"options": ["opt-online"]},
+    "detail": {'value': ["opt-online"]},
 }
 SHORTEN = {
     "kind": "comment",
@@ -193,7 +193,7 @@ CARD_MOVE = {
     "kind": "action",
     "widget": "follow-board",
     "action": "move",
-    "detail": {"card": "card-lag-alert", "to": "col-done", "rank": "1"},
+    "detail": {'unit': "card-lag-alert", 'value': "col-done", "rank": "1"},
 }
 # The duration the `DRY_RUN` comment asks for, as the edited paragraph may write it.
 DRY_RUN_DONE = r"3\s*h(ours?)?\s*(and\s*)?10"
@@ -420,7 +420,7 @@ def build_resume(run: Run, page: Path) -> None:
     admit(run, page, {"kind": "resolve", "parent": rerun})
     admit(run, page, {
         "kind": "action", "revision": 2, "widget": "rollout", "action": "choose",
-        "detail": {"options": ["opt-per-tenant"]},
+        "detail": {'value': ["opt-per-tenant"]},
     })  # fmt: skip
     admit(run, page, {
         "kind": "comment", "revision": 2,
@@ -459,7 +459,7 @@ def build_constructs(run: Run, page: Path) -> None:
     run.leaf("status", str(page), "waiting", "Edit the release note", check=True)
     admit(run, page, {
         "kind": "action", "revision": 1, "widget": "release-note", "action": "edit",
-        "detail": {"text": CONSTRUCTS_DRAFT},
+        "detail": {'value': CONSTRUCTS_DRAFT},
     })  # fmt: skip
     run.leaf("data", "set", str(page), "checkout-p95", input_text="231", check=True)
 
@@ -1023,7 +1023,7 @@ def score_constructs(run: Run, replies: list[str]) -> dict:
     html = (page / state["active"]["file"]).read_text()
     draft = re.search(r"<lf-draft\b([^>]*)>(.*?)</lf-draft>", html, re.DOTALL)
     standing = next(
-        (s["detail"]["text"] for s in state["state"] if s["widget"] == "release-note"),
+        (s["detail"]["value"] for s in state["state"] if s["widget"] == "release-note"),
         None,
     )
     # What the user now reads: their edit where it still stands, else the markup.
@@ -1122,7 +1122,7 @@ def score_resume(run: Run, replies: list[str]) -> dict:
         ),
         "pick_standing": any(
             s.get("widget") == "rollout"
-            and s.get("detail", {}).get("options") == ["opt-per-tenant"]
+            and s.get("detail", {}).get("value") == ["opt-per-tenant"]
             for s in state.get("state", [])
         ),
         "no_restated": "restated" not in html,

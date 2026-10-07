@@ -101,8 +101,8 @@ flowchart TD
             <tr>
               <td>Verb</td>
               <td>
-                A detail schema, a fold <code>unit</code>, and how the state reads in
-                markup, declared under <code>x-state</code>
+                A fold <code>unit</code> and a recorded effect or custom payload
+                schema, declared under <code>x-state</code>
               </td>
               <td>Package, in <code>registry.json</code></td>
             </tr>
@@ -154,10 +154,8 @@ flowchart TD
           <pre>
 "x-state": {
   "choose": {
-    "detail": {"type": "object", "properties": {"options": {"type": "array", "items": {"type": "string"}}},
-               "required": ["options"], "additionalProperties": false},
     "unit": "widget",
-    "record": {"kind": "attribute", "attr": "chosen", "value": "options"}
+    "record": {"kind": "attribute", "attr": "chosen"}
   },
   "add": {
     "detail": {"type": "object",
@@ -180,32 +178,29 @@ flowchart TD
             >The verb's name, which the widget sends as the event's
             <code>action</code>.</lf-note
           >
-          <lf-note at="4"
-            >The JSON Schema every <code>choose</code> detail must satisfy at the
-            door.</lf-note
-          >
-          <lf-note at="5"
+          <lf-note at="3"
             >One unit for the whole group, so every pick lands on the same coordinate
             and a later pick replaces an earlier one.</lf-note
           >
-          <lf-note at="6"
+          <lf-note at="4"
             >How the standing pick reads in markup: <code>chosen</code> on each picked
-            option. The agent writes it into the next version, and
+            option. This effect also determines the payload: <code>detail.value</code>
+            must be an array of owned option ids. The agent writes the pick into the next version, and
             <code>page check</code> refuses a version that contradicts it.</lf-note
           >
-          <lf-note at="13"
+          <lf-note at="11"
             >The unit is the value of <code>detail.option</code>, so each added option
             stands on a coordinate of its own.</lf-note
           >
-          <lf-note at="14"
+          <lf-note at="12"
             >The action brings a real <code>lf-option</code> into the group, with
             <code>detail.text</code> as its words.</lf-note
           >
-          <lf-note at="16"
+          <lf-note at="14"
             ><code>answer</code> is the Done press that closes a
             <code>multiple</code> group.</lf-note
           >
-          <lf-note at="19"
+          <lf-note at="17"
             >The Ask is answered while this condition on the standing state holds: a
             standing pick for a single-choice group, a standing Done for a
             <code>multiple</code> one.</lf-note
@@ -258,7 +253,7 @@ flowchart TD
               <tr>
                 <td><code>lf-board</code></td>
                 <td><code>move</code></td>
-                <td>card</td>
+                <td>unit</td>
                 <td>position in an <code>lf-column</code></td>
               </tr>
               <tr>
@@ -282,7 +277,7 @@ flowchart TD
               <tr>
                 <td><code>lf-swipe-deck</code></td>
                 <td><code>swipe</code></td>
-                <td>card</td>
+                <td>unit</td>
                 <td>position in an <code>lf-swipe-pile</code></td>
               </tr>
               <tr>
@@ -388,7 +383,7 @@ flowchart TD
  "attention": false,
  "id": "f541943a", "ts": "2026-09-23T22:09:53-07:00", "seq": 2}
 {"kind": "action", "revision": 1, "widget": "ship", "action": "choose",
- "detail": {"options": ["ship-option-1f82bf7ba6828718a418aa6076e29c63"]},
+ "detail": {"value": ["ship-option-1f82bf7ba6828718a418aa6076e29c63"]},
  "attempt": "d10bc95f51e47796494c2aa01b7c872f", "author": "user",
  "meaning": {"scope": "page",
    "unit": "ship",
@@ -397,7 +392,7 @@ flowchart TD
  "attention": true,
  "id": "c47d1659", "ts": "2026-09-23T22:09:53-07:00", "seq": 3}
 {"kind": "action", "revision": 1, "widget": "ship", "action": "choose",
- "detail": {"options": ["ship-later"]},
+ "detail": {"value": ["ship-later"]},
  "attempt": "26e7a30143df35cda03ec8b7b164f2b6", "author": "user",
  "meaning": {"scope": "page", "unit": "ship", "depends": ["ship", "ship-later"], "answer": null},
  "attention": true,

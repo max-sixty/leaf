@@ -983,7 +983,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
-    assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
+    assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
     assert reply("indexing done").exit_code == 0
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
     monkeypatch.setenv("LEAF_AGENT", "Crawler")
@@ -1419,7 +1419,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "revision": 1,
             "widget": "b",
             "action": "move",
-            "detail": {"card": "card-x", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-x", "value": "col-done", "rank": "0i"},
             "meaning": {
                 "scope": "page",
                 "unit": "card-x",
@@ -1435,7 +1435,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "revision": 1,
             "widget": "plan-options",
             "action": "choose",
-            "detail": {"options": ["backfill-first"]},
+            "detail": {"value": ["backfill-first"]},
             "meaning": {
                 "scope": "page",
                 "unit": "plan-options",
@@ -1468,10 +1468,10 @@ def test_export_prints_threads_and_versions(page_dir):
     assert "- v1: first cut" in result.output
     # The user's direct edits are outcomes of the exchange, not just events.
     assert "### Edits" in result.output
-    assert "- `b`: move card=card-x to=col-done rank=0i (on v1)" in result.output
+    assert "- `b`: move unit=card-x value=col-done rank=0i (on v1)" in result.output
     # A choice says what was chosen in the words of the version it was made on.
     assert (
-        "- `plan-options`: choose options=['backfill-first'] — “effort: med risk: low "
+        "- `plan-options`: choose value=['backfill-first'] — “effort: med risk: low "
         "Backfill first Verify, then flip. My take: do this first.” (on v1)"
     ) in result.output
 
@@ -1484,7 +1484,7 @@ def test_export_prints_threads_and_versions(page_dir):
     result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert (
-        "- `b`: move card=card-x to=col-done rank=0i (on v1) — taken back"
+        "- `b`: move unit=card-x value=col-done rank=0i (on v1) — taken back"
         in result.output
     )
     assert "> “flip reads”  — resolved" in result.output

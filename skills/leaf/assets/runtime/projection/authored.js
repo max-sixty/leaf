@@ -105,7 +105,7 @@ function initialState(widget, spec) {
       .sort();
   else if (record?.kind === "value") value = widget.getAttribute(record.attr);
   else if (record?.kind === "body") value = decodeBodyRecord(widget);
-  return { action: null, value, detail: record ? { [record.value]: value } : {} };
+  return { action: null, value, detail: record ? { value } : {} };
 }
 
 export function stageAuthoredStates(root = document, existing = authoredStates()) {

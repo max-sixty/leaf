@@ -2399,25 +2399,13 @@ def _author_stateful_verbatim_widget(tmp_path):
     )
     stateful["x-state"] = {
         "change": {
-            "detail": {
-                "type": "object",
-                "properties": {"value": {"type": "string"}},
-                "required": ["value"],
-                "additionalProperties": False,
-            },
             "unit": "widget",
-            "record": {"kind": "value", "attr": "user", "value": "value"},
+            "record": {"kind": "value", "attr": "user"},
         },
         "status": {
             "writer": "agent",
-            "detail": {
-                "type": "object",
-                "properties": {"value": {"type": "string"}},
-                "required": ["value"],
-                "additionalProperties": False,
-            },
             "unit": "widget",
-            "record": {"kind": "value", "attr": "agent", "value": "value"},
+            "record": {"kind": "value", "attr": "agent"},
         },
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
@@ -2496,7 +2484,7 @@ def test_projected_rewrite_retirement_and_undo_are_honest_verbatim_changes(
             "revision": 1,
             "widget": "edited",
             "action": "edit",
-            "detail": {"text": "User's standing draft."},
+            "detail": {"value": "User's standing draft."},
         },
     )
     append_command(
@@ -5453,7 +5441,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
             "revision": 1,
             "widget": "an-set",
             "action": "choose",
-            "detail": {"options": ["an-chase", "an-say"]},
+            "detail": {"value": ["an-chase", "an-say"]},
         },
     )
     # The Done press. Recordless, and the last word on the group.

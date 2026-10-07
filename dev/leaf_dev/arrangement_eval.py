@@ -240,7 +240,7 @@ def seed_and_read_choice(run: Run) -> None:
                 "widget": widget,
                 "action": "choose",
                 "revision": state["active"]["revision"],
-                "detail": {"options": [chosen]},
+                "detail": {'value': [chosen]},
                 "attempt": "authored-choice-0001",
             },
         )
@@ -576,7 +576,7 @@ def execute_scenario(
                     and r["holder"]["attrs"].get("id") == choice["widget"]
                 ]
                 checks["choice-preserved"] = (
-                    standing[0]["detail"]["options"] if standing else authored_choice
+                    standing[0]["detail"]["value"] if standing else authored_choice
                 ) == choice["options"]
                 reader_trace = choice["trace"]
                 costs.append(reader_trace["cost_usd"])

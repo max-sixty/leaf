@@ -1107,7 +1107,7 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
             "revision": 1,
             "widget": "o-a",
             "action": "choose",
-            "detail": {"options": ["o-a-fix"]},
+            "detail": {"value": ["o-a-fix"]},
         },
     )
     assert posted.ok, posted.text()
@@ -1916,7 +1916,7 @@ def test_release_rollback_is_the_operators_answer_to_an_ask(browser, serve):
         "lp-rollback",
         "choose",
     )
-    assert pick["detail"] == {"options": ["lp-rollback-now"]}
+    assert pick["detail"] == {"value": ["lp-rollback-now"]}
     expect_asks_answered(page, "1/1")
 
 
@@ -2517,7 +2517,7 @@ def test_live_widget_subscription_releases_and_reconnects(browser, serve):
             "revision": 1,
             "widget": "watched-draft",
             "action": "edit",
-            "detail": {"text": "Reconnected words."},
+            "detail": {"value": "Reconnected words."},
         },
     )
     told(page)
@@ -2992,7 +2992,7 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
             "widget": "notes",
             "action": "edit",
             "detail": {
-                "text": "\n".join(
+                "value": "\n".join(
                     f"Migration checkpoint {number}." for number in range(1, 17)
                 )
             },
@@ -6661,7 +6661,7 @@ def test_ideas_to_implement_is_a_fast_mobile_decision_queue(browser, serve):
         "#ideas-keep > lf-swipe-card", "cards => cards.map(card => card.id)"
     ) == ["idea-shared-filters", "idea-csv-export"]
     assert [
-        (event["detail"]["card"], event["detail"]["to"])
+        (event["detail"]["unit"], event["detail"]["value"])
         for event in actions(serve.page_dir)
     ] == [
         ("idea-shared-filters", "ideas-keep"),
@@ -6803,7 +6803,7 @@ def test_swipe_deck_buttons_arrows_and_rapid_actions_share_order(browser, serve)
         "swipe",
         "swipe",
     ]
-    assert [(e["detail"]["card"], e["detail"]["to"]) for e in logged] == [
+    assert [(e["detail"]["unit"], e["detail"]["value"]) for e in logged] == [
         ("swipe-a", "session-pass"),
         ("swipe-b", "session-keep"),
         ("swipe-c", "session-pass"),
@@ -7016,7 +7016,7 @@ def test_a_card_a_later_version_wrote_into_its_pile_returns_to_the_queue(
             "revision": 1,
             "widget": "session-triage",
             "action": "swipe",
-            "detail": {"card": "swipe-a", "to": "session-keep", "rank": "2"},
+            "detail": {"unit": "swipe-a", "value": "session-keep", "rank": "2"},
         },
     )
     stamp_page(serve.page_dir, _kept("swipe-a"), "kept")
@@ -7038,7 +7038,7 @@ def test_a_card_a_later_version_wrote_into_its_pile_returns_to_the_queue(
     ) == ["swipe-a", "swipe-b", "swipe-c", "swipe-d"]
     returned = actions(serve.page_dir)[-1]
     assert (returned["action"], returned["revision"]) == ("swipe", 2)
-    assert returned["detail"]["to"] == "session-queue"
+    assert returned["detail"]["value"] == "session-queue"
     expect(page.locator("#swipe-a")).to_be_focused()
 
 
@@ -7088,7 +7088,7 @@ def test_a_newer_swipe_survives_an_older_swipe_refusal(browser, serve):
     expect(page.locator("#swipe-a")).to_be_focused()
     page.keyboard.press("ArrowLeft")
     round_trip(page)
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "swipe-b",
         "swipe-a",
     ]
@@ -7130,7 +7130,7 @@ def test_a_refused_early_swipe_leaves_the_deck_asking(browser, serve):
     expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
     expect(page.locator("#session-queue > lf-swipe-card")).to_have_count(1)
     expect_asks_answered(page, "0/1")
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "swipe-b",
         "swipe-c",
         "swipe-d",
@@ -7274,7 +7274,7 @@ def test_swipe_deck_projects_the_same_exit_motion_as_a_local_swipe(browser, serv
             "revision": 1,
             "widget": "session-triage",
             "action": "swipe",
-            "detail": {"card": "swipe-a", "to": "session-keep", "rank": "j"},
+            "detail": {"unit": "swipe-a", "value": "session-keep", "rank": "j"},
         },
     )
     told(page)
@@ -7304,7 +7304,7 @@ def test_swipe_deck_activation_restores_a_standing_swipe_without_motion(browser,
             "revision": 1,
             "widget": "session-triage",
             "action": "swipe",
-            "detail": {"card": "swipe-a", "to": "session-keep", "rank": "j"},
+            "detail": {"unit": "swipe-a", "value": "session-keep", "rank": "j"},
         },
     )
     told(page)
@@ -7590,7 +7590,7 @@ def test_a_moved_change_takes_its_controls_with_it(browser, serve):
             "revision": 1,
             "widget": "feeders",
             "action": "move",
-            "detail": {"card": "card-heater", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-heater", "value": "col-done", "rank": "0i"},
         },
     )
     page = open_page(browser, url)
@@ -10060,9 +10060,9 @@ Adds --dry-run to every mutating command.
     page = open_page(browser, url)
     door = url.rsplit("/versions/", 1)[0] + "/api/event"
     for widget, action, detail in [
-        ("note", "edit", {"text": "Adds --dry-run to every command."}),
+        ("note", "edit", {"value": "Adds --dry-run to every command."}),
         ("cache", "add", {"option": "cache-redis", "text": "**Redis** in front"}),
-        ("cache", "choose", {"options": ["cache-redis"]}),
+        ("cache", "choose", {"value": ["cache-redis"]}),
         ("tags", "answer", {}),
         (
             "tone",

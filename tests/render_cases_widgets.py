@@ -362,7 +362,7 @@ BROKEN_DIAGRAM_PAGE = leaf_page(
 <h1 id="t">Broken</h1>
 <lf-diagram id="bad"><pre>
 sankey-beta
-  POST /api/event {kind: "action", widget: "lf-board", detail: {card: "card-heater"}},Board,1
+  POST /api/event {kind: "action", widget: "lf-board", detail: {unit: "card-heater"}},Board,1
 </pre></lf-diagram>
 """,
 )

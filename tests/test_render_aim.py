@@ -3561,7 +3561,7 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
             "revision": 1,
             "widget": "work",
             "action": "move",
-            "detail": {"card": "card-importer", "to": "col-done", "rank": "1i"},
+            "detail": {"unit": "card-importer", "value": "col-done", "rank": "1i"},
         },
     )
     told(page)

@@ -20,7 +20,7 @@
     "x-instructions": "Begin with a direct heading that states the question without relying on surrounding prose. Include the evidence needed to answer and exactly one non-quoted widget declaring a local Ask through x-awaits. Keep an ordinary semantic section around the Ask when the document needs a section landmark.",
     "type": "object",
     "properties": {
-      "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
     },
     "required": ["id"],
     "additionalProperties": false,
@@ -43,9 +43,7 @@
         "minLength": 1
       }
     },
-    "required": [
-      "tip"
-    ],
+    "required": ["tip"],
     "additionalProperties": false,
     "x-content": "markup",
     "x-inline": true,
@@ -135,7 +133,7 @@
     "x-instructions": "Select data-annotations=page on body and place one empty rail with a stable id where the document should show annotations. Allocate its width and height in page CSS; it scrolls within that box. Omit it to use the core Threads panel. Native disclosures retain their open state and the shared Thread renderer owns conversations and replies.",
     "type": "object",
     "properties": {
-      "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
     },
     "required": ["id"],
     "additionalProperties": false,
@@ -157,9 +155,7 @@
         "pattern": "^[2-6]$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "empty",
     "x-upgrade": true,
@@ -175,9 +171,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "empty",
     "x-bound": "start",
@@ -209,15 +203,9 @@
       }
     },
     "dependentRequired": {
-      "choose": [
-        "id"
-      ],
-      "settled": [
-        "id"
-      ],
-      "multiple": [
-        "choose"
-      ]
+      "choose": ["id"],
+      "settled": ["id"],
+      "multiple": ["choose"]
     },
     "additionalProperties": false,
     "x-content": "members",
@@ -225,52 +213,28 @@
     "x-upgrade": true,
     "x-awaits": {
       "when": {
-        "choose": [
-          true
-        ],
-        "settled": [
-          false
-        ]
+        "choose": [true],
+        "settled": [false]
       },
       "answered": {
         "choose": {
           "when": {
-            "multiple": [
-              false
-            ]
+            "multiple": [false]
           }
         },
         "answer": {
           "when": {
-            "multiple": [
-              true
-            ]
+            "multiple": [true]
           }
         }
       }
     },
     "x-state": {
       "choose": {
-        "detail": {
-          "type": "object",
-          "properties": {
-            "options": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          },
-          "required": [
-            "options"
-          ],
-          "additionalProperties": false
-        },
         "unit": "widget",
         "record": {
           "kind": "attribute",
-          "attr": "chosen",
-          "value": "options"
+          "attr": "chosen"
         }
       },
       "add": {
@@ -286,10 +250,7 @@
               "minLength": 1
             }
           },
-          "required": [
-            "option",
-            "text"
-          ],
+          "required": ["option", "text"],
           "additionalProperties": false
         },
         "unit": "option",
@@ -328,13 +289,9 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-options"
-    ],
+    "x-owners": ["lf-options"],
     "x-content": "markup",
     "x-text-format": "inline-markdown",
     "x-refers": {
@@ -356,10 +313,7 @@
       }
     },
     "additionalProperties": false,
-    "x-owners": [
-      "lf-option",
-      "lf-variant"
-    ],
+    "x-owners": ["lf-option", "lf-variant"],
     "x-content": "markup",
     "x-inline": true,
     "x-tone": "tone",
@@ -390,12 +344,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       },
       "status": {
-        "enum": [
-          "planned",
-          "active",
-          "done",
-          "blocked"
-        ]
+        "enum": ["planned", "active", "done", "blocked"]
       },
       "when": {
         "type": "string"
@@ -405,18 +354,11 @@
         "pattern": "^[a-z0-9-]+(,[a-z0-9-]+)*$"
       }
     },
-    "required": [
-      "id",
-      "status"
-    ],
+    "required": ["id", "status"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-milestones"
-    ],
+    "x-owners": ["lf-milestones"],
     "x-content": "markup",
-    "x-paints": [
-      "status"
-    ],
+    "x-paints": ["status"],
     "x-upgrade": true
   },
   "lf-chronology": {
@@ -448,28 +390,17 @@
         "type": "string"
       },
       "kind": {
-        "enum": [
-          "observation",
-          "intervention",
-          "warning",
-          "failure"
-        ]
+        "enum": ["observation", "intervention", "warning", "failure"]
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-chronology"
-    ],
+    "x-owners": ["lf-chronology"],
     "x-content": "markup",
     "x-says": {
       "at": "before"
     },
-    "x-paints": [
-      "kind"
-    ],
+    "x-paints": ["kind"],
     "x-upgrade": false
   },
   "lf-compare": {
@@ -497,13 +428,9 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-compare"
-    ],
+    "x-owners": ["lf-compare"],
     "x-content": "markup",
     "x-upgrade": false
   },
@@ -524,16 +451,10 @@
         "pattern": "^[+-].+$"
       },
       "direction": {
-        "enum": [
-          "up-good",
-          "up-bad"
-        ]
+        "enum": ["up-good", "up-bad"]
       }
     },
-    "required": [
-      "id",
-      "value"
-    ],
+    "required": ["id", "value"],
     "additionalProperties": false,
     "x-content": "markup",
     "x-says": {
@@ -553,9 +474,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
     "x-upgrade": true,
@@ -582,15 +501,11 @@
         "pattern": "^[1-9][0-9]*(-[1-9][0-9]*)?(,[1-9][0-9]*(-[1-9][0-9]*)?)*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
     "x-language": "language",
-    "x-lines": [
-      "hi"
-    ],
+    "x-lines": ["hi"],
     "x-numbering": "lines",
     "x-upgrade": true,
     "x-example": "<lf-code id=\"bracket-walk\" language=\"python\" hi=\"2\"><pre>\ndef bracket(temp):\n    if temp &lt; 0:\n        return \"steel\"\n    return \"cedar\"\n</pre>\n  <lf-note at=\"2\">Freezing is the only threshold that matters.</lf-note>\n</lf-code>"
@@ -609,17 +524,11 @@
         "pattern": "^[0-9]+$"
       }
     },
-    "required": [
-      "at"
-    ],
+    "required": ["at"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-code"
-    ],
+    "x-owners": ["lf-code"],
     "x-content": "markup",
-    "x-lines": [
-      "at"
-    ],
+    "x-lines": ["at"],
     "x-upgrade": false
   },
   "lf-chart": {
@@ -632,9 +541,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
     "x-upgrade": true,
@@ -666,12 +573,7 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id",
-      "before",
-      "after",
-      "alt"
-    ],
+    "required": ["id", "before", "after", "alt"],
     "additionalProperties": false,
     "x-content": "empty",
     "x-face": [":scope > .lf-shotrail"],
@@ -689,40 +591,16 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
     "x-upgrade": true,
     "x-state": {
       "move": {
-        "detail": {
-          "type": "object",
-          "properties": {
-            "card": {
-              "type": "string"
-            },
-            "to": {
-              "type": "string"
-            },
-            "rank": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "card",
-            "to",
-            "rank"
-          ],
-          "additionalProperties": false
-        },
-        "unit": "card",
+        "unit": "unit",
         "record": {
           "kind": "position",
-          "within": "lf-column",
-          "value": "to",
-          "rank": "rank"
+          "within": "lf-column"
         }
       }
     },
@@ -746,14 +624,9 @@
         "type": "string"
       }
     },
-    "required": [
-      "id",
-      "label"
-    ],
+    "required": ["id", "label"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-board"
-    ],
+    "x-owners": ["lf-board"],
     "x-content": "members",
     "x-tone": "tone",
     "x-upgrade": false,
@@ -774,13 +647,9 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-column"
-    ],
+    "x-owners": ["lf-column"],
     "x-content": "markup",
     "x-work": true,
     "x-upgrade": false
@@ -796,14 +665,10 @@
       },
       "list": {
         "type": "string",
-        "enum": [
-          "side"
-        ]
+        "enum": ["side"]
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
     "x-upgrade": true,
@@ -828,14 +693,9 @@
         "type": "string"
       }
     },
-    "required": [
-      "id",
-      "label"
-    ],
+    "required": ["id", "label"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-tabs"
-    ],
+    "x-owners": ["lf-tabs"],
     "x-content": "markup",
     "x-upgrade": false
   },
@@ -856,17 +716,13 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
     "x-word": "module",
     "x-awaits": {
       "when": {
-        "needed": [
-          true
-        ]
+        "needed": [true]
       },
       "answered": {
         "edit": {}
@@ -876,22 +732,9 @@
     "x-verbatim": true,
     "x-state": {
       "edit": {
-        "detail": {
-          "type": "object",
-          "properties": {
-            "text": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "text"
-          ],
-          "additionalProperties": false
-        },
         "unit": "widget",
         "record": {
-          "kind": "body",
-          "value": "text"
+          "kind": "body"
         }
       }
     },
@@ -914,9 +757,7 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
     "x-says": {
@@ -932,8 +773,8 @@
     "x-name": "label",
     "type": "object",
     "properties": {
-      "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
-      "label": {"type": "string", "minLength": 1}
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "label": { "type": "string", "minLength": 1 }
     },
     "required": ["id", "label"],
     "additionalProperties": false,
@@ -945,12 +786,12 @@
   },
   "$reactions": {
     "tokens": {
-      "keep":       {"glyph": "👍", "settles": true},
-      "change":     {"glyph": "❌"},
-      "clarify":    {"glyph": "🤔"},
-      "shorten":    {"glyph": "✂️"},
-      "support":    {"glyph": "🔎"},
-      "prioritize": {"glyph": "🎯"}
+      "keep": { "glyph": "👍", "settles": true },
+      "change": { "glyph": "❌" },
+      "clarify": { "glyph": "🤔" },
+      "shorten": { "glyph": "✂️" },
+      "support": { "glyph": "🔎" },
+      "prioritize": { "glyph": "🎯" }
     }
   }
 }

@@ -136,7 +136,7 @@ ACTION_ON_ASK = {
     "revision": 1,
     "widget": "bracket",
     "action": "choose",
-    "detail": {"options": ["br-steel"]},
+    "detail": {"value": ["br-steel"]},
     "meaning": {
         "scope": "page",
         "unit": "bracket",
@@ -3830,7 +3830,7 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
             str(serve.page_dir),
             "t-mounts",
             "status",
-            "status=active",
+            "value=active",
         ],
     )
     assert sent.exit_code == 0, sent.output

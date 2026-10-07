@@ -3001,7 +3001,7 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
             expect(second).to_have_attribute("aria-checked", "false")
             with page.expect_request("**/api/event") as sent:
                 second.click()
-            assert sent.value.post_data_json["detail"]["options"] == ["held-second"]
+            assert sent.value.post_data_json["detail"]["value"] == ["held-second"]
             expect(first).to_have_attribute("aria-checked", "false")
             expect(second).to_have_attribute("aria-checked", "true")
         else:
@@ -3033,7 +3033,7 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
             assert any(
                 event["kind"] == "action"
                 and event.get("widget") == "held-choice"
-                and event["detail"]["options"] == ["held-second"]
+                and event["detail"]["value"] == ["held-second"]
                 for event in events_model.read_events(serve.page_dir)
             )
         return

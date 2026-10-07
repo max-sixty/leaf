@@ -823,7 +823,7 @@ def unfolded_button(control):
 
 # The banner's controls in their one ranked order: fixed secondary menu seats followed
 # by the primary row. The door itself and controls the page has taken away are omitted.
-BANNER_ORDER = """() => {
+BANNER_ORDER = r"""() => {
   const toolbar = document.querySelector('.lf-banner-actions');
   const menu = document.querySelector('.lf-banner-menu');
   const more = document.querySelector('.lf-banner-more');

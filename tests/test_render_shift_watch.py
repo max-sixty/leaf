@@ -15,6 +15,7 @@ from render_harness import (
     open_page,
     panel_settled,
     resized,
+    scroll_settled,
     take_browser_errors,
 )
 
@@ -62,6 +63,62 @@ def test_typing_may_grow_its_field(browser):
     page = field_page(browser, "grow")
     page.locator("#field").fill("a")
     judge_watches()
+
+
+@pytest.mark.parametrize("cause", ["typing", "passive"])
+def test_editcontext_growth_keeps_input_credit_with_its_actual_field(
+    browser, serve, cause
+):
+    """Native EditContext growth is typing; carrying its field still violates stability."""
+    context = browser.new_context(
+        user_agent="Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36"
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Native typing geometry", '<h1>Edit a reply</h1><div id="above"></div>'
+            )
+        ),
+        context=context,
+    )
+    page.evaluate(
+        """cause => {
+      const field = document.createElement('leaf-text'); field.id = 'field';
+      field.style.cssText = 'display:block;width:300px';
+      document.querySelector('main').append(field);
+      field.addEventListener('input', () => {
+        const source = lfInputWork.current();
+        window.nativeGeometryInput = {type:source.event.type,
+          trusted:source.event.isTrusted,field:source.node === field};
+        if(cause === 'typing') document.getElementById('above').style.height = '40px';
+      });
+    }""",
+        cause,
+    )
+    field = page.locator("#field")
+    field.focus()
+    paint(page)
+    before = field.bounding_box()
+    page.keyboard.insert_text("First line\nSecond line\nThird line")
+    expect(field).to_have_js_property("value", "First line\nSecond line\nThird line")
+    assert page.evaluate("window.nativeGeometryInput") == {
+        "type": "textupdate",
+        "trusted": True,
+        "field": True,
+    }
+    paint(page)
+    assert field.bounding_box()["height"] > before["height"]
+    judge_watches()
+    if cause == "typing":
+        assert field.bounding_box()["y"] == pytest.approx(before["y"] + 40)
+        consume_browser_errors(page, "typing in leaf-text#field moved leaf-text#field")
+    else:
+        assert field.bounding_box()["y"] == pytest.approx(before["y"])
+        page.evaluate("document.getElementById('above').style.height = '40px'")
+        judge_watches()
+        consume_browser_errors(page, "leaf-text#field moved without input")
 
 
 @pytest.mark.parametrize(
@@ -1389,12 +1446,15 @@ def test_typing_keeps_its_field_when_chrome_reports_only_larger_sources(browser)
     consume_browser_errors(page, "typing in textarea#field moved textarea#field")
 
 
-def test_a_retained_control_keeps_its_pose_when_a_new_sticky_owner_adopts_it(browser):
+@pytest.mark.parametrize("subject", ["button", "span"])
+def test_a_retained_landmark_keeps_its_pose_when_a_new_sticky_owner_adopts_it(
+    browser, subject
+):
     page = browser.new_page()
     page.goto(
         "data:text/html,"
-        + quote("""<!doctype html><body style="margin:0">
-<button id="action" style="position:absolute;left:10px;top:10px">Act</button>
+        + quote(f"""<!doctype html><body style="margin:0">
+<{subject} id="action" style="position:absolute;left:10px;top:10px">Act</{subject}>
 <p id="other" style="position:absolute;left:10px;top:150px">Following reading</p></body>""")
     )
     page.evaluate(PAINTED)
@@ -1410,7 +1470,7 @@ def test_a_retained_control_keeps_its_pose_when_a_new_sticky_owner_adopts_it(bro
     page.evaluate(PAINTED)
     judge_watches()
     errors = take_browser_errors(page)
-    assert any("button#action moved without input" in error for error in errors), errors
+    assert any(f"{subject}#action" in error for error in errors), errors
     assert all("moved without input" in error for error in errors), errors
 
 
@@ -2514,3 +2574,112 @@ def test_owned_native_finish_records_the_applied_endpoint(browser, fault, fill):
         assert all("moved without input" in error for error in errors), errors
     else:
         assert not errors, errors
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["root", "scaled", "fixed-both", "sticky", "fixed-fault", "clamp", "clamp-fault"],
+)
+def test_observed_attachment_credits_only_the_measured_scroll_placement(
+    browser, serve, case
+):
+    """Fixed/sticky constraints and solver clamps retain only their solved movement.
+
+    A physical reference does not always travel by its ancestry's entire scroll.
+    Matching that scroll with an extra holder move must still fail.
+    """
+    style = {
+        "scaled": "transform:scale(2);transform-origin:top left;",
+        "fixed-both": "position:fixed;top:180px;left:100px;",
+        "fixed-fault": "position:fixed;top:180px;left:100px;",
+        "sticky": "position:sticky;top:170px;",
+    }.get(case, "")
+    source = leaf_page(
+        "Observed reference scroll",
+        '<div style="height:180px"></div><p id="subject" style="margin:0;height:130px;overflow:auto;width:350px;'
+        + style
+        + '">First line<br>'
+        + "More words<br>" * 50
+        + "</p>"
+        '<div id="holder" style="visibility:hidden;position:fixed;width:200px;height:60px">'
+        '<textarea id="field" style="width:160px;height:30px"></textarea></div>'
+        '<div style="height:1800px"></div>',
+        layout=None,
+    )
+    page = open_page(
+        browser,
+        serve(source),
+        init_script="""const supports = CSS.supports.bind(CSS);
+          CSS.supports = (property, value) => property === 'anchor-name' ? false : supports(property, value);
+          delete window.ViewTimeline; delete window.ScrollTimeline;""",
+    )
+    resized(page, 1200, 700)
+    if case.startswith("clamp"):
+        offset = page.evaluate(
+            """() => {
+              const offset = subject.getBoundingClientRect().top + scrollY - 12;
+              scrollTo(0, offset);
+              return offset;
+            }"""
+        )
+        page.wait_for_function("offset => scrollY === offset", arg=offset)
+        scroll_settled(page)
+    if case == "sticky":
+        page.locator("#subject").evaluate(
+            "node => node.style.top = `${node.getBoundingClientRect().top - 10}px`"
+        )
+    page.evaluate(
+        """async clamp => {
+      const module = await window.__lfRuntimeImport('/runtime/annotation-overlay/floating.js');
+      const ui = await module.floatingUi();
+      const subject = document.querySelector('#subject'), holder = document.querySelector('#holder');
+      const range = document.createRange(); range.selectNodeContents(subject.firstChild);
+      const reference = {contextElement:subject, contextNode:subject.firstChild,
+        getBoundingClientRect:()=>range.getBoundingClientRect()};
+      const owner = module.floatingPlacement({floating:holder, update:()=>void place()});
+      async function place() {
+        owner.begin();
+        const answer = await owner.position(ui.computePosition, reference,
+          {placement:'right-start',middleware:clamp ? [ui.shift({crossAxis:true,padding:0})] : []},
+          ()=>'page', subject);
+        if (answer) owner.stand(answer);
+      }
+      owner.watch(subject,reference,ui.autoUpdate);
+      await place();
+      holder.style.removeProperty('visibility');
+    }""",
+        case.startswith("clamp"),
+    )
+    expect(page.locator("#holder")).to_have_attribute("data-lf-plane", "window")
+    paint(page)
+    judge_watches()
+    before = page.locator("#field").bounding_box()
+    holder_before = page.locator("#holder").bounding_box()
+    if case.startswith("clamp"):
+        assert 0 < holder_before["y"] < 30
+    scroll = page.evaluate(
+        """([scenario, extra]) => {
+      const before = {root:scrollY, inner:subject.scrollTop};
+      if (scenario !== 'scaled') scrollBy(0,30);
+      if (scenario === 'scaled' || scenario === 'fixed-both') subject.scrollBy(0,30);
+      if (scenario.endsWith('fault')) holder.style.marginTop = `${-extra}px`;
+      return before;
+    }""",
+        [case, 30 - holder_before["y"] if case == "clamp-fault" else 30],
+    )
+    if case != "scaled":
+        page.wait_for_function("offset => scrollY === offset", arg=scroll["root"] + 30)
+    if case in {"scaled", "fixed-both"}:
+        expect(page.locator("#subject")).to_have_js_property(
+            "scrollTop", scroll["inner"] + 30
+        )
+    scroll_settled(page, "#subject" if case in {"scaled", "fixed-both"} else None)
+    rendered(page)
+    paint(page)
+    judge_watches()
+    delta = {"scaled": -60, "sticky": -10, "clamp": -holder_before["y"]}.get(case, -30)
+    assert page.locator("#field").bounding_box()["y"] == pytest.approx(
+        before["y"] + delta, abs=1
+    )
+    if case.endswith("fault"):
+        consume_browser_errors(page, "textarea#field moved without input")

@@ -42,7 +42,13 @@ from model_folds import leaf_page
 from PIL import Image, ImageDraw
 from playwright.sync_api import expect
 from render_harness import (
+    FOLLOWER_MARK,
+    SUBJECT_MARK,
+    compositor_trace,
+    consume_browser_errors,
+    frame_image,
     judge_watches,
+    marked_tops,
     open_page,
     pane_posture,
     regions_side_by_side,
@@ -637,12 +643,15 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     read Chrome's actual compositor screenshots. The initial passage rectangle, box
     height, side and gap supply the expected attachment independently of the return.
     """
-    marker_style = """<style>
-      #paint-target { background: #ff0044; }
-      .lf-fab-bar { outline: 8px solid #00cc44 !important; }
+    marker_style = f"""<style>
+      #paint-target {{ background: {SUBJECT_MARK}; }}
+      .lf-fab-bar {{ outline: 8px solid {FOLLOWER_MARK} !important; }}
     </style>"""
     if region == "combined":
-        marker_style += "<style>#paint-target { outline:24px solid #ff0044 !important; outline-offset:0 !important; }</style>"
+        marker_style += (
+            f"<style>#paint-target {{ outline:24px solid {SUBJECT_MARK} !important;"
+            " outline-offset:0 !important; }</style>"
+        )
     passage = '<p id="paint-target">The export keeps each tenant in an archive.</p>'
     if region == "document":
         source = leaf_page(
@@ -678,10 +687,10 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             + "\n".join(f"row_{i} = {i}" for i in range(1, 65))
             + '</pre></lf-code><div style="height:800px"></div>',
             head=marker_style
-            + """<style>
-              #paint-code { display:block; width:420px; }
-              #paint-code > pre { height:240px; max-height:240px; overflow:auto; }
-              .lf-code-line[data-line="6"] { background:#ff0044 !important; }
+            + f"""<style>
+              #paint-code {{ display:block; width:420px; }}
+              #paint-code > pre {{ height:240px; max-height:240px; overflow:auto; }}
+              .lf-code-line[data-line="6"] {{ background:{SUBJECT_MARK} !important; }}
             </style>""",
         )
         size, wheel, scroller = (1200, 700), 900, "#paint-code > pre"
@@ -693,9 +702,9 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             + "<span>More lines in this reading region.<br></span>" * 50
             + '</p><div style="height:1800px"></div>',
             head=marker_style
-            + """<style>
-              #paint-target { height:72px; overflow:auto; background:none; }
-              #paint-target::first-line { background:#ff0044; }
+            + f"""<style>
+              #paint-target {{ height:72px; overflow:auto; background:none; }}
+              #paint-target::first-line {{ background:{SUBJECT_MARK}; }}
             </style>""",
         )
         size, wheel, scroller = (1200, 700), 1000, "#paint-target"
@@ -810,85 +819,49 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
     )
     expected_offset = expected_top - 8 - (before_target["y"] - marker_outset)
 
-    def painted_tops(image):
-        pixels = image.load()
-        target_rows, box_rows = [], []
-        for y in range(image.height):
-            for x in range(image.width):
-                red, green, blue = pixels[x, y]
-                if red > 180 and green < 60 and blue < 130:
-                    target_rows.append(y)
-                if green > 130 and red < 60 and blue < 130:
-                    box_rows.append(y)
-        return (
-            min(target_rows) if target_rows else None,
-            min(box_rows) if box_rows else None,
+    with compositor_trace(page, ["benchmark", "blink.user_timing"]) as events:
+        trace_clock = page.evaluate("""() => {
+          performance.mark('leaf-wheel-trace-clock');
+          return performance.now();
+        }""")
+        if region == "combined":
+            page.mouse.move(880, 650)
+            page.mouse.wheel(0, 350)
+            scroll_settled(page)
+        mouse = (
+            (before_target["x"] + 50, content_box["y"] + 35)
+            if region in ("code", "content")
+            else (120 if scroller else 100, 100 if region == "combined" else 350)
         )
-
-    cdp = page.context.new_cdp_session(page)
-    events, complete = [], []
-    cdp.on("Tracing.dataCollected", lambda data: events.extend(data["value"]))
-    cdp.on("Tracing.tracingComplete", lambda _: complete.append(True))
-    cdp.send(
-        "Tracing.start",
-        {
-            "categories": "disabled-by-default-devtools.screenshot,benchmark,blink.user_timing",
-            "transferMode": "ReportEvents",
-        },
-    )
-    trace_clock = page.evaluate("""() => {
-      performance.mark('leaf-wheel-trace-clock');
-      return performance.now();
-    }""")
-    if region == "combined":
-        page.mouse.move(880, 650)
-        page.mouse.wheel(0, 350)
-        scroll_settled(page)
-    mouse = (
-        (before_target["x"] + 50, content_box["y"] + 35)
-        if region in ("code", "content")
-        else (120 if scroller else 100, 100 if region == "combined" else 350)
-    )
-    page.mouse.move(*mouse)
-    page.mouse.wheel(0, wheel)
-    scroll_settled(page, scroller)
-    rendered(page)
-    # Prove the editor followed out of view before returning. This screenshot
-    # can settle outgoing layout but cannot erase a later returning compositor frame.
-    outgoing = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
-    outgoing_target, outgoing_box = painted_tops(outgoing)
-    assert outgoing_target is None, "The wheel never took the passage out of view"
-    assert outgoing_box is None, "The editor parked in the window instead of following"
-    if region == "combined":
-        # Returning the outer document alone does not reveal the pane's subject.
-        page.mouse.move(880, 650)
-        page.mouse.wheel(0, -350)
-        scroll_settled(page)
-        page.mouse.move(120, 350)
-    page.mouse.wheel(0, -wheel)
-    scroll_settled(page, scroller)
-    cdp.send("Tracing.end")
-
-    def trace_finished():
-        # Pump CDP delivery without reading the page or forcing its layout.
-        cdp.send("Tracing.getCategories")
-        return bool(complete)
-
-    wait_for(
-        trace_finished,
-        bool,
-        failure="Chrome never completed the compositor screenshot trace",
-    )
+        page.mouse.move(*mouse)
+        page.mouse.wheel(0, wheel)
+        scroll_settled(page, scroller)
+        rendered(page)
+        # Prove the editor followed out of view before returning. This screenshot
+        # can settle outgoing layout but cannot erase a later returning compositor
+        # frame.
+        outgoing = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
+        outgoing_target, outgoing_box = marked_tops(outgoing)
+        assert outgoing_target is None, "The wheel never took the passage out of view"
+        assert outgoing_box is None, (
+            "The editor parked in the window instead of following"
+        )
+        if region == "combined":
+            # Returning the outer document alone does not reveal the pane's subject.
+            page.mouse.move(880, 650)
+            page.mouse.wheel(0, -350)
+            scroll_settled(page)
+            page.mouse.move(120, 350)
+        page.mouse.wheel(0, -wheel)
+        scroll_settled(page, scroller)
     frames = [event for event in events if event["name"] == "Screenshot"]
     readings = []
     tolerances = []
     for event in frames:
-        image = Image.open(
-            io.BytesIO(base64.b64decode(event["args"]["snapshot"]))
-        ).convert("RGB")
+        image = frame_image(event)
         scale = size[0] / image.width
         tolerances.append(2 * scale)
-        target_top, box_top = painted_tops(image)
+        target_top, box_top = marked_tops(image)
         readings.append(
             (
                 target_top * scale if target_top is not None else None,
@@ -1096,7 +1069,13 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
     else:
         assert before["y"] >= target.bounding_box()["y"], before
     box = target.bounding_box()
+    page.mouse.move(box["x"] + 100, box["y"] + 80)
+    page.mouse.wheel(20, 20)
+    scroll_settled(page, "#quote")
+    rendered(page)
     if renew_placement:
+        # A size/layout delivery may renew placement after native scrolling. It
+        # must retain the same attachment rather than publish a second origin.
         page.evaluate("""() => {
           window.attachmentFrames = [];
           window.recordAttachment = true;
@@ -1111,13 +1090,6 @@ def test_a_quote_surface_follows_scaled_inner_scroll_and_retains_native_editing(
           };
           sample();
         }""")
-    page.mouse.move(box["x"] + 100, box["y"] + 80)
-    page.mouse.wheel(20, 20)
-    scroll_settled(page, "#quote")
-    rendered(page)
-    if renew_placement:
-        # A size/layout delivery may renew placement after native scrolling. It
-        # must retain the same attachment rather than publish a second origin.
         page.evaluate("""async () => {
           const {layoutMarginRows} = await window.__lfRuntimeImport(
             '/runtime/annotation-overlay/margin-layout.js');
@@ -1665,8 +1637,9 @@ def test_native_attachment_measures_solver_and_scroll_origin_together(
     assert page.evaluate("detachPlacement()"), "the detached placement had no frame"
 
 
+@pytest.mark.parametrize("fault", ["", "holder", "child"])
 def test_a_comment_box_on_words_in_a_scroller_stands_without_scroll_timelines(
-    browser, serve
+    browser, serve, fault
 ):
     """Where the browser has no scroll timelines, as Firefox has none, the comment box
     for words in a scroller starts below its containing box in the window's plane,
@@ -1678,7 +1651,7 @@ def test_a_comment_box_on_words_in_a_scroller_stands_without_scroll_timelines(
                 "Words in a scroller",
                 '<h1>Comments follow the words</h1><p id="quote">'
                 "The export keeps each tenant in an archive.<br>"
-                + "<span>More lines in this reading region.<br></span>" * 50
+                + "More lines in this reading region.<br>" * 50
                 + '</p><div style="height:1200px"></div>',
                 head="<style>#quote { height:120px; overflow:auto; }</style>",
             )
@@ -1700,8 +1673,33 @@ def test_a_comment_box_on_words_in_a_scroller_stands_without_scroll_timelines(
     before, words_before = bar.bounding_box(), page.evaluate(words)
     page.mouse.move(below["x"] + 50, below["y"] + 50)
     page.mouse.wheel(0, 30)
+    expect(quote).to_have_js_property("scrollTop", 30)
     scroll_settled(page, "#quote")
     rendered(page)
     assert bar.bounding_box()["y"] - before["y"] == pytest.approx(
         page.evaluate(words)["y"] - words_before["y"], abs=1
     )
+    # A late scroll still owns its attachment's exact displacement after input
+    # has finished. Extra movement of either the holder or its child remains a fault.
+    judge_watches()
+    field = page.locator(".lf-fab-input")
+    field_before = field.bounding_box()
+    page.evaluate(
+        """fault => {
+          document.querySelector('#quote').scrollBy(0, 30);
+          if (fault) document.querySelector(fault === 'holder' ? '.lf-fab-bar' : '.lf-fab-input')
+            .style.transform = 'translateX(20px)';
+        }""",
+        fault,
+    )
+    scroll_settled(page, "#quote")
+    rendered(page)
+    assert bar.bounding_box()["y"] - before["y"] == pytest.approx(
+        page.evaluate(words)["y"] - words_before["y"], abs=1
+    )
+    assert field.bounding_box()["x"] - field_before["x"] == pytest.approx(
+        20 if fault else 0, abs=1
+    )
+    judge_watches()
+    if fault:
+        consume_browser_errors(page, "moved without input by (20,")

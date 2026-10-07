@@ -185,8 +185,9 @@ def instant(ts: str) -> float:
 
 def recorded_steps(events: list[dict], comment: dict, published: dict) -> dict:
     """Seconds after `comment`'s admission at which the page server titled its
-    thread, activated the `published` revision and admitted the answer, or None for
-    a step it never reached."""
+    thread, admitted the agent's first progress update in it, activated the
+    `published` revision and admitted the answer, or None for a step it never
+    reached."""
     admitted = instant(comment["ts"])
     thread = comment["id"]
     titled = next(
@@ -197,20 +198,16 @@ def recorded_steps(events: list[dict], comment: dict, published: dict) -> dict:
         ),
         None,
     )
-    replied = next(
-        (
-            e["ts"]
-            for e in events
-            if e["kind"] == "reply" and e.get("parent") == thread and "failure" not in e
-        ),
-        None,
-    )
+    replies = [e for e in events if e["kind"] == "reply" and e.get("parent") == thread]
+    progress = next((e["ts"] for e in replies if e.get("ephemeral")), None)
+    replied = deployment_answer(replies)
     return {
         step: None if at is None else round(instant(at) - admitted, 3)
         for step, at in (
             ("titled", titled),
+            ("progress", progress),
             ("published", published["activated_at"]),
-            ("replied", replied),
+            ("replied", replied and replied["ts"]),
         )
     }
 
@@ -305,8 +302,16 @@ def turn_failed(replies: list[dict]) -> bool:
 
 
 def deployment_answer(replies: list[dict]) -> dict | None:
-    """Return a real agent reply rather than a harness-generated failure receipt."""
-    return next((reply for reply in replies if "failure" not in reply), None)
+    """Return the agent's answer, rather than a progress update or a
+    harness-generated failure receipt."""
+    return next(
+        (
+            reply
+            for reply in replies
+            if "failure" not in reply and not reply.get("ephemeral")
+        ),
+        None,
+    )
 
 
 def check_turn_answered(

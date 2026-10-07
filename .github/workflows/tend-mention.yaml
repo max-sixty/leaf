@@ -346,10 +346,10 @@ jobs:
 
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --frozen
-      - run: uv run playwright install --with-deps chromium webkit --only-shell
-        name: Install Chromium headless shell and WebKit
-      - run: uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.webkit.launch().close(); p.stop()"
-        name: Launch both browsers
+      - run: uv run playwright install --with-deps chromium webkit firefox --only-shell
+        name: Install Chromium headless shell, WebKit and Firefox
+      - run: uv run python -c "from playwright.sync_api import sync_playwright; p = sync_playwright().start(); p.chromium.launch().close(); p.webkit.launch().close(); p.firefox.launch().close(); p.stop()"
+        name: Launch all browsers
       - run: echo "CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN" >> "$GITHUB_ENV"
         name: Export the Cloudflare log token for agents that read the logs
         env:

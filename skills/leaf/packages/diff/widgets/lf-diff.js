@@ -45,6 +45,7 @@ import {
   notice,
   widgetController,
   watchData,
+  watchOwner,
 } from "/runtime/widget-api.js";
 import "../vendor/webawesome.esm.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
@@ -153,8 +154,12 @@ const fileDatum = (entry, origin = null) => ({
   node: fileNode(entry),
   ...(origin ? { origin } : {}),
 });
-const datumKey = (record) => (record.file ? fileKey(record) : lineKey(record));
-const datumLabel = (record) => (record.file ? fileLabel(record) : lineLabel(record));
+const projectionDatum = (record) => ({
+  node: record.node,
+  key: record.file ? fileKey(record) : lineKey(record),
+  label: record.file ? fileLabel(record) : lineLabel(record),
+  ...(record.origin ? { origin: record.origin } : {}),
+});
 
 function renderedLines(file, rendered) {
   const records = sourceLines(file);
@@ -661,7 +666,17 @@ customElements.define(
 
     connectedCallback() {
       this.addEventListener("lf-reveal", this.revealPassage);
-      if (once(this)) this.controller.subscribe(this.paintReviewAvailability);
+      const firstConnection = once(this);
+      if (firstConnection) {
+        this.controller.subscribe(this.paintReviewAvailability);
+        watchOwner(this, {
+          disconnect: () => {
+            this.rendering = (this.rendering ?? 0) + 1;
+            this.manifestEntries = null;
+            this.manifestSnapshot = null;
+          },
+        });
+      }
       if (!this.threadSurface)
         this.threadSurface = placeThreads(this, (targets) => {
           this.beginThreadSurface();
@@ -669,7 +684,6 @@ customElements.define(
           this.endThreadSurface();
           return outlets;
         });
-      if (this.stopWatching) return;
       // A page diff's file header pins at `--lf-top`, the top of the page's box that
       // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
       // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
@@ -795,20 +809,16 @@ customElements.define(
         this.present(this.render(this.inlineSource));
         return;
       }
-      this.stopWatching = watchData(this, "document", (snapshot) => {
-        const rendering = this.render(snapshot?.value ?? null, snapshot);
-        this.sourceRendering = rendering;
-        return rendering;
-      });
+      if (firstConnection)
+        watchData(this, "document", (snapshot) => {
+          const rendering = this.render(snapshot?.value ?? null, snapshot);
+          this.sourceRendering = rendering;
+          return rendering;
+        });
     }
 
     disconnectedCallback() {
       this.removeEventListener("lf-reveal", this.revealPassage);
-      this.rendering = (this.rendering ?? 0) + 1;
-      this.stopWatching?.();
-      this.stopWatching = null;
-      this.manifestEntries = null;
-      this.manifestSnapshot = null;
       this.threadSurface?.unregister();
       this.threadSurface = null;
       this.threadOutlets = null;
@@ -828,13 +838,7 @@ customElements.define(
           this.manifestBody = null;
           this.replaceChildren();
           shadowStage(this, []);
-          projectData(
-            this,
-            [],
-            () => "",
-            () => null,
-            { nested: true, snapshot },
-          );
+          projectData(this, [], { snapshot });
           this.classList.toggle("lf-rendered", false);
           return;
         }
@@ -915,10 +919,10 @@ customElements.define(
           if (bound)
             projectData(
               this,
-              entries.flatMap((entry) => [fileDatum(entry), ...entry.lines]),
-              datumKey,
-              ({ node }) => node,
-              { nested: true, labelOf: datumLabel, snapshot },
+              entries
+                .flatMap((entry) => [fileDatum(entry), ...entry.lines])
+                .map(projectionDatum),
+              { snapshot },
             );
           this.classList.toggle("lf-rendered", true);
           this.filterFiles(this.diffTools.search.value);
@@ -936,14 +940,7 @@ customElements.define(
         this.classList.toggle("lf-rendered", false);
         failSoft(this, err, source);
         if (this.shadowRoot) shadowStage(this, [...this.childNodes]);
-        if (bound)
-          projectData(
-            this,
-            [],
-            () => "",
-            () => null,
-            { nested: true, snapshot },
-          );
+        if (bound) projectData(this, [], { snapshot });
       }
     }
 
@@ -1129,27 +1126,22 @@ customElements.define(
     projectManifest() {
       projectData(
         this,
-        (this.manifestEntries ?? []).flatMap((entry, index) => [
-          fileDatum(entry, {
-            ...this.manifestSnapshot.origin,
-            path: ["files", index, "path"],
-          }),
-          ...(entry.loaded ? entry.lines : []).map((line) => ({
-            ...line,
-            origin: {
+        (this.manifestEntries ?? [])
+          .flatMap((entry, index) => [
+            fileDatum(entry, {
               ...this.manifestSnapshot.origin,
-              path: ["files", index, "patch"],
-            },
-          })),
-        ]),
-        datumKey,
-        ({ node }) => node,
-        {
-          nested: true,
-          labelOf: datumLabel,
-          snapshot: this.manifestSnapshot,
-          originOf: ({ origin }) => origin,
-        },
+              path: ["files", index, "path"],
+            }),
+            ...(entry.loaded ? entry.lines : []).map((line) => ({
+              ...line,
+              origin: {
+                ...this.manifestSnapshot.origin,
+                path: ["files", index, "patch"],
+              },
+            })),
+          ])
+          .map(projectionDatum),
+        { snapshot: this.manifestSnapshot },
       );
     }
 

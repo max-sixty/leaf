@@ -563,7 +563,7 @@ def test_markdown_option_state_change_has_no_inline_text_diff(browser, serve):
 def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     browser, serve
 ):
-    """A choice presents through its child Lit control and retains authored nodes."""
+    """A choice presents its retained controls before delivery, including refusal."""
     page = open_page(browser, live_url(serve(SETTLED_PAGE)))
     page.locator("#transport .lf-settled").click()
     group = page.locator("#transport")
@@ -588,15 +588,6 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
             [...authoredOption.childNodes].includes(authoredWords) &&
             authoredOption.querySelector(':scope > lf-option-control') === optionControl;
 
-          let release;
-          const held = new Promise(resolve => { release = resolve; });
-          window.releaseOptionControl = release;
-          const schedule = control.scheduleUpdate.bind(control);
-          control.scheduleUpdate = async () => {
-            control.scheduleUpdate = schedule;
-            await held;
-            return schedule();
-          };
           const presentation = await window.__lfRuntimeImport(
             '/runtime/semantic-state.js'
           );
@@ -609,21 +600,15 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     strict.click()
-    holding(page, held, 1, "the choice whose generated control update is held")
-    page.evaluate(
-        "() => { optionsPresentationReady = false; "
-        "void whenOptionsPresented().then(() => { "
-        "optionsPresentationReady = true; }); }"
-    )
-    assert page.evaluate("optionsPresentationReady") is False
-    assert "widget:transport:render" in page.evaluate(
+    holding(page, held, 1, "the choice whose delivery is held")
+    page.evaluate("() => whenOptionsPresented()")
+    expect(mark).to_have_attribute("aria-checked", "true")
+    expect(mark).to_have_text("selected")
+    assert "widget:transport:render" not in page.evaluate(
         "readOptionsPresentation().pending"
     )
-    assert page.evaluate("optionIdentityHeld()") is True
-
-    page.evaluate("releaseOptionControl()")
-    page.wait_for_function("optionsPresentationReady")
     expect(strict).to_have_attribute("chosen", "")
+    assert page.evaluate("optionIdentityHeld()") is True
 
     attempt = held[0].request.post_data_json["attempt"]
     held[0].fulfill(
@@ -637,6 +622,7 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     )
     page.unroute("**/api/event")
     expect(page.locator("#opt-lax")).to_have_attribute("chosen", "")
+    expect(mark).to_have_attribute("aria-checked", "false")
     assert page.evaluate("optionIdentityHeld()") is True
 
     group.evaluate(
@@ -1168,13 +1154,13 @@ WIDE_ASK_PAGE = leaf_page(
 <h1>Where sessions live</h1>
 <div id="layout">
 <section id="body">
-<lf-ask id="cell-decision"><h2>Where should a session live?</h2>
+<lf-ask id="cell-decision" data-width="available"><h2>Where should a session live?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="cell-cards" choose>
   <lf-option id="cc-redis"><strong>Redis</strong> A store we already run.</lf-option>
   <lf-option id="cc-pg"><strong>Postgres</strong> One fewer moving part.</lf-option>
 </lf-options></lf-ask>
-<lf-ask id="rows-decision"><h2>Which jobs are worth starting?</h2>
+<lf-ask id="rows-decision" data-width="available"><h2>Which jobs are worth starting?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="cell-rows" choose multiple>
   <lf-option id="cr-drill">A revocation drill</lf-option>
@@ -1183,7 +1169,7 @@ WIDE_ASK_PAGE = leaf_page(
 </section>
 <section id="aside"><p>Beside the argument.</p></section>
 </div>
-<lf-ask id="page-decision"><h2>Who owns the migration?</h2>
+<lf-ask id="page-decision" data-width="available"><h2>Who owns the migration?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="page-cards" choose>
   <lf-option id="pc-platform"><strong>Platform</strong> They run the store.</lf-option>
@@ -2157,13 +2143,14 @@ def test_multiple_done_can_be_taken_back_after_an_empty_answer(browser, serve):
     page = open_page(browser, serve(ASK_PAGE))
     done = page.locator("#jobs .lf-done")
 
-    done.click()
+    done.focus()
+    page.keyboard.press("Space")
     round_trip(page)
     expect(done).to_have_attribute("aria-pressed", "true")
     expect(done).to_have_attribute("aria-label", "Take back Done: reopen this question")
     expect_asks_answered(page, "1/3")
 
-    done.click()
+    page.keyboard.press("Enter")
     round_trip(page)
     expect(done).to_have_attribute("aria-pressed", "false")
     expect(done).to_have_attribute("aria-label", "Done: my picks here are complete")

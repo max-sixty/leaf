@@ -5,20 +5,6 @@ references; their order here is not a priority ranking. The authoring comparison
 #19 precedes the instructions experiment in #20. The recurring-use study in #23 requires
 Max's real tasks.
 
-## Keyboard and accessibility
-
-<a id="item-14"></a>
-
-- **#14 — Verify the complete keyboard and accessibility route.** Follow one named
-  two-pane example through authored landmarks, header/footer controls, reading keys,
-  a local comment, Threads, Escape and a change of workspace posture.
-
-  Existing visual-review tests cover parts of this journey. The remaining check is
-  their composition: every action has a comprehensible accessible name, every focus
-  mark is visible, and closing a covering surface returns the user to the task.
-  Exercise both an open Threads panel beside a usable page and the modal boundary
-  where the panel covers it. Focus containment must follow that modality.
-
 ## Authoring comparison
 
 <a id="item-19"></a>

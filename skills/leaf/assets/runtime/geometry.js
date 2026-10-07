@@ -288,9 +288,11 @@ export function shownBand(el) {
 // container: `auto` and `scroll`, and `hidden` too, which a script or a landing can
 // scroll though the user cannot, and which is the scroller a sticky box inside it sticks
 // in. The runtime marks every such box from the same predicate (reach.js, `paintSlot`),
-// and asks it of what a motion scrolls (scroll-motion.js).
+// and asks it of what a motion scrolls and which boxes scroll what they hold
+// (scroll-motion.js, `scrollContainer` and `scrollsContent`).
+export const scrollport = (overflow) => /^(auto|scroll|hidden)$/.test(overflow);
 export const scrollsBy = ({ overflowX, overflowY }) =>
-  /auto|scroll|hidden/.test(`${overflowX} ${overflowY}`);
+  scrollport(overflowX) || scrollport(overflowY);
 const scrolls = (el) => scrollsBy(getComputedStyle(el));
 // How far below the top of `scroller`'s band the view of `el` starts, past the sticky
 // headers stuck over it. Each header adds its stated height to `--lf-top` for what it
@@ -741,6 +743,10 @@ export function hides(surface, where) {
   const covered = Math.min(right, column.right) - Math.max(left, column.left);
   return covered > (right - left) / 2;
 }
+// Whether any standing occluder hides `where`, by the same measure. A seat a panel stands
+// over is no place to put the user, since the panels dominate what focus reaches.
+export const underOccluder = (where) =>
+  [...occluders].some((surface) => hides(surface, where));
 // The element a destination is measured through: itself, or the element holding a
 // Range's start.
 export const placeHolder = (where) =>

@@ -74,8 +74,8 @@ read rather than derive (`registry/layer.py`, `stamp_composition`): `$decisions`
 deciding x-state verb of every widget that has one and the member tags each of its
 outcomes retires, which the declarations imply; and `$marks`, the declarations a
 stylesheet reads, each with the attribute it is painted as, the attribute an
-occurrence overrides it with, and whether it holds in a thread's message
-(`schema.py`, `DECLARED_MARKS`). `page init` stamps them into the layer, and a page's
+occurrence overrides it with, whether it holds in a thread's message, and whether an
+idiom may declare it (`schema.py`, `DECLARED_MARKS`). `page init` stamps them into the layer, and a page's
 composition stamps them again over the page's own declarations, overwriting any
 declared `$decisions` or `$marks`. The browser reads the first rather than walking
 `x-state` and `x-retired-when` a second time, and paints a message's marks from the

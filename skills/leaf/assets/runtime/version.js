@@ -151,7 +151,7 @@ import {
   capturePlace,
   hasLandmark,
   rawOffsetFits,
-  readingBlock,
+  pageReadingBlock,
   restorePlace,
   textBlocks,
 } from "./reading-place.js";
@@ -237,7 +237,6 @@ export function createVersionController({
   midComposition,
   hasPending,
   readAndApply,
-  forgetAuthoredOwners,
   retireProjectionCoverage,
   syncLayout,
   captureRetainedStanding = () => null,
@@ -1413,15 +1412,6 @@ export function createVersionController({
         same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
         sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot),
         touched: (element) => touched.push(element),
-        // An element going is not the same as its name going. Authored state capture
-        // still needs to forget removed upgraded owners here; the complete incoming
-        // descriptor inventory below decides which identities actually retired.
-        retire: (element) => {
-          if (!element.id || !registry[element.localName]) return;
-          for (const claimant of live.querySelectorAll(`#${CSS.escape(element.id)}`))
-            if (claimant !== element) return;
-          if (upgraded(element)) forgetAuthoredOwners(new Set([element.id]));
-        },
       });
       // The revision's sheets, in its head and in its body alike, keep off the layer.
       keepPageRulesOffLayer();
@@ -1617,7 +1607,7 @@ export function createVersionController({
     const active =
       regions.get(view.activeRegion) ??
       containingReadingRegionFor(focused()) ??
-      readingRegionFor(readingBlock());
+      readingRegionFor(pageReadingBlock());
     if (active) reveal(active.host, currentIntent);
     const restored = new Set();
     const activeReading = active && view.regions?.[active.id];

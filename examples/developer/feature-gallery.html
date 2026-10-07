@@ -658,6 +658,25 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
             </section>
 
+            <section id="bg-page-comment-card">
+              <h3>
+                <strong>Comment on the page</strong
+                ><span class="bg-feature-detail"
+                  >: start a page thread from the banner</span
+                >
+              </h3>
+              <p id="bg-page-comment-card-guide">
+                With Threads shut, press the comment symbol beside Threads on the
+                banner, or press <kbd>c</kbd> with nothing selected. A card hangs from
+                the symbol; write a sentence and send it. The card goes away and Threads
+                flashes yellow, its count one higher, while the panel stays shut; the
+                new thread is in Threads. <kbd>Escape</kbd> or a click elsewhere also
+                puts the card away, keeping what you wrote for the next time it opens.
+                With Threads open, the same press goes to its own “Comment on the page”
+                box. On a phone, “Comment on the page” is in “More page controls”.
+              </p>
+            </section>
+
             <section id="bg-design-comments">
               <h3>
                 <strong>Design mode</strong
@@ -683,10 +702,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 empty space belongs to the nearest element on screen. Every further
                 stroke joins the same drawing, wherever it starts. Send the drawing
                 alone or add words first. The comment box shows the drawing beside Undo
-                last stroke and Remove drawing; <kbd>⌘Z</kbd> in the box takes back a
-                stroke until you type. <kbd>Escape</kbd> puts the box away and leaves
-                the drawing on the page, dashed, and the next stroke brings the box
-                back; <kbd>z</kbd> takes back a stroke while it is away. A second
+                last stroke and Remove drawing; in the box, <kbd>⌘Z</kbd> and
+                <kbd>⌘⇧Z</kbd> undo and redo strokes and words in the order you made
+                them. <kbd>Escape</kbd> puts the box away and leaves the drawing on the
+                page, dashed, and the next stroke brings the box back;
+                <kbd>z</kbd> takes back a stroke while it is away. A second
                 <kbd>Escape</kbd> leaves Draw mode with the drawing still showing. Press
                 <kbd>w</kbd> again and start over this guide: the stroke joins the kept
                 drawing rather than replacing it. On a touch screen, “Draw mode” is in
@@ -1212,15 +1232,18 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p class="eyebrow">list="side"</p>
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
-              The tab list stands left of the open item, each row its name and summary.
-              Walk it with the up and down arrows. Answer the first item's Ask and its
-              row shows a check and the option you picked, and undo takes them away;
-              narrow the window below the set's 36rem and the list becomes a row above
-              the item, its rows keeping only the check.
+              The tab list stands left of the open item, each row its name and summary,
+              and each run of rows sharing a <code>group</code> under its heading. Walk
+              it with the up and down arrows, which pass the headings by. Answer the
+              first item's Ask and its row shows a check and the option you picked, and
+              undo takes them away; narrow the window below the set's 36rem and the list
+              becomes a row above the item, with each group's name before its first row
+              and the rows keeping only the check.
             </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab
                 id="bg-side-4107"
+                group="Act today"
                 label="ESC-4107 · Northwind Labs"
                 summary="sev 1 · 9 h · suggested fix"
               >
@@ -1242,6 +1265,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </lf-tab>
               <lf-tab
                 id="bg-side-4114"
+                group="Act today"
                 label="ESC-4114 · Vela Analytics"
                 summary="sev 1 · 1 h · suggested escalate"
               >
@@ -1251,6 +1275,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </lf-tab>
               <lf-tab
                 id="bg-side-4108"
+                group="This week"
                 label="ESC-4108 · Hale &amp; Sons"
                 summary="sev 3 · 8 h · suggested close"
               >

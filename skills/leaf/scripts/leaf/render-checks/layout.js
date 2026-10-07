@@ -404,6 +404,60 @@ export function misplacedBoxes() {
         `${at(el)} stands ${past}px past the room the page has for a wide widget`,
       );
   }
+  // The other way round: a breakout held to the measure. In a flow wider than the
+  // column, a box that keeps the column (an Ask, a callout) widens to a breakout among
+  // its own blocks (theme.css); one standing deeper, as a table in a figure inside an
+  // Ask does, stays at the box's width though the flow around the box has the room. A
+  // frame between them holds it on purpose and answers for it, and so does a widget's
+  // member, such as an option, which holds what it carries on its list's terms: only
+  // plain markup between them leaves the block to the box. A box held at the measure by
+  // another, as a callout inside an Ask is, is named through the outermost of them,
+  // whose width lets the inner ones widen. On a column page the box fills its holder,
+  // and the breakout grows out of it instead.
+  const content = (el) => {
+    const s = getComputedStyle(el);
+    return (
+      el.getBoundingClientRect().width -
+      ["Left", "Right"].reduce(
+        (sum, side) =>
+          sum + parseFloat(s[`padding${side}`]) + parseFloat(s[`border${side}Width`]),
+        0,
+      )
+    );
+  };
+  const atMeasure = (box) =>
+    box.matches('[data-lf-space="column"]') &&
+    main.contains(box) &&
+    box.getBoundingClientRect().width <=
+      parseFloat(getComputedStyle(box).getPropertyValue("--col")) + 1;
+  const allocated = (el) => el.parentElement.closest("[data-lf-space]");
+  // Whether `outer` holds `inner` as one of its own blocks: only plain markup between
+  // them, none of it a widget's member or a box that draws a frame.
+  const plainly = (inner, outer) => {
+    for (let a = inner.parentElement; a !== outer; a = a.parentElement)
+      if (a.localName.includes("-") || draws(a)) return false;
+    return true;
+  };
+  for (const el of main.querySelectorAll(BREAKOUT)) {
+    if (!el.checkVisibility()) continue;
+    let outer = allocated(el);
+    if (!outer || !atMeasure(outer) || !plainly(el, outer)) continue;
+    if (el.getBoundingClientRect().width > outer.getBoundingClientRect().width + 1)
+      continue;
+    let up = allocated(outer);
+    for (; up && atMeasure(up) && plainly(outer, up); up = allocated(outer)) outer = up;
+    // A box held at the measure by one it is not plainly inside is that box's member,
+    // which holds it on its own terms, so no width given to either would free it.
+    if (up && atMeasure(up)) continue;
+    if (content(outer.parentElement) > outer.getBoundingClientRect().width + 1)
+      report(
+        el,
+        "held",
+        `${at(el)} asks for data-width="${el.getAttribute("data-lf-space")}" but ` +
+          `stands at the reading measure inside ${at(outer)}, which keeps the column — ` +
+          `give ${at(outer)} the data-width`,
+      );
+  }
   // The room being the page's own box is not the whole of what a wide widget owes,
   // because the page hangs things in that box. A sidenote stands a gutter off the
   // column, while the strip it is reserved out of comes off the far edge of the page —

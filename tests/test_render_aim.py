@@ -59,6 +59,9 @@ from render_cases_widgets import (
     PART_DIAGRAM_V2,
     PICTURE_PAGE,
     PREFIXED_VISUAL_PAGE,
+    SHADOW_SCROLLER_LAYER,
+    SHADOW_SCROLLER_PAGE,
+    SHADOW_SCROLLER_WIDGETS,
     SHADOW_VISUAL_LAYER,
     SHADOW_VISUAL_PAGE,
     SHADOW_VISUAL_WIDGETS,
@@ -69,18 +72,23 @@ from render_cases_widgets import (
 )
 from render_harness import (
     EXAMPLES,
+    FOLLOWER_MARK,
     LONG_PAGE,
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     SAMPLE_PAGE,
+    SUBJECT_MARK,
     admit_before_presenting_comment,
+    assert_follows_in_every_frame,
     draft_key,
     expect_comment_notes,
     hold_pending_thread_presentation,
     judge_watches,
     leaf_page,
     open_page,
+    pane_posture,
     panel_settled,
+    regions_side_by_side,
     resized,
     round_trip,
     scroll_settled,
@@ -253,8 +261,17 @@ def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve
             animation.effect.getKeyframes().some(frame => 'clipPath' in frame));
           if (!played) return null;
           const [start, end] = played.effect.getKeyframes();
-          const inset = [...start.clipPath.matchAll(/-?\\d+(?:\\.\\d+)?px/g)]
-            .slice(0, 4).map(match => Number.parseFloat(match[0]));
+          // Chrome serializes equal right and left inset values as a three-value
+          // shorthand. Read only the inset sides, before the separate round radius.
+          const sides = start.clipPath.match(/^inset\\(([^)]*?)(?: round|\\))/)[1]
+            .trim().split(/\\s+/).map(value => Number.parseFloat(value));
+          const inset = sides.length === 1
+            ? [sides[0], sides[0], sides[0], sides[0]]
+            : sides.length === 2
+              ? [sides[0], sides[1], sides[0], sides[1]]
+              : sides.length === 3
+                ? [sides[0], sides[1], sides[2], sides[1]]
+                : sides;
           const box = card.getBoundingClientRect();
           const style = getComputedStyle(card);
           const scaleX = box.width / Number.parseFloat(style.width);
@@ -2647,7 +2664,8 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     # The panel stands over the right of the page, and each box ends where the panel
     # begins. Opened by key: in the mode a press on the Threads button is a comment
     # about the button.
-    page.keyboard.press("c")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+T")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     page.wait_for_function(LEGEND_TRUE)
     # The legend's repaint above consumed the reflow's edge, and the aim was refreshed
@@ -3158,6 +3176,43 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     page.keyboard.up("Alt")
 
 
+def test_an_aim_follows_a_scroll_inside_a_widgets_shadow_stage(browser, serve):
+    """A scroll inside a widget's shadow stage reaches the page's scroll door, though
+    no scroll event leaves a shadow tree: the aim over a part in a box that began to
+    scroll after the aim stood, anchored through the widget, stands over the part
+    again once that box scrolls."""
+    url = serve(
+        SHADOW_SCROLLER_PAGE,
+        layer_registry=SHADOW_SCROLLER_LAYER,
+        layer_widgets=SHADOW_SCROLLER_WIDGETS,
+    )
+    page = open_page(browser, url)
+    host = page.locator("#shadow-scroller")
+    part = host.locator(".part")
+    part.hover()
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_be_visible()
+    offset = """() => {
+      const part = document.querySelector('#shadow-scroller').shadowRoot
+        .querySelector('.part').getBoundingClientRect();
+      const aim = document.querySelector('.lf-aim').getBoundingClientRect();
+      return [aim.left - part.left, aim.top - part.top];
+    }"""
+    at = page.evaluate(offset)
+    assert at == pytest.approx([0, 0], abs=1), "the aim stood off its part"
+    host.evaluate(
+        "host => { host.shadowRoot.querySelector('.content').style.height = '600px'; }"
+    )
+    rendered(page)
+    host.evaluate("host => { host.shadowRoot.querySelector('.port').scrollTop = 20; }")
+    page.wait_for_function(
+        f"([x, y]) => {{ const [dx, dy] = ({offset})(); "
+        "return Math.abs(dx - x) < 1 && Math.abs(dy - y) < 1; }",
+        arg=at,
+    )
+    page.keyboard.up("Alt")
+
+
 # What of a paint box shows across: its box, cut by each frame round it that clips across
 # (target-paint-geometry.js, `paintStand`).
 SHOWN_PAINT = """(selector) => {
@@ -3524,6 +3579,109 @@ def test_a_scroll_under_a_held_aim_moves_the_promise_with_the_page(browser, serv
         arg=first,
     )
     page.keyboard.up("Alt")
+
+
+def test_a_held_aim_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
+    """Every frame Chrome draws while a pane scrolls under a held aim shows the outline
+    level with what it outlines, since the browser carries both through the same scroll
+    (target-paint-geometry.js, `paintStand`). The target stands taller than a wheel step,
+    so the pointer stays on it and the aim stays its."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "an aim in a pane",
+                """
+  <div id="aim-split">
+    <lf-pane id="aim-pane" label="Findings">
+      <div>
+        <div style="height: 200px"></div>
+        <p id="pane-target" style="height: 260px">The first finding, aimed at.</p>
+        <div style="height: 1600px"></div>
+      </div>
+    </lf-pane>
+    <lf-pane id="other-pane" label="Notes"><div><p>Notes.</p></div></lf-pane>
+  </div>""",
+                head=regions_side_by_side("aim-split")
+                + f"<style>#pane-target {{ background:{SUBJECT_MARK}; }}"
+                f" .lf-aim {{ outline:6px solid {FOLLOWER_MARK} !important; }}</style>",
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#aim-pane"), "bounded")
+    target = page.locator("#pane-target").bounding_box()
+    page.mouse.move(target["x"] + 40, target["y"] + 130)
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_have_attribute("data-for", "pane-target")
+    rendered(page)
+    assert_follows_in_every_frame(page, "#aim-pane > div")
+    page.keyboard.up("Alt")
+
+
+@pytest.mark.parametrize("subject", ["words", "diagram node"])
+def test_an_aim_in_a_pane_stands_anchored_to_what_it_outlines(browser, serve, subject):
+    """The aim over a target in a pane stands fixed and anchored to that target, cut by
+    a frame anchored to the pane's scroller, with no scroll-driven layer, which can
+    paint a frame off the scroll it carries (target-paint-geometry.js, `paintStand`). A
+    diagram's node anchors through its drawing, which clips what it draws and scrolls
+    none of it, so it stands anchored too."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "an aim in a pane",
+                """
+  <div id="aim-split">
+    <lf-pane id="aim-pane" label="Findings">
+      <div>
+        <div style="height: 200px"></div>
+        <p id="pane-words">The first finding, aimed at.</p>
+        <lf-diagram id="flow" parts="node:S"><pre>
+graph LR
+  S[Start request] --> H[Handle request]
+</pre></lf-diagram>
+        <div style="height: 1600px"></div>
+      </div>
+    </lf-pane>
+    <lf-pane id="other-pane" label="Notes"><div><p>Notes.</p></div></lf-pane>
+  </div>""",
+                head=regions_side_by_side("aim-split"),
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#aim-pane"), "bounded")
+    if subject == "words":
+        page.locator("#pane-words").hover()
+        page.keyboard.down("Alt")
+        expect(page.locator(".lf-aim")).to_have_attribute("data-for", "pane-words")
+    else:
+        page.locator('#flow g[data-id="S"]').hover()
+        page.keyboard.down("Alt")
+        # A part's aim is drawn as its shape's contour.
+        expect(page.locator(".lf-aim.lf-shaped")).to_be_visible()
+    stand = page.evaluate(
+        """() => {
+          const aim = document.querySelector('.lf-aim');
+          const stand = aim.closest('.lf-paint-stand');
+          return {
+            layers: stand.querySelectorAll('.lf-paint-motion').length,
+            boxes: [aim, ...stand.querySelectorAll('.lf-paint-frame')].map((box) => ({
+              position: getComputedStyle(box).position,
+              anchor: getComputedStyle(box).positionAnchor,
+            })),
+          };
+        }"""
+    )
+    page.keyboard.up("Alt")
+    assert stand["layers"] == 0, stand
+    assert all(
+        box["position"] == "fixed" and box["anchor"].startswith("--lf-a")
+        for box in stand["boxes"]
+    ), stand
 
 
 def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):

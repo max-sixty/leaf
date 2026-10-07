@@ -11,10 +11,14 @@
  * changing moves nothing. Counts past that widen the box once, and it keeps the width
  * while the page is open. The counts are a press, one of the Queue panel's doors
  * (drawers.js wires it), so the panel they count is one press from where they are read.
+ *
+ * A passing notice shares the words' box (`presentNotice`), and on a phone stands over
+ * them while it lasts; elsewhere the bottom status shows it (chrome.css,
+ * `--lf-notice-seat`).
  */
 import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { el, reserve } from "./widget-elements.js";
-import { keeps } from "./keeps.js";
+import { keeps, keepsText } from "./keeps.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";
@@ -36,9 +40,16 @@ class BannerStatusView extends HTMLElement {
   #queuesWidest = "";
   #queuesReserved = "";
   #text = el("span", "lf-status-text");
+  // A passing notice, which takes the words' place on a phone (chrome.css,
+  // `--lf-notice-seat`). It stands over them in one box, so the press and its accessible
+  // name stay the status's; the live region has already spoken the notice.
+  #notice = el("span", "lf-status-notice");
+  #words = el("span", "lf-status-words");
 
   constructor() {
     super();
+    this.#notice.setAttribute("aria-hidden", "true");
+    this.#words.append(this.#text, this.#notice);
     this.#button.type = "button";
     this.#button.setAttribute("aria-expanded", "false");
     this.#button.setAttribute("aria-describedby", "lf-status-detail");
@@ -75,6 +86,12 @@ class BannerStatusView extends HTMLElement {
     return this.#queues;
   }
 
+  // The notice keeps its words after it fades, so the stylesheet alone decides what shows.
+  presentNotice({ message, visible }) {
+    keepsText(this.#notice, message);
+    keeps(this, "data-lf-notice", visible ? "" : null);
+  }
+
   present(model) {
     if (
       !Object.isFrozen(model) ||
@@ -95,7 +112,7 @@ class BannerStatusView extends HTMLElement {
       // publication row. Returning to it can then claim them afresh rather than
       // trusting a part whose nodes another container has moved.
       render(nothing, this.#button);
-      render(html`${this.#dot}${this.#text}${this.#detail}`, this);
+      render(html`${this.#dot}${this.#words}${this.#detail}`, this);
       render(
         html`<span class="lf-publication-copy">${model.publication.copy}</span>${
             model.publication.examplesUrl
@@ -114,7 +131,7 @@ class BannerStatusView extends HTMLElement {
     }
 
     render(html`${this.#button}${this.#detail}`, this);
-    render(html`${this.#dot}${this.#text}`, this.#button);
+    render(html`${this.#dot}${this.#words}`, this.#button);
     render(model.summary, this.#text);
     render(model.queues, this.#queues);
     // The reservation only grows: its digits are tabular, so the longest counts yet

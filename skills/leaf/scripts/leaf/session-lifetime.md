@@ -12,7 +12,7 @@ second fold.
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
 | page declaration: `waiting` or `idle`, detail | `status.json` | `leaf status`, which first writes a `put_down` to the log when a start stands | stands until the next declaration, and its age dates the page's other readings |
-| the item in hand: a move's event id or an open task's id, the line, and the claimant turn that wrote it, or none for another session's | a `start` event in `events.jsonl` (`tasks.py`) | `leaf task start`, from a turn of the session driving the page | the item ending: a move's answer, or a task's end; a later `put_down` event, which `leaf status waiting` and `idle` write; and as a belief, a short grace after the turn that wrote it closes, about a quarter of an hour with no renewal, or at once when the claimant's lifetime has ended |
+| the item in hand: a move's event id or an open task's id, the line, and the claimant turn that wrote it, or none for another session's | a `start` event in `events.jsonl` (`tasks.py`) | `leaf task start`, or `leaf thread reply --ephemeral` on a move owed, from a turn of the session driving the page | the item ending: a move's answer, or a task's end; a later `put_down` event, which `leaf status waiting` and `idle` write; and as a belief, a short grace after the turn that wrote it closes, about a quarter of an hour with no renewal, or at once when the claimant's lifetime has ended |
 | live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's task connection | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding names the claim turn it belongs to (the delivery's turn once its reply opens, the turn standing at reservation before then), clears after durable commit or terminal failure, and survives a lost connection; it stands only while that is still the claim's turn and the turn is open (`activity.reply_binding_stands`), and a turn's answer committed after its binding lapsed yields to a reply another writer already gave |
 | turn identity, when it last opened or took a prompt, and open or closed state | the session lifecycle record | a prompt, a direct delivery, or a carrier following a provider turn opens `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the id is the harness's where it names one (Codex's hooks and App Server name the same turn) and one Leaf mints otherwise; the Stop hook stamps `turn_closed` on whatever turn is open, and a carrier on the turn it follows | the next opening of another id; the next closing stamps it, and a closed id never reopens |
@@ -186,7 +186,10 @@ that harness too (`harness.harness_argument`).
 A second Claude Code Stop registration runs the watch (`--watch`), which Claude Code
 keeps in the background (`asyncRewake`) as the session's watch between turns
 (`session.watch_between_turns`): its exit 2 wakes the session with its stderr, and
-every other ending is silent.
+every other ending is silent. Where the user turns on the plugin's `hooks_module`
+option and Claude Code loads hooks modules, Leaf's module (`hooks/claude-code.ts`)
+runs the watch itself and marks the Stop payload it passes on, and the registration
+given a marked payload stands down (`hooks/scripts/loop-guard.py`).
 Its unanswered-work guard reads `activity.turn_obligations` over the page's
 activity, selected from the same `workflows` projection the browser reads; it does not reconstruct threads
 itself. The hook planner reads each page once under its transaction, including
@@ -314,11 +317,26 @@ say when it is not, rather than comparing the name itself. The carriers are:
   background command at two hours and a hook only at its own `timeout`, which is
   why the watch is a hook. Plain `--print` runs the hook in the foreground,
   holding the turn, so there it watches nothing.
+- Under Claude Code with the `hooks_module` option on, the same watch, which Leaf's
+  hooks module (`hooks/claude-code.ts`) starts as the session starts and as each
+  main-loop turn ends, in place of that Stop hook. A watch that wakes an idle session
+  submits its line as a prompt, whose prompt hook hands the batch over; one that
+  wakes during a turn calls the prompt hook itself and appends its context to that
+  turn, which reads it at its next step. An interrupted turn runs no Stop hook, but
+  the module still sees it end, so it starts the watch with the Interrupt payload,
+  as Pi's extension does. Claude Code prints a Stop hook's context in the user's
+  terminal, so the module moves a delivery the Stop hook hands over into the
+  session as an appended row, which it does not show, and the turn goes on with
+  one line.
 - Under Pi, the same watch, which Leaf's extension (`hooks/pi.ts`) starts as the
-  session starts and as each run settles. When the watch exits with input, the
-  extension calls the prompt hook and sends its context, which starts a run or
-  steers the running one. After an interrupted run it starts the watch with the
-  Interrupt payload, which wakes only for input admitted after its first look.
+  session starts and as each run settles. When the watch exits with input and no
+  run is going, the extension calls the prompt hook and sends its context, which
+  starts a run; during a run it calls the prompt hook at the run's next turn end
+  and adds the context to the session there, since a steer waits in a queue
+  Escape clears, and the hook confirms only what is in the session's context.
+  After an interrupted run it starts the watch with the
+  Interrupt payload, which first answers the Interrupt hook, closing the turn,
+  and then wakes only for input admitted after its first look.
 - A sequence of direct watchers the model itself runs, where the wait prints the
   batch (a Codex task's own loop, a bare shell, a Claude Code session under plain
   `--print`): `leaf wait --ack <delivery-id>` advances the captured cursors and
@@ -334,7 +352,8 @@ pass, and produces the same envelope (`../../references/event-batches.md`, "One 
 on every transport").
 
 A carrier the session's own turns start is the one that stops while its session
-lives on: a turn interrupted without its Stop hooks starts no watch, a watch fails
+lives on: a turn interrupted without its Stop hooks starts no watch unless Leaf's
+hooks module keeps it, a watch fails
 open or reaches its hook's timeout, or a model-run wait is stopped after the turn
 ends. Input that reaches the page after that has no carrier, so browser-event
 admission asks the claimant's harness for its nudge — the way to reach a session
@@ -461,11 +480,19 @@ thread store or response policy.
 `server start` prepares the service in a detached process. A claimed handoff
 prepares delivery before any page acquisition: Codex holds its adapter-start lock
 until the serving producer commits the claim, so a newly ready carrier cannot
-retire for lack of pages during that handoff. The carrier's receipt recovery
-waits on the same lock: a start that begins a new session generation leaves the
-page's claim inactive until it publishes the new one, and a receipt refused in that
-gap would retire an accepted batch without advancing the page's cursor, so its
-input would be delivered again. An existing direct wait is honored.
+retire for lack of pages during that handoff. An existing direct wait is honored.
+
+Taking new input from a page needs the session's claim active, but recording what
+the session's task already took or answered there — a receipt, a turn's final
+answer, a failure answer — needs only that the claim still names the session,
+unreleased, while the session has not ended (`service.claim_names_session`). A
+restart begins the session's new generation before it publishes that generation's
+claim, and a task holding several pages claims them back one at a time, so a
+carrier reading the task back after a restart meets claims that name an older
+generation of its own session. Refusing there would retire an accepted batch
+without advancing the page's cursor, so its input would be delivered again once
+the page is claimed, and would lose the turn's answer. Another session's claim
+or a release still refuses.
 `server run` prepares the same delivery before binding in the foreground. Standing
 and temporary serves prepare no delivery. `leaf codex start` prepares the adapter
 under its start lock and then publishes the page claim, without serving.

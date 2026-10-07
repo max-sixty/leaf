@@ -60,7 +60,7 @@ import {
   registerBannerControl,
   showBannerControl,
 } from "../banner-toolbar.js";
-import { seenRect } from "../geometry.js";
+import { seenRect, underOccluder } from "../geometry.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import {
   targetElement,
@@ -126,11 +126,10 @@ import { keeps } from "../keeps.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 
 export function createResponseSurface({
-  panelElements: { generalInput, panel, threadsBox, inPanel },
+  panelElements: { panel, threadsBox, inPanel },
   panelIsOpen,
   rememberSelection,
   landIn,
-  setPanel,
   threadHere,
   threadAtStanding,
   replyThreadAtStanding,
@@ -163,6 +162,7 @@ export function createResponseSurface({
   drawModeActive,
   refreshThread,
   dismissThreadView,
+  pageComment,
   responseHome,
   revealResponseHome = null,
   createPlacement = null,
@@ -222,6 +222,14 @@ export function createResponseSurface({
 
   function seatFab(outlet) {
     if (!(outlet instanceof Element) || !fabAnchor || !composerOpen) return false;
+    // A seat a panel stands over cannot take the user even where it paints: the panels
+    // dominate what focus reaches, so the editor stays at its home instead. The seat is
+    // judged, not the editor moved into it, which measures no width until the outlet
+    // renders it; a boxless outlet is judged by the box that lays out what it holds.
+    let seat = outlet;
+    while (seat && !(seat.getBoundingClientRect().width > 0))
+      seat = seat.parentElement ?? seat.getRootNode().host;
+    if (seat && underOccluder(seat)) return false;
     // Admit the actual editor after its native move: an empty or display:contents
     // outlet has no visibility of its own. A rejected nomination leaves the previous
     // seat, geometry and held typing place intact so the cohort can try its fallback.
@@ -1256,15 +1264,13 @@ export function createResponseSurface({
         box: fabInput,
         go: () => commentOnTarget(here),
       };
+    // The banner's Comment on the page goes to the same box: the card it hangs from
+    // itself, or Threads' general box while Threads is open
+    // (thread/page-comment.js).
     return {
       ...commenting("page"),
-      box: generalInput,
-      // Two steps down and two back: the box hands the user to the list it belongs
-      // to, and the panel hands them to the page.
-      go: () => {
-        setPanel(true);
-        generalInput.focus({ preventScroll: true });
-      },
+      box: pageComment.box(),
+      go: pageComment.open,
     };
   }
 
@@ -1279,8 +1285,9 @@ export function createResponseSurface({
   // c goes where commenting happens: a live selection gets the composer (what the floating
   // button does), an element click's pending 💬 gets that, an open thread the user is
   // standing in gets its own reply box, the item they are standing in gets the box
-  // belonging to it, and otherwise the page's general box. That box lives in Threads, but c
-  // names and focuses the box directly; g T independently names the list. Never the panel's
+  // belonging to it, and otherwise the page's general box: the card under the banner's
+  // Comment on the page, or Threads' own box while Threads is open. c names and focuses
+  // the box directly; g T independently names the list. Never the panel's
   // collapse: c doubled as the toggle once, so with the panel standing open the key that
   // promised “comment” answered “close”. Backing out is whatever the box is standing in.
   //

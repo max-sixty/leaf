@@ -4,7 +4,8 @@
    the log sequence, because overlapping poll and POST responses can order the authorities
    differently. `watchData(widget, input, callback)` delivers a clone of `{source,
    contract, revision, updated, value, origin}`, or `null` while the bound source has no
-   readable value. It redelivers only when that source revision changes; overlapping
+   readable value. Subscriptions pause while their owner is absent and resume with
+   its newest snapshot. While connected, only source revision changes redeliver; overlapping
    reads await the same in-flight rendering before stamping the version presented. Its
    synchronous time readings refresh independently of data delivery. Modules project the
    result into the authored seat; they do not fetch it, mutate the accepted copy, or keep a
@@ -21,6 +22,7 @@ import { setRuntimeRootAttribute } from "./root-state.js";
 import { registry } from "./registry.js";
 import { clocked } from "./presence.js";
 import { layerHeaders, reportPageError, admitResponse } from "./layer-client.js";
+import { watchOwner } from "./arrivals.js";
 
 export function acceptData(candidate, taken) {
   if (
@@ -93,20 +95,28 @@ export function watchData(element, input, callback) {
   let deliveredRevision;
   let completion = Promise.resolve();
   const region = `data:${element.id}:${input}:${++subscriptionSequence}`;
-  const presentation = attachApplicationPresentation(region, element);
+  let presentation = null;
   const subscription = { region, notify: () => notifySelected() };
   let stopSelection;
   let pendingDelivery = null;
   let stopped = false;
-  function stop() {
-    if (stopped) return;
-    stopped = true;
+  let stopLifetime = null;
+  function disconnect() {
     subscriptions.delete(subscription);
     stopSelection?.();
+    stopSelection = null;
     pendingDelivery?.settle();
     pendingDelivery = null;
     paint.stop();
-    presentation.disconnect();
+    presentation?.disconnect();
+    presentation = null;
+    delivered = false;
+  }
+  function stop() {
+    if (stopped) return;
+    stopped = true;
+    stopLifetime?.();
+    disconnect();
   }
   // `revision` is the source's, which a source whose value fails its contract also
   // has: its `null` delivery stands until the file changes again.
@@ -123,10 +133,11 @@ export function watchData(element, input, callback) {
       // failure or re-entrant notification cannot redeliver the same failed value.
       delivered = true;
       deliveredRevision = revision;
+      const mount = presentation;
       const rendering = paint(structuredClone(snapshot));
       completion = Promise.resolve(rendering).catch((error) => {
         reportPageError(`data subscriber failed: ${error?.message ?? error}`);
-        if (mounting) stop();
+        if (mounting && presentation === mount) stop();
       });
     }
     return completion;
@@ -193,22 +204,33 @@ export function watchData(element, input, callback) {
   // starts the staged paint only after activation has retained this document. A package
   // that throws while mounting must not leave a subscription behind to fail every later
   // publication.
-  try {
-    let mounting = true;
-    stopSelection = selectedSource.subscribe((sourceStore) => {
-      if (mounting) {
-        const rendering = update(sourceStore, true);
-        void presentation.present(deliveredRevision, rendering);
-        return rendering;
-      }
-      stage(sourceStore);
-    });
-    mounting = false;
-  } catch (error) {
-    stop();
-    throw error;
+  function connect() {
+    if (stopped || stopSelection || !element.isConnected) return;
+    presentation = attachApplicationPresentation(region, element);
+    const mount = presentation;
+    try {
+      let mounting = true;
+      stopSelection = selectedSource.subscribe((sourceStore) => {
+        if (mounting) {
+          const rendering = update(sourceStore, true);
+          if (!stopped) void mount.present(deliveredRevision, rendering);
+          return rendering;
+        }
+        stage(sourceStore);
+      });
+      mounting = false;
+    } catch (error) {
+      stop();
+      throw error;
+    }
+    if (stopped) {
+      stopSelection();
+      stopSelection = null;
+      return;
+    }
+    subscriptions.add(subscription);
   }
-  subscriptions.add(subscription);
+  stopLifetime = watchOwner(element, { connect, disconnect });
   return stop;
 }
 

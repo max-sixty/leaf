@@ -54,7 +54,7 @@ import {
 } from "./thread/surfaces.js";
 import { createStateApplication } from "./state-application.js";
 import { beginRead as beginStateRead, createStateFeed } from "./state-feed.js";
-import { createProjectionUpdates } from "./updates.js";
+import { watchUpdates as observeUpdates } from "./updates.js";
 
 let application = null;
 const app = () => {
@@ -186,7 +186,6 @@ export function mountApplication(dependencies) {
     let threadPresentation = Promise.resolve();
     try {
       pendingTraffic(readApplication().effective.sending);
-      projection.stageOptimistic(entry);
       // Desired state changes at enqueue even where the widget has already painted the
       // same value, so this gesture reaches the page on the pass the enqueue opened,
       // before transport. It claims directly rather than through `invalidateDom`: a
@@ -253,9 +252,6 @@ export function mountApplication(dependencies) {
     post,
     stateApplying,
     unaccountedGesture: engagement.unaccountedGesture,
-  });
-  const projectionUpdates = createProjectionUpdates({
-    coordinateProjectionCommitted: projection.coordinateProjectionCommitted,
   });
 
   const createComment = (event) =>
@@ -414,7 +410,6 @@ export function mountApplication(dependencies) {
         focus: false,
         travel: false,
         flash: false,
-        carried: true,
         intent,
       }),
     read,
@@ -548,7 +543,7 @@ export function mountApplication(dependencies) {
 
   application = {
     ...projectionCommands,
-    ...projectionUpdates,
+    watchUpdates: observeUpdates,
     ...engagement,
     approvalBlockingAsks,
     beginRead: beginStateRead,
@@ -584,7 +579,6 @@ export function mountApplication(dependencies) {
     consumeAnnotations,
     mountThreadViews,
     registerThreadPanel,
-    forgetAuthoredOwners: projection.forgetAuthoredOwners,
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
     shallowSigs: projectionShallowSigs,

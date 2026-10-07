@@ -4,7 +4,7 @@ Every harness starts with the same request and one stamped, undecided document. 
 scenario uses only the current triage source on the default layer: the catalog's
 packages, companion history and prior versions are outside the delivery experiment.
 The runners own transport, timing and assertions. The verifiers of a real task
-(`verify_codex_task`, `verify_pi_task`) also share the comments a step posts, as the
+(`verify_cc_task`, `verify_codex_task`, `verify_pi_task`) also share the comments a step posts, as the
 page's tab posts them, and the reading of the replies that answer each.
 """
 
@@ -30,6 +30,10 @@ COMMENTS = {
     "restart": ("triage-lede", "Anything else I should check before we ship?"),
     "reconnect": ("triage-lede", "Is the same review still connected?"),
     "escape": ("triage-why", "Did the interrupted check change anything?"),
+    "woken": ("triage-lede", "Which item would you cut if we had to ship today?"),
+    "after-wake": ("triage-why", "And which one would you keep at any cost?"),
+    "first": ("triage-lede", "Who owns the migration fix?"),
+    "ending": ("triage-why", "When could that fix land?"),
 }
 
 

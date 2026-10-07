@@ -37,7 +37,6 @@ import {
   once,
   quietSince,
   saidAt,
-  updateSequence,
   widgetController,
   watchUpdates,
 } from "/runtime/widget-api.js";
@@ -214,22 +213,13 @@ customElements.define(
   "lf-agent",
   class extends HTMLElement {
     #controller = widgetController(this);
-    #stop = null;
-
     connectedCallback() {
       if (once(this)) {
         render(this);
-        this.#controller.subscribe(() => heard(this, updateSequence(this)));
+        this.#controller.subscribe(() => {});
+        // The shared clock refreshes a changed age by touching its one text node.
+        watchUpdates(this, (updates) => heard(this, updates));
       }
-      // The shared clock refreshes this when its displayed age changes and touches
-      // one text node when it does, rather than rebuilding a row the user may have
-      // their pointer in.
-      this.#stop ??= watchUpdates(this, (updates) => heard(this, updates));
-    }
-
-    disconnectedCallback() {
-      this.#stop?.();
-      this.#stop = null;
     }
 
     renderState(state) {

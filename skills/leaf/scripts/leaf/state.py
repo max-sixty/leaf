@@ -395,14 +395,26 @@ def prompt_turn(session_id: str, turn_id: str | None = None) -> dict | None:
 
 
 def close_session_turn(
-    session_id: str, turn_id: str | None = None, *, expected: dict | None | object = ...
+    session_id: str,
+    turn_id: str | None = None,
+    *,
+    expected: dict | None | object = ...,
+    ended_at: float | None = None,
 ) -> bool:
+    """Close the session's turn. `ended_at` is when the harness saw the turn end, in
+    POSIX seconds, for a close that reaches here later: a turn a prompt opened or
+    renewed since then is a newer one, which an unnamed close must not end."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if (
             record is None
             or record["ended"] is not None
             or (expected is not ... and record != expected)
+            or (
+                ended_at is not None
+                and record["turn_opened"] is not None
+                and datetime.fromisoformat(record["turn_opened"]).timestamp() > ended_at
+            )
         ):
             return False
         return advance_turn(session_id, turn_id, running=False) is not None
@@ -412,7 +424,9 @@ def end_session(session_id: str) -> None:
     """End one generation with no page discovery or page-lock acquisition.
 
     Claims referencing it become inactive by this one atomic write. A later
-    synchronous prompt or claim creates a new generation and cannot revive them.
+    synchronous prompt or claim creates a new generation and cannot revive them,
+    though while that generation runs the session may still record on such a page
+    what its task took or answered there (`service.claim_names_session`).
     Capability files are observations, not lifecycle authority, and retire here.
     """
     if not session_id:

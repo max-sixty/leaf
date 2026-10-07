@@ -11,6 +11,7 @@
  * the paint stands over.
  */
 
+import { watchScrolls } from "./arrivals.js";
 import { cancelRender, nextRender } from "./rendering.js";
 import { documentPoint } from "./geometry.js";
 import { inChrome } from "./passages.js";
@@ -32,6 +33,7 @@ export function createPageGeometry({
 }) {
   let actionFrame = 0;
   let mounted = false;
+  let stopScrolls = null;
 
   function aimTarget() {
     if (aim.isOn()) {
@@ -122,12 +124,9 @@ export function createPageGeometry({
   function mount() {
     if (mounted) return;
     mounted = true;
-    // Scroll does not bubble. Capture is the one door shared by the root and nested
-    // page scrollers such as boards and code blocks.
-    document.addEventListener("scroll", pageShifted, {
-      capture: true,
-      passive: true,
-    });
+    // Scroll does not bubble: one door hears the root, nested page scrollers such as
+    // boards and code blocks, and scrollers inside a widget's shadow stage.
+    stopScrolls = watchScrolls(pageShifted);
     document.addEventListener(LAYOUT, pageShifted);
     addEventListener("resize", onResize, { passive: true });
   }
@@ -135,7 +134,7 @@ export function createPageGeometry({
   function destroy() {
     if (!mounted) return;
     mounted = false;
-    document.removeEventListener("scroll", pageShifted, { capture: true });
+    stopScrolls();
     document.removeEventListener(LAYOUT, pageShifted);
     globalThis.removeEventListener("resize", onResize);
     if (actionFrame) cancelRender(actionFrame);

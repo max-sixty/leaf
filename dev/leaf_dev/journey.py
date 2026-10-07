@@ -787,28 +787,41 @@ def target_session(
     browser, target: str, release: str | None
 ) -> Iterator[tuple[Session, str, dict]]:
     """A user's session on the page TARGET answers, the code version answering it,
-    and what names TARGET in the journey's output."""
+    and what names TARGET in the journey's output: `target` the same across runs, as
+    a local server's `origin` is not."""
     if target in HARNESSES:
         with harness_session(browser, target) as (session, version):
-            yield session, version, {"harness": target}
+            yield session, version, {"target": target, "harness": target}
     elif target == "local":
         with local_adapter() as (origin, built):
             session, version = website_session(
                 browser, built, origin=origin, direct_agent=True
             )
-            yield session, version, {"harness": "website", "origin": origin}
+            yield (
+                session,
+                version,
+                {"target": target, "harness": "website", "origin": origin},
+            )
     elif target == "wrangler":
         with local_worker() as (origin, built):
             session, version = website_session(
                 browser, release or built, origin=origin, direct_agent=False
             )
-            yield session, version, {"harness": "website", "origin": origin}
+            yield (
+                session,
+                version,
+                {"target": target, "harness": "website", "origin": origin},
+            )
     else:
         origin = target.rstrip("/")
         session, version = website_session(
             browser, release, origin=origin, direct_agent=False
         )
-        yield session, version, {"harness": "website", "origin": origin}
+        yield (
+            session,
+            version,
+            {"target": origin, "harness": "website", "origin": origin},
+        )
 
 
 @click.command()
@@ -859,13 +872,14 @@ LABEL_PX = 5.5
 
 
 def chart_rows(samples: list[dict]) -> list[dict]:
-    """One dot per sign each sample saw, for the latest version each target ran."""
+    """One dot per sign each sample saw, for the latest version each target ran.
+    Samples kept before they named their target name it by their harness."""
     latest = {}
     for sample in samples:
-        latest[sample.get("origin") or sample["harness"]] = sample["version"]
+        latest[sample.get("target", sample["harness"])] = sample["version"]
     rows = []
     for sample in samples:
-        target = sample.get("origin") or sample["harness"]
+        target = sample.get("target", sample["harness"])
         if sample["version"] != latest[target]:
             continue
         name = HARNESS_NAMES.get(target, target)

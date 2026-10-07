@@ -1196,6 +1196,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     local_result = runner.invoke(journey.journey, ["local"])
     assert local_result.exit_code == 0, local_result.output
     assert json.loads(local_result.stdout) == {
+        "target": "local",
         "harness": "website",
         "origin": "http://127.0.0.1:8080",
         "version": "a" * 40,
@@ -1204,6 +1205,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     remote_result = runner.invoke(journey.journey, ["https://leaf-dev.example/"])
     assert remote_result.exit_code == 0, remote_result.output
     assert json.loads(remote_result.stdout) == {
+        "target": "https://leaf-dev.example",
         "harness": "website",
         "origin": "https://leaf-dev.example",
         "version": "served",
@@ -1232,7 +1234,7 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
     """`journey-chart` charts the samples the journey kept, so a later reading needs
     no transcription: each target's latest version only, each sign a sample saw."""
 
-    def sample(harness, version, titled, working, progress, replied):
+    def sample(target, version, titled, working, progress, replied, **named):
         comment = {
             "sinceAdmissionMs": {
                 "titled": titled,
@@ -1242,7 +1244,14 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
             },
             "sinceSendMs": {"workVisible": working, "responseVisible": replied + 1000},
         }
-        return {"harness": harness, "version": version, "comment": comment}
+        harness = target if target in ("cc", "codex") else "website"
+        return {
+            "target": target,
+            "harness": harness,
+            **named,
+            "version": version,
+            "comment": comment,
+        }
 
     old, new = "a" * 40, "b" * 40 + "+working-tree"
     samples = [
@@ -1250,6 +1259,9 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
         sample("codex", old, 4700, 200, None, 69600),
         sample("cc", new, 1300, 7000, 6900, 18600),
         sample("codex", old, 4600, 300, None, 102900),
+        # Each local run serves on a port of its own, but is the same target.
+        sample("local", old, 900, 300, None, 30000, origin="http://127.0.0.1:8080"),
+        sample("local", new, 800, 300, None, 25000, origin="http://127.0.0.1:9090"),
     ]
     path = journey.samples_path()
     path.parent.mkdir(parents=True)
@@ -1262,9 +1274,15 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
     assert {r["row"] for r in rows} == {
         "Claude Code at bbbbbbbb+working-tree",
         "Codex App Server at aaaaaaaa",
+        "local at bbbbbbbb+working-tree",
     }
-    # Claude Code's older version is left out; Codex's two runs of one version stay.
-    assert sorted(r["s"] for r in rows if r["sign"] == "reply") == [18.6, 69.6, 102.9]
+    # Older versions are left out; Codex's two runs of one version stay.
+    assert sorted(r["s"] for r in rows if r["sign"] == "reply") == [
+        18.6,
+        25.0,
+        69.6,
+        102.9,
+    ]
     # A step the run never reached draws no dot.
     assert [r["row"] for r in rows if r["sign"] == "first words"] == [
         "Claude Code at bbbbbbbb+working-tree"

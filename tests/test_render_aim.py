@@ -91,6 +91,7 @@ from render_harness import (
     regions_side_by_side,
     resized,
     round_trip,
+    scroll_followers,
     scroll_settled,
     scroll_writes,
     select,
@@ -4170,3 +4171,170 @@ def test_a_withheld_draft_restores_editing_and_deliberate_dismissal(browser, ser
     rendered(page)
     assert not page.locator(".lf-fab-input").is_visible()
     assert json.loads(stored_draft_text(page, context))["text"] == words
+
+
+DESIGN_PANE_PAGE = leaf_page(
+    "design paint in a pane",
+    """
+  <div id="design-split">
+    <lf-pane id="design-pane" label="Findings">
+      <div>
+        <div style="height: 100px"></div>
+        <p id="pane-target" style="height: 260px">The first finding, named.</p>
+        <p id="pane-later">A later finding.</p>
+        <div style="height: 1600px"></div>
+      </div>
+    </lf-pane>
+    <lf-pane id="other-pane" label="Notes"><div><p id="note">Notes.</p></div></lf-pane>
+  </div>""",
+    head=regions_side_by_side("design-split"),
+    layout="workspace",
+)
+
+
+def _design_mode(page):
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("l")
+    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+
+
+# A long page whose paragraphs stand under a header stuck below the banner, which cuts
+# paint over them in the window's plane (geometry.js, `headerInset`).
+HEADED_PAGE = LONG_PAGE.replace(
+    "<p id='p0'>",
+    "<section style='--lf-top: calc(var(--lf-banner-h) + 40px)'>"
+    "<h2 id='head' style='position: sticky; top: var(--lf-banner-h); height: 40px;"
+    " margin: 0; background: var(--paper)'>Head</h2><p id='p0'>",
+).replace("</p>\n</main>", "</p></section>\n</main>", 1)
+
+
+@pytest.mark.parametrize("scroller", ["window", "header", "pane"])
+def test_a_scroll_writes_nothing_to_the_design_legend(browser, serve, scroller):
+    """The legend stands in the planes of what it names, so a scroll of the window or
+    of a pane carries every box and tag with what it names, and writes none of them on
+    every step (design.js, `paintLegend`)."""
+    source = {"window": LONG_PAGE, "header": HEADED_PAGE, "pane": DESIGN_PANE_PAGE}
+    page = open_page(browser, serve(source[scroller]))
+    resized(page, 1280, 720)
+    if scroller == "pane":
+        pane_posture(page, page.locator("#design-pane"), "bounded")
+    _design_mode(page)
+    named = "pane-target" if scroller == "pane" else "p3"
+    expect(page.locator(f'.lf-legend-box[data-for="{named}"]')).to_be_visible()
+    if scroller != "window":
+        # The boxes one set of frames cuts share its stand, each anchored to what it
+        # names.
+        stand = page.evaluate(
+            """([first, next]) => {
+              const box = (id) => document.querySelector(`.lf-legend-box[data-for="${id}"]`);
+              return {shared: box(first).closest('.lf-paint-stand')
+                        === box(next).closest('.lf-paint-stand'),
+                      frames: box(first).closest('.lf-paint-stand')
+                        .querySelectorAll('.lf-paint-frame').length,
+                      anchors: [box(first), box(next)].map(
+                        (b) => getComputedStyle(b).positionAnchor)};
+            }""",
+            ["pane-target", "pane-later"] if scroller == "pane" else ["p3", "p4"],
+        )
+        assert (
+            stand["shared"]
+            and stand["frames"]
+            and all(anchor.startswith("--lf-a") for anchor in stand["anchors"])
+        ), stand
+    writes = scroll_writes(
+        page,
+        (20, 20, -20, 20, 20),
+        scroller="document.querySelector('#design-pane > div')"
+        if scroller == "pane"
+        else "document.scrollingElement",
+    )
+    # A tag crossing under the banner steps inside its box once; nothing follows.
+    assert not scroll_followers([w for w in writes if "lf-legend" in w["target"]]), (
+        writes
+    )
+
+
+@pytest.mark.parametrize("paint", ["inspect", "legend"])
+def test_design_paint_in_a_pane_paints_in_the_frame_its_target_scrolls(
+    browser, serve, paint
+):
+    """Every frame Chrome draws while a pane scrolls under the pointer in Design mode
+    shows the name and the legend box level with what they name."""
+    follower = (
+        f".lf-inspect {{ background: {FOLLOWER_MARK} !important; }}"
+        if paint == "inspect"
+        else '.lf-legend-box[data-for="pane-target"]'
+        f" {{ border: 6px solid {FOLLOWER_MARK} !important; }}"
+    )
+    page = open_page(
+        browser,
+        serve(
+            DESIGN_PANE_PAGE.replace(
+                "</head>",
+                f"<style>#pane-target {{ background:{SUBJECT_MARK}; }} {follower}"
+                ".lf-legend-tag { display: none; }</style></head>",
+            )
+        ),
+    )
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#design-pane"), "bounded")
+    _design_mode(page)
+    target = page.locator("#pane-target").bounding_box()
+    page.mouse.move(target["x"] + 40, target["y"] + 130)
+    expect(page.locator(".lf-inspect")).to_have_text(re.compile("pane-target"))
+    rendered(page)
+    assert_follows_in_every_frame(page, "#design-pane > div")
+
+
+# A sticky bar, a fixed bar, and a popover's content: three boxes that do not move with
+# the page's scroll alone.
+OFF_FLOW_PAGE = leaf_page(
+    "off flow",
+    "<h1 id='t'>Off flow</h1>"
+    "<nav id='nav' style='position: sticky; top: var(--lf-banner-h);"
+    " background: var(--paper)'>Contents</nav>"
+    "<div id='fixedbar' style='position: fixed; bottom: 0; left: 0; right: 0;"
+    " background: var(--paper)'>A fixed bar.</div>"
+    "<div id='pop' popover='manual' style='top: 120px; left: 40px; margin: 0'>"
+    "<p id='inpop'>Inside the popover.</p></div>"
+    + "".join(
+        f"<p id='p{i}'>Paragraph {i}. " + "Filler. " * 20 + "</p>" for i in range(40)
+    ),
+)
+
+
+def test_each_legend_box_stays_on_what_it_names_without_a_pass(browser, serve):
+    """Each legend box is anchored to its own element, so it stays on a sticky bar the
+    page scrolls under and on an element a transform moves, with no pass to place it
+    again (design.js, `paintLegend`); a fixed bar and a popover's content, which no
+    frame cuts, stand beside it."""
+    page = open_page(browser, serve(OFF_FLOW_PAGE))
+    resized(page, 1280, 720)
+    page.evaluate("() => document.getElementById('pop').showPopover()")
+    _design_mode(page)
+    offsets = """(ids) => ids.map((id) => {
+      const box = document.querySelector(`.lf-legend-box[data-for="${id}"]`);
+      if (!box?.isConnected) return [id, null];
+      const b = box.getBoundingClientRect();
+      const it = document.getElementById(id).getBoundingClientRect();
+      return [id, Math.round(b.left - it.left), Math.round(b.top - it.top)];
+    })"""
+    ids = ["nav", "p3", "fixedbar", "inpop"]
+    expect(page.locator('.lf-legend-box[data-for="inpop"]')).to_be_visible()
+    assert page.evaluate(offsets, ids) == [[id, -1, -1] for id in ids]
+    page.mouse.move(2, 300)
+    page.mouse.wheel(0, 600)
+    scroll_settled(page)
+    assert page.evaluate(offsets, ["nav"]) == [["nav", -1, -1]]
+    # A sheet moves the element with no mutation a pass could hear; the box is read in
+    # the same task, before any frame.
+    moved = page.evaluate(
+        """(offsets) => {
+          const sheet = new CSSStyleSheet();
+          sheet.replaceSync('#p3 { transform: translateX(30px); }');
+          document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet];
+          return eval(offsets)(['p3']);
+        }""",
+        offsets,
+    )
+    assert moved == [["p3", -1, -1]], moved

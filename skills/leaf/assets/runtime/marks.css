@@ -12,6 +12,11 @@
   cursor: progress;
 }
 ::highlight(lf-version-insert) { background-color: var(--add-tint); }
+/* The start of what a scroller holds, for chrome standing beside words its scroll
+   carries to anchor to (anchor-names.js, `contentStart`): empty and inline, so it lays
+   out and paints nothing, and named by the attribute its owner writes. */
+[data-lf-content-start]::before {
+  content: ""; anchor-name: attr(data-lf-content-start type(<custom-ident>)); }
 .lf-action-target { outline: 1px solid var(--accent); outline-offset: -1px;
   cursor: pointer; }
 /* An element another widget indicates (indication.js, experimental). A contour in the

@@ -395,16 +395,18 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     letter-spacing: normal; word-spacing: normal; text-transform: none; }
   /* Page paint belongs under a covering auxiliary surface. Paint whose target is inside the
      chrome belongs above that auxiliary surface, including when the same aim or response bar moves
-     between the two. The target owner states the plane; document order keeps aim,
-     response bar, and inspect in their ordinary order within it. */
+     between the two. The target owner states the plane; document order keeps the aim,
+     with the design name standing in its stand, under the response bar within it. */
   :is(.lf-page-paint, .lf-target-paint) { z-index: var(--lf-z-page-paint); }
   .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: var(--lf-z-chrome-paint); }
   /* A paint box stands in the frames that cut what it is drawn over, each carried by the
      scrolls around the box that holds it: anchored to that box where anchors reach, else
-     in its motion layers (target-paint-geometry.js, `paintStand`). */
+     in its motion layers, where the boxes stand in a carrier at the innermost's corner
+     (target-paint-geometry.js, `paintStand`). */
   .lf-paint-stand { left: 0; top: 0; pointer-events: none; }
   .lf-paint-frame { position: absolute; }
-  .lf-paint-motion { position: absolute; left: 0; top: 0; }
+  :is(.lf-paint-motion, .lf-paint-carrier) { position: absolute; left: 0; top: 0; }
+  .lf-paint-carrier { width: 0; height: 0; }
   /* Every margin-projection control traces the content it concerns through one quiet
      overlay. Painting above the target keeps a package-owned frame from covering the
      contour; the keyboard's stronger accent ring remains a separate focus fact. */
@@ -1842,8 +1844,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-legend-box.lf-in .lf-legend-tag { bottom: auto; top: 0; border: 0; }
   .lf-banner:is([data-lf-design-mode], [data-lf-draw-mode]) {
     background: color-mix(in srgb, var(--accent) 14%, var(--veil)); }
-  /* Document-anchored like the box it names (paintInspect adds the scroll), so the
-     two move together between the events that re-derive them. */
+  /* Standing in the planes of the box it names (target-paint.js, `labelAim`), so a
+     scroll carries the two together. */
   .lf-inspect { position: absolute; pointer-events: none; display: none;
     max-width: 60vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     padding: 1px 6px; border-radius: 3px; font-size: var(--t-6); line-height: 1.5;

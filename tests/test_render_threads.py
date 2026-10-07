@@ -883,7 +883,7 @@ def test_a_summary_gathering_the_message_the_user_is_on_keeps_them_on_it(
     first = append_agent_reply(serve.page_dir, root, "The constraint still applies.")
     held = append_user_reply(serve.page_dir, root, "It holds for the camera too.")
     append_agent_reply(serve.page_dir, root, "The later result remains visible.")
-    for number in range(12):
+    for number in range(20):
         panel_comment(serve.page_dir, f"A later thread, number {number}.")
 
     page = open_page(browser, url)
@@ -932,7 +932,7 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
             "id"
         ]
     append_agent_reply(serve.page_dir, root, "The later result remains visible.")
-    for number in range(12):
+    for number in range(20):
         panel_comment(serve.page_dir, f"A later thread, number {number}.")
     summary = summarize_thread(
         serve.page_dir, root, end, "The constraint was confirmed."
@@ -7096,7 +7096,7 @@ def standing_thread(page):
 def test_an_empty_thread_list_wears_its_ring_whole(browser, serve, color_scheme):
     """The list holds focus itself only while it shows no thread (a list showing one
     hands focus to that thread's title). It then wears the inset ring on its frame,
-    whole along both edges, joined to the footer, over the list's own ground."""
+    whole along both edges, down to the panel's floor, over the list's own ground."""
     url = serve(PANEL_PAGE)
     context = browser.new_context(
         viewport={"width": 459, "height": 856},
@@ -7119,9 +7119,9 @@ def test_an_empty_thread_list_wears_its_ring_whole(browser, serve, color_scheme)
               const current = getComputedStyle(frame, '::after');
               const listBox = el.getBoundingClientRect();
               const ringBox = frame.getBoundingClientRect();
-              const footBox = frame.nextElementSibling.getBoundingClientRect();
-              const dividerBox = frame.nextElementSibling.firstElementChild
-                .getBoundingClientRect();
+              const panel = frame.closest('.lf-thread-panel');
+              const floor = panel.getBoundingClientRect().bottom
+                - parseFloat(getComputedStyle(panel).borderBottomWidth);
               return {
                 listOutline: list.outlineStyle,
                 outline: current.outlineStyle,
@@ -7132,8 +7132,7 @@ def test_an_empty_thread_list_wears_its_ring_whole(browser, serve, color_scheme)
                 sameBox: ['left', 'top', 'right', 'bottom'].every(
                   edge => ringBox[edge] === listBox[edge]
                 ),
-                joinedFooter: ringBox.bottom === footBox.top
-                  && ringBox.bottom === dividerBox.top,
+                reachesFloor: ringBox.bottom === floor,
               };
             }"""
     )
@@ -7143,9 +7142,9 @@ def test_an_empty_thread_list_wears_its_ring_whole(browser, serve, color_scheme)
     assert paint["offset"] == "-2px"
     assert paint["ringName"] == "thread-list"
     assert paint["sameBox"]
-    assert paint["joinedFooter"], (
-        "the focused list ended before the footer divider and left a second "
-        "ownerless strip between their contours"
+    assert paint["reachesFloor"], (
+        "the focused list ended above the panel's floor and left an ownerless strip "
+        "under its contour"
     )
 
     # The first and last device row inside the list's own box. An element clip is

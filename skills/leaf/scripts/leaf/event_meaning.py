@@ -47,15 +47,10 @@ def direct_dependencies(event: dict, spec: dict) -> list[str]:
     detail = event["detail"]
     owner = event["widget"]
     unit = owner if spec["unit"] == "widget" else detail[spec["unit"]]
-    fields = []
-    record = spec.get("record") or {}
-    if record.get("kind") in {"attribute", "position"}:
-        fields.append(record["value"])
     dependencies = [owner, unit]
-    for field in fields:
-        value = detail.get(field)
-        if value is not None:
-            dependencies.extend(value if isinstance(value, list) else [value])
+    if (spec.get("record") or {}).get("kind") in {"attribute", "position"}:
+        value = detail["value"]
+        dependencies.extend(value if isinstance(value, list) else [value])
     return dependencies
 
 
@@ -150,7 +145,7 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
         byid = reading.document.by_id if scope == "page" else reading.by_id
         admitted["meaning"]["among"] = authored_positions(
             event["widget"], position, byid, reading.spoken, registry
-        )[event["detail"][position["value"]]]
+        )[event["detail"]["value"]]
     answers, closes = answer_meaning(sender, record, admitted, readings)
     if answers:
         admitted["meaning"]["answer"] = closes

@@ -17,10 +17,11 @@
   },
   "lf-ask": {
     "description": "A complete question for the user, with its context and one answer widget.",
+    "x-space": "column",
     "x-instructions": "Begin with a direct heading that states the question without relying on surrounding prose. Include the evidence needed to answer and exactly one non-quoted widget declaring a local Ask through x-awaits. Keep an ordinary semantic section around the Ask when the document needs a section landmark.",
     "type": "object",
     "properties": {
-      "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
     },
     "required": ["id"],
     "additionalProperties": false,
@@ -43,9 +44,7 @@
         "minLength": 1
       }
     },
-    "required": [
-      "tip"
-    ],
+    "required": ["tip"],
     "additionalProperties": false,
     "x-content": "markup",
     "x-inline": true,
@@ -135,7 +134,7 @@
     "x-instructions": "Select data-annotations=page on body and place one empty rail with a stable id where the document should show annotations. Allocate its width and height in page CSS; it scrolls within that box. Omit it to use the core Threads panel. Native disclosures retain their open state and the shared Thread renderer owns conversations and replies.",
     "type": "object",
     "properties": {
-      "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"}
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }
     },
     "required": ["id"],
     "additionalProperties": false,
@@ -157,9 +156,7 @@
         "pattern": "^[2-6]$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "empty",
     "x-upgrade": true,
@@ -175,9 +172,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "empty",
     "x-bound": "start",
@@ -187,6 +182,7 @@
   },
   "lf-options": {
     "description": "Alternatives the user can choose individually or as a set to answer a question.",
+    "x-space": "column",
     "x-instructions": "Keep shared premises and evidence with the group; lf-ask can frame its question and context. Keep each alternative's case and decision-relevant evidence inside its lf-option. Use multiple wherever two selections can both hold; leave it off for mutually exclusive alternatives. The built-in Another option field accepts unlisted answers, so author the alternatives you mean without a catch-all option. Use for only to select sections or work items that exist independently of the decision; do not create sections solely to hold alternatives. To incorporate a user-added option into a revision, keep its id and words as an ordinary lf-option. A multiple-choice Ask still needs the user's Done even when chosen is authored. Use settled to collapse a retired decision while preserving its options and anchors.",
     "type": "object",
     "properties": {
@@ -208,15 +204,9 @@
       }
     },
     "dependentRequired": {
-      "choose": [
-        "id"
-      ],
-      "settled": [
-        "id"
-      ],
-      "multiple": [
-        "choose"
-      ]
+      "choose": ["id"],
+      "settled": ["id"],
+      "multiple": ["choose"]
     },
     "additionalProperties": false,
     "x-content": "members",
@@ -224,52 +214,28 @@
     "x-upgrade": true,
     "x-awaits": {
       "when": {
-        "choose": [
-          true
-        ],
-        "settled": [
-          false
-        ]
+        "choose": [true],
+        "settled": [false]
       },
       "answered": {
         "choose": {
           "when": {
-            "multiple": [
-              false
-            ]
+            "multiple": [false]
           }
         },
         "answer": {
           "when": {
-            "multiple": [
-              true
-            ]
+            "multiple": [true]
           }
         }
       }
     },
     "x-state": {
       "choose": {
-        "detail": {
-          "type": "object",
-          "properties": {
-            "options": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          },
-          "required": [
-            "options"
-          ],
-          "additionalProperties": false
-        },
         "unit": "widget",
         "record": {
           "kind": "attribute",
-          "attr": "chosen",
-          "value": "options"
+          "attr": "chosen"
         }
       },
       "add": {
@@ -285,10 +251,7 @@
               "minLength": 1
             }
           },
-          "required": [
-            "option",
-            "text"
-          ],
+          "required": ["option", "text"],
           "additionalProperties": false
         },
         "unit": "option",
@@ -327,13 +290,9 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-options"
-    ],
+    "x-owners": ["lf-options"],
     "x-content": "markup",
     "x-text-format": "inline-markdown",
     "x-refers": {
@@ -355,10 +314,7 @@
       }
     },
     "additionalProperties": false,
-    "x-owners": [
-      "lf-option",
-      "lf-variant"
-    ],
+    "x-owners": ["lf-option", "lf-variant"],
     "x-content": "markup",
     "x-inline": true,
     "x-tone": "tone",
@@ -366,6 +322,7 @@
   },
   "lf-milestones": {
     "description": "A schedule of planned stages with status markers.",
+    "x-space": "column",
     "type": "object",
     "properties": {
       "id": {
@@ -388,12 +345,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       },
       "status": {
-        "enum": [
-          "planned",
-          "active",
-          "done",
-          "blocked"
-        ]
+        "enum": ["planned", "active", "done", "blocked"]
       },
       "when": {
         "type": "string"
@@ -403,22 +355,16 @@
         "pattern": "^[a-z0-9-]+(,[a-z0-9-]+)*$"
       }
     },
-    "required": [
-      "id",
-      "status"
-    ],
+    "required": ["id", "status"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-milestones"
-    ],
+    "x-owners": ["lf-milestones"],
     "x-content": "markup",
-    "x-paints": [
-      "status"
-    ],
+    "x-paints": ["status"],
     "x-upgrade": true
   },
   "lf-chronology": {
     "description": "A chronology of observed facts and interventions, such as an incident timeline.",
+    "x-space": "column",
     "x-instructions": "Write entries in the intended reading order, oldest or newest first, and bound the chronology at the end containing its newest entry.",
     "type": "object",
     "properties": {
@@ -445,28 +391,17 @@
         "type": "string"
       },
       "kind": {
-        "enum": [
-          "observation",
-          "intervention",
-          "warning",
-          "failure"
-        ]
+        "enum": ["observation", "intervention", "warning", "failure"]
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-chronology"
-    ],
+    "x-owners": ["lf-chronology"],
     "x-content": "markup",
     "x-says": {
       "at": "before"
     },
-    "x-paints": [
-      "kind"
-    ],
+    "x-paints": ["kind"],
     "x-upgrade": false
   },
   "lf-compare": {
@@ -494,13 +429,9 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-compare"
-    ],
+    "x-owners": ["lf-compare"],
     "x-content": "markup",
     "x-upgrade": false
   },
@@ -521,16 +452,10 @@
         "pattern": "^[+-].+$"
       },
       "direction": {
-        "enum": [
-          "up-good",
-          "up-bad"
-        ]
+        "enum": ["up-good", "up-bad"]
       }
     },
-    "required": [
-      "id",
-      "value"
-    ],
+    "required": ["id", "value"],
     "additionalProperties": false,
     "x-content": "markup",
     "x-says": {
@@ -550,9 +475,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
     "x-upgrade": true,
@@ -579,15 +502,11 @@
         "pattern": "^[1-9][0-9]*(-[1-9][0-9]*)?(,[1-9][0-9]*(-[1-9][0-9]*)?)*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
     "x-language": "language",
-    "x-lines": [
-      "hi"
-    ],
+    "x-lines": ["hi"],
     "x-numbering": "lines",
     "x-upgrade": true,
     "x-example": "<lf-code id=\"bracket-walk\" language=\"python\" hi=\"2\"><pre>\ndef bracket(temp):\n    if temp &lt; 0:\n        return \"steel\"\n    return \"cedar\"\n</pre>\n  <lf-note at=\"2\">Freezing is the only threshold that matters.</lf-note>\n</lf-code>"
@@ -606,17 +525,11 @@
         "pattern": "^[0-9]+$"
       }
     },
-    "required": [
-      "at"
-    ],
+    "required": ["at"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-code"
-    ],
+    "x-owners": ["lf-code"],
     "x-content": "markup",
-    "x-lines": [
-      "at"
-    ],
+    "x-lines": ["at"],
     "x-upgrade": false
   },
   "lf-chart": {
@@ -629,9 +542,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
     "x-upgrade": true,
@@ -663,12 +574,7 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id",
-      "before",
-      "after",
-      "alt"
-    ],
+    "required": ["id", "before", "after", "alt"],
     "additionalProperties": false,
     "x-content": "empty",
     "x-face": [":scope > .lf-shotrail"],
@@ -686,40 +592,16 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
     "x-upgrade": true,
     "x-state": {
       "move": {
-        "detail": {
-          "type": "object",
-          "properties": {
-            "card": {
-              "type": "string"
-            },
-            "to": {
-              "type": "string"
-            },
-            "rank": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "card",
-            "to",
-            "rank"
-          ],
-          "additionalProperties": false
-        },
-        "unit": "card",
+        "unit": "unit",
         "record": {
           "kind": "position",
-          "within": "lf-column",
-          "value": "to",
-          "rank": "rank"
+          "within": "lf-column"
         }
       }
     },
@@ -743,14 +625,9 @@
         "type": "string"
       }
     },
-    "required": [
-      "id",
-      "label"
-    ],
+    "required": ["id", "label"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-board"
-    ],
+    "x-owners": ["lf-board"],
     "x-content": "members",
     "x-tone": "tone",
     "x-upgrade": false,
@@ -771,13 +648,9 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-column"
-    ],
+    "x-owners": ["lf-column"],
     "x-content": "markup",
     "x-work": true,
     "x-upgrade": false
@@ -793,14 +666,10 @@
       },
       "list": {
         "type": "string",
-        "enum": [
-          "side"
-        ]
+        "enum": ["side"]
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
     "x-upgrade": true,
@@ -809,8 +678,8 @@
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tab": {
-    "description": "One labeled view in a tab set, optionally summarized in a side-list queue.",
-    "x-instructions": "Use summary for the few words a side-list queue needs for scanning, such as severity, age, or suggested outcome. Keep ids distinct across tabs: they share the page's one id space.",
+    "description": "One labeled view in a tab set, optionally summarized and grouped in a side-list queue.",
+    "x-instructions": "Use summary for the few words a side-list queue needs for scanning, such as severity, age, or suggested outcome. Where a queue's items fall into kinds the user works through in turn, such as merge, close, and FYI, give each item its kind as group and place each kind's items together in the order the user should take them; neighbouring tabs with the same group stand under one heading. Keep ids distinct across tabs: they share the page's one id space.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -823,21 +692,20 @@
       },
       "summary": {
         "type": "string"
+      },
+      "group": {
+        "type": "string"
       }
     },
-    "required": [
-      "id",
-      "label"
-    ],
+    "required": ["id", "label"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-tabs"
-    ],
+    "x-owners": ["lf-tabs"],
     "x-content": "markup",
     "x-upgrade": false
   },
   "lf-draft": {
     "description": "A block of text the user owns and can rewrite in place, with recorded revision history.",
+    "x-space": "column",
     "x-instructions": "Write the draft text verbatim inside pre, HTML-escaping & before < and > and preserving newlines. Use a suggestion for an agent-proposed change to existing prose. A draft asks for an edit when needed is present; otherwise it is an optional editing surface. Use lf-ask when that request needs its own heading and supporting evidence, or page sign-off to approve the whole page. Preserve the user’s edits on revision. To replace an edited passage deliberately, write the new text and mark the draft restated; read $restated.",
     "type": "object",
     "properties": {
@@ -852,17 +720,13 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
     "x-word": "module",
     "x-awaits": {
       "when": {
-        "needed": [
-          true
-        ]
+        "needed": [true]
       },
       "answered": {
         "edit": {}
@@ -872,22 +736,9 @@
     "x-verbatim": true,
     "x-state": {
       "edit": {
-        "detail": {
-          "type": "object",
-          "properties": {
-            "text": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "text"
-          ],
-          "additionalProperties": false
-        },
         "unit": "widget",
         "record": {
-          "kind": "body",
-          "value": "text"
+          "kind": "body"
         }
       }
     },
@@ -910,9 +761,7 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
     "x-says": {
@@ -928,8 +777,8 @@
     "x-name": "label",
     "type": "object",
     "properties": {
-      "id": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
-      "label": {"type": "string", "minLength": 1}
+      "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+      "label": { "type": "string", "minLength": 1 }
     },
     "required": ["id", "label"],
     "additionalProperties": false,
@@ -941,12 +790,12 @@
   },
   "$reactions": {
     "tokens": {
-      "keep":       {"glyph": "👍", "settles": true},
-      "change":     {"glyph": "❌"},
-      "clarify":    {"glyph": "🤔"},
-      "shorten":    {"glyph": "✂️"},
-      "support":    {"glyph": "🔎"},
-      "prioritize": {"glyph": "🎯"}
+      "keep": { "glyph": "👍", "settles": true },
+      "change": { "glyph": "❌" },
+      "clarify": { "glyph": "🤔" },
+      "shorten": { "glyph": "✂️" },
+      "support": { "glyph": "🔎" },
+      "prioritize": { "glyph": "🎯" }
     }
   }
 }

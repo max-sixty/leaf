@@ -82,8 +82,8 @@
   }
 
   // Every rule in the page's composed layer that draws the focus ring, under the name that
-  // rule gives it (--lf-focus-ring, theme.css). This is the population the corpus floor
-  // divides by; the sweep below answers for what is painted.
+  // rule gives it (--lf-focus-ring, theme.css), so the ring samples can hold every such
+  // rule to naming the ring it draws; the sweep below answers for what is painted.
   //
   // Flat, because nothing re-runs a selector any more. The reading this replaced resolved
   // nesting, joined @scope roots onto their descendants and split `:host(...)` on a matched
@@ -93,8 +93,9 @@
   // What it cannot see is a rule drawing the ring some other way — as longhands, or as
   // `2px solid var(--accent)` written out. "Draws the focus ring" is not decidable from a
   // declaration's text, and this asks the one question that is: does the value name the
-  // layer's own token. The paint is where the rest is decidable, and the floor reads both,
-  // so a ring the layer draws without saying so is caught there rather than excused here.
+  // layer's own token. The paint is where the rest is decidable, and the samples read
+  // both, so a ring the layer draws without saying so is caught there rather than excused
+  // here.
   //
   // Two tokens, because the band has two carriers. `--focus-ring` is the outline the great
   // majority of the rules draw; `--focus-shadow` is the same band cast as a shadow, for the
@@ -104,8 +105,8 @@
   // looking at them.
   //
   // Conditions are not read. This reading is taken on screen, in the scheme the walk uses.
-  // A ring that painted only in some other medium would be one the corpus never shows,
-  // and the floor saying so is the useful answer.
+  // A ring that painted only in some other medium is one no sample shows, and nothing
+  // here should say otherwise.
   function ringNames() {
     const rings = new Map();
     const eaten = new Set();
@@ -607,7 +608,7 @@
 
   // A keyboard stop this sweep has not reached, one it has, or the document boundary.
   // This deliberately waits for no settled geometry: focus paint is synchronous, and the
-  // separate sample floor below owns ring geometry. Avoiding a layout-settlement probe at
+  // ring samples (RING_CASES) own ring geometry. Avoiding a layout-settlement probe at
   // every Tab is what makes a complete native-stop sweep cheap.
   function newStop() {
     const e = deepFocus();

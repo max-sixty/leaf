@@ -9,13 +9,24 @@
    Enter on a document code block moves keyboard focus to its copy control. */
 import { offer } from "./widget-elements.js";
 import { watchArrivals } from "./arrivals.js";
-import { anchorName } from "./anchor-names.js";
-import { focusDestination } from "./focus.js";
+import { anchorName, anchorView, refreshAnchorView } from "./anchor-names.js";
+import { focusDestination, onStanding } from "./focus.js";
+import { upFrom } from "./shadow.js";
 import { chromeRoot } from "./chrome.js";
+import { claimReachStop, releaseReachStop } from "./reach.js";
 
 const controls = new WeakMap();
 const wired = new WeakMap();
 const routes = new WeakMap();
+
+// Focus can reveal and scroll a source before the observer's next task. Its keyboard
+// route must see the control in that same gesture, widgets included.
+onStanding((node) => {
+  for (let at = node; at; at = upFrom(at)) {
+    const copy = controls.get(at);
+    if (copy) return refreshAnchorView(copy);
+  }
+});
 
 export function copyCodeBlock(pre, source) {
   let copy = controls.get(pre);
@@ -29,8 +40,12 @@ export function copyCodeBlock(pre, source) {
     pre.addEventListener("pointerdown", (event) => {
       if (event.pointerType === "touch" && copy.isConnected) focusDestination(pre);
     });
+    pre.addEventListener("pointerenter", () => refreshAnchorView(copy));
     controls.set(pre, copy);
   }
+  const place = () =>
+    copy.classList.toggle("lf-code-copy-away", !anchorView(copy, pre, place));
+  place();
   const name = anchorName(pre);
   if (copy.style.positionAnchor !== name) copy.style.positionAnchor = name;
   return copy;
@@ -51,11 +66,8 @@ export function watchCodeBlocks() {
       if (copy.parentNode !== chromeRoot) chromeRoot.append(copy);
       copy.tabIndex = -1;
       let route = routes.get(pre);
-      if (!route) routes.set(pre, (route = { tab: false, keys: false }));
-      if (!pre.hasAttribute("tabindex")) {
-        pre.tabIndex = 0;
-        route.tab = true;
-      }
+      if (!route) routes.set(pre, (route = { keys: false }));
+      claimReachStop(pre);
       if (!pre.hasAttribute("aria-keyshortcuts")) {
         pre.setAttribute("aria-keyshortcuts", "Enter");
         route.keys = true;
@@ -85,6 +97,7 @@ export function watchCodeBlocks() {
             )
               return;
             event.preventDefault();
+            refreshAnchorView(copy);
             const button = copy.shadowRoot?.querySelector("button");
             if (button) focusDestination(button);
           },
@@ -116,11 +129,11 @@ export function watchCodeBlocks() {
       wired.get(pre)?.abort();
       wired.delete(pre);
       const copy = controls.get(pre);
-      copy?.classList.remove("lf-code-copy-hover", "lf-code-copy-focused");
+      if (copy?.matches(".lf-code-copy-hover, .lf-code-copy-focused"))
+        copy.classList.remove("lf-code-copy-hover", "lf-code-copy-focused");
       copy?.remove();
       const route = routes.get(pre);
-      if (route?.tab && pre.getAttribute("tabindex") === "0")
-        pre.removeAttribute("tabindex");
+      releaseReachStop(pre);
       if (route?.keys && pre.getAttribute("aria-keyshortcuts") === "Enter")
         pre.removeAttribute("aria-keyshortcuts");
       routes.delete(pre);

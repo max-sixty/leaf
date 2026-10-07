@@ -1,6 +1,6 @@
-/* Generated faces for the Asks banner controls. The banner toolbar owns the stable native
-   buttons and their fixed overflow seats; these light-DOM Lit owners paint one frozen
-   Ask presentation reading inside them. */
+/* Generated faces for the Ask blanket answers in the banner ("Accept all (3)"). The
+   banner toolbar owns the stable native buttons and their fixed overflow seats; these
+   light-DOM Lit owners paint one frozen Ask presentation reading inside them. */
 import { html } from "../../vendor/browser-runtime.js";
 import {
   BANNER_CONTROL_RANK,
@@ -12,33 +12,14 @@ import { el } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 
 const FACE_TAG = "lf-ask-banner-face";
-const EMPTY_PROGRESS = Object.freeze({
-  complete: false,
-  offered: false,
-  text: "",
-  title: "Show or hide this page's asks",
-});
 
 class AskBannerFace extends RetainedFace {
-  kind = null;
-
-  constructor() {
-    super(EMPTY_PROGRESS);
-  }
-
   updated() {
     const control = this.parentElement;
     if (!control) return;
-    // The progress control is the drawer's, which a key reaches, so it names itself in
-    // `data-lf-key-title` and the keyboard pass writes the title that adds the key.
-    // A bulk control has no key, so its title is its name.
-    if (this.kind === "progress") {
-      keeps(control, "data-lf-key-title", this.model.title);
-      control.toggleAttribute("data-lf-complete", this.model.complete);
-    } else {
-      keeps(control, "title", this.model.title);
-      keeps(control, "aria-disabled", this.model.busy ? "true" : null);
-    }
+    // A blanket answer has no key, so its title is its name.
+    keeps(control, "title", this.model.title);
+    keeps(control, "aria-disabled", this.model.busy ? "true" : null);
     showNews(control, this.model.offered);
   }
 
@@ -49,16 +30,16 @@ class AskBannerFace extends RetainedFace {
 
 if (!customElements.get(FACE_TAG)) customElements.define(FACE_TAG, AskBannerFace);
 
-const face = (control, kind) => {
+const face = (control, initial) => {
   const owner = document.createElement(FACE_TAG);
-  owner.kind = kind;
+  owner.model = initial;
+  owner.commit();
   owner.style.display = "contents";
   control.append(owner);
   return owner;
 };
 
-export function createAskBannerControls(progress, activateBulk) {
-  const progressFace = face(progress, "progress");
+export function createAskBannerControls(activateBulk) {
   const bulk = new Map();
 
   function registerBulk(outcome, label) {
@@ -66,16 +47,16 @@ export function createAskBannerControls(progress, activateBulk) {
     const control = el("button", "lf-btn lf-answer-all", "");
     control.type = "button";
     control.onclick = () => activateBulk(outcome);
-    const owner = face(control, "bulk");
-    const initial = Object.freeze({
-      busy: false,
-      offered: false,
-      text: `${label} all (0)`,
-      title: `${label} every one still waiting on you`,
-      outcome,
-    });
-    owner.model = initial;
-    owner.commit();
+    const owner = face(
+      control,
+      Object.freeze({
+        busy: false,
+        offered: false,
+        text: `${label} all (0)`,
+        title: `${label} every one still waiting on you`,
+        outcome,
+      }),
+    );
     registerBannerControl({
       key: `blanket:${outcome}`,
       control,
@@ -89,12 +70,9 @@ export function createAskBannerControls(progress, activateBulk) {
 
   async function present(model) {
     try {
-      await Promise.all([
-        progressFace.present(model.progress),
-        ...model.bulk.map((reading) =>
-          bulk.get(reading.outcome).owner.present(reading),
-        ),
-      ]);
+      await Promise.all(
+        model.bulk.map((reading) => bulk.get(reading.outcome).owner.present(reading)),
+      );
     } catch (error) {
       try {
         await retainCommitted();
@@ -110,34 +88,17 @@ export function createAskBannerControls(progress, activateBulk) {
   }
 
   function commit() {
-    progressFace.commit();
     for (const { owner } of bulk.values()) owner.commit();
   }
 
   async function retainCommitted() {
-    await Promise.all([
-      progressFace.retainCommitted(),
-      ...[...bulk.values()].map(({ owner }) => owner.retainCommitted()),
-    ]);
+    await Promise.all([...bulk.values()].map(({ owner }) => owner.retainCommitted()));
   }
 
   return Object.freeze({
     commit,
-    progressFace,
     registerBulk,
     present,
     retainCommitted,
   });
 }
-
-export const askProgressModel = (completed, total, offered) => {
-  const title = total
-    ? `${completed} of ${total} asks answered — show or hide the list`
-    : "Show or hide this page's asks";
-  return Object.freeze({
-    complete: total > 0 && completed === total,
-    offered,
-    text: `Asks ${completed}/${total}`,
-    title,
-  });
-};

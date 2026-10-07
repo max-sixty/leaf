@@ -11,6 +11,153 @@
       #queue-kinds th code {
         white-space: nowrap;
       }
+      .sketch {
+        font-family: var(--sans);
+        width: min(22rem, 100%);
+        margin: var(--sp-3) 0 0;
+        border: 1px solid var(--rule);
+        border-radius: 8px;
+        background: var(--paper);
+        font-size: 0.85rem;
+        line-height: 1.35;
+        overflow: hidden;
+      }
+      .sk-head {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.6rem 0.8rem;
+        font-weight: 600;
+        border-bottom: 1px solid var(--rule);
+      }
+      .sk-x {
+        color: var(--muted);
+        font-weight: normal;
+      }
+      .sk-group {
+        margin: 0;
+        padding: 0.55rem 0.8rem 0.2rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .sk-fold {
+        padding-bottom: 0.55rem;
+        text-transform: none;
+        letter-spacing: 0;
+      }
+      .sk-rows {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .sk-rows li {
+        display: grid;
+        grid-template-columns: 5.2rem 1fr;
+        column-gap: 0.5rem;
+        padding: 0.4rem 0.8rem;
+        border-top: 1px solid color-mix(in srgb, var(--rule) 50%, transparent);
+      }
+      .sk-rows li:first-child {
+        border-top: 0;
+      }
+      .sk-title {
+        grid-column: 2;
+      }
+      .sk-meta {
+        grid-column: 2;
+        color: var(--muted);
+        font-size: 0.75rem;
+      }
+      .sk-rows li > .sk-title:first-child,
+      .sk-rows li > .sk-title:first-child + .sk-meta {
+        grid-column: 1 / -1;
+      }
+      .sk-kind,
+      .sk-who {
+        grid-row: span 2;
+        align-self: start;
+        justify-self: start;
+        font-size: 0.7rem;
+        padding: 0.05rem 0.35rem;
+        border-radius: 4px;
+        background: color-mix(in srgb, var(--ink) 8%, var(--paper));
+        color: var(--muted);
+      }
+      .sk-live {
+        background: color-mix(in srgb, var(--accent) 22%, var(--paper));
+        color: var(--ink);
+      }
+      .sk-you {
+        background: color-mix(in srgb, var(--accent) 22%, var(--paper));
+        color: var(--ink);
+      }
+      .sk-warn {
+        background: var(--warn-tint);
+      }
+      .sk-done {
+        color: var(--muted);
+      }
+      .sk-seg {
+        display: flex;
+        gap: 0.25rem;
+        padding: 0.5rem 0.8rem;
+        border-bottom: 1px solid var(--rule);
+        font-size: 0.75rem;
+      }
+      .sk-seg span {
+        padding: 0.1rem 0.45rem;
+        border-radius: 999px;
+        color: var(--muted);
+      }
+      .sk-seg .sk-on {
+        background: color-mix(in srgb, var(--ink) 10%, var(--paper));
+        color: var(--ink);
+      }
+      .sk-card {
+        margin: 0.5rem 0.6rem;
+        padding: 0.5rem 0.6rem;
+        border: 1px solid var(--rule);
+        border-radius: 6px;
+      }
+      .sk-card p {
+        margin: 0.15rem 0;
+      }
+      .sk-card-title {
+        font-weight: 600;
+      }
+      .sk-card-title .sk-meta {
+        font-weight: normal;
+        margin-left: 0.3rem;
+      }
+      .sk-reply {
+        color: var(--muted);
+        border: 1px solid var(--rule);
+        border-radius: 4px;
+        padding: 0.2rem 0.4rem;
+      }
+      .sk-task {
+        color: var(--muted);
+      }
+      .sk-banner {
+        width: min(30rem, 100%);
+      }
+      .sk-bar {
+        display: flex;
+        justify-content: space-between;
+        gap: 0.6rem;
+        padding: 0.5rem 0.8rem;
+        border-bottom: 1px solid var(--rule);
+      }
+      .sk-counts {
+        white-space: nowrap;
+      }
+      .sk-pop {
+        margin-left: auto;
+        width: 16rem;
+        border-left: 1px solid var(--rule);
+      }
     </style>
   </head>
   <body>
@@ -19,246 +166,812 @@
         <p class="eyebrow">design</p>
         <h1>What needs you: tasks</h1>
         <p class="lede">
-          An Ask ends when you answer it. Work the agent owes has had no record of its
-          own: a reply, a Resolve or the end of a session could settle it while nobody
-          had done it. A <em>task</em> is that record. The agent opens one on a thread
-          when it takes on work that outlasts the turn, and only the agent writing its
-          outcome ends it. Tasks, Asks and owed replies together make one queue for you
-          and one for the agent.
+          Each side has a queue: what waits on you, and what the agent owes you. Either
+          side can put items on the other's. A <em>task</em> is the one record on both
+          queues: work the agent owes stays open until the agent ends it, so a reply, a
+          Resolve or the end of a session can no longer settle work nobody did, and an
+          Ask is a task on you that its widget's answer ends. This page tracks the plan,
+          how the model works so far, and what is still open.
         </p>
       </header>
 
-      <section id="status">
-        <h2>Two steps of four are built</h2>
-        <p>
-          Both are on the <code>what-needs-you</code> branch, not yet landed. You picked
-          them on this page's earlier Ask.
-        </p>
-        <ol class="steps" id="plan-step-list">
-          <li>
-            <strong>A queue for each side</strong> (built).
-            <code>leaf page state</code> returns <code>queues.on_you</code> and
-            <code>queues.on_agent</code>, assembled from readings the browser already
-            made. Still to do: <kbd>a</kbd> walking all of <code>on_you</code>, not only
-            Asks, and the banner counting <code>on_agent</code>.
-          </li>
-          <li>
-            <strong>Agent tasks in the log</strong> (built).
-            <code>leaf task open</code> and <code>leaf task end</code> write
-            <code>task</code> and <code>task_end</code> events.
-          </li>
-          <li>
-            <strong>Done becomes something for you to review</strong> (days). A finished
-            task puts its result on your queue, reading it accepts it, and replying to
-            it reopens the same task.
-          </li>
-          <li>
-            <strong>Tasks outlive their session</strong> (about a week). A task whose
-            session ended with no outcome reads <em>unobserved</em> and lands on you. A
-            dispatched session can take the task over and write its outcome to this
-            page.
-          </li>
-        </ol>
-      </section>
+      <lf-tabs id="page-tabs">
+        <lf-tab id="tab-now" label="Where we are">
+          <section id="status">
+            <h2>Steps 1 to 5 and the Queue panel are on main</h2>
+            <p id="direction">
+              The code for queues and tasks is marked experimental, so later agents
+              change it freely. Step 7 is next and hasn't started, and step 6 isn't
+              needed for now.
+            </p>
+            <table id="plan-step-list" data-width="wide">
+              <thead>
+                <tr>
+                  <th scope="col">Step</th>
+                  <th scope="col">What it does</th>
+                  <th scope="col">State</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">1. A queue for each side</th>
+                  <td>
+                    <code>leaf page state</code> returns what waits on you and what
+                    waits on the agent.
+                  </td>
+                  <td>
+                    On main (<a href="https://github.com/max-sixty/leaf/pull/1701"
+                      >#1701</a
+                    >)
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">2. Agent tasks in the log</th>
+                  <td>
+                    <code>leaf task open</code> and <code>leaf task end</code> record
+                    work the agent owes, and only its end closes it.
+                  </td>
+                  <td>
+                    On main (<a href="https://github.com/max-sixty/leaf/pull/1701"
+                      >#1701</a
+                    >)
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">3. <kbd>a</kbd> pages through your queue</th>
+                  <td>
+                    Each press goes to the next item on you in page order: an open Ask,
+                    a thread with a question for you, or a send to retry. The banner
+                    ends with "N on you · M on Claude".
+                  </td>
+                  <td>
+                    On main (<a href="https://github.com/max-sixty/leaf/pull/1745"
+                      >#1745</a
+                    >)
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">The Queue panel</th>
+                  <td>
+                    Replaces the Asks drawer: what's on you, what's on Claude, and
+                    what's done, folded at the foot.
+                  </td>
+                  <td>
+                    On main (<a href="https://github.com/max-sixty/leaf/pull/1789"
+                      >#1789</a
+                    >)
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">4. Working is a task</th>
+                  <td>
+                    <code>leaf task start</code> names the item the agent has in hand,
+                    your move or a task, with an event in the log.
+                    <code>leaf status working --on</code> goes.
+                  </td>
+                  <td>
+                    On main (<a href="https://github.com/max-sixty/leaf/pull/1808"
+                      >#1808</a
+                    >)
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">5. Asks become tasks</th>
+                  <td>
+                    Task is the primitive on both queues, and an Ask is a task on you
+                    that a widget answers (<a href="#asks-as-tasks">Asks as tasks</a>).
+                  </td>
+                  <td>
+                    On main (<a href="https://github.com/max-sixty/leaf/pull/1854"
+                      >#1854</a
+                    >)
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">6. Either side adds to the other's queue</th>
+                  <td>
+                    The agent controls the tasks: you ask for work in prose and it opens
+                    the task, and it asks for your sign-off with an Ask or a question
+                    (<a href="#task-done">who ends the agent's task</a>).
+                  </td>
+                  <td>Not needed for now</td>
+                </tr>
+                <tr>
+                  <th scope="row">7. Items outlive their session</th>
+                  <td>
+                    A task whose session ended without an outcome stays on the agent's
+                    queue, marked as having no session behind it, and the next session
+                    on the page picks it up. A dispatched session's task links back to
+                    the one that dispatched it.
+                  </td>
+                  <td>Not started</td>
+                </tr>
+              </tbody>
+            </table>
+            <p id="try-it">
+              <strong>Try it here:</strong> <kbd>a</kbd> and <kbd>Shift</kbd>+<kbd
+                >a</kbd
+              >
+              walk what's on you. The banner's counts, or <kbd>g</kbd> then
+              <kbd>Shift</kbd>+<kbd>Q</kbd>, open the Queue panel; on a touch screen
+              it's under More.
+            </p>
+          </section>
 
-      <section id="task">
-        <h2>
-          A task is work the agent owes on one thread, open until the agent ends it
-        </h2>
-        <lf-code id="task-commands" language="bash">
-          <pre>
-leaf task open PAGE THREAD "Rebuild the banner quieter"
-leaf task end PAGE TASK done "Version 4"
-</pre>
-        </lf-code>
-        <table id="task-record">
-          <thead>
-            <tr>
-              <th scope="col">Field</th>
-              <th scope="col">Holds</th>
-              <th scope="col">Example</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row"><code>subject</code></th>
-              <td>The thread whose request it takes on</td>
-              <td>your comment on §Banner</td>
-            </tr>
-            <tr>
-              <th scope="row"><code>title</code></th>
-              <td>The work, in one line of up to 80 characters</td>
-              <td>Rebuild the banner quieter</td>
-            </tr>
-            <tr>
-              <th scope="row"><code>agent</code>, <code>session</code></th>
-              <td>Who opened it, from the writing session</td>
-              <td><code>Claude</code>, <code>cbdde0a6…</code></td>
-            </tr>
-            <tr>
-              <th scope="row"><code>outcome</code></th>
-              <td>
-                <code>done</code>, <code>failed</code> or <code>dropped</code>, written
-                by <code>task end</code>; empty while open
-              </td>
-              <td><code>done</code></td>
-            </tr>
-            <tr>
-              <th scope="row"><code>detail</code></th>
-              <td>Where the result is, or why it failed or was dropped</td>
-              <td>Version 4</td>
-            </tr>
-          </tbody>
-        </table>
-        <p>
-          The append door holds the rules. Only the agent opens or ends a task. A task
-          opens only on an open thread, ends once, and nothing else ends it: a reply, a
-          Resolve, a new version and the end of the session all leave it open. Work that
-          finishes inside the turn needs no task, since the turn's
-          <code>status --on</code> claim covers it.
-        </p>
-        <p>
-          While a task is open, its thread reads <strong>Task open</strong>, waiting on
-          the agent, and sits under the threads panel's
-          <em>Waiting on: Agent</em> filter; the margin and Page Map carry the same
-          label. The banner names every open task, so one on a thread you resolved stays
-          in view.
-        </p>
-        <lf-diagram
-          id="task-states"
-          parts="node:Open node:Ended node:Review node:Unobserved"
-        >
-          <pre>
-stateDiagram-v2
-  state "Open, on the agent" as Open
-  state "Done, failed or dropped" as Ended
-  state "To review, on you (step 3)" as Review
-  state "Unobserved, on you (step 4)" as Unobserved
-  [*] --&gt; Open: leaf task open, on a thread
-  Open --&gt; Open: a reply, Resolve, a version, the session ending
-  Open --&gt; Ended: leaf task end
-  Ended --&gt; Review: if done
-  Review --&gt; Open: you reply to the result
-  Open --&gt; Unobserved: its session ends
-  Unobserved --&gt; Open: a session takes it over
-    </pre>
-        </lf-diagram>
-      </section>
+          <section id="still-open">
+            <h2>Still open</h2>
+            <ul>
+              <li>
+                <a href="#task-hierarchy">Can one task belong to another?</a> In
+                <code>TODO.md</code> to think about; step 7 needs one link of it.
+              </li>
+              <li>
+                <a href="#working-on-banner">The agent picks the banner line</a>. The
+                latest start's line is good enough for now.
+              </li>
+              <li>
+                <a href="#open-kinds">Which kinds of item exist</a>. Left open on
+                purpose until we've used the queues.
+              </li>
+            </ul>
+          </section>
+        </lf-tab>
 
-      <section id="queues">
-        <h2>Each side has a queue of open items, and what an item is stays open</h2>
-        <p id="queue-kinds">
-          An item is anything open that one side has to act on. Each names what it is
-          about, its subject and thread, so a surface can take you there. Its
-          <code>kind</code> only says where it came from: today the queues collect open
-          Asks, prose questions waiting on you, failed sends, replies the agent owes,
-          this turn's claimed work and open tasks. That set isn't a contract. New
-          sources join as they turn up, and which kinds deserve their own rules gets
-          decided once we've used the queues.
-        </p>
-        <p>
-          From <code>leaf page state</code> on a scratch page whose thread asks you a
-          question and holds a task:
-        </p>
-        <lf-code id="queues-example" language="json">
-          <pre>
+        <lf-tab id="tab-asks" label="Asks as tasks">
+          <section id="asks-as-tasks">
+            <h2>Task is the primitive, and an Ask is one way to answer a task</h2>
+            <p>
+              Your direction: a task is what sits on a queue, on either side. An Ask
+              stops being a primitive of its own and becomes a task on you that a widget
+              answers. It can carry as much context as it needs, but the queue, the
+              <kbd>a</kbd> key, the banner and the panel see only tasks. The three
+              shapes below differ in where a task on you comes from and how it ends. You
+              picked B, and it is on main (<a href="#asks-b-design">B, as built</a>).
+            </p>
+            <p id="asks-today">
+              <strong>Before step 5</strong>, an Ask came from the page's markup: a
+              widget whose registry entry declares <code>x-awaits</code> says when its
+              state counts as answered, and an <code>lf-ask</code> frames it with a
+              heading and evidence. A question in a thread came from a reply with
+              <code>--awaits</code>. A task came from the log, through
+              <code>leaf task open</code>, and only the agent held one. The queues read
+              all three, under the kinds <code>ask</code>, <code>question</code> and
+              <code>task</code>.
+            </p>
+            <p id="asks-example">
+              Each shape is shown on the same three items from a release-checklist page:
+            </p>
+            <ul>
+              <li>
+                <strong>A pick:</strong> "Ship on Tuesday or Thursday?", with two
+                options.
+              </li>
+              <li>
+                <strong>An open request:</strong> "Read § Rollback and say whether it's
+                enough", with no widget to press.
+              </li>
+              <li>
+                <strong>The agent's own work:</strong> "Rebuild the download chart".
+              </li>
+            </ul>
+
+            <section id="asks-shape-read">
+              <h3>A. Asks read as tasks</h3>
+              <p>
+                Nothing about authoring changes. Leaf reads every open Ask and every
+                thread question as a task on you, beside the agent's tasks, in one
+                <code>tasks</code> reading with an <code>owner</code>.
+              </p>
+              <ul>
+                <li>
+                  <strong>The pick:</strong> an <code>lf-ask</code> around the options,
+                  as today. Its widget reaching its answered state ends the task done; a
+                  version that removes it ends it dropped.
+                </li>
+                <li>
+                  <strong>The open request:</strong> a thread on § Rollback whose reply
+                  asks with <code>--awaits</code>. Your reply ends it.
+                </li>
+                <li>
+                  <strong>The agent's work:</strong> <code>leaf task open</code>, as
+                  today.
+                </li>
+              </ul>
+              <p>
+                <strong>What changes:</strong> the queues, the banner, the panel and
+                <code>page state</code> read one <code>tasks</code> list, and the
+                <code>ask</code>, <code>question</code> and <code>answer</code> kinds
+                go. <code>x-awaits</code> keeps its job.
+              </p>
+              <p>
+                <strong>Cost:</strong> a task on you can only come from a widget or a
+                thread question. The task is a reading rather than a record, so it has
+                no id of its own and nothing to link a later task to.
+              </p>
+            </section>
+
+            <section id="asks-shape-record">
+              <h3>B. One task record, with how it ends</h3>
+              <p>
+                A task names its owner, you or the agent, and how it ends. An Ask is a
+                task on you that ends when its widget is answered. The agent can put a
+                task on you on any subject, with or without a widget.
+              </p>
+              <ul>
+                <li>
+                  <strong>The pick:</strong> an <code>lf-ask</code> around the options.
+                  Stamping the version opens it as a task on you, ended by the widget's
+                  answered state.
+                </li>
+                <li>
+                  <strong>The open request:</strong>
+                  <code
+                    >leaf task open PAGE rollback "Is the rollback plan enough?" --on
+                    user</code
+                  >. It ends at your <em>Done</em> press on the task.
+                </li>
+                <li>
+                  <strong>The agent's work:</strong> <code>leaf task open</code>, owned
+                  by the agent, as today.
+                </li>
+              </ul>
+              <p>
+                <strong>What changes:</strong> the <code>task</code> event gains
+                <code>owner</code> and an ending, either a widget, a reply or an
+                explicit end. Asks and thread questions become tasks with an id in the
+                log. <code>x-awaits</code> becomes the way a widget declares that it can
+                end a task. A task on you with no widget gets a Done control.
+              </p>
+              <p>
+                <strong>Cost:</strong> a version that adds an <code>lf-ask</code> now
+                writes a task event, so markup and log must agree on which widget it is.
+                That is the same rule a widget task already follows. The Done control is
+                new.
+              </p>
+            </section>
+
+            <section id="asks-shape-element">
+              <h3>C. A task element in the page</h3>
+              <p>
+                <code>lf-task</code> replaces <code>lf-ask</code>. It is a framed region
+                with a heading, any content, and optionally an answering widget. The
+                agent's tasks also show in the page as task cards where the work is,
+                drawn from the log.
+              </p>
+              <ul>
+                <li>
+                  <strong>The pick:</strong> <code>&lt;lf-task for="user"&gt;</code>
+                  around the options.
+                </li>
+                <li>
+                  <strong>The open request:</strong>
+                  <code>&lt;lf-task for="user"&gt;</code> in § Rollback, with the
+                  question and a Done control.
+                </li>
+                <li>
+                  <strong>The agent's work:</strong> a card in the chart's section
+                  reading "Rebuild the download chart · Working · 3m", and its outcome
+                  once it ends.
+                </li>
+              </ul>
+              <p>
+                <strong>What changes:</strong> B's record, plus the element and the
+                cards. <code>lf-ask</code> is renamed everywhere: the registry, the
+                references, the examples and the corpus.
+              </p>
+              <p>
+                <strong>Cost:</strong> the largest change. The page also shows log state
+                in its body, not only in the chrome, which every layout has to make room
+                for.
+              </p>
+            </section>
+
+            <lf-ask id="asks-shape">
+              <h3 id="asks-shape-heading">Which shape should Asks take as tasks?</h3>
+              <lf-options id="asks-shape-pick" choose>
+                <lf-option id="asks-shape-pick-read"
+                  ><strong>A. Asks read as tasks</strong> One reading, no new record.
+                  Quick, but a task on you still needs a widget or a thread
+                  question.</lf-option
+                >
+                <lf-option id="asks-shape-pick-record" chosen
+                  ><strong>B. One task record, with how it ends</strong> Recommended: it
+                  is the generic version you described. Any subject can be a task on
+                  you, an Ask is the case a widget ends, and every item gets an id that
+                  later work can link to. A's reading is its first step.</lf-option
+                >
+                <lf-option id="asks-shape-pick-element"
+                  ><strong>C. A task element in the page</strong> B, plus an
+                  <code>lf-task</code> element and task cards for the agent's work in
+                  the page body.</lf-option
+                >
+              </lf-options>
+            </lf-ask>
+
+            <section id="asks-b-design">
+              <h3>B, as built</h3>
+              <p>
+                You picked B, and it landed in
+                <a href="https://github.com/max-sixty/leaf/pull/1854">#1854</a>. These
+                are the decisions that turned it into code. Each keeps to what Leaf
+                already has where that's enough.
+              </p>
+              <ul>
+                <li>
+                  <strong>The record.</strong> A task gains <code>owner</code>, either
+                  <code>agent</code> or <code>user</code>, and <code>ends</code>, how it
+                  ends, which Leaf derives once from its owner and subject:
+                  <ul>
+                    <li>
+                      the agent's task ends with <code>leaf task end</code> or a
+                      <code>--completes</code> stamp, as today;
+                    </li>
+                    <li>
+                      your task on a widget ends when the widget is answered, which is
+                      what <code>x-awaits</code> already declares;
+                    </li>
+                    <li>your task on a thread ends at your reply;</li>
+                    <li>
+                      your task on any other element, a widget with no Ask, or the page
+                      ends at your Done.
+                    </li>
+                  </ul>
+                  The agent can end its own tasks and any task on you but an Ask. An Ask
+                  ends only when its widget is answered, or when a later version removes
+                  it or marks it <code>restated</code>.
+                </li>
+                <li>
+                  <strong>Where your tasks come from.</strong> An Ask in the markup is a
+                  task on you from the version that adds it. The document starts state,
+                  so stamping writes no event, and the task's id is the Ask's id. A
+                  reply with <code>--awaits</code> is a task on you on its thread.
+                  <code>leaf task open PAGE SUBJECT "…" --on user</code> puts one on you
+                  about anything else, where SUBJECT can also be any section.
+                </li>
+                <li>
+                  <strong>The queues.</strong> Yours holds your tasks and the sends to
+                  retry. The agent's holds your moves it owes an answer to and its own
+                  tasks. The <code>ask</code> and <code>question</code> kinds become
+                  <code>task</code> with <code>owner: "user"</code>, and
+                  <code>page state</code> lists every task with its owner, in place of a
+                  separate <code>asks</code> list.
+                </li>
+                <li>
+                  <strong>Done.</strong> A task on you with no widget gets a Done
+                  control, on its row in the Queue panel and where <kbd>a</kbd> lands.
+                  It has a key and a touch route like every action, and pressing it
+                  writes your <code>task_end</code>.
+                </li>
+                <li>
+                  <strong>What stays.</strong> <code>lf-ask</code> stays the way to
+                  frame a widget's question and evidence. <kbd>a</kbd>, the banner
+                  counts and the panel already read the queues. Accept all, and a thread
+                  in a widget's seat taking the Ask off your queue, keep working on the
+                  task.
+                </li>
+              </ul>
+              <p>
+                It was built in two moves: first one <code>tasks</code> reading with
+                owners, which A described and which changed nothing you see, then
+                <code>--on user</code> and Done. The code stays marked experimental.
+              </p>
+            </section>
+          </section>
+        </lf-tab>
+
+        <lf-tab id="tab-model" label="How it works">
+          <section id="queues">
+            <h2>One queue each, and every item on either is a task or a move</h2>
+            <p>
+              This is the model as built through step 5. A task says whose queue it is
+              on (<code>owner</code>), what it is about (a thread, a widget, any element
+              or the page) and how it ends (<code>ends</code>). An Ask and a question in
+              a thread are both tasks on you. <kbd>a</kbd> pages through yours.
+            </p>
+            <table id="direction-items">
+              <thead>
+                <tr>
+                  <th scope="col">Put there by</th>
+                  <th scope="col">On your queue</th>
+                  <th scope="col">On the agent's queue</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">the agent</th>
+                  <td>
+                    A task on you: an Ask, a question in a thread, or one it opens with
+                    <code>--on user</code>, such as checking a result on your phone
+                  </td>
+                  <td>A task it takes on</td>
+                </tr>
+                <tr>
+                  <th scope="row">you</th>
+                  <td>Nothing</td>
+                  <td>
+                    Every message you send and every press it owes an answer to. The
+                    agent turns a request into a task itself
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p id="queue-kinds">
+              An item's <code>kind</code> is <code>task</code>, on either side;
+              <code>answer</code>, a move of yours the agent owes an answer to;
+              <code>work</code>, a move it has in hand that owes nothing; or
+              <code>recovery</code>, a send of yours to retry. Your queue lists your
+              tasks, then the sends to retry. The agent's lists the answers it owes,
+              then its moves in hand, then its tasks. That set isn't a contract. From
+              <code>leaf page state</code> on a scratch page with an Ask, a thread whose
+              reply asks you a question, a task the agent took on in that thread, and
+              one it put on you about a section, with fields trimmed:
+            </p>
+            <lf-code id="queues-example" language="json">
+              <pre>
 {
   "on_you": [
-    {"kind": "question", "id": "a3c796cf",
-     "thread": "a3c796cf"}
+    {"kind": "task", "id": "next-step",
+     "owner": "user",
+     "subject": {"kind": "widget",
+                 "id": "next-step"},
+     "ends": "widget"},
+    {"kind": "task", "id": "365c671a",
+     "owner": "user",
+     "subject": {"kind": "thread",
+                 "id": "fbd2db53"},
+     "ends": "reply"},
+    {"kind": "task", "id": "8c1e7788",
+     "owner": "user",
+     "subject": {"kind": "element",
+                 "id": "banner"},
+     "title": "Check the banner on your phone",
+     "ends": "done"}
   ],
   "on_agent": [
-    {"kind": "task", "id": "3989d0e7",
-     "thread": "a3c796cf",
+    {"kind": "task", "id": "57b58ddf",
+     "owner": "agent",
+     "subject": {"kind": "thread",
+                 "id": "fbd2db53"},
      "title": "Rebuild the banner quieter",
-     "agent": "Claude",
-     "session": "cbdde0a6-e4b6-4d92-8908-d2c29365b8af"}
+     "ends": "agent"}
   ]
 }
 </pre>
-        </lf-code>
-      </section>
+            </lf-code>
+          </section>
 
-      <section id="map">
-        <h2>Five records hold someone to something, and nothing links them</h2>
-        <p>
-          Each record below is registered its own way and kept in its own place. A queue
-          item is one of them read out.
-        </p>
-        <table id="map-records" data-width="wide">
-          <thead>
-            <tr>
-              <th scope="col">Record</th>
-              <th scope="col">Owed by</th>
-              <th scope="col">Registered by</th>
-              <th scope="col">Kept in</th>
-              <th scope="col">Ended by</th>
-              <th scope="col">Stages</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">Ask</th>
-              <td>you</td>
-              <td>
-                The agent writes an <code>&lt;lf-ask&gt;</code> into the page and stamps
-                a version
-              </td>
-              <td>The page's markup; your presses are <code>action</code> events</td>
-              <td>Your answer, or the agent retiring it in a later version</td>
-              <td>none: open or answered</td>
-            </tr>
-            <tr>
-              <th scope="row">Prose question</th>
-              <td>you</td>
-              <td>The agent replies in a thread with <code>--awaits</code></td>
-              <td>The thread's messages</td>
-              <td>Your next message in the thread, or a settling reaction</td>
-              <td>none</td>
-            </tr>
-            <tr>
-              <th scope="row">Owed reply</th>
-              <td>the agent</td>
-              <td>
-                Nothing explicit: every message you send, and every press on an answered
-                Ask, opens one
-              </td>
-              <td>
-                Derived from the log, with <code>pickup</code> events for delivery
-              </td>
-              <td>
-                The agent's <code>leaf thread reply --for</code>, or a version that
-                writes a page press in
-              </td>
-              <td>sent, queued, picked up, working, replying, answered</td>
-            </tr>
-            <tr>
-              <th scope="row">Claim</th>
-              <td>the agent</td>
-              <td><code>leaf status working --on SUBJECT</code></td>
-              <td>The page's status file</td>
-              <td>
-                The agent's next reply, or the turn ending; left behind, it reads
-                stalled
-              </td>
-              <td>none</td>
-            </tr>
-            <tr>
-              <th scope="row">Task</th>
-              <td>the agent</td>
-              <td><code>leaf task open PAGE THREAD TITLE</code></td>
-              <td>A <code>task</code> event</td>
-              <td><code>leaf task end</code>, writing a <code>task_end</code> event</td>
-              <td>none: open, then done, failed or dropped</td>
-            </tr>
-          </tbody>
-        </table>
-        <p>What each looks like, taken from this page and a scratch page:</p>
-        <div class="layout-tiles" id="map-shapes" data-width="wide">
-          <div>
-            <p><strong>Ask</strong>: its reading, then your press</p>
-            <lf-code id="map-ask" language="json">
+          <section id="task">
+            <h2>
+              A task is what one side owes the other, and how it ends is set when it
+              opens
+            </h2>
+            <lf-code id="task-commands" language="bash">
               <pre>
+leaf task open PAGE SUBJECT "Rebuild the banner quieter"
+leaf task open PAGE SUBJECT "Check the banner on your phone" --on user
+leaf task start PAGE ITEM "Rebuilding the banner"
+leaf task end PAGE TASK done "Version 4"
+</pre>
+            </lf-code>
+            <table id="task-record">
+              <thead>
+                <tr>
+                  <th scope="col">Field</th>
+                  <th scope="col">Holds</th>
+                  <th scope="col">Example</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row"><code>owner</code></th>
+                  <td>Whose queue it is on: <code>agent</code> or <code>user</code></td>
+                  <td><code>agent</code></td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>subject</code></th>
+                  <td>The thread, widget, element or page as a whole it is about</td>
+                  <td>your comment's thread on §Banner</td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>title</code></th>
+                  <td>
+                    The work, in one line of up to 80 characters. An Ask's and a
+                    question's is empty: the markup or the message says it
+                  </td>
+                  <td>Rebuild the banner quieter</td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>ends</code></th>
+                  <td>
+                    How it ends, derived once from its owner and subject (the next
+                    table)
+                  </td>
+                  <td><code>agent</code></td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>agent</code>, <code>session</code></th>
+                  <td>Who opened it, from the writing session</td>
+                  <td><code>Claude</code>, <code>cbdde0a6…</code></td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>outcome</code></th>
+                  <td>
+                    <code>done</code>, <code>failed</code> or <code>dropped</code>, and
+                    the event that ended it; empty while open
+                  </td>
+                  <td><code>done</code></td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>detail</code></th>
+                  <td>Where the result is, or why it failed or was dropped</td>
+                  <td>Version 4</td>
+                </tr>
+              </tbody>
+            </table>
+            <table id="task-ends" data-width="wide">
+              <thead>
+                <tr>
+                  <th scope="col"><code>ends</code></th>
+                  <th scope="col">Which tasks</th>
+                  <th scope="col">Ended by</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row"><code>agent</code></th>
+                  <td>The agent's own</td>
+                  <td>
+                    <code>leaf task end</code>, or a version stamped
+                    <code>--completes</code> on its widget
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>widget</code></th>
+                  <td>
+                    An Ask: a task on you from the version whose markup holds it, under
+                    the Ask's id, with no event written
+                  </td>
+                  <td>
+                    Its widget's answer. A later version that removes the Ask, or marks
+                    it <code>restated</code>, retires it; the agent's
+                    <code>task end</code> on it is refused
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>reply</code></th>
+                  <td>
+                    A question: the agent's reply with <code>--awaits</code>, under that
+                    reply's id
+                  </td>
+                  <td>
+                    Your reply in its thread, a reaction that settles it, such as
+                    <em>keep</em>, or the agent's <code>task end</code>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>done</code></th>
+                  <td>
+                    One the agent opens with <code>--on user</code>, on an element, a
+                    widget that holds no Ask, or the page
+                  </td>
+                  <td>
+                    Your Done, on its Queue panel row or with <kbd>x</kbd> where
+                    <kbd>a</kbd> lands, or the agent's <code>task end</code>.
+                    <kbd>z</kbd> undoes your Done
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              The agent opens a task of its own for work that outlasts its turn, such as
+              a build, a CI wait or a change promised for the next version, and for work
+              no message of yours asked for, such as revising the page on its own
+              initiative. Work that finishes inside the turn needs no task: Working
+              names your move directly (<a href="#working-on">below</a>). It puts a task
+              on you for what only you can do and no widget answers, such as checking a
+              result on your phone. When its own task needs your sign-off, it asks
+              first, with an Ask or a question, then ends the task itself (<a
+                href="#task-done"
+                >who ends a task</a
+              >).
+            </p>
+            <p>
+              The append door holds the rules. Only the agent opens a task, and you end
+              only a task on you that your Done ends. A task ends once; a reply, a
+              Resolve, another version and the end of the session all leave the agent's
+              open. While it is open, its thread reads waiting on the agent, it counts
+              on the agent's queue, and the banner names it.
+              <code>leaf status idle</code>
+              is refused while any of the agent's tasks is open. An ended task stays on
+              the page: the Queue panel lists it under Done, an answered question with
+              the move that answered it.
+            </p>
+            <lf-diagram id="task-states" parts="node:Open node:Ended node:Unobserved">
+              <pre>
+stateDiagram-v2
+  state "Open, on the agent" as Open
+  state "Done, failed or dropped" as Ended
+  state "No session, still on the agent (step 7)" as Unobserved
+  [*] --&gt; Open: leaf task open
+  Open --&gt; Open: a reply, Resolve, a version
+  Open --&gt; Ended: leaf task end
+  Open --&gt; Unobserved: its session ends
+  Unobserved --&gt; Open: the next session picks it up
+    </pre>
+            </lf-diagram>
+          </section>
+
+          <section id="working-on">
+            <h2>Working always names an item on the agent's queue</h2>
+            <p id="working-on-result">
+              <code>leaf task start PAGE ITEM "line"</code> writes a
+              <code>start</code> event naming the item in hand, either a move of yours
+              it owes an answer to or a task it opened, with the line the banner shows.
+              So the banner's Working line always points at something you can open.
+            </p>
+            <table id="working-on-cases" data-width="wide">
+              <thead>
+                <tr>
+                  <th scope="col">Case</th>
+                  <th scope="col">The item Working names</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">You comment or reply in a thread</th>
+                  <td>Your message, by its id</td>
+                </tr>
+                <tr>
+                  <th scope="row">You press an option, or move a card</th>
+                  <td>
+                    Your press. A start on a widget task also covers your earlier moves
+                    on that widget.
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    Work that outlasts the turn: a subagent, CI, a dispatched session
+                  </th>
+                  <td>The task the agent opens for it</td>
+                </tr>
+                <tr>
+                  <th scope="row">One turn answers five threads</th>
+                  <td>Each of the five in turn; the banner shows the latest start</td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    You asked in the terminal, not on the page (“build step 3”)
+                  </th>
+                  <td>A task the agent opens on the page</td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    The agent's own initiative: writing the page, revising a section
+                  </th>
+                  <td>A task the agent opens, on the page or the widget</td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    Housekeeping: re-vendoring, restarting the server, merging main
+                  </th>
+                  <td>None. It owes you nothing, so it isn't Working</td>
+                </tr>
+                <tr>
+                  <th scope="row">Waiting for your answer</th>
+                  <td>
+                    None: <code>status waiting</code> puts down what was started, and
+                    the item is on your queue
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              A start lasts until its item ends: the reply or stamped version that
+              answers your move, or the task's end. It holds the item only for the turn
+              that wrote it. If the turn ends with the item still running, the item
+              reads stalled; a later start takes it in hand again.
+              <code>status waiting</code> and <code>status idle</code> put down every
+              earlier start, leaving tasks open with nothing running on them. The
+              put-down is a <code>put_down</code> event in the log, so every reader,
+              including the check that decides whether your next move wakes the agent,
+              agrees on what is in hand.
+            </p>
+          </section>
+
+          <section id="map">
+            <h2>The five records behind the queues</h2>
+            <p>
+              Each record below is registered its own way and kept in its own place. A
+              queue item is one of them read out. The first two are tasks on you that
+              the markup or the thread holds, so no <code>task</code> event records
+              them; the task record covers every other task, on either side.
+            </p>
+            <table id="map-records" data-width="wide">
+              <thead>
+                <tr>
+                  <th scope="col">Record</th>
+                  <th scope="col">Owed by</th>
+                  <th scope="col">Registered by</th>
+                  <th scope="col">Kept in</th>
+                  <th scope="col">Ended by</th>
+                  <th scope="col">Stages</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Ask</th>
+                  <td>you</td>
+                  <td>
+                    The agent writes an <code>&lt;lf-ask&gt;</code> into the page and
+                    stamps a version
+                  </td>
+                  <td>
+                    The page's markup; your presses are <code>action</code> events
+                  </td>
+                  <td>Your answer, or the agent retiring it in a later version</td>
+                  <td>none: open or answered</td>
+                </tr>
+                <tr>
+                  <th scope="row">Question</th>
+                  <td>you</td>
+                  <td>The agent replies in a thread with <code>--awaits</code></td>
+                  <td>The thread's messages</td>
+                  <td>
+                    Your next message in the thread, a settling reaction, or the agent's
+                    <code>task end</code>
+                  </td>
+                  <td>none</td>
+                </tr>
+                <tr>
+                  <th scope="row">Owed reply</th>
+                  <td>the agent</td>
+                  <td>
+                    Nothing explicit: every message you send, and every press on an
+                    answered Ask, opens one
+                  </td>
+                  <td>
+                    Derived from the log, with <code>pickup</code> events for delivery
+                  </td>
+                  <td>
+                    The agent's <code>leaf thread reply --for</code>, or a version that
+                    writes a page press in
+                  </td>
+                  <td>sent, queued, picked up, working, replying, answered</td>
+                </tr>
+                <tr>
+                  <th scope="row">Start</th>
+                  <td>the agent</td>
+                  <td><code>leaf task start PAGE ITEM "line"</code></td>
+                  <td>A <code>start</code> event</td>
+                  <td>
+                    Its item ending, a later start, or <code>status waiting</code> or
+                    <code>idle</code>; left after its turn, it reads stalled
+                  </td>
+                  <td>none</td>
+                </tr>
+                <tr>
+                  <th scope="row">Task</th>
+                  <td>its <code>owner</code>: the agent, or you</td>
+                  <td>
+                    <code>leaf task open PAGE SUBJECT TITLE</code>, with
+                    <code>--on user</code> for one on you
+                  </td>
+                  <td>A <code>task</code> event</td>
+                  <td>
+                    A <code>task_end</code> event, written by
+                    <code>leaf task end</code> or your Done, or a stamp with
+                    <code>--completes</code>
+                  </td>
+                  <td>none: open, then done, failed or dropped</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>What each looks like, taken from this page and a scratch page:</p>
+            <div class="layout-tiles" id="map-shapes" data-width="wide">
+              <div>
+                <p><strong>Ask</strong>: its reading, then your press</p>
+                <lf-code id="map-ask" language="json">
+                  <pre>
 {"tag": "lf-ask", "id": "next-step",
  "source": "next-step-pick"}
 
@@ -268,28 +981,28 @@ stateDiagram-v2
  "detail": {"options": ["next-walk"]},
  "author": "user"}
 </pre>
-            </lf-code>
-          </div>
-          <div>
-            <p><strong>Owed reply</strong>: your comment's reading</p>
-            <lf-code id="map-workflow" language="json">
-              <pre>
+                </lf-code>
+              </div>
+              <div>
+                <p><strong>Owed reply</strong>: your comment's reading</p>
+                <lf-code id="map-workflow" language="json">
+                  <pre>
 {"id": "86a8b5cc",
  "subject": {"kind": "thread",
              "id": "86a8b5cc"},
  "answer": {"kind": "reply",
             "for": "86a8b5cc"},
  "stage": "working",
- "next_actor": "agent",
- "claimed_by": [{"session": "cbdde0a6…"}]}
+ "next_actor": "agent"}
 </pre>
-            </lf-code>
-          </div>
-          <div>
-            <p><strong>Task</strong>: open, then end</p>
-            <lf-code id="map-task" language="json">
-              <pre>
+                </lf-code>
+              </div>
+              <div>
+                <p><strong>Task</strong>: open, then end</p>
+                <lf-code id="map-task" language="json">
+                  <pre>
 {"kind": "task", "id": "3989d0e7",
+ "owner": "agent",
  "subject": {"kind": "thread",
              "id": "a3c796cf"},
  "title": "Rebuild the banner quieter",
@@ -301,218 +1014,650 @@ stateDiagram-v2
  "outcome": "done",
  "detail": "Version 4"}
 </pre>
-            </lf-code>
-          </div>
-        </div>
-        <p>How they meet today:</p>
-        <ul>
-          <li>
-            <strong>A task and the message it came from.</strong> Your message opens an
-            owed reply. The agent's reply settles it, and a task it opens carries the
-            work on. Nothing records that the task answers that message, beyond both
-            standing on one thread.
-          </li>
-          <li>
-            <strong>A task inside an Ask.</strong> “Show me a sketch first” in an Ask's
-            thread opens an owed reply, and the agent may open a task there. The Ask
-            still counts as yours, though you are waiting on the sketch.
-          </li>
-          <li>
-            <strong>An Ask answered in prose.</strong> Your message opens an owed reply,
-            and the Ask stays on you until the agent writes your pick into the page.
-          </li>
-          <li>
-            <strong>Resolve.</strong> It settles the owed replies in the thread and
-            leaves a task open.
-          </li>
-        </ul>
-        <p id="map-pairs">
-          Your point about <code>question</code> and <code>answer</code> holds across
-          the table: the records pair up by who owes them. An Ask and a task are both
-          structured work with an end; a prose question and an owed reply are both a
-          message one side owes the other. Only the owed reply has stages, and they
-          track how far your message has reached the agent, from sent to replying, not
-          the work it asked for.
-        </p>
-      </section>
+                </lf-code>
+              </div>
+            </div>
+            <p>How they meet:</p>
+            <ul>
+              <li>
+                <strong>A task and the message it came from.</strong> Your message opens
+                an owed reply. The agent's reply settles it, and a task it opens carries
+                the work on. Nothing records that the task answers that message, beyond
+                both standing on one thread.
+              </li>
+              <li>
+                <strong>A question answered.</strong> Your reply ends the question, a
+                task on you, and opens an owed reply on the agent in the same move.
+              </li>
+              <li>
+                <strong>A task inside an Ask.</strong> “Show me a sketch first” in an
+                Ask's thread opens an owed reply, and the agent may open a task there.
+                While that thread waits on the agent, the Ask leaves your queue, and it
+                comes back when the agent answers.
+              </li>
+              <li>
+                <strong>An Ask answered in prose.</strong> Your message opens an owed
+                reply, and the Ask stays on you until the agent writes your pick into
+                the page.
+              </li>
+              <li>
+                <strong>Resolve.</strong> It settles the owed replies in the thread and
+                leaves a task open.
+              </li>
+            </ul>
+            <p id="map-pairs">
+              Step 5 folded what you owe into one shape: an Ask, a question and a task
+              the agent put on you are each a task with <code>owner: "user"</code>, told
+              apart only by how they end. On the agent's side the owed reply keeps its
+              own kind, <code>answer</code>, since every message you send opens one and
+              nothing names it. Only it has stages, and they track how far your message
+              has reached the agent, from sent to replying, not the work it asked for.
+            </p>
+          </section>
+        </lf-tab>
 
-      <section id="pi">
-        <h2>
-          Pi keeps a message's delivery apart from the work, and has no record for
-          asking you
-        </h2>
-        <p>From <a href="https://earendil.com/posts/pi-durable/">Pi Durable</a>:</p>
-        <ul>
-          <li>
-            <strong>A message is input, not a task.</strong> Sent while the agent is
-            busy, it either steers (“joins the running work after the current tool
-            calls”) or queues as a follow-up. A <code>requestId</code> makes the
-            submission exactly-once. Nothing like “picked up” is recorded on it.
-          </li>
-          <li>
-            <strong>Work is tasks, and a task's stages are its own.</strong> A task type
-            declares named <code>phases</code>, and its state holds a
-            <code>checkpoint</code> naming the current one. Its status is running,
-            waiting <code>on</code> named tasks, or terminal with an outcome (completed,
-            failed or aborted). Code registers one with
-            <code>tx.createTask(Type, input, {ownership})</code>, owned by a task or a
-            conversation.
-          </li>
-          <li>
-            <strong>Asking you is not a record.</strong> An approval hook asks, and
-            stores your answer with <code>api.memo()</code>, so that “after a restart,
-            the hook finds the stored answer instead of asking again”. The question is
-            the agent's running work, paused on you.
-          </li>
-        </ul>
-        <p>
-          In Leaf's terms: sent and queued are where the message is, picked up through
-          replying is a running task, and an Ask is a task of the agent's waiting on you
-          rather than an item of yours.
-        </p>
-      </section>
+        <lf-tab id="tab-open" label="Open questions">
+          <section id="task-shape-questions">
+            <h2>Hierarchy, and who says a task is done</h2>
+            <p>
+              Two questions about the shape of a task: whether one task can belong to
+              another, which is in <code>TODO.md</code> to think about, and who decides
+              that a task is finished, which you've settled.
+            </p>
 
-      <section id="cases">
-        <h2>What a task keeps that a thread lost</h2>
-        <table id="task-cases" data-width="wide">
-          <thead>
-            <tr>
-              <th scope="col">Case</th>
-              <th scope="col">Before tasks</th>
-              <th scope="col">With a task</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th scope="row">A subagent rebuilds the banner and the turn ends</th>
-              <td>
-                The reply that posed the next Ask settled your comment, so the rebuild
-                was on nobody
-              </td>
-              <td>
-                Open on the agent until <code>task end done</code> names version 4
-                (built)
-              </td>
-            </tr>
-            <tr>
-              <th scope="row">
-                “Yes to the ring; add a TODO”, then Resolve straight away
-              </th>
-              <td>Resolve settled what the agent owed</td>
-              <td>The TODO's task stays open, and the banner names it (built)</td>
-            </tr>
-            <tr>
-              <th scope="row">A CI wait outlasts the turn</th>
-              <td>The <code>status --on</code> claim lapsed and read as stalled</td>
-              <td>Open until ended (built). Whether anyone still watches is step 4</td>
-            </tr>
-            <tr>
-              <th scope="row">The result lands in a version note, not the thread</th>
-              <td>Nothing connected it to what you asked</td>
-              <td>
-                The ending names where it is (built); step 3 puts it on your queue to
-                review
-              </td>
-            </tr>
-            <tr>
-              <th scope="row">You send the result back</th>
-              <td>Each reply was a separate owed move</td>
-              <td>Your reply reopens the same task, with its history (step 3)</td>
-            </tr>
-            <tr>
-              <th scope="row">The work goes to another session, and this one ends</th>
-              <td>“Dispatched” settled your comment</td>
-              <td>
-                Open on the agent (built), but nothing marks it if that session dies
-                first; step 4 does
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
+            <section id="task-hierarchy">
+              <h3>Can one task belong to another?</h3>
+              <p>
+                <strong>Today, no.</strong> A Leaf task has exactly one link: its
+                subject, the thread, widget or page it is about. Nothing points from one
+                task to another, or from a task to the message that asked for it. Step 4
+                keeps that.
+              </p>
+              <p>
+                <strong>Pi's tasks form a tree.</strong> A task that spawns subtasks
+                owns them, and it can wait on them until they finish. Leaf has no
+                equivalent yet.
+              </p>
+              <p>Two Leaf cases could want a link like that:</p>
+              <ul>
+                <li>
+                  <strong>Work that answers your message.</strong> Say you comment "make
+                  the table wider". Step 4 needs no task for this: Working names your
+                  comment itself, so the thread reads Working until the agent's reply
+                  settles it. Only work that outlasts the turn, such as a CI run or a
+                  build, gets a task, and that task names the thread your comment is in
+                  rather than the comment. That is enough to show the work beside the
+                  right thread. It can't say which of several comments in one thread the
+                  work answers; if that ever matters, the fix is one field naming the
+                  comment, not a tree.
+                </li>
+                <li>
+                  <strong>Work handed to another session.</strong> Say the agent here
+                  dispatches a separate session to fix a bug, as this session has done
+                  several times this week. The work now belongs to a session this page
+                  knows nothing about, so the page can't show it as under way or learn
+                  when it ends. Fixing that needs the dispatched session's task to point
+                  back at the task that dispatched it, which is a parent link. That
+                  belongs in step 7, <em>Items outlive their session</em>, which already
+                  deals with work that moves between sessions: it is also where a task
+                  whose session ended without an outcome is handed to the next session.
+                </li>
+              </ul>
+              <p>
+                <strong>Why not a general tree now:</strong> a tree brings rules nothing
+                here needs yet. Does a parent end when its children do? Whose queue
+                shows a child? Can a child outlive its parent? The two cases above need
+                at most one link each, so the tree can wait until a case needs more.
+              </p>
+              <p>
+                <strong>The broader question, for later:</strong> most work forms a
+                fuzzy hierarchy, since much of planning is breaking a goal into pieces.
+                That breakdown also changes as the work goes on, so a fixed tree is too
+                brittle. It's in <code>TODO.md</code> as "Model how work breaks into
+                pieces".
+              </p>
+            </section>
 
-      <section id="evidence">
-        <h2>On real pages, the agent's work was what went missing</h2>
-        <p>
-          From every thread on this machine's pages with real user text, July to
-          September: Asks drained, with 77 of 104 answered. What the agent took on did
-          not.
-        </p>
-        <div class="layout-tiles" id="evidence-tiles">
-          <lf-metric id="m-limbo" value="57"
-            >threads left open on nobody (median age 28 days)</lf-metric
-          >
-          <lf-metric id="m-promise-resolves" value="15"
-            >threads you resolved right after the agent promised work</lf-metric
-          >
-          <lf-metric id="m-result-elsewhere" value="0 / 15"
-            >of those got the result in the thread</lf-metric
-          >
-        </div>
-        <p>
-          Of those 15 results, 6 landed in a version note or a sibling thread and 9 went
-          to another session by design, which is why a task ends from anywhere and names
-          where its result is.
-        </p>
-        <p>
-          The model is
-          <a href="https://earendil.com/posts/pi-durable/">Pi Durable</a>'s: every unit
-          of work is a task with an owner and an outcome. Step 3 adds what review and
-          support tools add to it: whoever did the work reports it, and the one who
-          asked accepts it, with a reply to reopen. Winograd's
-          <a href="https://www.lri.fr/~mbl/ENS/CSCW/2015/papers/Winograd-CSCW86.pdf"
-            >conversation for action</a
-          >
-          (1986) and
-          <a
-            href="https://support.zendesk.com/hc/en-us/articles/8263915942938-About-the-ticket-lifecycle-and-ticket-statuses"
-            >Zendesk's ticket lifecycle</a
-          >
-          both work that way. The fuller research is in
-          <code>notes/what-needs-you/research.md</code>.
-        </p>
-      </section>
+            <section id="task-done">
+              <h3>Who decides the agent's task is done?</h3>
+              <p>
+                <strong>Decided: the agent ends its own tasks.</strong> It ends each one
+                itself, with <code>leaf task end</code> as done, failed or dropped and a
+                note saying where the result is, or with a version stamped
+                <code>--completes</code>. A task on you ends the way its kind does (<a
+                  href="#task-ends"
+                  >how each kind ends</a
+                >): an Ask at its widget's answer, a question at your reply, and any
+                other at your Done.
+              </p>
+              <p>
+                <strong>When it needs your sign-off, it asks first.</strong> The agent
+                judges whether a result needs it. A passing test or a merged PR doesn't.
+                A design, a rewrite or a choice of wording might. It asks the way it
+                asks anything:
+              </p>
+              <ul>
+                <li>
+                  <strong>An Ask</strong> when there are options to pick, such as "Ship
+                  this layout, or try the other?"
+                </li>
+                <li>
+                  <strong>A question in the thread</strong> (a reply with
+                  <code>--awaits</code>) when the answer is open, such as "Does this
+                  read right to you?"
+                </li>
+              </ul>
+              <p>
+                Either goes on your queue, so <kbd>a</kbd> reaches it. The task stays
+                open on the agent's queue while it waits, and the agent ends it once you
+                answer. So there is no separate "to review" item, and no rule about
+                whether reading something accepts it. What's left is the agent's
+                instructions, which should say when to ask before ending.
+              </p>
+            </section>
+          </section>
 
-      <section id="next">
-        <lf-ask id="next-step">
-          <h2 id="next-step-heading">Which step next?</h2>
-          <lf-options id="next-step-pick" choose>
-            <lf-option id="next-unobserved"
-              ><strong>Unobserved tasks</strong> Step 4's first half: a task whose
-              session ended with no outcome lands on you. Recommended: it closes the
-              last way a task can be silently lost, and it's a few days.</lf-option
-            >
-            <lf-option id="next-review"
-              ><strong>Results to review</strong> Step 3: a finished task lands on you,
-              and reading it accepts it.</lf-option
-            >
-            <lf-option id="next-walk"
-              ><strong>Finish step 1</strong> <kbd>a</kbd> walks your whole queue, and
-              the banner counts the agent's.</lf-option
-            >
-          </lf-options>
-        </lf-ask>
-        <details id="decided">
-          <summary>Decided earlier: build steps 1 and 2</summary>
-          <lf-ask id="plan-start">
-            <h3 id="plan-start-heading">Should I start building?</h3>
-            <lf-options id="plan-start-pick" choose>
-              <lf-option id="plan-start-two" chosen
-                ><strong>Steps 1 and 2</strong> Two queues now, then agent tasks in the
-                log. Recommended: step 2 is where work stops being lost.</lf-option
+          <section id="working-on-banner">
+            <h2>The agent picks the banner line</h2>
+            <p>
+              Today the banner shows the line of the latest start. Later, the line is a
+              field the agent sees and sets: Leaf fills it from the item in hand when
+              the agent is answering something quickly, and the agent can replace it,
+              for example with one line covering five threads it is answering at once.
+            </p>
+            <p>
+              <strong>For now, the latest start's line is good enough</strong>, so this
+              waits until a page shows it falling short.
+            </p>
+          </section>
+
+          <section id="open-kinds">
+            <h2>Which kinds of item exist</h2>
+            <p>
+              Left open on purpose. The queues collect whatever is open and owed today,
+              under a <code>kind</code> that says only where each item came from. Which
+              kinds deserve their own rules gets decided once we've used the queues;
+              step 5 is where Asks and tasks would share one shape.
+            </p>
+          </section>
+        </lf-tab>
+
+        <lf-tab id="tab-background" label="Background">
+          <section id="evidence">
+            <h2>On real pages, the agent's work was what went missing</h2>
+            <p>
+              From every thread on this machine's pages with real user text, July to
+              September: Asks drained, with 77 of 104 answered. What the agent took on
+              did not.
+            </p>
+            <div class="layout-tiles" id="evidence-tiles">
+              <lf-metric id="m-limbo" value="57"
+                >threads left open on nobody (median age 28 days)</lf-metric
               >
-              <lf-option id="plan-start-one"
-                ><strong>Step 1 only</strong> The two queues, then look
-                again.</lf-option
+              <lf-metric id="m-promise-resolves" value="15"
+                >threads you resolved right after the agent promised work</lf-metric
               >
-              <lf-option id="plan-start-rethink"
-                ><strong>Not yet</strong> Something about the model is wrong; say what
-                in a comment.</lf-option
+              <lf-metric id="m-result-elsewhere" value="0 / 15"
+                >of those got the result in the thread</lf-metric
               >
-            </lf-options>
-          </lf-ask>
-        </details>
-      </section>
+            </div>
+            <p>
+              Of those 15 results, 6 landed in a version note or a sibling thread and 9
+              went to another session by design, which is why a task ends from anywhere
+              and names where its result is.
+            </p>
+            <p>
+              The model is
+              <a href="https://earendil.com/posts/pi-durable/">Pi Durable</a>'s: every
+              unit of work is a task with an owner and an outcome. Review and support
+              tools add an acceptance: whoever did the work reports it, and the one who
+              asked accepts it. Here the agent asks for that acceptance when it judges
+              the result needs it, before it ends the task. Winograd's
+              <a href="https://www.lri.fr/~mbl/ENS/CSCW/2015/papers/Winograd-CSCW86.pdf"
+                >conversation for action</a
+              >
+              (1986) and
+              <a
+                href="https://support.zendesk.com/hc/en-us/articles/8263915942938-About-the-ticket-lifecycle-and-ticket-statuses"
+                >Zendesk's ticket lifecycle</a
+              >
+              both work that way. The fuller research is in
+              <code>notes/what-needs-you/research.md</code>.
+            </p>
+          </section>
+
+          <section id="cases">
+            <h2>What a task keeps that a thread lost</h2>
+            <table id="task-cases" data-width="wide">
+              <thead>
+                <tr>
+                  <th scope="col">Case</th>
+                  <th scope="col">Before tasks</th>
+                  <th scope="col">With a task</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">A subagent rebuilds the banner and the turn ends</th>
+                  <td>
+                    The reply that posed the next Ask settled your comment, so the
+                    rebuild was on nobody
+                  </td>
+                  <td>
+                    Open on the agent until <code>task end done</code> names version 4
+                    (built)
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    “Yes to the ring; add a TODO”, then Resolve straight away
+                  </th>
+                  <td>Resolve settled what the agent owed</td>
+                  <td>The TODO's task stays open, and the banner names it (built)</td>
+                </tr>
+                <tr>
+                  <th scope="row">A CI wait outlasts the turn</th>
+                  <td>The work claim lapsed with the turn and read as stalled</td>
+                  <td>
+                    Open until ended (built). Whether anyone still watches is step 7
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    The result lands in a version note, not the thread
+                  </th>
+                  <td>Nothing connected it to what you asked</td>
+                  <td>
+                    The ending names where it is (built), and the agent asks you there
+                    first when the result needs your judgment
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">You send the result back</th>
+                  <td>Each reply was a separate owed move</td>
+                  <td>
+                    The task is still open while the agent waits on you, so your reply
+                    continues it
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">
+                    The work goes to another session, and this one ends
+                  </th>
+                  <td>“Dispatched” settled your comment</td>
+                  <td>
+                    Open on the agent (built), but nothing marks it if that session dies
+                    first; step 7 does
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <section id="pi">
+            <h2>How Pi Durable models the same ground</h2>
+            <p id="pi-levels">
+              The two work at different levels. In Pi, every model turn, tool call and
+              tool result is a message in the user–assistant conversation, and each is a
+              task. In Leaf, a message is your comment or the agent's reply, and one
+              reply is the outcome of a whole run of those: dozens of model and tool
+              steps work towards answering you.
+            </p>
+            <table id="pi-levels-table" data-width="wide">
+              <thead>
+                <tr>
+                  <th scope="col"></th>
+                  <th scope="col">Pi Durable</th>
+                  <th scope="col">Leaf</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">A message</th>
+                  <td>Every model turn, tool call and tool result</td>
+                  <td>Your comment, or the agent's reply to it</td>
+                </tr>
+                <tr>
+                  <th scope="row">A task</th>
+                  <td>
+                    One step: a model request, a tool call, a compaction, a subagent
+                  </td>
+                  <td>
+                    One thing owed between you and the agent: an answer to your comment,
+                    a rebuild, a review
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row">How long it runs</th>
+                  <td>Usually seconds; a subagent or reminder longer</td>
+                  <td>A turn, or hours to days across sessions</td>
+                </tr>
+                <tr>
+                  <th scope="row">What the record is for</th>
+                  <td>Resuming exactly where a crash left off</td>
+                  <td>Knowing what is owed, by whom, and whether it was done</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              So a Leaf item is not one of Pi's tasks but one high in the tree: in Pi's
+              terms, a task the conversation owns, whose children are the steps that
+              work towards it. Leaf sees those steps only as the banner's Working line.
+            </p>
+            <p>
+              At its own level,
+              <a href="https://earendil.com/posts/pi-durable/">Pi Durable</a> works like
+              this:
+            </p>
+            <ul>
+              <li>
+                <strong>A message is input, not a task.</strong> Sent while the agent is
+                busy, it either steers (“joins the running work after the current tool
+                calls”) or queues as a follow-up. A <code>requestId</code> makes the
+                submission exactly-once. Nothing like “picked up” is recorded on it.
+              </li>
+              <li>
+                <strong>Work is tasks, and a task's stages are its own.</strong> A task
+                type declares named <code>phases</code>, and its state holds a
+                <code>checkpoint</code> naming the current one. Its status is running,
+                waiting <code>on</code> named tasks, or terminal with an outcome
+                (completed, failed or aborted). Code registers one with
+                <code>tx.createTask(Type, input, {ownership})</code>, owned by a task or
+                a conversation.
+              </li>
+              <li>
+                <strong>Asking you is not a record.</strong> An approval hook asks, and
+                stores your answer with <code>api.memo()</code>, so that “after a
+                restart, the hook finds the stored answer instead of asking again”. The
+                question is the agent's running work, paused on you.
+              </li>
+            </ul>
+            <p id="pi-fit">
+              Your model fits Pi's. A Pi task has an owner and waits on whatever it
+              needs, so an Ask is the agent's task waiting on you, and your queue is
+              every task waiting on you. Pi differs in two places, neither a conflict. A
+              message is input that starts or steers the agent's work rather than an
+              item of its own, so putting an item on the agent's queue is your message
+              creating work there. And Pi records nothing about delivery, so Leaf's
+              stages from sent to replying belong to the message, not to the task.
+            </p>
+          </section>
+
+          <section id="status-tasks">
+            <h2>How Working became a task</h2>
+            <p>
+              Before step 4, <code>leaf status working --on SUBJECT "…"</code> wrote a
+              claim into the page's status file, outside the log, while a task was a
+              separate record in the log. Both said the agent had taken the subject on.
+              Pi Durable splits that fact by lifetime rather than by record: a
+              foreground task belongs to the current turn, and a background task
+              outlives it.
+            </p>
+            <p>
+              The first proposal made each claim a task that lasted the turn. What was
+              built goes one step further: your moves are already items on the agent's
+              queue, so a start names your move directly, and only work the agent takes
+              on itself needs a task. The claims left the status file for the log, every
+              reader of claims (workflows, the activity fold, the Stop hook, the banner,
+              the margin and Page Map labels, neighbour rows, the stamp guards) now
+              reads starts, and the instructions tell the agent to start an item.
+            </p>
+            <p id="status-tasks-decided">
+              <strong>Decided:</strong> <code>leaf status working --on</code> folds into
+              the task commands, so one command takes work on, and <code>status</code>
+              keeps only waiting and idle.
+            </p>
+          </section>
+
+          <section id="decided-asks">
+            <h2>Decided earlier</h2>
+            <details id="decided">
+              <summary>Two earlier Asks</summary>
+              <lf-ask id="next-step">
+                <h3 id="next-step-heading">Which step next?</h3>
+                <p>
+                  Superseded: your comment set the model instead, one queue each that
+                  either side adds to, and the plan above follows it.
+                </p>
+                <lf-options id="next-step-pick" choose settled>
+                  <lf-option id="next-unobserved"
+                    ><strong>Unobserved tasks</strong> Step 4's first half: a task whose
+                    session ended with no outcome lands on you. Recommended: it closes
+                    the last way a task can be silently lost, and it's a few
+                    days.</lf-option
+                  >
+                  <lf-option id="next-review"
+                    ><strong>Results to review</strong> Step 3: a finished task lands on
+                    you, and reading it accepts it.</lf-option
+                  >
+                  <lf-option id="next-walk"
+                    ><strong>Finish step 1</strong> <kbd>a</kbd> walks your whole queue,
+                    and the banner counts the agent's.</lf-option
+                  >
+                </lf-options>
+              </lf-ask>
+              <lf-ask id="plan-start">
+                <h3 id="plan-start-heading">Should I start building?</h3>
+                <lf-options id="plan-start-pick" choose>
+                  <lf-option id="plan-start-two" chosen
+                    ><strong>Steps 1 and 2</strong> Two queues now, then agent tasks in
+                    the log. Recommended: step 2 is where work stops being
+                    lost.</lf-option
+                  >
+                  <lf-option id="plan-start-one"
+                    ><strong>Step 1 only</strong> The two queues, then look
+                    again.</lf-option
+                  >
+                  <lf-option id="plan-start-rethink"
+                    ><strong>Not yet</strong> Something about the model is wrong; say
+                    what in a comment.</lf-option
+                  >
+                </lf-options>
+              </lf-ask>
+            </details>
+          </section>
+        </lf-tab>
+
+        <lf-tab id="tab-panel" label="Panel sketches">
+          <section id="panel-sketches">
+            <h2>A panel for both queues, in place of the Asks drawer</h2>
+            <p id="panel-landed">
+              <strong
+                >You picked “Two queues, stacked”, and it landed as the Queue panel (<a
+                  href="https://github.com/max-sixty/leaf/pull/1789"
+                  >#1789</a
+                >).</strong
+              >
+              The sketches stay here for reference.
+            </p>
+            <p>
+              The Asks drawer lists only Asks, and you rarely open it. Each sketch below
+              replaces it with one place that shows what waits on you and what Claude is
+              doing, built from the same queues the banner counts. All five show the
+              same moment on a release-checklist page: one Ask and one question wait on
+              you, a result is ready to review, Claude is working on one task, owes one
+              reply, and has one task whose session ended.
+            </p>
+            <lf-ask id="panel-pick">
+              <h3 id="panel-pick-heading">
+                Which panel should replace the Asks drawer?
+              </h3>
+              <lf-options id="panel-pick-options" choose>
+                <lf-option id="panel-baseline"
+                  ><strong>Today: the Asks drawer</strong> Every Ask in page order, open
+                  or answered. Threads, tasks and replies aren't here.
+                  <div class="sketch" aria-hidden="true">
+                    <div class="sk-head">
+                      <span>Asks</span><span class="sk-x">×</span>
+                    </div>
+                    <ul class="sk-rows">
+                      <li>
+                        <span class="sk-title">Which channel first?</span
+                        ><span class="sk-meta">waiting on you</span>
+                      </li>
+                      <li class="sk-done">
+                        <span class="sk-title">Ship on Tuesday?</span
+                        ><span class="sk-meta">answered · Yes</span>
+                      </li>
+                    </ul>
+                  </div>
+                </lf-option>
+                <lf-option id="panel-two-queues" chosen
+                  ><strong>Two queues, stacked</strong> “On you” first, then “On
+                  Claude”, then finished items folded at the foot. Enter on a row goes
+                  there, as <kbd>a</kbd> does. Recommended: it is the model you set, one
+                  queue each, and it reads top to bottom as a to-do list.
+                  <div class="sketch" aria-hidden="true">
+                    <div class="sk-head">
+                      <span>Queue</span><span class="sk-x">×</span>
+                    </div>
+                    <p class="sk-group">On you · 3</p>
+                    <ul class="sk-rows">
+                      <li>
+                        <span class="sk-kind">Ask</span
+                        ><span class="sk-title">Which channel first?</span
+                        ><span class="sk-meta">§ Which channel first?</span>
+                      </li>
+                      <li>
+                        <span class="sk-kind">Question</span
+                        ><span class="sk-title">Weekly or daily?</span
+                        ><span class="sk-meta">§ Cadence · 2h</span>
+                      </li>
+                      <li>
+                        <span class="sk-kind">Review</span
+                        ><span class="sk-title">Release notes grouped by area</span
+                        ><span class="sk-meta">done in v4</span>
+                      </li>
+                    </ul>
+                    <p class="sk-group">On Claude · 3</p>
+                    <ul class="sk-rows">
+                      <li>
+                        <span class="sk-kind sk-live">Working</span
+                        ><span class="sk-title">Rebuild the download chart</span
+                        ><span class="sk-meta">§ Dashboard · 3m</span>
+                      </li>
+                      <li>
+                        <span class="sk-kind">Reply</span
+                        ><span class="sk-title">Should it show 90 days?</span
+                        ><span class="sk-meta">§ Dashboard · sent</span>
+                      </li>
+                      <li class="sk-warn">
+                        <span class="sk-kind">Unobserved</span
+                        ><span class="sk-title">Watch CI on the release</span
+                        ><span class="sk-meta">session ended · yours to restart</span>
+                      </li>
+                    </ul>
+                    <p class="sk-group sk-fold">▸ Done · 4</p>
+                  </div>
+                </lf-option>
+                <lf-option id="panel-one-list"
+                  ><strong>One list, filtered by owner</strong> Every open item in page
+                  order, each marked with whose move it is. A filter switches between
+                  All, You, Claude and Done; it opens on You.
+                  <div class="sketch" aria-hidden="true">
+                    <div class="sk-head">
+                      <span>Open items</span><span class="sk-x">×</span>
+                    </div>
+                    <div class="sk-seg">
+                      <span>All 6</span><span class="sk-on">You 3</span
+                      ><span>Claude 3</span><span>Done</span>
+                    </div>
+                    <ul class="sk-rows">
+                      <li>
+                        <span class="sk-who sk-you">you</span
+                        ><span class="sk-title">Weekly or daily?</span
+                        ><span class="sk-meta">§ Cadence</span>
+                      </li>
+                      <li>
+                        <span class="sk-who sk-you">you</span
+                        ><span class="sk-title">Which channel first?</span
+                        ><span class="sk-meta">§ Which channel first?</span>
+                      </li>
+                      <li>
+                        <span class="sk-who sk-you">you</span
+                        ><span class="sk-title"
+                          >Review: release notes grouped by area</span
+                        ><span class="sk-meta">§ Notes · v4</span>
+                      </li>
+                    </ul>
+                  </div>
+                </lf-option>
+                <lf-option id="panel-in-threads"
+                  ><strong>Inside the Threads panel</strong> No separate panel. The
+                  Threads panel's Waiting on filter becomes its default view, and an Ask
+                  joins it as a card with its options inline, so everything you answer
+                  is answered in one place. Tasks show as a line under their thread.
+                  <div class="sketch" aria-hidden="true">
+                    <div class="sk-head">
+                      <span>Threads</span><span class="sk-x">×</span>
+                    </div>
+                    <div class="sk-seg">
+                      <span class="sk-on">Waiting on you 3</span><span>On Claude 3</span
+                      ><span>All</span>
+                    </div>
+                    <div class="sk-card">
+                      <p class="sk-card-title">
+                        Weekly or daily? <span class="sk-meta">§ Cadence</span>
+                      </p>
+                      <p class="sk-msg">
+                        <b>Claude</b> Weekly or daily: which do you want?
+                      </p>
+                      <p class="sk-reply">Reply</p>
+                    </div>
+                    <div class="sk-card">
+                      <p class="sk-card-title">
+                        Which channel first? <span class="sk-meta">Ask</span>
+                      </p>
+                      <p class="sk-choice">○ Beta first</p>
+                      <p class="sk-choice">○ Both at once</p>
+                    </div>
+                    <div class="sk-card">
+                      <p class="sk-card-title">
+                        Release notes <span class="sk-meta">§ Notes</span>
+                      </p>
+                      <p class="sk-task">
+                        ✓ Task done: grouped by area, in v4 · <u>Accept</u>
+                      </p>
+                    </div>
+                  </div>
+                </lf-option>
+                <lf-option id="panel-from-banner"
+                  ><strong>From the banner's counts</strong> No panel. “3 on you” and “3
+                  on Claude” in the status row each open a short list under the banner,
+                  and Enter goes to the item. The lightest change, but finished items
+                  have no home.
+                  <div class="sketch sk-banner" aria-hidden="true">
+                    <div class="sk-bar">
+                      <span>Claude working — rebuilding the chart</span
+                      ><span class="sk-counts"><u>3 on you</u> · 3 on Claude</span>
+                    </div>
+                    <ul class="sk-rows sk-pop">
+                      <li>
+                        <span class="sk-kind">Ask</span
+                        ><span class="sk-title">Which channel first?</span>
+                      </li>
+                      <li>
+                        <span class="sk-kind">Question</span
+                        ><span class="sk-title">Weekly or daily?</span>
+                      </li>
+                      <li>
+                        <span class="sk-kind">Review</span
+                        ><span class="sk-title">Release notes grouped by area</span>
+                      </li>
+                    </ul>
+                  </div>
+                </lf-option>
+              </lf-options>
+            </lf-ask>
+            <p>
+              Whichever you pick, <kbd>a</kbd> keeps walking your queue on the page, and
+              the same panel answers on a touch screen, which today has no single list
+              of your queue. The “Review” rows and “Unobserved” rows are steps 6 and 7;
+              until they're built, those rows don't appear.
+            </p>
+          </section>
+        </lf-tab>
+      </lf-tabs>
     </main>
   </body>
 </html>

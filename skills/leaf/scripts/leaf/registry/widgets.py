@@ -2,6 +2,7 @@
 
 import re
 
+import turbohtml
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
@@ -17,7 +18,6 @@ from .contract import (
     RegistryError,
     deciding_outcomes,
     deciding_verb,
-    declares_string,
     reference_relation_error,
     state_specs,
     visual_part_attribute,
@@ -69,6 +69,8 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
                 f"{path}: <{tag}> registry extensions are invalid: {errors[0].message}"
             )
         for verb, spec in state_specs(entry):
+            if spec.get("record"):
+                continue
             try:
                 Draft202012Validator.check_schema(spec["detail"])
             except SchemaError as error:
@@ -108,30 +110,6 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
                     "required and additionalProperties and nothing else, so the "
                     "keys a verb can carry are the ones it names"
                 )
-            if update := spec.get("update"):
-                detail = spec["detail"]
-                field = detail.get("properties", {}).get(update)
-                if field is None:
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` update field "
-                        f"`{update}` is not declared by its detail schema"
-                    )
-                if update not in detail.get("required", []):
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` update field "
-                        f"`{update}` must be required — every report in the feed "
-                        "needs words"
-                    )
-                if not declares_string(field):
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` update field "
-                        f"`{update}` must be a string"
-                    )
-                if field.get("minLength", 0) < 1:
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` update field "
-                        f"`{update}` must set minLength to at least 1"
-                    )
 
 
 def validate_widget_relations(
@@ -159,6 +137,23 @@ def _validate_widget_structure(
             f"{path}: <{tag}> x-owners names unknown element declarations {unknown}"
         )
     properties = entry.get("properties", {})
+    if entry.get("x-initial"):
+        if not entry["x-upgrade"]:
+            raise RegistryError(f"{path}: <{tag}> x-initial requires x-upgrade: true")
+        if entry.get("x-prepaint") is not None:
+            raise RegistryError(
+                f"{path}: <{tag}> declares both x-initial and x-prepaint"
+            )
+    if (prepaint := entry.get("x-prepaint")) is not None:
+        if isinstance(prepaint, dict):
+            named = declarations.get(prepaint["as"], {}).get("x-prepaint")
+            if not isinstance(named, str):
+                raise RegistryError(
+                    f"{path}: <{tag}> x-prepaint names <{prepaint['as']}>, which "
+                    "declares no x-prepaint markup of its own"
+                )
+            prepaint = named
+        _validate_prepaint(tag, entry, prepaint, path)
     layout = entry.get("x-reading-role")
     if layout:
         if entry.get("x-content") != "markup":
@@ -299,6 +294,42 @@ def _validate_widget_structure(
                 "upgraded handler to resolve them"
             )
     return properties, said
+
+
+def _validate_prepaint(tag: str, entry: dict, prepaint: str, path) -> None:
+    """Hold an x-prepaint to what delivery can write into every occurrence: one plain
+    element that only a module will take out again.
+
+    Delivery and the message path insert its bytes as written, so they must be the
+    element the parser reads back, byte for byte: markup the parser would close,
+    reorder or drop, such as a root left open, would take in the occurrence's own
+    children once inserted, and taking the prepaint out would take those with it. It
+    is copied into each occurrence, so an id would repeat; a custom element would
+    upgrade as a widget of its own, and a script would run. Delivery owns its
+    `data-lf-` marks (`revision_delivery.mark_declared`).
+    """
+    if entry.get("x-upgrade") is not True:
+        raise RegistryError(
+            f"{path}: <{tag}> x-prepaint requires x-upgrade: true, since only the "
+            "widget's module takes it out"
+        )
+    nodes = list(turbohtml.parse(prepaint, scripting=True).find("body").children)
+    if len(nodes) != 1 or getattr(nodes[0], "html", None) != prepaint:
+        raise RegistryError(
+            f"{path}: <{tag}> x-prepaint must be one element written as the parser "
+            "reads it back, every element closed"
+        )
+    for element in [nodes[0], *nodes[0].find_all(True)]:
+        attrs = element.attrs
+        if "-" in element.tag or element.tag in ("script", "style", "template", "slot"):
+            raise RegistryError(
+                f"{path}: <{tag}> x-prepaint may not hold <{element.tag}>"
+            )
+        if "id" in attrs or any(name.startswith("data-lf-") for name in attrs):
+            raise RegistryError(
+                f"{path}: <{tag}> x-prepaint may carry no id and no data-lf- "
+                f"attribute (<{element.tag}>)"
+            )
 
 
 def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -> dict:

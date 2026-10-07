@@ -10,7 +10,13 @@
  * choice pressed never inserts a row that pushes the list down under the user. It never
  * reads its rendering back into user intent.
  */
-import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
+import {
+  html,
+  noChange,
+  nothing,
+  render,
+  repeat,
+} from "../../vendor/browser-runtime.js";
 import { offer } from "../widget-elements.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
@@ -107,8 +113,8 @@ class ThreadNarrowingView extends HTMLElement {
       data-lf-key-title=${keyTitle ? this.#model.userTitle : nothing}
       title=${keyTitle ? this.#model.userTitle : nothing}
       ?hidden=${choice.hidden}
-      ?disabled=${choice.disabled}
-      @click=${() => this.#chooseFacet(choice.kind, choice.kind === "gone" ? !choice.selected : choice.value)}
+      ?disabled=${keyTitle ? noChange : choice.disabled}
+      @click=${keyTitle ? nothing : () => this.#chooseFacet(choice.kind, choice.kind === "gone" ? !choice.selected : choice.value)}
     >
       ${choice.amount === null ? choice.label : `${choice.label} (${choice.amount})`}
     </button>`;

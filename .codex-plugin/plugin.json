@@ -8,6 +8,7 @@
   "homepage": "https://github.com/max-sixty/leaf",
   "repository": "https://github.com/max-sixty/leaf",
   "license": "MIT",
+  "hooks": "./hooks/codex.json",
   "keywords": [
     "generative-ui",
     "plan-review",

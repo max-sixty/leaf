@@ -60,6 +60,10 @@ DEVELOPER_TABS = [
         EXAMPLES_DIR / "developer" / "visual-review-gallery.html",
         "Visual review package",
     ),
+    (
+        EXAMPLES_DIR / "developer" / "playwright-trace-gallery.html",
+        "Playwright trace package",
+    ),
 ]
 CONTENTS_MAP = re.compile(
     r"\s*<(aside|section)\b[^>]*>\s*<lf-toc\b[^>]*></lf-toc>\s*</\1>"

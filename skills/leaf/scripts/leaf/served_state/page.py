@@ -34,15 +34,11 @@ def project_activity(
         return browser.pop("activity")
     # No active document means no page containment; thread obligations remain.
     threads = build_threads(context.events, {})
-    evidence = canonical_workflows(
-        context.presence["claims"],
-        threads,
-        None,
-        events=context.events,
-    )
-    return canonical_activity(
+    evidence = canonical_workflows(threads, None, events=context.events)
+    activity = canonical_activity(
         context.presence,
         evidence,
+        context.events,
         context.now,
         (context.live_stream or {}).get("activity"),
         canonical_stream_reply(
@@ -50,6 +46,9 @@ def project_activity(
         ),
         (context.live_stream or {}).get("reply_bindings"),
     )
+    # Tasks are served with the page's threads, which need its document.
+    activity.pop("tasks")
+    return activity
 
 
 def full_state(

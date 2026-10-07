@@ -1,31 +1,38 @@
 """Reviewed PNG expectations for one real message-delivery journey.
 
 Images and viewport geometry live in max-sixty/leaf-assets, pinned by the existing
-leaf-assets.json. Tests compare current Leaf directly against that immutable set;
-no historical runtime, source patch or baseline build is involved. Each rendering
-profile names the OS, architecture and locked Chromium version. Linux also binds
-the shared native fontconfig and installed DejaVu font bytes. Missing profiles
-fail: browser upgrades require deliberately reviewed captures, including the Linux
-CI profile. Existing fetch-assets warms the same cache as every other asset reader.
+leaf-assets.json's thread_snapshots_revision. Tests compare current Leaf directly
+against that immutable set;
+no historical runtime, source patch or baseline build is involved. Appearance is
+compared on macOS only: fonts and antialiasing differ by OS, and a Linux image could
+be made only on CI's own runner (TODO.md, "Development velocity"). Elsewhere the
+journey and its delivery assertions still run and keep their images as evidence,
+except in the dark cases, whose colour scheme changes only pixels.
+A profile names the macOS version, architecture and locked Chromium version, and a
+missing profile fails: browser upgrades require deliberately reviewed captures.
+Existing fetch-assets warms the same cache as every other asset reader.
 
     uv run pytest -n0 tests/test_render_thread_snapshots.py
     uv run leaf-dev thread-snapshots capture
     uv run leaf-dev thread-snapshots accept .tmp/thread-snapshots/captures/<run>
 
-Capture runs the same journey and hard delivery assertions, writing all 42 PNG images and
+Capture runs the same journey and hard delivery assertions, writing all 48 PNG images and
 geometry readings to a new evidence folder. Review its actual images and observations,
-then accept publishes that profile through leaf_assets.stage / publish and updates
-the ordinary asset pin. Acceptance never occurs in normal tests. CI retains failed
-run evidence. Small antialias noise is excluded by Pixelmatch's AA handling and
+then accept replaces that profile within the pinned collection, publishes through
+leaf_assets.stage / publish and updates the thread-expectations pin, leaving media's
+revision untouched. Acceptance never occurs in normal tests. CI retains failed run
+evidence. Small antialias noise is excluded by Pixelmatch's AA handling and
 calibrated 0.01 perceptual tolerance; every other mismatched pixel fails, with no
-whole-image allowance. Independently compare viewport geometry so a translated crop
-cannot conceal placement changes.
+whole-image allowance. Compare the padded response frame below the banner's canonical
+painted edge, retaining frame shadows and the editor at the viewport foot, where the
+thread panel paints over the bottom bar. Keep full captures for review. Independently
+compare viewport geometry so a translated crop cannot conceal placement changes.
 
 First insertion has an immediate words/busy/opacity observer before stabilized
 screenshots. Refusal's exact feedback and native visibility are observed at mutation;
-its real expiry precedes the restored-draft capture. Transient notice styling is
-outside the pixel oracle and retains its ordinary rendered lifecycle tests. Capture
-hides only editor carets, preserving draft words, focus and selection. Seven bounded
+its expiry, on the advanced timer clock, precedes the restored-draft capture. Transient
+notice styling is outside the pixel oracle and retains its ordinary rendered lifecycle tests. Capture
+hides only editor carets, preserving draft words, focus and selection. Eight bounded
 cases cover general, panel, margin, inline diff, dark and narrow appearances;
 they do not claim all thread states. Existing news/storage tests remain separate.
 """
@@ -33,6 +40,7 @@ they do not claim all thread states. Existing news/storage tests remain separate
 import hashlib
 import io
 import json
+import math
 import platform
 import shutil
 import subprocess
@@ -49,7 +57,6 @@ from playwright.sync_api import Page
 from pytest_image_snapshot import ImageMismatchError
 
 from leaf_dev import ROOT, leaf_assets
-from leaf_dev.browser import linux_font_fingerprint
 from leaf_dev.thread_journey import STAGES
 
 
@@ -73,22 +80,46 @@ CASES = (
         source="tests/fixtures/pages/thread-journey-inline.html",
         motion="reduce",
     ),
+    Case(
+        "inline-dark",
+        "inline",
+        source="tests/fixtures/pages/thread-journey-inline.html",
+        scheme="dark",
+        motion="reduce",
+    ),
     Case("margin-dark", "margin", scheme="dark", motion="reduce"),
     Case("panel-dark", "panel", scheme="dark", motion="reduce"),
     Case("panel-narrow", "panel", viewport=(390, 740)),
 )
 
 
+# The one platform whose appearance is reviewed and compared.
+COMPARED = sys.platform == "darwin"
+
+
 def render_profile(browser_version: str) -> str:
     """The rendering environment whose images this run can compare meaningfully."""
-    system = platform.system().lower()
-    version = (
-        platform.mac_ver()[0]
-        if system == "darwin"
-        else platform.freedesktop_os_release()["VERSION_ID"]
+    return (
+        f"darwin-{platform.mac_ver()[0]}-{platform.machine()}"
+        f"-chromium-{browser_version}"
     )
-    fonts = f"-fonts-{linux_font_fingerprint()}" if system == "linux" else ""
-    return f"{system}-{version}-{platform.machine()}-chromium-{browser_version}{fonts}"
+
+
+def visible_capture(image: Image.Image, clip: dict, window: dict) -> Image.Image:
+    """Keep captured pixels inside the response window, including frame halos.
+
+    Both approved and actual images retain their full padded capture separately.
+    Crop at whole pixels inside the window so no partial banner pixel enters the
+    response oracle. The independently compared region still owns placement.
+    """
+    return image.crop(
+        (
+            math.ceil(window["left"] - clip["x"]),
+            math.ceil(window["top"] - clip["y"]),
+            math.floor(window["right"] - clip["x"]),
+            math.floor(window["bottom"] - clip["y"]),
+        )
+    )
 
 
 @contextmanager
@@ -176,12 +207,26 @@ class SnapshotRun:
             "height": min(viewport["height"], region["y"] + region["height"] + 16)
             - top,
         }
+        window = page.evaluate(
+            """async clip => {
+              const {bannerFoot} = await window.__lfRuntimeImport('/runtime/geometry.js');
+              return {left: clip.x, top: Math.max(clip.y, bannerFoot()),
+                right: clip.x + clip.width, bottom: clip.y + clip.height};
+            }""",
+            clip,
+        )
         with hidden_editor_carets(page):
             png = page.screenshot(
                 caret="hide", scale="css", clip=clip, animations="disabled"
             )
         actual = self.output / f"{stage}.actual.png"
         actual.write_bytes(png)
+        self.observations[stage] = reading | {
+            "capture_clip": clip,
+            "capture_window": window,
+        }
+        if not COMPARED:
+            return
         baseline = self.store / self.profile / f"{self.case.name}-{stage}.png"
         geometry = baseline.with_suffix(".json")
         if self.updating:
@@ -194,20 +239,34 @@ class SnapshotRun:
                 f"{stage}: thread geometry changed: expected {geometry.read_text().strip()}, "
                 f"actual {reading['region']}"
             )
-        expected = baseline if self.updating else self.output / f"{stage}.expected.png"
-        expected.parent.mkdir(parents=True, exist_ok=True)
+        expected = self.output / f"{stage}.expected.png"
         if not self.updating and baseline.is_file():
             shutil.copyfile(baseline, expected)
-        self.observations[stage] = reading
+        # A profile without this case's images still runs the whole journey, so a
+        # new case's first run leaves every stage's actual image for review.
+        if not self.updating and not baseline.is_file():
+            self.failures.append(f"{stage}: missing approved image: {baseline}")
+            return
+        if self.updating:
+            baseline.parent.mkdir(parents=True, exist_ok=True)
+            self.compare(Image.open(io.BytesIO(png)), baseline, threshold=0.01)
+            return
+        compared_actual = self.output / f"{stage}.compared.actual.png"
+        compared_expected = self.output / f"{stage}.compared.expected.png"
+        current = visible_capture(Image.open(io.BytesIO(png)), clip, window)
+        current.save(compared_actual)
+        with Image.open(expected) as approved:
+            visible_capture(approved, clip, window).save(compared_expected)
         try:
             # Pixelmatch ignores antialias edges and small perceptual color changes.
             # Every remaining mismatch fails; there is no whole-image allowance.
-            self.compare(Image.open(io.BytesIO(png)), expected, threshold=0.01)
+            self.compare(current, compared_expected, threshold=0.01)
         except ImageMismatchError:
             self.failures.append(
                 f"{stage}: appearance changed\n"
-                f"Expected: {expected}\nActual: {actual}\n"
-                f"Diff: {expected.with_suffix('.diff.png')}"
+                f"Expected: {compared_expected}\nActual: {compared_actual}\n"
+                f"Diff: {compared_expected.with_suffix('.diff.png')}\n"
+                f"Full captures: {expected}, {actual}"
             )
 
     def finish(self) -> None:
@@ -222,8 +281,11 @@ ASSET_DIRECTORY = "tests/thread-snapshots"
 
 
 def expected_store() -> Path:
-    """The immutable PNG tree every checkout's ordinary asset pin governs."""
-    return leaf_assets.pinned_assets() / ASSET_DIRECTORY
+    """The immutable PNG tree selected by this checkout's reviewed expectations."""
+    return (
+        leaf_assets.pinned_assets(revision_key="thread_snapshots_revision")
+        / ASSET_DIRECTORY
+    )
 
 
 @click.group("thread-snapshots")
@@ -234,6 +296,8 @@ def thread_snapshots():
 @thread_snapshots.command("capture")
 def capture():
     """Run all delivery assertions and capture current appearance for review."""
+    if not COMPARED:
+        raise click.ClickException("thread appearance is captured on macOS only")
     directory = ROOT / ".tmp/thread-snapshots/captures" / uuid.uuid4().hex
     directory.mkdir(parents=True)
     result = subprocess.run(
@@ -295,7 +359,7 @@ def capture_files(directory: Path, profile: str) -> dict[str, bytes]:
     "directory", type=click.Path(exists=True, file_okay=False, path_type=Path)
 )
 def accept(directory: Path):
-    """Publish a complete, reviewed capture and update Leaf's immutable asset pin."""
+    """Publish a complete, reviewed capture and update the expectations pin."""
     marker = directory / "capture.json"
     if not marker.is_file():
         raise click.ClickException(f"not a successful capture: {directory}")
@@ -308,9 +372,21 @@ def accept(directory: Path):
         raise click.ClickException(
             f"capture changed after its assertions passed: {directory}"
         )
+    # Preserve this runtime's other reviewed profiles, never the asset head's.
+    baseline = expected_store()
+    collection = {
+        path.relative_to(baseline).as_posix(): path.read_bytes()
+        for path in baseline.rglob("*")
+        if path.is_file() and path.relative_to(baseline).parts[0] != profile
+    }
+    collection.update({f"{profile}/{name}": data for name, data in files.items()})
     with tempfile.TemporaryDirectory(prefix="leaf-thread-images-") as staging:
         checkout = leaf_assets.stage(
-            f"{ASSET_DIRECTORY}/{profile}", files, Path(staging)
+            ASSET_DIRECTORY,
+            collection,
+            Path(staging),
+            replace_tree=True,
+            revision_key="thread_snapshots_revision",
         )
         revision = leaf_assets.publish(
             checkout, f"Accept reviewed thread appearance for {profile}"

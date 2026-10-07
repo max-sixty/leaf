@@ -10,6 +10,12 @@ import { focusDestination } from "./focus.js";
 import { reducedMotion } from "./motion.js";
 import { isCommandScope, projectCommandScope } from "./keyboard/scopes.js";
 import {
+  commandAvailable,
+  commandBinding,
+  commandRoutes,
+  controlAvailabilityOutput,
+} from "./keyboard/bindings.js";
+import {
   isContributionEntry,
   contributionEntry as normalizeContributionEntry,
   normalizeContributionReading,
@@ -17,27 +23,88 @@ import {
 } from "./contribution-model.js";
 // Scopes belong to the browser declaration, not the immutable model record.
 const commandScopes = new WeakMap();
+const commandEntries = new WeakSet();
+export const contributionOwnsCommand = (record) => commandEntries.has(record);
 // The key this module projects an entry's scope onto its control under.
 const CONTRIBUTION_ENTRY = Symbol("contribution entry");
 function bindScope(record, declared) {
   const scope = commandScopes.get(declared) ?? declared.scope;
-  if (scope != null) {
-    if (!isCommandScope(scope))
-      throw new TypeError("A margin entry scope needs a commandScope capability");
-    commandScopes.set(record, scope);
-  }
+  if (scope != null) commandScopes.set(record, scope);
+  if (contributionOwnsCommand(declared)) commandEntries.add(record);
   return record;
 }
 
 export function contributionEntry(offered) {
-  return bindScope(normalizeContributionEntry(offered), offered);
+  const scope = commandScopes.get(offered) ?? offered.scope;
+  if (scope != null && !isCommandScope(scope))
+    throw new TypeError("A margin entry scope needs a commandScope capability");
+  const command = entryCommand(scope, offered.activation);
+  if (command) commandEntries.add(offered);
+  return bindScope(
+    normalizeContributionEntry(
+      contributionOwnsCommand(offered)
+        ? {
+            ...offered,
+            disabled: commandDisabled(scope, command),
+          }
+        : offered,
+    ),
+    offered,
+  );
 }
 
-export function normalizeReading(reading, owner) {
-  const normalized = normalizeContributionReading(reading, owner);
-  normalized.entries.forEach((entry, index) =>
-    bindScope(entry, reading.entries[index]),
+// An entry may project a declared command as its native action. The stable command
+// id in activation keeps every projection on that callback, including its disabled
+// reading, while the native adapter retains surface and gesture intent.
+export function contributionCommand(record) {
+  if (!contributionOwnsCommand(record)) return null;
+  const scope = commandScopes.get(record);
+  return entryCommand(scope, record.activation);
+}
+export function contributionCommandDisabled(record) {
+  const scope = commandScopes.get(record);
+  const command = contributionCommand(record);
+  return contributionOwnsCommand(record) && commandDisabled(scope, command);
+}
+const commandDisabled = (scope, command) =>
+  Boolean(
+    !command ||
+    (scope.scope.when && !scope.scope.when()) ||
+    !commandAvailable(command.row, command.route),
   );
+function entryCommand(scope, id) {
+  for (const row of scope?.scope.rows ?? []) {
+    if (!row.run) continue;
+    const routes = commandRoutes(row);
+    if (!routes.length && row.id === id)
+      return { row, route: null, binding: commandBinding(row) };
+    const route = routes.find((route) => route.id === id);
+    if (route) return { row, route, binding: commandBinding(row, route) };
+  }
+  return null;
+}
+
+export function normalizeReading(reading, owner, previous = null) {
+  const priorEntries = new Map(
+    (previous?.entries ?? []).map((entry) => [entry.key, entry]),
+  );
+  const entries = (reading.entries ?? []).map((entry) => {
+    const prior = priorEntries.get(entry.key);
+    if (
+      contributionOwnsCommand(prior) &&
+      entry.activation === prior.activation &&
+      (commandScopes.get(entry) ?? entry.scope) === commandScopes.get(prior)
+    )
+      commandEntries.add(entry);
+    if (!isContributionEntry(entry)) return contributionEntry(entry);
+    if (!contributionOwnsCommand(entry)) return entry;
+    const { owner: _owner, ...fields } = entry;
+    const declaration = { ...fields, scope: commandScopes.get(entry) };
+    commandEntries.add(declaration);
+    return contributionEntry(declaration);
+  });
+  const normalized = normalizeContributionReading({ ...reading, entries }, owner);
+  normalized.entries.forEach((entry, index) => bindScope(entry, entries[index]));
   return normalized;
 }
 
@@ -225,6 +292,13 @@ export function presentContributionHost(
   const record = isContributionEntry(offered) ? offered : contributionEntry(offered);
   if (control instanceof HTMLButtonElement && record.behavior === "status")
     throw new TypeError("A status margin entry needs a stable span host");
+  controlAvailabilityOutput(
+    control,
+    CONTRIBUTION_ENTRY,
+    contributionOwnsCommand(record)
+      ? { disabled: control instanceof HTMLButtonElement, ariaDisabled: true }
+      : null,
+  );
   records.set(control, record);
   keeps(control, "data-lf-margin-entry-key", record.key);
   keeps(control, "data-lf-margin-entry-owner", record.owner || null);
@@ -337,7 +411,14 @@ export function trackContributionControl(offered, surface, key, control) {
 export function clearContributionControls(offered, surface, liveKeys) {
   const controls = presented.get(offered)?.get(surface);
   if (!controls) return;
-  for (const key of controls.keys()) if (!liveKeys.has(key)) controls.delete(key);
+  for (const [key, control] of controls) {
+    if (liveKeys.has(key)) continue;
+    controls.delete(key);
+    const retained = [...presented.get(offered).values()].some((seats) =>
+      [...seats.values()].includes(control),
+    );
+    if (!retained) releaseContributionControl(control);
+  }
 }
 
 export function contributionControl(
@@ -363,7 +444,14 @@ export function contributionContains(offered, node) {
   );
 }
 
+function releaseContributionControl(control) {
+  controlAvailabilityOutput(control, CONTRIBUTION_ENTRY);
+  projectCommandScope(control, CONTRIBUTION_ENTRY, null);
+  controlContributions.delete(control);
+}
 export function forgetContributionControls(offered) {
+  for (const controls of presented.get(offered)?.values() ?? [])
+    for (const control of controls.values()) releaseContributionControl(control);
   presented.delete(offered);
 }
 

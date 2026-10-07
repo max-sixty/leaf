@@ -100,7 +100,8 @@ other page files and the external state listed below.
   Any process may rewrite one; readings validate it against the recorded contract.
   Deferred record fields served by `/api/deferred` come from these same files.
 
-- `status.json` — work declarations, observed activity, and reply bindings.
+- `status.json` — the agent's `waiting` or `idle` declaration, observed activity,
+  and reply bindings. The work in hand is no status: it is the log's `start` events.
   [session-lifetime.md](session-lifetime.md) owns their writers and lifetimes;
   `thread.py` owns response reservations and their release. Every reader loads it
   through `service.read_status`, which reads a missing file as no declaration.
@@ -187,8 +188,9 @@ contract, source id and revision, or to the `error` a failing value reads as;
 contracts with a deferred record field expose the manifest plus the value file and
 its revision for their payload. The reading's `content_source` names the thread and
 vocabulary file. A widget on the page names itself: the reading is its `widget`
-element, the `state` and `updates` standing on it, the `asks` it holds or answers,
-and the `workflows` it is the subject of, with their `activity` obligations. Page ids
+element, the `state` and `updates` standing on it, the open `tasks` on it, an Ask's
+task it holds or answers among them, and the `workflows` it is the subject of, with
+their `activity` obligations. Page ids
 and event ids share one address space, which is why `page check` refuses an authored
 id shaped like an event id. Default `page state` thread entries stay compact. Raw
 diagnostic history belongs to `leaf page events`, and the page's `registry.json` owns
@@ -197,7 +199,7 @@ the vocabulary.
 Immutable deliveries live outside page directories at
 `<state-home>/deliveries/<id>.json`, because one envelope can contain complete
 batches from several pages and must resolve identically in every harness. The file's
-`leaf-delivery-v3` format, id, capture time, carrier, acknowledgement, and
+`leaf-delivery-v3` format, id, capture time, acknowledgement, and
 batches never change. Delivery
 records are separate mutable transport state; acknowledgement can archive
 those records without moving or rewriting the delivery addressed by `leaf

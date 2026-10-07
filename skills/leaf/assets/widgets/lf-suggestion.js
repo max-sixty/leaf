@@ -120,13 +120,17 @@ function toRanges(segments, spans) {
 customElements.define(
   "lf-suggestion",
   class extends HTMLElement {
+    // What the Ask was answered with: the decision.
+    static answerWords(state) {
+      return outcomeOf(state) === "accept" ? "Accepted" : "Rejected";
+    }
+
     #deciding = null; // the decision in flight, so a second press joins it
     #staging = false; // the synchronous span before that promise exists
     #failed = null;
     #undoing = false;
     #margin = null;
     #commandScope = null;
-    #stopReading = null;
     #controller = null;
     #presentedOutcome = null;
 
@@ -135,7 +139,6 @@ customElements.define(
       // restore this target's contribution to the shared margin entry cluster.
       if (!once(this)) {
         this.#offer();
-        this.#watchReading();
         return;
       }
       this.#controller = widgetController(this);
@@ -148,7 +151,7 @@ customElements.define(
       // exhibit shows what a pending change looks like, so it keeps the marks
       // the theme draws and never grows controls to decide it with.
       if (quoted(this)) {
-        this.#watchReading();
+        this.#subscribeReading();
         return;
       }
       // The runtime says it just opened this element's containers (reveal): the entry
@@ -159,12 +162,11 @@ customElements.define(
         this.#margin?.update({ immediate: true }),
       );
       this.#offer();
-      this.#watchReading();
+      this.#subscribeReading();
     }
 
-    #watchReading() {
-      this.#controller ??= widgetController(this);
-      this.#stopReading ??= this.#controller.subscribe((reading) => {
+    #subscribeReading() {
+      this.#controller.subscribe((reading) => {
         if (quoted(this) || !this.#margin) return;
         if (
           this.#margin.contains(document.activeElement) &&
@@ -181,8 +183,6 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      this.#stopReading?.();
-      this.#stopReading = null;
       this.#margin?.unregister();
       this.#margin = null;
       emphasized.delete(this);
@@ -360,13 +360,6 @@ customElements.define(
           when: () => this.#offered().includes(key),
           run: () => this.#margin?.activate(key),
         })),
-        {
-          answer: () => {
-            const outcome = this.#outcome();
-            if (!outcome) return "";
-            return outcome === "accept" ? "Accepted" : "Rejected";
-          },
-        },
       );
       commands(this, this.#commandScope);
     }
@@ -662,7 +655,7 @@ customElements.define(
     }
 
     // Which of the three changes this is, for anything naming it away from the page:
-    // a row on the Asks drawer, the label on a comment anchored here. The slots are the
+    // a row in the Queue panel, the label on a comment anchored here. The slots are the
     // whole of the answer — both is a rewrite, lf-new alone inserts, lf-old alone
     // deletes — and it is the reading #voice already speaks on the slots themselves,
     // said once for the element. A settled suggestion keeps the word it had: the

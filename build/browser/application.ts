@@ -22,6 +22,7 @@ import {
   isMessageEvent,
 } from "../../skills/leaf/assets/runtime/pending/model.js";
 import { PENDING } from "../../skills/leaf/assets/runtime/thread/identity.js";
+import { selectDone, selectQueues } from "../../skills/leaf/assets/runtime/queues.js";
 
 // The pure model's input types are inferred from its existing implementation. They
 // remain one contract while those folds move to compiled source independently.
@@ -120,7 +121,10 @@ function advance(
 
 interface ActionSpec {
   unit: string;
-  record?: { kind: string; value: string; attr?: string };
+  record?:
+    | { kind: "body" }
+    | { kind: "attribute" | "value"; attr: string }
+    | { kind: "position"; within: string };
   writer: "user" | "agent";
 }
 
@@ -195,10 +199,55 @@ interface WireWorkflow {
     operation: "delivery" | "work" | "response";
   } | null;
   next_actor: "user" | "agent";
-  /** The standing work claims over the move, which the Stop hook reads. */
-  claimed_by: readonly { session: string; turn: string | null; log_floor: number }[];
+  /** The starts that take the move in hand, which the Stop hook reads. */
+  started_by: readonly {
+    item: string;
+    session: string | null;
+    turn: string | null;
+    seq: number;
+  }[];
   quiet: boolean;
   dropped: boolean;
+}
+
+/** One task, as `served_state.browser` serves it (`tasks.page_tasks`): `tasks` holds
+ * the open ones on either side and `ended_tasks` the ones that ended, with their
+ * outcome. A task on the user that an Ask or a thread's question holds has no title of
+ * its own. */
+interface WireTask {
+  id: string;
+  owner: "agent" | "user";
+  subject: { kind: "thread" | "widget"; id: string } | { kind: "page" };
+  thread: string | null;
+  title: string | null;
+  state: "open" | "done" | "failed" | "dropped";
+  ts: string;
+  revision: number | null;
+  /** The start running on the task, while one does. */
+  running: {
+    id: string;
+    text: string;
+    seq: number;
+    ts: string;
+    agent: string | null;
+    session: string | null;
+    turn: string | null;
+    condition: { kind: "stale"; operation: "work" } | null;
+  } | null;
+  agent: string | null;
+  session: string | null;
+  outcome: { id?: string; ts: string | null; detail?: string | null } | null;
+  /** How the task ends (`tasks.py`): the agent's own, an Ask's widget, a question's
+   * reply, or the user's Done. */
+  ends: "agent" | "widget" | "reply" | "done";
+  /** The Ask a task on the user stands for: the widget that answers it, and whether a
+   * thread in that widget's seat holds it with the agent meanwhile. */
+  ask: {
+    tag: string;
+    widget: string;
+    widget_tag: string;
+    held_by_seat: boolean;
+  } | null;
 }
 
 /** The public Ask record packages read. */
@@ -257,6 +306,9 @@ export interface AuthoritativeState {
         document: {
           projection: WireProjection;
           asks?: WireAsks;
+          /** The task each of the version's Asks is on the user, open and ended. */
+          tasks?: WireTask[];
+          ended_tasks?: WireTask[];
         };
         undo?: { event: Event }[];
         coverage: object[];
@@ -271,6 +323,8 @@ export interface AuthoritativeState {
       done?: Event[];
     };
     receipts: Event[];
+    tasks?: WireTask[];
+    ended_tasks?: WireTask[];
   };
   activity: unknown;
   reading?: string;
@@ -357,6 +411,55 @@ function normalizedAsks(
     all: records("all"),
     user: records("user"),
     unanswered: records("unanswered"),
+  };
+}
+
+/* Every task, open and ended, as this tab draws them: the shown version's Ask tasks,
+ * which come with its view, the page's other tasks beside them, and the Done this tab
+ * is still sending or taking back. A task the user is ending stands ended in the
+ * gesture's own turn, and one whose Done they are undoing stands open again; a refused
+ * gesture leaves the ledger and so puts the task back as the log has it. */
+function localTasks(
+  view: PageView | null,
+  state: AuthoritativeState | null,
+  local: readonly LedgerEntry[],
+) {
+  const ending = new Set(
+    local
+      .filter(({ event }) => event.kind === "task_end")
+      .map(({ event }) => event.task as string),
+  );
+  const undoing = new Set(
+    local
+      .filter(({ event }) => event.kind === "undo")
+      .map(({ event }) => event.undoes as string),
+  );
+  const served = [...(view?.document.tasks ?? []), ...(state?.browser.tasks ?? [])];
+  const ended = [
+    ...(view?.document.ended_tasks ?? []),
+    ...(state?.browser.ended_tasks ?? []),
+  ];
+  const reopened = (task: WireTask) =>
+    task.outcome !== null && undoing.has(task.outcome.id ?? "");
+  const open = [
+    ...served,
+    ...ended
+      .filter(reopened)
+      .map((task) => ({ ...task, state: "open" as const, outcome: null })),
+  ];
+  return {
+    open: open.filter((task) => !ending.has(task.id)),
+    ended: [
+      ...ended.filter((task) => !reopened(task)),
+      ...open
+        .filter((task) => ending.has(task.id))
+        .map((task) => ({
+          ...task,
+          state: "done" as const,
+          running: null,
+          outcome: { ts: null, detail: null },
+        })),
+    ],
   };
 }
 
@@ -563,6 +666,7 @@ export function createSemanticApplication({
       : [];
     const widgets = foldWidgetStates(document.authored, projection);
     const asks = ready ? normalizedAsks(view, state?.browser.thread) : NO_ASKS;
+    const tasks = ready ? localTasks(view, state, local) : { open: [], ended: [] };
     // Thread attention is the server's reading, and three local facts adjust it. A
     // pending send hands the thread to the agent, which `foldThreads` states. A
     // structural Ask survives prose sent beside it, so the admitted Ask inventory puts
@@ -644,7 +748,7 @@ export function createSemanticApplication({
         activity: [],
         condition: rejected ? { kind: "failed", operation: "delivery" } : null,
         next_actor: rejected ? "user" : "agent",
-        claimed_by: [],
+        started_by: [],
       };
     };
     const workflows = [
@@ -671,6 +775,11 @@ export function createSemanticApplication({
         },
       },
       asks,
+      // What is on the user and what is on the agent, selected from the readings
+      // above once this tab's sends are folded into them (`runtime/queues.js`).
+      queues: selectQueues({ threads, workflows, tasks: tasks.open }),
+      // What is finished, selected beside them from the ended tasks.
+      done: selectDone({ tasks: tasks.ended }),
       // Inside the publication signature, so a read that changes only the view's
       // updates, publication time, or undo list still reaches its watchers.
       view,

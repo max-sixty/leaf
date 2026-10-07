@@ -13,7 +13,12 @@ from functools import cached_property
 from pathlib import Path
 
 from ..data import read_data
-from ..files import active_descriptor, list_revisions, version_descriptors
+from ..files import (
+    active_descriptor,
+    list_revisions,
+    version_descriptors,
+    version_revisions,
+)
 from ..passages import SourceReading
 from ..presence import presence_with_activity
 from ..registry.contract import RegistryError
@@ -42,15 +47,22 @@ class PageRead:
         return self.stored_data()
 
     def through(self, sequence: int) -> "PageRead":
-        """A comparison at an observed log boundary, without a live streaming reply."""
+        """The read as it stood once event `sequence` was appended: the log and the
+        versions it had stamped by then, without a live streaming reply.
+
+        A browser compares a document view at the boundary its state was read at, and
+        `leaf page picture` serves a page as it stood when a comment was posted."""
         latest = self.events[-1]["seq"] if self.events else 0
         if sequence > latest:
             raise ValueError(
                 f"view sequence {sequence} is newer than log sequence {latest}"
             )
+        events = [event for event in self.events if event["seq"] <= sequence]
+        stamped = version_revisions(events)
         return replace(
             self,
-            events=[event for event in self.events if event["seq"] <= sequence],
+            events=events,
+            versions=tuple(v for v in self.versions if v["version"] in stamped),
             live_stream=None,
         )
 

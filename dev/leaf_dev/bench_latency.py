@@ -125,6 +125,7 @@ class Session:
     page: Page
     url: str
     thread: str
+    task: str
     # What runs around a transition, from just before it starts until its first goal
     # is painted: nothing here, a profiler in `leaf-dev profile`.
     recording: Callable[[], AbstractContextManager] = nullcontext
@@ -264,7 +265,7 @@ class Session:
     def status(self, run: int) -> dict:
         detail = f"Bench status {run + 1}"
         act = self.written(
-            "status.json", "status", str(self.page_dir), "working", detail
+            "events.jsonl", "task", "start", str(self.page_dir), self.task, detail
         )
         return self.measure("status", {"painted": ("status", detail)}, act)
 
@@ -300,6 +301,10 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
             "--text", "Bench thread.",
         ).stdout
     )["id"]  # fmt: skip
+    # The status transition starts this task, the page's own item, with a new line.
+    task = json.loads(leaf("task", "open", str(page_dir), "page", "Bench task").stdout)[
+        "id"
+    ]
     with serving(arm_dir, state, page_dir) as address:
         context = browser.new_context(
             viewport={"width": DESKTOP[0], "height": DESKTOP[1]}
@@ -310,7 +315,9 @@ def served(browser: Browser, arm: str, arm_dir: Path, source: str, scratch: Path
             page.goto(address)  # The token sets the page cookie; later loads drop it.
             origin = address.split("?", 1)[0]
             url = f"{origin}#{PASSAGE}"
-            yield Session(arm, source, arm_dir, state, page_dir, page, url, thread)
+            yield Session(
+                arm, source, arm_dir, state, page_dir, page, url, thread, task
+            )
         finally:
             context.close()
 

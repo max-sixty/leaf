@@ -111,7 +111,8 @@ export function holdReplyCompositions(threads, realize) {
   };
 }
 
-export const hasReplyComposition = () => compositions.size > 0;
+export const hasReplyDraft = () =>
+  [...compositions.keys()].some((context) => loadDraft(context) !== null);
 
 // A composition is the row's mechanical session, not the saved draft and not focus.
 // Native Tab walks its controls and the surrounding page without dismissing it.

@@ -27,7 +27,9 @@ Playwright's default Chromium launch selects its separate headless shell. The
 matching build is installed once with `playwright install chromium --only-shell`.
 """
 
+import base64
 import difflib
+import io
 import itertools
 import json
 import math
@@ -37,6 +39,7 @@ import shutil
 import subprocess
 import time
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from functools import cache
 from pathlib import Path
 from types import SimpleNamespace
@@ -45,7 +48,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 import pytest
 from browser_sources import browser_function
 from click.testing import CliRunner
-from interact_support import append_carried_log_record, wait_for
+from interact_support import STATED_TIMEOUT, append_carried_log_record, wait_for
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import files as files_model
@@ -58,7 +61,7 @@ from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev.browser import (
-    scroll_settled,  # noqa: F401 — shared browser wait, re-exported to tests
+    scroll_settled,
 )
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
@@ -71,6 +74,7 @@ from leaf_dev.thread_snapshot_plugin import (
     image_snapshot,  # noqa: F401 — fixture for comparisons and explicit captures
 )
 from model_folds import leaf_page
+from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 
@@ -124,6 +128,7 @@ def shift_watch_source():
         ],
         cwd=ROOT,
         text=True,
+        timeout=STATED_TIMEOUT,
     )
     interactive, clipping, host, parent, rendered_parent, axes = json.loads(controls)
     return (
@@ -529,8 +534,27 @@ def serve(tmp_path, monkeypatch, initialized_page):
             )
             assert initialized.exit_code == 0, initialized.output
 
+        def run_leaf(*args, input_text=None):
+            result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
+            assert result.exit_code == 0, result.output
+
+        def prepare(target):
+            prepare_page(
+                target,
+                fixture,
+                run_leaf,
+                initialize=False,
+                seed_log=seed_log,
+                final_status=None,
+                current_note="t",
+                earlier_note="t",
+            )
+
         # Local package contents vary between tests even when their selected path
-        # is the same, so only immutable bundled selections share a template.
+        # is the same, so only immutable bundled selections share a template. An
+        # example is a shape of its own, versions stamped and log seeded, since
+        # preparing one stamps every version it ships: seconds per page, paid once
+        # per worker rather than once per test.
         if (
             layer_registry is not None
             or layer_widgets
@@ -540,30 +564,46 @@ def serve(tmp_path, monkeypatch, initialized_page):
             )
         ):
             initialize(d)
+            if fixture:
+                prepare(d)
         else:
             template_name = (
                 "examples"
                 if packages is None
                 else "examples-" + ("-".join(selected_packages) or "no-packages")
             )
-            initialized_page(template_name, d, initialize)
+            if fixture:
+                example_name = example.resolve().relative_to(ROOT.resolve()).as_posix()
+                initialized_page(
+                    "--".join(
+                        (
+                            template_name,
+                            example_name.replace("/", "-"),
+                            "seeded" if seed_log else "unseeded",
+                        )
+                    ),
+                    d,
+                    lambda target: (initialize(target), prepare(target)),
+                )
+            else:
+                initialized_page(template_name, d, initialize)
         if fixture:
-
-            def run_leaf(*args, input_text=None):
-                result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
-                assert result.exit_code == 0, result.output
-
-            prepare_page(
-                d,
-                fixture,
-                run_leaf,
-                initialize=False,
-                seed_log=seed_log,
-                final_status=None,
-                current_note="t",
-                earlier_note="t",
-            )
-        else:
+            # The page pool can lend a copy hours after it stamped the template.
+            # Its current publication is new to this test, so keep the timestamp
+            # used by worker freshness readings new too. Earlier notes and seeded
+            # history retain their fixture times.
+            log = d / "events.jsonl"
+            lines = log.read_text(encoding="utf-8").splitlines()
+            for index in range(len(lines) - 1, -1, -1):
+                event = json.loads(lines[index])
+                if event["kind"] == "note":
+                    event["ts"] = datetime.now(timezone.utc).isoformat(
+                        timespec="seconds"
+                    )
+                    lines[index] = json.dumps(event, separators=(",", ":"))
+                    log.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                    break
+        if not fixture:
             html = source
             (d / "index.html").write_text(html)
             references = structure_model.SourceDocument(html).media_refs
@@ -734,7 +774,7 @@ def _until(page, fact, wanted):
     forever cannot keep a false fact alive."""
     traffic = _traffic(page)
     began = None
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     while True:
         raw = traffic._raw()
         reading = traffic._parse(raw)
@@ -859,7 +899,7 @@ def sending(page, what):
 # that dispatches the route here — until the list has it.
 def holding(page, held, count, what):
     """Wait until `held` has collected `count` requests the route put there."""
-    deadline = time.monotonic() + 30
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     while len(held) < count:
         if time.monotonic() >= deadline:
             raise AssertionError(
@@ -1136,7 +1176,12 @@ def displayed(page):
 
     Visibility checks can force layout before a render-blocking stylesheet arrives;
     first contentful paint excludes that unstyled reading."""
-    page.wait_for_function(FIRST_PAINT)
+    try:
+        page.wait_for_function(FIRST_PAINT)
+    except PlaywrightTimeout as error:
+        raise AssertionError(
+            f"{page.url} never reported a first contentful paint"
+        ) from error
 
 
 def draft_key(page, ctx: str) -> str:
@@ -1229,11 +1274,12 @@ def judge_watches():
     Chrome hands a frame's shifts to the observer only after it paints, so a test whose
     last act moves the page or takes words away would end before the report. Judgement
     waits for that evidence with a hang deadline; elapsed time cannot count as a
-    completed paint. `conftest.py` calls this as the test body returns, while the
+    completed paint. Scripts-disabled pages have no script-driven sensors to judge.
+    `conftest.py` calls this as the test body returns, while the
     pages' servers still answer: a page left painting
     after its server is gone lets its failed fetches reach the console."""
     for page, _ in _BROWSER_PROBLEM_LISTS or ():
-        if not page.is_closed():
+        if not page.is_closed() and page.lf_java_script_enabled:
             for frame in page.frames:
                 frame.wait_for_function(
                     """async () => {
@@ -1246,7 +1292,7 @@ def judge_watches():
                 )
 
 
-def watched(page):
+def watched(page, *, java_script_enabled=True):
     """Collect browser problems into one retained list per page.
 
     Console warnings/errors and uncaught exceptions are joined by window errors
@@ -1255,7 +1301,9 @@ def watched(page):
     by layout shifts without input or that carry a field being typed in
     (`shift_watch.js`), and by typed words leaving the screen without a key or press
     (`words_watch.js`).
-    Call before navigation so the init scripts take effect.
+    Call before navigation so the init scripts take effect. With scripting disabled,
+    retain native console and page errors but install no script-driven sensors and
+    await none at judgement.
     Repeated calls return the existing list. `tests/AGENTS.md`, "Consume a browser
     error where it is caused", owns consumption and cleanup policy."""
     assert _BROWSER_PROBLEM_LISTS is not None, (
@@ -1266,6 +1314,7 @@ def watched(page):
     errors = []
     _BROWSER_PROBLEM_LISTS.append((page, errors))
     page.lf_errors = errors
+    page.lf_java_script_enabled = java_script_enabled
 
     def console_message(message):
         problem = render_gate_model.console_problem(message)
@@ -1274,6 +1323,8 @@ def watched(page):
 
     page.on("console", console_message)
     page.on("pageerror", lambda e: errors.append(str(e)))
+    if not java_script_enabled:
+        return errors
     render_checks_model.install_window_errors(page)
     page.add_init_script(path=WRITE_WATCH_SOURCE)
     # One init script keeps cause tracking installed before its words subscriber;
@@ -1335,7 +1386,7 @@ def take_browser_errors(page):
     return errors
 
 
-def reported_browser_errors(page, *expected, timeout=10):
+def reported_browser_errors(page, *expected):
     """Wait for the complete report a fault draws, then consume it.
 
     One fault is reported by every boundary that carried it, and the later words can be
@@ -1351,7 +1402,7 @@ def reported_browser_errors(page, *expected, timeout=10):
     console messages to this process only while it is inside one."""
     assert expected, "expected browser problems cannot be empty"
     wanted = list(expected)
-    deadline = time.monotonic() + timeout
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     while page.lf_errors != wanted and time.monotonic() < deadline:
         page.wait_for_timeout(25)
     errors = take_browser_errors(page)
@@ -1526,6 +1577,37 @@ def expect_banner_control_offered(control, *, offered=True):
         expect(control).to_have_css("display", "none")
 
 
+# How many of the page's active Asks are answered, as "answered/total": the publisher's
+# own Ask reading, which the Queue panel's Done list and the `a` walk select from. Before
+# the page has admitted a state answer the reading is empty, which is no count at all.
+_ASKS_ANSWERED = """async () => {
+  const { readApplication } = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+  window.__lfAsksAnswered = () => {
+    const application = readApplication();
+    if (application.phase !== 'ready') return null;
+    const { all, unanswered } = application.effective.asks;
+    return `${all.length - unanswered.length}/${all.length}`;
+  };
+}"""
+
+
+def expect_asks_answered(page, answered: str) -> None:
+    """Wait until the page's Ask reading holds `answered` ("answered/total").
+
+    The deadline bounds a hang; on expiry the failure names the reading the page held.
+    """
+    page.evaluate(_ASKS_ANSWERED)
+    try:
+        page.wait_for_function(
+            "(want) => window.__lfAsksAnswered() === want",
+            arg=answered,
+            timeout=render_checks_model.SERVED_TIMEOUT_MS,
+        )
+    except PlaywrightTimeout as error:
+        held = page.evaluate("() => window.__lfAsksAnswered()")
+        raise AssertionError(f"answered Asks read {held}, not {answered}") from error
+
+
 def open_page(
     browser,
     url,
@@ -1585,7 +1667,7 @@ def open_page(
     return page
 
 
-def opened_tab(page, destination, press, timeout=10_000):
+def opened_tab(page, destination, press):
     """Press once and return a controlled tab after Chromium opens `destination`.
 
     Playwright can permanently lose the Page for a target Chromium opened. The browser's
@@ -1617,7 +1699,7 @@ def opened_tab(page, destination, press, timeout=10_000):
 
     before = set(page_targets())
     opened = {}
-    deadline = time.monotonic() + timeout / 1000
+    deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     try:
         try:
             press()
@@ -1663,7 +1745,9 @@ def opened_tab(page, destination, press, timeout=10_000):
                     f"Chromium did not close page target {target_id}"
                 )
             if opened:
-                close_deadline = time.monotonic() + timeout / 1000
+                close_deadline = (
+                    time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+                )
                 while set(opened) & set(page_targets()):
                     if time.monotonic() >= close_deadline:
                         raise AssertionError(
@@ -1677,7 +1761,9 @@ def opened_tab(page, destination, press, timeout=10_000):
     # handed over, so the tab this makes is readable only because it is made readable
     # here — and before the navigation, which is the only side of it an init script
     # reaches.
-    tab = readable(page.context.new_page())
+    tab = readable(
+        page.context.new_page(), java_script_enabled=page.lf_java_script_enabled
+    )
     tab.goto(destination)
     return tab
 
@@ -1701,11 +1787,19 @@ def opened_tab(page, destination, press, timeout=10_000):
 # crossing that transition are lost just as silently.
 arm_interception = render_gate_model.arm_interception
 
+# A browser wait bounds a hang; it does not time the work it waits for (tests/AGENTS.md,
+# "Functional results do not depend on execution speed"). One that names no deadline
+# takes `SERVED_TIMEOUT_MS`, the bound on one probe or request: an `expect` assertion,
+# whose own default is five seconds, and every page action, wait and expectation on a
+# page `readable` prepares. A wait that spans a page handover names
+# `HANDOVER_DEADLINE_MS`.
+expect.set_options(timeout=render_checks_model.SERVED_TIMEOUT_MS)
 
-def readable(page):
+
+def readable(page, *, java_script_enabled=True):
     """Install what the suite reads off a page, before the page navigates.
 
-    The three readings are the same for every page: the delivery ledger the traffic
+    The three readings are the same for every scripted page: the delivery ledger the traffic
     helpers consume, the arm that keeps a later route real, and the problem list the
     browser fixture rejects at the end of the test. None of them can be installed
     afterwards — an init script has to precede the navigation it instruments, and a
@@ -1716,12 +1810,16 @@ def readable(page):
     They are therefore installed where a page is made rather than asked for by each
     test, which is what `WatchedBrowser` is for. A page that already carries them is
     left alone, since a second console listener would report every problem twice.
+    A scripts-disabled context keeps the native error collector and shared deadlines;
+    the script-driven readings are unavailable there.
     """
     if getattr(page, "lf_errors", None) is not None:
         return page
-    page.lf_traffic = Traffic(page)
+    page.set_default_timeout(render_checks_model.SERVED_TIMEOUT_MS)
     arm_interception(page)
-    watched(page)
+    if java_script_enabled:
+        page.lf_traffic = Traffic(page)
+    watched(page, java_script_enabled=java_script_enabled)
     return page
 
 
@@ -1737,11 +1835,15 @@ class WatchedContext:
     opened.
     """
 
-    def __init__(self, context):
+    def __init__(self, context, *, java_script_enabled=True):
         self._context = context
+        self._java_script_enabled = java_script_enabled
 
     def new_page(self, **kwargs):
-        return readable(self._context.new_page(**kwargs))
+        return readable(
+            self._context.new_page(**kwargs),
+            java_script_enabled=self._java_script_enabled,
+        )
 
     def __getattr__(self, name):
         return getattr(self._context, name)
@@ -1768,10 +1870,16 @@ class WatchedBrowser:
         self.unwatched = browser
 
     def new_context(self, **kwargs):
-        return WatchedContext(self._browser.new_context(**kwargs))
+        return WatchedContext(
+            self._browser.new_context(**kwargs),
+            java_script_enabled=kwargs.get("java_script_enabled", True),
+        )
 
     def new_page(self, **kwargs):
-        return readable(self._browser.new_page(**kwargs))
+        return readable(
+            self._browser.new_page(**kwargs),
+            java_script_enabled=kwargs.get("java_script_enabled", True),
+        )
 
     def __getattr__(self, name):
         return getattr(self._browser, name)
@@ -2009,6 +2117,110 @@ def resized(page, width, height):
     page.set_viewport_size({"width": width, "height": height})
     page.wait_for_function("() => window.lfResizes > window.lfResizesWas")
     one_frame(page)
+
+
+@contextmanager
+def compositor_trace(page, categories=()):
+    """Record the frames Chrome's compositor draws while the block runs.
+
+    Yields the trace's event list, complete once the block exits; its `Screenshot`
+    events are the frames the window showed. Reading rectangles after a scroll forces
+    layout and conceals a frame painted out of step, so a claim about what a scroll
+    paints reads these frames instead. Waiting for the trace pumps CDP delivery
+    without reading the page or forcing its layout."""
+    cdp = page.context.new_cdp_session(page)
+    events, complete = [], []
+    cdp.on("Tracing.dataCollected", lambda data: events.extend(data["value"]))
+    cdp.on("Tracing.tracingComplete", lambda _: complete.append(True))
+    # Only the named categories: Chrome otherwise adds its default ones, whose forced
+    # layout events alone, from the suite's own watchers, can outlast the wait.
+    cdp.send(
+        "Tracing.start",
+        {
+            "traceConfig": {
+                "includedCategories": [
+                    "disabled-by-default-devtools.screenshot",
+                    *categories,
+                ],
+                "excludedCategories": ["*"],
+            },
+            "transferMode": "ReportEvents",
+        },
+    )
+    yield events
+    cdp.send("Tracing.end")
+    wait_for(
+        lambda: (cdp.send("Tracing.getCategories"), bool(complete))[1],
+        bool,
+        failure="Chrome never completed the compositor screenshot trace",
+    )
+
+
+def frame_image(event):
+    """A compositor `Screenshot` trace event's frame, as an RGB image."""
+    return Image.open(io.BytesIO(base64.b64decode(event["args"]["snapshot"]))).convert(
+        "RGB"
+    )
+
+
+# A frame test paints its subject in this red and the surface that must follow it in
+# this green, colours nothing else on the page uses.
+SUBJECT_MARK = "#ff0044"
+FOLLOWER_MARK = "#00cc44"
+
+
+def marked_tops(image):
+    """The topmost rows of `image` painted in `SUBJECT_MARK` and in `FOLLOWER_MARK`,
+    each None where the frame shows none. Downsampled frames blend the marks' edges,
+    so each matches a range around its colour."""
+    pixels = image.load()
+    subject, follower = [], []
+    for y in range(image.height):
+        for x in range(image.width):
+            red, green, blue = pixels[x, y]
+            if red > 180 and green < 60 and blue < 130:
+                subject.append(y)
+            if green > 130 and red < 60 and blue < 130:
+                follower.append(y)
+    return (min(subject, default=None), min(follower, default=None))
+
+
+def assert_follows_in_every_frame(page, scroller):
+    """Wheel `scroller` down and back, under the pointer, and require every frame the
+    compositor draws meanwhile to show the follower (`FOLLOWER_MARK`) at one offset from
+    its subject (`SUBJECT_MARK`).
+
+    A box the browser carries through the scroll paints in step with it. A scroll-driven
+    layer carries the same motion but has painted a frame early or late on Linux under
+    load, and reading rectangles after the scroll forces layout and hides that frame,
+    so this reads the compositor's own frames."""
+    width = page.viewport_size["width"]
+    with compositor_trace(page) as events:
+        for delta in (40, 40, -40, -40):
+            page.mouse.wheel(0, delta)
+            scroll_settled(page, scroller)
+    readings = []
+    for event in events:
+        if event["name"] != "Screenshot":
+            continue
+        image = frame_image(event)
+        scale = width / image.width
+        tops = [None if top is None else top * scale for top in marked_tops(image)]
+        readings.append((*tops, scale))
+    assert all(
+        subject is not None and follower is not None
+        for subject, follower, _ in readings
+    ), readings
+    assert len({subject for subject, _, _ in readings}) >= 3, (
+        "the scroller never scrolled",
+        readings,
+    )
+    offset = readings[0][1] - readings[0][0]
+    # Chrome downsamples trace frames, so two samples allow the blended edges.
+    assert all(
+        abs(follower - subject - offset) <= 2 * scale
+        for subject, follower, scale in readings
+    ), readings
 
 
 def root_overflow(page) -> float:

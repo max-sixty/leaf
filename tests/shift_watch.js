@@ -10,16 +10,20 @@
 // parent. Controls and declared regions keep their actual boxes. Runtime-declared
 // bounded reflow retains its historical ownership, stationary-boundary and clipping
 // proof. Layout coordinates remove scrolling; sticky descendants retain their
-// mechanical scroller's ownership. Portals with one unique same-tree anchor and
-// a direct native anchor inset retain that scroller too; nested CSS expressions
-// and ambiguous names receive no inferred ownership.
+// mechanical scroller's ownership. Portals with one unique anchor, in their tree or
+// inside the `anchor-scope` that limits its name, and a direct native anchor inset,
+// inline or in their tree's own rules, retain that scroller too; nested CSS
+// expressions, ambiguous names and rules that disagree receive no inferred ownership.
 //
 // Each trusted gesture owns its counted rendering until declared completion.
 // Native effects it began retain only their sampled displacement within their
 // own subtree; their continued lifetime never owns unrelated page movement.
 // News starts passive rendering except the first frame shared with the gesture.
-// A typing field is observed at beforeinput, independently of Chrome's clipped or
-// shadowed source rectangles. Motion
+// A typing field is observed at its native edit start, independently of Chrome's
+// clipped or shadowed source rectangles. Its subject, protected reading/control and
+// declared-region ancestors, and visibly painted holders retain their poses.
+// Transparent coordinate carriers have no independent pose to protect: a compensated
+// carrier rebase can leave every painted subject stationary. Motion
 // already running on its ancestors belongs to the gesture that began that motion.
 // Continuing translation is credited from sampled animated property values, not
 // the ancestor's whole box: independent movement of it or its children still fails.
@@ -28,6 +32,10 @@
 // no inferred translation credit. A floating owner's last-written held-edge point
 // declares page/window plane changes under the same subject, anchor and tenure;
 // its solver dimensions, not the holder's rendered displacement, supply that credit.
+// Observed page attachments in the window plane retain their carrying source offsets,
+// physical attachment point and written solver point. Source travel bounds physical
+// following, which bounds the solver's constrained movement. Only that written
+// movement is credited; extra holder/child movement still fails.
 //
 // Chrome's paint signal and landmark poses answer distinct questions. The ledger
 // retains samples that precede the source-associated frame window and is classified
@@ -37,6 +45,32 @@
 // motion produces no Layout Instability event and is outside this paint signal.
 // A painted one-frame roundtrip omitted from Chrome's sources and reverted before
 // any subsequent sampled pose remains an unresolved observability limit.
+//
+// Unchanged frames. A reading appends to the ledger only where a node's reading
+// differs from its last, so a frame on which nothing could have changed keeps the
+// last complete reading and its population instead of reading every node again.
+// Every passive verdict starts from a layout-shift entry, and an entry, whether the
+// observer hears it or a paint checkpoint takes it, makes the reading that judges
+// it complete: every node is read, and the entry's paint is read then where the
+// following frame kept an unchanged reading, unless a later input already makes
+// that endpoint ambiguous. So whatever moved a landmark without input, its verdict
+// compares complete readings. Announcements keep the readings between entries
+// current, which input ownership and typing's verdicts rest on: a frame reads
+// completely when a change was announced since the last complete reading, and on
+// the frame after one that read an announced change, since native anchoring
+// follows its scroller a frame late. Each announcement is made in the task of the
+// change it covers: DOM writes in the document and every shadow root; a running
+// animation anywhere in the composed tree, or one that stopped or left the set;
+// input, focus, scroll, drag, resize, load, reset and beforetoggle events; the
+// emulated media tests change; this frame's own visibility; and the calls that
+// restyle without a DOM write (custom states, constructed and adopted sheets,
+// form-control values and ranges, animation mutators). Every VERIFY-th unannounced
+// frame, and the first one once the fixture asks for the test's verdict, reads
+// completely and fails the test where any reading differs, naming the innermost
+// node that changed, so a source missing from this list is found rather than
+// leaving the readings between entries stale. A page that writes while it is read
+// announces its change by that write. A change to this gate runs the suite with
+// VERIFY = 1, which checks every frame.
 //
 // Every finding fails the ordinary browser fixture. It installs this sensor after
 // write_watch.js and binds the canonical control and clipping vocabulary.
@@ -86,19 +120,26 @@
       ?.getKeyframes()
       .some((keyframe) => Object.keys(keyframe).some((key) => GEOMETRY.test(key))) ||
     GEOMETRY.test(animation.transitionProperty ?? "");
+  // Every animation in the composed tree: the document's own list leaves out those
+  // whose targets are in shadow trees, so each connected shadow root adds its own.
+  const allAnimations = () => [
+    ...new Set(
+      [document, ...[...roots].filter((root) => root.host.isConnected)].flatMap(
+        (tree) => tree.getAnimations(),
+      ),
+    ),
+  ];
   // Native timeline startTime changes when playback rate changes. Input ownership
   // follows the operation that began motion, not that mutable clock coordinate.
   const beganAt = new WeakMap();
   // Motion begun since `start` that moves a box; one still pending begins now.
   const begun = (start) =>
-    document
-      .getAnimations()
-      .filter(
-        (animation) =>
-          animation.playState === "running" &&
-          (beganAt.get(animation)?.at ?? animation.startTime ?? Infinity) >= start &&
-          moves(animation),
-      );
+    allAnimations().filter(
+      (animation) =>
+        animation.playState === "running" &&
+        (beganAt.get(animation)?.at ?? animation.startTime ?? Infinity) >= start &&
+        moves(animation),
+    );
   // A direct native anchor inset, not an unused var() fallback or a named
   // different anchor inside the expression. Floating placement writes this form.
   const anchorInset = (value, axis) => {
@@ -111,14 +152,277 @@
       `^(?:${anchor}|calc\\((?:${anchor}\\s*[+-]\\s*-?[\\d.]+px|-?[\\d.]+px\\s*\\+\\s*${anchor}|${anchor})\\))$`,
     ).test(value);
   };
+  // What decides a positioned box's inset on an axis, as the declarations that can win
+  // it: an important inline one alone, else the important rules of the box's own tree
+  // that match it now, else its inline style, else every matching rule. Within a tier
+  // the cascade weighs specificity, layers and order, which no API reports, so the
+  // inset counts as anchored only where every candidate there is a direct anchor
+  // inset: rules that disagree are ambiguous, like a name that is. Rules are read only
+  // for a box naming an anchor, since every frame samples it, and only those that
+  // state an inset at all, gathered once per sheet.
+  const INSETS = ["top", "right", "bottom", "left"];
+  const insetRules = new WeakMap();
+  const rulesStatingInsets = (sheet) => {
+    const length = sheet.cssRules.length;
+    const known = insetRules.get(sheet);
+    if (known?.length === length) return known.rules;
+    const rules = [];
+    const visit = (list, conditions) => {
+      for (const rule of list) {
+        if (rule instanceof CSSStyleRule) {
+          if (INSETS.some((side) => rule.style.getPropertyValue(side)))
+            rules.push({ rule, conditions });
+        } else if (rule.cssRules)
+          visit(
+            rule.cssRules,
+            rule instanceof CSSMediaRule || rule instanceof CSSSupportsRule
+              ? [...conditions, rule]
+              : conditions,
+          );
+      }
+    };
+    visit(sheet.cssRules, []);
+    insetRules.set(sheet, { length, rules });
+    return rules;
+  };
+  const holds = (condition) =>
+    condition instanceof CSSMediaRule
+      ? matchMedia(condition.conditionText).matches
+      : CSS.supports(condition.conditionText);
+  // An inline inset loses only to an important rule, so a box with one reads those
+  // alone: the comment box's placer writes its insets on every frame it moves.
+  const declaredRules = (node, property, importantOnly) => {
+    const root = node.getRootNode();
+    const found = { important: [], normal: [] };
+    for (const sheet of [
+      ...(root.styleSheets ?? []),
+      ...(root.adoptedStyleSheets ?? []),
+    ])
+      for (const { rule, conditions } of rulesStatingInsets(sheet)) {
+        const value = rule.style.getPropertyValue(property);
+        if (!value || (importantOnly && !rule.style.getPropertyPriority(property)))
+          continue;
+        if (!conditions.every(holds)) continue;
+        let matches = false;
+        try {
+          matches = node.matches(rule.selectorText);
+        } catch {
+          // A selector `matches` cannot take, such as a pseudo-element's.
+        }
+        if (matches)
+          found[rule.style.getPropertyPriority(property) ? "important" : "normal"].push(
+            value,
+          );
+      }
+    return found;
+  };
+  const anchoredInset = (node, style, property, axis) => {
+    const inline = node.style.getPropertyValue(property);
+    if (inline && node.style.getPropertyPriority(property))
+      return anchorInset(inline, axis);
+    if (!style.positionAnchor.startsWith("--"))
+      return inline ? anchorInset(inline, axis) : false;
+    const rules = declaredRules(node, property, Boolean(inline));
+    const candidates = rules.important.length
+      ? rules.important
+      : inline
+        ? [inline]
+        : rules.normal;
+    return (
+      candidates.length > 0 && candidates.every((value) => anchorInset(value, axis))
+    );
+  };
+  // The box a positioned box's `position-anchor` names. A name an `anchor-scope`
+  // limits resolves inside the scoping box, so a name declared once per repeated
+  // component still names one anchor for each; elsewhere it must be unique in its tree.
+  const anchorOf = (node, style, anchors) => {
+    const name = style.positionAnchor;
+    if (!name.startsWith("--")) return null;
+    const names = (value) => value.split(",").map((part) => part.trim());
+    for (let at = up(node); at instanceof Element; at = up(at)) {
+      const scope = getComputedStyle(at).anchorScope;
+      if (scope !== "all" && !names(scope).includes(name)) continue;
+      const found = [at, ...at.querySelectorAll("*")].filter((el) =>
+        names(getComputedStyle(el).anchorName).includes(name),
+      );
+      return found.length === 1 ? found[0] : null;
+    }
+    return anchors.get(node.getRootNode())?.get(name) ?? null;
+  };
   const boxes = (nodes) =>
     new Map([...nodes].map((node) => [node, node.getBoundingClientRect()]));
+  // A field's painted holder is a surface in its own right. Pure coordinate
+  // containers paint no box; their children keep their independently protected
+  // controls and reading landmarks even when carrier coordinates are rebased.
+  const paintsBox = (style) =>
+    (style.backgroundColor !== "transparent" &&
+      !/^rgba\([^,]+,[^,]+,[^,]+,\s*0\)$/.test(style.backgroundColor) &&
+      !/\/\s*0\)$/.test(style.backgroundColor)) ||
+    style.backgroundImage !== "none" ||
+    style.boxShadow !== "none" ||
+    ["Top", "Right", "Bottom", "Left"].some(
+      (edge) =>
+        !["none", "hidden"].includes(style[`border${edge}Style`]) &&
+        parseFloat(style[`border${edge}Width`]) > 0,
+    ) ||
+    (style.outlineStyle !== "none" && parseFloat(style.outlineWidth) > 0);
+  const paintedHolder = (node) =>
+    paintsBox(getComputedStyle(node)) ||
+    ["::before", "::after"].some((pseudo) => {
+      const style = getComputedStyle(node, pseudo);
+      return (
+        style.display !== "none" &&
+        style.visibility === "visible" &&
+        style.opacity !== "0" &&
+        !["none", "normal"].includes(style.content) &&
+        (style.content !== '\"\"' || paintsBox(style))
+      );
+    });
+  // Whether anything that can change a node's reading has happened since the last
+  // complete one (the header's "Unchanged frames"). Each source sets it in the same
+  // task as the change it announces, so it is set before the next frame's reading.
+  let unread = true;
+  const announce = () => {
+    unread = true;
+  };
+  const writes = new MutationObserver(announce);
+  // Input, scrolling, loads and native element state, heard in each tree they are
+  // dispatched in: scroll, load and toggle do not cross a shadow boundary or reach
+  // the window, so the document and every shadow root listen in capture.
+  // Pointer events also stand for touch and mouse; a drag suppresses them, so its
+  // own events are heard. beforetoggle precedes every popover change, whatever
+  // began it.
+  const EVENTS = [
+    "pointerdown",
+    "pointermove",
+    "pointerup",
+    "pointercancel",
+    "pointerover",
+    "pointerout",
+    "keydown",
+    "keyup",
+    "beforeinput",
+    "input",
+    "change",
+    "focus",
+    "blur",
+    "focusin",
+    "focusout",
+    "dragenter",
+    "dragover",
+    "dragleave",
+    "drop",
+    "dragend",
+    "scroll",
+    "load",
+    "error",
+    "reset",
+    "beforetoggle",
+    "contentvisibilityautostatechange",
+  ];
+  const watchTree = (tree) => {
+    writes.observe(tree, {
+      subtree: true,
+      attributes: true,
+      childList: true,
+      characterData: true,
+    });
+    for (const type of EVENTS)
+      tree.addEventListener(type, announce, { capture: true, passive: true });
+  };
+  watchTree(document);
+  for (const type of ["resize", "hashchange", "pageshow", "focus", "blur"])
+    window.addEventListener(type, announce, { capture: true, passive: true });
+  for (const type of ["resize", "scroll"])
+    window.visualViewport?.addEventListener(type, announce);
+  document.fonts?.addEventListener("loadingdone", announce);
+  // Emulated media changes style with no event but its query's.
+  for (const query of [
+    "print",
+    "(prefers-color-scheme: dark)",
+    "(prefers-reduced-motion: reduce)",
+    "(forced-colors: active)",
+    "(prefers-contrast: more)",
+  ])
+    matchMedia(query).addEventListener("change", announce);
+  // Page state that matches selectors or applies style without a DOM write.
+  const announcing = (proto, names) => {
+    for (const name of names) {
+      const own = Object.getOwnPropertyDescriptor(proto, name);
+      const original = own.set ?? own.value;
+      const wrapped = function (...args) {
+        announce();
+        return Reflect.apply(original, this, args);
+      };
+      Object.defineProperty(
+        proto,
+        name,
+        own.set ? { ...own, set: wrapped } : { ...own, value: wrapped },
+      );
+    }
+  };
+  announcing(CSSStyleSheet.prototype, [
+    "replace",
+    "replaceSync",
+    "insertRule",
+    "deleteRule",
+  ]);
+  announcing(StyleSheet.prototype, ["disabled"]);
+  announcing(Document.prototype, ["adoptedStyleSheets"]);
+  announcing(ShadowRoot.prototype, ["adoptedStyleSheets"]);
+  announcing(Animation.prototype, [
+    "cancel",
+    "finish",
+    "play",
+    "pause",
+    "reverse",
+    "updatePlaybackRate",
+    "persist",
+    "effect",
+    "timeline",
+    "startTime",
+    "currentTime",
+    "playbackRate",
+  ]);
+  announcing(KeyframeEffect.prototype, ["setKeyframes", "target", "composite"]);
+  announcing(AnimationEffect.prototype, ["updateTiming"]);
+  announcing(HTMLInputElement.prototype, [
+    "value",
+    "checked",
+    "indeterminate",
+    "setRangeText",
+    "stepUp",
+    "stepDown",
+  ]);
+  announcing(HTMLTextAreaElement.prototype, ["value", "setRangeText"]);
+  announcing(HTMLSelectElement.prototype, ["value", "selectedIndex"]);
+  announcing(HTMLOptionElement.prototype, ["selected"]);
+  // A custom state matches `:state()`; the runtime restates them freely, so only a
+  // call that changes the set announces.
+  const states = CustomStateSet.prototype;
+  const { add, delete: remove, clear, has } = states;
+  Object.assign(states, {
+    add(state) {
+      if (!has.call(this, state)) announce();
+      return add.call(this, state);
+    },
+    delete(state) {
+      if (has.call(this, state)) announce();
+      return remove.call(this, state);
+    },
+    clear() {
+      if (this.size) announce();
+      return clear.call(this);
+    },
+  });
   // Every shadow root, a closed one included, so a reading reaches every element.
   const roots = new Set();
   const attachShadow = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {
     const root = attachShadow.call(this, init);
     roots.add(root);
+    watchTree(root);
+    announce();
     return root;
   };
   const everything = () => {
@@ -195,6 +499,7 @@
   };
   const animate = Element.prototype.animate;
   Element.prototype.animate = function (...args) {
+    announce();
     const values = underlying(this);
     const at = nativePerformance.now();
     const animation = animate.apply(this, args);
@@ -234,7 +539,7 @@
   const readMotion = (at, ending = null) => {
     const effects = [
       ...new Set([
-        ...document.getAnimations(),
+        ...allAnimations(),
         ...(ending?.playState === "finished" ? [ending] : []),
       ]),
     ].filter((animation) => animation.effect?.target && moves(animation));
@@ -303,6 +608,36 @@
       animated.set(animation, readings);
     }
   };
+  // Unchanged frames: the last complete reading's population, the ledger entries
+  // appended so far, the unannounced frames in a row, and what the last read saw.
+  const VERIFY = 30;
+  let held = [];
+  let written = 0;
+  let quiet = 0;
+  let wasRunning = false;
+  let owed = 0;
+  let wasDrawn = null;
+  let seenAnimations = [];
+  // One line for a reading that found unannounced changes: the innermost node that
+  // changed, what changed on it, and how many other nodes changed with it.
+  const missed = (misses) => {
+    const depth = (node) => {
+      let count = 0;
+      for (let at = node; at; at = up(at)) count++;
+      return count;
+    };
+    const [node, changed] = misses.reduce((deepest, miss) =>
+      depth(miss[0]) > depth(deepest[0]) ? miss : deepest,
+    );
+    const others = misses.length - 1;
+    report(
+      `shift watch missed a change to ${node ? name(node) : "the page's nodes"}`,
+      ` (${changed.join(", ")})` +
+        (others ? ` and to ${others} other node${others === 1 ? "" : "s"}` : "") +
+        ": a source of change is missing from the sensor's announcements" +
+        ' (shift_watch.js, "Unchanged frames")',
+    );
+  };
   const read = (time, frame = true) => {
     // Poses belong to their synchronous observation time. The native frame start
     // is kept separately to associate Chrome's painted shift with that frame.
@@ -320,7 +655,51 @@
     }
     floatingOwners = new Set(selections.keys());
     readMotion(at);
+    // A running animation changes poses on every frame, and the frame after it stops
+    // or leaves the set settles the last of them.
+    const animations = allAnimations();
+    const running = animations.some(({ playState }) => playState === "running");
+    if (writes.takeRecords().length) unread = true;
+    // An embedding page can hide this document's frame without telling it.
+    const drawn = drawing();
+    const announced =
+      unread ||
+      drawn !== wasDrawn ||
+      running ||
+      wasRunning ||
+      animations.length !== seenAnimations.length ||
+      animations.some((animation, i) => animation !== seenAnimations[i]);
+    // Native anchoring follows its scroller one frame late, so the frame after the
+    // one that reads an announced change reads completely too.
+    const changing = announced || (frame && owed > 0);
+    if (frame && owed > 0) owed--;
+    if (announced) owed = frame ? 1 : 2;
+    wasRunning = running;
+    wasDrawn = drawn;
+    seenAnimations = animations;
+    const verifying = !changing && frame && ++quiet % VERIFY === 0;
+    if (!changing && !verifying) {
+      if (frame)
+        frames.push({
+          at,
+          start: time,
+          nodes: held,
+          motion: [],
+          written,
+          complete: false,
+        });
+      return at;
+    }
+    unread = false;
+    if (changing) quiet = 0;
+    const misses = [];
     const nodes = everything();
+    if (
+      verifying &&
+      (nodes.length !== held.length || nodes.some((node, i) => node !== held[i]))
+    )
+      misses.push([null, ["population"]]);
+    held = nodes;
     const anchors = new Map();
     for (const node of nodes.filter((node) => node instanceof Element)) {
       const tree = node.getRootNode();
@@ -346,14 +725,15 @@
       }
       return !modal;
     };
-    if (frame) {
-      frames.push({ at, start: time, nodes, motion: [] });
-    }
+    const entry = frame ? { at, start: time, nodes, motion: [], complete: true } : null;
+    if (entry) frames.push(entry);
     for (const node of nodes) {
       const scrolls = scrolled.get(node) ?? [];
       const scroll = { left: node.scrollLeft, top: node.scrollTop };
       const prior = scrolls.at(-1)?.scroll;
       if (prior?.left !== scroll.left || prior?.top !== scroll.top) {
+        if (verifying) misses.push([node, ["scroll offset"]]);
+        written++;
         scrolls.push({ at, scroll });
         pruneSamples(scrolls);
         scrolled.set(node, scrolls);
@@ -387,21 +767,15 @@
           : null;
       const paint = {
         parent: up(node),
-        anchor: range
-          ? null
-          : (anchors.get(node.getRootNode())?.get(style.positionAnchor) ?? null),
+        anchor: range ? null : anchorOf(node, style, anchors),
         anchorX:
           !range &&
           ["fixed", "absolute"].includes(style.position) &&
-          [node.style.left, node.style.right].some((value) =>
-            anchorInset(value, "left"),
-          ),
+          ["left", "right"].some((side) => anchoredInset(node, style, side, "left")),
         anchorY:
           !range &&
           ["fixed", "absolute"].includes(style.position) &&
-          [node.style.top, node.style.bottom].some((value) =>
-            anchorInset(value, "top"),
-          ),
+          ["top", "bottom"].some((side) => anchoredInset(node, style, side, "top")),
         insetX: range ? null : `${node.style.left}|${node.style.right}`,
         insetY: range ? null : `${node.style.top}|${node.style.bottom}`,
         position: range ? "static" : style.position,
@@ -469,6 +843,27 @@
         )
       )
         continue;
+      if (verifying)
+        misses.push([
+          node,
+          [
+            ...(last ? [] : ["first reading"]),
+            ...(last && !sameBox ? ["box"] : []),
+            ...(last &&
+            (fragments.length !== last.fragments.length ||
+              fragments.some((rect, i) =>
+                ["left", "top", "right", "bottom"].some(
+                  (edge) => rect[edge] !== last.fragments[i][edge],
+                ),
+              ))
+              ? ["fragments"]
+              : []),
+            ...Object.keys(paint).filter(
+              (key) => last && last.paint[key] !== paint[key],
+            ),
+          ],
+        ]);
+      written++;
       seen.push({
         at,
         poseAt: sameBox && sameCoordinates ? last.poseAt : at,
@@ -479,6 +874,11 @@
       pruneSamples(seen);
       placed.set(node, seen);
     }
+    if (entry) entry.written = written;
+    // A page that wrote while it was read, as a reading that patches the DOM API
+    // does, announced its own change.
+    if (writes.takeRecords().length) unread = true;
+    else if (misses.length) missed(misses);
     return at;
   };
   const readingAt = (node, at) => placed.get(node)?.findLast((item) => item.at <= at);
@@ -623,27 +1023,32 @@
     nativeFrame(tick);
   };
   nativeFrame(tick);
-  document.addEventListener(
-    "beforeinput",
-    (event) => {
-      if (!event.isTrusted) return;
-      const field = event.composedPath()[0];
-      const holding = [];
-      for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
-      const start = nativePerformance.now();
-      const at = read(start, false);
-      begin(start, {
-        field,
-        at,
-        found: boxes(holding),
-        moving: holding
-          .flatMap((node) => node.getAnimations())
-          .filter((animation) => animation.playState === "running" && moves(animation)),
-        until: Infinity,
-      });
-    },
-    true,
-  );
+  window.lfInputWork.subscribeEdits(({ node: field }) => {
+    const holding = [];
+    for (let at = field; at instanceof Element; at = up(at)) holding.push(at);
+    const start = nativePerformance.now();
+    const at = read(start, false);
+    begin(start, {
+      field,
+      at,
+      found: boxes(
+        holding.filter((node) => {
+          const paint = paintAt(node, at);
+          return (
+            node === field ||
+            paint.reading ||
+            paint.control ||
+            paint.reflow ||
+            paintedHolder(node)
+          );
+        }),
+      ),
+      moving: holding
+        .flatMap((node) => node.getAnimations())
+        .filter((animation) => animation.playState === "running" && moves(animation)),
+      until: Infinity,
+    });
+  });
   // A viewport resize is input, and its new size is the fact. Chrome lays out the
   // resized viewport before dispatching resize, which precedes the frame's callbacks,
   // so tick() always runs after it; a layout-shift record delivered between the two,
@@ -731,9 +1136,30 @@
       }),
     );
   }).observe(document, { subtree: true, attributeFilter: ["data-lf-presented"] });
+  // A hidden-tab return deliberately replaces the layout the reader left. Its
+  // first refreshed presentation belongs to that return, even when the network
+  // answer arrives later. Consume the runtime's boundary, never a timed grace.
+  const returns = [];
+  let continuityTurn = 0;
+  document.addEventListener("lf-reading-continuity", ({ detail }) => {
+    const turn = ++continuityTurn;
+    const current = returns.at(-1);
+    if (!detail.continuous) {
+      if (current?.through === Infinity) return;
+      returns.push({ start: nativePerformance.now(), through: Infinity });
+    } else if (current?.through === Infinity) {
+      nativeFrame(() =>
+        nativeFrame((at) => {
+          if (turn === continuityTurn) current.through = at;
+        }),
+      );
+    }
+  });
   const presenting = ({ startTime }) =>
     document.querySelector("script[data-lf-entry]") &&
-    (presented === null || startTime < presented);
+    (presented === null ||
+      startTime < presented ||
+      returns.some(({ start, through }) => startTime >= start && startTime <= through));
   const permittedReflow = ({ node, previousRect, currentRect }, around) => {
     const element = node?.nodeType === Node.TEXT_NODE ? up(node) : node;
     if (around.length !== 3) return false;
@@ -802,7 +1228,7 @@
     let escaped = false,
       containing = null;
     for (
-      let parent = own.reading ? up(node) : node;
+      let parent = own.reading ? own.parent : node;
       parent instanceof Element;
       parent = paintAt(parent, at)?.parent
     ) {
@@ -869,6 +1295,11 @@
     }
     return motion;
   };
+  const writtenPoint = (selection, axis) =>
+    selection.point[axis] -
+    (selection.edges[axis] === axis
+      ? 0
+      : selection.size[axis === "left" ? "width" : "height"]);
   const scrollMotion = (node, from, to) => {
     const motion = nativeScrollMotion(node, from, to);
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
@@ -885,27 +1316,61 @@
             paintAt(node, from)?.position === "fixed" ||
             paintAt(node, to)?.position === "fixed",
         );
-      if (
+      const sameAttachment =
         was &&
         now &&
         !crossesFixed &&
         was.tenure === now.tenure &&
         was.subject === now.subject &&
-        was.anchor === now.anchor &&
-        was.plane !== now.plane
+        was.anchor === now.anchor;
+      if (
+        sameAttachment &&
+        was.plane === "window" &&
+        now.plane === "window" &&
+        was.scrollOffsets &&
+        now.scrollOffsets?.length === was.scrollOffsets.length &&
+        was.scrollOffsets.every(
+          (source, i) => source.source === now.scrollOffsets[i].source,
+        )
       ) {
-        const before = boxAt(was.anchor, poseAt(owner, from)),
-          after = boxAt(now.anchor, to);
+        const reach = { left: [0, 0], top: [0, 0] };
+        for (const [i, before] of was.scrollOffsets.entries()) {
+          const after = now.scrollOffsets[i];
+          if (before.left === after.left && before.top === after.top) continue;
+          const by = viewportScroll(before.source, from, {
+            left: before.left - after.left,
+            top: before.top - after.top,
+          });
+          for (const axis of ["left", "top"]) {
+            reach[axis][0] += Math.min(0, by[axis]);
+            reach[axis][1] += Math.max(0, by[axis]);
+          }
+        }
+        for (const axis of ["left", "top"]) {
+          const carried = now.reference[axis] - was.reference[axis];
+          const placed = writtenPoint(now, axis) - writtenPoint(was, axis);
+          if (
+            carried >= reach[axis][0] - 1 &&
+            carried <= reach[axis][1] + 1 &&
+            placed >= Math.min(0, carried) - 1 &&
+            placed <= Math.max(0, carried) + 1
+          )
+            motion[axis] += placed;
+        }
+      }
+      if (sameAttachment && was.plane !== now.plane) {
+        // A selection's point is measured from its frame's box: the subject anchor's
+        // in the page's plane, the holding region's in a region's, the window's in
+        // the window's.
+        const origin = (selection, time) =>
+          selection.frame ? boxAt(selection.frame, time) : { left: 0, top: 0 };
+        const before = origin(was, poseAt(owner, from)),
+          after = origin(now, to);
         if (before && after) {
-          for (const [axis, size, start] of [
-            ["left", "width", "left"],
-            ["top", "height", "top"],
-          ]) {
+          for (const axis of ["left", "top"]) {
             if (anchored[axis]) continue;
-            const predicted = (selection, anchor) =>
-              selection.point[axis] +
-              (selection.plane === "page" ? anchor[axis] : 0) -
-              (selection.edges[axis] === start ? 0 : selection.size[size]);
+            const predicted = (selection, frame) =>
+              writtenPoint(selection, axis) + frame[axis];
             motion[axis] += predicted(now, after) - predicted(was, before);
             anchored[axis] = true;
           }
@@ -1050,6 +1515,8 @@
     if (presenting(entry) || inputOwns(frame)) return;
     const before = frames.at(-2),
       after = frames.at(-1);
+    // No pose was appended between the two readings, so none moved.
+    if (before.written === after.written) return;
     protectedMotion([before, before, after]);
   };
   // A painted layout transition admits the retained landmark ledger. Chrome's
@@ -1164,16 +1631,20 @@
       admittedMotion(entry, next ?? nativePerformance.now(), rendering);
     }
   };
-  const observer = new PerformanceObserver((list) => {
+  // Native records, delivered to the observer or taken at a paint checkpoint. A
+  // painted shift is the evidence every verdict starts from, so the reading that
+  // judges it is complete whatever changed the page, announced or not.
+  const received = (entries) => {
+    announce();
     resized();
-    const entries = list.getEntries();
     for (const entry of entries) {
       const frame = frames.findLastIndex(({ start }) => start <= entry.startTime);
       // Layout follows the entering frame callback. Counted work can still own
-      // that frame when the paint's timestamp is newer than its sampled pose.
+      // that frame when the paint's timestamp is newer than its sampled pose. A
+      // following frame that kept an unchanged reading has not read this paint.
       if (
         frame === -1 ||
-        frames[frame + 1] ||
+        frames[frame + 1]?.complete ||
         presenting(entry) ||
         inputOwns(entry.startTime) ||
         inputOwns(frames[frame].at)
@@ -1190,7 +1661,8 @@
       });
     }
     judge(entries);
-  });
+  };
+  const observer = new PerformanceObserver((list) => received(list.getEntries()));
   observer.observe({ type: "layout-shift" });
   // Once two native frames and their task checkpoint complete, Chrome has painted
   // the work preceding `through`. Drain its native records before retiring that
@@ -1239,7 +1711,9 @@
     }
   };
   const drained = (through) => {
-    judge([...waiting.splice(0), ...observer.takeRecords()]);
+    judge(waiting.splice(0));
+    const records = observer.takeRecords();
+    if (records.length) received(records);
     retire(through);
   };
   // Paint checkpoints keep the ledger bounded by outstanding evidence, even on a
@@ -1267,6 +1741,9 @@
   // The fixture awaits actual paint and observer drainage. An outer hang watchdog
   // may fail this wait; no elapsed-time fallback can turn unfinished paint green.
   window.lfShiftsJudged = () => {
+    // The next unannounced frame is checked, so a test that ends before the
+    // periodic check still has its last change compared.
+    quiet = VERIFY - 1;
     const through = nativePerformance.now();
     const hidden = () => {
       // Hidden documents have no pending native paint. Their existing records are

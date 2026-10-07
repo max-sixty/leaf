@@ -5,15 +5,17 @@
    targets words. Alt-click, `s`, and a visual's “Respond to…” proxy are explicit
    Comment gestures. They pass a stable target from `aimTargetAt` or the visual provider
    into this surface. A whole item or picture names its authored id, while a visual part
-   adds its declared token. Comment opens the compact field; Tab or its ellipsis extends
-   that field with the other response margin entries. Tab, Shift-Tab, and the arrow keys then
+   adds its declared token. Comment opens the compact field; Tab from it, or `e` while it
+   stands unfocused, extends that field with the other response margin entries. Tab,
+   Shift-Tab, and the arrow keys then
    wrap through the visible margin entries. Escape folds the extension; Escape from the field
    hides the draft.
    The same anchor resolves both states against the target's geometry.
 
    The bar a selection or keyboard-selected addressable raises is `.lf-fab-bar`: the
-   durable, compact `.lf-fab-input` followed by one response ellipsis. An explicit
-   addressable target
+   durable, compact `.lf-fab-input`, which spans the bar so a sent message keeps the
+   card's whole measure. No control stands beside it: the other responses are reached
+   by key alone, on every pointer (composing/selection.js). An explicit addressable target
    opens and focuses that field. On desktop, selecting a passage leaves the field open
    but unfocused. Selection observed outside a completed page gesture offers Comment
    on selection in the banner, as does selection on touch screens;
@@ -58,7 +60,7 @@ import {
   registerBannerControl,
   showBannerControl,
 } from "../banner-toolbar.js";
-import { seenRect } from "../geometry.js";
+import { seenRect, underOccluder } from "../geometry.js";
 import { cancelRender, nextRender } from "../rendering.js";
 import {
   targetElement,
@@ -109,8 +111,9 @@ import {
 } from "./capture.js";
 import { repaint } from "../repaint.js";
 import { drawn, handBack, holdFocus, letGo, takesLetters } from "../focus.js";
-import { focused } from "../keyboard/scopes.js";
+import { commandScope, focused, projectCommandScope } from "../keyboard/scopes.js";
 import { shadowHost, under } from "../shadow.js";
+import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldAsk } from "../standing-target.js";
 
 import { coarsePointer, pointerAt } from "../pointer.js";
@@ -124,11 +127,10 @@ import { keeps } from "../keeps.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 
 export function createResponseSurface({
-  panelElements: { generalInput, panel, threadsBox, inPanel },
+  panelElements: { panel, threadsBox, inPanel },
   panelIsOpen,
   rememberSelection,
   landIn,
-  setPanel,
   threadHere,
   threadAtStanding,
   replyThreadAtStanding,
@@ -161,6 +163,7 @@ export function createResponseSurface({
   drawModeActive,
   refreshThread,
   dismissThreadView,
+  pageComment,
   responseHome,
   revealResponseHome = null,
   createPlacement = null,
@@ -220,6 +223,14 @@ export function createResponseSurface({
 
   function seatFab(outlet) {
     if (!(outlet instanceof Element) || !fabAnchor || !composerOpen) return false;
+    // A seat a panel stands over cannot take the user even where it paints: the panels
+    // dominate what focus reaches, so the editor stays at its home instead. The seat is
+    // judged, not the editor moved into it, which measures no width until the outlet
+    // renders it; a boxless outlet is judged by the box that lays out what it holds.
+    let seat = outlet;
+    while (seat && !(seat.getBoundingClientRect().width > 0))
+      seat = seat.parentElement ?? seat.getRootNode().host;
+    if (seat && underOccluder(seat)) return false;
     // Admit the actual editor after its native move: an empty or display:contents
     // outlet has no visibility of its own. A rejected nomination leaves the previous
     // seat, geometry and held typing place intact so the cohort can try its fallback.
@@ -791,16 +802,17 @@ export function createResponseSurface({
     });
   }
   let primaryPointerPressed = false;
-  // Whether the page's own words stood selected when the shortcut bar was last painted for
-  // this press. The bar waits for the release; the Escape rung cannot, because from the
-  // first glyph a drag takes, Escape clears the selection rather than letting go of the
-  // control the user is standing on, and until now nothing repainted the line inside a
-  // press — the word only became true when the frame the press itself scheduled happened
-  // to land after the drag had moved, and stayed a lie for a whole heartbeat when it
-  // landed before. Only the crossing is painted: a drag growing a selection that already
-  // stands says the same word, and repainting the chrome on every move of a drag would
-  // put a whole shared repaint inside every frame of one.
+  // Whether the page's own words stood selected when the shortcut bar was last painted.
+  // Escape owns the selection from its first glyph. Paint only that crossing, including
+  // a selection begun in a label whose pointer press is not a page-word gesture; growing
+  // a selection that already stands needs no repaint on each drag frame.
   let selectionStood = false;
+  const reflectSelectionStanding = () => {
+    const stands = Boolean(pageSelection());
+    if (stands === selectionStood) return;
+    selectionStood = stands;
+    repaint();
+  };
   // The page's own words this press began with, against the ones it ends holding: what
   // tells a gesture that took words from a press that merely landed in some (the click
   // door below). Read beside `selectionStood`, ahead of the browser's own collapse, for
@@ -884,6 +896,8 @@ export function createResponseSurface({
   // through a click all the more — a drawer any press removes cannot be watched while
   // working, which is the drawer's point. Each closes by its own button, its key, or Esc.
   function standDown(target) {
+    // A native modal owns its press; the composer behind it remains inert.
+    if (nativeLayers().some((layer) => layer.kind === "modal")) return;
     const visual = visualAt(target);
     const sameVisual =
       visual &&
@@ -993,11 +1007,7 @@ export function createResponseSurface({
         rememberPointerSelection();
         if (coarsePointer.matches && pointerSelecting && !selectionGestureClaimed)
           rememberSelection();
-        const stands = Boolean(pageSelection());
-        if (stands !== selectionStood) {
-          selectionStood = stands;
-          repaint();
-        }
+        reflectSelectionStanding();
         return;
       }
       // Focus and action handoffs own the captured target while the browser collapses
@@ -1012,6 +1022,7 @@ export function createResponseSurface({
       if (coarsePointer.matches && selection && !automatic)
         rememberSelection(selection);
       observeSelection();
+      reflectSelectionStanding();
     });
     document.addEventListener("mouseup", (ev) => {
       if (drawModeActive()) return;
@@ -1256,15 +1267,13 @@ export function createResponseSurface({
         box: fabInput,
         go: () => commentOnTarget(here),
       };
+    // The banner's Comment on the page goes to the same box: the card it hangs from
+    // itself, or Threads' general box while Threads is open
+    // (thread/page-comment.js).
     return {
       ...commenting("page"),
-      box: generalInput,
-      // Two steps down and two back: the box hands the user to the list it belongs
-      // to, and the panel hands them to the page.
-      go: () => {
-        setPanel(true);
-        generalInput.focus({ preventScroll: true });
-      },
+      box: pageComment.box(),
+      go: pageComment.open,
     };
   }
 
@@ -1279,8 +1288,9 @@ export function createResponseSurface({
   // c goes where commenting happens: a live selection gets the composer (what the floating
   // button does), an element click's pending 💬 gets that, an open thread the user is
   // standing in gets its own reply box, the item they are standing in gets the box
-  // belonging to it, and otherwise the page's general box. That box lives in Threads, but c
-  // names and focuses the box directly; g T independently names the list. Never the panel's
+  // belonging to it, and otherwise the page's general box: the card under the banner's
+  // Comment on the page, or Threads' own box while Threads is open. c names and focuses
+  // the box directly; g T independently names the list. Never the panel's
   // collapse: c doubled as the toggle once, so with the panel standing open the key that
   // promised “comment” answered “close”. Backing out is whatever the box is standing in.
   //
@@ -1313,20 +1323,26 @@ export function createResponseSurface({
     },
   });
 
+  // Tab opens responses from the editor, while attachments keep native traversal.
+  // Project this alongside the input owner's submit scope rather than replacing it.
+  const composerOptions = commandScope("In the composer", [
+    {
+      id: "comment.options",
+      keys: ["Tab"],
+      description: "Show other responses",
+      title: "other responses",
+      when: () => fabOptionsAvailable() && !responseOptionsAreOpen(),
+      run: () => showFabOptions(),
+    },
+  ]);
+  projectCommandScope(fabInput, composerOptions, composerOptions);
+
   // The composer's own rung is its own scope rather than the box's, because the box may not
   // have focus — the user clicked away and the composer still stands, holding their draft.
   pageScope("composer", {
     title: "In the composer",
     at: () => composerOpen && !placement?.withheld(),
     rows: [
-      {
-        id: "comment.options",
-        keys: ["Tab"],
-        description: "Show other responses",
-        title: "other responses",
-        when: () => fabOptionsAvailable() && !responseOptionsAreOpen(),
-        run: () => showFabOptions(),
-      },
       {
         id: "composer.close",
         keys: ["Escape"],

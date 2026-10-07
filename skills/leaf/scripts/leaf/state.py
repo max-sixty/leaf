@@ -2,10 +2,11 @@
 
 The standalone SessionEnd entry runs on system Python 3.9 without a managed
 Leaf environment. One atomic record owns harness lifetime, generation, turn identity
-and dated opening/ending evidence. Claims reference its generation; an ending
-invalidates them without page discovery, page locks or claim rewrites.
+and dated opening/ending evidence. Claims reference its generation; ending the
+generation invalidates them without page discovery, page locks or claim rewrites.
+Desktop instance unloading closes observations while retaining chat ownership.
 
-The session lock also serializes Codex delivery route reservation, making its
+The session lock also serializes Codex transport reservation, making its
 revision a compare-and-swap token for observations. Lock order is page then
 session. Session transitions never acquire page locks or call an external harness;
 only short state publications and reservations run under the session lock.
@@ -20,6 +21,7 @@ import json
 import os
 import secrets
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -37,9 +39,11 @@ def state_home_path() -> Path:
 
 
 # A session's files that end with it: hook capability and turn observations,
-# and its page servers' log of the thread titles they asked for.
+# whether it has claimed a page, and its page servers' log of the thread titles
+# they asked for.
 HOOKS_SUFFIX = "hooks"
 STEP_HOOK_SUFFIX = "step-hook"
+CLAIMED_SUFFIX = "claimed"
 SESSION_SUFFIX = "lifecycle"
 TITLES_SUFFIX = "titles.log"
 
@@ -70,7 +74,7 @@ def require_cross_process_locking() -> None:
 
 
 @contextlib.contextmanager
-def flocked(path: Path):
+def flocked(path: Path, *, deadline: float | None = None):
     """An exclusive lock held while the block runs — the one serialization
     primitive here. The log serializes appends, cursor and status updates, and
     claim and delivery transitions. Stable purpose locks serialize contract or service
@@ -83,18 +87,44 @@ def flocked(path: Path):
     an initialized page, so it is opened, never created, and it outlives the lock.
 
     A purpose lock's file is created on first use and remains after release.
-    Closing its descriptor releases the lock. Every acquired descriptor is checked
+    The block's end unlocks it before closing, since a subprocess another thread
+    starts meanwhile holds a copy of the descriptor until its exec, and closing
+    alone would keep the next taker waiting on that child (`release_lease`).
+    Every acquired descriptor is checked
     against its path, since a shared-path replacement while a taker waits must
     never let it enter a transaction on an inode other takers can no longer find.
-    This also covers a page replaced with a new event log."""
+    This also covers a page replaced with a new event log.
+
+    A `deadline`, a `time.monotonic()` reading, bounds the wait: a lock not taken
+    by then raises TimeoutError, for a taker that must finish by a harness's
+    deadline more than it must take the lock."""
     require_cross_process_locking()
     mode = "r+b" if path.name == EVENTS_FILE else "a+b"
     while True:
         with open(path, mode) as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
+            acquire(f, path, deadline)
             if still_named(f.fileno(), path):
-                yield f
+                try:
+                    yield f
+                finally:
+                    fcntl.flock(f, fcntl.LOCK_UN)
                 return
+
+
+def acquire(f, path: Path, deadline: float | None) -> None:
+    """Take `f`'s exclusive lock before `deadline` where one is given
+    (`flocked`); a deadline already past takes no lock at all."""
+    if deadline is None:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        return
+    while True:
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"{path} could not be acquired before the deadline")
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return
+        except BlockingIOError:
+            time.sleep(0.01)
 
 
 def still_named(held: int, path: Path) -> bool:
@@ -109,7 +139,7 @@ def still_named(held: int, path: Path) -> bool:
 
 
 def now_iso() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
+    return datetime.now().astimezone().isoformat(timespec="milliseconds")
 
 
 def fsync_parents(paths) -> None:
@@ -366,14 +396,26 @@ def prompt_turn(session_id: str, turn_id: str | None = None) -> dict | None:
 
 
 def close_session_turn(
-    session_id: str, turn_id: str | None = None, *, expected: dict | None | object = ...
+    session_id: str,
+    turn_id: str | None = None,
+    *,
+    expected: dict | None | object = ...,
+    ended_at: float | None = None,
 ) -> bool:
+    """Close the session's turn. `ended_at` is when the harness saw the turn end, in
+    POSIX seconds, for a close that reaches here later: a turn a prompt opened or
+    renewed since then is a newer one, which an unnamed close must not end."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if (
             record is None
             or record["ended"] is not None
             or (expected is not ... and record != expected)
+            or (
+                ended_at is not None
+                and record["turn_opened"] is not None
+                and datetime.fromisoformat(record["turn_opened"]).timestamp() > ended_at
+            )
         ):
             return False
         return advance_turn(session_id, turn_id, running=False) is not None
@@ -383,23 +425,70 @@ def end_session(session_id: str) -> None:
     """End one generation with no page discovery or page-lock acquisition.
 
     Claims referencing it become inactive by this one atomic write. A later
-    synchronous prompt or claim creates a new generation and cannot revive them.
+    synchronous prompt or claim creates a new generation and cannot revive them,
+    though while that generation runs the session may still record on such a page
+    what its task took or answered there (`service.claim_names_session`).
     Capability files are observations, not lifecycle authority, and retire here.
     """
     if not session_id:
         return
     with flocked(session_lock_path(session_id)):
-        record = session_record(session_id) or new_session(session_id, {})
-        ended = now_iso()
-        write_session({**record, "ended": ended, "turn_closed": ended})
-        for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, TITLES_SUFFIX):
-            session_file(session_id, suffix).unlink(missing_ok=True)
+        _end_session(session_id)
+
+
+def _end_session(session_id: str) -> None:
+    """Publish the ending while the caller holds the session lock."""
+    record = session_record(session_id) or new_session(session_id, {})
+    ended = now_iso()
+    write_session({**record, "ended": ended, "turn_closed": ended})
+    for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, CLAIMED_SUFFIX, TITLES_SUFFIX):
+        session_file(session_id, suffix).unlink(missing_ok=True)
+
+
+def end_harness_instance(session_id: str) -> None:
+    """End a process-backed session, or suspend a multiplexed desktop instance.
+
+    Desktop unloads an idle Codex instance while its chat remains available to
+    resume or receive queued input. Its activity-backed claims keep their generation
+    and expire from page use; unloading closes only turn and hook observations.
+    """
+    if not session_id:
+        return
+    with flocked(session_lock_path(session_id)):
+        record = session_record(session_id)
+        if record and record["lifetime"] == {"activity": "multiplexed"}:
+            if record["ended"] is None and record["turn_closed"] is None:
+                advance_turn(session_id, record["turn"], running=False)
+            for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX):
+                session_file(session_id, suffix).unlink(missing_ok=True)
+            return
+        _end_session(session_id)
+
+
+def hook_needed(payload: dict) -> bool:
+    """Whether a Codex hook has anything to do for its payload. Every hook but
+    the tool hook does. The tool hook offers input between steps, which only a
+    session that has claimed a page this generation can have; the mark
+    (`service.PageTransaction.publishing_claim`) stands until the generation ends, a
+    superset of the sessions holding one now.
+
+    Codex runs the hook synchronously after every tool call of every task the
+    plugin is installed in, and most hold no page, so `bin/leaf` asks this
+    before starting uv and importing the package: about 50 ms of CPU a call in
+    place of about 75 (measured on macOS)."""
+    return (
+        payload.get("hook_event_name") != "PostToolUse"
+        or session_file(payload.get("session_id") or "", CLAIMED_SUFFIX).exists()
+    )
 
 
 def main() -> None:
     payload = json.load(sys.stdin)
+    if sys.argv[1:] == ["hook-gate"]:
+        # 3 alone says "nothing to do": a failure here must not skip the hook.
+        sys.exit(0 if hook_needed(payload) else 3)
     if payload.get("hook_event_name") == "SessionEnd":
-        end_session(payload.get("session_id") or "")
+        end_harness_instance(payload.get("session_id") or "")
 
 
 if __name__ == "__main__":

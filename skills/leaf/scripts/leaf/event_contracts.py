@@ -29,6 +29,7 @@ from leaf.read_state import read_contract_error
 from leaf.registry.contract import (
     WRITERS,
     created_child,
+    detail_schema,
     event_spec,
     state_specs,
     verb_writer,
@@ -40,7 +41,8 @@ from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.served_state.thread import browser_thread
 from leaf.structure import review_mode
 from leaf.tasks import task_error
-from leaf.workflows import obligation_reading
+from leaf.work import widget_seat_error
+from leaf.workflows import admission_tasks, admission_workflows, obligation_reading
 
 # The envelope the append lease itself assigns. Admission validates the complete
 # record, so pre-admission shape checks supply representative envelope fields.
@@ -116,7 +118,7 @@ def declared_event_error(event: dict, tag: str, registry: dict):
         return f"<{tag}> does not declare {kind} verb {event['action']!r}" + (
             f"; it declares {declared}" if kind == "report" and declared else ""
         )
-    if message := schema_error(spec["detail"], event["detail"]):
+    if message := schema_error(detail_schema(entry, spec), event["detail"]):
         return f"<{tag}> {kind} {event['action']!r} detail is invalid: {message}"
     if message := schema_error(
         {"type": "array", "items": {"type": "string", "minLength": 1}},
@@ -169,16 +171,13 @@ def position_record_error(
     projected_holders: dict[str, dict],
 ):
     """Why a position record does not name one real relation owned by its sender."""
-    record = spec.get("record") or {}
-    if record.get("kind") != "position":
-        return None
-
-    unit_id = event["detail"][spec["unit"]]
+    record = spec["record"]
+    unit_id = event["detail"]["unit"]
     unit = by_id.get(unit_id)
     if unit is None:
-        return f"position record names unknown {spec['unit']} {unit_id!r}"
+        return f"position record names unknown unit {unit_id!r}"
 
-    target_id = event["detail"][record["value"]]
+    target_id = event["detail"]["value"]
     target = by_id.get(target_id)
     if target is None:
         return f"position record names unknown destination {target_id!r}"
@@ -187,7 +186,7 @@ def position_record_error(
             f"position record destination {target_id!r} is <{target['tag']}>, "
             f"not <{record['within']}>"
         )
-    rank = event["detail"][record["rank"]]
+    rank = event["detail"]["rank"]
     if not RANK.fullmatch(rank):
         return (
             f"position record rank {rank!r} is not a rank key: base-36 digits "
@@ -331,7 +330,6 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     # are the same frozen fragments, and parsing them twice was two readings that
     # could only ever agree.
     thread = readings.thread
-    thread_projection = thread.projection
     thread_by_id = thread.by_id
     if error := declared_action_error(event, document.by_id, thread_by_id, registry):
         return error
@@ -347,36 +345,47 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
             f"<{tag}> action {event['action']!r} creates {created[0]!r}, which "
             "already names an authored element"
         )
+    return record_contract_error(view, event, spec, readings, page_rec is not None)
+
+
+def record_contract_error(view, event, spec, readings, page_owned=True):
+    """Check either writer's effect against its owner's current projected members.
+
+    Reports always name page widgets. User actions may instead name frozen thread
+    markup; only page positions have a revision floor and a stale-rank check.
+    """
     record_kind = (spec.get("record") or {}).get("kind")
     if record_kind not in {"position", "attribute"}:
         return None
-
-    if page_rec:
-        reading = readings.page(revision)
+    registry = readings.registry
+    if page_owned:
+        reading = readings.page(event["revision"])
         if record_kind == "position" and (
             stale := stale_move_error(view, event, spec, reading, readings)
         ):
             return stale
-        projection, parser, spk = reading.projection, reading.document, reading.spoken
-        byid = parser.by_id
-        current = parser.by_id[event["widget"]]
+        projection, byid, spk = (
+            reading.projection,
+            reading.document.by_id,
+            reading.spoken,
+        )
     else:
-        # Thread markup is frozen in the log: it has no version retraction floor
-        # and its actions read the whole thread window.
-        projection, byid, spk = thread_projection, thread_by_id, thread.spoken
-        current = byid[event["widget"]]
+        thread = readings.thread
+        projection, byid, spk = thread.projection, thread.by_id, thread.spoken
 
-    holders = projected_action_holders(projection, byid, registry)
-    if error := position_record_error(event, spec, current, byid, registry, holders):
-        return f"<{tag}> action {event['action']!r} is invalid: {error}"
+    current = byid[event["widget"]]
+    prefix = f"<{current['tag']}> {event['kind']} {event['action']!r} is invalid"
+    if record_kind == "position":
+        holders = projected_action_holders(projection, byid, registry)
+        if error := position_record_error(
+            event, spec, current, byid, registry, holders
+        ):
+            return f"{prefix}: {error}"
     if record_kind == "attribute":
         members = record_members(event["widget"], projection, byid, spk, registry)
-        named = event["detail"][spec["record"]["value"]]
+        named = event["detail"]["value"]
         if strangers := sorted(set(named) - members):
-            return (
-                f"<{tag}> action {event['action']!r} is invalid: {strangers} name no "
-                f"member of {event['widget']!r}"
-            )
+            return f"{prefix}: {strangers} name no member of {event['widget']!r}"
     return None
 
 
@@ -392,7 +401,7 @@ def stale_move_error(view, event: dict, spec: dict, reading, readings):
     if revision == newest:
         return None
     record = spec["record"]
-    owner, container = event["widget"], event["detail"][record["value"]]
+    owner, container = event["widget"], event["detail"]["value"]
     registry = readings.registry
     now = readings.page(newest)
     if authored_positions(
@@ -402,17 +411,17 @@ def stale_move_error(view, event: dict, spec: dict, reading, readings):
     ).get(container):
         return None
     return Refusal(
-        f"action {event['action']!r} on {owner!r} was made on r{revision}, and "
+        f"{event['kind']} {event['action']!r} on {owner!r} was made on r{revision}, and "
         f"r{newest} authors {container!r} differently, so its rank no longer "
         "names the gap it was dropped into",
         "The page changed while you moved this; move it again.",
     )
 
 
-def report_contract_error(event: dict, page, registry: dict):
-    """Why a structurally complete report violates its widget's declaration —
-    an action's `action_contract_error` for the kind only an agent sends. Page
-    markup only, never a reply's: a report has to be answerable, and thread
+def declared_report_error(event: dict, page, registry: dict):
+    """Why a report violates its declaration or names a non-page widget.
+
+    Page markup only, never a reply's: a report has to be answerable, and thread
     markup is frozen in the log, so no version could ever absorb or overrule one
     made there."""
     rec = page.by_id.get(event["widget"])
@@ -499,10 +508,16 @@ def _action_error(view, event: dict, readings: AdmissionReadings):
     return action_contract_error(view, event, readings)
 
 
-def _report_error(view, event: dict, registry: dict) -> str | None:
+def _report_error(view, event: dict, readings: AdmissionReadings) -> str | None:
     if event["kind"] != "report":
         return None
-    return report_contract_error(event, view.document(event["revision"]), registry)
+    registry = readings.registry
+    document = view.document(event["revision"])
+    if error := declared_report_error(event, document, registry):
+        return error
+    tag = document.by_id[event["widget"]]["tag"]
+    spec = registry[tag]["x-state"][event["action"]]
+    return record_contract_error(view, event, spec, readings)
 
 
 def _reaction_error(event: dict, registry: dict) -> str | None:
@@ -602,7 +617,7 @@ def admission_error(
         or _revision_error(view, event)
         or _approval_error(view, event, events, registry)
         or _action_error(view, event, readings)
-        or _report_error(view, event, registry)
+        or _report_error(view, event, readings)
         or _reaction_error(event, registry)
         or _anchored_comment_error(view, event, registry)
         or _parent_error(event, events)
@@ -610,21 +625,61 @@ def admission_error(
         or _reanchor_error(view, event, events)
         or read_contract_error(event, events)
         or _withdrawal_error(view, event, events, readings)
-        or _task_error(view, event, events)
+        or _task_error(view, event, events, readings)
     )
 
 
-def _task_error(view, event: dict, events: list) -> str | None:
-    """A task stands on an open thread, and an outcome ends a task still open
-    (`tasks.task_error`)."""
-    if event["kind"] not in {"task", "task_end"}:
+def _task_error(view, event: dict, events: list, readings) -> str | None:
+    """A task stands on an open thread, a widget that seats work or an element, or the
+    page, and a task on the user on no Ask, which already is one; an outcome ends a
+    task still open as its `ends` allows; a start names an open task or a move the
+    agent owes (`tasks.task_error`)."""
+    if event["kind"] not in {"task", "task_end", "start"}:
         return None
+    workflows = admission_workflows(readings)[0] if event["kind"] != "task_end" else []
     threads = (
         build_threads(events, view.within, withdrawn=taken_back(events))
         if event["kind"] == "task"
         else {}
     )
-    return task_error(event, events, threads)
+
+    def seat_error(widget: str) -> str | None:
+        if not view.revisions:
+            return f"{widget!r} is not a widget on this page"
+        return widget_seat_error(readings.page(view.revisions[-1]), widget, workflows)
+
+    def element_error(element: str) -> str | None:
+        if (
+            not view.revisions
+            or element not in readings.page(view.revisions[-1]).document.ids
+        ):
+            return f"{element!r} is not an element on this page"
+        return None
+
+    def user_widget_error(widget: str) -> str | None:
+        if error := element_error(widget):
+            return error
+        asks = read_document(readings.page(view.revisions[-1]), threads).asks["all"]
+        if ask := next(
+            (ask for ask in asks if widget in (ask["id"], ask["source"])), None
+        ):
+            return (
+                f"{widget!r} is an Ask, which already is a task on the user, under "
+                f"{ask['id']!r}, and ends when its widget answers it"
+            )
+        return None
+
+    owed = {item["input"] for item in workflows if item["next_actor"] == "agent"}
+    return task_error(
+        event,
+        events,
+        threads,
+        seat_error=seat_error,
+        element_error=element_error,
+        user_widget_error=user_widget_error,
+        owed=owed,
+        tasks=lambda: admission_tasks(readings),
+    )
 
 
 def _publication_error(view, event: dict) -> str | None:
@@ -677,6 +732,10 @@ def admitted_event(view, events: list, event: dict) -> dict:
         raise EventRefused(error)
     if kind in WIDGET_KINDS:
         event = admit_widget_event(view.document(event["revision"]), event, readings)
+    if kind == "task" and event["subject"]["kind"] == "widget":
+        # The revision the task was opened against, which the stamp that completes
+        # it must come after (`publishing`).
+        event = {**event, "revision": view.revisions[-1]}
     # Fold only a validated event. Attention is server-owned and boolean by
     # construction; the placeholder completes the stored shape before that fold.
     if error := event_record_error(
@@ -694,16 +753,13 @@ def admitted_event(view, events: list, event: dict) -> dict:
             **event,
             "seq": events[-1]["seq"] + 1 if events else 1,
         }
-        claims = view.claims
         # The sender's vocabulary validates its command; the active vocabulary
         # decides what that command changes for the page the agent owes now.
         revisions = view.revisions
         active_registry = view.registry(revisions[-1] if revisions else None)
         before = AdmissionReadings(view, events, active_registry)
         after = AdmissionReadings(view, [*events, candidate], active_registry)
-        attention = obligation_reading(before, claims) != obligation_reading(
-            after, claims
-        )
+        attention = obligation_reading(before) != obligation_reading(after)
     event = {**event, "attention": attention}
     return event
 

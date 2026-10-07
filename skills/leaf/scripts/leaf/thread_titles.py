@@ -5,22 +5,34 @@ A thread's title is a `thread_title` event, and an agent that answers with `leaf
 thread reply` names an untitled thread on that reply, as its delivery's handling
 asks. That reply comes when the agent's work does, which can be minutes, and a turn
 Leaf starts over App Server writes its reply with its own messages, so it has no
-command to put a title on at all. So Leaf asks for a title itself, where the harness's
-model is in reach:
+command to put a title on at all. So Leaf asks for a title itself, as soon as it can
+reach the harness's model:
 
-- a Claude Code session's page server, as the user's comment opening the thread is
-  admitted (`name_opened_thread`), through a `claude -p` Haiku request
-  (`claude_code_title`);
-- an App Server carrier, the website's or `leaf codex start`'s, as it starts the
-  turn answering the thread (`name_untitled_threads`), through an ephemeral thread
-  on that server (`app_server_title`). The page server cannot reach that server.
+- a page server, as the user's comment or reply in the untitled thread is admitted
+  (`name_admitted_thread`), through the generator the claimant's harness supplies
+  (`Harness.title_generator`): a `claude -p` Haiku request for Claude Code
+  (`claude_code_title`), and an App Server of its own for Codex (`codex_title`),
+  whichever transport carries the task's turns;
+- the website's host, as the Worker dispatches the user's move in the untitled
+  thread to it (`name_thread`), through an ephemeral thread on the App Server it owns
+  (`app_server_title`), whether the move starts a turn or waits for a running one
+  to end. Its page server cannot: the page has no claim before the first turn, and
+  the claim does not say how to reach that server.
 
-Both harnesses are sent the same request (`title_request`): a system prompt saying to
+A Codex title waits for no turn, so a thread opened while the task is busy, or on a
+task whose App Server Leaf cannot reach, is named as promptly as one opened while it
+is idle. The page server starts an App Server for the request rather than running
+`codex exec`, so Codex is asked in one way wherever it is reached
+(`app_server_title`), and the server says which MCP servers to turn off by name
+(`config/read`). Starting and stopping it took 0.1–0.3 s of the 3.9–5.2 s a title
+took (codex-cli 0.160, load average about 35).
+
+Every harness is sent the same request (`title_request`): a system prompt saying to
 title the thread, then the passage the thread is on and its first spoken message,
 each between tags of its own, and a last line asking for the title. That is the
 request's whole context: none of the task's transcript, and none of the tools or
-the context the harness loads by default. Both answer in the same schema. The request
-runs beside the agent's work and never delays it.
+the context the harness loads by default. Each answers in the same schema. The
+request runs beside the agent's work and never delays it.
 
 The title is written as the session that holds the page's claim, and only while the
 thread is still untitled (`thread.name_untitled`), so a name the agent gave first
@@ -44,6 +56,7 @@ from .codex import (
     app_server_connect,
     app_server_handshake,
     app_server_request,
+    private_app_server,
 )
 from .event_log import EventRefused
 from .events import build_threads, spoken_turns
@@ -52,6 +65,7 @@ from .leases import titles_log
 from .revision_artifact import active_enclosing
 from .service import PageTransaction
 from .thread import name_untitled
+from .thread_context import thread_names
 
 INSTRUCTIONS = (
     "You write titles for discussion threads on a page. Each request holds a "
@@ -78,7 +92,9 @@ OUTPUT_SCHEMA = {
 TIMEOUT = 60
 # App Server: a title needs no tools either, and the working directory's AGENTS.md
 # says nothing about one. With a shell, the model sometimes acted on a message that
-# asks for work instead of naming it. Low effort rather than Worktrunk's `none`,
+# asks for work instead of naming it. Nor does it run the user's hooks: with the
+# feature on, a title thread ran a config's UserPromptSubmit and Stop hooks, which
+# here retitle the user's terminal tab. Low effort rather than Worktrunk's `none`,
 # which not every model a task configures accepts; neither reasoned on a title.
 APP_SERVER_EFFORT = "low"
 TITLE_CONFIG = {
@@ -89,6 +105,7 @@ TITLE_CONFIG = {
             feature: False
             for feature in (
                 "code_mode_host",
+                "hooks",
                 "shell_tool",
                 "sleep_tool",
                 "unified_exec",
@@ -104,6 +121,11 @@ TITLE_CONFIG = {
     "project_doc_max_bytes": 0,
     "model_reasoning_effort": APP_SERVER_EFFORT,
 }
+# A Codex title server: with plugins on, a server syncs every plugin marketplace the
+# user configured as it starts, which here ran `git ls-remote` on four repositories
+# and cloned one into the user's Codex home for every title. The thread turns
+# plugins off too (`LEAF_THREAD_CONFIG`), but that reaches no further than the thread.
+TITLE_SERVER_ARGUMENTS = ("--disable", "plugins")
 # Claude Code: the command Worktrunk gives for commit messages
 # (https://worktrunk.dev/llm-commits/), which also runs with MAX_THINKING_TOKENS=0.
 # Safe mode leaves out the user's CLAUDE.md, plugins, hooks, MCP servers and skills
@@ -111,6 +133,11 @@ TITLE_CONFIG = {
 # from overriding that auth. Thinking took Haiku's request from 1–2 s to 3–7 s, for
 # no better titles. Worktrunk's empty system prompt becomes `INSTRUCTIONS`, and its
 # plain-text answer the schema.
+#
+# The model answers in 1–2 s, and the rest of a request is `claude` starting and
+# exiting, which a busy machine stretches many times over. Without the nonessential
+# traffic Claude Code makes for an interactive session, the request took 8.4 s
+# rather than 15.8 s at a load average of 200, the median of four interleaved pairs.
 CLAUDE_CODE_COMMAND = (
     "-p",
     "--no-session-persistence",
@@ -119,6 +146,10 @@ CLAUDE_CODE_COMMAND = (
     "--safe-mode",
     "--setting-sources=user",
 )
+CLAUDE_CODE_ENVIRONMENT = {
+    "MAX_THINKING_TOKENS": "0",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+}
 
 Record = Callable[..., None]
 # How much of the passage and of the message a request carries: the first this many
@@ -128,21 +159,28 @@ EXCERPT_LIMIT = 2000
 Generate = Callable[[str, Path], dict]
 
 
-def title_request(page_dir: Path, thread_id: str) -> str:
-    """What a harness is asked for a thread's title: the passage the thread is on and
-    its first spoken message, each between its own tags, then `ASK`. Empty when the
-    thread has neither, as one a drawing opened and nobody has written in yet."""
+def title_request(page_dir: Path, message: str) -> tuple[str, str] | None:
+    """The thread `message` is in, and what a harness is asked for its title: the
+    passage the thread is on and its first spoken message, each between its own
+    tags, then `ASK`. The request is empty when the thread has neither, as one a
+    drawing or a reaction opened and nobody has written in yet. None when `message`
+    is in no untitled thread, as for a widget's move or a thread named already.
+
+    Any message in the thread can ask, so a thread whose first words come in a reply
+    to a reaction is named on that reply, and a request that failed is made again
+    on the thread's next message."""
     with PageTransaction(page_dir) as page:
         events = page.events
-    thread = build_threads(events, active_enclosing(page_dir))[thread_id]
+    thread_id = thread_names(events).get(message)
+    thread = build_threads(events, active_enclosing(page_dir)).get(thread_id)
+    if thread is None or thread["title"] is not None:
+        return None
     parts = []
     if quote := (thread["anchor"] or {}).get("quote"):
         parts.append(f"<passage>\n{quote[:EXCERPT_LIMIT]}\n</passage>")
     if opening := next((m for m in spoken_turns(thread) if m.get("text")), None):
         parts.append(f"<message>\n{opening['text'][:EXCERPT_LIMIT]}\n</message>")
-    if not parts:
-        return ""
-    return "\n\n".join([*parts, ASK])
+    return thread_id, "\n\n".join([*parts, ASK]) if parts else ""
 
 
 def claude_code_title(request: str, page_dir: Path) -> dict:
@@ -172,7 +210,7 @@ def claude_code_title(request: str, page_dir: Path) -> dict:
             "--output-format",
             "json",
         ],
-        env=env | {"MAX_THINKING_TOKENS": "0"},
+        env=env | CLAUDE_CODE_ENVIRONMENT,
         input=request,
         capture_output=True,
         text=True,
@@ -192,6 +230,9 @@ def claude_code_title(request: str, page_dir: Path) -> dict:
     return {
         "title": answer["structured_output"]["title"].strip(),
         "durationMs": round((time.monotonic() - started) * 1000),
+        # The model's share of `durationMs`; the rest is `claude` starting and
+        # exiting, which a busy machine stretches and the model does not.
+        "apiDurationMs": answer["duration_api_ms"],
         "inputTokens": usage["input_tokens"],
         "outputTokens": usage["output_tokens"],
     }
@@ -289,6 +330,35 @@ def app_server_title(endpoint: str, model: str | None) -> Generate:
     return generate
 
 
+def codex_title(request: str, page_dir: Path) -> dict:
+    """Ask Codex for a title through an App Server of the request's own, started from
+    the `codex` on PATH on the user's own login and configuration, and stopped once
+    it answers.
+
+    The page server's environment is that of whichever session started it, so the
+    server is given none of that session's identity."""
+    executable = shutil.which("codex")
+    if executable is None:
+        raise FileNotFoundError("no `codex` on PATH")
+    started = time.monotonic()
+    env = {
+        name: value
+        for name, value in os.environ.items()
+        if name not in IDENTITY_VARIABLES
+    }
+    with private_app_server(
+        executable, env=env, arguments=TITLE_SERVER_ARGUMENTS
+    ) as endpoint:
+        reading = app_server_title(endpoint, None)(request, page_dir)
+    return {
+        **reading,
+        # The request's share of `durationMs`; the rest is the server starting and
+        # stopping.
+        "requestMs": reading["durationMs"],
+        "durationMs": round((time.monotonic() - started) * 1000),
+    }
+
+
 def write_title(page_dir: Path, thread: str, title: str, session_id: str) -> bool:
     """Name `thread` as the page's claimant, unless it has a name or another
     claimant; whether the name was written."""
@@ -303,12 +373,16 @@ def write_title(page_dir: Path, thread: str, title: str, session_id: str) -> boo
 def _name_thread(
     generate: Generate,
     page_dir: Path,
-    thread: str,
+    message: str,
     session_id: str,
     record: Record,
 ) -> None:
+    thread = message
     try:
-        request = title_request(page_dir, thread)
+        asked = title_request(page_dir, message)
+        if asked is None:
+            return
+        thread, request = asked
         if not request:
             record("thread_title_skipped", thread=thread)
             return
@@ -331,50 +405,28 @@ def _name_thread(
     record("thread_title_generated", thread=thread, written=written, **reading)
 
 
-def _start(
+def name_thread(
     generate: Generate,
     page_dir: Path,
-    thread: str,
+    message: str,
     session_id: str,
     record: Record,
 ) -> None:
+    """Start naming the thread `message` is in as `session_id`, if it is untitled
+    (`title_request`), on a daemon thread of its own, and return at once."""
     threading.Thread(
         target=_name_thread,
-        args=(generate, page_dir, thread, session_id, record),
+        args=(generate, page_dir, message, session_id, record),
         name="leaf-thread-title",
         daemon=True,
     ).start()
 
 
-def untitled_threads(payload: dict) -> list[tuple[Path, str]]:
-    """Each untitled thread the delivery's turn answers, as (page, thread)."""
-    found = []
-    for batch in payload["batches"]:
-        titles = {thread["id"]: thread["title"] for thread in batch["threads"]}
-        for event in batch["events"]:
-            if event.get("answer", {}).get("kind") != "turn":
-                continue
-            for thread in event["threads"]:
-                named = (Path(batch["page"]), thread)
-                if thread in titles and titles[thread] is None and named not in found:
-                    found.append(named)
-    return found
-
-
-def name_untitled_threads(
-    generate: Generate, payload: dict, session_id: str, record: Record
+def name_admitted_thread(
+    generate: Generate, page_dir: Path, message: str, session_id: str
 ) -> None:
-    """Start naming each untitled thread the delivery's turn answers, one daemon
-    thread apiece, and return at once."""
-    for page_dir, thread in untitled_threads(payload):
-        _start(generate, page_dir, thread, session_id, record)
-
-
-def name_opened_thread(
-    generate: Generate, page_dir: Path, thread: str, session_id: str
-) -> None:
-    """Start naming the thread a user's comment just opened, and return at once.
-    What happens is recorded in the claimant session's `titles_log`, since a page
+    """Start naming the thread a user's comment or reply `message` was just admitted
+    to, if it is untitled, and return at once. What happens is recorded in the claimant session's `titles_log`, since a page
     server's own output goes nowhere."""
     log = titles_log(session_id)
 
@@ -392,4 +444,4 @@ def name_opened_thread(
                     json.dumps({**line, "page": str(page_dir), **fields}) + "\n"
                 )
 
-    _start(generate, page_dir, thread, session_id, record)
+    name_thread(generate, page_dir, message, session_id, record)

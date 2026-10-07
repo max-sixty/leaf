@@ -16,7 +16,9 @@ Options:
 ## leaf delivery read --help
 Usage: leaf delivery read [OPTIONS] DELIVERY_ID
 
-  Print DELIVERY_ID with its complete batches and response requirements.
+  Print DELIVERY_ID with its complete batches and response requirements. Where a
+  harness's hook offered it to this session as a pointer, reading it confirms
+  it, so the user's moves read Picked up.
 
 Options:
   --help  Show this message and exit.
@@ -60,25 +62,18 @@ Options:
   --help             Show this message and exit.
 
 ## leaf status --help
-Usage: leaf status [OPTIONS] PAGE {working|waiting|idle} [DETAIL]
+Usage: leaf status [OPTIONS] PAGE {waiting|idle} [DETAIL]
 
-  Set the agent's banner state.
+  Say the page waits on its user, or that you are done with it.
 
-  Use working with DETAIL, required, naming your current work and its subject,
-  or waiting with the answer you want from the user. Waiting without DETAIL
-  invites text comments. Use idle when finished; unacknowledged input and
-  unanswered user moves prevent it.
-
-  With working, --on names an open thread, by any message in it, or a widget:
-  whatever a delivered event gives as its address, which then reads Working. The
-  user sees DETAIL beside that subject as well as in the banner. Your next reply
-  ends a thread claim; `leaf page stamp --completes` ends a widget claim. Renew
-  the status as work changes: a claim left after your turn ends, or without
-  updates, eventually reads as stalled.
+  Use waiting with DETAIL naming the answer you want from the user; waiting
+  without DETAIL invites text comments. Either puts down every item you started
+  before it. Use idle when finished; unacknowledged input, unanswered user moves
+  and open tasks prevent it. Work in hand is no status: name it with `leaf task
+  start`.
 
 Options:
-  --on SUBJECT  The open thread or widget this work is about.
-  --help        Show this message and exit.
+  --help  Show this message and exit.
 
 ## leaf thread open --help
 Usage: leaf thread open [OPTIONS] PAGE
@@ -110,6 +105,10 @@ Usage: leaf thread reply [OPTIONS] PAGE [THREAD]
   message in it, posts a new agent message there instead, refused while that
   thread owes a reply.
 
+  --ephemeral posts progress without answering. On a move you owe, it also takes
+  the move in hand as `leaf task start` does, with its one line as the Working
+  line.
+
   --quote, --section, and --part move the thread's current anchor; --detach
   removes it when the subject leaves the page. The original anchor stays in the
   log. A reply validates and activates any changed source before posting.
@@ -124,8 +123,8 @@ Options:
   --text TEXT     reply text (default: stdin)
   --markup TEXT   widget markup to render after the text, validated here
   --awaits        the reply's prose asks the user a question
-  --ephemeral     progress update; folds when the next ordinary agent reply
-                  arrives
+  --ephemeral     progress update; on a move you owe, one line that takes it in
+                  hand. Folds when the next ordinary agent reply arrives
   --title TEXT    name the thread for the panel unless it has a name: a few
                   words, at most 80 characters
   --help          Show this message and exit.
@@ -164,9 +163,10 @@ Usage: leaf page report [OPTIONS] PAGE WIDGET VERB [NAME=VALUE]...
   Report a state change onto a page widget, as a worker.
 
   The verb and its fields are the widget's own agent-written x-state verb \u2014
-  `leaf page report <page> t-parser status status=review` moves a task. The page
-  paints the report live as provisional news; it stands until a version absorbs
-  or overrules it, and the page's watcher wakes to fold it in.
+  `leaf page report <page> t-parser status value=review text="Ready for review"`
+  moves a task. The page paints the report live as provisional news; it stands
+  until a version absorbs or overrules it, and the page's watcher wakes to fold
+  it in.
 
 Options:
   --help  Show this message and exit.
@@ -191,11 +191,12 @@ Usage: leaf page stamp [OPTIONS] PAGE
   Stamp PAGE/index.html with a changelog.
 
   Checks the exact source first, then records it as the next public version.
-  Repeat --completes for each active widget work claim this version completes. A
-  widget claim otherwise survives unrelated versions, and a version cannot
-  silently remove its page target.
+  Repeat --completes for each widget whose open tasks this version completes,
+  which ends them done, citing the version. A task on a widget otherwise
+  survives unrelated versions, and a version cannot silently remove its widget.
 
 Options:
   --text TEXT         changelog text (default: stdin)
-  --completes WIDGET  active widget work this version completes (repeatable)
+  --completes WIDGET  a widget whose open tasks this version completes
+                      (repeatable)
   --help              Show this message and exit.

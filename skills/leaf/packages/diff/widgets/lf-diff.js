@@ -12,15 +12,18 @@
  * clears this widget's file filter; addressed datum reveal also hydrates its file. */
 import {
   DISCLOSE,
+  HOLDS_WORD,
   announce,
   beginWalk,
   dataBody,
   failSoft,
+  ensureSyntaxLanguage,
   focusDestination,
   focused,
   holdFocus,
   inChrome,
   inBaseLayer,
+  isPagePaint,
   commands,
   keeps,
   keepsText,
@@ -29,22 +32,25 @@ import {
   loadDeferred,
   listWalkPosition,
   offer,
+  once,
   paintKeys,
   projectData,
-  consumeThreads,
+  placeThreads,
   relabel,
   retainUserIntent,
   scrollBehavior,
   scrollIntoReadingBand,
   setChildren,
   shadowStage,
+  sizeObserver,
   notice,
   widgetController,
   watchData,
+  watchOwner,
 } from "/runtime/widget-api.js";
 import "../vendor/webawesome.esm.js";
-// Pierre's renderer is by far the largest thing a Leaf page can pull, and only a diff
-// that is actually rendering has any use for it — an authored <lf-diff> bound to data
+// Only a diff that is actually rendering has any use for Pierre's renderer —
+// an authored <lf-diff> bound to data
 // that has not arrived yet does not. So it is imported on first use rather than at
 // module load: the page pays for the renderer when it draws a diff, and a version whose
 // diff has been taken back out stops paying on the next load. The promise is kept, so
@@ -60,40 +66,19 @@ const OPTIONS = Object.freeze({
   hunkSeparators: "line-info-basic",
   lineDiffType: "word-alt",
   overflow: "scroll",
-  theme: { light: "github-light", dark: "github-dark" },
 });
 
-// Pierre's two fixed Shiki themes are reduced to the same small role vocabulary
-// lf-code uses. The diff geometry and inline spans remain Pierre's; Leaf's theme
-// keeps syntax ink consistent across the two code surfaces.
-const TOKEN_ROLES = new Map([
-  ["#6A737D/#6A737D", "cm"],
-  ["#D73A49/#F97583", "kw"],
-  ["#032F62/#9ECBFF", "st"],
-  ["#032F62/#DBEDFF", "st"],
-  ["#005CC5/#79B8FF", "nu"],
-  ["#6F42C1/#B392F0", "fn"],
-  ["#22863A/#85E89D", "ty"],
-  ["#E36209/#FFAB70", "ty"],
-  ["#B31D28/#FDAEB7", "kw"],
-]);
-
-function adoptSyntaxRoles(root) {
-  for (const token of root.querySelectorAll("[style*='--diffs-token-light']")) {
-    const light = token.style
-      .getPropertyValue("--diffs-token-light")
-      .trim()
-      .toUpperCase();
-    const dark = token.style
-      .getPropertyValue("--diffs-token-dark")
-      .trim()
-      .toUpperCase();
-    const role = TOKEN_ROLES.get(`${light}/${dark}`);
-    token.style.removeProperty("--diffs-token-light");
-    token.style.removeProperty("--diffs-token-dark");
-    if (!token.style.length) token.removeAttribute("style");
-    if (role) token.dataset.lfSyn = role;
-  }
+// Keep Pierre's Shiki styles intact. The marker lets the render gate inspect
+// themed glyphs without prescribing their colors or translating them into roles.
+function markSyntax(root, foreground) {
+  for (const token of root.querySelectorAll("span[style]"))
+    if (
+      (token.style.color && token.style.color !== foreground) ||
+      token.style.fontStyle ||
+      token.style.fontWeight ||
+      token.style.textDecoration
+    )
+      token.dataset.lfSyn = "";
 }
 
 const changeCounts = (file) =>
@@ -170,8 +155,12 @@ const fileDatum = (entry, origin = null) => ({
   node: fileNode(entry),
   ...(origin ? { origin } : {}),
 });
-const datumKey = (record) => (record.file ? fileKey(record) : lineKey(record));
-const datumLabel = (record) => (record.file ? fileLabel(record) : lineLabel(record));
+const projectionDatum = (record) => ({
+  node: record.node,
+  key: record.file ? fileKey(record) : lineKey(record),
+  label: record.file ? fileLabel(record) : lineLabel(record),
+  ...(record.origin ? { origin: record.origin } : {}),
+});
 
 function renderedLines(file, rendered) {
   const records = sourceLines(file);
@@ -201,16 +190,13 @@ function renderedLines(file, rendered) {
 }
 
 // A path is its folders and then the file's own name, each a span, so a row too narrow
-// for the whole path gives way from the folders and keeps the name (shadow.css). Where
+// for the whole path gives way from the folders before the name (shadow.css). Where
 // a path wraps, as in a rename's row, it breaks after its slashes before anywhere else:
 // with no break in it but the one the stylesheet forces, a narrow row cut names mid-word
 // ("skills/wor|ktrunk", "preview.|rs"). The text is unchanged; a <wbr> adds only the
-// opportunity, and the title holds the whole path wherever the row cuts it.
+// opportunity.
 function pathNode(className, path) {
-  const node = Object.assign(document.createElement("span"), {
-    className,
-    title: path,
-  });
+  const node = Object.assign(document.createElement("span"), { className });
   const parts = path.split("/");
   const base = parts.pop();
   if (parts.length) {
@@ -229,12 +215,55 @@ function pathNode(className, path) {
   return node;
 }
 
+// While a file's row cuts its path short, the row wears `data-path-cut`, which draws the
+// whole path for the keyboard and a held press (shadow.css), and the path's title holds
+// it for a pointer resting there. A path the row shows whole has neither, since each
+// would repeat it. Whether the row cuts the path changes only with the width of a part
+// of it, the folders or the name (at a new window width, face or press beside it), so
+// each part's size is watched rather than polled. A part is cut where its words run
+// past its box, measured by a Range to the layout unit: `scrollWidth` rounds to whole
+// pixels, and the ellipsis is drawn for a fraction of one.
+//
+// One observer watches every file's row, so a delivery reads every row it names before
+// writing any. A row is watched from when it becomes its file's row (`fileRow`,
+// `replaceFileRendering`) until another replaces it; a fresh rendering whose content
+// goes into the kept row (`replaceFileContent`) brings a row that is never watched. A
+// row that leaves the page with its file or its diff is not unwatched: an observer
+// holds what it watches weakly, so the row is collected with its observation.
+const runsPast = (part) => {
+  const words = new Range();
+  words.selectNodeContents(part);
+  return words.getBoundingClientRect().width > part.getBoundingClientRect().width;
+};
+const pathParts = (details) =>
+  details?.matches("details")
+    ? [...details.firstElementChild.querySelector(".lf-diff-path").children]
+    : [];
+const pathSizes = sizeObserver((entries) => {
+  const paths = new Set(entries.map(({ target }) => target.parentElement));
+  const readings = [...paths].map((path) => [path, [...path.children].some(runsPast)]);
+  for (const [path, cut] of readings) {
+    path.parentElement.toggleAttribute("data-path-cut", cut);
+    keeps(path, "title", cut ? path.textContent : null);
+  }
+});
+function watchPathCut(details) {
+  for (const part of pathParts(details)) pathSizes.observe(part);
+}
+function unwatchPathCut(details) {
+  for (const part of pathParts(details)) pathSizes.unobserve(part);
+}
+
 function summaryNode(file, open) {
   const details = document.createElement("details");
   details.className = "lf-diff-fold";
   details.open = open;
+  // The row's path gives way from its folders, so a row that cuts it short says the
+  // whole path (`watchPathCut`), and a press held on the row reads it as the keyboard
+  // standing there does (held-word.js). It says `data-path`: the path with a zero-width
+  // space after each slash, since generated content takes no <wbr>.
   const summary = document.createElement("summary");
-  summary.className = "lf-diff-head";
+  summary.className = `lf-diff-head ${HOLDS_WORD}`;
   const path = file.name || "(unnamed file)";
   const { adds, dels } = changeCounts(file);
   const stat = Object.assign(document.createElement("span"), {
@@ -242,7 +271,9 @@ function summaryNode(file, open) {
     textContent: `+${adds} −${dels}`,
   });
   stat.dataset.lfGen = "1";
-  summary.append(pathNode("lf-diff-path", path), stat);
+  const named = pathNode("lf-diff-path", path);
+  named.dataset.path = path.replaceAll("/", "/\u200b");
+  summary.append(named, stat);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",
@@ -269,6 +300,7 @@ function fileRow(row) {
   actions.className = "lf-diff-file-actions lf-ui";
   actions.dataset.lfGen = "1";
   file.append(actions, row);
+  watchPathCut(row);
   return file;
 }
 
@@ -320,8 +352,10 @@ function holdFileFocus(entry, outlets) {
 
 function replaceFileRendering(entry, rendered, outlets) {
   const restore = holdFileFocus(entry, outlets);
+  unwatchPathCut(entry.details);
   setChildren(entry.node, [entry.node.firstElementChild, rendered.node]);
   entry.details = rendered.node.matches("details") ? rendered.node : null;
+  watchPathCut(entry.details);
   entry.lines = rendered.lines;
   entry.renderKey = null;
   return () => restore?.(entry.details?.firstElementChild, entry.node);
@@ -356,8 +390,10 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
     next.comment = previous.comment;
   }
   if (pre && nextPre) {
+    // The fresh render's attributes, and whatever the runtime painted on the kept box,
+    // which a fresh render never carries (a scroller's marks, reach.js).
     for (const { name } of [...pre.attributes])
-      if (!nextPre.hasAttribute(name)) pre.removeAttribute(name);
+      if (!nextPre.hasAttribute(name) && !isPagePaint(name)) pre.removeAttribute(name);
     for (const { name, value } of nextPre.attributes) keeps(pre, name, value);
     setChildren(
       pre,
@@ -565,10 +601,17 @@ function pathOnlyRenames(source) {
 }
 
 async function renderFile(file, sharedStyles, open) {
-  const { preloadDiffHTML } = await pierre();
-  file.lang = langForPath(file.name) ?? "text";
+  const lang = langForPath(file.name);
+  const [{ preloadDiffHTML }, { themeName, foreground }] = await Promise.all([
+    pierre(),
+    ensureSyntaxLanguage(lang),
+  ]);
+  file.lang = lang ?? "text";
   const template = document.createElement("template");
-  template.innerHTML = await preloadDiffHTML({ fileDiff: file, options: OPTIONS });
+  template.innerHTML = await preloadDiffHTML({
+    fileDiff: file,
+    options: { ...OPTIONS, theme: themeName },
+  });
   const rendered = template.content;
 
   // The static rendering has no Pierre interaction manager, so its unused icon sprite
@@ -591,11 +634,13 @@ async function renderFile(file, sharedStyles, open) {
     if (!sharedStyles.has(kind)) sharedStyles.set(kind, style);
     else style.remove();
   }
-  adoptSyntaxRoles(rendered);
+  markSyntax(rendered, foreground);
 
   const pre = rendered.querySelector("pre");
   if (!pre) throw new Error(`Pierre returned no diff for ${file.name || "a file"}`);
   const viewport = pre.querySelector("code[data-code]") ?? pre;
+  // Its last row clears the overlay scrollbar the pointer widens (shadow.css).
+  viewport.classList.add("lf-text-scroller");
   viewport.setAttribute("role", "region");
   viewport.setAttribute("aria-label", file.name || "diff");
 
@@ -661,22 +706,24 @@ customElements.define(
 
     connectedCallback() {
       this.addEventListener("lf-reveal", this.revealPassage);
-      this.stopActions ??= this.controller.subscribe(this.paintReviewAvailability);
-      if (!this.threadSurface)
-        this.threadSurface = consumeThreads(this, (collection, surfaces) => {
-          this.beginThreadSurface();
-          for (const thread of collection.threads) {
-            if (thread.anchor?.section !== this.id || !thread.anchor.datum) continue;
-            const target = surfaces.target(thread.key);
-            const outlet = target && this.threadOutletFor(target);
-            if (outlet) surfaces.place(thread.key, outlet);
-          }
-          const outlet =
-            surfaces.composition && this.threadOutletFor(surfaces.composition);
-          if (outlet) surfaces.placeComposition(outlet);
-          this.endThreadSurface();
+      const firstConnection = once(this);
+      if (firstConnection) {
+        this.controller.subscribe(this.paintReviewAvailability);
+        watchOwner(this, {
+          disconnect: () => {
+            this.rendering = (this.rendering ?? 0) + 1;
+            this.manifestEntries = null;
+            this.manifestSnapshot = null;
+          },
         });
-      if (this.stopWatching) return;
+      }
+      if (!this.threadSurface)
+        this.threadSurface = placeThreads(this, (targets) => {
+          this.beginThreadSurface();
+          const outlets = targets.map((target) => this.threadOutletFor(target));
+          this.endThreadSurface();
+          return outlets;
+        });
       // A page diff's file header pins at `--lf-top`, the top of the page's box that
       // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
       // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
@@ -802,22 +849,16 @@ customElements.define(
         this.present(this.render(this.inlineSource));
         return;
       }
-      this.stopWatching = watchData(this, "document", (snapshot) => {
-        const rendering = this.render(snapshot?.value ?? null, snapshot);
-        this.sourceRendering = rendering;
-        return rendering;
-      });
+      if (firstConnection)
+        watchData(this, "document", (snapshot) => {
+          const rendering = this.render(snapshot?.value ?? null, snapshot);
+          this.sourceRendering = rendering;
+          return rendering;
+        });
     }
 
     disconnectedCallback() {
       this.removeEventListener("lf-reveal", this.revealPassage);
-      this.stopActions?.();
-      this.stopActions = null;
-      this.rendering = (this.rendering ?? 0) + 1;
-      this.stopWatching?.();
-      this.stopWatching = null;
-      this.manifestEntries = null;
-      this.manifestSnapshot = null;
       this.threadSurface?.unregister();
       this.threadSurface = null;
       this.threadOutlets = null;
@@ -837,13 +878,7 @@ customElements.define(
           this.manifestBody = null;
           this.replaceChildren();
           shadowStage(this, []);
-          projectData(
-            this,
-            [],
-            () => "",
-            () => null,
-            { nested: true, snapshot },
-          );
+          projectData(this, [], { snapshot });
           this.classList.toggle("lf-rendered", false);
           return;
         }
@@ -924,10 +959,10 @@ customElements.define(
           if (bound)
             projectData(
               this,
-              entries.flatMap((entry) => [fileDatum(entry), ...entry.lines]),
-              datumKey,
-              ({ node }) => node,
-              { nested: true, labelOf: datumLabel, snapshot },
+              entries
+                .flatMap((entry) => [fileDatum(entry), ...entry.lines])
+                .map(projectionDatum),
+              { snapshot },
             );
           this.classList.toggle("lf-rendered", true);
           this.filterFiles(this.diffTools.search.value);
@@ -945,14 +980,7 @@ customElements.define(
         this.classList.toggle("lf-rendered", false);
         failSoft(this, err, source);
         if (this.shadowRoot) shadowStage(this, [...this.childNodes]);
-        if (bound)
-          projectData(
-            this,
-            [],
-            () => "",
-            () => null,
-            { nested: true, snapshot },
-          );
+        if (bound) projectData(this, [], { snapshot });
       }
     }
 
@@ -1138,27 +1166,22 @@ customElements.define(
     projectManifest() {
       projectData(
         this,
-        (this.manifestEntries ?? []).flatMap((entry, index) => [
-          fileDatum(entry, {
-            ...this.manifestSnapshot.origin,
-            path: ["files", index, "path"],
-          }),
-          ...(entry.loaded ? entry.lines : []).map((line) => ({
-            ...line,
-            origin: {
+        (this.manifestEntries ?? [])
+          .flatMap((entry, index) => [
+            fileDatum(entry, {
               ...this.manifestSnapshot.origin,
-              path: ["files", index, "patch"],
-            },
-          })),
-        ]),
-        datumKey,
-        ({ node }) => node,
-        {
-          nested: true,
-          labelOf: datumLabel,
-          snapshot: this.manifestSnapshot,
-          originOf: ({ origin }) => origin,
-        },
+              path: ["files", index, "path"],
+            }),
+            ...(entry.loaded ? entry.lines : []).map((line) => ({
+              ...line,
+              origin: {
+                ...this.manifestSnapshot.origin,
+                path: ["files", index, "patch"],
+              },
+            })),
+          ])
+          .map(projectionDatum),
+        { snapshot: this.manifestSnapshot },
       );
     }
 

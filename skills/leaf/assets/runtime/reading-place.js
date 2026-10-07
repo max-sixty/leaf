@@ -8,15 +8,25 @@
  * `capturePlace` reads one, of the page or of a reading region, and `restorePlace`
  * returns the user to it: the passage is found again by its words, so a place survives
  * what moved the pixels under it — a new revision, a resize, a view that was hidden
- * while its width changed. A restore jumps rather than glides.
+ * while its width changed. A visible native editor is the live place while that
+ * editing gesture still holds focus in this region. Its DOM identity stays local;
+ * serialized places and replaced fields use the ordinary passage reading. A restore
+ * jumps rather than glides.
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
  * continuity (version.js) across revisions and reading-region shifts, a root tab set
  * (lf-tabs) for each of its views. The browser keeps a history entry's own offset
- * (history.js). `readingBlock` is the block the user is on, for the questions that ask
- * where a walk starts.
+ * (history.js). `readingBlock` is the first block on screen in one region or the page;
+ * `pageReadingBlock` is the block the user is reading, where a walk starts, and
+ * `landingPlace` is where a let-go puts them.
  */
-import { clippedContents, landingBand, shownBox, shownWindow } from "./geometry.js";
+import {
+  clippedContents,
+  landingBand,
+  seenRect,
+  shownBox,
+  shownWindow,
+} from "./geometry.js";
 import {
   closestAcross,
   cut,
@@ -29,18 +39,37 @@ import {
 import { ADDRESSABLE, resolveAnchor } from "./anchor-resolution.js";
 import { targetElement, targetSegments } from "./resolved-target.js";
 import {
+  containingReadingRegionFor,
   effectiveScroller,
   readingPosture,
   readingRegionFor,
   readingRegions,
   shownRegionBounds,
+  pageReadingRegion,
 } from "./reading-regions.js";
 import { followingItsEnd } from "./bounds.js";
 import { moveScrollerBy, pageScroller, scrollToEnd } from "./scrolling.js";
 import { under } from "./shadow.js";
-import { retainUserIntent } from "./user-intent.js";
+import { recentPlaceInput, retainUserIntent } from "./user-intent.js";
 import { reveal } from "./widget-elements.js";
+import { TEXT_BOX } from "./control-selectors.js";
+import { focused } from "./keyboard/scopes.js";
+import { scrollIntoReadingBand } from "./landing-scroll.js";
 
+// A live editing place belongs to this DOM, not a serialized history record. Its
+// symbol keeps that node out of JSON; the ordinary passage reading remains the
+// fallback when a replacement or a later gesture has given focus elsewhere.
+const EDITING_PLACE = Symbol("live editing place");
+const editingPlace = (reading) => {
+  const place = reading?.[EDITING_PLACE];
+  return place?.node.isConnected &&
+    place.node === focused() &&
+    under(place.node, place.body) &&
+    containingReadingRegionFor(place.node)?.id === place.region &&
+    place.intent()
+    ? place.node
+    : null;
+};
 const LANDMARK_CAP = 160;
 const HEADING = "h1, h2, h3, h4, h5, h6";
 
@@ -86,10 +115,33 @@ export function* blocksOnScreen(region = null, blocks = textBlocks()) {
       yield [block, rect];
   }
 }
-// The first visible block in the user's reading region, for a walk's origin,
-// alignment when nothing is selected, and the keyboard reference's hand-back.
+// The first visible block in a reading region, or with none given in the page outside
+// the regions that bound themselves, for alignment when nothing is selected.
 export const readingBlock = (region = null) =>
   blocksOnScreen(region, textBlocks(region?.body)).next().value?.[0] ?? null;
+
+// The block the user is reading on the page, for a walk's origin, the keyboard
+// reference's hand-back and a let-go's landing: in the page region they last acted in
+// (`pageReadingRegion`), or, where that region shows none, in the region carrying it, and
+// so on out to the page. In a workspace whose panes bound themselves, the page outside
+// them holds only its header, so a reading that started there left the pane the user
+// was reading for the top of the page. With `bodies`, a region on screen that shows no
+// text block (a figure, a widget) answers with its own body, so a landing there keeps
+// the user in that region rather than on the document's body, which names the page.
+function pageReading({ bodies }) {
+  for (
+    let region = pageReadingRegion();
+    region;
+    region = readingRegionFor(region.host.parentElement)
+  ) {
+    const block = readingBlock(region);
+    if (block) return block;
+    if (bodies && shownRegionBounds(region)) return region.body;
+  }
+  return readingBlock();
+}
+export const pageReadingBlock = () => pageReading({ bodies: false });
+export const landingPlace = () => pageReading({ bodies: true });
 
 // The quote and the section it's searched in come from the same block, or the search is
 // filtered to a section the text isn't in and can only ever fail — restore then falls back
@@ -103,6 +155,20 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   const landmarkTop = (top, block, blockTop = top) =>
     block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
   const view = { y: box.scrollTop, scroller: scrollerIdentity(box) };
+  const editing = focused();
+  const body = region?.body ?? document.querySelector("body > main");
+  if (
+    recentPlaceInput() === "focus" &&
+    editing?.matches(TEXT_BOX) &&
+    under(editing, body) &&
+    seenRect(editing, new Map())
+  )
+    view[EDITING_PLACE] = {
+      node: editing,
+      body,
+      region: containingReadingRegionFor(editing)?.id,
+      intent: retainUserIntent({ source: editing }),
+    };
   if (region && followingItsEnd(box)) return { ...view, end: true };
   for (const [block, rect] of blocksOnScreen(region, blocks)) {
     const section = closestAcross(block, ADDRESSABLE);
@@ -144,7 +210,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
 // animating from the replacement's raw position is worse than the jump it replaces.
 // Moving to a mark the user asked for is the other case, and says so.
 export const hasLandmark = (reading) =>
-  Boolean(reading?.end || reading?.quote || reading?.section);
+  Boolean(editingPlace(reading) || reading?.end || reading?.quote || reading?.section);
 export const rawOffsetFits = (reading, scroller) =>
   reading.scroller !== undefined && reading.scroller === scrollerIdentity(scroller);
 function scrollerIdentity(scroller) {
@@ -153,7 +219,15 @@ function scrollerIdentity(scroller) {
 }
 
 export function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
-  if (!view) return;
+  if (!view || !currentIntent()) return;
+  const editing = editingPlace(view);
+  if (
+    editing &&
+    under(editing, region?.body ?? document.querySelector("body > main"))
+  ) {
+    scrollIntoReadingBand(editing, editing, "nearest", "instant");
+    return;
+  }
   const box = region ? effectiveScroller(region) : pageScroller;
   if (view.end) {
     scrollToEnd(box);
@@ -174,6 +248,13 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
   const section = targetElement(resolveAnchor({ section: view.section }, text));
   if (section) {
     reveal(section, currentIntent);
+    // A section containing this scroller cannot move when its contents scroll.
+    // Its outer rectangle therefore supplies no alignment inside the body: keep
+    // the old offset only in the same box, otherwise arrive at the section's opening.
+    if (under(box, section)) {
+      box.scrollTo({ top: rawOffsetFits(view, box) ? view.y : 0, behavior: "instant" });
+      return;
+    }
     // The shown reading on both sides of the subtraction, because the landmark is
     // whatever id stands nearest the block the user was on, and a section that
     // generates no box of its own is one a suggestion wrapping whole sections leaves

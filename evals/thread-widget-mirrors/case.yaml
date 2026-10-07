@@ -45,7 +45,7 @@ assert:
     outlets, uses `mountThreadViews` to receive the shared Thread collection and calls
     `surfaces.render(thread.key, outlet)` for matching Threads. It must unregister on
     disconnect, and must not create another Leaf instance, post raw Thread events, or
-    use `surfaces.place` (which would take a Thread away from its margin position).
+    use `placeThreads` (which would take a Thread away from its margin position).
     The continuation must await `openThread(thread.id, {focus: "reply"})`, use its
     actual returned element for selection, and check that it still holds focus.
     It must not search for any visible mirrored editor or focus again after awaiting.

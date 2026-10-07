@@ -15,15 +15,15 @@ Commands:
   package   Create, check, install, and run packages.
   page      Create, check, stamp, and read pages.
   server    Start, run, or stop the local server.
-  status    Set the agent's banner state.
-  task      Open or end a task the agent has taken on.
+  status    Say the page waits on its user, or is done.
+  task      Open, start, or end tasks on the page, yours or the user's.
   thread    Open, answer, edit, summarize, or resolve a thread.
   wait      Confirm a delivery, if given, then wait for the next batch.
 
 ## codex
 Usage: leaf codex [OPTIONS] COMMAND [ARGS]...
 
-  Launch Codex or run Leaf's detached delivery carrier.
+  Launch Codex or run Leaf's delivery adapter.
 
 Options:
   --help  Show this message and exit.

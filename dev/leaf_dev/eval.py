@@ -6,9 +6,12 @@ harness's login, and expands the catalog's task/context addresses into Promptfoo
 Promptfoo owns the rest: repetition, concurrency, assertions, the console table, and
 the result database its viewer reads. Arguments after the cases go to `promptfoo eval`.
 
-A provider is one column of the results: a harness on one arm (`cc/candidate`), suffixed
-`/workflow` for the Python provider that runs complete tasks, and on arm `html` for
-the plain HTML control. A test is one catalog address under one condition.
+A provider is one column of the results: a harness on one arm (`claude-code/candidate`),
+suffixed `/workflow` for the Python provider that runs complete tasks, and on arm `html`
+for the plain HTML control. A workflow column names the Leaf transport its harness
+session takes where the harness has more than one (`codex:app-server/base/workflow`),
+since a workflow scores only that transport. A test is one catalog address under one
+condition.
 """
 
 import fnmatch
@@ -25,19 +28,21 @@ from pathlib import Path
 
 import click
 import yaml
+from leaf.harness import ClaudeCodeHarness
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
+    HARNESSES,
     MODELS,
     base_ref,
     build_arm,
+    child_class,
     claude_child,
     codex_home,
     environment,
 )
 from leaf_dev.leaf_assets import pinned_copy
 
-HARNESSES = ("cc", "codex")
 PROMPTFOO = ROOT / "evals/node_modules/.bin/promptfoo"
 RUNS = ROOT / ".tmp/eval"
 SKILL_PREFIX = "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n"
@@ -86,12 +91,12 @@ def select_cases(globs: tuple[str, ...]) -> list[str]:
 
 def native_provider(harness: str, payload: Path, work: Path) -> dict:
     """A native agent provider that can read the arm's skill and nothing else of ours."""
-    if harness == "cc":
+    if harness == ClaudeCodeHarness.name:
         child = claude_child(work)
         return {
             "id": "anthropic:claude-agent-sdk",
             "config": {
-                "model": MODELS["cc"],
+                "model": MODELS[ClaudeCodeHarness.name],
                 "apiKeyRequired": False,
                 "working_dir": str(work),
                 "persist_session": False,
@@ -145,8 +150,14 @@ def native_provider(harness: str, payload: Path, work: Path) -> dict:
     }
 
 
+def workflow_harness(harness: str) -> str:
+    """The harness as a workflow column names it, with its session's transport."""
+    transport = child_class(harness).transport
+    return harness if transport is None else f"{harness}:{transport}"
+
+
 def workflow_provider(
-    harness: str, condition: str, payload: Path, samples: Path
+    harness: str, condition: str, payload: Path, samples: Path, screenshots: Path
 ) -> dict:
     """The Python provider that hands one complete task to its declared executor."""
     return {
@@ -162,30 +173,49 @@ def workflow_provider(
             "condition": condition,
             "payload": str(payload),
             "samples": str(samples),
+            "screenshots": str(screenshots),
             "pythonExecutable": sys.executable,
             "timeout": 1800000,
         },
     }
 
 
-def screenshot_judge(samples: Path) -> dict:
-    """The grader for an executor's `agent-rubric`s: it may open screenshots under the
-    run's samples and nothing else, so neither a page's source, the author's
-    transcript, nor a path naming the arm reaches it."""
-    work = samples.parent / "judge"
-    work.mkdir(parents=True, exist_ok=True)
+def screenshot_judge(screenshots: Path, home: Path) -> dict:
+    """The Codex grader for an executor's `agent-rubric`s, run under a home of its own.
+
+    Its permission profile lets it read the run's screenshot tree and nothing else,
+    so neither a page's source, the author's transcript, nor a path naming the arm
+    reaches it. `:minimal` is the runtime paths tools need, which include the temp
+    directories but not the repository. Codex starts its sandbox helper by executing
+    itself, so the profile also grants the executable, run by its resolved path: a
+    symlink's own location is refused. A profile replaces Codex's older sandbox
+    settings, so the provider sets no `sandbox_mode`."""
+    if (installed := shutil.which("codex")) is None:
+        raise click.ClickException("The screenshot judge runs on Codex; install it")
+    codex = Path(installed).resolve()
+    home.mkdir(mode=0o700, parents=True)
+    profile = "\n".join(
+        [
+            'default_permissions = "screenshots"',
+            "",
+            "[permissions.screenshots.filesystem]",
+            '":minimal" = "read"',
+            f'{json.dumps(f"{screenshots}/**")} = "read"',
+            f'{json.dumps(str(codex))} = "read"',
+            "",
+        ]
+    )
     return {
-        "id": "anthropic:claude-agent-sdk",
+        "id": "openai:codex-sdk",
         "config": {
-            "model": MODELS["cc"],
-            "apiKeyRequired": False,
-            "setting_sources": [],
-            "persist_session": False,
-            "working_dir": str(work),
-            "tools": ["Read"],
-            "custom_allowed_tools": [f"Read(/{samples}/**/*.png)"],
-            "permission_mode": "dontAsk",
-            "max_turns": 200,
+            "model": MODELS["screenshots"],
+            "codex_path_override": str(codex),
+            "working_dir": str(home),
+            "skip_git_repo_check": True,
+            "cli_env": {
+                "HOME": str(home),
+                "CODEX_HOME": str(codex_home(home / ".codex", profile)),
+            },
         },
     }
 
@@ -202,6 +232,9 @@ def prepare(
     definitions = catalog()
     providers: dict[str, dict] = {}
     tests = []
+    # Judged screenshots sit apart from the rest of the evidence, for the judge.
+    screenshots = samples.with_name("screenshots")
+    judge = None
     for address in cases:
         test = definitions[address]
         metadata = test.get("metadata", {})
@@ -215,11 +248,15 @@ def prepare(
                 if harness not in metadata.get("harnesses", HARNESSES):
                     continue
                 for arm, payload in columns.items():
-                    label = f"{harness}/{arm}" + ("/workflow" if executor else "")
+                    label = (
+                        f"{workflow_harness(harness)}/{arm}/workflow"
+                        if executor
+                        else f"{harness}/{arm}"
+                    )
                     if label not in providers:
                         if executor:
                             configured = workflow_provider(
-                                harness, condition, payload, samples
+                                harness, condition, payload, samples, screenshots
                             )
                         else:
                             work = scratch / "work" / label
@@ -236,6 +273,9 @@ def prepare(
                 checks = module.expected_checks(
                     metadata["scenario"], condition=condition
                 )
+                rubrics = getattr(module, "rubrics", lambda _: [])(metadata["scenario"])
+                if rubrics and judge is None:
+                    judge = screenshot_judge(screenshots, scratch / "judge")
                 sample["assert"] = [
                     *(
                         {
@@ -247,12 +287,7 @@ def prepare(
                         for check in checks
                     ),
                     # A judge's verdicts on the screenshots the sample lists.
-                    *(
-                        {**rubric, "provider": screenshot_judge(samples)}
-                        for rubric in getattr(module, "rubrics", lambda _: [])(
-                            metadata["scenario"]
-                        )
-                    ),
+                    *({**rubric, "provider": judge} for rubric in rubrics),
                 ]
                 sample["vars"] = {"prompt": address}
             else:

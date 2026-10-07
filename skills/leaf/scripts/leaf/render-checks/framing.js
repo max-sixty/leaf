@@ -142,7 +142,9 @@ export function trappedMargins() {
             margin: leak.margin,
             child: leak.child,
             through: leak.through,
-            frameDeclared: s.getPropertyValue("--lf-block-frame").trim() === "1",
+            frameDeclared: ["1", "trim"].includes(
+              s.getPropertyValue("--lf-block-frame").trim(),
+            ),
             chrome: inChrome(el),
           });
       }

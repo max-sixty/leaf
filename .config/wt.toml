@@ -45,9 +45,8 @@ eval-assertions = "npm test --prefix evals"
 [post-start]
 node = "npm ci"
 
-# The marketplace follows the remote default branch. Manual post-merge hooks still
-# name the source branch and its pre-squash commit, so read the landed default branch
-# and wait for its concurrent push before refreshing installed plugins.
+# The prepared marketplace advances after its source lands. Its commits retain
+# source ancestry, so refresh only once the landed source is available to installers.
 [post-merge]
 refresh-codex-leaf = '''
 if command -v codex >/dev/null 2>&1 &&
@@ -56,18 +55,66 @@ if command -v codex >/dev/null 2>&1 &&
 then
   landed_commit=$(git rev-parse refs/heads/{{ default_branch }}) || exit 1
   attempts=0
-  while [ "$attempts" -lt 12 ]; do
-    remote_commit=$(git ls-remote {{ remote }} refs/heads/{{ default_branch }} | cut -f1)
+  while [ "$attempts" -lt 120 ]; do
+    remote_commit=$(git ls-remote {{ remote }} refs/heads/prepared | cut -f1)
     if [ -n "$remote_commit" ] &&
-      git fetch --quiet --no-tags {{ remote }} refs/heads/{{ default_branch }} &&
+      git fetch --quiet --no-tags {{ remote }} refs/heads/prepared &&
       git merge-base --is-ancestor "$landed_commit" "$remote_commit"
     then
-      exec codex plugin marketplace upgrade leaf
+      # Native Codex keeps enablement when a marketplace changes source. Re-add is
+      # required to switch a pre-distribution install; add alone refuses that change.
+      # Leave a deliberately selected local marketplace or custom ref as selected.
+      # Marketplace list omits refs; config/read supplies the effective selection,
+      # including trusted project layers, rather than the last fetched snapshot.
+      marketplace=$(uv run --no-dev python - <<'PY'
+import json
+import os
+import subprocess
+
+server = subprocess.Popen(
+    ["codex", "app-server", "--stdio"],
+    stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True,
+)
+
+def request(identifier, method, params):
+    server.stdin.write(json.dumps({"id": identifier, "method": method, "params": params}) + "\n")
+    server.stdin.flush()
+    for line in server.stdout:
+        message = json.loads(line)
+        if message.get("id") == identifier:
+            if "error" in message:
+                raise RuntimeError(message["error"]["message"])
+            return message["result"]
+    raise RuntimeError("Codex closed before returning its marketplace configuration")
+
+try:
+    request(1, "initialize", {"clientInfo": {"name": "leaf-refresh", "version": "1"}})
+    server.stdin.write('{"method":"initialized"}\n')
+    config = request(2, "config/read", {"includeLayers": False, "cwd": os.getcwd()})["config"]
+    print(json.dumps(config["marketplaces"].get("leaf") if config["marketplaces"] else None))
+finally:
+    server.stdin.close()
+    server.wait()
+PY
+      ) || exit 1
+      if printf '%s\n' "$marketplace" | jq -e '
+        .source_type == "git" and
+        (.source | test("^https://github.com/max-sixty/leaf(\\.git)?$")) and
+        (.ref == null or .ref == "main")' >/dev/null
+      then
+        codex plugin marketplace remove leaf >/dev/null || exit 1
+        codex plugin marketplace add max-sixty/leaf --ref prepared >/dev/null || exit 1
+      fi
+      if printf '%s\n' "$marketplace" | jq -e '.source_type == "git"' >/dev/null
+      then
+        exec codex plugin marketplace upgrade leaf
+      fi
+      exit 0
     fi
     attempts=$((attempts + 1))
     sleep 5
   done
-  echo "Codex Leaf plugin refresh timed out waiting for the landed commit" >&2
+  echo "Codex Leaf plugin refresh timed out waiting for the prepared installation" >&2
   exit 1
 fi
 '''
@@ -82,6 +129,9 @@ chromium = "uv run --frozen playwright install chromium --only-shell"
 
 [[aliases.setup]]
 webkit = "uv run --frozen playwright install webkit"
+
+[[aliases.setup]]
+firefox = "uv run --frozen playwright install firefox"
 
 [[aliases.setup]]
 chrome = "uv run --frozen playwright install chrome"

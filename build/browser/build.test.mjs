@@ -26,6 +26,7 @@ test("locked source reproduces the complete committed output", async () => {
     "createSemanticApplication",
     "describeFailure",
     "html",
+    "noChange",
     "nothing",
     "render",
     "repeat",
@@ -164,4 +165,48 @@ test("publisher replaces one immutable reading before subscribers run", () => {
   publisher.publish({ ...initial, semanticEpoch: 2 });
   assert.equal(seen.length, 2);
   assert.equal(decision.read(), "open");
+});
+
+test("publisher secures shallow-frozen inputs and complete selected collections", () => {
+  const key = { id: "thread" };
+  const collection = Object.freeze(new Map([[key, { words: ["standing"] }]]));
+  const document = Object.freeze({ collection });
+  const publisher = createApplicationPublisher({
+    document,
+    authoritative: {},
+    unresolved: [],
+    effective: {},
+    semanticEpoch: 0,
+  });
+  const selected = publisher
+    .select(() =>
+      Object.freeze({
+        nested: { count: 1 },
+        members: Object.freeze(new Set([{ id: "message" }])),
+      }),
+    )
+    .read();
+  assert.throws(() => {
+    selected.nested.count = 2;
+  }, TypeError);
+  assert.throws(() => {
+    selected.members.add("extra");
+  }, TypeError);
+  assert.throws(() => {
+    [...selected.members][0].id = "changed";
+  }, TypeError);
+  const reading = publisher.read();
+  assert.throws(() => {
+    [...reading.document.collection.keys()][0].id = "changed";
+  }, TypeError);
+  assert.throws(() => {
+    reading.document.collection.get(key).words.push("changed");
+  }, TypeError);
+  assert.throws(() => {
+    reading.document.collection.set("extra", {});
+  }, TypeError);
+  collection.set("outside", { words: [] });
+  assert.equal(reading.document.collection.has("outside"), false);
+  publisher.publish({ ...reading, document, semanticEpoch: 1 });
+  assert.equal(publisher.read().document.collection.has("outside"), true);
 });

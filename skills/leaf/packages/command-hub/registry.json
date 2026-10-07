@@ -48,12 +48,7 @@
                 "minimum": 0
               },
               "tests": {
-                "enum": [
-                  "passing",
-                  "failing",
-                  "running",
-                  "not-run"
-                ]
+                "enum": ["passing", "failing", "running", "not-run"]
               },
               "observedAt": {
                 "type": "string",
@@ -96,33 +91,18 @@
       "lf-task": {
         "role": "goal",
         "state": "status",
-        "done": [
-          "done"
-        ],
-        "stopped": [
-          "blocked",
-          "review",
-          "stalled"
-        ],
-        "review": [
-          "review"
-        ],
-        "stalled": [
-          "stalled"
-        ],
+        "done": ["done"],
+        "stopped": ["blocked", "review", "stalled"],
+        "review": ["review"],
+        "stalled": ["stalled"],
         "depends": "needs",
         "stoppedAt": "stopped-at"
       },
       "lf-agent": {
         "role": "worker",
         "state": "state",
-        "running": [
-          "working"
-        ],
-        "retired": [
-          "reaped",
-          "done"
-        ],
+        "running": ["working"],
+        "retired": ["reaped", "done"],
         "on": "on"
       },
       "lf-worktree": {
@@ -155,14 +135,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       },
       "state": {
-        "enum": [
-          "working",
-          "waiting",
-          "blocked",
-          "idle",
-          "reaped",
-          "done"
-        ]
+        "enum": ["working", "waiting", "blocked", "idle", "reaped", "done"]
       },
       "on": {
         "type": "string",
@@ -172,16 +145,9 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id",
-      "state"
-    ],
+    "required": ["id", "state"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-roster",
-      "lf-command",
-      "lf-task"
-    ],
+    "x-owners": ["lf-roster", "lf-command", "lf-task"],
     "x-content": "markup",
     "x-refers": {
       "on": {
@@ -195,36 +161,11 @@
     "x-state": {
       "state": {
         "writer": "agent",
-        "detail": {
-          "type": "object",
-          "properties": {
-            "state": {
-              "enum": [
-                "working",
-                "waiting",
-                "blocked",
-                "idle",
-                "reaped",
-                "done"
-              ]
-            },
-            "doing": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": [
-            "state",
-            "doing"
-          ],
-          "additionalProperties": false
-        },
         "unit": "widget",
-        "update": "doing",
+        "update": true,
         "record": {
           "kind": "value",
-          "attr": "state",
-          "value": "state"
+          "attr": "state"
         }
       }
     }
@@ -265,9 +206,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
     "x-refers": {
@@ -280,6 +219,9 @@
       }
     },
     "x-upgrade": true,
+    "x-prepaint": {
+      "as": "lf-command-readings"
+    },
     "x-example": "<lf-command id=\"aviary-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\">\n  <lf-agent id=\"lead\" state=\"working\"><strong>lead</strong> Coordinates the whole garden.</lf-agent>\n  <lf-task id=\"goal-feeders\" status=\"active\" talk>\n    <strong>Rebuild the feeders</strong>\n    <lf-agent id=\"w-1\" state=\"working\" on=\"goal-feeders\"><strong>w-1</strong> Fitting the baffles.</lf-agent>\n  </lf-task>\n</lf-command>"
   },
   "lf-command-readings": {
@@ -292,12 +234,11 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "empty",
     "x-upgrade": true,
+    "x-prepaint": "<section class=\"panel lf-command-head\"><h2>Outcome</h2><div class=\"lf-command-outcome\"><strong>&nbsp;</strong><span class=\"lf-command-progress\" aria-hidden=\"true\"></span><span>&nbsp;</span></div><div class=\"lf-command-facts\"><span class=\"lf-command-pair\"><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>running</span></span><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>workers</span></span></span><span class=\"lf-command-pair\"><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>quiet</span></span><span class=\"lf-command-tile lf-ui\"><span class=\"lf-command-count\">0</span> <span>stopped</span></span></span></div></section>",
     "x-example": "<div class=\"layout-sidebar\">\n  <lf-command id=\"garden-command\" label=\"A squirrel-proof garden\" phase=\"week 2 of 4\" readings=\"garden-readings\">\n    <lf-task id=\"goal-feeders\" status=\"active\"><strong>Rebuild the feeders</strong></lf-task>\n  </lf-command>\n  <aside><lf-command-readings id=\"garden-readings\"></lf-command-readings></aside>\n</div>"
   },
   "lf-task": {
@@ -310,14 +251,7 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       },
       "status": {
-        "enum": [
-          "planned",
-          "active",
-          "blocked",
-          "review",
-          "stalled",
-          "done"
-        ]
+        "enum": ["planned", "active", "blocked", "review", "stalled", "done"]
       },
       "owner": {
         "type": "string"
@@ -344,56 +278,25 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id",
-      "status"
-    ],
+    "required": ["id", "status"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-tasks",
-      "lf-command",
-      "lf-task"
-    ],
+    "x-owners": ["lf-tasks", "lf-command", "lf-task"],
     "x-content": "markup",
-    "x-paints": [
-      "status"
-    ],
+    "x-paints": ["status"],
     "x-upgrade": true,
     "x-thread-seat": {
       "when": {
-        "talk": [
-          true
-        ]
+        "talk": [true]
       },
       "hold": "Send & pause"
     },
     "x-state": {
       "status": {
         "writer": "agent",
-        "detail": {
-          "type": "object",
-          "properties": {
-            "status": {
-              "enum": [
-                "planned",
-                "active",
-                "blocked",
-                "review",
-                "stalled",
-                "done"
-              ]
-            }
-          },
-          "required": [
-            "status"
-          ],
-          "additionalProperties": false
-        },
         "unit": "widget",
         "record": {
           "kind": "value",
-          "attr": "status",
-          "value": "status"
+          "attr": "status"
         }
       }
     }
@@ -412,14 +315,9 @@
         "pattern": "^[a-z][a-z0-9-]*$"
       }
     },
-    "required": [
-      "id",
-      "source"
-    ],
+    "required": ["id", "source"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-agent"
-    ],
+    "x-owners": ["lf-agent"],
     "x-content": "empty",
     "x-data": {
       "worktrees": {

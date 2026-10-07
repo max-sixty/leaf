@@ -17,18 +17,32 @@ that item, and an Ask that turns on a claim holds the claim and its evidence
 rather than following them. Only an Ask that turns on the whole record comes
 last.
 
-An `lf-ask` that frames a figure, such as a chart, image or table, around one
-option list sets the list beside its premise and evidence wherever the Ask has
-the room, so the question, the figure and every option share the window. A
-reading column is too narrow for that, so in a column give such an Ask the wide
-measure with `data-width="wide"` (`page-authoring.md`, "Bounds and widths").
+An `lf-ask` keeps the prose's width on every page, a wide one included, so its
+question, options and the marker beside it stand with the paragraphs around it. An
+`lf-ask` that frames a figure, such as a chart, image or table, around one option
+list sets the list beside its premise and evidence wherever the Ask has the room, so
+the question, the figure and every option share the window. The reading column is too
+narrow for that, so give such an Ask the wide measure with `data-width="wide"`, on a
+column page and a wide one alike. An Ask holding a playground or another surface that
+uses every column it gets takes `data-width="available"` (`page-authoring.md`,
+"Bounds and widths").
 
 Write related, independently answerable Asks in page order. A widget can carry its
 own question and context, or an `lf-ask` can frame them around it. They remain visible
-as one complete page. The user can press `a` to reach the next open Ask and use its
-displayed `1`–`9` actions. If a later Ask depends on an earlier answer, publish it in
-the next turn instead of authoring
-every possible branch.
+as one complete page. The user can press `a` to reach the next thing waiting on them
+(an open Ask, a thread whose question is theirs, a task you put on them, or a move
+whose reply failed and needs sending again) and use an Ask's displayed `1`–`9`
+actions. If a later Ask depends on an earlier answer, publish it in the next turn
+instead of authoring every possible branch.
+
+Each Ask is a task on the user, under the Ask's id, from the version that adds it
+until its widget answers it; `leaf page state` lists it among the open `tasks`. An Ask
+that stops mattering before the user answers it, because they answered elsewhere or
+the question moved on, is yours to retire in a version: leave it out, or mark it
+`restated` as `authoring-revisions.md` says. Nothing else ends its task, since the
+markup holds it. Something you need from the user that no widget
+answers is a task you put on them rather than an Ask (`conversation-loop.md`, "Tasks
+on the user").
 
 For independent proposals, make progress visible as each one is decided: give
 each proposal its own `lf-ask` with explicit accept and reject choices. Either

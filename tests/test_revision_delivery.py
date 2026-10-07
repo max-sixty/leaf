@@ -18,6 +18,7 @@ from leaf.revision_delivery import (
     compose_document,
     deliver_resource,
     json_script,
+    mark_declared,
     media_size,
     rebase_document,
 )
@@ -26,6 +27,70 @@ from leaf.structure import SourceDocument
 PAGE_ROOT = "/p/user"
 ROOT = PAGE_ROOT + "/revisions/r1-0123456789abcdef"
 ADDRESS = DeliveryAddress(PAGE_ROOT, ROOT)
+
+
+def test_initial_producers_are_captured_once_and_called_after_each_complete_host():
+    source = (
+        "<html><head><title>Initial</title></head><body><main>"
+        '<lf-early id="first"><p>First</p></lf-early>'
+        '<lf-early id="second"><p>Second</p></lf-early>'
+        "<template><lf-unused></lf-unused></template>"
+        "</main></body></html>"
+    )
+    registry = {
+        "lf-early": {"x-initial": "/vendor/early.js"},
+        "lf-unused": {"x-initial": "/vendor/unused.js"},
+    }
+    resources = {
+        "/runtime/prepaint.js": Resource(
+            b"window.prepaint = true;", "application/javascript"
+        ),
+        "/vendor/early.js": Resource(
+            b'window.initial = "</script>";', "application/javascript"
+        ),
+        "/runtime/annotation-overlay/annotation-theme.css": Resource(b"", "text/css"),
+        "/runtime/chrome.css": Resource(b"", "text/css"),
+        "/runtime/marks.css": Resource(b"", "text/css"),
+        "/runtime/annotation-overlay/annotation-chrome.css": Resource(b"", "text/css"),
+        "/runtime/annotation-overlay/annotation-marks.css": Resource(b"", "text/css"),
+    }
+    delivered = compose_document(
+        source,
+        1,
+        None,
+        executable=None,
+        widgets={},
+        resources=resources,
+        registry=registry,
+        delivery=Delivery(
+            address=ADDRESS,
+            runtime="<script data-lf-runtime>window.boot = true;</script>",
+        ),
+    )
+    parsed = SourceDocument(delivered.removeprefix("\ufeff"))
+    scripts = parsed.tree.find_all("script")
+    calls = [script for script in scripts if "lfInitial.mount" in script.text]
+    assert len(calls) == 2
+    assert [script.previous_sibling.tag for script in calls] == ["lf-early", "lf-early"]
+    assert delivered.count("data-lf-initial-source") == 2
+    assert delivered.count('window.initial = "<\\/script>";') == 1
+    assert (
+        delivered.index("window.prepaint")
+        < delivered.index("window.initial")
+        < delivered.index("window.boot")
+    )
+    assert mark_declared(source, registry, resources) == source
+
+
+def test_capture_refuses_a_declared_initial_producer_that_is_absent(tmp_path):
+    with pytest.raises(
+        ArtifactError, match=r"/page/early\.js: cannot capture dependency"
+    ):
+        capture_artifact(
+            tmp_path,
+            SourceDocument(PAGE),
+            {"lf-early": {"x-initial": "/page/early.js"}},
+        )
 
 
 def test_document_rewrites_only_resource_references_with_exact_source_spans():
@@ -384,8 +449,12 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     a package's pane before any script runs. An occurrence's own `data-width`,
     `data-bound` or `data-height` says it for that occurrence. An element naming page
     media carries the box that holds all of it, read from the images, so a frame stands
-    in their shape before they decode. Markup inside a template is inert, and
-    everything else in the source stays as written."""
+    in their shape before they decode. A widget declaring the structure its module will
+    draw (`x-prepaint`) carries it as its first child, marked as delivery's, so the
+    browser lays that structure out before the module runs, and one that first paints
+    as another widget will stand in it carries that widget's (`as`). An idiom declares
+    a mark by its selector, as a callout keeps the column. Markup inside a template is
+    inert, and everything else in the source stays as written."""
 
     def png(width, height):
         return Resource(
@@ -399,16 +468,24 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "lf-chip": {"x-inline": True},
         "lf-feed": {"x-bound": "end"},
         "lf-plot": {"x-height": 400},
+        "lf-meter": {"x-prepaint": '<span class="lf-meter-face">0 left</span>'},
+        "lf-gauge": {"x-prepaint": {"as": "lf-meter"}},
+        "$idioms": {"description": "Shapes.", ".callout": {"x-space": "column"}},
     }
     source = (
         "<!doctype html><html><head><title>T</title></head><body><main>"
+        '<aside class="callout warn" id="note">Paused.</aside>'
+        '<aside class="callout" id="chart-note" data-width="wide">Chart.</aside>'
         '<lf-zone id="queue" label="Queue"><div><lf-chip>new</lf-chip></div></lf-zone>'
         '<lf-board id="board" data-width="column"></lf-board>'
         '<lf-feed id="feed"></lf-feed><section id="wide" data-width="wide"></section>'
         '<pre data-bound="start">log</pre>'
         '<lf-plot id="plot"></lf-plot><lf-plot id="tall" data-height="240"></lf-plot>'
         '<lf-pair id="pair" before="/media/a.png" after="/media/b.png"></lf-pair>'
-        "<template><lf-zone id=later label=Later><p>x</p></lf-zone></template>"
+        '<lf-meter id="meter" value="3"><p>3 left</p></lf-meter>'
+        '<lf-gauge id="gauge"></lf-gauge>'
+        "<template><lf-zone id=later label=Later><p>x</p></lf-zone>"
+        "<lf-meter id=inert></lf-meter></template>"
         "</main></body></html>"
     )
     delivered = compose_document(
@@ -434,6 +511,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     assert marks[("lf-zone", "queue")] == {"data-lf-reading-role": "pane"}
     assert marks[("lf-chip", None)] == {"data-lf-inline": ""}
     assert marks[("lf-board", "board")] == {"data-lf-space": "column"}
+    assert marks[("aside", "note")] == {"data-lf-space": "column"}
+    assert marks[("aside", "chart-note")] == {"data-lf-space": "wide"}
     assert marks[("lf-feed", "feed")] == {"data-lf-bound": "end"}
     assert marks[("section", "wide")] == {"data-lf-space": "wide"}
     assert marks[("pre", None)] == {"data-lf-bound": "start"}
@@ -444,8 +523,22 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "data-lf-media-height": "800",
     }
     assert marks[("lf-zone", "later")] == {}
-    unmarked = delivered
+    prepaint = (
+        '<lf-meter id="meter" value="3"><span data-lf-prepaint data-lf-gen="1" '
+        'class="lf-meter-face">0 left</span><p>3 left</p></lf-meter>'
+    )
+    assert prepaint in delivered
+    assert (
+        '<lf-gauge id="gauge"><span data-lf-prepaint data-lf-gen="1" '
+        'class="lf-meter-face">0 left</span></lf-gauge>'
+    ) in delivered
+    assert "<lf-meter id=inert></lf-meter>" in delivered
+    unmarked = delivered.replace(
+        '<span data-lf-prepaint data-lf-gen="1" class="lf-meter-face">0 left</span>', ""
+    )
     for mark in (
+        ' data-lf-space="column"',
+        ' data-lf-space="wide"',
         ' data-lf-reading-role="pane"',
         ' data-lf-inline=""',
         ' data-lf-space="column"',

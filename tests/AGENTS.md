@@ -19,13 +19,14 @@ Each helper's docstring owns its contract, and code cites sections here by headi
 Message delivery has one shared journey in `leaf_dev.thread_journey`, whose held
 checkpoints supply the appearance gate in `test_render_thread_snapshots.py`.
 `leaf_dev.thread_snapshots` owns capture, review and acceptance; reviewed PNG images and
-geometry live in `max-sixty/leaf-assets`, governed by `leaf-assets.json`. Run evidence
+geometry live in `max-sixty/leaf-assets`, governed by `leaf-assets.json`'s independent
+`thread_snapshots_revision`, advanced only by acceptance. Run evidence
 stays in `.tmp/`.
 
 Linux browser tests use `tests/fonts.conf` and `fonts-dejavu` for their native
 UI, serif and mono faces, including bold and italic styles. Install that package before `wt setup`; CI installs it
-explicitly. The PNG rendering profile binds the fontconfig and installed font bytes,
-and an actual Chromium font reading verifies those faces. Mac uses its native fonts.
+explicitly, and an actual Chromium font reading verifies those faces. Mac uses its
+native fonts, and the thread appearance gate compares its images on macOS only.
 
 ## A failure is evidence about the test too
 
@@ -40,18 +41,18 @@ A failure that comes and goes on the same code is a defect. Find whether the pro
 races, so a user could hit the same failure, or the test's arrangement does (**State
 races are arrangements, not probabilities**), and fix that cause.
 
-## Run the narrowest useful surface
+## Run what the change needs
 
-The host supplies `wt`, `uv`, `jq` 1.6 or newer, Node 22 or newer, and Docker for the
-complete website boundary only. `wt setup` installs Playwright's Chromium headless
-shell, WebKit, and Chrome, the example assets, and the npm trees; `uv run` syncs
+The host supplies `wt`, `uv`, `jq` 1.6 or newer, and Node 22 or newer.
+`wt setup` installs Playwright's Chromium headless
+shell, WebKit, Firefox, and Chrome, the example assets, and the npm trees; `uv run` syncs
 Python.
 
 ```sh
 wt setup
-uv run pytest tests                  # everyday gate; no network after setup
-npm run test:runtime                 # the gate's other half: tests/runtime/, under Node
-uv run pytest tests/test_render_widgets.py -q -n0 -k board   # one case, kept local
+uv run pytest tests/test_render_widgets.py -q -n0 -k board   # the tests a change needs
+npm run test:runtime                 # tests/runtime/, under Node
+uv run pytest tests                  # broad selection; the landing gate runs it
 uv run pytest --lf --lfnf=none -x -n0
 uv run pytest --regtest-reset -n0 <node-id>
 ```
@@ -62,14 +63,20 @@ nightly tests, and an explicit file, node id, `-k`, `-m`, or `--lf` runs what it
 names. Both landing gates pass `--nightly-changed-since`, which adds the nightly tests
 whose own lines the change edits.
 
-A change lands only on a green landing gate. Every other nightly test is CI's to
-report: the `test` job in `ci.yaml` runs the complete suite once main moves, and
-`tend-ci-fix` answers what it fails. So before handing over a browser-facing change,
-run the everyday gate and the few browser tests that hold the behavior you changed,
-named by node id or `-k`. Don't run `--run-nightly`, `-m nightly`, or a whole browser
-file locally: each takes minutes to over an hour and slows every other session on the
-machine. To learn what main fails, read that job's run, and reproduce a failure it
-names by node id.
+Before handing over, run the tests that hold the behavior you changed, in any file
+and nightly ones included, named by node id or `-k`; find them by reading which tests
+exercise the code the change touches. Run `npm run test:runtime` too when the change
+reaches the runtime. A change lands only on a green landing gate, which runs the broad
+selection: a pull request's `test` job, or `wt merge`'s pre-merge. A failure there that
+your selection missed is the gate doing its job; fix it and push. Every other nightly
+test is CI's to report: the `test` job in `ci.yaml` runs the complete suite once main
+moves, and `tend-ci-fix` answers what it fails. That trade is the user's choice
+(2026-10-04): a pull request can land green and break a nightly test it never ran, and
+main can stay red while `tend-ci-fix` repairs it, so a red main is no reason to widen a
+change, its gate, or its test selection. Don't run the broad selection, `--run-nightly`, `-m nightly`, or
+a whole browser file locally outside a landing: each takes minutes to over an hour
+and slows every other session on the machine. To learn what main fails, read that
+job's run, and reproduce a failure it names by node id.
 
 CLI output and agent-facing text are regtest recordings in
 `tests/_regtest_outputs/`, normalized for temporary paths and generated identities but
@@ -79,6 +86,10 @@ diff.
 
 GitHub Actions on Ubuntu 24.04 is the Linux authority. Use the candidate's and base
 SHA's workflow runs for Linux-specific evidence; a local container is not that runner.
+The pull request's `test` job also owns the site build, Worker dry-run deploy, and
+`verify-site wrangler` delivery checks. Reserve local Docker runs for reproducing
+concrete Worker/container failures. Wrangler's dry-run deploy builds the
+container image too, so it belongs to that same boundary.
 
 Subprocess tests invoke leaf through `LEAF_COMMAND`, and `bin/leaf` only where the
 launcher itself is the subject.
@@ -149,6 +160,14 @@ vendor hard-linked into it; a test of initialization crosses `page init` itself.
 
 ### A process the suite starts ends with the run
 
+Many runs of the suite share one machine, from different worktrees and sessions, each
+with several workers. A process a test leaves running, or one that spends CPU while it
+waits, slows all of them. So a process a test starts ends on every way out of the
+test. `spawn`'s teardown ends a child and everything in its group when the test
+passes, fails or is interrupted. A worker that dies runs no teardown, so a process
+that would otherwise run on carries its own link to the worker: a page server watches
+the session claim the worker holds, and a held process reads the worker's pipe.
+
 Take each resource from its owner: a child process from `spawn`, a page server from
 `_no_page_outlives_its_test`, a preview from `preview_slot` and `start_preview`, an
 in-process HTTP server from `running_http_server`, a Unix socket directory from
@@ -156,6 +175,16 @@ in-process HTTP server from `running_http_server`, a Unix socket directory from
 this. A test of a standing server stops it explicitly, and a `Popen` handle alone does
 not own a detached server's tree. A cleanup fixture takes the state home from
 `isolated_session`'s value and sweeps only it and `tmp_path`.
+
+A process that waits for the test blocks reading a pipe the worker holds, as
+`session_process` does. The test releases it by closing the pipe, and the pipe also
+closes when the worker ends, however it ends. Waiting for a file or a state the test
+body has yet to write leaves the process running when the test fails first, and a
+polling loop spends CPU for as long as it waits. End a process by closing its pipe or
+with SIGTERM, not SIGKILL, which gives it no chance to end what it started
+(`test_no_test_ends_a_process_with_sigkill` enforces this). To check a new held
+process, make the test fail right after starting it, then confirm with
+`pgrep -fl <tmp_path>` that nothing it started is still running.
 
 ### Reloading is not resetting
 
@@ -217,9 +246,11 @@ Health sensors use `watch_platform.js` for native paint scheduling and its match
 performance clock. A controlled page clock advances product callbacks; Chrome's
 layout-shift records still carry native timestamps. Do not mix those clocks when
 associating input, sampled geometry, and painted movement. `input_work_watch.js`
-retains the trusted input behind timers, animation frames, microtasks, and explicit
-Promise callbacks the page schedules, so delayed Send work keeps its cause and an
-unrelated timer does not acquire one by running nearby. Native `await` continuations
+retains the trusted input behind timers, animation frames, microtasks, explicit
+Promise callbacks, and reactive element updates (Lit's `requestUpdate` and
+`scheduleUpdate`) the page schedules, so delayed Send work and a Web Awesome field
+redrawn for a key keep their cause and an unrelated timer does not acquire one by
+running nearby. Native `await` continuations
 do not expose their input context to JavaScript instrumentation. A native sensor
 fixture captures its DOM commit callback with `lfInputWork.capture` during the
 trusted handler and invokes that callback after `await`; the capture states the
@@ -265,7 +296,8 @@ missing when they expire.
 
 Synchronize on the operation's declared completion or an acknowledgement of the
 causal edge. A sleep does not prove another process acquired a lock, completed a
-scan, or attempted a blocked operation. Instrumentation must keep input ownership
+scan, or attempted a blocked operation; `interact_support.lock_contention` states
+that a taker found a lock held and is waiting on it. Instrumentation must keep input ownership
 and unjudged evidence until their declared completion; a time cap must not turn
 unfinished work into a successful reading or an unrelated effect.
 
@@ -289,7 +321,14 @@ boundary and observe its completed decision. A real-time integration test waits 
 the decision with a hang deadline that allows the grace period and scheduling room.
 
 A new wait fixes its deadline when it begins and names the missing evidence on
-timeout. Pure-Python state polls use `interact_support.wait_for`.
+timeout. Pure-Python state polls use `interact_support.wait_for`, and every
+Python-side wait takes its deadline from `STATED_TIMEOUT`. A browser wait takes
+`SERVED_TIMEOUT_MS`, which `render_harness` makes the default of every Playwright
+wait and `expect`, so it names no deadline unless it spans a page handover
+(`HANDOVER_DEADLINE_MS`). The suite checks both
+(`test_a_wait_takes_the_suites_deadline`). A call with no deadline of its own, such
+as `page.evaluate`, is bounded only by the per-test limit in `pyproject.toml`, which
+ends the worker with every thread's stack after half an hour.
 
 ### A state the page passes through is not a state to poll for
 

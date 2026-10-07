@@ -21,7 +21,7 @@ immutable revisions. Re-vendoring composes page-owned declarations over the
 prospective layer before running this same candidate check. Each successful init
 records three deliberately different identities under `$layer`:
 
-- `generation` is a fresh epoch embedded in both `runtime/layer-client.js` and the
+- `generation` is a fresh epoch embedded in both `runtime/layer-generation.js` and the
   registry. State reports it and event requests carry it; the server repeats it on
   contract responses, so an old or half-loaded tab refuses a foreign answer rather
   than letting a replacement server interpret or append its event. That tab reloads
@@ -74,8 +74,8 @@ read rather than derive (`registry/layer.py`, `stamp_composition`): `$decisions`
 deciding x-state verb of every widget that has one and the member tags each of its
 outcomes retires, which the declarations imply; and `$marks`, the declarations a
 stylesheet reads, each with the attribute it is painted as, the attribute an
-occurrence overrides it with, and whether it holds in a thread's message
-(`schema.py`, `DECLARED_MARKS`). `page init` stamps them into the layer, and a page's
+occurrence overrides it with, whether it holds in a thread's message, and whether an
+idiom may declare it (`schema.py`, `DECLARED_MARKS`). `page init` stamps them into the layer, and a page's
 composition stamps them again over the page's own declarations, overwriting any
 declared `$decisions` or `$marks`. The browser reads the first rather than walking
 `x-state` and `x-retired-when` a second time, and paints a message's marks from the

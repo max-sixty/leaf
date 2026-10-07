@@ -111,9 +111,9 @@ customElements.define(
       try {
         const lang = this.getAttribute("language");
         // One representation either way: an uncolored block is the whole source as a
-        // single roleless token, so the line walk below has one shape to handle.
+        // single unstyled token, so the line walk below has one shape to handle.
         const lines = tokenLines(
-          lang ? await syntax(source, lang) : [{ text: source }],
+          lang ? await syntax(source, lang) : [{ text: source, style: {} }],
         );
         const numbers = numbering(this, lines.length);
         const hi = within(this.getAttribute("hi"));

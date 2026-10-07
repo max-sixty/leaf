@@ -1,118 +1,30 @@
-/* The thread panel's general composer and its one draft/drawing authority, and the keys
-   the Threads list itself answers.
+/* The keys the Threads list itself answers. Its general box is wired by the owner of
+   Comment on the page (thread/page-comment.js), which also owns the banner's card.
 
    Standing in the panel is where its focus is, not merely that it is open: the Threads
    button is the banner's, so opening by pointer leaves the user outside, and `g T`, `t`,
    Tab or a click on a thread is what puts them in. The thread scope draws one step further
    in, so its rows shadow these. Every page has this scope: the general box stands and
    takes words from the first paint — the offline banner says a comment will not send, not
-   that there is nowhere to write it. */
-import { validDrawing } from "../composing/drawing-record.js";
-import {
-  loadDraft,
-  loadDraftPayload,
-  mirrorDraft,
-  saveDraft,
-  sendMessage,
-  watchDraft,
-  rememberWriting,
-} from "../drafts.js";
+   that there is nowhere to write it. A drawing belongs to an element's comment, never to
+   this box (composing/drawing.js). */
 import { focused, keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
 
-const drawingIn = (payload) =>
-  validDrawing(payload?.drawing) ? payload.drawing : null;
-
-export function createPanelComposer({
-  elements: {
-    closeBtn,
-    findInput,
-    generalInput,
-    generalSend,
-    narrowingView,
-    inPanel: panelFocusIsInside,
-  },
+export function createThreadPanelKeys({
+  elements: { closeBtn, findInput, narrowingView, inPanel: panelFocusIsInside },
   openThreads,
-  designModeActive,
-  wireInput,
-  createPageComment,
-  showThread,
   setPanel,
   panelIsOpen,
   narrowing,
   stepThread,
   firstUnread,
   unreadCount,
-  paintDrawings,
 }) {
-  let sync = () => {};
-  let stopMirroringDraft = () => {};
-  let stopWatchingDraft = () => {};
-  let generalDrawing = drawingIn(loadDraftPayload("general"));
-  const generalHint = () =>
-    designModeActive() && !generalDrawing
-      ? "Comment on the design"
-      : "Comment on the page";
-  const syncGeneral = () => sync();
-  const pageComposerDrawing = () => generalDrawing;
-
-  function saveGeneralDraft(text = sync.value()) {
-    return saveDraft(
-      "general",
-      text,
-      generalDrawing ? { drawing: generalDrawing } : undefined,
-    );
-  }
-
-  function openPageDrawing(drawing) {
-    generalDrawing = drawing;
-    saveGeneralDraft();
-    rememberWriting(generalInput);
-    setPanel(true);
-    generalInput.focus({ preventScroll: true });
-    sync();
-    paintDrawings();
-  }
-
   async function mount() {
     closeBtn.onclick = () => setPanel(false);
-    generalInput.value = loadDraft("general") ?? "";
-    sync = wireInput(generalInput, {
-      hint: generalHint,
-      accessibleName: generalHint,
-      sends: "send",
-      sendBtn: generalSend,
-      hasContent: (raw) => Boolean(raw || generalDrawing),
-      save: saveGeneralDraft,
-      send: async (_text, raw, owns) => {
-        const sent = await sendMessage("general", owns, (attempt, payload) => {
-          const event = { attempt };
-          if (raw) event.text = raw;
-          const drawing = drawingIn(payload);
-          if (designModeActive() && !drawing) event.about = "design";
-          if (drawing) event.drawing = drawing;
-          return createPageComment(event);
-        });
-        if (!sent) return;
-        // The message renderer cues the send; revealing its thread only lands it.
-        showThread(sent.id, { focus: false, flash: false });
-      },
-    });
-    sync();
-    stopMirroringDraft = mirrorDraft(generalInput, sync, "general", {
-      resume: () => ({
-        where: generalInput,
-        input: () => generalInput,
-        open: () => setPanel(true),
-      }),
-    });
-    stopWatchingDraft = watchDraft("general", (_value, payload) => {
-      generalDrawing = drawingIn(payload);
-      sync();
-      paintDrawings();
-    });
     await findInput.updateComplete;
     declareFindBoxKeys();
   }
@@ -142,7 +54,6 @@ export function createPanelComposer({
             title: "Go to the previous thread found",
           },
         ],
-        description: "Next / previous thread found",
         title: "search matches",
         repeat: true,
         when: () => narrowing.threadSearchActive() && hasThreads(),
@@ -151,9 +62,9 @@ export function createPanelComposer({
       {
         id: "thread.waiting.toggle",
         // `w` for the words the control says. It is the phrase the page already uses for
-        // the same question asked of its widgets (a/A), asked here of the thread —
-        // so the user learns one idea and reaches it two ways rather than learning
-        // "needs you" beside it.
+        // the same question the queue walk (a/A) asks of the page, asked here of
+        // the thread — so the user learns one idea and reaches it two ways rather
+        // than learning "needs you" beside it.
         //
         // The shortcut uses the visible control's toggle, including leaving Resolved
         // when requesting waiting threads and preserving every other restriction.
@@ -213,14 +124,7 @@ export function createPanelComposer({
   }
 
   return {
-    syncGeneral,
-    pageComposerDrawing,
-    openPageDrawing,
     mount,
-    dispose: () => {
-      stopPanelScope();
-      stopMirroringDraft();
-      stopWatchingDraft();
-    },
+    dispose: () => stopPanelScope(),
   };
 }

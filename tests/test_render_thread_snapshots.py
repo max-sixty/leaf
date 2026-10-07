@@ -17,7 +17,7 @@ from leaf import event_log
 from leaf.served_state import context as served_context
 from leaf_dev import ROOT
 from leaf_dev.thread_journey import NEXT_WORDS, WORDS, delivery_journey
-from leaf_dev.thread_snapshots import CASES, SnapshotRun
+from leaf_dev.thread_snapshots import CASES, COMPARED, SnapshotRun, visible_capture
 from PIL import Image
 from pytest_image_snapshot import ImageMismatchError, ImageNotFoundError
 from render_harness import consume_browser_errors, leaf_page, open_page
@@ -26,8 +26,8 @@ from render_harness import consume_browser_errors, leaf_page, open_page
 @pytest.mark.skipif(
     sys.platform != "linux", reason="Linux's fixed native font contract"
 )
-def test_linux_browser_resolves_the_profile_fonts(browser, serve):
-    """Native UI, serif and mono styles all use the faces bound into the profile."""
+def test_linux_browser_resolves_the_fixed_fonts(browser, serve):
+    """Native UI, serif and mono styles all use the faces the fixed fontconfig names."""
     faces = {
         "system-ui": ("DejaVu Sans", "DejaVuSans", "Oblique"),
         "serif": ("DejaVu Serif", "DejaVuSerif", "Italic"),
@@ -132,7 +132,40 @@ def test_snapshot_comparison_saves_evidence_without_opening_a_viewer(
         assert saved.getpixel((0, 0)) == (0, 0, 0)
 
 
-@pytest.mark.parametrize("case", CASES, ids=lambda case: case.name)
+def test_response_pixels_exclude_chrome_but_keep_frame_and_shadow(
+    image_snapshot, pytestconfig, tmp_path, monkeypatch
+):
+    """Chrome outside the visible band cannot fail the response appearance oracle."""
+    clip = {"x": 10, "y": 10, "width": 100, "height": 100}
+    window = {"left": 10, "top": 26, "right": 110, "bottom": 110}
+    approved = Image.new("RGB", (100, 100), "white")
+    expected = tmp_path / "expected.png"
+    visible_capture(approved, clip, window).save(expected)
+    accepted = expected.read_bytes()
+    monkeypatch.setattr(pytestconfig.option, "image_snapshot_update", False)
+    current = approved.copy()
+    current.paste("black", (0, 0, 100, 16))
+    image_snapshot(visible_capture(current, clip, window), expected, threshold=0.01)
+    # The top frame edge, left shadow, interior words/focus, and bottom shadow
+    # all remain in the oracle, including its first and last visible pixels.
+    for box in ((16, 16, 30, 20), (0, 30, 4, 44), (30, 40, 44, 54), (16, 96, 30, 100)):
+        changed = current.copy()
+        changed.paste("black", box)
+        with pytest.raises(ImageMismatchError):
+            image_snapshot(
+                visible_capture(changed, clip, window), expected, threshold=0.01
+            )
+    assert expected.read_bytes() == accepted
+    assert approved.getpixel((0, 0)) == (255, 255, 255)
+
+
+# A colour scheme changes only pixels, so where no image is compared its cases would
+# repeat the light journey.
+@pytest.mark.parametrize(
+    "case",
+    [case for case in CASES if COMPARED or case.scheme == "light"],
+    ids=lambda case: case.name,
+)
 def test_message_delivery_appearance_and_first_frame(
     browser, serve, image_snapshot, request, case, monkeypatch, thread_expected_store
 ):
@@ -199,22 +232,32 @@ def test_message_delivery_appearance_and_first_frame(
         )
 
 
+@pytest.mark.skipif(not COMPARED, reason="thread appearance is reviewed on macOS")
 def test_accept_publishes_only_a_successful_unchanged_capture(
     browser, thread_expected_store, tmp_path, monkeypatch
 ):
     """Publication consumes reviewed bytes; a partial or changed capture cannot publish."""
     from click.testing import CliRunner
-    from leaf_dev import leaf_assets
+    from leaf_dev import leaf_assets, thread_snapshots
     from leaf_dev.thread_snapshots import accept, capture_files, render_profile
 
     profile = render_profile(browser.version)
     directory = tmp_path / "capture"
     shutil.copytree(thread_expected_store / profile, directory / profile)
     files = capture_files(directory, profile)
+    baseline = tmp_path / "reviewed-expectations"
+    shutil.copytree(thread_expected_store, baseline)
+    (baseline / "another-profile").mkdir()
+    retained = baseline / "another-profile/checkpoint.png"
+    retained.write_bytes(b"this runtime's reviewed other profile")
+    (baseline / profile / "obsolete.png").write_bytes(b"superseded checkpoint")
+    monkeypatch.setattr(thread_snapshots, "expected_store", lambda: baseline)
     runner = CliRunner()
     published = []
     monkeypatch.setattr(
-        leaf_assets, "stage", lambda *args: published.append(args) or tmp_path
+        leaf_assets,
+        "stage",
+        lambda *args, **kwargs: published.append((args, kwargs)) or tmp_path,
     )
     monkeypatch.setattr(
         leaf_assets, "publish", lambda *args: "reviewed-assets-revision"
@@ -234,7 +277,28 @@ def test_accept_publishes_only_a_successful_unchanged_capture(
     )
     result = runner.invoke(accept, [str(directory)])
     assert result.exit_code == 0, result.output
-    assert published[0][1] == files
+    staged, options = published[0]
+    assert staged[0] == "tests/thread-snapshots"
+    assert {
+        name.removeprefix(f"{profile}/"): data
+        for name, data in staged[1].items()
+        if name.startswith(f"{profile}/")
+    } == files
+    assert staged[1]["another-profile/checkpoint.png"] == retained.read_bytes()
+    assert f"{profile}/obsolete.png" not in staged[1]
+    assert {
+        name: data
+        for name, data in staged[1].items()
+        if not name.startswith(f"{profile}/")
+    } == {
+        path.relative_to(baseline).as_posix(): path.read_bytes()
+        for path in baseline.rglob("*")
+        if path.is_file() and path.relative_to(baseline).parts[0] != profile
+    }
+    assert options == {
+        "replace_tree": True,
+        "revision_key": "thread_snapshots_revision",
+    }
     published.clear()
     image = next((directory / profile).glob("*.png"))
     image.write_bytes(image.read_bytes() + b"changed")

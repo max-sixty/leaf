@@ -133,9 +133,92 @@ def composer(page: Page) -> None:
     page.mouse.down()
     page.mouse.move(box["x"] + 200, y, steps=8)
     page.mouse.up()
+    # Under a finger a selection offers Comment in the banner rather than a field. It
+    # arrives on a later frame, so the pointer decides, not whether it is there yet.
+    if page.evaluate("matchMedia('(pointer: coarse)').matches"):
+        page.get_by_role("button", name="Comment on selection").click()
     page.locator(".lf-fab-input").click()
     page.locator(".lf-composer leaf-text").focus()
     page.keyboard.insert_text("A comment being drafted on the selected words")
+
+
+# A draft of two paragraphs whose lines run past the composer's width, so every field
+# shows how its words wrap beside the action in its corner, on the lines above the last
+# as well as the last.
+LONG_DRAFT = (
+    "next phase: could we integrate the status ontology & workflow into our tasks "
+    "concept? So when the agent is working on something, they're working on a task?"
+    "\n\nwhat else do we need to move around for that to work?"
+)
+
+
+def composer_long(page: Page) -> None:
+    """A comment of two wrapped paragraphs being typed on a selected passage."""
+    composer(page)
+    page.keyboard.press("ControlOrMeta+a")
+    page.keyboard.insert_text(LONG_DRAFT)
+
+
+def composer_sent(page: Page) -> None:
+    """That comment just sent: its card keeps the draft's wrapping while it stands."""
+    composer_long(page)
+    if page.evaluate("matchMedia('(pointer: coarse)').matches"):
+        page.locator(".lf-fab-bar").get_by_role(
+            "button", name="Comment", exact=True
+        ).tap()
+    else:
+        page.keyboard.press("Enter")
+    page.locator(".lf-margin-preview[data-lf-comment-frame]").wait_for()
+    page.wait_for_function(
+        "() => !document.querySelector('.lf-margin-preview [aria-busy=\"true\"]')"
+    )
+    page.mouse.move(0, 0)
+
+
+def card_reply_long(page: Page) -> None:
+    """The first margin card with a reply of two wrapped paragraphs being typed."""
+    card_by_keyboard(page)
+    page.keyboard.press("Enter")
+    page.wait_for_function(
+        "() => document.activeElement?.matches('.lf-margin-preview leaf-text')"
+    )
+    page.keyboard.insert_text(LONG_DRAFT)
+
+
+def panel_reply_long(page: Page) -> None:
+    """The Threads panel's last thread with a reply of two wrapped paragraphs."""
+    threads_panel(page)
+    thread = page.locator(".lf-threads > .lf-thread").last
+    if thread.get_attribute("open") is None:
+        thread.locator(".lf-thread-summary").click()
+    thread.locator(".lf-thread-reply leaf-text").click()
+    page.keyboard.insert_text(LONG_DRAFT)
+
+
+def page_comment_long(page: Page) -> None:
+    """The Threads panel's page comment with two wrapped paragraphs."""
+    threads_panel(page)
+    page.locator(".lf-general leaf-text").click()
+    page.keyboard.insert_text(LONG_DRAFT)
+
+
+def option_long(page: Page) -> None:
+    """An Ask's added option, typed long enough to wrap beside its Add press."""
+    field = page.locator(".lf-another leaf-text").first
+    field.scroll_into_view_if_needed()
+    field.click()
+    page.keyboard.insert_text(
+        "Page the on-call owner only when the canary fails twice in a row, hold the "
+        "rollout until they acknowledge, and send every single failed probe to the "
+        "team channel instead, so the deploy trains stop paging anyone at all while "
+        "a real outage still reaches a person within a couple of minutes"
+    )
+
+
+def options_in_pane(page: Page) -> None:
+    """An Ask's option list in a workspace pane, under the paragraphs it answers."""
+    page.get_by_text("Checkout p99 latency", exact=True).click()
+    page.locator("#ar-latency-decision > lf-options").scroll_into_view_if_needed()
 
 
 def card_grabbed(page: Page) -> None:
@@ -228,6 +311,15 @@ def code_copy_by_keyboard(page: Page) -> None:
     page.locator("lf-code .lf-code-copy").first.get_by_role("button").focus()
 
 
+def diff_path_by_keyboard(page: Page) -> None:
+    """A folded diff file's row under the keyboard, saying the whole path its row cuts
+    short."""
+    head = page.locator("#pr-exact-patch .lf-diff-head[data-path-cut]").first
+    head.scroll_into_view_if_needed()
+    page.keyboard.press("Shift")
+    head.focus()
+
+
 def code_source_by_touch(page: Page) -> None:
     """Reading code by touch, with the corner control disclosed away."""
     code_note(page)
@@ -241,9 +333,33 @@ def pane_focused(page: Page) -> None:
     page.locator("#sort-source").focus()
 
 
+def aim_cut_by_pane(page: Page) -> None:
+    """The aim over a paragraph whose top a workspace pane has scrolled out of view:
+    paint over a target cut where the pane cuts the target."""
+    page.locator("#sort-source").evaluate(
+        """source => {
+          const note = document.getElementById('sort-source-note');
+          source.scrollTop += note.getBoundingClientRect().top
+            - source.getBoundingClientRect().top + 24;
+        }"""
+    )
+    box = page.locator("#sort-source").bounding_box()
+    page.mouse.move(box["x"] + 120, box["y"] + 20)
+    page.keyboard.down("Alt")
+    page.wait_for_function(
+        "() => document.querySelector('.lf-aim')?.dataset.for === 'sort-source-note'"
+    )
+
+
 def element_thread(page: Page) -> None:
     """An element holding a thread, in view, with nothing indicating it."""
     page.locator("#off-t-vendor").evaluate("el => el.scrollIntoView({block: 'center'})")
+
+
+def more_menu(page: Page) -> None:
+    """The banner's More, opened: on a phone it leads with Approval."""
+    page.locator(".lf-banner-more").click()
+    page.locator(".lf-banner-menu").wait_for()
 
 
 def versions_menu(page: Page) -> None:
@@ -251,6 +367,12 @@ def versions_menu(page: Page) -> None:
     page.locator(".lf-banner-more").click()
     page.locator(".lf-version").click()
     page.locator(".lf-version-menu .lf-version-row").first.wait_for()
+
+
+def ask_by_keyboard(page: Page) -> None:
+    """The next open Ask, reached with `a`: its ring and its marker in view."""
+    page.keyboard.press("a")
+    page.locator("lf-ask").first.wait_for()
 
 
 def go_to(page: Page) -> None:
@@ -264,6 +386,12 @@ def widget_inline_hints(page: Page) -> None:
     page.locator("#bg-widget-shortcut-hints").scroll_into_view_if_needed()
     page.keyboard.press("Tab")
     page.locator("#bg-local-shortcuts").focus()
+
+
+def hub_workers(page: Page) -> None:
+    """The plan with the parser goal's workers shown, its worktree in view."""
+    page.locator("#goal-parser > .lf-task-meta .lf-task-crew").click()
+    page.locator("#tree-w-1").scroll_into_view_if_needed()
 
 
 def draft_edit(page: Page) -> None:
@@ -286,6 +414,14 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         threads_panel,
         panel_by_keyboard,
         composer,
+        composer_long,
+        composer_sent,
+        card_reply_long,
+        panel_reply_long,
+        page_comment_long,
+        option_long,
+        options_in_pane,
+        ask_by_keyboard,
         card_grabbed,
         code_note,
         theme_hierarchy,
@@ -293,15 +429,39 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         multiline_passage,
         code_copy_by_pointer,
         code_copy_by_keyboard,
+        diff_path_by_keyboard,
         code_source_by_touch,
         pane_focused,
+        aim_cut_by_pane,
         element_thread,
+        more_menu,
         versions_menu,
         go_to,
         widget_inline_hints,
         draft_edit,
+        hub_workers,
     )
 }
+
+
+def playground_controls(page: Page) -> None:
+    """The playground's controls and instruction, with keyboard focus on its range."""
+    page.keyboard.press("Tab")
+    control = page.get_by_role("slider", name="Concurrent release events")
+    control.focus()
+    control.press("ArrowRight")
+    page.locator(".lf-playground-controls").scroll_into_view_if_needed()
+
+
+def margin_gallery(page: Page) -> None:
+    """The margin gallery's real controls and labels in a finger-sized column."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Page & layout", exact=True
+    ).click()
+    settle(page)
+    page.locator(
+        "#bg-margin-controls-samples .margin-entry-gallery-group"
+    ).first.evaluate("group => group.scrollIntoView({block: 'start'})")
 
 
 @dataclass(frozen=True)
@@ -315,6 +475,21 @@ class State:
 
 
 STATES = (
+    State("playground-controls", "notification-playground", playground_controls),
+    State(
+        "playground-controls-phone",
+        "notification-playground",
+        playground_controls,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "margin-gallery-phone",
+        "developer/feature-gallery",
+        margin_gallery,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("release-draft", "release-notes", draft_edit),
     State(
         "release-draft-phone",
@@ -369,6 +544,10 @@ STATES = (
     State("plan-panel-beside", "review-a-plan", threads_panel, viewport=BESIDE),
     State("plan-go-to", "review-a-plan", go_to, viewport=(1024, 768)),
     State("plan-narrow", "review-a-plan", at_rest, viewport=(360, 740)),
+    State("plan-touch", "review-a-plan", at_rest, viewport=(390, 844), touch=True),
+    State(
+        "plan-more-touch", "review-a-plan", more_menu, viewport=(390, 844), touch=True
+    ),
     State(
         "plan-versions-touch",
         "review-a-plan",
@@ -383,9 +562,68 @@ STATES = (
         viewport=(390, 844),
         touch=True,
     ),
+    State("plan-card-reply-long", "review-a-plan", card_reply_long),
+    State(
+        "plan-card-reply-long-touch",
+        "review-a-plan",
+        card_reply_long,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("plan-panel-reply-long", "review-a-plan", panel_reply_long),
+    State(
+        "plan-panel-reply-long-dark", "review-a-plan", panel_reply_long, scheme="dark"
+    ),
+    State("plan-page-comment-long", "review-a-plan", page_comment_long),
     State("plan-card-reply-resolved", "review-a-plan", card_reply_resolved),
     State("triage", "triage-board", at_rest),
     State("triage-composer", "triage-board", composer),
+    State("triage-composer-long", "triage-board", composer_long),
+    State("triage-composer-long-dark", "triage-board", composer_long, scheme="dark"),
+    State(
+        "triage-composer-long-beside", "triage-board", composer_long, viewport=BESIDE
+    ),
+    State(
+        "triage-composer-long-touch",
+        "triage-board",
+        composer_long,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("triage-composer-sent", "triage-board", composer_sent),
+    State("triage-composer-sent-dark", "triage-board", composer_sent, scheme="dark"),
+    State(
+        "triage-composer-sent-beside", "triage-board", composer_sent, viewport=BESIDE
+    ),
+    State(
+        "triage-composer-sent-touch",
+        "triage-board",
+        composer_sent,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("alert-queue", "alert-review", at_rest),
+    State(
+        "alert-queue-touch", "alert-review", at_rest, viewport=(390, 844), touch=True
+    ),
+    State("alert-option-long", "alert-review", option_long),
+    State("alert-options-in-pane", "alert-review", options_in_pane),
+    State("ideas-ask", "ideas-to-implement", ask_by_keyboard),
+    State("progress-callout", "live-progress", at_rest),
+    State(
+        "alert-options-in-pane-touch",
+        "alert-review",
+        options_in_pane,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "alert-option-long-touch",
+        "alert-review",
+        option_long,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("triage-grabbed", "triage-board", card_grabbed),
     State("walkthrough-code", "pr-walkthrough", code_note),
     State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),
@@ -397,6 +635,12 @@ STATES = (
         code_note,
         viewport=(390, 844),
         touch=True,
+    ),
+    State(
+        "walkthrough-path-keyboard",
+        "pr-walkthrough",
+        diff_path_by_keyboard,
+        viewport=(390, 844),
     ),
     State(
         "walkthrough-source-touch",
@@ -424,15 +668,20 @@ STATES = (
         viewport=(390, 500),
         touch=True,
     ),
+    State("hub", "command-hub", at_rest),
+    State("hub-workers", "command-hub", hub_workers),
     State("sort", "rust-sort", at_rest),
     State("sort-pane", "rust-sort", pane_focused),
     State("sort-pane-dark", "rust-sort", pane_focused, scheme="dark"),
+    State("sort-aim-cut", "rust-sort", aim_cut_by_pane),
 )
 
 
 def capture(browser, address: str, state: State, path: Path) -> None:
-    """Bring a fresh tab to `state` and screenshot its viewport to `path`."""
-    with tab(browser, state.viewport, state.scheme, state.touch) as page:
+    """Bring a fresh tab to `state` and screenshot its viewport to `path`, at the
+    density of the displays its pairs are read on, so a crop shows text and hairlines
+    as the reader's screen draws them."""
+    with tab(browser, state.viewport, state.scheme, state.touch, scale=2) as page:
         load(page, address)
         state.drive(page)
         settle(page)
@@ -519,19 +768,24 @@ def stills(base_ref: str | None) -> None:
                 for arm, arm_dir in arms.items():
                     # Every state starts from its authored fixture. A prior Send or
                     # Resolve must not become the next state's initial event log.
-                    with serving_source(
-                        arm_dir,
-                        ROOT / "examples" / f"{state.source}.html",
-                        scratch / f"{arm}-{state.name}",
-                    ) as address:
-                        folder = out / state.name
-                        folder.mkdir(exist_ok=True)
-                        try:
+                    # The base refuses a source written in vocabulary only the head
+                    # declares; that state has no base still, and the head's still
+                    # stands alone in its folder.
+                    folder = out / state.name
+                    folder.mkdir(exist_ok=True)
+                    try:
+                        with serving_source(
+                            arm_dir,
+                            ROOT / "examples" / f"{state.source}.html",
+                            scratch / f"{arm}-{state.name}",
+                        ) as address:
                             capture(browser, address, state, folder / f"{arm}.png")
-                        except (PlaywrightError, PageNotReady) as error:
-                            failed[state.name] = (
-                                f"on {arm}: {str(error).splitlines()[0]}"
-                            )
+                    except click.ClickException as error:
+                        failed[state.name] = (
+                            f"on {arm}: {error.message.strip().splitlines()[-1].split('; ')[0]}"
+                        )
+                    except (PlaywrightError, PageNotReady) as error:
+                        failed[state.name] = f"on {arm}: {str(error).splitlines()[0]}"
             read = differences(
                 browser,
                 [state.name for state in STATES if state.name not in failed],

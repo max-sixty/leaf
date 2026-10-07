@@ -77,7 +77,23 @@ interactions. Start their fictional histories with `data-sample-events`, sharing
 one parent-local JSON fixture when the candidates need the same conversation
 (`skills/leaf/references/page-authoring.md`, "Live samples").
 
+## Choose what the user reviews
+
+Show the change or unresolved choice that needs the user's judgment, with the
+comparison and tradeoff needed to assess it. Name the feedback sought. When
+nothing needs their judgment, hand over the verified result.
+
+Verify behavior expected to stay unchanged against the baseline yourself and
+report what you checked and found. An unchanged sample can explain a changed
+contract; make it optional to operate and keep regression verification with the
+agent. Present visible and interaction changes using the proof below.
+
 ## Prove and hand off a visible change
+
+The handoff lets the user inspect the changed behavior. Open the exact preview
+URL in a fresh browser context and verify that the review state is visible on
+arrival or reached by the route the handoff names. Setup from a private probe
+that the user cannot repeat belongs in the fixture or a replay control.
 
 Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
 "Layout and motion"), and capture the viewport when fixed chrome should
@@ -96,7 +112,10 @@ merge base beside it (`dev/AGENTS.md`).
 
 When a complex interaction depends on a sequence of inputs or changes over time,
 show a recorded journey with a timeline so the user can inspect intermediate
-states and motion. Use that same probe with `--record .tmp/recordings/NAME`.
+states and motion. Review the final exported recording through playback or decoded
+frames at their recorded times, including its loop boundary; select the interval
+that shows the behavior being reviewed. Use that same probe with
+`--record .tmp/recordings/NAME`.
 Its Playwright trace has an action timeline, a screenshot
 filmstrip, DOM snapshots, console and network; its WebM shows the actual frames.
 Add `--gif` for a short shareable loop, or `--actions` to decorate clicks and keys.
@@ -109,19 +128,34 @@ least one second. `--motion reduce`
 reproduces the reduced-motion preference. A failed journey keeps its recording
 and exits unsuccessfully. The same command takes any HTTP(S) URL for general
 browser work. Keep the page and context open until the recorder finalizes:
-Playwright cannot save screencast video after its page closes. Serve the trace in
-a browser tab with:
+Playwright cannot save screencast video after its page closes. Serve the trace
+without opening a desktop browser with:
 
 ```bash
-uv run playwright show-trace --host 127.0.0.1 --port 0 \
+uv run leaf-dev trace-server \
   .tmp/recordings/NAME/worktree/trace.zip
 ```
 
-When showing a timeline in Leaf, place a direct link to the same recording in the
-running Trace Viewer beside its controls. The viewer supplies action details,
-Before/Action/After DOM snapshots, source, console and network inspection; Leaf
-supplies the anchored discussion. Keep both previews running and verify that the
+The command prints the viewer URL and stays running. Link that URL in the review
+page; open a desktop browser only when the user asks to watch.
+
+When showing a timeline in Leaf, select the optional `playwright` package and
+read its author instructions. Bind `lf-trace` to the original archive's imported
+`playwright-trace` source; that contract's producer instructions own the import
+command. The widget combines action checkpoints and optional intermediate frames
+in one chronological timeline, with comments on images and saved accessibility
+elements, and a direct link to the
+same recording in the running Trace Viewer. The viewer supplies DOM, source,
+console and network inspection. Keep both previews running and verify that the
 viewer URL reaches the user's browser before handing it over.
+
+For an important result, perform the input and use a Playwright expectation to
+establish the intended browser state. Review the successful expectation's After
+checkpoint; returning from the input alone does not prove an asynchronous update
+finished. Native tracing groups name those operations without adding captures.
+Add `--checkpoint-images` alongside `--record` when the review needs native PNG images
+at those checkpoints. Taking them adds capture work and briefly hides the live
+caret, so omit it when ordinary motion and caret behavior are the evidence.
 
 `uv run leaf-dev stills` compares HEAD with the merge base with `main` and crops
 each changed catalogue state into a before/after pair. Commit first, since it
@@ -129,9 +163,15 @@ compares commits. Include pages at rest and states reached by interaction,
 including focus states where layout can cover a focus ring. Add missing states
 to `STATES` rather than driving them by hand.
 
-For every difference a still can show, the handoff carries one sentence and
-matched before/after screenshots, embedded in the reply or as one `lf-shot`; a
-live preview may accompany the pair but does not replace it. For an
+For every difference a still can show, the handoff is a Leaf page holding an
+`lf-shot` of that difference, from the crops `leaf-dev stills` writes, with a
+sentence saying what changed; the reply links the page. A live preview may
+accompany the pairs but does not replace them. Several captured states often show
+the same difference. Check them all, show the difference once, in the state where
+it reads most clearly, and say in a line which other states repeat it, since the
+user reads every pair and a repeat tells them nothing new. A dark-scheme or phone
+pair belongs only where the change looks different there, as a change to a colour
+or theme token does in the dark scheme. For an
 interaction-only change, serve both versions ("Compare checkout versions" below),
 keep both previews live, and hand off the labeled URL pair with the action that
 reveals the difference. Exercise the same journey in both at the same fragment,
@@ -144,7 +184,9 @@ id) and stays running.
 `uv run leaf-dev preview <example> --export` writes one file that opens offline.
 `uv run leaf-dev preview <example>` serves a live page at `.tmp/previews/<example>`
 in the foreground, like a dev server, so run it as a long-running command
-(`run_in_background` in Claude Code). `--source <file>` serves any authored HTML
+(`run_in_background` in Claude Code). A desktop Codex `--user` preview instead
+detaches its watcher and returns its URL: the page and feedback stay available
+when Codex unloads the chat's idle instance. `--source <file>` serves any authored HTML
 file in place of a shipped example. It follows source and runtime edits at one
 URL; each start rebuilds the page from the fixture, and `--slot <name>` runs another copy.
 
@@ -160,9 +202,10 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 
 ### In Codex
 
-1. Start the preview with `--user` as a long-running command from the current
+1. Start the preview with `--user` from the current
    chat. It connects Leaf feedback to this Codex chat before printing the URL;
-   each restart reconnects the rebuilt page automatically.
+   desktop Codex returns after the detached watcher subscribes to source edits.
+   Each restart reconnects the rebuilt page automatically.
 2. Call `mcp__codex_app__open_in_codex` with the printed keyed URL and the semantic
    block's fragment, as a browser target with `placement: "right"`.
 3. Tell the user to comment on the surrounding review page to steer this chat.
@@ -170,27 +213,24 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
    Annotation mode sends visual comments with the next chat message; Leaf's text
    selection and comment affordance send an anchored thread directly.
 
-## Test the hosted website agent
+## Run the agent journey
 
-`uv run --project <root> leaf-dev verify-site local` builds the site, starts the
-website adapter against the host's Codex login, asks for one heading edit, and
-verifies the publication, reply, and changed page in Chrome. It bypasses the
-Cloudflare Worker, container limits, and credential proxy, and needs no Docker.
+`uv run --project <root> leaf-dev journey TARGET` runs one user's journey in
+Chrome: on the triage board, it tells the agent through Threads that a release
+passed its checks and asks it to record that, leaving how to the agent, then checks
+a reply shows and a reload presents a revision naming the release. It prints how long each step took, the agent's steps on the page
+server's clock, so the same journey benchmarks every harness. TARGET is `claude-code`
+or `codex` for an isolated session of that harness running this working tree's
+plugin, `local` for the website's adapter against the host's Codex login (no
+Worker, container limits, credential proxy or Docker), `wrangler` for the built
+site through the local Worker, or a website origin. A run on this machine spends
+the harness's login.
 
-Use CI for Linux-specific evidence and the complete Worker/container boundary:
-pull requests run the site build, dry-run deploy, and `verify-site wrangler`, and
-`publish-site` verifies that boundary before deployment. Start Docker locally
-only to reproduce a concrete failure at that boundary. When debugging hosted-agent
-delivery through it and `OPENAI_API_KEY` is exported, run:
-
-```bash
-npm ci --prefix <root>/worker
-npm run build --prefix <root>/worker
-uv run --project <root> leaf-dev verify-site wrangler --agent
-```
-
-The `publish-site` workflow's run against the deployed release is the only
-production reading.
+`tests/AGENTS.md`, "Run what the change needs", owns the CI delivery checks and
+when to reproduce a Worker/container failure locally. `worker/README.md`, "Local
+development", owns that reproduction setup. The `publish-site` workflow verifies
+the complete boundary before deployment; its journey against the deployed release
+is the only production reading.
 
 ## Test a terminal Codex task
 
@@ -199,7 +239,7 @@ this working tree installed as their plugin, through both transports of automati
 server handoff. It checks each comment is answered once, a comment during queue-backed
 work is picked up and answered in that same turn, and each turn is closed under
 App Server's id. Run it after a change to `codex.py`,
-`codex_adapter.py`, `hooks.py`, `hook_carrier.py`, or the claim's turn in
+`codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's turn in
 `service.py`; the suite scripts App Server, and only this run shows what Codex
 itself sends. It spends a few turns on the host's Codex login, and CI has none.
 
@@ -207,6 +247,31 @@ For a change to preview startup or lifetime, add `--preview`. It starts the
 canonical user preview in each task, checks the keyed URL across those turns,
 and interrupts its isolated server between turns to prove that the preview
 restores both the address and working feedback without a source edit.
+
+## Test a Claude Code session
+
+`uv run --project <root> leaf-dev verify-claude-code-task` runs a real interactive
+Claude Code session in a tmux pane, with this working tree as its plugin and the
+host's login.
+It checks each comment is answered once, a comment during a turn is picked up in
+that turn, comments after an Escape are answered, and quitting ends the session's
+claim; `--hooks-module` runs the same journey with the plugin's hooks module on,
+and also checks that Escape closes the turn and leaves a watch running. Run it,
+with and without the flag, after a change to `hooks/hooks.json`,
+`hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, `loop-guard.py`, or the
+watch between turns in `session.py`; the suite stands in for Claude Code, and only
+this run shows what Claude Code itself does.
+
+## Test a Pi session
+
+`uv run --project <root> leaf-dev verify-pi-task` runs a real Pi session, the
+version `dev/pi/` pins, with this working tree installed as its Pi package and the
+host's Codex login as its only login. It checks each comment is answered once, a
+comment during a run is answered in that run, Escape closes the turn without waking
+Pi again, and quitting ends the session's claim. Run it after a change to
+`hooks/pi.ts`, `PiHarness`, `hooks.py`, or the watch between turns in `session.py`;
+the suite drives the extension with a stand-in for Pi, and only this run shows what
+Pi itself does.
 
 ## Compare checkout versions
 
@@ -223,8 +288,9 @@ git worktree add --detach "$baseline_root" "$baseline_commit"
 
 Choose sources that isolate the change: one shared source for a runtime change,
 or each checkout's copy when the authored content changed. Run the two previews
-as separate long-running commands, adding `--user` to both when their URLs go to
-the user:
+as separate commands, adding `--user` to both when their URLs go to the user.
+Keep foreground previews running; desktop Codex user previews return after
+startup:
 
 ```bash
 uv run --project "$candidate_root" leaf-dev preview --source <baseline-source.html> \
@@ -254,12 +320,16 @@ A page that explains how a Leaf interface behaves lets the user operate it
 
 ## Score an instruction change
 
-Score an instruction change by running the cases that bear on it on both the merge
+Score an instruction change when an agent could read it more than one way, so what
+it will do under the new text is uncertain: a new or reworded rule, a goal that
+competes with another, a cut that may have carried a behavior. A change whose reading
+is plain needs no score, such as deleting the description of an input that can no
+longer arrive or correcting a fact. Run the cases that bear on it on both the merge
 base and the working tree:
 
 ```bash
 npm ci --prefix evals
-uv run leaf-dev eval [CASE]... --base --harness cc|codex [--repeat N]
+uv run leaf-dev eval [CASE]... --base --harness claude-code|codex [--repeat N]
 npm run view --prefix evals
 ```
 
@@ -267,15 +337,15 @@ npm run view --prefix evals
 results go and how far a pass can be trusted. Read the outputs as well as the pass
 counts.
 
-The suite is a library that grows with the instructions, so a later edit, whether a fix
-or a cut, is scored against the behaviors earlier edits had to produce. Add to it
-where a change's behavior gives the library breadth, a behavior or kind of situation
-no case yet covers. First try to extend an existing case, with an assertion, a
-criterion, or context in its prompt, so coverage grows without the cases
-proliferating; add a new case only where no existing one can carry the behavior.
-Keep a case small: one prompt carrying only the context the behavior needs, and a
-few assertions. Measure with whatever scenarios and guardrails the change needs, and
-keep what you add whether or not it separated the arms. The leading comment says
+Score with the cases already there wherever one fits, and add to the suite sparingly:
+every case costs time and money on each later run that selects it. Where an existing
+case nearly fits, extend it with an assertion, a criterion, or context in its prompt.
+Add a new case only where the change needs measuring and no existing case can carry
+the behavior. What the suite holds then scores later edits, whether fixes or cuts,
+against the behaviors earlier edits had to produce. Keep a case small: one prompt
+carrying only the context the behavior needs, and a few assertions. Measure with
+whatever scenarios and guardrails the change needs, and keep what you add whether or
+not it separated the arms. The leading comment says
 whether the case told two wordings apart or has only guarded.
 
 The prompt never states the behavior under test. A prompt pointing at a file beyond
@@ -295,22 +365,22 @@ When a change adds or removes a worked example or changes its first viewport,
 run `wt refresh-previews` from the repository root on macOS once the examples
 are ready, and again after integrating `main` or any later fix that changes a
 first viewport. It pushes the stills to `max-sixty/leaf-assets` and moves the pin
-in `leaf-assets.json` and the README's image URLs; that push is part of the
-authorized change. `uv run leaf-dev record-demo` does the same for the README's
+in `leaf-assets.json` and the README's image URLs. `uv run leaf-dev record-demo` does the same for the README's
 recording and stills and the site's card. Run `wt setup` first in a new checkout;
 if Worktrunk asks to approve the project commands, ask the user to run
 `wt config approvals add`.
 
 ## Land a change
 
-Thread appearance changes run `tests/test_render_thread_snapshots.py` through the
-ordinary gate. Review the failure's captured images before accepting an intentional
-change; `dev/leaf_dev/thread_snapshots.py` owns the pinned-image capture and acceptance workflow.
+Thread appearance changes run `tests/test_render_thread_snapshots.py` on macOS
+before landing. Linux CI runs the same delivery journey without comparing images.
+Review captured Mac images before accepting an intentional change;
+`dev/leaf_dev/thread_snapshots.py` owns capture and acceptance.
 
 A red gate is the branch's to fix. A pull request's `test` job and the local
 pre-merge `tests` run the broad selection and the nightly tests the branch edits;
 the rest of the nightly-marked tests run once main moves, and `tend-ci-fix` answers
-them when they fail (`tests/AGENTS.md`, "Run the narrowest useful surface").
+them when they fail (`tests/AGENTS.md`, "Run what the change needs").
 `wt merge` checks the rebased tree and lands it; `✗ Can't push to local main branch`
 is a fast-forward failure.
 

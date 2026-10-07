@@ -318,12 +318,21 @@
         }
       ]
     </script>
+    <script id="bg-title-sheen-history" type="application/json">
+      [
+        {
+          "id": "bg-title-sheen-question",
+          "kind": "comment",
+          "author": "user",
+          "text": "Can we schedule the workshop lunch?"
+        }
+      ]
+    </script>
     <script type="module">
       import { afterPresentation, commands } from "/runtime/widget-api.js";
 
       const localNote = document.querySelector("#bg-shortcut-note");
       const focusNote = document.querySelector("#bg-shortcut-focus-note");
-      focusNote.addEventListener("click", () => localNote.focus());
       commands(document.querySelector("#bg-local-shortcuts"), "In the note sample", [
         {
           id: "note.focus",
@@ -332,7 +341,7 @@
           bindingBadge: null,
           title: "Write note",
           description: "Focus the sample note",
-          run: () => focusNote.click(),
+          run: () => localNote.focus(),
         },
       ]);
 
@@ -369,6 +378,13 @@
         });
 
       await customElements.whenDefined("lf-sample");
+
+      const titleSample = document.querySelector("#bg-title-sheen-sample");
+      const showPendingTitle = () => {
+        void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
+      };
+      titleSample.addEventListener("lf-sample-ready", showPendingTitle);
+      void titleSample.ready.then(showPendingTitle);
 
       const sample = document.querySelector("#bg-panel-sample");
       let selected = null;
@@ -436,18 +452,23 @@
               An <code>lf-ask</code> is one complete Ask: its heading names the
               question, and one nested widget owns the answer. This sample uses
               <code>lf-options</code>, which records a choice Leaf can replay as page
-              state. The banner shows completed/total. Press <kbd>a</kbd> for the next
-              Ask waiting on you; open <strong>Asks</strong>, or press <kbd>g</kbd> then
-              <kbd>Shift+A</kbd>, to review every active Ask and its current answer.
-              Within a view, <kbd>a</kbd> scrolls to the question. When it opens another
-              view, the question appears immediately and its tab name briefly
-              highlights. <kbd>Shift+A</kbd> walks back. Reduced motion removes the
-              glide and highlight. When <kbd>a</kbd> reaches a commented Ask, its
-              discussion stays closed while you read and choose, including when Tab
-              enters its controls. Press <kbd>c</kbd> to reply in that existing
-              discussion, <kbd>t</kbd> to read it, or its Thread marker to open it under
-              a finger. Returning to an Ask you have answered also keeps its controls
-              clear.
+              state. Press <kbd>a</kbd> for the next thing waiting on you, in page
+              order: an open Ask, a thread whose question is yours to answer, such as
+              the gallery thread that asks about a pasted image, a task the agent put on
+              you, or a move whose reply failed and needs sending again. After its
+              status, the banner counts what waits on you and what waits on the agent.
+              Press those counts, open <strong>Queue</strong> in More, or press
+              <kbd>g</kbd> then <kbd>Shift+Q</kbd>, to see both lists in one panel, with
+              answered Asks and finished tasks folded under Done; Enter on a row goes
+              where <kbd>a</kbd> would. The Queue panel is experimental. Within a view,
+              <kbd>a</kbd> scrolls to the question. When it opens another view, the
+              question appears immediately and its tab name briefly highlights.
+              <kbd>Shift+A</kbd> walks back. Reduced motion removes the glide and
+              highlight. When <kbd>a</kbd> reaches a commented Ask, its discussion stays
+              closed while you read and choose, including when Tab enters its controls.
+              Press <kbd>c</kbd> to reply in that existing discussion, <kbd>t</kbd> to
+              read it, or its Thread marker to open it under a finger. Returning to an
+              Ask you have answered also keeps its controls clear.
             </p>
             <lf-ask id="bg-choice-ask">
               <h3>Which map should the sample team carry?</h3>
@@ -456,6 +477,19 @@
                 <lf-option id="bg-choice-trail">Trail map</lf-option>
               </lf-options>
             </lf-ask>
+            <section id="bg-task-on-you">
+              <h3>A task on you</h3>
+              <p>
+                The agent put a task on you about this section with
+                <code>leaf task open … --on user</code>: check that the trail map marks
+                the shelter. Nothing here answers it, so it ends at your Done. It waits
+                under On you in the Queue panel, where its row has a Done button, and
+                <kbd>a</kbd> reaches it after the Ask above. Where <kbd>a</kbd> lands on
+                it, press <kbd>x</kbd>, or under a finger the banner's
+                <strong>Done</strong>. Done moves it under the panel's Done fold and
+                tells the agent.
+              </p>
+            </section>
             <section id="bg-widget-shortcut-hints">
               <h3>Inline hints outside an Ask</h3>
               <p>
@@ -641,6 +675,25 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
             </section>
 
+            <section id="bg-page-comment-card">
+              <h3>
+                <strong>Comment on the page</strong
+                ><span class="bg-feature-detail"
+                  >: start a page thread from the banner</span
+                >
+              </h3>
+              <p id="bg-page-comment-card-guide">
+                With Threads shut, press the comment symbol beside Threads on the
+                banner, or press <kbd>c</kbd> with nothing selected. A card hangs from
+                the symbol; write a sentence and send it. The card goes away and Threads
+                flashes yellow, its count one higher, while the panel stays shut; the
+                new thread is in Threads. <kbd>Escape</kbd> or a click elsewhere also
+                puts the card away, keeping what you wrote for the next time it opens.
+                With Threads open, the same press goes to its own “Comment on the page”
+                box. On a phone, “Comment on the page” is in “More page controls”.
+              </p>
+            </section>
+
             <section id="bg-design-comments">
               <h3>
                 <strong>Design mode</strong
@@ -662,15 +715,20 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </h3>
               <p id="bg-drawing-comments-guide">
                 Press <kbd>w</kbd> and draw anywhere across the page. Start over this
-                guide or in its margin to anchor the comment here; empty space with no
-                addressable element alongside comments on the page whole. Every further
+                guide or in the space around it to anchor the comment here: a stroke in
+                empty space belongs to the nearest element on screen. Every further
                 stroke joins the same drawing, wherever it starts. Send the drawing
-                alone or add words first. <kbd>Escape</kbd> puts the comment box away
-                with its strokes kept, and the next stroke brings it back; a second
-                <kbd>Escape</kbd> leaves Draw mode. Press <kbd>w</kbd> again and start
-                over this guide: the stroke joins the kept drawing rather than replacing
-                it. On a touch screen, “Draw mode” is in “More page controls”, and “Exit
-                Draw mode” stands on the banner while the mode holds.
+                alone or add words first. The comment box shows the drawing beside Undo
+                last stroke and Remove drawing; in the box, <kbd>⌘Z</kbd> and
+                <kbd>⌘⇧Z</kbd> undo and redo strokes and words in the order you made
+                them. <kbd>Escape</kbd> puts the box away and leaves the drawing on the
+                page, dashed, and the next stroke brings the box back;
+                <kbd>z</kbd> takes back a stroke while it is away. A second
+                <kbd>Escape</kbd> leaves Draw mode with the drawing still showing. Press
+                <kbd>w</kbd> again and start over this guide: the stroke joins the kept
+                drawing rather than replacing it. On a touch screen, “Draw mode” is in
+                “More page controls”, and “Undo stroke” and “Exit Draw mode” stand on
+                the banner while the mode holds.
               </p>
             </section>
 
@@ -899,7 +957,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               the agent; open one to read the full messages beneath it. Reply follows a
               short conversation directly; in a long conversation it stays visible while
               you scroll. While you write in a short thread, an arriving reply waits
-              behind “new reply” until you open it.
+              behind “new reply” until you open it. Switch to another browser tab, have
+              the agent add a reply, then return: held replies and the first refreshed
+              reply appear automatically with the usual arrival tint. Your draft and
+              caret stay in the same editor. Leave this page visible beside another
+              window and focus that window: new replies still wait behind the notice.
             </p>
             <p id="bg-thread-notices">
               <strong>New information.</strong> Have the agent add a message after the
@@ -987,6 +1049,29 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </p>
             <section id="bg-thread-state-titles">
               <h3>Thread title</h3>
+              <section id="bg-title-sheen">
+                <p id="bg-title-sheen-guide">
+                  The pending title below uses a highlight that travels across the
+                  lettering and returns. Reset starts a fresh untitled thread. Reduced
+                  motion shows solid muted text.
+                </p>
+                <lf-sample
+                  id="bg-title-sheen-sample"
+                  label="Pending thread title"
+                  window
+                >
+                  <template
+                    id="bg-title-sheen-page"
+                    data-sample
+                    data-sample-events="bg-title-sheen-history"
+                  >
+                    <h1>Workshop schedule</h1>
+                    <p id="bg-title-sheen-copy">
+                      Lunch is the remaining question for the workshop.
+                    </p>
+                  </template>
+                </lf-sample>
+              </section>
               <div id="bg-thread-title-pair">
                 <section id="bg-thread-title-before">
                   <p class="eyebrow">Before · untitled</p>
@@ -994,8 +1079,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     <strong>An untitled thread.</strong> The workshop schedule leaves
                     lunch open. Open Threads to view it. The agent asked without naming
                     the thread, so its row reads the question itself. A thread you open
-                    reads <code>Generating title</code> in muted text until the agent
-                    gives it a short name.
+                    reads <code>Generating title</code> with a highlight sweeping across
+                    the lettering until the agent gives it a short name. With reduced
+                    motion, the text stays a solid muted color.
                   </p>
                 </section>
                 <section id="bg-thread-title-after">
@@ -1025,8 +1111,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <p id="bg-resolved-text">
                 <strong>A resolved thread.</strong> The room has a projector. Its
                 earlier question is resolved. Open Threads in the banner, select
-                “Resolved”, and try “Reopen” to bring its Thread control back to the
-                page.
+                “Resolved”, open the thread, and press its underlined “Resolved” to
+                bring its Thread control back to the page.
               </p>
             </section>
             <section id="bg-thread-state-summary">
@@ -1191,15 +1277,18 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <p class="eyebrow">list="side"</p>
             <h2><strong>A queue beside the item it opens</strong></h2>
             <p id="bg-side-list-guide">
-              The tab list stands left of the open item, each row its name and summary.
-              Walk it with the up and down arrows. Answer the first item's Ask and its
-              row shows a check and the option you picked, and undo takes them away;
-              narrow the window below the set's 36rem and the list becomes a row above
-              the item, its rows keeping only the check.
+              The tab list stands left of the open item, each row its name and summary,
+              and each run of rows sharing a <code>group</code> under its heading. Walk
+              it with the up and down arrows, which pass the headings by. Answer the
+              first item's Ask and its row shows a check and the option you picked, and
+              undo takes them away; narrow the window below the set's 36rem and the list
+              becomes a row above the item, with each group's name before its first row
+              and the rows keeping only the check.
             </p>
             <lf-tabs id="bg-side-queue" list="side">
               <lf-tab
                 id="bg-side-4107"
+                group="Act today"
                 label="ESC-4107 · Northwind Labs"
                 summary="sev 1 · 9 h · suggested fix"
               >
@@ -1221,6 +1310,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </lf-tab>
               <lf-tab
                 id="bg-side-4114"
+                group="Act today"
                 label="ESC-4114 · Vela Analytics"
                 summary="sev 1 · 1 h · suggested escalate"
               >
@@ -1230,6 +1320,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </lf-tab>
               <lf-tab
                 id="bg-side-4108"
+                group="This week"
                 label="ESC-4108 · Hale &amp; Sons"
                 summary="sev 3 · 8 h · suggested close"
               >
@@ -1559,9 +1650,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 file's own numbers with an elided row where it skips; Tree shows file
                 structure. Use “Copy code” on the right of either block below, or
                 <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard keeps the
-                code's whitespace and leaves out line numbers and Notes.
+                code's whitespace and leaves out line numbers and Notes. Bash separates
+                commands, arguments, and flags with the same syntax colors as a diff.
               </p>
-              <pre id="bg-plain-code"><code>leaf page check ./proposal
+              <pre
+                id="bg-plain-code"
+              ><code class="language-bash">leaf page check ./proposal --render
 leaf page stamp ./proposal --text "Ready for review"</code></pre>
               <lf-code id="bg-code" language="python" lines="40-43,58-59" hi="41-42">
                 <pre>
@@ -2215,8 +2309,8 @@ switch --readers checkout-api,orders-api</code></pre>
               <lf-column id="bg-work-ready" label="Ready">
                 <lf-card id="bg-work"
                   ><strong>Check the sample route</strong>
-                  A live work claim puts a Working indicator here because this card has
-                  no other margin control to carry its workflow state.
+                  An open task on this card puts a Working indicator here because the
+                  card has no other margin control to carry it.
                 </lf-card>
               </lf-column>
               <lf-column id="bg-work-tried" label="Tried"></lf-column>

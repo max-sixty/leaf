@@ -1,7 +1,8 @@
 /* lf-playground: one declarative control loop with one durable decision.
  *
  * Authors define controls, presets, real preview markup, and an instruction in light
- * DOM. This module owns the common mechanics: typed working state, controls,
+ * DOM. The synchronous initial producer owns their DOM and typed control values;
+ * this module adopts that drawing and owns the live mechanics: working state,
  * tab-local persistence, CSS reflection, instruction copying, commands, and
  * the final recordless action. Intermediate changes never enter Leaf's event log.
  *
@@ -22,28 +23,20 @@ import {
   compoundReadingRegionId,
   dressSamples,
   failSoft,
-  holdFocus,
-  keeps,
-  keepsText,
   layoutChanged,
   notice,
-  offer,
   once,
+  initialRender,
   paintKeys,
-  quoted,
   registerReadingRegion,
-  reserve,
   says,
   tabStore,
   wear,
   widgetController,
 } from "/runtime/widget-api.js";
 import "./lf-playground-output.js";
-import "../vendor/webawesome.esm.js";
 
 const NAME = /^[a-z][a-z0-9-]*$/;
-const COLOR = /^#[0-9a-f]{6}$/i;
-const KINDS = new Set(["range", "toggle", "choice", "color", "text"]);
 const CHANGE = "lf-playground-change";
 // What one pointer press operates: a preset, Reset, and the controls whose press or
 // drag is the whole gesture. Their readable labels remain ordinary selection targets.
@@ -52,17 +45,6 @@ const ONE_PRESS = [
   ".lf-playground-reset",
   ...["choice", "toggle", "range"].map((kind) => `.lf-playground-${kind}`),
 ].join(", ");
-const COPY_LABELS = Object.freeze([
-  ["rest", "Copy instruction"],
-  ["success", "Copied"],
-  ["error", "Copy failed"],
-]);
-const COPY_WORDS = Object.freeze(COPY_LABELS.map(([, label]) => label));
-const OFFLINE = document.querySelector(
-  'script[type="application/json"][data-lf-runtime][data-lf-offline]',
-);
-
-const own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
 
 const sameKeys = (left, right) =>
   left.length === right.length && left.every((key, index) => key === right[index]);
@@ -96,7 +78,13 @@ function jsonSnapshot(value, path = "configuration") {
 customElements.define(
   "lf-playground",
   class extends HTMLElement {
+    // What the Ask was answered with: the instruction the chosen configuration sent.
+    static answerWords(state) {
+      return state.choose.detail.instruction;
+    }
+
     #controller = widgetController(this);
+    #initial = null;
     #controls = [];
     #controlByName = new Map();
     #contributors = new Map();
@@ -110,6 +98,7 @@ customElements.define(
     #preview = null;
     #submit = null;
     #copy = null;
+    #copyTimer = null;
     #reset = null;
     #choosing = false;
     #projected = undefined;
@@ -117,23 +106,18 @@ customElements.define(
     #interactive = false;
     #regions = [];
     #unregister = [];
-    #stop = null;
 
     connectedCallback() {
       if (!once(this)) {
         this.#registerRegions();
-        if (this.#interactive)
-          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
         this.#paintAvailability();
         return;
       }
       try {
         this.#build();
         this.#ready = true;
-        // Built, so the height the page reserved for it lifts (x-height).
-        this.classList.add("lf-rendered");
         if (this.#interactive)
-          this.#stop ??= this.#controller.subscribe(() => this.#paintAvailability());
+          this.#controller.subscribe(() => this.#paintAvailability());
       } catch (error) {
         this.#unregisterRegions();
         failSoft(this, error);
@@ -141,8 +125,7 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      this.#stop?.();
-      this.#stop = null;
+      clearTimeout(this.#copyTimer);
       this.#unregisterRegions();
     }
 
@@ -198,161 +181,71 @@ customElements.define(
     }
 
     #build() {
-      this.#controls = own(this, "lf-playground-control");
-      const presets = own(this, "lf-playground-preset");
-      const previews = own(this, "lf-playground-preview");
-      const outputs = own(this, "lf-playground-output");
-      if (!this.#controls.length) throw new Error("needs at least one control");
-      if (previews.length !== 1) throw new Error("needs exactly one preview");
-      if (outputs.length !== 1) throw new Error("needs exactly one output");
-      this.#output = outputs[0];
-      this.#preview = previews[0];
-      this.#interactive = !quoted(this);
-      this.classList.toggle("lf-playground-quoted", !this.#interactive);
-
-      for (const control of this.#controls) this.#declareControl(control);
-      this.#defaults = Object.freeze(
-        Object.fromEntries(
-          this.#controls.map((control) => [
-            control.getAttribute("name"),
-            this.#parse(control, control.getAttribute("value")),
-          ]),
-        ),
-      );
-      this.#validateValueSlots();
-      for (const preset of presets)
-        this.#presetSettings.set(preset, this.#validatePreset(preset));
-
+      this.#initial = initialRender(this);
+      const initial = this.#initial;
+      this.#controls = initial.controls;
+      this.#controlByName = initial.controlByName;
+      this.#defaults = initial.defaults;
+      this.#values = initial.values;
+      this.#storedCandidate = initial.storedCandidate;
+      this.#output = initial.output;
+      this.#preview = initial.preview;
+      this.#interactive = Boolean(initial.submit);
+      this.#submit = initial.submit;
+      this.#copy = initial.copy;
+      this.#reset = initial.reset;
+      this.#presetButtons = initial.presetButtons;
+      this.#regions = initial.regions.map((region) => ({
+        ...region,
+        id: compoundReadingRegionId(this, region.name),
+      }));
+      this.#presetSettings = initial.presetSettings;
+      this.#initial.renderValues(this.#values);
+      const reflection = this.#reflection();
+      wear(this, reflection);
+      this.#syncCopy();
+      dressSamples(this, reflection);
       if (this.#interactive) {
-        const panel = offer("div", "lf-playground-controls");
-        const panelTitle = offer("p", "lf-playground-controls-title", "Controls");
-        panelTitle.id = `${this.id}-controls-title`;
-        panel.setAttribute("role", "group");
-        panel.setAttribute("aria-labelledby", panelTitle.id);
-        panel.append(panelTitle, ...this.#controls);
-        let presetBar = null;
-        if (presets.length) {
-          presetBar = offer("header", "lf-playground-presets");
-          const presetTitle = offer(
-            "span",
-            "lf-playground-presets-title",
-            "Starting points",
-          );
-          presetTitle.id = `${this.id}-presets-title`;
-          presetBar.setAttribute("role", "group");
-          presetBar.setAttribute("aria-labelledby", presetTitle.id);
-          presetBar.append(presetTitle, ...presets);
-        }
-
-        for (const control of this.#controls) this.#buildControl(control);
-        for (const preset of presets) this.#buildPreset(preset);
-        const actions = this.#buildActions();
-        this.#buildLayout({ panel, presetBar, preview: previews[0], actions });
+        for (const control of this.#controls)
+          control.addEventListener("input", () => this.#takeInputs());
+        for (const [preset, button] of this.#presetButtons)
+          button.addEventListener("click", () => {
+            const next = { ...this.#values, ...this.#presetSettings.get(preset) };
+            this.#apply(next);
+          });
+        this.#copy.addEventListener("click", () => this.#copyInstruction());
         this.addEventListener("mousedown", (event) => {
           if (event.target.closest(".lf-playground-control-label")) return;
           const pressed = event.target.closest(ONE_PRESS);
           if (pressed?.closest("lf-playground") === this && this.#standsInPreview()) {
-            // Cancel the focus transfer, not the ordinary collapse of a selection
-            // outside the preview. Keeping that selection would make the next click
-            // look like the end of its drag to the shared control activation guard.
             const selection = getSelection();
             if (selection && !this.#preview.contains(selection.focusNode))
               selection.removeAllRanges();
-            event.preventDefault();
+            const range = event.target.closest('input[type="range"]');
+            if (range) {
+              // Native range focus and track operation share a browser default.
+              // Return focus synchronously after that default takes it, so dragging
+              // remains native while the preview keeps showing its focused state.
+              let standing = document.activeElement;
+              while (standing?.contentDocument)
+                standing = standing.contentDocument.activeElement;
+              range.addEventListener(
+                "focus",
+                () => standing.focus({ preventScroll: true }),
+                { once: true },
+              );
+            } else event.preventDefault();
           }
         });
+        this.#commands();
       }
-
-      this.#storedCandidate = this.#readStoredCandidate();
-      const restored = this.#storedCandidate
-        ? Object.fromEntries(
-            [...this.#controlByName].map(([name]) => [
-              name,
-              Object.hasOwn(this.#storedCandidate, name)
-                ? this.#storedCandidate[name]
-                : this.#defaults[name],
-            ]),
-          )
-        : this.#defaults;
-      try {
-        this.#apply(restored, { remember: false });
-      } catch {
-        this.#storedCandidate = null;
-        tabStore.set(this.#storeKey(), null);
-        this.#apply(this.#defaults, { remember: false });
-      }
-      if (this.#interactive) this.#commands();
+      this.#registerRegions();
+      this.#paintPresets();
       this.#paintAvailability();
     }
 
-    #declareControl(control) {
-      const name = control.getAttribute("name");
-      const kind = control.getAttribute("kind");
-      if (!NAME.test(name ?? "")) throw new Error(`invalid control name ${name}`);
-      if (this.#controlByName.has(name)) throw new Error(`repeats control ${name}`);
-      if (!KINDS.has(kind)) throw new Error(`control ${name} has unknown kind ${kind}`);
-
-      const choices = own(control, "lf-playground-choice");
-      if (kind === "choice") {
-        if (!choices.length) throw new Error(`choice control ${name} has no choices`);
-        const values = choices.map((choice) => choice.getAttribute("value"));
-        if (new Set(values).size !== values.length)
-          throw new Error(`choice control ${name} repeats a value`);
-      } else if (choices.length) {
-        throw new Error(`${kind} control ${name} cannot contain choices`);
-      }
-
-      if (kind === "range") {
-        const min = Number(control.getAttribute("min"));
-        const max = Number(control.getAttribute("max"));
-        const step = Number(control.getAttribute("step") ?? "1");
-        if (![min, max, step].every(Number.isFinite) || min >= max || step <= 0)
-          throw new Error(`range control ${name} needs min < max and step > 0`);
-      }
-      this.#controlByName.set(name, control);
-    }
-
-    #validateValueSlots() {
-      for (const slot of this.#output.querySelectorAll("lf-playground-value")) {
-        const name = slot.getAttribute("for");
-        if (!this.#controlByName.has(name))
-          throw new Error(`output names unknown control ${name}`);
-      }
-    }
-
     #parse(control, raw) {
-      const name = control.getAttribute("name");
-      const kind = control.getAttribute("kind");
-      if (kind === "range") {
-        const value = Number(raw);
-        const min = Number(control.getAttribute("min"));
-        const max = Number(control.getAttribute("max"));
-        const step = Number(control.getAttribute("step") ?? "1");
-        if (!Number.isFinite(value) || value < min || value > max)
-          throw new Error(`control ${name} has a value outside its range`);
-        const steps = (value - min) / step;
-        if (Math.abs(steps - Math.round(steps)) > 1e-9)
-          throw new Error(`control ${name} has a value off its step`);
-        return value;
-      }
-      if (kind === "toggle") {
-        if (raw !== "true" && raw !== "false")
-          throw new Error(`toggle control ${name} needs true or false`);
-        return raw === "true";
-      }
-      if (typeof raw !== "string") throw new Error(`control ${name} needs text`);
-      if (kind === "choice") {
-        const choices = [...control.querySelectorAll("lf-playground-choice")].map(
-          (choice) => choice.getAttribute("value"),
-        );
-        if (!choices.includes(raw))
-          throw new Error(`control ${name} has no choice ${raw}`);
-      }
-      if (kind === "color") {
-        if (!COLOR.test(raw)) throw new Error(`color control ${name} needs #rrggbb`);
-        return raw.toLowerCase();
-      }
-      return raw;
+      return this.#initial.parse(control, raw);
     }
 
     #normalize(candidate) {
@@ -373,249 +266,14 @@ customElements.define(
             const control = this.#controlByName.get(name);
             const value = candidate[name];
             if (!control) return [name, jsonSnapshot(value, `contributor ${name}`)];
-            const kind = control.getAttribute("kind");
-            if (kind === "range" && typeof value !== "number")
-              throw new Error(`control ${name} needs a number`);
-            if (kind === "toggle" && typeof value !== "boolean")
-              throw new Error(`control ${name} needs a boolean`);
-            if (!["range", "toggle"].includes(kind) && typeof value !== "string")
-              throw new Error(`control ${name} needs a string`);
-            return [name, this.#parse(control, String(value))];
+            return [name, this.#initial.typed(control, value)];
           }),
         ),
       );
     }
 
-    #buildControl(control) {
-      const name = control.getAttribute("name");
-      const kind = control.getAttribute("kind");
-      const label = control.getAttribute("label");
-      control.classList.add(`lf-playground-${kind}`);
-
-      const heading = offer("span", "lf-playground-control-label", label);
-      control.prepend(heading);
-      if (kind === "choice") {
-        const group = offer(
-          "wa-radio-group",
-          "lf-playground-input lf-playground-choices",
-        );
-        group.label = label;
-        group.name = `${this.id}-${name}`;
-        group.size = "s";
-        group.orientation = "horizontal";
-        group.addEventListener("change", () => this.#takeInputs());
-        for (const choice of own(control, "lf-playground-choice")) {
-          const input = offer(
-            "wa-radio",
-            "",
-            choice.getAttribute("label"),
-            undefined,
-            true,
-          );
-          input.value = choice.getAttribute("value");
-          input.appearance = "button";
-          choice.append(input);
-          group.append(choice);
-        }
-        control.append(group);
-        return;
-      }
-
-      if (kind === "toggle") {
-        const input = offer(
-          "wa-switch",
-          "lf-playground-input",
-          undefined,
-          undefined,
-          true,
-        );
-        input.name = `${this.id}-${name}`;
-        input.id = `${this.id}-${name}`;
-        input.size = "s";
-        input.append(heading);
-        input.addEventListener("change", () => this.#takeInputs());
-        // The label is readable text, not an activation surface. The switch face
-        // toggles through a script click so its native label does not take focus
-        // after mousedown kept it in the preview. That click, and a keyboard's,
-        // reaches the native input and passes through.
-        input.addEventListener("click", (event) => {
-          const path = event.composedPath();
-          if (path[0].localName === "input") return;
-          event.preventDefault();
-          if (!path.includes(heading)) input.click();
-        });
-        control.append(input);
-        return;
-      }
-
-      if (kind === "color") {
-        const input = offer("wa-color-picker", "lf-playground-input");
-        input.name = `${this.id}-${name}`;
-        input.label = label;
-        input.format = "hex";
-        input.withoutFormatToggle = true;
-        input.size = "s";
-        input.swatches = [
-          ...new Set([
-            control.getAttribute("value"),
-            ...[...this.#presetSettings.values()]
-              .map((values) => values[name])
-              .filter(Boolean),
-          ]),
-        ];
-        input.addEventListener("input", () => {
-          if (input.value) this.#takeInputs();
-        });
-        input.addEventListener("change", () => {
-          if (!input.value) input.value = this.#values[name];
-        });
-        control.append(input);
-        return;
-      }
-
-      const input = offer(
-        kind === "range" ? "wa-slider" : "wa-input",
-        "lf-playground-input",
-      );
-      input.label = label;
-      input.size = "s";
-      input.name = `${this.id}-${name}`;
-      input.setAttribute("aria-label", label);
-      for (const attr of ["min", "max", "step", "placeholder"])
-        if (control.hasAttribute(attr))
-          input.setAttribute(attr, control.getAttribute(attr));
-      input.addEventListener("input", () => this.#takeInputs());
-      control.append(input);
-      if (kind === "range") {
-        const reading = offer("output", "lf-playground-reading");
-        control.append(reading);
-      }
-    }
-
-    #validatePreset(preset) {
-      const settings = own(preset, "lf-playground-setting");
-      if (!settings.length)
-        throw new Error(`preset ${preset.getAttribute("label")} is empty`);
-      const seen = new Set();
-      const values = {};
-      for (const setting of settings) {
-        const name = setting.getAttribute("for");
-        if (!this.#controlByName.has(name))
-          throw new Error(`preset names unknown control ${name}`);
-        if (seen.has(name)) throw new Error(`preset repeats control ${name}`);
-        values[name] = this.#parse(
-          this.#controlByName.get(name),
-          setting.getAttribute("value"),
-        );
-        seen.add(name);
-      }
-      return Object.freeze(values);
-    }
-
-    #buildPreset(preset) {
-      const settings = this.#presetSettings.get(preset);
-      const button = offer(
-        "button",
-        "lf-btn lf-playground-preset",
-        preset.getAttribute("label"),
-      );
-      button.setAttribute("aria-pressed", "false");
-      button.addEventListener("click", () => {
-        const next = { ...this.#values };
-        for (const [name, value] of Object.entries(settings)) next[name] = value;
-        this.#apply(next);
-      });
-      this.#presetButtons.set(preset, button);
-      preset.append(button);
-    }
-
     #paintPresets() {
-      for (const [preset, button] of this.#presetButtons) {
-        const active = Object.entries(this.#presetSettings.get(preset)).every(
-          ([name, value]) => Object.is(this.#values[name], value),
-        );
-        button.classList.toggle("on", active);
-        keeps(button, "aria-pressed", active);
-      }
-    }
-
-    #buildActions() {
-      const actions = offer("footer", "lf-playground-actions");
-      this.#reset = offer("button", "lf-btn lf-playground-reset", "Reset");
-      this.#copy = offer("wa-copy-button", "lf-playground-copy");
-      const copyTrigger = offer("button", "lf-btn lf-playground-copy-trigger");
-      if (this.id) copyTrigger.id = `${this.id}-copy`;
-      for (const [className, text] of COPY_LABELS) {
-        const label = document.createElement("span");
-        label.className = `lf-playground-copy-label ${className}`;
-        label.textContent = text;
-        copyTrigger.append(label);
-      }
-      this.#copy.setAttribute("copy-label", "Copy instruction");
-      this.#copy.setAttribute("success-label", "Instruction copied");
-      this.#copy.setAttribute("error-label", "Could not copy instruction");
-      this.#copy.setAttribute("tooltip", "none");
-      this.#copy.setAttribute("feedback-duration", "2000");
-      this.#submit = offer(
-        "button",
-        "lf-btn primary lf-playground-submit",
-        this.getAttribute("submit-label") ?? "Use these settings",
-      );
-      this.#reset.addEventListener("click", () => this.#apply(this.#defaults));
-      this.#submit.addEventListener("click", () => this.#choose());
-      this.#copy.append(copyTrigger);
-      actions.append(this.#reset, this.#copy, this.#submit);
-      if (OFFLINE) {
-        const unavailable = document.createElement("span");
-        unavailable.className = "lf-playground-unavailable";
-        unavailable.textContent =
-          "Submission unavailable: no agent or server is available.";
-        actions.append(unavailable);
-      }
-      return actions;
-    }
-
-    // The playground is a workspace whose relationship is declared: the controls, and the
-    // instruction they write, operate the preview. It composes the layout layer's own
-    // grammar out of boxes it generates, a grid of three generated panes (the kernel's
-    // theme.css and layouts.css), so the stylesheet alone decides whether each pane's body
-    // scrolls or the page does. The playground theme places them: the preview is the stage, and the
-    // controls stand above the instruction and its actions in a rail beside it. Each pane
-    // is a reading region under the playground's id.
-    #buildLayout({ panel, presetBar, preview, actions }) {
-      const pane = (name, label, header, body, footer) => {
-        const host = document.createElement("div");
-        host.className = `lf-playground-${name}-region`;
-        host.dataset.lfReadingRole = "pane";
-        host.dataset.lfGenerated = "";
-        host.setAttribute("role", "region");
-        host.setAttribute("aria-label", label);
-        if (header) host.append(header);
-        host.append(body);
-        if (footer) host.append(footer);
-        this.#regions.push({ id: compoundReadingRegionId(this, name), host, body });
-        return host;
-      };
-      const previewBody = document.createElement("div");
-      previewBody.className = "lf-playground-preview-body";
-      previewBody.append(preview);
-      const title = "Instruction to agent";
-
-      const split = document.createElement("div");
-      split.className = "lf-playground-split";
-      split.append(
-        pane("preview", "Preview", null, previewBody),
-        pane("controls", "Controls", presetBar, panel),
-        pane(
-          "instruction",
-          title,
-          offer("header", "lf-playground-instruction-title", title),
-          this.#output,
-          actions,
-        ),
-      );
-      this.append(split);
-      this.#registerRegions();
+      this.#initial.paintPresets(this.#values);
     }
 
     // Whether the user stands in the preview, where a candidate can draw on the element
@@ -643,36 +301,29 @@ customElements.define(
     }
 
     #commands() {
-      commands(
-        this,
-        "In a playground",
-        [
-          {
-            id: "playground.choose",
-            contextKeys: ["1"],
-            bindingBadge: null,
-            control: this.#submit,
-            decision: true,
-            title: () => this.#submit.textContent,
-            when: () => this.#available(),
-            run: () => this.#submit.click(),
-          },
-          {
-            id: "playground.reset",
-            keys: ["Alt+0"],
-            control: this.#reset,
-            title: "reset controls",
-            run: () => this.#reset.click(),
-          },
-        ],
-        { answer: () => this.#instruction() },
-      );
+      commands(this, "In a playground", [
+        {
+          id: "playground.choose",
+          contextKeys: ["1"],
+          bindingBadge: null,
+          control: this.#submit,
+          decision: true,
+          title: () => this.#submit.textContent,
+          when: () => !this.#choosing && this.#available(),
+          run: () => this.#choose(),
+        },
+        {
+          id: "playground.reset",
+          keys: ["Alt+0"],
+          control: this.#reset,
+          title: "reset controls",
+          run: () => this.#apply(this.#defaults),
+        },
+      ]);
     }
 
     #readInput(control) {
-      const kind = control.getAttribute("kind");
-      const input = control.querySelector(":scope > .lf-playground-input");
-      return kind === "toggle" ? input.checked : input.value;
+      return this.#initial.readInput(control);
     }
 
     #takeInputs() {
@@ -689,44 +340,12 @@ customElements.define(
     }
 
     #setInput(control, value) {
-      const kind = control.getAttribute("kind");
-      const input = control.querySelector(":scope > .lf-playground-input");
-      if (!input) return;
-      if (kind === "toggle") input.checked = value;
-      else input.value = kind === "range" ? value : String(value);
-      keeps(input, "value", value);
-      if (kind === "toggle") input.toggleAttribute("checked", value);
-      if (kind === "range") {
-        const reading = control.querySelector(":scope > output");
-        keeps(reading, "value", value);
-        keepsText(reading, this.#formatted(control, value));
-      }
+      this.#initial.setInput(control, value);
     }
 
-    #formatted(control, value) {
-      return `${value}${control.getAttribute("unit") ?? ""}`;
-    }
-
-    // One reflection of the values: this element carries it for candidates in this
-    // document, and the root of each sample child under it wears it, so a candidate that
-    // restyles a whole page keys on that child's root and never reaches this page.
+    // The same reflection dresses the host and each live sample below its preview.
     #reflection() {
-      const attributes = {};
-      const properties = {};
-      for (const [name, value] of Object.entries(this.#values)) {
-        const control = this.#controlByName.get(name);
-        if (!control) continue;
-        attributes[`data-playground-${name}`] = String(value);
-        properties[`--playground-${name}`] = this.#cssValue(control, value);
-      }
-      return { attributes, properties };
-    }
-
-    #cssValue(control, value) {
-      const formatted = this.#formatted(control, value);
-      return control.getAttribute("kind") === "text"
-        ? JSON.stringify(formatted)
-        : formatted;
+      return this.#initial.reflection(this.#values);
     }
 
     #apply(candidate, { remember = true } = {}) {
@@ -762,23 +381,9 @@ customElements.define(
       return `lf-playground:${this.id}`;
     }
 
-    #readStoredCandidate() {
-      const stored = tabStore.get(this.#storeKey());
-      if (stored === null) return null;
-      try {
-        const candidate = JSON.parse(stored);
-        if (!candidate || typeof candidate !== "object" || Array.isArray(candidate))
-          throw new Error("configuration values must be an object");
-        return candidate;
-      } catch {
-        tabStore.set(this.#storeKey(), null);
-        return null;
-      }
-    }
-
     #renderOutput() {
       if (!this.#instructionProvider) {
-        this.#output.renderValues(this.#values, this.#controlByName);
+        this.#initial.renderValues(this.#values);
         return;
       }
       const instruction = this.#instructionProvider(this.values);
@@ -797,22 +402,28 @@ customElements.define(
     #syncCopy() {
       if (!this.#copy) return;
       const instruction = this.#instruction();
-      if (this.#copy.value === instruction) return;
-      // Copy feedback belongs to the text copied. A different instruction starts
-      // a fresh control, including upstream's in-flight/feedback lock.
-      const previous = this.#copy;
-      const restoreFocus = holdFocus(previous);
-      this.#copy = previous.cloneNode(true);
-      // As an attribute, so the replacement says what it copies where the one it
-      // replaces said something else.
-      this.#copy.setAttribute("value", instruction);
-      previous.replaceWith(this.#copy);
-      const copy = this.#copy;
-      copy.updateComplete.then(() => {
-        const trigger = copy.querySelector(".lf-playground-copy-trigger");
-        reserve(trigger, COPY_WORDS);
-        restoreFocus?.(trigger);
-      });
+      if (this.#copy.dataset.instruction === instruction) return;
+      clearTimeout(this.#copyTimer);
+      this.#copy.dataset.instruction = instruction;
+      if (this.#copy.dataset.copyState !== "rest")
+        this.#copy.dataset.copyState = "rest";
+    }
+
+    async #copyInstruction() {
+      const instruction = this.#instruction();
+      let feedback;
+      try {
+        await navigator.clipboard.writeText(instruction);
+        feedback = "success";
+      } catch {
+        feedback = "error";
+      }
+      if (this.#instruction() !== instruction || !this.isConnected) return;
+      clearTimeout(this.#copyTimer);
+      this.#copy.dataset.copyState = feedback;
+      this.#copyTimer = setTimeout(() => {
+        this.#copy.dataset.copyState = "rest";
+      }, 2000);
     }
 
     async #choose() {
@@ -836,7 +447,6 @@ customElements.define(
 
     #paintAvailability() {
       if (!this.#submit) return;
-      this.#submit.toggleAttribute("disabled", this.#choosing || !this.#available());
       paintKeys();
     }
 

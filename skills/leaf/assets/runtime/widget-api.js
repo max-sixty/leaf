@@ -7,8 +7,11 @@
    served page, as `/runtime/widget-api.js`, so a search of `runtime/` for a re-export's
    importer comes back empty whether or not the export is reachable. What answers that
    question is the browser gate, which fails to parse every probe module at once. */
-export { LitElement, html } from "../vendor/browser-runtime.js";
+export { LitElement, html, repeat } from "../vendor/browser-runtime.js";
+export { keyed, unsafeHTML } from "../vendor/lit.js";
 export { widgetController } from "./widget-controller.js";
+export { initialRender } from "./initial-render.js";
+export { watchOwner } from "./arrivals.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
 export async function mountSample(frame, options) {
@@ -39,14 +42,14 @@ export { focusDestination, holdFocus } from "./focus.js";
 export { TEXT_BOX, TEXT_FIELD } from "./control-selectors.js";
 // Making an element's children a list, moving only what is out of place and keeping the
 // user standing in a node it moves.
-export { setChildren, setRenderedChildren } from "./dom-children.js";
+export { render, setChildren, setRenderedChildren } from "./dom-children.js";
 export { openAsks, watchAsks } from "./application.js";
-export { answersWithin, watchAnswers } from "./asks/answer.js";
+export { answersWithin } from "./asks/answer.js";
 export { registerVisualParts } from "./visual-parts.js";
 export {
   threadBox,
-  consumeThreads,
-  consumePageThreads,
+  placeThreads,
+  placePageThreads,
   consumeAnnotations,
   mountThreadViews,
   threadActions,
@@ -61,6 +64,7 @@ export { HeldReading } from "./thread/held-news.js";
 export { landInThread, openThread } from "./application.js";
 export { wireInput } from "./application.js";
 export { DISCLOSE } from "./keyboard/disclosure.js";
+export { HOLDS_WORD } from "./held-word.js";
 export { PRESS, labelOf, submitBindings, submitLabel } from "./keyboard/bindings.js";
 export {
   commandScope,
@@ -149,6 +153,7 @@ export {
 } from "./registry.js";
 export {
   FOLD_MS,
+  backgroundFlash,
   motion,
   onMotionPreferenceChange,
   reducedMotion,
@@ -160,6 +165,7 @@ export {
   PAGE_INTERFACE,
   PRESENTATION,
   afterPresentation,
+  isPagePaint,
   quietWord,
 } from "./presentation.js";
 export {
@@ -172,6 +178,7 @@ export { copyCodeBlock } from "./code-copy.js";
 export { retainUserIntent } from "./user-intent.js";
 export { keepView, openingView, tabStore } from "./storage.js";
 export {
+  ensureSyntaxLanguage,
   highlightBlocks,
   langForPath,
   synNodes,
@@ -188,7 +195,10 @@ export {
   el,
   layoutChanged,
   measure,
+  motionPreview,
   offer,
+  offerElement,
+  offered,
   quoted,
   reachedForWords,
   relabel,

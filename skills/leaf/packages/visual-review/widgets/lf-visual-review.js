@@ -11,7 +11,7 @@ import {
   countAreas,
   describeDifference,
   compoundReadingRegionId,
-  consumeThreads,
+  placeThreads,
   failSoft,
   holdFocus,
   keeps,
@@ -90,14 +90,6 @@ function link(className, label) {
   return anchor;
 }
 
-function orderChildren(parent, children) {
-  let cursor = parent.firstElementChild;
-  for (const child of children) {
-    if (child === cursor) cursor = cursor.nextElementSibling;
-    else parent.insertBefore(child, cursor);
-  }
-}
-
 customElements.define(
   "lf-visual-review",
   class extends HTMLElement {
@@ -125,7 +117,8 @@ customElements.define(
     #title = null;
 
     connectedCallback() {
-      if (once(this)) this.#buildLayout();
+      const firstConnection = once(this);
+      if (firstConnection) this.#buildLayout();
       this.#stopEvidence ??= registerReadingRegion({
         id: compoundReadingRegionId(this, "evidence"),
         host: this.#evidenceHost,
@@ -137,25 +130,14 @@ customElements.define(
       for (const stage of this.querySelectorAll(".lf-vr-shot-host"))
         this.#sizes.observe(stage);
       window.addEventListener("resize", this.#onResize);
-      this.#threadSurface ??= consumeThreads(this, (collection, surfaces) => {
-        for (const thread of collection.threads) {
-          if (thread.anchor?.section !== this.id || !thread.anchor.datum) continue;
-          const target = surfaces.target(thread.key);
-          const outlet = target && this.#threadOutlet(target);
-          if (outlet) surfaces.place(thread.key, outlet);
-        }
-        const outlet = surfaces.composition && this.#threadOutlet(surfaces.composition);
-        if (outlet) surfaces.placeComposition(outlet);
-      });
-      this.stopActions ??= this.#controller.subscribe(() => this.#paintAvailability());
-      this.stopWatching ??= watchData(this, "run", (snapshot) => this.#show(snapshot));
+      this.#threadSurface ??= placeThreads(this, (targets) =>
+        targets.map((target) => this.#threadOutlet(target)),
+      );
+      if (firstConnection) this.#controller.subscribe(() => this.#paintAvailability());
+      if (firstConnection) watchData(this, "run", (snapshot) => this.#show(snapshot));
     }
 
     disconnectedCallback() {
-      this.stopActions?.();
-      this.stopActions = null;
-      this.stopWatching?.();
-      this.stopWatching = null;
       this.#threadSurface?.unregister();
       this.#threadSurface = null;
       for (const entry of this.#caseEntries.values()) {
@@ -186,7 +168,6 @@ customElements.define(
       this.#queueHost.setAttribute("aria-label", "Visual review cases");
       const previous = offer("button", "lf-btn lf-vr-previous", "Previous");
       previous.type = "button";
-      previous.addEventListener("click", () => this.#step(-1));
       this.#queue = offer("wa-select", "lf-vr-case-select");
       this.#queue.name = "visual-case";
       this.#queue.size = "s";
@@ -195,7 +176,6 @@ customElements.define(
       this.#queue.addEventListener("change", () => this.#select(this.#queue.value));
       const next = offer("button", "lf-btn lf-vr-next", "Next");
       next.type = "button";
-      next.addEventListener("click", () => this.#step(1));
       this.#queueHost.append(previous, this.#queue, next);
       const queue = make("header", "lf-vr-queue");
       queue.append(this.#queueHost);
@@ -508,6 +488,7 @@ customElements.define(
       this.#commands = commands(this, "In a visual review", [
         {
           id: "visual.next-case",
+          control: () => this.#queueHost.querySelector(".lf-vr-next"),
           keys: ["ArrowDown"],
           title: "next case",
           when: () => this.#caseEntries.size > 1,
@@ -515,6 +496,7 @@ customElements.define(
         },
         {
           id: "visual.previous-case",
+          control: () => this.#queueHost.querySelector(".lf-vr-previous"),
           keys: ["ArrowUp"],
           title: "previous case",
           when: () => this.#caseEntries.size > 1,
@@ -536,7 +518,6 @@ customElements.define(
           return;
         }
         keepsHidden(this.#inspector, false);
-        this.#casesBody.querySelector(":scope > .lf-vr-empty")?.remove();
         const ids = this.#run.cases.map(({ id }) => id);
         if (new Set(ids).size !== ids.length)
           throw new Error("visual run repeats a case id");
@@ -576,14 +557,8 @@ customElements.define(
       setChildren(this.#casesBody, [empty]);
       projectData(
         this,
-        [{ id: "unavailable", node: empty }],
-        ({ id }) => id,
-        ({ node }) => node,
-        {
-          nested: true,
-          labelOf: () => "Visual run unavailable",
-          snapshot,
-        },
+        [{ key: "unavailable", node: empty, label: "Visual run unavailable" }],
+        { snapshot },
       );
       setText(this.#progress, "No cases reviewed");
       layoutChanged(this);
@@ -596,8 +571,6 @@ customElements.define(
         if (wanted.has(id)) continue;
         this.#sizes?.unobserve(entry.shotHost);
         entry.stopReading?.();
-        entry.option.remove();
-        entry.article.remove();
         this.#caseEntries.delete(id);
       }
       const options = [];
@@ -612,24 +585,19 @@ customElements.define(
         options.push(entry.option);
         articles.push(entry.article);
       }
-      orderChildren(this.#queue, options);
-      orderChildren(this.#casesBody, articles);
+      setChildren(this.#queue, options);
+      setChildren(this.#casesBody, articles);
       for (const entry of this.#caseEntries.values()) this.#syncCaptureWidth(entry);
       projectData(
         this,
-        cases,
-        ({ id }) => id,
-        ({ id }) => this.#caseEntries.get(id).article,
-        {
-          nested: true,
-          labelOf: (record, index) => `Case ${index + 1}: ${record.title}`,
-          identify: ({ id }) => id,
-          snapshot: this.#snapshot,
-          originOf: (_, index) => ({
-            ...this.#snapshot.origin,
-            path: ["cases", index],
-          }),
-        },
+        cases.map((record, index) => ({
+          node: this.#caseEntries.get(record.id).article,
+          key: record.id,
+          identity: record.id,
+          label: `Case ${index + 1}: ${record.title}`,
+          origin: { ...this.#snapshot.origin, path: ["cases", index] },
+        })),
+        { snapshot: this.#snapshot },
       );
     }
 
@@ -931,8 +899,7 @@ customElements.define(
     #paintNavigation() {
       const count = this.#caseEntries.size;
       this.#queue.toggleAttribute("disabled", count === 0);
-      for (const button of this.#queueHost.querySelectorAll("button"))
-        button.toggleAttribute("disabled", count < 2);
+      paintKeys();
     }
 
     async #review(id, disposition) {

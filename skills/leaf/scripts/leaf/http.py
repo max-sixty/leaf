@@ -48,7 +48,7 @@ from .files import (
     version_num,
     version_revisions,
 )
-from .interaction_log import append_interactions, client_records, now_iso
+from .interaction_log import append_interactions, client_records
 from .layer import foreign_runtime
 from .locations import path_is_within
 from .media import MAX_MEDIA_UPLOAD_BYTES, MediaUploadError, store_uploaded_media
@@ -85,7 +85,7 @@ from .served_state import reading as served_reading
 from .served_state.service import PageStateService
 from .server import preview_metadata
 from .service import PageTransaction
-from .state import write_json
+from .state import now_iso, write_json
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import FRESH_FOR_S, observe_user_view, read_user_views
 
@@ -350,9 +350,9 @@ class PageEndpoint:
     def page_state(self, view_revision: int | None = None) -> dict:
         """The current reading used by GET and accepted POST responses.
 
-        A claim's ``log_floor`` is meaningful only beside the same log snapshot it
-        followed. Every response therefore keeps the page transaction through both
-        files.
+        The status a reading dates its activity by is meaningful only beside the log
+        snapshot it was read with. Every response therefore keeps the page
+        transaction through both files.
 
         The reading is taken after the activation this response performs and
         before any file the state is built from is read, and that order is the whole
@@ -921,6 +921,8 @@ class PageEndpoint:
             registry = self._registry(revision)
             self.response_layer = registry["$layer"]["generation"]
             return self._json(registry)
+        if self.page_snapshot is not None and path in self.page_snapshot.data_resources:
+            return self._resource_content(self.page_snapshot.data_resources[path])
         file = self.page_dir / path.lstrip("/")
         # The allowlist rejects traversal spellings; containment is the second
         # boundary for a page directory edited or symlinked after vendoring.

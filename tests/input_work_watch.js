@@ -4,7 +4,11 @@
 // it runs while an input's other work is waiting. Native await continuations do not
 // call Promise.prototype.then. Their owner captures the callback that commits an
 // effect before awaiting, and invokes it afterwards. Leaf draft sends put words away
-// synchronously before awaiting delivery (drafts.js).
+// synchronously before awaiting delivery (drafts.js). A reactive element's update is
+// the exception the watch follows itself: Lit defers it behind a native await, and the
+// request that starts it names its cause (`adoptReactive`).
+// Native edit starts identify their field through DOM capture or EditContext's
+// attachment; a watch confirms the value that field's input commits.
 // The watch's own scheduling uses the saved platform methods and is never counted.
 (() => {
   "use strict";
@@ -13,6 +17,7 @@
   const nativeDefaults = new Map();
   const finished = new Set();
   const subscribers = new Set();
+  const editSubscribers = new Set();
   const sources = new WeakMap();
   let order = 0;
   const then = Promise.prototype.then;
@@ -75,6 +80,9 @@
       }
     };
 
+  // Browser edit commands can be handled by a closed editor without native
+  // beforeinput or input. Their trusted dispatch remains the edit's source.
+  const editorCommands = Object.freeze(["cut", "paste", "drop"]);
   const inputTypes = [
     "pointerdown",
     "mousedown",
@@ -87,7 +95,7 @@
     "keydown",
     "beforeinput",
     "input",
-    "paste",
+    ...editorCommands,
   ];
   // Native summary activation belongs to the nearest interactive content, not an
   // enclosing summary around a button or link (HTML's interactive-content category).
@@ -102,7 +110,7 @@
     let wrapped = handlerWrappers.get(callback);
     if (!wrapped) {
       wrapped = function (event) {
-        return wrap(callback, sources.get(event) ?? current()).call(this, event);
+        return wrap(callback, eventSource(event)).call(this, event);
       };
       handlerWrappers.set(callback, wrapped);
       handlerOriginals.set(wrapped, callback);
@@ -161,6 +169,39 @@
       }
     });
   };
+  const beginSource = (event, node, edit = false) => {
+    // An earlier passive loss cannot be answered by the input that follows it.
+    checkpoint(null, event.type !== "input");
+    const source = { event, node, order: ++order };
+    sources.set(event, source);
+    if (edit) for (const subscriber of editSubscribers) subscriber(source);
+    microtask(() => checkpoint(source));
+    endDispatch(source);
+    return source;
+  };
+  const eventSource = (event) => {
+    if (sources.has(event)) return sources.get(event);
+    // EditContext's trusted textupdate does not travel through a DOM capture path.
+    // Its attached element owns rendering. Expose the field a composed DOM event
+    // would expose outside its closed shadow roots, without consulting the runtime.
+    if (
+      event.isTrusted &&
+      event.type === "textupdate" &&
+      window.EditContext &&
+      event.target instanceof window.EditContext
+    ) {
+      let node = event.target.attachedElements()[0];
+      if (node?.editContext === event.target) {
+        for (let inner = node; inner.getRootNode().host;) {
+          const root = inner.getRootNode();
+          inner = root.host;
+          if (root.mode === "closed") node = inner;
+        }
+        return beginSource(event, node, true);
+      }
+    }
+    return current();
+  };
   for (let view = window; ; view = view.parent) {
     try {
       void view.document;
@@ -169,6 +210,9 @@
     }
     if (view !== window && view.lfInputWork) {
       parents.push(view.lfInputWork);
+      view.lfInputWork.subscribeEdits((source) => {
+        for (const subscriber of editSubscribers) subscriber(localSource(source));
+      });
       view.lfInputWork.subscribe((source, completedEdit) => {
         if (!source) return checkpoint(source, completedEdit);
         checkpoint(localSource(source), completedEdit);
@@ -181,22 +225,17 @@
         type,
         (event) => {
           if (!event.isTrusted) return;
-          // An earlier passive loss cannot be answered by the input that follows it.
-          checkpoint(null, event.type !== "input");
-          const source = {
+          beginSource(
             event,
-            node: event.composedPath()[0],
-            order: ++order,
-          };
-          sources.set(event, source);
+            event.composedPath()[0],
+            event.type === "beforeinput" || editorCommands.includes(event.type),
+          );
           // The browser compiles handler attributes without invoking our setter.
           // Adopt those callbacks before target dispatch, preserving getter identity.
           for (const node of event.composedPath()) {
             const name = `on${type}`;
             if (typeof node?.[name] === "function") node[name] = node[name];
           }
-          microtask(() => checkpoint(source));
-          endDispatch(source);
         },
         true,
       );
@@ -223,7 +262,7 @@
     let listener = listeners.get(callback);
     if (!listener) {
       listener = function (event) {
-        const source = sources.get(event) ?? current();
+        const source = eventSource(event);
         const call = typeof callback === "function" ? callback : callback.handleEvent;
         return wrap(call, source).call(
           typeof callback === "function" ? this : callback,
@@ -253,6 +292,57 @@
       );
     };
   }
+  // A reactive element (Lit's lifecycle: `requestUpdate` starts an update, which a native
+  // `await` defers to `scheduleUpdate`) commits its update for whatever requested it.
+  // The request that starts the update names its source, as scheduling a timer does,
+  // and connecting the element names the source of its first; the update runs under
+  // that source, so a field it rewrites keeps its cause.
+  const updateSources = new WeakMap();
+  const reactive = new WeakSet();
+  const adoptReactive = (constructor) => {
+    for (
+      let prototype = constructor?.prototype;
+      prototype && prototype !== HTMLElement.prototype;
+      prototype = Object.getPrototypeOf(prototype)
+    ) {
+      if (
+        reactive.has(prototype) ||
+        !Object.hasOwn(prototype, "requestUpdate") ||
+        !Object.hasOwn(prototype, "scheduleUpdate")
+      )
+        continue;
+      reactive.add(prototype);
+      const request = prototype.requestUpdate;
+      const schedule = prototype.scheduleUpdate;
+      prototype.requestUpdate = function (...args) {
+        const starts = !this.isUpdatePending;
+        const result = request.apply(this, args);
+        if (starts && this.isUpdatePending) updateSources.set(this, current());
+        return result;
+      };
+      prototype.scheduleUpdate = function (...args) {
+        const source = updateSources.get(this) ?? null;
+        updateSources.delete(this);
+        return wrap(schedule, source).apply(this, args);
+      };
+      // The first update, requested as the element is made, waits for it to be
+      // connected, so connecting it is what that update answers to.
+      if (Object.hasOwn(prototype, "connectedCallback")) {
+        const connect = prototype.connectedCallback;
+        prototype.connectedCallback = function (...args) {
+          if (!this.hasUpdated && this.isUpdatePending)
+            updateSources.set(this, current());
+          return connect.apply(this, args);
+        };
+      }
+    }
+  };
+  const define = CustomElementRegistry.prototype.define;
+  CustomElementRegistry.prototype.define = function (name, constructor, options) {
+    adoptReactive(constructor);
+    return define.call(this, name, constructor, options);
+  };
+
   Promise.prototype.then = function (fulfilled, rejected) {
     const source = current();
     return then.call(
@@ -282,6 +372,10 @@
     subscribe(callback) {
       subscribers.add(callback);
       return () => subscribers.delete(callback);
+    },
+    subscribeEdits(callback) {
+      editSubscribers.add(callback);
+      return () => editSubscribers.delete(callback);
     },
   };
 })();

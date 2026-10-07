@@ -34,7 +34,7 @@ def test_comparison_snapshots_exclude_later_leaf_feedback(tmp_path, monkeypatch)
 
     evidence = tmp_path / "evidence"
     evidence.mkdir()
-    run = arrangement_eval.Run("document", ROOT, evidence)
+    run = arrangement_eval.Run("document", ROOT, evidence, evidence / "shots")
     author_turns = 0
 
     def model(cwd, prompt, *args, out, err, **kwargs):
@@ -61,7 +61,7 @@ def test_comparison_snapshots_exclude_later_leaf_feedback(tmp_path, monkeypatch)
         else:
             state = json.loads(run.leaf("page", "state", str(run.authored_page)).stdout)
             selected = next(
-                item["detail"]["options"]
+                item["detail"]["value"]
                 for item in state["state"]
                 if item["widget"] == "decision"
             )
@@ -94,7 +94,7 @@ def test_comparison_snapshots_exclude_later_leaf_feedback(tmp_path, monkeypatch)
     state = json.loads(run.leaf("page", "state", str(run.authored_page)).stdout)
     assert state["active"]["revision"] != choice["revision"]
     assert next(
-        item["detail"]["options"]
+        item["detail"]["value"]
         for item in state["state"]
         if item["widget"] == "decision"
     ) == ["b"]
@@ -105,7 +105,9 @@ def test_reader_calibration_shows_the_judge_its_page_at_every_width(tmp_path):
     capture under its width, which is all the count rubric reads."""
     from leaf_dev import reader_eval
 
-    response = reader_eval.execute_scenario("seeded", ROOT, tmp_path)
+    response = reader_eval.execute_scenario(
+        "seeded", ROOT, tmp_path, shots=tmp_path / "shots"
+    )
     assert response["metadata"]["checks"] == {"completed": True}
     output = response["output"]
     widths = [line for line in output.splitlines() if line.startswith("  On ")]

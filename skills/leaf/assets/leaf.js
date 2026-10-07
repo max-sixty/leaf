@@ -12,7 +12,7 @@ import {
 } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
 import { chromeRoot } from "./runtime/chrome.js";
-import { readingBlock } from "./runtime/reading-place.js";
+import { landingPlace } from "./runtime/reading-place.js";
 import { mountHistory } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
 import { chromeSheet, marksSheet, annotationSheets } from "./runtime/stylesheets.js";
@@ -86,13 +86,16 @@ import {
   standingThread,
   wireThreadLanding,
 } from "./runtime/thread/landing.js";
-import { createPanelComposer } from "./runtime/thread/panel.js";
+import { createThreadPanelKeys } from "./runtime/thread/panel.js";
+import { createPageComment } from "./runtime/thread/page-comment.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
 import { createThreadPanelElements } from "./runtime/thread/panel-elements.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createAskView } from "./runtime/asks/view.js";
+import { createQueueWalk } from "./runtime/queue-walk.js";
+import { createQueuePanel } from "./runtime/queue-panel.js";
 import { ASK_CONTROL } from "./runtime/asks/view-elements.js";
 import {
   commandHintLayer,
@@ -103,9 +106,9 @@ import { createChromeLayout } from "./runtime/chrome-layout.js";
 import { createThreadPanelController } from "./runtime/thread-panel.js";
 import {
   createDrawers,
-  asksPanel,
   currentDrawer,
   othersPanel,
+  queuePanel,
 } from "./runtime/drawers.js";
 import { createAuxiliarySurfaces } from "./runtime/auxiliary-surfaces.js";
 import { restoreUserView } from "./runtime/restore-state.js";
@@ -118,6 +121,7 @@ import {
   loadIcon,
   mountBanner,
   paintApproval,
+  queueCounts,
   renderStatus,
   setThreadCounts,
   stateSignoff,
@@ -125,6 +129,7 @@ import {
 } from "./runtime/banner.js";
 
 import { nativeLayers } from "./runtime/keyboard/layer-stack.js";
+import { holdToRead } from "./runtime/held-word.js";
 
 initializeServedDocument();
 keepPageRulesOffLayer();
@@ -166,7 +171,6 @@ import { paintCoreControls } from "./runtime/keyboard/control-keys.js";
 import { paintTouchControls } from "./runtime/keyboard/touch-controls.js";
 import { commandReferenceDialog } from "./runtime/keyboard/command-reference.js";
 import {
-  bottomChromeBoxes,
   collapseShortcutBar,
   mountShortcutBar,
   renderShortcutBar,
@@ -197,7 +201,7 @@ import {
   releaseFocus,
   tabStops,
 } from "./runtime/focus.js";
-import { announce, liveEl, notice, noticeVisible } from "./runtime/notifications.js";
+import { announce, liveEl, notice } from "./runtime/notifications.js";
 import { mediaViewer } from "./runtime/media.js";
 import { offer } from "./runtime/widget-elements.js";
 import { retainUserIntent } from "./runtime/user-intent.js";
@@ -242,10 +246,23 @@ let layout;
 let landing;
 let pageMapDialog;
 let asks;
-let panelComposer;
+let panelKeys;
+let pageComment;
 let selectionComposer;
 let responseSurface;
 let drawing;
+// A draft's drawing put in place, null taking it off, and the page's ink repainted.
+const replaceDrawing = (anchor, drawn) => {
+  selectionComposer.setDraftDrawing(anchor, drawn);
+  drawingPaint.paint();
+};
+// A composer's own controls for the drawing its draft holds, which the drawing
+// controller answers, and its history's way of putting one back.
+const drawingEdits = {
+  undoStroke: (anchor) => drawing.undoStroke(anchor),
+  remove: (anchor) => drawing.removeDrawing(anchor),
+  replace: replaceDrawing,
+};
 let aim;
 let targets;
 let reactions;
@@ -261,6 +278,11 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
     paintKeys();
     repaint();
     anchorPaint?.refreshHover();
+  },
+  // A comment box seated where a surface now stands, or in its home in a surface now
+  // gone, moves to the seat the user can reach: presenting the page again seats it.
+  reachChanged: () => {
+    if (responseSurface.fabAnchorAt()) void app.invalidateDom();
   },
 });
 const navigation = createNavigation({
@@ -313,7 +335,7 @@ const designMode = createDesignMode({
     refreshAim: () => pageGeometry.refreshAim(),
     pageShifted: () => pageGeometry.pageShifted(),
   },
-  syncGeneral: () => panelComposer.syncGeneral(),
+  syncGeneral: () => pageComment.sync(),
   composer: {
     showFab: (...args) => responseSurface.showFab(...args),
     openComposer: (...args) => selectionComposer.openComposer(...args),
@@ -335,7 +357,7 @@ aim = createAim({
   drawModeActive: () => drawing.drawModeActive(),
   designMode,
   targetPicker: {
-    active: () => targets.pointerChoosing(),
+    active: () => targets.choosing(),
     choose: (...args) => targets.chooseTarget(...args),
   },
 });
@@ -348,6 +370,7 @@ pageGeometry = createPageGeometry({
   visualMarkPaint,
   shiftDrawings: drawingPaint.shifted,
   queueLegend: designMode.queueLegend,
+  legendScrolled: designMode.legendScrolled,
   activeActionAnchor: () => responseSurface.fabAnchorAt(),
   refreshActionBar: () => responseSurface.refreshFab(),
 });
@@ -390,7 +413,6 @@ const version = createVersionController({
   midComposition: () => app.midComposition(),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
-  forgetAuthoredOwners: (...args) => app.forgetAuthoredOwners(...args),
   retireProjectionCoverage: () => app.retireProjectionCoverage(),
   syncLayout: () => layout.syncLayout(),
   captureRetainedStanding: () => app?.overlay?.captureStanding() ?? null,
@@ -414,7 +436,6 @@ app = mountApplication({
   reportPageError,
   createEngagement,
   targetPickerOpen: () => targets.targetPickerOpen(),
-  pageComposerDrawing: () => panelComposer.pageComposerDrawing(),
   wireInput: inputs.wireInput,
   anchorPlacement,
   anchorPaint,
@@ -503,7 +524,7 @@ if (offlineInteractive) applicationState.setHostAvailable(false);
 // Where a landing in the document goes, which is version continuity's reading of what is
 // on screen. Declared beside the let-go that uses it, for the same reason: the owner
 // stands by now and nothing has read the register yet.
-declareReading(readingBlock);
+declareReading(landingPlace);
 
 // And where it goes instead while a surface covers the page: the page is inert under one,
 // so the reading above cannot take the user and a step that let go would leave them
@@ -547,6 +568,22 @@ asks = createAskView({
   announce,
   repaint,
 });
+const queueWalk = createQueueWalk({
+  arriveAtAsk: asks.arriveAtAsk,
+  arriveAtThread: navigation.arriveAtThread,
+  threadHere: () => app.threadDestinations.threadHere(),
+  threadTarget: (id) => app.threadDestinations.threadTarget(id),
+  prepareTrip: anchorTravel.prepareTrip,
+  arrive: anchorTravel.arrive,
+  readableDestination: anchorTravel.readableDestination,
+  announce,
+  post: (event) => app.post(event),
+});
+const queue = createQueuePanel({
+  arriveAtItem: queueWalk.arriveAtItem,
+  endTask: queueWalk.endTask,
+  announce,
+});
 
 const commandHints = createCommandHints({
   presentedControl: (control) => app.overlay?.presentedControl(control) ?? control,
@@ -557,20 +594,26 @@ const standingTarget = createStandingTarget({
   standingIn: asks.standingIn,
 });
 
-panelComposer = createPanelComposer({
+panelKeys = createThreadPanelKeys({
   elements: panelElements,
   openThreads: threadListController.openThreads,
   narrowing,
-  designModeActive: designMode.active,
-  wireInput: inputs.wireInput,
-  createPageComment: app.createPageComment,
-  showThread: landing.showThread,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   panelIsOpen,
   stepThread: (...args) => navigation.stepThread(...args),
   firstUnread: () => app.read.firstUnread(),
   unreadCount: () => app.read.unreadCount(),
-  paintDrawings: drawingPaint.paint,
+});
+pageComment = createPageComment({
+  wireInput: inputs.wireInput,
+  createPageComment: app.createPageComment,
+  designModeActive: designMode.active,
+  panelIsOpen,
+  setPanel: (...args) => threadPanelController.setPanel(...args),
+  panelBox: panelElements.generalInput,
+  panelSend: panelElements.generalSend,
+  showThread: landing.showThread,
+  threadsToggle: toggleBtn,
 });
 selectionComposer = createSelectionComposer({
   panelIsOpen,
@@ -594,6 +637,7 @@ selectionComposer = createSelectionComposer({
   landSent: landing.landSent,
   refreshThread: app.refreshThread,
   wireInput: inputs.wireInput,
+  drawingEdits,
 });
 const passageSelection = createPassageSelection({
   restore: anchorTravel.restoreSelection,
@@ -604,7 +648,6 @@ responseSurface = createResponseSurface({
   panelElements,
   panelIsOpen,
   landIn: landing.landIn,
-  setPanel: (...args) => threadPanelController.setPanel(...args),
   threadHere: () => app.threadDestinations.threadHere(),
   threadAtStanding: () => app.threadDestinations.threadAtStanding(),
   replyThreadAtStanding: () => app.threadDestinations.replyThreadAtStanding(),
@@ -637,6 +680,7 @@ responseSurface = createResponseSurface({
   drawModeActive: () => drawing.drawModeActive(),
   refreshThread: app.refreshThread,
   dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
+  pageComment,
   responseHome: overlaySelected ? chromeRoot : panelFoot,
   revealResponseHome: overlaySelected
     ? null
@@ -668,22 +712,20 @@ targets = createTargetPicker({
   updateFab: responseSurface.updateFab,
   fabAnchorAt: responseSurface.fabAnchorAt,
   pointerModeActive: () => designMode.active() || drawing.drawModeActive(),
+  armChanged: () => aim.armChanged(),
 });
 drawing = createDrawingController({
-  anchors: { aimTargetAt, resolveAnchor, pendingAt: anchorPlacement.pendingAt },
+  anchors: { aimTargetAt, resolveAnchor },
   pageGeometry: { refreshAim: pageGeometry.refreshAim },
   pointer: pointerAt,
   visibleTargets: targets.visibleTargets,
-  pageDrawing: panelComposer.pageComposerDrawing,
   anchoredDrawing: selectionComposer.draftDrawing,
-  composerDraft: () => ({
-    open: composerOpen,
-    anchor: pendingAnchor,
-    drawing: pendingDrawing,
-  }),
+  heldDrawings: selectionComposer.heldDrawings,
+  watchHeldDrawings: selectionComposer.watchHeldDrawings,
+  draftKey: selectionComposer.draftKey,
   openAnchoredDrawing: (anchor, drawing) =>
     selectionComposer.openComposer(anchor, "", { carry: true, drawing }),
-  openPageDrawing: panelComposer.openPageDrawing,
+  replaceDrawing,
   setDesignMode: designMode.setActive,
   closeTargetPicker: targets.closeTargetPicker,
   closeReactionMode: () => reactions.setReact(false),
@@ -696,7 +738,6 @@ drawing = createDrawingController({
 
 layout = createChromeLayout({
   panelIsOpen,
-  noticeIsVisible: noticeVisible,
   elements: {
     panel,
     closeBtn,
@@ -706,7 +747,6 @@ layout = createChromeLayout({
     bottomStatusEl,
   },
   scheduleThreadPreviewPosition: app.overlay?.scheduleThreadPreviewPosition,
-  bottomChromeBoxes,
   restateDrawerEdge: () => drawers.drawersEdge.state(),
   syncAuxiliarySurfaces: auxiliarySurfaces.sync,
   syncReactLayout: reactions.syncReactLayout,
@@ -724,8 +764,12 @@ threadPanelController = createThreadPanelController({
   showThread: landing.showThread,
   refreshThread: app.refreshThread,
   closeReactionMode: () => reactions.setReact(false),
-  closePreview: app.overlay?.closePreview,
-  syncGeneral: panelComposer.syncGeneral,
+  // A surface opening puts away the floating cards it would stand beside.
+  closePreview: (...args) => {
+    pageComment.close();
+    app.overlay?.closePreview(...args);
+  },
+  syncGeneral: pageComment.sync,
 });
 // The sample host binds to this child's owners, rather than importing another
 // window's runtime. This capability is ready before the child presents.
@@ -748,12 +792,13 @@ if (window.frameElement?.hasAttribute("data-lf-contained")) {
   };
 }
 drawers = createDrawers({
+  doors: { queue: [queueCounts] },
   landEdge: layout.landEdge,
   auxiliarySurfaces,
   closePreview: app.overlay?.closePreview,
   leavesOffered,
   presentLeaves,
-  syncAsks: asks.syncAsks,
+  presentQueue: queue.present,
 });
 const writingResume = createWritingResume({
   arriveEditor: anchorTravel.arriveEditor,
@@ -833,7 +878,7 @@ if (!offlineInteractive) {
     overflowMenu,
     versionMenu,
     othersPanel,
-    asksPanel,
+    queuePanel,
     panel,
     legendRoot,
     goToHintLayer,
@@ -842,8 +887,8 @@ if (!offlineInteractive) {
     pageSearchSurface,
     ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
     drawingPaint.layer,
-    targetPaint.targetTraceBox,
-    targetPaint.aimBox,
+    targetPaint.targetTraceLayer,
+    targetPaint.aimLayer,
     fabBar,
     liveEl,
     mediaViewer,
@@ -866,9 +911,11 @@ if (!offlineInteractive) {
   // Connect the search field before mount awaits its rendered input: Lit does not
   // resolve updateComplete until connection, and keyboard registration needs that input.
   narrowing.mount();
-  await panelComposer.mount();
+  await panelKeys.mount();
+  pageComment.mount(chromeRoot);
   selectionComposer.mount();
   responseSurface.mount();
+  holdToRead();
   reactions.mount();
   targets.mount();
   drawing.mount();
@@ -879,12 +926,13 @@ if (!offlineInteractive) {
   pageGeometry.mount();
   pageMapDialog.mount(chromeRoot);
   asks.mount();
+  queueWalk.mount();
+  queue.mount();
   commandHints.mount();
   app.mountAnnotations();
   app.overlay?.mount();
   app.mountThread();
   app.mountRead();
-  threadListController.mountThreadList(panelIsOpen);
   wireThreadLanding(threadsBox);
   drawers.mountDrawers();
   threadPanelController.mountThreadPanel();
@@ -1036,10 +1084,14 @@ async function presentPage() {
   repaint();
   app.overlay?.flushLayout();
   landFragment();
-  await landArrival();
+  // The geometry readers PRESENTATION replaces run in the turn the stamp above opens
+  // interaction, after the landing's synchronous part, rather than after an editor
+  // the landing waits for: awaited first, a margin map presented its authored spans.
+  const arrival = landArrival();
+  document.dispatchEvent(new Event(PRESENTATION));
+  await arrival;
   if (savedView && savedView.revision < runtime.currentRevision)
     notice(`Updated to ${runtime.currentLabel}`, { background: true });
-  document.dispatchEvent(new Event(PRESENTATION));
 }
 
 async function startPage() {

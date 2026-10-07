@@ -5,23 +5,19 @@
 idle before pickup:
   exit: 1
   output: |
-    1 update nobody has picked up, so the page cannot idle yet. Leaf's hook puts them in your context at your next turn.
+    1 event nobody has picked up, so the page cannot idle yet. Leaf's hook puts them in your context at your next turn.
 
 the watch wakes the session: >-
   <page> has new input; Leaf's prompt hook puts it in your context with this notification
 
 delivered at prompt:
   instruction: >-
-    Leaf has new input for your turn. Read this complete delivery and take its acknowledge
-    route before answering.
+    Leaf has new input for your turn. Read this complete delivery before answering.
   delivery:
     format: leaf-delivery-v3
     id: <delivery>
     created_at: <time>
-    carrier: hook
-    acknowledge: >-
-      Once this complete delivery is in your context, confirm it with `leaf delivery
-      ack <delivery>`. Until then, the user's moves read Sent.
+    acknowledge: null
     batches:
       - page: <page>
         through_seq: 2
@@ -44,22 +40,23 @@ delivered at prompt:
             its subject rather than its opening words. If Leaf has named it from
             its opening message by then, that name stands.
           h2: >-
-            When the event asks for work, name that work before any other, including
-            reading the source it concerns: `leaf status <page> working "<the work,
-            in a line>" --on <address>`, where `<address>` is the event's `answer.to`.
-            The move then reads Working, and the line stands beside the thread and
-            in the banner until you answer. Do the work and put its result on the
-            page, with whatever shows it (captures, a figure, the numbers), then
-            answer with `leaf thread reply <page> --for <event-id> < reply.md`:
-            what changed, in a sentence or two, linking the section that shows it.
-            When the event asks for no work, as a question may not, answer it with
-            that reply at once. The page carries the work, and the thread only the
-            conversation about it. `leaf thread reply` checks any saved page edit
-            and makes it live before posting. If a revision removes what the thread
-            is anchored on, move the thread in the reply that reports it with `--section
-            <id>` (narrowed by `--quote` or `--part` if needed), or `--detach` it
-            if its subject has left the page. Add `--awaits` only if your reply's
-            prose asks the user something.
+            When the event asks for work, say in its thread what you will do before
+            any other command, including reading the source it concerns: `leaf thread
+            reply <page> --for <event-id> --ephemeral --text "<what you will do,
+            in a line>"`. The user reads it in the thread at once, and it takes
+            the move in hand: the move reads Working, and the line stands in the
+            banner until you answer. Do the work and put its result on the page,
+            with whatever shows it (captures, a figure, the numbers), then answer
+            with `leaf thread reply <page> --for <event-id> < reply.md`: what changed,
+            in a sentence or two, linking the section that shows it. When the event
+            asks for no work, as a question may not, answer it with that reply at
+            once. The page carries the work, and the thread only the conversation
+            about it. `leaf thread reply` checks any saved page edit and makes it
+            live before posting. If a revision removes what the thread is anchored
+            on, move the thread in the reply that reports it with `--section <id>`
+            (narrowed by `--quote` or `--part` if needed), or `--detach` it if its
+            subject has left the page. Add `--awaits` only if your reply's prose
+            asks the user something.
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -84,10 +81,6 @@ delivered at prompt:
               to: event-2
               for: event-2
   attention: ''
-
-reader confirms delivery:
-  exit: 0
-  output: ''
 
 acknowledged at stop:
   hookSpecificOutput:

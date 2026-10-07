@@ -18,6 +18,18 @@ def local_ask_entry(entry: dict) -> bool:
     return entry.get("x-awaits") is not None
 
 
+def settles(reaction: dict, turn: str, tokens: dict) -> bool:
+    """Whether a message is the user's reaction on the agent's `turn` with a token
+    the registry declares `settles` (`$reactions`), which answers the question that
+    turn asks as a reply would. `tokens` is `$reactions.tokens`."""
+    return (
+        is_reaction(reaction)
+        and reaction["author"] == "user"
+        and reaction.get("parent") == turn
+        and bool((tokens.get(reaction["token"]) or {}).get("settles"))
+    )
+
+
 def thread_awaits_user(
     thread_id: str,
     thread: dict,
@@ -25,8 +37,13 @@ def thread_awaits_user(
     awaiting: dict[str, bool],
     structure,
     open_ask_threads: set[str],
+    ended: set[str],
 ) -> tuple[bool, dict | None]:
-    """The unanswered widget Ask or textual prompt this thread holds for the user."""
+    """The unanswered widget Ask or textual prompt this thread holds for the user.
+
+    A prompt is a task on the user under its message's id (`tasks.page_tasks`), so a
+    `task_end` naming that message, among `ended`, settles it as a settling reaction
+    does."""
     if thread["resolved"]:
         return False, None
     if thread_id in open_ask_threads:
@@ -49,12 +66,8 @@ def thread_awaits_user(
         structural = (
             any(awaiting.get(identity, False) for identity in asks) if asks else None
         )
-        settled = any(
-            is_reaction(reaction)
-            and reaction["author"] == "user"
-            and reaction.get("parent") == message["id"]
-            and (tokens.get(reaction["token"]) or {}).get("settles")
-            for reaction in thread["msgs"]
+        settled = message["id"] in ended or any(
+            settles(reaction, message["id"], tokens) for reaction in thread["msgs"]
         )
         if message["kind"] != "reply":
             if structural is False:
@@ -227,7 +240,7 @@ def projected_action_holders(
         record = spec.get("record") or {}
         if record.get("kind") != "position" or event["id"] in projection.absorbed:
             continue
-        target = byid.get(event["detail"][record["value"]])
+        target = byid.get(event["detail"]["value"])
         unit_rec = byid.get(unit)
         if target and unit_rec:
             holder = target if target["tag"] in registry else target.get("holder")
@@ -384,6 +397,16 @@ class _AskReducer:
     def _awaits(self, record, with_agent) -> bool:
         return self.local[id(record)] and not self._answered(record, with_agent)
 
+    def _surface(self, record):
+        """The reading and arrival region the user is sent to for this source: the
+        nearest `x-ask-surface` holder enclosing it, or the source itself."""
+        holder = self._holder(record)
+        while holder:
+            if (self.registry.get(holder["tag"]) or {}).get("x-ask-surface"):
+                return holder
+            holder = self._holder(holder)
+        return record
+
     def _surfaces(self, records):
         """Each visible ask as `(surface, source)`.
 
@@ -395,13 +418,7 @@ class _AskReducer:
         pairs = []
         seen = set()
         for record in records:
-            surface = record
-            holder = self._holder(record)
-            while holder:
-                if (self.registry.get(holder["tag"]) or {}).get("x-ask-surface"):
-                    surface = holder
-                    break
-                holder = self._holder(holder)
+            surface = self._surface(record)
             if id(surface) not in seen:
                 seen.add(id(surface))
                 pairs.append((surface, record))
@@ -411,6 +428,11 @@ class _AskReducer:
         """Whether a standing action that admission marked as this Ask's answer
         (`meaning.answer`) still holds its answer: the user decided it while it
         asked, whatever a later version made of the question."""
+        # TODO: a re-pick after a later version settles the group drops the Ask.
+        # Admission stamps `meaning.answer` only while `x-awaits.when` holds
+        # (`answering_action`, event_meaning.py), and `settled` turns it off, so the
+        # re-pick replaces a stamped action with an unstamped one and this reading
+        # loses the Ask, and with it the done task the Queue panel lists for it.
         unit = record["attrs"].get("id")
         return any(
             "answer" in (held[0].get("meaning") or {})
@@ -431,8 +453,8 @@ class _AskReducer:
             if self.exists[id(record)] and self.local[id(record)]:
                 active.append(record)
                 continue
-            # Interim: this "decided" reading also keeps the Ask in the Asks drawer and
-            # the banner's count. The forthcoming Tasks model replaces it.
+            # This "decided" reading also keeps the Ask's task listed as done, under
+            # the Queue panel's Done (`tasks.ask_tasks`).
             if self.exists[id(record)] and self._answered_by_user(record):
                 active.append(record)
                 continue

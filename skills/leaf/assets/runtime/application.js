@@ -11,6 +11,7 @@ import {
   whenApplicationRegionsPresented,
   whenWidgetsPresented,
   presentDocument,
+  whenDocumentPresented,
 } from "./semantic-state.js";
 import { newAttempt } from "./drafts.js";
 import { saidNow } from "./presence.js";
@@ -48,13 +49,13 @@ import { threadBox as buildThreadBox } from "./thread/box.js";
 import { messageText } from "./thread/messages.js";
 import { isThreadEvent } from "./pending/model.js";
 import {
-  consumeThreads as registerConsumer,
-  consumePageThreads as registerPageConsumer,
+  placeThreads as registerConsumer,
+  placePageThreads as registerPageConsumer,
   renderSurfaces,
 } from "./thread/surfaces.js";
 import { createStateApplication } from "./state-application.js";
 import { beginRead as beginStateRead, createStateFeed } from "./state-feed.js";
-import { createProjectionUpdates } from "./updates.js";
+import { watchUpdates as observeUpdates } from "./updates.js";
 
 let application = null;
 const app = () => {
@@ -79,7 +80,6 @@ export function mountApplication(dependencies) {
     hasPending,
     fabAnchorAt: dependencies.activeActionAnchor,
     targetPickerOpen: dependencies.targetPickerOpen,
-    pageComposerDrawing: dependencies.pageComposerDrawing,
   });
   let threadPresenter;
   let stateApplication;
@@ -112,7 +112,7 @@ export function mountApplication(dependencies) {
         ),
       ]),
       whenApplicationRegionsPresented(
-        ["projection:chrome", "thread", "asks"],
+        ["projection:chrome", "thread", "asks", "queue"],
         stillCurrent,
       ),
     ]);
@@ -187,17 +187,10 @@ export function mountApplication(dependencies) {
     let threadPresentation = Promise.resolve();
     try {
       pendingTraffic(readApplication().effective.sending);
-      projection.stageOptimistic(entry);
-      // Desired state changes at enqueue even where the widget has already painted the
-      // same value, so this gesture reaches the page on the pass the enqueue opened,
-      // before transport. It claims directly rather than through `invalidateDom`: a
-      // state application held on some renderer's preparation holds background repaints,
-      // and a user's own gesture is not one of those — what the page can draw of it
-      // does not wait for an answer the log has not given.
-      // The presentation coordinator reports a failed paint once, for the region that
-      // owns it. Observe the pass here so this gesture's own promise carries no
-      // unhandled rejection and no second account of one fault.
-      threadPresentation = presentDocument().catch(() => undefined);
+      // Enqueue publishes and claims its presentation synchronously, including while an
+      // accepted reading is still preparing. Observe that pass without starting another;
+      // its coordinator reports any failed paint, and transport proceeds independently.
+      threadPresentation = whenDocumentPresented().catch(() => undefined);
     } catch (error) {
       presentationError = error;
     } finally {
@@ -254,9 +247,6 @@ export function mountApplication(dependencies) {
     post,
     stateApplying,
     unaccountedGesture: engagement.unaccountedGesture,
-  });
-  const projectionUpdates = createProjectionUpdates({
-    coordinateProjectionCommitted: projection.coordinateProjectionCommitted,
   });
 
   const createComment = (event) =>
@@ -415,7 +405,6 @@ export function mountApplication(dependencies) {
         focus: false,
         travel: false,
         flash: false,
-        carried: true,
         intent,
       }),
     read,
@@ -540,16 +529,16 @@ export function mountApplication(dependencies) {
       throw error;
     }
   };
-  const consumeThreads = (owner, render) =>
+  const placeThreads = (owner, render) =>
     registerConsumer(owner, render, threadSurfaceCommands);
-  const consumePageThreads = (owner, render) =>
+  const placePageThreads = (owner, render) =>
     registerPageConsumer(owner, render, threadSurfaceCommands);
   const mountThreadViews = (owner, render) =>
     registerMirrorConsumer(owner, render, { commands: inlineView });
 
   application = {
     ...projectionCommands,
-    ...projectionUpdates,
+    watchUpdates: observeUpdates,
     ...engagement,
     approvalBlockingAsks,
     beginRead: beginStateRead,
@@ -580,12 +569,11 @@ export function mountApplication(dependencies) {
     receiveState,
     refreshThread,
     presentThread,
-    consumeThreads,
-    consumePageThreads,
+    placeThreads,
+    placePageThreads,
     consumeAnnotations,
     mountThreadViews,
     registerThreadPanel,
-    forgetAuthoredOwners: projection.forgetAuthoredOwners,
     retireProjectionCoverage: projection.retireProjectionCoverage,
     threadActions,
     shallowSigs: projectionShallowSigs,
@@ -618,8 +606,8 @@ export const projectData = (...args) => app().projectData(...args);
 export const readAndApply = (...args) => app().readAndApply(...args);
 export const receiveState = (...args) => app().receiveState(...args);
 export const refreshThread = (...args) => app().refreshThread(...args);
-export const consumeThreads = (...args) => app().consumeThreads(...args);
-export const consumePageThreads = (...args) => app().consumePageThreads(...args);
+export const placeThreads = (...args) => app().placeThreads(...args);
+export const placePageThreads = (...args) => app().placePageThreads(...args);
 export const consumeAnnotations = (...args) => app().consumeAnnotations(...args);
 export const mountThreadViews = (...args) => app().mountThreadViews(...args);
 export const registerThreadPanel = (...args) => app().registerThreadPanel(...args);

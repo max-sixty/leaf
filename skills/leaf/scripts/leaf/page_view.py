@@ -76,13 +76,6 @@ class PageView:
 
         return current_responses(self._page_dir, events)
 
-    @property
-    def claims(self) -> list:
-        """The subject work present when this command is admitted."""
-        from .service import claim_update_sources, read_status
-
-        return claim_update_sources(read_status(self._page_dir))
-
 
 class CandidatePageView(PageView):
     """Admission against checked immutable inputs before their revision is exposed."""
@@ -159,7 +152,3 @@ class InitialPageView:
 
     def responses(self, events: list) -> dict:
         return {}
-
-    @property
-    def claims(self) -> list:
-        return []

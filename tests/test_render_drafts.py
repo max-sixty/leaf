@@ -89,6 +89,72 @@ from test_render_application_boundary import THREAD_MIRROR, THREAD_MIRROR_DECLAR
 from test_render_threads import hold_visible_thread_presentation
 
 
+@pytest.mark.parametrize(
+    ("unique", "tall"),
+    [(True, False), (False, False), (False, True)],
+    ids=["unique", "repeated", "tall-repeated"],
+)
+def test_a_visible_editor_is_the_reading_place_until_the_reader_scrolls_away(
+    browser, serve, unique, tall
+):
+    """A pane carries live editing across posture changes without pulling back old focus."""
+
+    def context(prefix):
+        return "".join(
+            f"<p>{prefix} paragraph {number if unique else ''} stays where the reader left it.</p>"
+            for number in range(35)
+        )
+
+    before = context("Reading")
+    after = context("Following" if unique else "Reading")
+    field_height = ' style="height:1000px"' if tall else ""
+    source = leaf_page(
+        "Editing in a reading region",
+        f'<lf-pane id="editor-pane" label="Working text"><div>{before}'
+        f'<textarea aria-label="Working draft"{field_height}></textarea>'
+        f"{after}</div></lf-pane>",
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1366, 768)
+    field = page.get_by_role("textbox", name="Working draft")
+    field.click()
+    page.keyboard.type("The reader is working here")
+    rendered(page)
+
+    def in_view():
+        return field.evaluate(
+            """async (node, tall) => {
+          const {seenRect, shownBox} = await window.__lfRuntimeImport('/runtime/geometry.js');
+          const seen = seenRect(node, new Map()), rect = shownBox(node);
+          return Boolean(seen && (tall
+            ? seen.bottom - seen.top > 10
+            : seen.top <= rect.top + 1 && seen.bottom >= rect.bottom - 1));
+        }""",
+            tall,
+        )
+
+    assert in_view()
+    resized(page, 390, 760)
+    rendered(page)
+    expect(field).to_be_focused()
+    expect(field).to_have_value("The reader is working here")
+    assert in_view(), "the new page scroller lost the live editing place"
+
+    # Focus alone is not a reading place: scrolling elsewhere deliberately leaves
+    # the same editor focused, and the next posture must retain that new reading.
+    page.mouse.wheel(0, -10000)
+    page.wait_for_function("document.scrollingElement.scrollTop === 0")
+    scroll_settled(page)
+    rendered(page)
+    expect(field).to_be_focused()
+    assert not in_view()
+    resized(page, 1366, 768)
+    rendered(page)
+    expect(field).to_be_focused()
+    assert not in_view(), "a stale focused editor displaced the reader's new place"
+
+
 @pytest.mark.parametrize("bounded", [False, True])
 def test_typing_in_a_visible_inline_reply_keeps_the_reading_position(
     browser, serve, bounded
@@ -287,6 +353,8 @@ diff --git a/reading.py b/reading.py
     expect(field).to_be_visible()
     page.locator(".lf-threads").evaluate("list => list.scrollTop = 70")
     scroll_settled(page, ".lf-threads")
+    before_click = page.locator(".lf-threads").evaluate("list => list.scrollTop")
+    assert before_click > 0
     assert field.evaluate(
         "field => field.getBoundingClientRect().top > "
         "field.getRootNode().host.closest('.lf-threads').getBoundingClientRect().top"
@@ -295,7 +363,9 @@ diff --git a/reading.py b/reading.py
     field.click()
 
     expect(field).to_be_focused()
-    assert page.locator(".lf-threads").evaluate("list => list.scrollTop") == 70
+    assert (
+        page.locator(".lf-threads").evaluate("list => list.scrollTop") == before_click
+    )
 
 
 @pytest.mark.watch_shifts
@@ -507,6 +577,24 @@ def test_observed_selection_offers_comment_without_replacing_the_editor(
     expect(field).to_have_js_property("value", words)
 
 
+def test_a_passages_comment_box_undoes_only_its_own_draft(browser, serve):
+    """The comment box moves from passage to passage, and its undo history belongs to
+    the draft it stands on: words typed and deleted on one passage are not what ⌘Z
+    brings into the next one's draft, even when both drafts read the same."""
+    page = open_page(browser, serve(LONG_PAGE))
+    field = page.locator(".lf-fab-input")
+    compose(page, "#p0")
+    page.keyboard.type("x")
+    page.keyboard.press("ArrowLeft")  # a caret move ends the typing's undo step
+    page.keyboard.press("End")
+    page.keyboard.press("Backspace")
+    expect(field).to_have_js_property("value", "")
+    compose(page, "#p1")
+    page.keyboard.press("ControlOrMeta+z")
+    page.keyboard.type("y")
+    expect(field).to_have_js_property("value", "y")
+
+
 def test_page_round_trip(browser, serve):
     """The loop the product is, driven through the real UI: select a passage and
     comment on it, drag a card to another column, rewrite a draft in place, then
@@ -613,12 +701,12 @@ def test_page_round_trip(browser, serve):
     assert {k: events[2][k] for k in ("widget", "action", "detail")} == {
         "widget": "board",
         "action": "move",
-        "detail": {"card": "card-x", "to": "col-done", "rank": "i"},
+        "detail": {"unit": "card-x", "value": "col-done", "rank": "i"},
     }
     assert {k: events[3][k] for k in ("widget", "action", "detail")} == {
         "widget": "draft-ops",
         "action": "edit",
-        "detail": {"text": DRAFT_EDITED},
+        "detail": {"value": DRAFT_EDITED},
     }
 
 
@@ -885,7 +973,7 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(
         for event in events_model.read_events(serve.page_dir)
         if event.get("action") == "edit"
     ]
-    assert [event["detail"]["text"] for event in edits] == [saved]
+    assert [event["detail"]["value"] for event in edits] == [saved]
     page.locator("#exhibit .lf-draft-body").click()
     expect(page.locator("#exhibit leaf-text")).to_have_count(0)
     expect(page.locator("#exhibit .lf-draft-body")).to_have_text("Read-only source.")
@@ -975,7 +1063,7 @@ def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
         for event in events_model.read_events(serve.page_dir)
         if event.get("action") == "edit"
     ]
-    assert [event["detail"]["text"] for event in edits] == [saved]
+    assert [event["detail"]["value"] for event in edits] == [saved]
 
 
 def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, serve):
@@ -985,12 +1073,35 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     later absolute value lands first and the deferred earlier value overwrites it
     when the box closes. An unrelated board move proves the poll saw the same
     batch while the editor was open, without making the test depend on time.
+    Reconnecting the same editor restores its local deferral before semantic catchup.
     """
     page = open_page(browser, serve(JOURNEY_V1))
     draft = page.locator("#draft-ops")
     draft.locator(".lf-draft-body").dblclick()
     editor = draft.locator("leaf-text")
     write(editor, "Local unsent words.")
+
+    draft.evaluate(
+        """node => {
+          window.__lfEditingDraft = {
+            node, parent: node.parentNode, next: node.nextSibling,
+            editor: node.querySelector('leaf-text'),
+          };
+          node.remove();
+        }"""
+    )
+    # The fixture deliberately removes the editor's subject. Consume that allowed
+    # disappearance at the frame where the words watcher observes the removal.
+    one_frame(page)
+    consume_browser_errors(page, "typed words left the screen without a key or press")
+    page.evaluate(
+        """() => {
+          const {node, parent, next} = window.__lfEditingDraft;
+          parent.insertBefore(node, next);
+        }"""
+    )
+    assert editor.evaluate("node => node === window.__lfEditingDraft.editor")
+    editor.focus()
 
     d = serve.page_dir
     for text in ("Foreign first edit.", "Foreign committed words."):
@@ -1002,7 +1113,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
                 "revision": 1,
                 "widget": "draft-ops",
                 "action": "edit",
-                "detail": {"text": text},
+                "detail": {"value": text},
             },
         )
     append_command(
@@ -1013,7 +1124,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
             "revision": 1,
             "widget": "board",
             "action": "move",
-            "detail": {"card": "card-x", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-x", "value": "col-done", "rank": "0i"},
         },
     )
 
@@ -1085,7 +1196,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     until_draft_settled(page, "edit:draft-ops")
     events = [e for e in events_model.read_events(d) if e["kind"] == "action"]
     assert events[-1]["action"] == "edit"
-    assert events[-1]["detail"] == {"text": ""}
+    assert events[-1]["detail"] == {"value": ""}
 
 
 def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
@@ -1137,7 +1248,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
     ]
-    assert [event["detail"]["text"] for event in events] == [sent]
+    assert [event["detail"]["value"] for event in events] == [sent]
 
     draft_control(page, "edit", "draft-ops").click()
     expect(draft.locator("leaf-text")).to_be_focused()
@@ -1247,7 +1358,7 @@ def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
         if event.get("action") == "edit"
     ]
     assert [event["detail"] for event in edits] == [
-        {"text": "Keep the revised unsent words."}
+        {"value": "Keep the revised unsent words."}
     ]
     consume_browser_errors(page, "400")
 
@@ -1304,7 +1415,7 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
     ]
-    assert [event["detail"]["text"] for event in events] == [edited]
+    assert [event["detail"]["value"] for event in events] == [edited]
 
 
 def test_one_shared_draft_edit_appends_one_action_across_tabs(browser, serve, one_user):
@@ -1335,7 +1446,7 @@ def test_one_shared_draft_edit_appends_one_action_across_tabs(browser, serve, on
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action" and event["action"] == "edit"
     ]
-    assert [event["detail"]["text"] for event in edits] == [text]
+    assert [event["detail"]["value"] for event in edits] == [text]
     assert edits[0]["attempt"]
     assert _traffic(first).sends == _traffic(second).sends == 1
     expect(second_draft.locator("leaf-text")).to_have_count(0)
@@ -1395,7 +1506,7 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     adds = [event["detail"] for event in moves if event["action"] == "add"]
     assert adds == [held_detail]
     picks = {
-        tuple(event["detail"]["options"])
+        tuple(event["detail"]["value"])
         for event in moves
         if event["action"] == "choose"
     }
@@ -3141,6 +3252,39 @@ def test_image_upload_completion_preserves_the_readers_focus_and_scroll(
     assert page.evaluate("document.activeElement === window.uploadFocus")
 
 
+def test_a_picture_still_uploading_stays_out_of_the_next_passages_draft(browser, serve):
+    """The comment box moves to another passage while a pasted picture uploads. The
+    picture was the first passage's, so it does not land in the second one's draft, and
+    the user is told it was not added rather than finding it somewhere they did not put
+    it."""
+    held = []
+    controlled = primed(
+        browser,
+        lambda page: page.route("**/api/media", lambda route: held.append(route)),
+    )
+    page = open_page(controlled, serve(LONG_PAGE))
+    compose(page, "#p3")
+    box = page.locator(".lf-fab-input")
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
+    box.evaluate(
+        """(box, encoded) => {
+          const bytes = Uint8Array.from(atob(encoded), char => char.charCodeAt(0));
+          const transfer = new DataTransfer();
+          transfer.items.add(new File([bytes], 'pasted.png', {type: 'image/png'}));
+          box.dispatchEvent(new ClipboardEvent('paste', {
+            bubbles: true, cancelable: true, clipboardData: transfer,
+          }));
+        }""",
+        base64.b64encode(pixels).decode(),
+    )
+    holding(page, held, 1, "the pasted image")
+    compose(page, "#p1")
+    held.pop().continue_()
+    expect(page.locator(".lf-notice")).to_contain_text("Image not added")
+    expect(box).not_to_have_attribute("aria-busy", "true")
+    expect(page.locator(".lf-composer-media img")).to_have_count(0)
+
+
 def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     browser, serve
 ):
@@ -3512,6 +3656,9 @@ def test_reply_admission_finishes_or_restores_its_native_session(
     )
     told(page)
     rendered(page)
+    if surface == "panel":
+        # The open card holds the resolution behind its notice until the user asks.
+        card.get_by_role("button", name="Resolved", exact=True).click()
     expect(field).to_be_hidden()
     assert stored_draft_text(page, "reply:" + root) == next_words
 
@@ -3571,11 +3718,23 @@ def test_reply_editing_and_saved_words_have_separate_resolution_lifetimes(
         expect(field).to_have_js_property("value", words)
         assert field.evaluate("box => [box.selectionStart, box.selectionEnd]") == [5, 5]
         page.keyboard.press("Escape")
+        if surface == "panel":
+            # Escape ends the editing and lands on the card's title, a move within the
+            # thread, so the card still holds the resolution behind its notice.
+            expect(field).to_be_visible()
+            thread.get_by_role("button", name="Resolved", exact=True).click()
+        expect(field).not_to_be_visible()
+    elif resolution == "inactive-agent" and surface == "panel":
+        # The open card holds the resolution behind its notice, words and all, until
+        # the user presses it.
+        expect(field).to_be_visible()
+        expect(field).to_have_js_property("value", words)
+        thread.get_by_role("button", name="Resolved", exact=True).click()
         expect(field).not_to_be_visible()
     else:
         expect(thread.locator("leaf-text")).not_to_be_visible()
     assert stored_draft_text(page, f"reply:{root['id']}") == words
-    if resolution == "inactive-agent":
+    if resolution == "inactive-agent" and surface == "margin":
         # An unresolved thread still draws its inactive reply box after Escape.
         # Agent settlement then closes it, as this lifecycle deliberately requires.
         # The generic words sensor cannot infer that ending the editing session made
@@ -3643,6 +3802,9 @@ def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
         expect(field).to_be_focused()
         expect(field).to_have_js_property("value", "")
         field.press("Escape")
+        if surface == "panel":
+            # The card holds the resolution behind its notice until the user asks.
+            thread.get_by_role("button", name="Resolved", exact=True).click()
         expect(field).not_to_be_visible()
         assert stored_draft_text(page, f"reply:{root['id']}") == ""
         return
@@ -3668,6 +3830,11 @@ def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
         rendered(page)
         expect(thread.locator("leaf-text")).to_be_visible()
         page.locator("#p3").click(position={"x": 10, "y": 10})
+        if surface == "panel":
+            # The open card holds the resolution behind its notice, so it still draws
+            # an open thread's reply box until the user asks to see the resolution.
+            expect(thread.locator("leaf-text")).to_be_visible()
+            thread.get_by_role("button", name="Resolved", exact=True).click()
         expect(thread.locator("leaf-text")).not_to_be_visible()
         if surface == "margin":
             expect(page.locator('[data-lf-margin-for="p3"]')).to_have_count(0)
@@ -3969,12 +4136,9 @@ def test_replaced_reply_compositions_keep_their_carets_and_leave_commands(
     told(page)
     expect(after).to_be_focused()
     # One margin card remains the current selection. The other native session keeps
-    # its caret until the user selects its next route; a hidden mirror is not that route.
+    # its words and caret until the user selects its next route.
     page.evaluate("() => window.lfWordsJudged()")
-    consume_browser_errors(
-        page,
-        'typed words left the screen without a key or press: "My unfinished first answer."',
-    )
+    assert take_browser_errors(page) == []
     for root, word in zip(roots, words):
         box = page.locator(f'.lf-thread[data-id="{root}"] leaf-text')
         expect(box).to_have_js_property("value", word)
@@ -4286,7 +4450,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
     ]
-    assert [event["detail"]["text"] for event in events] == [
+    assert [event["detail"]["value"] for event in events] == [
         edits[0],
         edits[1],
         edits[0],
@@ -4299,9 +4463,9 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
           const widget = document.getElementById('draft-ops');
           const controller = widgetController(widget);
           const first = controller.read().actions.edit.history;
-          first[0].detail.text = 'A widget must not mutate the runtime log.';
+          first[0].detail.value = 'A widget must not mutate the runtime log.';
           return controller.read().actions.edit.history
-            .map(event => [event.seq, event.detail.text]);
+            .map(event => [event.seq, event.detail.value]);
         }"""
     )
     assert [text for _, text in sequence] == [edits[0], edits[1], edits[0]]
@@ -4332,7 +4496,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
                 "revision": version,
                 "widget": "draft-ops",
                 "action": "edit",
-                "detail": {"text": text},
+                "detail": {"value": text},
             },
         )
 
@@ -4381,7 +4545,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
             "revision": 1,
             "widget": "board",
             "action": "move",
-            "detail": {"card": "card-x", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-x", "value": "col-done", "rank": "0i"},
         },
     )
     append_command(
@@ -4392,7 +4556,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
             "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
-            "detail": {"text": DRAFT_EDITED},
+            "detail": {"value": DRAFT_EDITED},
         },
     )
     # The highest user event reached context, so everything so far is ours to answer.
@@ -4432,7 +4596,7 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
             "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
-            "detail": {"text": DRAFT_EDITED},
+            "detail": {"value": DRAFT_EDITED},
         },
     )
     refused = CliRunner().invoke(
@@ -4671,7 +4835,6 @@ def test_the_reading_keys_accumulate_and_reverse(browser, serve, down, up):
             page.wait_for_function(
                 "e => Math.abs(document.scrollingElement.scrollTop - e) < 1",
                 arg=expected,
-                timeout=5000,
             )
         except PlaywrightTimeout:
             pass
@@ -4910,7 +5073,6 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
     page.wait_for_function(
         "e => Math.abs(document.scrollingElement.scrollTop - e) < 1",
         arg=step,
-        timeout=5000,
     )
     page_now, threads_now = offsets()
     assert page_now > page_was, (
@@ -4950,7 +5112,6 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
         " return Math.abs(t.scrollTop - w[0]) < 1"
         " || Math.abs(document.scrollingElement.scrollTop - w[1]) >= 1; }",
         arg=[thread_step, page_was],
-        timeout=5000,
     )
     page_now, threads_now = offsets()
     assert threads_now > threads_was, (
@@ -4969,7 +5130,6 @@ def test_the_reading_page_keys_follow_the_user_into_the_panel(browser, serve):
     page.wait_for_function(
         "() => { const t = document.querySelector('.lf-threads');"
         " return document.scrollingElement.scrollTop < 1 || t.scrollTop < 1; }",
-        timeout=5000,
     )
     edge_page, edge_threads = offsets()
     assert edge_page == pytest.approx(0, abs=1), (
@@ -5758,18 +5918,19 @@ def test_resume_writing_is_a_touch_action_and_does_not_steal_hint_addresses(
         "els => els.map(el => el.dataset.lfHintCode)"
     )
     assert labels and all("i" not in label for label in labels)
+    # With Threads shut, the page's draft resumes in the banner's page comment card.
     page.keyboard.press("i")
-    expect(general).to_be_focused()
-    page.keyboard.press("Escape")
+    card_box = page.locator(".lf-page-comment-card leaf-text")
+    expect(card_box).to_be_focused()
+    expect(card_box).to_have_js_property("value", "A page-wide draft")
     page.keyboard.press("Escape")
     context = browser.new_context(
         is_mobile=True, has_touch=True, viewport={"width": 390, "height": 844}
     )
     touch = open_page(browser, serve(LONG_PAGE), context=context)
     touch.keyboard.press("c")
-    general = touch.locator(".lf-general leaf-text")
+    general = touch.locator(".lf-page-comment-card leaf-text")
     write(general, "A touch draft")
-    touch.keyboard.press("Escape")
     touch.keyboard.press("Escape")
     touch.get_by_role("button", name="More page controls", exact=True).click()
     touch.get_by_role("button", name="Resume writing", exact=True).click()

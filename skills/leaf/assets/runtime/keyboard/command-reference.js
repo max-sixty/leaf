@@ -14,6 +14,11 @@
    stay with this controller. Modal entry follows the platform contract rather than
    rebuilding the popovers it dismisses.
 
+   Every row wears one face, whether or not it can run from where the user stands. Its
+   section heading already says where it applies, and pressing one that cannot run says
+   so in the meta line; muting those rows put most of a page's catalog in a second face
+   that read as a different font beside the first.
+
    The catalog is deliberately frozen while open. A command that becomes live waits until
    the next opening; one that becomes unavailable is rejected by fresh dispatch and causes
    the reference to reopen with an explanation. */
@@ -209,6 +214,12 @@ const commandReferenceBinding = (value) =>
     .replace(/^\s+/, "")
     .replace(/\s+/g, " ");
 
+// Titles are written for the surface that shows them most: a compact lowercase word
+// for the shortcut bar, a sentence for a route only the reference shows. Listed
+// together, the reference starts every one with a capital, as a menu does.
+const listedTitle = (title) =>
+  `${title.charAt(0).toLocaleUpperCase()}${title.slice(1)}`;
+
 const availableWhere = (row, scopeTitle, scopeReach) => {
   const place = word(row.reach) ?? word(scopeReach) ?? scopeTitle;
   return `Available ${place.charAt(0).toLocaleLowerCase()}${place.slice(1)}`;
@@ -252,7 +263,9 @@ function captureCommandReferenceCatalog() {
             baseTitle,
             baseDescription,
             familySteps: [...sequence, ...completeRowSteps(referenceRow)],
-            presentations: commandPresentations(row, declared).map(({ id, route }) => ({
+            presentations: commandPresentations(row, declared, {
+              includeUnavailable: true,
+            }).map(({ id, route }) => ({
               id,
               route:
                 route && route.binding == null
@@ -307,7 +320,7 @@ function captureCommandReferenceCatalog() {
         )
           continue;
         presented.add(id);
-        const title = route ? titleOf(route) : rowInfo.baseTitle;
+        const title = listedTitle(route ? titleOf(route) : rowInfo.baseTitle);
         const description =
           route?.description !== undefined
             ? descriptionOf(route)
@@ -895,8 +908,6 @@ export function activateSelectedCommand() {
   return true;
 }
 
-commandReferenceClose.onclick = () => closeCommandReference();
-
 export const commandReferenceOpen = () => commandReferenceIsOpen;
 // The opening command supplies the action chosen from this particular reference. The
 // rendered catalog retains only ids and sends one back through that injected authority.
@@ -972,7 +983,7 @@ pageScope("command reference", {
           : "close command reference",
       control: () => commandReferenceClose,
       runFromCommandReference: false,
-      run: () => commandReferenceClose.click(),
+      run: () => closeCommandReference(),
     },
   ],
 });

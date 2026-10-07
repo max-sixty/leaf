@@ -9,8 +9,11 @@
    clear of, as the page shows it: the paragraph holding a passage, the element, or the
    row a pointing gesture named in it (pointed-place.js). `extent` is that box whole,
    however much of it a scroll has clipped, which is what the room around it is measured
-   from. `row` is the line it stands level with beside `clear`: a passage's first line,
-   else `clear`'s top. `column` is the passage's inline start when it quotes words;
+   from. `row` is the first line it stands level with beside `clear`, and `lastRow` the
+   last: a passage's first line for both, else `extent`'s top and foot. Both come from
+   the unclipped box: the top of a clipped box is the window's edge, and a card level
+   with it in the page's plane would be carried by each scroll frame and placed back.
+   `column` is the passage's inline start when it quotes words;
    without one, the card's minimum width ends at `clear`'s right edge. `margin` is where
    across the page the margin row for it stands,
    or would stand in the rail once its thread is sent (margin-layout.js, `marginSpot`),
@@ -35,17 +38,24 @@
    clipping `clear` does not.
 
    Beside, the surface's top stands level with `row`, and past its margin row where that
-   reaches past `clear` and the room beyond it holds the card's minimum, so the row its
-   thread has or will have stays in view, at the cost of the card's width; where it
-   does not, the surface stands over the row. Neither choice reads the surface's own
-   width or height, so the box and the card make the same one. Under or over, its inline
-   start follows `column`, independently of the block it keeps clear, and it keeps
-   that start as it widens.
+   reaches past `clear` and the room beyond it holds the card's minimum measure
+   (`--thread-card-min`), so the row its thread has or will have stays usable. Where
+   it cannot hold the minimum, the surface stands over the row: the card carries its
+   own close and step controls, and the row shows again once it closes. Neither
+   choice reads the surface's own width or height, so the box
+   and the card make the same one. Under or over, its inline start follows `column`,
+   independently of the block it keeps clear, and it keeps that start as it widens.
+   That clearance chooses the initial seat. Once seated, quoted words carry both
+   coordinates through scrolling, including out of view, even when the containing
+   scrollport stays still. Held offsets use the passage's line and column, so renewing
+   the seat cannot put it back beside a stationary scrollport.
 
    It grows away from what it is about, down beside or under and up over it (floating.js,
    `held`), and the boundary holds it in only while what it stands by is in the window:
-   Floating UI's shift keeps it inside, and its limiter lets it leave with `row` beside,
-   or with `clear` under or over, once a scroll carries that away. A surface whose
+   Floating UI's shift keeps it inside, and its limiter lets it leave beside with
+   `row` or `lastRow`, whichever the scroll carries away, or with `clear` under or
+   over. Beside an element whose top has scrolled away, the card therefore waits at the
+   window's top, in the window's plane, until the element's foot passes it. A surface whose
    `clear` has not stood in the boundary since its side was chosen, as after a resize
    that left what it is about out of the window, stays in the window until it has.
    Under or over, a surface taller than the room shown there first has the reading
@@ -61,6 +71,17 @@
    frame's side and inline start where the boundary still matches, and returns its
    block offsets for the card to hold. The attachment is then the card's current one:
    scrolling retains it, while a boundary or target-width change chooses afresh.
+
+   Which edge a growing surface holds is this module's for both surfaces, so neither
+   can drift from the other. A surface whose content grows by turns holds the edge the
+   user is working at (`holding`): its top while they read or type, its foot, with the
+   reply row on it, once a turn joins the transcript as they draft or send, keyed to
+   that turn so the next one releases it, and its foot where it stands over what it is
+   about and is read. The caller reports the transcript's extent, whether the user is
+   drafting, the latest turn and the draft's words; a surface with no turns, the
+   comment box, never asks, and its free edges grow as floating.js holds them. The held
+   edge is also the one floating.js stands the surface by, so the browser grows it from
+   there.
 
    Every box here is a client rectangle. Floating UI works in the surface's positioning
    space, which a transformed ancestor scales, so each length crosses by the reference's
@@ -80,14 +101,18 @@ import { moveScrollerBy } from "/runtime/scrolling.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
+  shownRegionBounds,
 } from "/runtime/reading-regions.js";
 import { pointBand } from "/runtime/pointed-place.js";
 import { marginSpot } from "./margin-layout.js";
-import { heldByWindow } from "./floating.js";
+import { floatingGeometry } from "./floating.js";
 
 // One fresh mechanical reading for the editor and the card it becomes. Resolving the
 // durable subject or passage remains with the caller; both surfaces read its boxes here.
 export function commentAttachment({ target, point = null, passage = null }) {
+  const context = point ?? passage?.contextNode ?? target;
+  const element = point ?? target;
+  const geometry = floatingGeometry([element, context]);
   const clips = new Map();
   const shown = union(
     shownParts(target)
@@ -97,18 +122,33 @@ export function commentAttachment({ target, point = null, passage = null }) {
   const whole = shownExtent(target) ?? target.getBoundingClientRect();
   const extent = point ? pointBand(whole, point) : whole;
   const clear = point ? extent : (shown ?? whole);
-  const element = point ?? target;
   const region = containingReadingRegionFor(element);
   return {
     element,
-    contextNode: point ?? passage?.contextNode ?? target,
+    contextNode: context,
+    geometry,
     clear,
     extent,
-    row: (passage?.attachment ?? clear).top,
+    row: (passage?.attachment ?? extent).top,
+    lastRow: passage?.attachment ? passage.attachment.top : extent.bottom,
     column: passage?.attachment?.left ?? null,
     margin: marginSpot(target, point),
     region,
     scroller: effectiveScroller(region ?? element),
+  };
+}
+
+// The clear box chooses the initial seat; quoted words carry that seat through
+// scrolling on every side, including under or over their stationary scrollport.
+// The physical attachment point accompanies the solver's clear-box proxy; the
+// mechanical selection retains that point with the scroll reading that measured it.
+export function commentReference(place, reference) {
+  return {
+    contextElement: place.element,
+    contextNode: place.contextNode,
+    geometry: place.geometry,
+    attachmentPoint: { left: place.column ?? place.extent.left, top: place.row },
+    getBoundingClientRect: () => reference,
   };
 }
 
@@ -124,17 +164,35 @@ export const LEAST_HEIGHT = 96;
 // scrollport's gutter and, for the comment box, an open panel's left edge (`right`). A
 // pane a resize narrowed, or a short strip of one a scroll left, so yields to the window,
 // which carries the surface rather than withdrawing a draft the user is writing. The
-// boundary names the region it stands in (`inRegion`), which then cuts the surface.
+// boundary names the region's shown bounds it stands in (`inRegion`), which then cut the
+// surface. Its `key` is what holds the side (`choose`): the window's edges, or the
+// region's whole box size and the window's, since a scroll of the page moves and clips a
+// region's shown bounds without changing the room it has, and a resize changes it.
 export function commentBoundary({ region = null, right = Infinity } = {}) {
   const shown = (within) => shownWindow({ within, gap: COMMENT_GAP });
-  const inRegion = region && shown(region);
-  return inRegion &&
+  const bounds = region && shownRegionBounds(region);
+  const inRegion = bounds && shown(bounds);
+  if (
+    inRegion &&
     Math.ceil(inRegion.width) >= Math.ceil(cardMinimum()) &&
     inRegion.height >= LEAST_HEIGHT
-    ? Object.assign(inRegion, { inRegion: region })
-    : Object.assign(shown({ right: Math.min(shellRight(), right) }), {
-        inRegion: null,
-      });
+  ) {
+    const whole = region.body.getBoundingClientRect();
+    return Object.assign(inRegion, {
+      inRegion: bounds,
+      key: [
+        whole.width,
+        whole.height,
+        window.visualViewport.width,
+        window.visualViewport.height,
+      ],
+    });
+  }
+  const shell = shown({ right: Math.min(shellRight(), right) });
+  return Object.assign(shell, {
+    inRegion: null,
+    key: [shell.left, shell.top, shell.right, shell.bottom],
+  });
 }
 
 const vertical = (side) => side === "top" || side === "bottom";
@@ -207,24 +265,26 @@ export function commentSide({ clear, extent, boundary, width, scroller, coarse }
     : "top";
 }
 
-// The card's minimum width, which chooses the side for both surfaces and whether they
-// stand past the margin row, and its preferred measure.
+// The card's minimum width chooses the side and whether both surfaces stand past the
+// margin row. Its preferred measure caps the card's width. `commentPlacement` reads
+// the minimum itself, so the comment box and its card share one placement threshold.
 const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 export const cardMinimum = () => rootLength("--thread-card-min");
 export const cardMeasure = () => rootLength("--thread-card");
 
-/* One surface's placement: the side it holds and its inline start under or over.
+/* One surface's placement: the side it holds and its inline attachment.
 
    `choose` holds a side, choosing one where none is held or the boundary or `extent`'s
    width has changed, and says whether it chose afresh. `options` then gives
    `computePosition` the reference to stand by, its placement and its middleware.
-   `landed` takes the answer's inline start, and returns what the answer says about the
-   surface: its `scale` and where the rule stood its held edge before the boundary
-   shifted it in (`spot`, `{ top }` and `{ foot }` from the rule's line), which is what a
-   `hold` returns to keep it there. `plane` reads whether the boundary holds the surface
-   at the window edge, in client coordinates, and chooses the page or window plane
-   (floating.js). `line` is where, in client pixels, the held side's line stands now.
+   `landed` takes the answer's inline start and where the rule stood the surface's top
+   and foot before the boundary shifted it in, from the rule's line, which `heldAt`
+   then offers a `hold` to keep it there; it returns the surface's `scale`. `plane` names
+   the constraint that bound the answer (floating.js): `"page"` where the rule's line
+   holds the surface, and where the boundary shifted it in, the edge it stands against
+   and that edge's client line. `line` is where, in client pixels, the held side's line
+   stands now.
    `forget` drops the side so the next placement chooses again, and `scrolled` keeps it
    across the scroll the surface itself asked for (`makeRoom`).
 
@@ -232,13 +292,21 @@ export const cardMeasure = () => rootLength("--thread-card");
    client rectangle. `adopt(frame)` queues that handoff for the next `choose`, which
    returns its initial `{ top, foot }` as `hold` until `landed` confirms a position.
    A superseded computation retains that hold. The placement owns its carried inline
-   offset; `hold` supplied to `options` names only a block edge.
+   offset from the passage's column, else `clear`'s left edge. That column moves with
+   quoted words even when their scrollport stays still. A normal beside landing owns
+   the same offset, so renewing placement follows the attachment native motion carries.
+   `hold` supplied to `options` names only a block edge, relative to the passage's
+   line when quoted, else the initial side's clearance edge. Without an explicit
+   edge, the landed seat holds its growing surface by its foot above and top elsewhere,
+   so an editor needs no transcript reading to keep its attachment while typing.
 
    `fit({ side, width, height, scale })` sizes the surface for the room its side gives, in its
    positioning space. Its declared minimum is limited only by the boundary, never by
    its passage's column.
    The intended inline start caps growth, before a restored draft's own width can
-   shift it; a landed adjustment then keeps that start as typing widens the field. */
+   shift it. On the left, the surface instead holds its right edge clear of the
+   target and grows toward the boundary; keeping its initial left edge would let
+   a longer draft grow across the words it comments on. */
 export function commentPlacement() {
   let side = null;
   let inline = null;
@@ -246,8 +314,13 @@ export function commentPlacement() {
   let pending = null;
   let carriedInline = null;
   let initialHold = null;
+  let quoted = false;
   // Whether `clear` has stood in the boundary since the side was chosen.
   let seen = false;
+  // The edge held at the last landing and the reading it answered (`holding`), and the
+  // reading the placement in flight answers, which its landing records.
+  let held = null;
+  let reading = null;
   const forget = () => {
     side = null;
     inline = null;
@@ -256,13 +329,17 @@ export function commentPlacement() {
     carriedInline = null;
     initialHold = null;
     seen = false;
+    held = null;
+    reading = null;
   };
   const line = (clear, row) =>
-    side === "bottom"
-      ? (clear?.bottom ?? row)
-      : side === "top"
-        ? (clear?.top ?? row)
-        : row;
+    quoted
+      ? row
+      : side === "bottom"
+        ? (clear?.bottom ?? row)
+        : side === "top"
+          ? (clear?.top ?? row)
+          : row;
   return {
     get side() {
       return side;
@@ -276,6 +353,42 @@ export function commentPlacement() {
       pending = frame;
     },
     forget,
+    // Which edge this placement holds, `top` or `foot`, from what the caller reports:
+    // the transcript's extent, whether the user is drafting, the latest turn
+    // (`{ key, author }`) and the draft's words. `fresh` and `hold` are `choose`'s.
+    holding({ fresh, hold, transcript, drafting, latest = null, draftText = "" }) {
+      if (hold) held = { ...hold, transcript };
+      if (fresh) held = null;
+      const turned = held && Math.abs(transcript - held.transcript) > 0.5;
+      // A turn changes the transcript on one pass, then the card's own size changes
+      // its measurement on the next. Borrow the reply's line for that turn, keyed by
+      // the projected message's stable key so admitting a Send keeps the same hold. A
+      // later reading turn or a new edit releases it; an arriving turn while drafting
+      // borrows it anew, and a Send borrows it through the handoff out of the reply row.
+      const newDraft = drafting && !held?.drafting;
+      const continuedDraft = drafting && draftText && draftText !== held?.draftText;
+      const keepReplyLine = Boolean(
+        latest &&
+        !newDraft &&
+        !continuedDraft &&
+        ((held?.replyTurn && held.replyTurn === latest.key) ||
+          (turned && (drafting || (held?.drafting && latest.author === "user")))),
+      );
+      reading = {
+        transcript,
+        drafting,
+        replyTurn: keepReplyLine ? latest.key : null,
+        draftText,
+      };
+      // Adoption holds the message's start: expanded composer choices may add a row
+      // below it that the thread does not carry. Later placements use the surface's own
+      // top/foot reading, including the normal above-side and reply-line holds.
+      return !hold && (keepReplyLine || (!drafting && side === "top")) ? "foot" : "top";
+    },
+    // The held edge's offset for `options`' `hold`, and the height between the held
+    // top and foot, which caps a held surface no shorter than it last stood.
+    heldAt: (edge) => held && { [edge]: held[edge] },
+    heldHeight: () => (held ? held.foot - held.top : 0),
     scrolled() {
       input = null;
     },
@@ -285,23 +398,16 @@ export function commentPlacement() {
       extent = clear,
       boundary,
       row = clear?.top ?? boundary.top,
-      minimumWidth,
+      column = null,
       scroller,
       coarse,
     }) {
+      quoted = column !== null;
       // No visible attachment puts the editor in the window. The authored subject
       // remains its semantic anchor; no rectangle here pretends to represent it.
       const unanchored = !clear;
       extent ??= boundary;
-      const key = [
-        Number(unanchored),
-        boundary.left,
-        boundary.top,
-        boundary.right,
-        boundary.bottom,
-        extent.left,
-        extent.right,
-      ];
+      const key = [Number(unanchored), ...boundary.key, extent.left, extent.right];
       const frame = pending;
       pending = null;
       const adopted =
@@ -315,7 +421,8 @@ export function commentPlacement() {
         // A draft can have lost its visible attachment before Send. Its card still
         // starts at that frame, then follows the card's attachment from this choice.
         ({ side, seen } = frame.placement);
-        carriedInline = frame.box.left - (clear?.left ?? boundary.left);
+        if (side !== "left")
+          carriedInline = frame.box.left - (column ?? clear?.left ?? boundary.left);
         const top = frame.box.top - line(clear, row);
         initialHold = { top, foot: top + frame.box.height };
       } else if (
@@ -332,7 +439,7 @@ export function commentPlacement() {
             clear,
             extent,
             boundary,
-            width: minimumWidth,
+            width: cardMinimum(),
             scroller,
             coarse,
           });
@@ -347,14 +454,15 @@ export function commentPlacement() {
       {
         clear,
         row,
+        lastRow = row,
         column = null,
         margin = null,
         boundary,
-        minimumWidth,
         fit,
         hold = null,
       },
     ) {
+      const minimumWidth = cardMinimum();
       const across = vertical(side);
       const unanchored = !clear;
       // Floating UI reads a window attachment point for the unanchored posture,
@@ -362,8 +470,8 @@ export function commentPlacement() {
       clear ??= new DOMRect(boundary.left, boundary.top, minimumWidth, 0);
       seen ||=
         !unanchored && clear.bottom > boundary.top && clear.top < boundary.bottom;
-      // Beside on the right, the margin row is kept clear too where the room past it
-      // holds the card's minimum; where it does not, the surface stands over it.
+      // Beside on the right, keep the margin row usable when the room past it
+      // holds the card's minimum; otherwise the surface stands over it.
       const past =
         side === "right" &&
         margin &&
@@ -391,7 +499,8 @@ export function commentPlacement() {
         mainAxis: !across,
         crossAxis: across,
       }));
-      // Client pixels per positioning-space pixel, and the rule's line there.
+      // Client pixels per positioning-space pixel, the rule's line there, and beside, the
+      // last line the surface may still stand level with.
       const scaled = {
         name: "scaled",
         async fn({ rects, elements, platform }) {
@@ -402,33 +511,42 @@ export function commentPlacement() {
             data: {
               scale,
               column: rects.reference.x + (inlineStart - box.left) / scale.x,
+              attachmentInline:
+                rects.reference.x + ((column ?? clear.left) - box.left) / scale.x,
               line:
-                side === "bottom"
-                  ? rects.reference.y + rects.reference.height
-                  : side === "top"
-                    ? rects.reference.y
-                    : rects.reference.y + (row - box.top) / scale.y,
+                column !== null
+                  ? rects.reference.y + (row - box.top) / scale.y
+                  : side === "bottom"
+                    ? rects.reference.y + rects.reference.height
+                    : side === "top"
+                      ? rects.reference.y
+                      : rects.reference.y + (row - box.top) / scale.y,
+              last: rects.reference.y + (lastRow - box.top) / scale.y,
             },
           };
         },
       };
       const measure = (state) => state.middlewareData.scaled;
-      const heldEdge = hold?.();
-      const holding = ((!across && hold) || carriedInline !== null) && {
+      const heldEdge = hold
+        ? hold()
+        : held && (side === "top" ? { foot: held.foot } : { top: held.top });
+      // It also names the block edge it keeps still, which floating.js stands the
+      // surface by, so growth moves the other edge in the layout that grows it.
+      const holding = (heldEdge || carriedInline !== null) && {
         name: "hold",
         fn(state) {
           const edge = !across && heldEdge;
-          if (!edge && carriedInline === null) return {};
-          const { line, scale } = measure(state);
+          const data = { edge: heldEdge && ("foot" in heldEdge ? "bottom" : "top") };
+          const { line, attachmentInline, scale } = measure(state);
           const position = {};
           if (carriedInline !== null)
-            position.x = state.rects.reference.x + carriedInline / scale.x;
+            position.x = attachmentInline + carriedInline / scale.x;
           if (edge)
             position.y =
               "foot" in edge
                 ? line + edge.foot / scale.y - state.rects.floating.height
                 : line + edge.top / scale.y;
-          return position;
+          return { ...position, data };
         },
       };
       const size = ui.size({
@@ -437,7 +555,7 @@ export function commentPlacement() {
           const { scale } = measure(state);
           const lane =
             carriedInline !== null
-              ? boundary.right - clear.left - carriedInline
+              ? boundary.right - (column ?? clear.left) - carriedInline
               : across
                 ? boundary.right - (inlineStart + (inline ?? 0) * scale.x)
                 : side === "right"
@@ -484,14 +602,16 @@ export function commentPlacement() {
           // follows the same edge instead of pulling a shorter card toward its target.
           const top =
             edge &&
-            ("foot" in edge
-              ? edge.foot / scale.y - state.rects.floating.height
-              : edge.top / scale.y);
+            measure(state).line -
+              state.rects.reference.y +
+              ("foot" in edge
+                ? edge.foot / scale.y - state.rects.floating.height
+                : edge.top / scale.y);
           return {
             mainAxis: edge
               ? side === "top"
                 ? -top - state.rects.floating.height
-                : top
+                : top - state.rects.reference.height
               : COMMENT_GAP / (across ? scale.y : scale.x),
             crossAxis: across
               ? measure(state).column - state.rects.reference.x + (inline ?? 0)
@@ -511,8 +631,9 @@ export function commentPlacement() {
                 heldIn = true;
                 return { x: state.x, y: state.y };
               }
-              // Beside, it goes with the line it stands level with, overlapping it by
-              // no less than an edge; under or over, with the box it keeps clear of.
+              // Beside, it stays level with its lines, overlapping them by no less
+              // than an edge, and goes with the first or the last; under or over, with
+              // the box it keeps clear of.
               const limited = across
                 ? attachment.fn(state)
                 : {
@@ -520,7 +641,7 @@ export function commentPlacement() {
                     y: clamp(
                       state.y,
                       measure(state).line - state.rects.floating.height,
-                      measure(state).line,
+                      measure(state).last,
                     ),
                   };
               heldIn = Math.abs(limited.y - state.y) < 0.5;
@@ -534,28 +655,31 @@ export function commentPlacement() {
         reference: box,
         placement: `${side}-start`,
         middleware,
-        plane: ({ y, middlewareData }) => {
+        plane: ({ middlewareData }) => {
           if (unanchored) return "window";
-          const { scale, line: positionedLine } = middlewareData.scaled;
-          const top = line(clear, row) + (y - positionedLine) * scale.y;
-          const bottom = top + middlewareData.held.height * scale.y;
-          return heldIn &&
-            Math.abs(middlewareData.shift?.y ?? 0) >= 0.5 &&
-            heldByWindow(top, bottom, COMMENT_GAP)
-            ? "window"
-            : "page";
+          const shift = middlewareData.shift?.y ?? 0;
+          if (!heldIn || Math.abs(shift) < 0.5) return "page";
+          // Held in, it stands in the plane of the edge holding it, which floating.js
+          // finds from that edge's client line: the boundary's, less its gap.
+          return shift > 0
+            ? { edge: "top", at: boundary.top - COMMENT_GAP }
+            : { edge: "bottom", at: boundary.bottom + COMMENT_GAP };
         },
       };
     },
     landed({ x, y, middlewareData }) {
       initialHold = null;
-      const { scale, column, line } = middlewareData.scaled;
+      const { scale, column, attachmentInline, line } = middlewareData.scaled;
+      // A left-side surface grows toward the boundary, keeping its right edge beside
+      // the target. Holding its compact left edge would widen it over the target.
       if (vertical(side)) inline ??= x - column;
+      else if (side !== "left") carriedInline ??= (x - attachmentInline) * scale.x;
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;
-      return {
-        scale,
-        spot: { top, foot: top + middlewareData.held.height * scale.y },
-      };
+      const spot = { top, foot: top + middlewareData.held.height * scale.y };
+      // The reading this placement answered, so a turn that joined while it was worked
+      // out is one the next placement still sees join.
+      held = { ...spot, ...reading };
+      return { scale };
     },
   };
 }

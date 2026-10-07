@@ -4,13 +4,19 @@
 
 /* A newly inserted message starts unconfirmed, so delivery paint is immediate.
    This sheet reaches every annotation surface, including inline threads inside
-   declared shadow roots. Existing controls keep chrome.css's delayed busy feedback. */
+   declared shadow roots. Thread controls stay outside messages and keep
+   chrome.css's delayed busy feedback. */
 .lf-msg[aria-busy="true"] {
   animation: none;
   opacity: .5;
   cursor: progress;
 }
 ::highlight(lf-version-insert) { background-color: var(--add-tint); }
+/* The start of what a scroller holds, for chrome standing beside words its scroll
+   carries to anchor to (anchor-names.js, `contentStart`): empty and inline, so it lays
+   out and paints nothing, and named by the attribute its owner writes. */
+[data-lf-content-start]::before {
+  content: ""; anchor-name: attr(data-lf-content-start type(<custom-ident>)); }
 .lf-action-target { outline: 1px solid var(--accent); outline-offset: -1px;
   cursor: pointer; }
 /* An element another widget indicates (indication.js, experimental). A contour in the

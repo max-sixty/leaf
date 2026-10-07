@@ -178,6 +178,212 @@ def test_words_a_native_paste_observes_only_its_actual_editor_edit(
         }""")
 
 
+@pytest.mark.parametrize("command", ["cut", "drop"])
+def test_words_native_editor_commands_commit_only_their_actual_edit(
+    browser, serve, command
+):
+    """Native cut and pointer drop update held words; unused commands grant no credit."""
+    page = open_page(browser, serve(leaf_page("Native edits", "<h1>Edit a reply</h1>")))
+    page.evaluate("""() => {
+      const field = document.createElement('leaf-text');
+      field.id = 'field'; document.querySelector('main').append(field);
+      const source = document.createElement('div');
+      source.id = 'drag-source'; source.draggable = true;
+      source.textContent = 'Drag words';
+      source.style.cssText = 'position:fixed;top:40px;left:40px;width:120px;height:30px';
+      source.addEventListener('dragstart', event =>
+        event.dataTransfer.setData('text/plain', 'Dropped words'));
+      document.body.append(source);
+      window.nativeCommandEvents = [];
+      for (const type of ['cut','drop']) field.addEventListener(type, event =>
+        window.nativeCommandEvents.push({type,trusted:event.isTrusted}), true);
+    }""")
+    field = page.locator("#field")
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.evaluate(
+        "async () => window.clipboardBeforeCommandTest = await navigator.clipboard.read()"
+    )
+
+    def perform():
+        if command == "cut":
+            field.evaluate("field => field.setSelectionRange(5, field.value.length)")
+            page.context.new_cdp_session(page).send(
+                "Input.dispatchKeyEvent",
+                {"type": "char", "key": "Unidentified", "commands": ["Cut"]},
+            )
+        else:
+            page.locator("#drag-source").drag_to(field)
+
+    def clobber(words):
+        field.evaluate("""field => {
+          field.value = ''; field.dispatchEvent(new Event('input', {bubbles:true}));
+        }""")
+        judge_watches()
+        consume_browser_errors(
+            page,
+            f'typed words left the screen without a key or press: "{words}" in leaf-text#field',
+        )
+
+    try:
+        write(field, "Keep these words")
+        perform()
+        if command == "cut":
+            expect(field).to_have_js_property("value", "Keep ")
+        else:
+            expect(field).not_to_have_js_property("value", "Keep these words")
+            assert "Dropped words" in field.evaluate("field => field.value")
+        assert page.evaluate("window.nativeCommandEvents") == [
+            {"type": command, "trusted": True}
+        ]
+        judge_watches()
+        clobber(field.evaluate("field => field.value"))
+
+        write(field, "Keep these words")
+        field.evaluate(
+            """(field, command) => {
+          field.addEventListener(command, event => {
+            event.preventDefault(); event.stopImmediatePropagation();
+            field.dispatchEvent(new Event('input', {bubbles:true}));
+          }, {capture:true, once:true});
+        }""",
+            command,
+        )
+        perform()
+        expect(field).to_have_js_property("value", "Keep these words")
+        judge_watches()
+        clobber("Keep these words")
+
+        write(field, "Keep these words")
+        field.evaluate(
+            """(field, command) => {
+          field.dispatchEvent(new Event(command, {bubbles:true, cancelable:true}));
+        }""",
+            command,
+        )
+        judge_watches()
+        clobber("Keep these words")
+
+        write(field, "Keep these words")
+        field.evaluate("""field => {
+          field.addEventListener('input', () => {
+            window.commandWordsBeforeClobber = field.value;
+            field.value = ''; field.dispatchEvent(new Event('input', {bubbles:true}));
+          }, {once:true});
+        }""")
+        perform()
+        expect(field).to_have_js_property("value", "")
+        words = page.evaluate("window.commandWordsBeforeClobber")
+        assert words != "Keep these words" and words.strip()
+        judge_watches()
+        consume_browser_errors(
+            page,
+            f'typed words left the screen without a key or press: "{words}" in leaf-text#field',
+        )
+    finally:
+        page.evaluate("""async () => {
+          const previous = window.clipboardBeforeCommandTest;
+          if (previous.length) await navigator.clipboard.write(previous);
+          else await navigator.clipboard.writeText('');
+        }""")
+
+
+def test_words_editcontext_tracks_the_exact_native_field_and_committed_words(
+    browser, serve
+):
+    """Nonbubbling platform text updates own edits; synthetic updates cannot hide loss.
+
+    An enclosing shadow root keeps the editor's host input from reaching window.
+    The watch still reads it before an older page handler can clobber the words.
+    """
+    context = browser.new_context(
+        user_agent="Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/153.0.0.0 Mobile Safari/537.36"
+    )
+    page = open_page(
+        browser,
+        serve(leaf_page("Native EditContext", "<h1>Edit a reply</h1>")),
+        context=context,
+        init_script="""(() => {
+          const attach = Element.prototype.attachShadow;
+          window.editContextRoots = new WeakMap();
+          Element.prototype.attachShadow = function(options) {
+            const root = attach.call(this, options);
+            window.editContextRoots.set(this, root); return root;
+          };
+        })()""",
+    )
+    page.evaluate("""() => {
+      const holder = document.createElement('div');
+      document.querySelector('main').append(holder);
+      const root = holder.attachShadow({mode:'open'});
+      window.editContextHolder = root;
+      const field = document.createElement('leaf-text'); field.id = 'field';
+      root.append(field); window.editContextField = field;
+    }""")
+    field = page.locator("#field")
+    field.focus()
+    assert field.evaluate("""field => {
+      const content = editContextRoots.get(field).querySelector('.cm-content');
+      window.nativeEditingContext = content.editContext;
+      window.nativeTextUpdates = [];
+      nativeEditingContext.addEventListener('textupdate', event =>
+        nativeTextUpdates.push({trusted:event.isTrusted,bubbles:event.bubbles,
+          attached:event.target.attachedElements()[0] === content}));
+      return nativeEditingContext.attachedElements()[0] === content;
+    }""")
+    page.keyboard.insert_text("Keep these words")
+    expect(field).to_have_js_property("value", "Keep these words")
+    assert page.evaluate("window.nativeTextUpdates") == [
+        {"trusted": True, "bubbles": False, "attached": True}
+    ]
+    judge_watches()
+    field.evaluate(
+        "field => { field.remove(); field.dispatchEvent(new Event('input')); }"
+    )
+    judge_watches()
+    consume_browser_errors(
+        page, 'typed words left the screen without a key or press: "Keep these words"'
+    )
+
+    def fresh_field():
+        page.evaluate("""() => {
+          const fresh = document.createElement('leaf-text'); fresh.id = 'field';
+          editContextHolder.append(fresh); editContextField = fresh;
+        }""")
+        field.focus()
+        field.evaluate("""field => {
+          nativeEditingContext = editContextRoots.get(field).querySelector('.cm-content').editContext;
+        }""")
+        page.keyboard.insert_text("Keep these words")
+
+    fresh_field()
+    field.evaluate("""field => field.addEventListener('input', () => {
+      window.wordsBeforeNativeClobber = field.value;
+      field.remove(); field.dispatchEvent(new Event('input'));
+    }, {once:true})""")
+    page.keyboard.insert_text(" continued")
+    expect(field).to_have_count(0)
+    assert (
+        page.evaluate("window.wordsBeforeNativeClobber") == "Keep these words continued"
+    )
+    judge_watches()
+    consume_browser_errors(
+        page,
+        'typed words left the screen without a key or press: "Keep these words continued"',
+    )
+
+    fresh_field()
+    page.evaluate("""() => nativeEditingContext.dispatchEvent(new TextUpdateEvent('textupdate', {
+      updateRangeStart:0, updateRangeEnd:16, text:'Forged words',
+      selectionStart:12, selectionEnd:12,
+    }))""")
+    expect(field).to_have_js_property("value", "Forged words")
+    judge_watches()
+    consume_browser_errors(
+        page, 'typed words left the screen without a key or press: "Keep these words"'
+    )
+
+
 def test_words_scrolled_out_of_view_stay(browser):
     page = box_page(browser, "")
     scrolled(page)
@@ -200,6 +406,157 @@ def test_words_escape_puts_away_are_put_away(browser):
     page = box_page(browser, "escape-hides")
     page.keyboard.press("Escape")
     judge_watches()
+
+
+@pytest.mark.parametrize(
+    "exit_kind",
+    [
+        "acknowledged",
+        "ignored",
+        "passive-focus",
+        "tab",
+        "other-field",
+        "edit-after-keyup",
+        "new-edit",
+        "same-value-new-edit",
+        "retained-editor",
+        "passive-close",
+        "different-value",
+        "reopened-in-dispatch",
+        "replaced-in-dispatch",
+        "outside-press",
+        "delayed-owned-close",
+        "passive-focus-in-dispatch",
+        "changed-chain",
+        "different-value-in-dispatch",
+    ],
+)
+def test_words_a_committed_value_editor_close_retires_only_its_exact_edit(
+    browser, exit_kind
+):
+    """A committed native value editor close acknowledges Escape before paint.
+
+    Hold the actual animation until explicitly finishing it: the effect may stay
+    pending arbitrarily long, and neither pending work nor focus alone supplies a
+    cause. A new edit starts a fresh lifetime even in the same native field.
+    """
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<native-value-editor id=editor></native-value-editor>
+        <textarea id=other style="position:fixed;right:0;bottom:0"></textarea>
+        <script>
+          editor.attachShadow({mode: 'open'}).innerHTML =
+            '<div id=box><textarea id=field></textarea></div>' +
+            '<button id=destination style="position:fixed;right:0;top:0">Return destination</button>';
+          const {field, box, destination} = Object.fromEntries(
+            ['field', 'box', 'destination'].map(id => [id, editor.shadowRoot.getElementById(id)]));
+          window.destination = destination;
+          window.box = box;
+          editor.input = field;
+          editor.open = true;
+          editor.value = '';
+          const passiveFocus = new Promise(resolve => { window.returnFocus = resolve; });
+          passiveFocus.then(() => destination.focus());
+          field.addEventListener('input', () => { editor.value = field.value; });
+          const close = async () => {
+            if (!['retained-editor', 'ignored'].includes(window.exitKind)) editor.open = false;
+            if (window.exitKind === 'changed-chain') editor.input = other;
+            if (!['ignored', 'passive-focus', 'outside-press', 'passive-focus-in-dispatch'].includes(window.exitKind))
+              destination.focus();
+            if (window.exitKind === 'passive-focus-in-dispatch') window.returnFocus();
+            const motion = box.animate([{opacity: 1}, {opacity: 0}], {duration: 1000});
+            motion.pause();
+            window.closeMotion = motion;
+            await motion.finished;
+            box.hidden = true;
+            window.closePainted = true;
+          };
+          field.addEventListener('keydown', event => {
+            if (event.key !== 'Escape') return;
+            if (window.exitKind === 'delayed-owned-close') setTimeout(close, 0);
+            else close();
+          });
+          field.addEventListener('keydown', event => {
+            if (event.key === 'Escape' && window.exitKind === 'replaced-in-dispatch') {
+              const heir = document.createElement('textarea');
+              heir.id = 'heir'; heir.value = field.value;
+              field.replaceWith(heir); editor.input = heir;
+            }
+            if (event.key === 'Escape' && window.exitKind === 'reopened-in-dispatch')
+              editor.open = true;
+            if (event.key === 'Escape' && window.exitKind === 'different-value-in-dispatch')
+              editor.value = '';
+          });
+          destination.addEventListener('mousedown', () => {
+            if (window.exitKind === 'outside-press') close();
+          });
+        </script>""")
+    )
+    page.evaluate("kind => window.exitKind = kind", exit_kind)
+    if exit_kind == "other-field":
+        page.locator("#other").fill("Another edit stays mine")
+    page.locator("#field").fill("Keep these words")
+    if exit_kind == "passive-close":
+        page.evaluate("editor.open = false")
+        judge_watches()
+    if exit_kind == "different-value":
+        page.evaluate("editor.value = 'A different committed value'")
+    if exit_kind == "tab":
+        page.locator("#field").press("Tab")
+        expect(page.locator("#destination")).to_be_focused()
+        page.evaluate("box.hidden = true")
+    else:
+        if exit_kind == "outside-press":
+            page.locator("#destination").click()
+        else:
+            page.locator("#field").press("Escape")
+        page.wait_for_function("window.closeMotion?.playState === 'paused'")
+        shown_field = page.locator(
+            "#heir" if exit_kind == "replaced-in-dispatch" else "#field"
+        )
+        expect(shown_field).to_be_visible()
+        expect(shown_field).to_have_value("Keep these words")
+        if exit_kind == "edit-after-keyup":
+            page.locator("#other").fill("Another edit stays mine")
+        judge_watches()
+        assert not page.evaluate("window.closePainted === true")
+        if exit_kind == "passive-focus":
+            page.evaluate("destination.focus()")
+        if exit_kind in {"other-field", "edit-after-keyup"}:
+            page.evaluate("other.remove()")
+            judge_watches()
+            consume_browser_errors(
+                page,
+                "typed words left the screen without a key or press: "
+                '"Another edit stays mine" in textarea#other',
+            )
+        if exit_kind in {"new-edit", "same-value-new-edit"}:
+            page.locator("#field").fill(
+                "Keep these words"
+                if exit_kind == "same-value-new-edit"
+                else "A new editing lifetime"
+            )
+        page.evaluate("closeMotion.finish()")
+        page.wait_for_function("window.closePainted === true")
+    judge_watches()
+    if exit_kind not in {
+        "acknowledged",
+        "other-field",
+        "edit-after-keyup",
+        "outside-press",
+        "delayed-owned-close",
+        "passive-focus",
+        "passive-focus-in-dispatch",
+    }:
+        words = (
+            "A new editing lifetime" if exit_kind == "new-edit" else "Keep these words"
+        )
+        field_id = "heir" if exit_kind == "replaced-in-dispatch" else "field"
+        consume_browser_errors(
+            page,
+            f'typed words left the screen without a key or press: "{words}" in textarea#{field_id}',
+        )
 
 
 def test_words_a_press_elsewhere_puts_away_are_put_away(browser):
@@ -487,6 +844,145 @@ def test_words_a_component_value_edge_needs_its_own_matching_paint(browser, scen
         consume_browser_errors(
             page, "typed words left the screen without a key or press"
         )
+
+
+@pytest.mark.parametrize(
+    "attempt",
+    [
+        "single-line",
+        "cancelled",
+        "actual-edit",
+        "passive",
+        "new-edit",
+        "same-value-new-edit",
+        "cancelled-typing",
+        "cancelled-commit",
+    ],
+)
+def test_words_an_input_attempt_needs_an_actual_edit_to_replace_its_words(
+    browser, attempt
+):
+    """A native no-op cannot replace the edit or revoke its earlier value commit."""
+    native = "textarea" if attempt == "actual-edit" else "input"
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(f"""<div id=control></div><script>
+      const shadow = control.attachShadow({{mode:'open'}});
+      shadow.innerHTML = '<{native} id=field></{native}>';
+      const field = shadow.querySelector('#field');
+      control.input = field; control.value = '';
+      field.addEventListener('input', () => {{
+        if (!['new-edit', 'same-value-new-edit'].includes('{attempt}') || control.value !== 'CANONICAL') control.value = field.value;
+      }});
+      field.addEventListener('keydown', event => {{
+        if (event.key === ('{attempt}' === 'cancelled-commit' ? 'x' : 'Enter') && '{attempt}' !== 'passive') control.value = 'CANONICAL';
+        if (event.key === 'x' && '{attempt}' === 'cancelled-commit') setTimeout(() => {{field.value = control.value;window.painted = true;}}, 0);
+        if (event.key === 'x' && '{attempt}' === 'cancelled-typing') setTimeout(() => {{field.value = '';window.cleared = true;}}, 0);
+      }});
+      field.addEventListener('beforeinput', event => {{
+        if (('{attempt}' === 'cancelled' && event.inputType === 'insertLineBreak') || (['cancelled-typing', 'cancelled-commit'].includes('{attempt}') && event.data === 'x')) event.preventDefault();
+      }});
+      window.paint = () => {{field.value = 'CANONICAL';}};
+    </script>""")
+    )
+    field = page.locator("#field")
+    field.fill("Typed words")
+    if attempt in {"cancelled-typing", "cancelled-commit"}:
+        field.press("x")
+        page.wait_for_function(
+            "window.cleared === true"
+            if attempt == "cancelled-typing"
+            else "window.painted === true"
+        )
+    else:
+        field.press("Enter")
+        judge_watches()
+        if attempt in {"new-edit", "same-value-new-edit"}:
+            field.fill(
+                "Typed words" if attempt == "same-value-new-edit" else "New words"
+            )
+            assert (
+                page.locator("#control").evaluate("host => host.value") == "CANONICAL"
+            )
+        page.evaluate("paint()")
+    judge_watches()
+    if attempt in {
+        "actual-edit",
+        "passive",
+        "new-edit",
+        "same-value-new-edit",
+        "cancelled-typing",
+        "cancelled-commit",
+        "cancelled",
+    }:
+        consume_browser_errors(
+            page, "typed words left the screen without a key or press"
+        )
+
+
+def test_words_redirected_native_typing_does_not_put_away_another_edit(browser):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""<textarea id=field></textarea><textarea id=other></textarea>
+    <script>
+    field.addEventListener('keydown', event => {
+      if(event.key !== 'x') return;
+      other.focus();
+      setTimeout(() => {field.value = '';window.cleared=true},0);
+    });
+    </script>""")
+    )
+    page.locator("#field").fill("Keep old field")
+    page.locator("#field").press("x")
+    page.wait_for_function("window.cleared === true")
+    assert page.locator("#other").input_value() == "x"
+    judge_watches()
+    consume_browser_errors(page, "typed words left the screen without a key or press")
+
+
+def test_words_a_new_gesture_supersedes_a_held_key_without_revoking_its_owned_close(
+    browser,
+):
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote("""
+<native-value-editor id=editor></native-value-editor><textarea id=other style="position:fixed;right:0;bottom:0"></textarea>
+<script>
+editor.attachShadow({mode:'open'}).innerHTML = '<textarea id=field></textarea>';
+const field = editor.shadowRoot.querySelector('#field');
+editor.input = field; editor.open = true; editor.value = '';
+field.addEventListener('input', () => editor.value = field.value);
+field.addEventListener('keydown', async event => {
+  if (event.key !== 'Escape') return;
+  const commit = lfInputWork.capture(() => {editor.open = false; window.reviewCloseCommitted = true;});
+  await new Promise(resolve => window.beginClose = resolve);
+  commit();
+  await new Promise(resolve => window.finishClose = resolve);
+  field.hidden = true; window.painted = true;
+});
+</script>""")
+    )
+    page.locator("#field").fill("Original committed words")
+    page.locator("#field").focus()
+    page.keyboard.down("Escape")
+    page.locator("#other").click()
+    page.locator("#other").fill("Other new edit stays watched")
+    page.keyboard.up("Escape")
+    page.evaluate("beginClose()")
+    page.wait_for_function("window.reviewCloseCommitted === true")
+    judge_watches()
+    page.evaluate("finishClose()")
+    page.wait_for_function("window.painted === true")
+    judge_watches()
+    page.locator("#other").evaluate('field => field.value = ""')
+    judge_watches()
+    consume_browser_errors(
+        page,
+        'typed words left the screen without a key or press: "Other new edit stays watched" in textarea#other',
+    )
 
 
 @pytest.mark.parametrize("delay", [300, 3000])
@@ -865,3 +1361,101 @@ def test_words_a_native_passive_await_stays_passive_inside_a_press(browser, defe
     consume_browser_errors(page, "typed words left the screen without a key or press")
     page.evaluate("completeSend()")
     page.wait_for_function("window.done === true")
+
+
+# A reactive element in the shape Lit gives one: `requestUpdate` starts an update that a
+# native `await` defers to `scheduleUpdate`, and the first update, requested while the
+# element is constructed, waits for it to be connected. Its value is drawn into a field
+# in its shadow tree, as a Web Awesome input draws the Threads search. Escape clears the
+# host's value; `k` makes an element whose first update clears it, which a passive
+# timer later connects; and a passive timer, armed when the page loads, clears it on cue.
+REACTIVE = """<!doctype html><body>
+<reactive-field id="host"></reactive-field><button id="elsewhere">Elsewhere</button>
+<script>
+  class ReactiveField extends HTMLElement {
+    isUpdatePending = false;
+    hasUpdated = false;
+    #value = "";
+    #enable = null;
+    #enabled = new Promise((resolve) => (this.#enable = resolve));
+    constructor() {
+      super();
+      this.attachShadow({ mode: "open" }).innerHTML = '<input id="inner">';
+      this.shadowRoot.firstChild.addEventListener("input", (event) => {
+        this.#value = event.target.value;
+      });
+      this.requestUpdate();
+    }
+    connectedCallback() { this.#enable(); }
+    get value() { return this.#value; }
+    set value(next) { this.#value = next; this.requestUpdate(); }
+    requestUpdate() {
+      if (this.isUpdatePending) return;
+      this.isUpdatePending = true;
+      this.updated = this.enqueueUpdate();
+    }
+    async enqueueUpdate() {
+      await this.#enabled;
+      this.scheduleUpdate();
+    }
+    scheduleUpdate() {
+      this.isUpdatePending = false;
+      const first = !this.hasUpdated;
+      this.hasUpdated = true;
+      this.shadowRoot.firstChild.value = this.#value;
+      if (first && this.dataset.clears)
+        document.getElementById(this.dataset.clears).value = "";
+      if (!first && this.id === "host") window.cleared = this.#value === "";
+    }
+  }
+  customElements.define("reactive-field", ReactiveField);
+  addEventListener("keydown", (event) => {
+    if (event.key === "Escape") document.getElementById("host").value = "";
+    if (event.key === "k") {
+      window.made = document.createElement("reactive-field");
+      made.dataset.clears = "host";
+    }
+  });
+  window.connectPassively = () => setTimeout(() => document.body.append(made), 0);
+  new Promise((resolve) => (window.releasePassive = resolve)).then(() => {
+    setTimeout(() => { document.getElementById("host").value = ""; }, 0);
+  });
+</script>"""
+
+
+def reactive_page(browser):
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(REACTIVE))
+    page.locator("#inner").fill("Half a thought")
+    return page
+
+
+def test_words_a_reactive_update_a_key_requested_is_that_keys(browser):
+    """An element's update that a key requested belongs to that key, though the element
+    defers it behind a native `await`: the key put the words away."""
+    page = reactive_page(browser)
+    page.keyboard.press("Escape")
+    page.wait_for_function("window.cleared === true")
+    judge_watches()
+
+
+@pytest.mark.parametrize("cause", ["released", "connected"])
+def test_words_a_reactive_update_nothing_requested_still_fails(browser, cause):
+    """The same deferred update, requested by work no input caused, loses the words.
+    So does an element's first update when a key made the element and passive work
+    connected it later: that update runs when it is connected, not when it was made."""
+    page = reactive_page(browser)
+    if cause == "released":
+        page.evaluate("releasePassive()")
+    else:
+        page.locator("#elsewhere").focus()
+        page.keyboard.press("k")
+        page.wait_for_function("window.made !== undefined")
+        page.evaluate("connectPassively()")
+    page.wait_for_function("window.cleared === true")
+    judge_watches()
+    consume_browser_errors(
+        page,
+        'typed words left the screen without a key or press: "Half a thought"'
+        " in input#inner in shadow of reactive-field#host",
+    )

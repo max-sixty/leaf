@@ -6,7 +6,6 @@ before reply:
     state: waiting
     detail: >-
       pick one
-    after: 1
   note: |
     1 user move with no answer (`leaf thread reply <page> --for event-1`); the page reads waiting once each has one
 
@@ -16,5 +15,4 @@ after reply:
     state: waiting
     detail: >-
       pick one
-    after: 2
   note: ''

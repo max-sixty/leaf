@@ -20,6 +20,7 @@ from render_harness import (
     EXAMPLES,
     consume_browser_errors,
     example_media,
+    expect_asks_answered,
     holding,
     open_page,
     round_trip,
@@ -232,7 +233,8 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
                  const field = el.querySelector('leaf-text');
                  return {
                    end: inner - press.getBoundingClientRect().right,
-                   paddingEnd: parseFloat(getComputedStyle(field).paddingInlineEnd),
+                   room: parseFloat(getComputedStyle(field)
+                     .getPropertyValue('--lf-field-end-room')),
                    right: press.getBoundingClientRect().right,
                  };
                }"""
@@ -242,7 +244,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     spacing = page.locator("html").evaluate(
         "el => parseFloat(getComputedStyle(el).getPropertyValue('--sp-2'))"
     )
-    assert gaps["#bracket"]["paddingEnd"] - gaps["#jobs"]["paddingEnd"] == (
+    assert gaps["#bracket"]["room"] - gaps["#jobs"]["room"] == (
         pytest.approx(shown["badgeWidth"] + spacing, abs=0.5)
     )
     # Writing in the row and putting the bindings away reveals the press in the exact
@@ -279,9 +281,11 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
 
-    # The existing thread's card stands beside the option, so c enters its reply
-    # instead of adding an answer or opening another comment box.
+    # Working the Ask keeps its decisions clear. Opening its existing discussion
+    # explicitly makes c enter the reply instead of adding an answer or opening
+    # another comment box.
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
+    page.get_by_role("button", name=re.compile(r"Thread, On you to answer")).click()
     expect(page.locator(".lf-margin-preview")).to_be_visible()
     page.keyboard.press("c")
     expect(reply).to_be_focused()
@@ -322,7 +326,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     expect(added.locator(".lf-compose-submit")).to_have_attribute(
         "aria-disabled", "true"
     )
-    expect(page.locator(".lf-asks")).to_have_text("Asks 0/3")
+    expect_asks_answered(page, "0/3")
 
     new_option = page.locator("#jobs > lf-option[data-lf-added]")
     assert new_option.count() == 1, (
@@ -339,7 +343,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     ]
     assert moves == [
         ("add", {"option": identity, "text": "Insulate the camera battery"}),
-        ("choose", {"options": [identity]}),
+        ("choose", {"value": [identity]}),
     ]
     assert not [
         event for event in events_model.read_events(d) if event["kind"] == "comment"
@@ -561,7 +565,8 @@ def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
     fit = field.evaluate("""field => {
       const style = getComputedStyle(field);
       const room = field.clientWidth - parseFloat(style.paddingInlineStart)
-        - parseFloat(style.paddingInlineEnd);
+        - parseFloat(style.paddingInlineEnd)
+        - parseFloat(style.getPropertyValue('--lf-field-end-room'));
       const pen = document.createElement('canvas').getContext('2d');
       pen.font = style.font;
       return {room, words: pen.measureText(field.getAttribute('placeholder')).width};

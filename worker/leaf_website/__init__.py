@@ -68,7 +68,7 @@ from leaf.thread import (
     fail_answer,
     release_delivery_reply,
 )
-from leaf.thread_titles import app_server_title, name_untitled_threads
+from leaf.thread_titles import app_server_title, name_thread
 from starlette.responses import Response
 
 PORT = 8080
@@ -82,9 +82,9 @@ def website_harness(thread_id: str, pid: int) -> EmbeddedHarness:
     """This container's own harness declaration, for the pages it claims.
 
     Nothing in the environment says what this is: the container drives App
-    Server itself and starts every turn, so it states its own carrier, the name
-    a user sees, and the App Server process its session lives and dies with.
-    Leaf's claim users then dispatch on that declaration exactly as they do on
+    Server itself and starts every turn, so it declares itself, supplying the
+    name a user sees and the App Server process its session lives and dies
+    with. Leaf's claim users then dispatch on that declaration exactly as they do on
     a session the environment did imply."""
     return EmbeddedHarness(session=thread_id, agent=WEBSITE_AGENT, pid=pid)
 
@@ -392,7 +392,7 @@ class HostedTurn(CarriedTurn):
 
     A completion notification is the ordinary ending. A connection that drops, a
     silence past `STREAM_SILENCE`, and any fault in this code are endings as well,
-    and this carrier closes those by interrupting the provider turn, so a turn the
+    and this host closes those by interrupting the provider turn, so a turn the
     page has stopped watching is not left running.
     """
 
@@ -1008,12 +1008,6 @@ class WebsiteCodexHarness:
             turnId=turn_id,
             durationMs=round((time.monotonic() - started) * 1000),
         )
-        name_untitled_threads(
-            app_server_title(self.endpoint, HOSTED_MODEL),
-            prepared.payload,
-            thread_id,
-            log_agent,
-        )
         # App Server answered for the turn it made from this delivery, so the follower
         # knows which turn is its own before it reads anything. The answer names a turn
         # of this delivery's rather than another request's because `turn/start` steers
@@ -1237,6 +1231,18 @@ class WebsiteCodexHarness:
             eventId=event_id,
             durationMs=round((time.monotonic() - started) * 1000),
         )
+        # The Worker dispatches each move here as the page admits it, so a thread the
+        # move opens is named now, even when a running turn leaves the move to the
+        # next one. The page has a claim to write the title under only from the
+        # first turn on, so this follows the start rather than the admission.
+        if attached is not None:
+            name_thread(
+                app_server_title(self.endpoint, HOSTED_MODEL),
+                page_dir,
+                event_id,
+                attached,
+                log_agent,
+            )
         return attached
 
     def failure_receipt(
@@ -1477,7 +1483,7 @@ def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
     process dies where it stood and an ordinary `finally` never runs. The App Server
     is in a session of its own, so nothing else reaps it: inside a container that is
     invisible, because the container takes every process away with it, but
-    `leaf-dev verify-site local` runs this adapter on a developer's machine and
+    `leaf-dev journey local` runs this adapter on a developer's machine and
     stops it exactly this way. Three App Servers were found alive there, fifteen
     hours and 95MB of resident memory each after the runs that started them.
 

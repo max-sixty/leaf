@@ -17,6 +17,7 @@
    watches. */
 import { ariaShortcuts, bindings, labelOf, live, word } from "./bindings.js";
 import { pageScopes, universalCommandReference } from "./register.js";
+import { buttonCommand } from "./scopes.js";
 import { keeps } from "../keeps.js";
 
 const stepsBefore = (scope) => word(scope?.sequencePrefix ?? scope?.sequence) ?? [];
@@ -52,6 +53,8 @@ export function paintCoreControls() {
         "title",
         control.dataset.lfKeyTitle + (active ? ` (${shortcutIn(scope, row)})` : ""),
       );
+      // Native command buttons receive exact reachable shortcuts from command-hints.
+      if (buttonCommand(control)) continue;
       // aria-keyshortcuts has no syntax for sequential shortcuts: its spaces separate
       // alternatives. The complete sequence remains in the overlay, tooltip, and
       // accessible command reference instead of claiming its final press works alone.

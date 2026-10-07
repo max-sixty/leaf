@@ -10,6 +10,7 @@ from interact_support import (
     SUGGESTION,
     append_carried_log_record,
     append_command,
+    asks_on_you,
     before_choice,
     check,
     comment,
@@ -28,7 +29,7 @@ from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import files as files_model
-from leaf import hook_carrier as hook_carrier_model
+from leaf import hook_transport as hook_transport_model
 from leaf import passages as passages_model
 from leaf import structure as structure_model
 from leaf.delivery import current_responses
@@ -338,7 +339,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
             "revision": files_model.latest_revision(page_dir),
             "widget": "thread-picks",
             "action": "choose",
-            "detail": {"options": ["thread-option"]},
+            "detail": {"value": ["thread-option"]},
         },
     )
     events = events_model.read_events(page_dir)
@@ -693,6 +694,29 @@ def test_revising_quotes_reparents_every_open_thread_without_answering_it(page_d
         for identity in selected
     )
 
+    # The fold keeps the words each automatic move left, which the panel goes on
+    # naming, until a reply places the thread again, even on that same section.
+    folded = build_threads(events, {})
+    assert folded[roots["Alpha"]["id"]]["rewritten_from"] == roots["Alpha"]["anchor"]
+    assert folded[roots["Unchanged"]["id"]]["rewritten_from"] is None
+    placed = CliRunner().invoke(
+        cli_model.cli,
+        [
+            "thread",
+            "reply",
+            str(page_dir),
+            roots["Alpha"]["id"],
+            "--section",
+            "labels",
+            "--text",
+            "This section now.",
+        ],
+    )
+    assert placed.exit_code == 0, placed.output
+    replaced = build_threads(events_model.read_events(page_dir), {})
+    assert replaced[roots["Alpha"]["id"]]["anchor"] == {"section": "labels"}
+    assert replaced[roots["Alpha"]["id"]]["rewritten_from"] is None
+
 
 def test_reply_replacement_precedes_automatic_fallback_for_other_threads(page_dir):
     original = PAGE.replace(
@@ -863,7 +887,7 @@ def test_a_refused_stamp_does_not_publish_quote_fallbacks(page_dir):
     before = events_model.read_events(page_dir)
     (page_dir / "index.html").write_text(original.replace("Alpha", "Beta"))
     refused = stamp(page_dir, "Revised", completes=("unknown-widget",))
-    assert refused.exit_code == 1 and "no active widget work claim" in refused.output
+    assert refused.exit_code == 1 and "no open task on" in refused.output
     assert files_model.latest_revision(page_dir) == 1
     assert events_model.read_events(page_dir) == before
     accepted = stamp(page_dir, "Revised")
@@ -1536,8 +1560,8 @@ def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
     words = "Use <a literal> & keep the source unchanged."
     moves = [
         ("add", {"option": identity, "text": words}),
-        ("choose", {"options": [identity]}),
-        ("choose", {"options": ["flag-first"]}),
+        ("choose", {"value": [identity]}),
+        ("choose", {"value": ["flag-first"]}),
     ]
     for action, detail in moves:
         append_command(
@@ -1907,7 +1931,7 @@ def test_the_agents_own_comment_is_not_printed_back_to_it(page_dir):
     published(page_dir)
     assert comment(page_dir, "--quote", "Ship dark", "--text", "x").exit_code == 0
     assert page_state(page_dir)["pending"] == 0
-    assert hook_carrier_model.unattended_pages("") == []
+    assert hook_transport_model.unattended_pages("") == []
 
 
 def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
@@ -2027,19 +2051,19 @@ def test_a_closed_thread_stops_asking(page_dir):
             "</lf-options></lf-ask>",
         },
     )
-    assert state_json(page_dir)["asks"] == [
+    assert asks_on_you(state_json(page_dir)) == [
         {
             "id": "gm-decision",
             "tag": "lf-ask",
-            "source": "gm",
-            "source_tag": "lf-options",
+            "widget": "gm",
+            "widget_tag": "lf-options",
             "thread": root["id"],
         }
     ]
     append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "agent", "parent": root["id"]}
     )
-    assert state_json(page_dir)["asks"] == []
+    assert asks_on_you(state_json(page_dir)) == []
 
 
 def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
@@ -2064,19 +2088,19 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
                 },
             )
         )
-    assert state_json(page_dir)["asks"] == [
+    assert asks_on_you(state_json(page_dir)) == [
         {
             "id": "group-a-decision",
             "tag": "lf-ask",
-            "source": "group-a",
-            "source_tag": "lf-options",
+            "widget": "group-a",
+            "widget_tag": "lf-options",
             "thread": roots[0]["id"],
         },
         {
             "id": "group-b-decision",
             "tag": "lf-ask",
-            "source": "group-b",
-            "source_tag": "lf-options",
+            "widget": "group-b",
+            "widget_tag": "lf-options",
             "thread": roots[1]["id"],
         },
     ]
@@ -2089,15 +2113,15 @@ def test_thread_asks_share_one_projection_across_open_fragments(page_dir):
             "revision": 1,
             "widget": "group-a",
             "action": "choose",
-            "detail": {"options": ["option-a"]},
+            "detail": {"value": ["option-a"]},
         },
     )
-    assert state_json(page_dir)["asks"] == [
+    assert asks_on_you(state_json(page_dir)) == [
         {
             "id": "group-b-decision",
             "tag": "lf-ask",
-            "source": "group-b",
-            "source_tag": "lf-options",
+            "widget": "group-b",
+            "widget_tag": "lf-options",
             "thread": roots[1]["id"],
         }
     ]
@@ -2157,8 +2181,8 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
 
     `page state` projects the published version's elements, and a widget carried by a
     message is in none of them — so a press on an AskUserQuestion resolved no
-    declaration and stood nowhere. A session picking the page up read `asks` reporting
-    the question answered and `state` reporting that nobody had answered anything,
+    declaration and stood nowhere. A session picking the page up read the question's
+    task as answered and `state` reporting that nobody had answered anything,
     while the browser had been folding that same action all along.
 
     It is named by its thread rather than by a version, because thread markup is
@@ -2187,7 +2211,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
             "revision": 1,
             "widget": "ps-q",
             "action": "choose",
-            "detail": {"options": ["ps-cookie"]},
+            "detail": {"value": ["ps-cookie"]},
         },
     )
     out = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
@@ -2195,7 +2219,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     state = json.loads(out.stdout)
     assert [
         (s["widget"], s["action"], s["detail"], s["thread"]) for s in state["state"]
-    ] == [("ps-q", "choose", {"options": ["ps-cookie"]}, thread)]
+    ] == [("ps-q", "choose", {"value": ["ps-cookie"]}, thread)]
 
 
 def test_message_markup_may_not_declare_the_document(page_dir):

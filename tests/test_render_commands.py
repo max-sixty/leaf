@@ -12,7 +12,9 @@ from conftest import LEAF_COMMAND
 from interact_support import (
     add_test_widget,
     append_carried_log_record,
+    append_command,
     install_payload,
+    state_json,
     wait_for,
 )
 from leaf import event_log as events_model
@@ -204,9 +206,9 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
     so the preview server has to expose the exact candidate without activating it.
 
     Over the clean source once through each browser a host can supply: the installed
-    Chrome the default channel finds, and the executable a browser variable names —
-    leaf's own and one of the two that predate it, since a host that set CHROME_PATH
-    for another tool has named this browser too. The default arm states every
+    Chrome the default channel finds, and the executable leaf's browser variable
+    names. That each older variable names a browser too is
+    `test_a_named_browser_that_is_not_one_names_the_variable`'s. The default arm states every
     variable empty rather than inheriting whatever the developer or the job
     exported, since a set one would otherwise turn the channel this arm exists to
     cover into a second run of the other. A runner image really does export
@@ -237,10 +239,9 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
     assert ok.returncode == 0, ok.stderr
     assert "renders clean in Chrome" in ok.stdout
 
-    for variable in ("LEAF_BROWSER_EXECUTABLE", "CHROME_PATH"):
-        named = gate(variable=variable, executable=headless_shell)
-        assert named.returncode == 0, named.stderr
-        assert f"renders clean in {headless_shell}" in named.stdout
+    named = gate(variable="LEAF_BROWSER_EXECUTABLE", executable=headless_shell)
+    assert named.returncode == 0, named.stderr
+    assert f"renders clean in {headless_shell}" in named.stdout
 
     # A vw width slips the static lint (which counts only px) and overflows only
     # in a layout engine.
@@ -260,7 +261,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     the page's own arrangement is at its tightest before it changes. A sidebar page with
     four tiles in its body changes twice there: its tiles wrap before its track stacks.
     Each open Ask, a suggestion as much as an lf-ask, gets the window `a` brings it
-    into, as the user working the page meets it.
+    into, as the user working the page meets it, including those `a` reaches past a
+    page widget move handed back to the user, which is a stop of its own and no Ask.
     A second check replaces the first's screens rather than adding to them."""
     tiles = "".join(
         f"<lf-metric id='m{i}' value='{i}'>metric {i}</lf-metric>" for i in range(4)
@@ -269,7 +271,10 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
         leaf_page(
             "a sidebar page",
             "<header><h1>Rollout</h1></header>"
-            f"<div id='body'><div class='layout-tiles' id='2026-numbers'>{tiles}</div>"
+            "<div id='body'><lf-ask id='ship-ask'><h2>Ship now?</h2>"
+            "<lf-options id='ship' choose><lf-option id='ship-now'>Now</lf-option>"
+            "<lf-option id='ship-later'>Later</lf-option></lf-options></lf-ask>"
+            f"<div class='layout-tiles' id='2026-numbers'>{tiles}</div>"
             + "".join(
                 f"<p id='para-{i}'>{'Body paragraph. ' * 30}</p>" for i in range(60)
             )
@@ -285,6 +290,34 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             layout="sidebar",
         )
     )
+    # The first Ask is answered, and the host gave up on picking the answer up, which
+    # hands the move back: the walk's first stop is that widget, ahead of every Ask.
+    moved = append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "ship",
+            "action": "choose",
+            "detail": {"value": ["ship-now"]},
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "pickup",
+            "author": "page",
+            "attention": False,
+            "events": [moved["id"]],
+            "phase": "failed",
+            "failure": "turn_failed",
+            "session": "screens",
+            "turn": "turn-1",
+        },
+    )
+    on_you = state_json(serve.page_dir)["queues"]["on_you"]
+    assert {"kind": "widget", "id": "ship"} in [item["subject"] for item in on_you]
 
     def check():
         ran = subprocess.run(
@@ -423,8 +456,9 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
 def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_shell):
     """Exercise the copied artifact a harness installs, never an import from this checkout.
 
-    Its browser gate runs on both of the browsers a host can supply, since the install
-    is where a host with a Chromium and no Chrome meets it."""
+    Its browser gate runs on a named Chromium, since the install is where a host with
+    a Chromium and no Chrome meets it; the default channel's Chrome is
+    `test_check_render_refuses_what_only_a_browser_can_see`'s."""
     root = Path(__file__).parent.parent
     installed = install_payload(tmp_path / "host" / "leaf")
     launcher = installed / "bin" / "leaf"
@@ -463,17 +497,16 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     )
     assert stamp.returncode == 0, stamp.stderr
 
-    for executable in ("", headless_shell):
-        rendered = subprocess.run(
-            [launcher, "page", "check", page_dir, "--render"],
-            cwd=elsewhere,
-            capture_output=True,
-            text=True,
-            check=False,
-            env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": executable},
-        )
-        assert rendered.returncode == 0, rendered.stderr
-        assert "renders clean" in rendered.stdout
+    rendered = subprocess.run(
+        [launcher, "page", "check", page_dir, "--render"],
+        cwd=elsewhere,
+        capture_output=True,
+        text=True,
+        check=False,
+        env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
+    )
+    assert rendered.returncode == 0, rendered.stderr
+    assert "renders clean" in rendered.stdout
 
 
 def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):

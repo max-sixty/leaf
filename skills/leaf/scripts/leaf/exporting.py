@@ -15,7 +15,7 @@ import hashlib
 import json
 import sys
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -142,7 +142,8 @@ def _module_urls(
 ) -> dict[str, str]:
     """Embed the module graph this file can reach, and no other module.
 
-    The one computed import an exported page makes is a widget's module, asked for only
+    The computed imports an exported page makes are widget modules and their declared
+    initial producers, asked for only
     where the widget's tag stands in markup about to be upgraded (`importWidgets` in
     `runtime/widget-loader.js`). Offline that markup is the captured page and the frozen
     markup its messages carry, since the embedded reading never activates another
@@ -151,6 +152,7 @@ def _module_urls(
     that draws no diff carries no diff renderer.
     """
     tags = {record["tag"] for document in markup for record in document.lf_elements}
+    registry = artifact.registry
     required = {f"/widgets/{tag}.js" for tag in tags}
     widgets = {
         alias: source
@@ -165,6 +167,11 @@ def _module_urls(
             if artifact.resources[path].mime == "application/javascript"
         ),
         *widgets.values(),
+        *(
+            initial
+            for tag in tags
+            if (initial := registry.get(tag, {}).get("x-initial"))
+        ),
     ]
     urls = {}
     while pending:
@@ -186,6 +193,7 @@ def export_document(
     data: dict,
     revision: int,
     version: int,
+    data_resources: Mapping[str, Resource],
 ) -> str:
     """Package one captured revision for Leaf's normal runtime without a host.
 
@@ -209,7 +217,8 @@ def export_document(
             ),
         ],
     )
-    inliner = AssetInliner(artifact.resources.__getitem__)
+    resources = artifact.resources | data_resources
+    inliner = AssetInliner(resources.__getitem__)
     # Replacement markers belong to delivery, never to authored prose, state, data or
     # CSS strings. Reserve a fresh namespace absent from every text it will rewrite.
     authored_text = [
@@ -225,7 +234,7 @@ def export_document(
         inliner.prefix = f"urn:leaf-resource:{uuid.uuid4().hex}:"
     embedded_resources = {
         path: inliner.address(path)
-        for path, resource in artifact.resources.items()
+        for path, resource in resources.items()
         if resource.mime not in {"application/javascript", "text/css"}
     }
     embedded_resources["/shadow.css"] = inliner.address("/shadow.css")
@@ -241,7 +250,7 @@ def export_document(
         version,
         executable=artifact.executable,
         widgets=artifact.widgets,
-        resources=artifact.resources,
+        resources=resources,
         registry=artifact.registry,
         delivery=Delivery(
             address=lambda path: (
@@ -284,7 +293,7 @@ def export_document(
         version,
         executable=artifact.executable,
         widgets=artifact.widgets,
-        resources=artifact.resources,
+        resources=resources,
         registry=artifact.registry,
         delivery=Delivery(
             address=readable.address,
@@ -342,7 +351,13 @@ def cmd_export(page_dir: Path, out: Path, version) -> int:
         layer_identity=snapshot.context.layer,
     ).page_state(revision)
     html = export_document(
-        artifact, document, state, snapshot.context.data, revision, version
+        artifact,
+        document,
+        state,
+        snapshot.context.data,
+        revision,
+        version,
+        snapshot.data_resources,
     )
 
     out.parent.mkdir(parents=True, exist_ok=True)

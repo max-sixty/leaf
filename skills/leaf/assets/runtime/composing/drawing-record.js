@@ -1,13 +1,17 @@
 /* Validation for the drawing payload shared by composers and the drawing controller.
  *
- * `strokes` are offsets from the target's top-left corner and may run past its edges; a
- * page drawing has no target, and its strokes are offsets from the document's origin.
+ * `strokes` are offsets from the target's top-left corner and may run past its edges.
  * `box` is the target's size the strokes were drawn at, and `says` is the page's words
  * the drawing stands over: together the reading for whoever cannot see the page.
  * `viewport` is the layout viewport's width and height, and `scheme` the color scheme,
  * the drawing was made in: with the comment's revision they are the window the user
  * saw, which `leaf page picture` draws again for the agent.
  * `strokesIn` scales the strokes to the target's current size.
+ *
+ * A draft's drawing also carries `at`, where the target's box stood in its anchor's
+ * section when it was last drawn on, so the draft's ink can stand there once a revision
+ * takes the target away. It is the draft's alone: `sentDrawing` leaves it out of the
+ * comment.
  */
 export const DRAWING_FORMAT = "leaf-drawing/2";
 export const MAX_DRAWING_STROKES = 32;
@@ -40,13 +44,21 @@ const validWords = (says) =>
   says !== "" &&
   [...says].length <= MAX_DRAWING_SAYS_LENGTH;
 
+// A drawing is read whole and never changed in place, and the page's ink asks of each
+// one on every paint, so each object is checked once.
+const checked = new WeakMap();
+
 export function validDrawing(drawing) {
+  if (!drawing || typeof drawing !== "object") return false;
+  if (!checked.has(drawing)) checked.set(drawing, wellFormed(drawing));
+  return checked.get(drawing);
+}
+
+function wellFormed(drawing) {
   return Boolean(
-    drawing &&
-    typeof drawing === "object" &&
     !Array.isArray(drawing) &&
     Object.keys(drawing).every((key) =>
-      ["format", "strokes", "box", "says", "viewport", "scheme"].includes(key),
+      ["format", "strokes", "box", "at", "says", "viewport", "scheme"].includes(key),
     ) &&
     drawing.format === DRAWING_FORMAT &&
     Array.isArray(drawing.strokes) &&
@@ -54,17 +66,28 @@ export function validDrawing(drawing) {
     drawing.strokes.length <= MAX_DRAWING_STROKES &&
     drawing.strokes.every(validStroke) &&
     (drawing.box === undefined || validSize(drawing.box)) &&
+    (drawing.at === undefined ||
+      (Array.isArray(drawing.at) &&
+        drawing.at.length === 2 &&
+        drawing.at.every(bounded))) &&
     (drawing.says === undefined || validWords(drawing.says)) &&
     validSize(drawing.viewport) &&
     DRAWING_SCHEMES.includes(drawing.scheme),
   );
 }
 
+// The drawing as a comment carries it.
+export function sentDrawing(drawing) {
+  const { at, ...sent } = drawing;
+  return sent;
+}
+
 // The strokes at the target's current `size`: each axis scales by the target's side over
 // the side of the `box` they were drawn in, so a mark keeps its share of the element
-// whichever way the element was resized. A page drawing, which has no box, stands as drawn.
+// whichever way the element was resized. A draft parked in its section, which has no box
+// (`drawing.js`), stands as drawn.
 export function strokesIn(drawing, size) {
-  if (!drawing.box || !size) return drawing.strokes;
+  if (!drawing.box) return drawing.strokes;
   const across = size.width / drawing.box[0];
   const down = size.height / drawing.box[1];
   if (across === 1 && down === 1) return drawing.strokes;

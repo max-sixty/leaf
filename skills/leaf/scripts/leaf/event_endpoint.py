@@ -23,7 +23,7 @@ from .page_view import PageView
 from .presence import claimant_reading
 from .registry.contract import RegistryError
 from .service import PageTransaction, requires_agent_attention
-from .thread_titles import name_opened_thread
+from .thread_titles import name_admitted_thread
 
 EventAnswer = tuple[int, dict]
 StateReader = Callable[[], dict]
@@ -123,7 +123,7 @@ def _execute_event(
     through the write. In particular, two tabs cannot both validate an undo against
     the same standing target and append after either lock is gone.
     """
-    opened = None
+    spoken = None
     with PageTransaction(page_dir) as page:
         # Acceptance outranks mutable state validation. A retry for an accepted
         # attempt asks for its state; it does not repeat the gesture.
@@ -139,7 +139,7 @@ def _execute_event(
             except RegistryError as error:
                 return event_rejection(event, str(error))
             claim = page.active_claim
-            # Input no carrier will pick up: the claimant takes no input, by the
+            # Input no watcher will pick up: the claimant takes no input, by the
             # activity fold's own reading (`activity.takes_input`), because its
             # turn was seen to end — closed by the Stop hook, or interrupted as
             # its harness's record says — and no wait lease is held. A turn Leaf
@@ -150,25 +150,26 @@ def _execute_event(
             # a user ticking three boxes queues one turn or one approval rather
             # than three, while a turn interrupted again after a new prompt is
             # messaged again. The claimant's harness decides whether its session
-            # can be reached at all and what to say; a harness whose carrier is a
+            # can be reached at all and what to say; a harness whose watcher is a
             # process of its own has nowhere to put this and answers no. It is
             # sent under the lock, so the mark it leaves is exact: a local socket
             # accepts or refuses at once, and input after a refusal tries again.
             if requires_agent_attention(admitted):
                 nudge_unwatched(page)
-            if event["kind"] == "comment" and claim:
-                opened = admitted["id"], claim
+            if event["kind"] in ("comment", "reply") and claim:
+                spoken = admitted["id"], claim
     # A comment opens a thread with no name, and the claimant's harness names it from
-    # these words while the agent is still reading them. The request reads the
-    # thread under the page's lock, so it starts once the lock is given back.
-    if opened and (generate := claim_harness(opened[1]).title_generator()):
-        name_opened_thread(generate, page_dir, opened[0], opened[1]["id"])
+    # its words while the agent is still reading them; a reply names a thread its
+    # comment left untitled, as a reaction does. The request reads the thread under
+    # the page's lock, so it starts once the lock is given back.
+    if spoken and (generate := claim_harness(spoken[1]).title_generator()):
+        name_admitted_thread(generate, page_dir, spoken[0], spoken[1]["id"])
     return 200, {"ok": True, "state": state()}
 
 
 def nudge_unwatched(page: PageTransaction) -> None:
     """Message the claimant of a page holding input nothing will carry, once per
-    ending of its turn (`session-lifetime.md`, Carriers): no wait lease is held,
+    ending of its turn (`session-lifetime.md`, Watchers): no wait lease is held,
     and its turn has ended, so nothing takes input by the activity fold's reading
     (`activity.takes_input`). Run under the page's lock, which makes the mark it
     leaves exact."""

@@ -140,6 +140,11 @@ function caretAt(body, x, y) {
 customElements.define(
   "lf-draft",
   class extends HTMLElement {
+    // What the Ask was answered with: the standing words.
+    static answerWords(state) {
+      return state.edit.value.trim() || "Empty";
+    }
+
     #controller = widgetController(this);
     #body;
     #history = null;
@@ -150,7 +155,6 @@ customElements.define(
     #failed = false;
     #margin = null;
     #commandScope = null;
-    #stopReading = null;
     #stopDraft = null;
     #resumeProjection = null;
     #recovered = false;
@@ -159,7 +163,13 @@ customElements.define(
       if (!once(this)) {
         this.#offer();
         this.#paintAvailability();
-        this.#watchReading();
+        if (
+          !quoted(this) &&
+          this.#editor &&
+          !this.#resumeProjection &&
+          this.#controller.read().actions.edit.available
+        )
+          this.#resumeProjection = this.#controller.defer();
         this.#watchDraft();
         return;
       }
@@ -174,7 +184,7 @@ customElements.define(
       // no pencil, no press on the box, no edit keys in the command reference dialog. Quoting
       // gates the action channel, not presentation.
       if (quoted(this)) {
-        this.#watchReading();
+        this.#subscribeReading();
         return;
       }
 
@@ -189,7 +199,7 @@ customElements.define(
       // watcher's own callback would fan one shared refresh out through every draft for
       // a projection none of them changed.
       this.#refreshMargin();
-      this.#watchReading();
+      this.#subscribeReading();
 
       // The box is the door. A draft is the one block on the page whose whole purpose is
       // that the user rewrites it, so a press anywhere in it opens the editor with the
@@ -226,8 +236,6 @@ customElements.define(
     }
 
     disconnectedCallback() {
-      this.#stopReading?.();
-      this.#stopReading = null;
       this.#stopDraft?.();
       this.#stopDraft = null;
       this.#margin?.unregister();
@@ -236,20 +244,15 @@ customElements.define(
       this.#resumeProjection = null;
     }
 
-    #watchReading() {
+    #subscribeReading() {
       const interactive = !quoted(this);
-      if (
-        interactive &&
-        this.#editor &&
-        !this.#resumeProjection &&
-        this.#controller.read().actions.edit.available
-      )
-        this.#resumeProjection = this.#controller.defer();
-      this.#stopReading ??= this.#controller.subscribe((reading) => {
+      this.#controller.subscribe((reading) => {
         if (!interactive) return;
         this.#renderHistory(reading);
-        this.#paintAvailability();
+        // Recovery chooses the first action face: an unsent editor opens with Save
+        // and Cancel, without briefly publishing the resting pencil.
         this.#recoverEdit(reading);
+        this.#paintAvailability();
         if (this.#editor && !this.#resumeProjection && reading.actions.edit.available)
           this.#resumeProjection = this.#controller.defer();
       });
@@ -307,70 +310,60 @@ customElements.define(
         key: `draft:${this.id}`,
         target: () => this,
         read: () => this.#readMargin(),
-        activate: (activation) => {
-          if (activation === "edit" && this.#available()) return this.#open();
-          if (activation === "commit") return this.#commit();
-          if (activation === "cancel") return this.#close(true);
-        },
       });
     }
 
     #ensureCommands() {
       if (this.#commandScope) return;
-      this.#commandScope = commandScope(
-        "On a draft",
-        [
-          {
-            id: "draft.edit",
-            contextKeys: ["1"],
-            bindingBadge: null,
-            keys: [],
-            control: () => this.#margin?.control("edit"),
-            decision: true,
-            title: "Edit…",
-            description: "Edit the text in place",
-            when: () => !this.#editor,
-            run: () => this.#margin?.activate("edit"),
-          },
-          {
-            id: "draft.save",
-            contextKeys: ["1"],
-            bindingBadge: null,
-            reach: "in an open draft editor",
-            keys: submitBindings,
-            label: submitLabel,
-            control: () => this.#margin?.control(this.#saveKey()),
-            decision: true,
-            title: () => (this.#failed ? "Retry" : "Save"),
-            description: () =>
-              this.#failed ? "Retry saving the edit" : "Save the edit",
-            when: () => Boolean(this.#editor),
-            run: () => this.#margin?.activate(this.#saveKey()),
-          },
-          {
-            id: "draft.cancel",
-            contextKeys: ["2"],
-            bindingBadge: null,
-            reach: "in an open draft editor",
-            keys: [],
-            control: () => this.#margin?.control("cancel"),
-            decision: true,
-            title: "Cancel",
-            description: "Cancel the edit",
-            when: () => Boolean(this.#editor),
-            run: () => this.#margin?.activate("cancel"),
-          },
-          {
-            id: "draft.close",
-            reach: "in an open draft editor",
-            keys: ["Escape"],
-            title: "close — edit kept",
-            when: () => Boolean(this.#editor),
-            run: () => this.#close(false),
-          },
-        ],
-        { answer: () => this.#controller.read().state.edit.value.trim() || "Empty" },
-      );
+      this.#commandScope = commandScope("On a draft", [
+        {
+          id: "draft.edit",
+          contextKeys: ["1"],
+          bindingBadge: null,
+          keys: [],
+          control: () => this.#margin?.control("edit"),
+          decision: true,
+          title: "Edit…",
+          description: "Edit the text in place",
+          when: () => !this.#editor && !this.#sending && this.#available(),
+          run: () => this.#open(),
+        },
+        {
+          id: "draft.save",
+          contextKeys: ["1"],
+          bindingBadge: null,
+          reach: "in an open draft editor",
+          keys: submitBindings,
+          label: submitLabel,
+          control: () => this.#margin?.control(this.#saveKey()),
+          decision: true,
+          title: () => (this.#failed ? "Retry" : "Save"),
+          description: () => (this.#failed ? "Retry saving the edit" : "Save the edit"),
+          when: () => Boolean(this.#editor) && this.#available(),
+          run: () => this.#commit(),
+        },
+        {
+          id: "draft.cancel",
+          contextKeys: ["2"],
+          bindingBadge: null,
+          reach: "in an open draft editor",
+          keys: [],
+          control: () => this.#margin?.control("cancel"),
+          decision: true,
+          title: "Cancel",
+          description: "Cancel the edit",
+          when: () => Boolean(this.#editor),
+          run: () => this.#close(true),
+        },
+        {
+          id: "draft.close",
+          reach: "in an open draft editor",
+          keys: ["Escape"],
+          title: "close — edit kept",
+          when: () => Boolean(this.#editor),
+          run: () => this.#close(false),
+        },
+      ]);
       commands(this, this.#commandScope);
     }
 
@@ -385,7 +378,6 @@ customElements.define(
     }
 
     #entries() {
-      const available = this.#available();
       if (!this.#editor)
         return [
           contributionEntry({
@@ -396,8 +388,7 @@ customElements.define(
             behavior: "disclosure",
             rank: "primary",
             state: this.#sending ? "busy" : "idle",
-            disabled: this.#sending || !available,
-            activation: "edit",
+            activation: "draft.edit",
             className: "lf-draft-pencil",
             scope: this.#commandScope,
           }),
@@ -410,8 +401,7 @@ customElements.define(
           tone: "positive",
           rank: "complete",
           state: this.#failed ? "failed" : "engaged",
-          disabled: !available,
-          activation: "commit",
+          activation: "draft.save",
           scope: this.#commandScope,
         }),
         contributionEntry({
@@ -420,7 +410,7 @@ customElements.define(
           label: "Cancel",
           rank: "escape",
           state: this.#failed ? "failed" : "engaged",
-          activation: "cancel",
+          activation: "draft.cancel",
           scope: this.#commandScope,
         }),
       ];
@@ -481,7 +471,7 @@ customElements.define(
       return this.#controller.dispatch({
         kind: "action",
         verb: "edit",
-        detail: { text },
+        detail: { value: text },
         ...(attempt && { attempt }),
       });
     }
@@ -531,7 +521,7 @@ customElements.define(
       const key = JSON.stringify([
         authored,
         standing,
-        actions.map((event) => [event.seq, event.revision, event.detail.text]),
+        actions.map((event) => [event.seq, event.revision, event.detail.value]),
       ]);
       if (key === this.#historyKey) return;
       this.#historyKey = key;
@@ -560,7 +550,7 @@ customElements.define(
       list.append(this.#snapshot("Version text", authored, null, standing));
       let previous = null;
       actions.forEach((event, index) => {
-        const text = event.detail.text;
+        const text = event.detail.value;
         list.append(
           this.#snapshot(
             `Edit ${index + 1} · ${revisionLabel(event.revision)}`,

@@ -3,10 +3,11 @@
 import copy
 import hashlib
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .data import read_data
+from .data_contracts import resource_urls
 from .files import (
     list_revisions,
     revision_label,
@@ -17,9 +18,11 @@ from .passages import SourceReading
 from .presence import other_leaves, presence_fingerprint, presence_with_activity
 from .registry.storage import read_page_registry
 from .revision_artifact import (
+    Resource,
     RevisionArtifact,
     artifact_name,
     capture_artifact,
+    capture_local_resource,
     read_artifact,
     read_revision,
 )
@@ -36,13 +39,20 @@ class PageSnapshot:
 
     Everything it serves is read at capture: each revision's reading has its
     document and registry in hand, so a later request reads nothing from the page
-    directory for them."""
+    directory for them. Declared data media is frozen beside its current value;
+    it never changes an immutable authored revision's artifact."""
 
     context: PageRead
     artifacts: dict[int, RevisionArtifact]
+    data_resources: dict[str, Resource]
     revision_names: dict[int, str]
     others: tuple[dict, ...]
     reading: str
+
+    def through(self, sequence: int) -> "PageSnapshot":
+        """This snapshot served as the page stood once event `sequence` was appended
+        (`PageRead.through`)."""
+        return replace(self, context=self.context.through(sequence))
 
 
 def capture_page_snapshot(
@@ -51,24 +61,12 @@ def capture_page_snapshot(
     active: dict,
     *,
     artifact: RevisionArtifact | None = None,
-    through_seq: int | None = None,
 ) -> PageSnapshot:
-    """Freeze a candidate and every page authority it is projected against.
-
-    `through_seq` freezes the log as it stood once that event was appended, so the
-    page is served as it was then rather than with everything since."""
+    """Freeze a candidate and every page authority it is projected against."""
     if artifact is not None and artifact.html != document.data:
         raise ValueError("preview artifact does not contain the checked document")
     with PageTransaction(page_dir) as page:
-        events = tuple(
-            copy.deepcopy(
-                [
-                    event
-                    for event in page.events
-                    if through_seq is None or event["seq"] <= through_seq
-                ]
-            )
-        )
+        events = tuple(copy.deepcopy(page.events))
         snapshot_active = copy.deepcopy(active)
         versions = tuple(copy.deepcopy(version_descriptors(page_dir, list(events))))
         revisions = list_revisions(page_dir)
@@ -92,6 +90,20 @@ def capture_page_snapshot(
         artifacts[active["revision"]] = selected
         registry = copy.deepcopy(selected.registry)
         data = read_data(page_dir, registry)
+        # External data remains current even in a historical document. Its media
+        # belongs to this frozen reading, not the immutable authored revision.
+        data_urls = {
+            url
+            for source in data["sources"].values()
+            if "value" in source
+            for url in resource_urls(
+                source["value"], registry["$data"]["contracts"][source["contract"]]
+            )
+            if url.startswith("/media/")
+        }
+        data_resources = {
+            url: capture_local_resource(page_dir, url) for url in sorted(data_urls)
+        }
         layer = copy.deepcopy(registry["$layer"])
         # Stored revisions take their held readings; a candidate the snapshot
         # captured is the checked document under its capture's vocabulary.
@@ -153,6 +165,7 @@ def capture_page_snapshot(
             taken=taken,
         ),
         artifacts=artifacts,
+        data_resources=data_resources,
         revision_names=revision_names,
         others=others,
         reading=reading,

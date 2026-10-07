@@ -1,6 +1,6 @@
 /* lf-swipe-deck: a position-recorded classification queue with one activation path.
- * The Pass and Keep buttons own the semantic action. Arrow keys and pointer swipes call
- * those buttons, whose click handler first places one card optimistically and then sends
+ * The Pass and Keep command rows own native button and keyboard activation. Pointer
+ * swipes call those buttons. Their shared callback places one card optimistically and sends
  * the same absolute action the runtime replays after reload, sync, or undo. A card the
  * user classified can return to the queue. While its classification is still being
  * sent, Return withdraws that attempt, so a refused classification leaves nothing
@@ -16,9 +16,10 @@
  *
  * Piles remain labeled lists in quoted exhibits and on paper. Quoted decks stop at
  * that structure: no controls, tab stops, key scope, or pointer listeners are installed.
- * The active card alone takes horizontal motion. Its exit is a short generated visual
- * echo so the real card can occupy its recorded destination immediately; `motion` makes
- * that echo still under reduced motion and during initial state projection. */
+ * The active card alone takes horizontal motion. Its exit carries a compact label
+ * so the real card can occupy its recorded destination immediately without copying
+ * controls or sample frames. Native moves retain their state; `motion` makes the
+ * preview still under reduced motion and during initial state projection. */
 import {
   dragging,
   commands,
@@ -28,6 +29,7 @@ import {
   keepsText,
   layoutChanged,
   motion,
+  motionPreview,
   once,
   offer,
   paintKeys,
@@ -46,6 +48,16 @@ const VERDICTS = {
 customElements.define(
   "lf-swipe-deck",
   class extends HTMLElement {
+    // What the Ask was answered with: how many cards the user kept and passed, each the
+    // cards the swipe state places in that verdict's piles.
+    static answerWords(state, deck) {
+      const count = (verdict) =>
+        [...deck.querySelectorAll(`:scope > lf-swipe-pile[verdict="${verdict}"]`)]
+          .map((pile) => state.swipe.value[pile.id]?.length ?? 0)
+          .reduce((sum, cards) => sum + cards, 0);
+      return `${count("keep")} kept · ${count("pass")} passed`;
+    }
+
     #pass = null;
     #keep = null;
     #progress = null;
@@ -54,7 +66,6 @@ customElements.define(
     #returning = new Set();
     #painted = null;
     #keysAvailable = null;
-    #stop = null;
     #controller = null;
     #resumeProjection = null;
 
@@ -62,14 +73,12 @@ customElements.define(
       if (once(this)) {
         this.#structure();
         if (!quoted(this)) this.#wire();
+        this.#controller = widgetController(this);
+        this.#controller.subscribe(this.#render);
       }
-      this.#controller ??= widgetController(this);
-      this.#stop ??= this.#controller.subscribe(this.#render);
     }
 
     disconnectedCallback() {
-      this.#stop?.();
-      this.#stop = null;
       this.#painted = null;
       this.#keysAvailable = null;
       this.#restorePointer();
@@ -134,44 +143,32 @@ customElements.define(
       for (const card of this.#piles().flatMap((pile) => this.#cards(pile)))
         this.#returnControl(card);
 
-      this.#pass.addEventListener("click", () => this.#swipe("pass", -1));
-      this.#keep.addEventListener("click", () => this.#swipe("keep", 1));
-      commands(
-        this,
-        "In a swipe deck",
-        [
-          {
-            id: "swipe.pass",
-            contextKeys: ["1"],
-            bindingBadge: null,
-            keys: ["ArrowLeft"],
-            control: this.#pass,
-            decision: true,
-            title: "Pass",
-            description: "Pass the active card",
-            when: () => this.#canSwipe(),
-            run: () => this.#pass.click(),
-          },
-          {
-            id: "swipe.keep",
-            contextKeys: ["2"],
-            bindingBadge: null,
-            keys: ["ArrowRight"],
-            control: this.#keep,
-            decision: true,
-            title: "Keep",
-            description: "Keep the active card",
-            when: () => this.#canSwipe(),
-            run: () => this.#keep.click(),
-          },
-        ],
+      commands(this, "In a swipe deck", [
         {
-          answer: () =>
-            `${this.#cards(this.#pile("keep")).length} kept · ${
-              this.#cards(this.#pile("pass")).length
-            } passed`,
+          id: "swipe.pass",
+          contextKeys: ["1"],
+          bindingBadge: null,
+          keys: ["ArrowLeft"],
+          control: this.#pass,
+          decision: true,
+          title: "Pass",
+          description: "Pass the active card",
+          when: () => this.#canSwipe(),
+          run: () => this.#swipe("pass", -1),
         },
-      );
+        {
+          id: "swipe.keep",
+          contextKeys: ["2"],
+          bindingBadge: null,
+          keys: ["ArrowRight"],
+          control: this.#keep,
+          decision: true,
+          title: "Keep",
+          description: "Keep the active card",
+          when: () => this.#canSwipe(),
+          run: () => this.#swipe("keep", 1),
+        },
+      ]);
 
       this.addEventListener("pointerdown", this.#pointerDown);
       this.addEventListener("pointermove", this.#pointerMove);
@@ -222,8 +219,6 @@ customElements.define(
       if (reading === this.#painted) return;
 
       const keysMoved = available !== this.#keysAvailable;
-      this.#pass.toggleAttribute("disabled", !available);
-      this.#keep.toggleAttribute("disabled", !available);
       keepsText(this.#progress, progress);
 
       for (const { pile, verdict, cards } of piles) {
@@ -251,7 +246,7 @@ customElements.define(
       if (!actions.swipe?.available || !queue || card.parentElement === queue)
         return null;
       const pending = actions.swipe.undo.find(
-        (event) => event.detail?.card === card.id && !Number.isInteger(event.seq),
+        (event) => event.detail?.unit === card.id && !Number.isInteger(event.seq),
       );
       if (pending) return { kind: "undo", target: pending.attempt ?? pending.id };
       if (!state.swipe?.units[card.id]) return null;
@@ -259,8 +254,8 @@ customElements.define(
         kind: "action",
         verb: "swipe",
         detail: {
-          card: card.id,
-          to: queue.id,
+          unit: card.id,
+          value: queue.id,
           rank: rankAt(state.swipe, queue.id, 0, card.id),
         },
       };
@@ -268,9 +263,7 @@ customElements.define(
 
     #returnControl(card) {
       const button = offer("button", "lf-swipe-return", "Return to queue");
-      const title =
-        card.querySelector(":scope > strong")?.textContent.trim() || card.id;
-      button.setAttribute("aria-label", `Return ${title} to queue`);
+      button.setAttribute("aria-label", `Return ${this.#title(card)} to queue`);
       button.hidden = true;
       button.addEventListener("click", async () => {
         const command = this.#returnable(card);
@@ -304,7 +297,7 @@ customElements.define(
         this.#cards(destination).indexOf(card) === bounded
       )
         return false;
-      destination.insertBefore(card, without[bounded] ?? null);
+      destination.moveBefore(card, without[bounded] ?? null);
       return true;
     }
 
@@ -320,8 +313,8 @@ customElements.define(
       this.#restorePointer(false);
       const end = this.#cards(destination).length;
       const detail = {
-        card: card.id,
-        to: destination.id,
+        unit: card.id,
+        value: destination.id,
         rank: rankAt(this.#controller.read().state.swipe, destination.id, end, card.id),
       };
       this.#place(card, destination, end);
@@ -336,24 +329,20 @@ customElements.define(
       void sent?.delivery;
     }
 
+    #title(card) {
+      return card.querySelector(":scope > strong")?.textContent.trim() || card.id;
+    }
+
     #exit(card, direction) {
       const rect = card.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
-      const echo = card.cloneNode(true);
-      echo.removeAttribute("id");
-      for (const node of echo.querySelectorAll("[id]")) node.removeAttribute("id");
-      echo.classList.remove("lf-swipe-dragging");
+      const echo = motionPreview(this.#title(card));
       echo.classList.add("lf-swipe-exit");
-      echo.dataset.lfGen = "1";
-      echo.setAttribute("aria-hidden", "true");
-      echo.setAttribute("inert", "");
       Object.assign(echo.style, {
         position: "fixed",
         inset: "auto",
         left: `${rect.left}px`,
         top: `${rect.top}px`,
-        width: `${rect.width}px`,
-        height: `${rect.height}px`,
         margin: "0",
         transform: "none",
       });
@@ -464,10 +453,12 @@ customElements.define(
       // projection motion() returns null, so standing units load directly at rest.
       const transitions = Object.values(state.swipe.units ?? {}).reverse();
       const transition = transitions.find(({ action, detail }) => {
-        const card = detail?.card
-          ? cards.find((candidate) => candidate.id === detail.card)
+        const card = detail?.unit
+          ? cards.find((candidate) => candidate.id === detail.unit)
           : null;
-        const destination = detail?.to ? document.getElementById(detail.to) : null;
+        const destination = detail?.value
+          ? document.getElementById(detail.value)
+          : null;
         return (
           action === "swipe" &&
           card?.parentElement?.getAttribute("verdict") === "unseen" &&
@@ -476,10 +467,10 @@ customElements.define(
         );
       });
       const detail = transition?.detail;
-      const movingCard = detail?.card
-        ? cards.find((candidate) => candidate.id === detail.card)
+      const movingCard = detail?.unit
+        ? cards.find((candidate) => candidate.id === detail.unit)
         : null;
-      const destination = detail?.to ? document.getElementById(detail.to) : null;
+      const destination = detail?.value ? document.getElementById(detail.value) : null;
       const verdict = destination?.getAttribute("verdict");
       const played = transition
         ? this.#exit(movingCard, verdict === "pass" ? -1 : 1)
@@ -536,7 +527,7 @@ export const interactionGalleryScenario = {
             [card.id]: {
               action: "swipe",
               value: keepPile.id,
-              detail: { card: card.id, to: keepPile.id, rank: "i" },
+              detail: { unit: card.id, value: keepPile.id, rank: "i" },
             },
           },
           value: Object.fromEntries(

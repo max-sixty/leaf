@@ -9,9 +9,10 @@ from leaf.leases import contract_writer
 from leaf.projection import folded_value, markup_value, page_reading
 from leaf.revisioning import planned_activation, publish_checked_event
 from leaf.service import PageTransaction
+from leaf.tasks import log_tasks_open, owed_tasks
 from leaf.validation.admission import read_text_arg
 from leaf.validation.source import check_source
-from leaf.work import standing_work_claims, widget_work_without_targets
+from leaf.work import tasks_without_targets
 
 
 def _stamp_candidate(page_dir: Path, events: list):
@@ -32,54 +33,46 @@ def _stamp_reading(events: list, checked, revision: int):
     return registry, page.projection, page.document, page.spoken
 
 
-def _completed_work(
+def _completed_tasks(
     checked,
-    parser,
     projection,
     events: list,
-    page,
     registry: dict,
     revision: int,
     completes: tuple[str, ...],
-) -> set[str]:
+) -> list[str]:
+    """The open tasks this version ends `done`: every task on each widget `completes`
+    names. A version that would drop the target of an open widget task it does not
+    complete is refused, as is one that would drop the target of any other open task
+    on a widget or an element, either side's, since the task would stand beside
+    nothing."""
     if len(set(completes)) != len(completes):
         sys.exit("--completes names each widget at most once")
-    completed = set(completes)
-    widget_work = {
-        claim["subject"]["id"]: claim
-        for claim in standing_work_claims(page.status, events)
-        if claim["subject"]["kind"] == "widget"
-    }
-    unearned = sorted(completed - widget_work.keys())
+    tasks = owed_tasks(events)
+    on_widgets = [task for task in tasks if task["subject"]["kind"] == "widget"]
+    unearned = sorted(set(completes) - {task["subject"]["id"] for task in on_widgets})
     if unearned:
-        sys.exit(
-            "no active widget work claim for "
-            + ", ".join(repr(widget) for widget in unearned)
-        )
+        sys.exit("no open task on " + ", ".join(repr(widget) for widget in unearned))
+    completed = [task for task in on_widgets if task["subject"]["id"] in completes]
     not_later = sorted(
-        widget for widget in completed if revision <= widget_work[widget]["revision"]
+        {task["subject"]["id"] for task in completed if revision <= task["revision"]}
     )
     if not_later:
         sys.exit(
-            f"revision r{revision} is not later than the active widget work claim for "
+            f"revision r{revision} is not later than the open task on "
             + ", ".join(repr(widget) for widget in not_later)
         )
-    untargeted = widget_work_without_targets(
-        checked.document,
-        projection,
-        events,
-        page.status,
-        registry,
-        completed,
+    untargeted = tasks_without_targets(
+        checked.document, projection, log_tasks_open(events), registry, completes
     )
     if untargeted:
-        widgets = ", ".join(repr(widget) for widget in untargeted)
+        targets = ", ".join(repr(target) for target in untargeted)
         sys.exit(
-            "refusing to stamp index.html: it would remove the local target "
-            f"for active work on {widgets}; pass --completes for each widget "
-            "this version completes"
+            "refusing to stamp index.html: it would remove the target of the open "
+            f"task on {targets}; pass --completes for each widget this version "
+            "completes, or end the task with `leaf task end`"
         )
-    return completed
+    return sorted(task["id"] for task in completed)
 
 
 def _settled_reports(projection, parser, spk: dict, registry: dict) -> list[str]:
@@ -99,7 +92,7 @@ def _stamp_event(
     revision: int,
     parser,
     settled_reports: list[str],
-    completed: set[str],
+    completed: list[str],
 ) -> dict:
     event = {
         "kind": "note",
@@ -113,7 +106,7 @@ def _stamp_event(
         event["restated"] = sorted(parser.restated)
     settlements = [
         *({"kind": "report", "id": identity} for identity in sorted(settled_reports)),
-        *({"kind": "work", "id": identity} for identity in sorted(completed)),
+        *({"kind": "task", "id": identity} for identity in completed),
     ]
     if settlements:
         event["settles"] = settlements
@@ -125,15 +118,8 @@ def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -
     checked, activation = _stamp_candidate(page_dir, events)
     revision = activation.revision
     registry, projection, parser, spk = _stamp_reading(events, checked, revision)
-    completed = _completed_work(
-        checked,
-        parser,
-        projection,
-        events,
-        page,
-        registry,
-        revision,
-        completes,
+    completed = _completed_tasks(
+        checked, projection, events, registry, revision, completes
     )
     settled_reports = _settled_reports(projection, parser, spk, registry)
     notes = [event for event in events if event["kind"] == "note"]

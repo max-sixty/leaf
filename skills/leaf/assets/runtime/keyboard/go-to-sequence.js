@@ -15,7 +15,7 @@
    `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
    an edge of the list; `g p` returns focus to the page while leaving open surfaces
    standing. Uppercase mnemonics remain named
-   global destinations: `g T` Threads, `g A` Asks, `g L` All leaves, `g M` the searchable
+   global destinations: `g T` Threads, `g Q` the Queue, `g L` All leaves, `g M` the searchable
    Page Map and `g V` Versions. A named
    panel destination toggles that panel, matching its visible control. Completing one that
    opens a surface leaves the user in that surface, whose own Escape step is the way out
@@ -78,12 +78,12 @@ import { announce, notice } from "../notifications.js";
 import { closestAcross, pageQueryAll } from "../passages.js";
 import {
   currentDrawer,
-  askRows,
-  asksOffered,
-  asksPanel,
-  asksBtn,
   othersBtn,
   othersPanel,
+  queueBtn,
+  queueOffered,
+  queuePanel,
+  queueRows,
 } from "../drawers.js";
 import { mapButton } from "../page-map-dialog.js";
 
@@ -198,18 +198,18 @@ export function createGoToSequence({
       toggle: true,
     },
     {
-      id: "navigation.drawer.asks",
-      key: "Shift+a",
+      id: "navigation.drawer.queue",
+      key: "Shift+q",
       description: () =>
-        currentDrawer() === "asks" ? "Close the Asks drawer" : "Go to the Asks drawer",
-      title: () => (currentDrawer() === "asks" ? "close Asks drawer" : "Asks drawer"),
-      control: () => asksBtn,
-      when: (...args) => asksOffered(...args),
+        currentDrawer() === "queue" ? "Close the Queue panel" : "Go to the Queue panel",
+      title: () => (currentDrawer() === "queue" ? "close Queue panel" : "Queue panel"),
+      control: () => queueBtn,
+      when: () => queueOffered(),
       go: () => {
-        setOpenDrawer("asks");
-        (askRows()[0] ?? asksPanel).focus({ preventScroll: true });
+        setOpenDrawer("queue");
+        (queueRows()[0] ?? queuePanel).focus({ preventScroll: true });
       },
-      active: () => currentDrawer() === "asks",
+      active: () => currentDrawer() === "queue",
       close: () => setOpenDrawer(null),
       toggle: true,
     },
@@ -594,7 +594,6 @@ export function createGoToSequence({
               title: "Put the focused thread at the bottom of its list",
             },
           ],
-          description: "Put the focused thread at the top / bottom of its list",
           title: "thread top / bottom",
           when: () => atGoToTargets() && Boolean(focusedThreadTarget()),
           run: (binding) => {
@@ -670,7 +669,6 @@ export function createGoToSequence({
               title: "Hear the previous visible target",
             },
           ],
-          description: "Hear the next / previous visible target",
           title: "browse hints",
           repeat: true,
           when: () => (goToActive ? hints.candidates().length > 0 : targetCapability()),
@@ -713,7 +711,8 @@ export function createGoToSequence({
           when: () => atGoToTargets() && live(destination),
           run: (binding) => {
             setGoToSequence(false);
-            destination.run(binding);
+            if (destination.run) destination.run(binding);
+            else word(destination.control).click();
           },
         })),
         {
@@ -731,7 +730,6 @@ export function createGoToSequence({
               title: "Go to the bottom of the page",
             },
           ],
-          description: "Go to the top / bottom of the page",
           title: "top / bottom",
           when: atGoToTargets,
           run: (binding) => {

@@ -243,7 +243,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     column = evaluate_probe(page, "columnGeometry")
     overflow = column["overflow"]
     misplaced = column["misplaced"]
-    stranded = column["stranded"]
     # This experiment writes and removes a temporary wrapping rule. Preserve its
     # position between the two read-only groups so each reads the same restored page.
     squeezed = evaluate_probe(page, "squeezedTables")
@@ -376,7 +375,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         for u in unmarkable
     ]
     found += [f"[{scheme}] {text}" for _key, text in _overflow(overflow, misplaced)]
-    found += [f"[{scheme}] {s}" for s in stranded]
     found += [f"[{scheme}] {s}" for s in squeezed]
     found += [
         f"[{scheme}] the control .{c['ctrl'].split()[0]}"
@@ -458,12 +456,11 @@ def open_widgets(registry: dict) -> list[str]:
 def sweep(page, viewports, open_tags) -> list[tuple[int, dict]]:
     """The loaded page's geometry at every sweep width, widest first.
 
-    Resizes the loaded page rather than rendering it again, and reads only geometry,
-    every read-only reading whose answer moves with the width (`geometryReading`):
-    the rest of the gate reads words, paint and state, which the fixed viewports
-    already see. The fixed widths are swept too. The sweep runs at the desktop height,
-    so a fault only a phone-height workspace posture shows is the phone viewport's to
-    report."""
+    Resizes the loaded page rather than rendering it again, and reads only the
+    geometry the functions below report across widths (`geometryReading`): the rest
+    of the gate is read at the fixed viewports. The fixed widths are swept too. The
+    sweep runs at the desktop height, so a fault only a phone-height workspace
+    posture shows is the phone viewport's to report."""
     height = viewports[0]["height"]
     fixed = {viewport["width"] for viewport in viewports}
     readings = []

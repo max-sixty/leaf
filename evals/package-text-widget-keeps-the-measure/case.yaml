@@ -1,0 +1,33 @@
+# Added with `x-space: column` (column allocation aligned with the text measure).
+# A package widget whose content is read as text declares the column, so on a wide page
+# its box keeps the measure the prose beside it keeps. Three Claude Code trials told
+# the wordings apart: base 0/3 (its packages.md names no column value), candidate 3/3.
+description: package-text-widget-keeps-the-measure
+metadata:
+  purpose: A package's text-like widget declares the column allocation in its registry entry.
+  tags:
+  - packages
+  - layout
+vars:
+  prompt: |
+    I'm writing a Leaf package for release runbooks. It declares lf-checklist, which
+    holds lf-check members: each check is a sentence or two of instructions ("Confirm
+    the canary error rate is under 0.5% for 30 minutes") that the user ticks off as
+    they go. Teams will put a checklist on their release dashboards, which are wide
+    pages with charts and tables beside the prose.
+
+    Read the package reference and show the registry.json entries for lf-checklist
+    and lf-check, with a sentence on each declaration you chose. Return JSON in your
+    reply.
+assert:
+- type: javascript
+  metric: reads-packages
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/packages\.md
+- type: llm-rubric
+  metric: checklist-keeps-the-measure
+  value: |
+    Pass only if the lf-checklist entry declares "x-space": "column", so the list
+    keeps the prose's reading measure on a wide page. Fail if it declares no x-space,
+    or declares "wide" or "available".

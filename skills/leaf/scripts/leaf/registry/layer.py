@@ -3,6 +3,9 @@
 import re
 from copy import deepcopy
 
+import jmespath
+import turbohtml
+from jmespath.exceptions import JMESPathError
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
 
@@ -159,6 +162,33 @@ def validate_layer_declarations(
             f"lint admits — missing {sorted(admitted - documented)}, "
             f"unadmitted {sorted(documented - admitted)}"
         )
+    # An idiom declares the marks `DECLARED_MARKS` admits on one (`idiom`), such as the
+    # room a `.callout` takes, which delivery paints on every element the idiom's
+    # selector matches (`revision_delivery.mark_declared`), so the selector has to be
+    # one delivery can match.
+    admitted = sorted(key for key, mark in DECLARED_MARKS.items() if mark.get("idiom"))
+    probe = turbohtml.parse("<p></p>").find("p")
+    for selector, entry in (registry.get("$idioms") or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        declared = [key for key in entry if key.startswith("x-")]
+        for key in declared:
+            if key not in admitted or not Draft202012Validator(
+                EXTENSION_SCHEMA["properties"][key]
+            ).is_valid(entry[key]):
+                raise RegistryError(
+                    f"{path}: $idioms {selector!r} declares {key}={entry[key]!r}; an "
+                    f"idiom may declare {', '.join(admitted)}, with a value its $keys "
+                    "entry admits"
+                )
+        if declared:
+            try:
+                probe.matches(selector)
+            except turbohtml.SelectorSyntaxError as error:
+                raise RegistryError(
+                    f"{path}: $idioms {selector!r} declares {declared[0]}, and its "
+                    f"selector cannot be matched: {error}"
+                ) from None
     if (
         not isinstance(names, list)
         or not all(isinstance(name, str) for name in names)
@@ -203,15 +233,33 @@ def validate_layer_declarations(
         if (
             not isinstance(declaration, dict)
             or not {"description", "schema"} <= set(declaration)
-            or set(declaration) - {"description", "schema", "instructions", "records"}
+            or set(declaration)
+            - {"description", "schema", "instructions", "records", "resources"}
             or not isinstance(declaration.get("description"), str)
             or not declaration["description"]
             or not isinstance(declaration.get("schema"), dict)
         ):
             raise RegistryError(
                 f"{path}: $data contract {contract!r} must carry a description and "
-                "schema, with optional instructions and records"
+                "schema, with optional instructions, records and resources"
             )
+        resources = declaration.get("resources", [])
+        if not isinstance(resources, list) or any(
+            not isinstance(expression, str) or not expression
+            for expression in resources
+        ):
+            raise RegistryError(
+                f"{path}: $data contract {contract!r} resources must be a list of "
+                "non-empty JMESPath expressions"
+            )
+        for expression in resources:
+            try:
+                jmespath.compile(expression)
+            except JMESPathError as error:
+                raise RegistryError(
+                    f"{path}: $data contract {contract!r} resource expression "
+                    f"{expression!r} is invalid: {error}"
+                ) from error
         records = declaration.get("records")
         if records is not None and (
             not isinstance(records, dict)

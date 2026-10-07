@@ -195,18 +195,8 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     expect(bar.locator(".lf-fab-input")).to_have_attribute(
         "aria-label", re.compile(r"^Comment")
     )
-    expect(
-        bar.locator(':scope > .lf-response-more svg[data-lf-icon="more"]')
-    ).to_be_visible()
-    expect(bar.locator(".lf-response-more")).to_have_attribute(
-        "aria-label", "Show other responses"
-    )
-    expect(bar.locator(".lf-response-more")).to_have_class(
-        re.compile(r"lf-response-action")
-    )
-    expect(bar.locator(".lf-response-more")).to_have_attribute(
-        "data-lf-behavior", "disclosure"
-    )
+    # The other responses open by key, so no control stands beside the field.
+    expect(bar.locator(":scope > button:visible")).to_have_count(0)
     expect(bar.locator(".lf-react:visible")).to_have_count(0)
     expect(bar.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Tab")
@@ -214,7 +204,6 @@ def test_a_token_press_marks_the_passage_and_its_revealed_remove_takes_it_back(
     expect(bar).to_be_visible()
     expect(bar.locator(".lf-fab-input")).to_be_visible()
     expect(surface).to_have_class(re.compile("lf-response-open"))
-    expect(surface.locator(".lf-response-more:visible")).to_have_count(0)
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     assert surface.locator(
         ".lf-react:visible > .lf-response-action-glyph"
@@ -356,7 +345,6 @@ def test_e_immediately_opens_the_gallery_reactions_and_digit_chooses(browser, se
 
     surface = page.locator(".lf-fab-bar")
     expect(surface).to_have_class(re.compile(r"\blf-response-open\b"))
-    expect(surface.locator(":scope > .lf-response-more:visible")).to_have_count(0)
     expect(surface.locator(".lf-react:visible")).to_have_count(6)
     assert "1–6" in shortcut_bar_text(page)
 
@@ -820,11 +808,9 @@ def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme
     )
 
 
-def test_the_response_choices_hold_one_row_beside_the_panel(browser, serve):
-    """A side is chosen for the field and its More press, narrower than Suggest and six
-    reactions at rest. Constrain the bar beside the open Threads panel to the
-    280px space that previously made reactions drop beneath Suggest. They give
-    up spare padding before the row breaks, so it stays inside the bar."""
+def test_the_response_choices_stay_reachable_beside_the_panel(browser, serve):
+    """A narrow side can wrap the choices while keeping every action whole and
+    inside the comment bar beside the open Threads panel."""
     page = open_page(browser, serve(PANEL_PAGE))
     resized(page, 1024, 768)
     page.locator(".lf-threads-toggle").click()
@@ -848,24 +834,28 @@ def test_the_response_choices_hold_one_row_beside_the_panel(browser, serve):
         .map((choice) => choice.getBoundingClientRect());
       return {
         bar: [box.left, box.right],
-        rows: new Set(choices.map((choice) => Math.round(choice.top))).size,
+        vertical: [box.top, box.bottom],
         left: Math.min(...choices.map((choice) => choice.left)),
         right: Math.max(...choices.map((choice) => choice.right)),
+        top: Math.min(...choices.map((choice) => choice.top)),
+        bottom: Math.max(...choices.map((choice) => choice.bottom)),
         narrowest: Math.min(...choices.map((choice) => choice.width)),
       };
     }""")
     assert row["bar"][1] - row["bar"][0] < 288, (
         f"the bar has room for the resting row, so this proves nothing: {row}"
     )
-    assert row["rows"] == 1, row
     assert row["bar"][0] - 0.5 <= row["left"] and row["right"] <= row["bar"][1] + 0.5
+    assert (
+        row["vertical"][0] - 0.5 <= row["top"]
+        and row["bottom"] <= row["vertical"][1] + 0.5
+    )
     assert row["narrowest"] >= 30, row
 
 
 @pytest.mark.parametrize("width", [390, 1280])
-@pytest.mark.parametrize("opener", ["click", "keyboard"])
-def test_comment_response_choices_expand_in_place(browser, serve, opener, width):
-    """The ellipsis and Tab extend one placed rectangle without moving its left edge."""
+def test_comment_response_choices_expand_in_place(browser, serve, width):
+    """Tab extends one placed rectangle without moving its left edge."""
     # Leave a wide rail on desktop so the same field exercises both a horizontal
     # extension and the narrow viewport's wrapped choices.
     source = PANEL_PAGE.replace(
@@ -892,10 +882,7 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
           window.lfCommentExpansion = {xs, observer};
         }"""
     )
-    if opener == "click":
-        bar.locator(".lf-response-more").click()
-    else:
-        page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
     rendered(page)
     expect(bar).to_be_visible()
     expect(field).to_be_visible()
@@ -987,7 +974,6 @@ def test_comment_response_choices_expand_in_place(browser, serve, opener, width)
     page.keyboard.press("Tab")
     expect(suggest).to_be_focused()
     page.keyboard.press("Escape")
-    expect(bar.locator(".lf-response-more")).to_be_visible()
     expect(bar.locator(":scope > .lf-response-options")).not_to_have_attribute(
         "aria-keyshortcuts", re.compile(r".+")
     )
@@ -1024,7 +1010,6 @@ def test_comment_more_keeps_the_field_when_suggest_is_the_only_secondary_respons
     expect(bar.locator(".lf-react:visible")).to_have_count(0)
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
-    expect(bar.locator(".lf-response-more")).to_be_visible()
 
 
 # The field's box, with its corner as the platform draws it. `over` is
@@ -1050,22 +1035,20 @@ FLOAT_ROOM = """() => {
 }"""
 
 
-def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
-    browser, serve
-):
+def test_the_response_field_grows_as_a_rectangle_and_spans_the_bar(browser, serve):
     """A one-line note uses the shared action corner. A longer one uses the width of
     its chosen rail and then wraps, growing through the room placement states — a dozen
     lines shows them all, and only one taller than the band below the banner scrolls,
     standing inside that band — and the corner stays fixed through all of that. On a
-    narrow screen the same room caps the bar and the field is what gives, so the
-    ellipsis beside it keeps its room."""
+    narrow screen the same room caps the bar and the field is what gives. With nothing
+    beside it, the field spans the bar, so the sent message spans the card as
+    its reply does."""
     page = open_page(browser, serve(PANEL_PAGE))
     select_paragraph(page, "#how-store")
     bar = page.locator(".lf-fab-bar")
     field = bar.locator(".lf-fab-input")
     expect(field).to_be_visible()
     shared_radius = button_radius(page)
-    expect(bar.locator(".lf-response-more")).to_have_css("border-radius", shared_radius)
     field.click()
     rest = field.evaluate(FIELD_BOX)
     assert rest["r"] == float(shared_radius.removesuffix("px")) and rest["over"] < 0, (
@@ -1117,14 +1100,23 @@ def test_the_response_field_grows_as_a_rectangle_and_leaves_the_ellipsis_room(
     )
     rendered(page)  # placeFab answers the input a frame later
     bounds = bar.bounding_box()
-    trigger = bar.locator(".lf-response-more").bounding_box()
     narrow_field = field.bounding_box()
     assert bounds and 8 <= bounds["x"] and bounds["x"] + bounds["width"] <= 382, bounds
-    assert trigger and trigger["x"] + trigger["width"] <= 382, (bounds, trigger)
-    assert narrow_field["x"] + narrow_field["width"] <= trigger["x"], (
-        narrow_field,
-        trigger,
+    content_right = bar.evaluate(
+        "bar => bar.getBoundingClientRect().right"
+        " - parseFloat(getComputedStyle(bar).paddingRight)"
     )
+    assert narrow_field["x"] + narrow_field["width"] == pytest.approx(
+        content_right, abs=1
+    ), (narrow_field, bounds)
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_css("opacity", "1")
+    message = card.locator(".lf-msg-body").first.bounding_box()
+    reply = card.locator(".lf-compose-field").bounding_box()
+    assert message["x"] + message["width"] == pytest.approx(
+        reply["x"] + reply["width"], abs=1
+    ), (message, reply)
 
 
 @pytest.mark.parametrize("covered_width", [390, 450])
@@ -1712,7 +1704,7 @@ def test_a_bar_re_placed_by_its_own_controls_still_hands_back_the_proxy(browser,
     page.keyboard.press("Enter")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
 
-    page.get_by_role("button", name="Show other responses").click()
+    page.keyboard.press("Tab")
     expect(page.locator(".lf-fab-bar")).to_have_class(
         re.compile(r"\blf-response-open\b")
     )
@@ -2071,10 +2063,12 @@ def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
     )
 
 
-def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
+def test_a_selection_change_offers_a_visual_target_without_replacing_an_open_composer(
+    browser, serve
+):
     """Selection changes can come from touch handles and browser commands without a
-    mouseup or keyup in the page. The new passage replaces the visual target, and
-    clearing that passage dismisses the shared action surface.
+    mouseup or keyup in the page. They offer the new passage without silently moving
+    an open composer; an explicit Comment press moves it to that passage.
 
     The user takes the page back while the composer's focus handoff is still in
     flight, which is the state the press leaves behind: opening Comment marks the
@@ -2082,8 +2076,7 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
     keeps that gap open for the whole of the selection rather than leaving its width to
     the machine — measured here, the handoff lands about eight milliseconds after the
     press returns, which is the same span the driver spends making the next call. The
-    passage is the bar's whether or not the handoff has landed, and it was the ordering
-    below that CI lost on.
+    passage is offered whether or not the handoff has landed.
     """
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
@@ -2103,14 +2096,20 @@ def test_a_selection_change_replaces_and_clears_a_visual_target(browser, serve):
             }"""
         )
     bar = page.locator(".lf-fab-bar")
-    expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
+    expect(page.get_by_role("button", name="Comment on selection")).to_be_visible()
+    expect(bar).to_have_attribute("aria-label", re.compile("Start request"))
     expect(bar).to_be_visible()
-    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
     page.evaluate(
         "() => { document.activeElement.blur(); getSelection().removeAllRanges(); }"
     )
-    expect(bar).to_be_hidden()
+    expect(page.get_by_role("button", name="Comment on selection")).to_be_hidden()
+    expect(bar).to_be_visible()
+
+    page.locator("h1").select_text()
+    page.get_by_role("button", name="Comment on selection").click()
+    expect(bar).to_have_attribute("aria-label", re.compile("Request path"))
+    expect(start).not_to_have_class(re.compile(r"\blf-pending\b"))
 
 
 def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
@@ -2258,48 +2257,96 @@ def test_a_thread_at_rest_shows_only_the_marks_that_stand_in_it(browser, serve):
     )
 
 
-def test_a_finger_s_reaction_trigger_meets_the_floor_and_covers_no_words(
-    browser, serve
+@pytest.mark.parametrize(("width", "touch"), [(360, True), (1440, False)])
+def test_a_message_reaction_trigger_meets_its_header_and_covers_no_words(
+    browser, serve, width, touch
 ):
-    """The add-reaction trigger was a fixed 26x26 under a finger, where every other aim
-    stands at the 44px floor, and it stands on every reply for good once there is no
-    hover to reveal it. At the floor's size hung over the reply's corner it covered the
-    end of the first line, so the head row holds the trigger's height instead."""
+    """Reaction belongs to its own header, including an agent-authored root whose
+    first header shares space with Resolve. Both actions stay reachable, and a touch
+    trigger takes its floor without covering the message's first line."""
     url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Why this change?", {"section": "how-cap"})
+    text = (
+        "Step three now requires the supervisor to reap every process "
+        "under the sandbox user and verify none remain before export."
+    )
+    root = panel_comment(serve.page_dir, text, author="agent")
     reply = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "reply",
             "author": "agent",
-            "agent": "Codex",
+            "agent": "Codex reviewing the presentation and interaction of the shared thread controls",
             "parent": root,
-            "text": "Step three now requires the supervisor to reap every process "
-            "under the sandbox user and verify none remain before export.",
+            "text": text,
         },
     )["id"]
     context = browser.new_context(
-        viewport={"width": 360, "height": 740}, has_touch=True, is_mobile=True
+        viewport={"width": width, "height": 740}, has_touch=touch, is_mobile=touch
     )
     page = open_page(browser, url, context=context)
-    page.locator(".lf-threads-toggle").tap()
+
+    def activate(control):
+        control.tap() if touch else control.click()
+
+    activate(page.locator(".lf-threads-toggle"))
     panel_settled(page)
-    page.locator(".lf-thread-summary").first.tap()
-    message = page.locator(f'.lf-msg[data-mid="{reply}"]')
-    trigger = message.get_by_role("button", name="Add reaction", exact=True)
-    expect(trigger).to_be_visible()
-    reading = trigger.evaluate("""trigger => {
-      const box = trigger.getBoundingClientRect();
-      const text = trigger.closest('.lf-msg').querySelector('.lf-msg-text');
-      const range = document.createRange();
-      range.selectNodeContents(text);
-      const covered = [...range.getClientRects()].filter((line) =>
-        line.right > box.left && line.left < box.right &&
-        line.bottom > box.top && line.top < box.bottom);
-      return {width: box.width, height: box.height, covered: covered.length,
-        opacity: getComputedStyle(trigger).opacity};
-    }""")
-    assert reading == {"width": 44, "height": 44, "covered": 0, "opacity": "1"}
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    if card.get_attribute("open") is None:
+        activate(card.locator(":scope > .lf-thread-summary"))
+    expect(card).to_have_attribute("open", "")
+    for message_id in (reply, root):
+        message = card.locator(f'.lf-msg[data-mid="{message_id}"]')
+        if not touch:
+            message.hover()
+        trigger = message.get_by_role("button", name="Add reaction", exact=True)
+        expect(trigger).to_be_visible()
+        reading = trigger.evaluate("""trigger => {
+          const box = trigger.getBoundingClientRect();
+          const message = trigger.closest('.lf-msg');
+          const head = message.querySelector('.lf-msg-head').getBoundingClientRect();
+          const metadata = [...message.querySelector('.lf-msg-head').children]
+            .map(node => node.getBoundingClientRect());
+          const resolve = message.closest('.lf-thread').querySelector('.lf-resolve');
+          const action = resolve.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(message.querySelector('.lf-msg-text'));
+          const covered = [...range.getClientRects()].filter((line) =>
+            line.right > box.left && line.left < box.right &&
+            line.bottom > box.top && line.top < box.bottom);
+          const hit = control => {
+            const rect = control.getBoundingClientRect();
+            return control.contains(document.elementFromPoint(
+              rect.left + rect.width / 2, rect.top + rect.height / 2));
+          };
+          return {width: box.width, height: box.height, covered: covered.length,
+            opacity: getComputedStyle(trigger).opacity,
+            metadataClear: metadata.every(words => words.right <= box.left ||
+              words.left >= box.right || words.bottom <= box.top || words.top >= box.bottom),
+            insideHeader: box.right <= head.right && box.left >= head.left,
+            disjoint: box.right <= action.left || box.left >= action.right ||
+              box.bottom <= action.top || box.top >= action.bottom,
+            triggerHit: hit(trigger), resolveHit: hit(resolve)};
+        }""")
+        floor = 44 if touch else 26
+        assert reading == {
+            "width": floor,
+            "height": floor,
+            "covered": 0,
+            "opacity": "1",
+            "metadataClear": True,
+            "insideHeader": True,
+            "disjoint": True,
+            "triggerHit": True,
+            "resolveHit": True,
+        }
+        activate(trigger)
+        expect(message.locator(".lf-react-palette:popover-open")).to_be_visible()
+        page.keyboard.press("Escape")
+        expect(message.locator(".lf-react-palette:popover-open")).to_have_count(0)
+
+    with sending(page, "resolve beside the agent-root reaction"):
+        activate(card.get_by_role("button", name="Resolve thread", exact=True))
+    expect(card).to_be_hidden()
 
 
 def test_a_held_reaction_says_its_word_and_the_release_decides(browser, serve):
@@ -2580,11 +2627,11 @@ def test_an_ok_on_the_agents_latest_reply_takes_the_thread_out_of_waiting(
 
 
 def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, serve):
-    """A remote resolve takes away the strip whose list is open without a pointer or
-    focus gesture in this tab: the thread's card stays where it stands, drawn resolved,
-    and a resolved thread's messages wear no strip. The detached list stops owning
-    digits, so a later key cannot react to a message that no longer offers it, and the
-    user stays on the thread they were in."""
+    """A remote resolve waits behind the open card's notice, so the strip whose list is
+    open stays. A digit there means what the strip drew, and a resolved thread offers
+    no reaction, so it sends nothing; as the user's gesture in the thread it shows the
+    resolution, whose messages wear no strip. The detached list stops owning digits,
+    and the user stays on the thread they were in."""
     url = serve(PANEL_PAGE)
     root, reply = _thread(serve.page_dir)
     page = open_page(browser, url)
@@ -2598,10 +2645,14 @@ def test_a_remote_resolve_disarms_the_open_reply_list_it_takes_away(browser, ser
 
     thread_model.cmd_resolve(serve.page_dir, root)
     told(page)
+    expect(card.get_by_role("button", name="Resolved", exact=True)).to_be_visible()
+    expect(card).to_have_attribute("data-resolved", "false")
+    expect(strip).to_have_class(re.compile("lf-react-open"))
+    count = len(events_model.read_events(serve.page_dir))
+    page.keyboard.press("1")
     expect(card).to_have_attribute("data-resolved", "true")
     expect(page.locator(".lf-react-open")).to_have_count(0)
     expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
-    count = len(events_model.read_events(serve.page_dir))
     page.keyboard.press("1")
     page.wait_for_timeout(100)
     assert len(events_model.read_events(serve.page_dir)) == count

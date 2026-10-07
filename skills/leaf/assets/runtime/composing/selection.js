@@ -27,6 +27,7 @@ import {
   sendMessage,
   transferDraft,
   watchDraft,
+  watchDrafts,
   rememberWriting,
   registerWritingDestination,
 } from "../drafts.js";
@@ -36,7 +37,7 @@ import { THREAD } from "../thread/selectors.js";
 import { focused, keys, paintKeys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { PRESS } from "../keyboard/bindings.js";
-import { takesLetters } from "../focus.js";
+import { onStanding, takesLetters } from "../focus.js";
 import { repaint } from "../repaint.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
@@ -44,15 +45,21 @@ import { bindQueuedWork } from "../queued-work.js";
 import { closestAcross, elementById, inChrome } from "../passages.js";
 
 import { notice } from "../notifications.js";
-import { validDrawing } from "./drawing-record.js";
+import { sentDrawing, validDrawing } from "./drawing-record.js";
 import { commitPoint } from "../pointed-place.js";
 import { beginWalk, listWalkPosition } from "../walk-position.js";
 import { textField } from "./text-field.js";
 
 // The floating field immediately accepts a comment on the target the user named.
-// Its ellipsis unfolds every other response the target offers. The field is the
-// group's stable primary control; reaction vocabulary changes the choices, not the
-// disclosure or the field's place.
+// Tab from the field, or `e` while it stands unfocused, unfolds every other response
+// the target offers. The field is the group's stable primary control; reaction
+// vocabulary changes the choices, not the disclosure or the field's place.
+//
+// The bar shows no ellipsis (⋯) on any pointer: the field spans the bar, so a sent
+// message keeps the card's whole measure rather than ending a button's width short of
+// its Reply field. The keys are the only route to Suggest and the reactions, so a mouse
+// or a finger alone has none. That gap is accepted for now; whether to make them more
+// available is open (TODO.md, keyboard/AGENTS.md "Touch routes").
 // One affordance, raised only where the user has already pointed: a native text
 // selection or an explicit Comment target gesture on an item or visual part.
 export const fabBar = el("div", "lf-ui lf-fab-bar lf-target-paint");
@@ -71,26 +78,17 @@ export const fab = responseAction(el("button", "lf-ui lf-fab"), {
 });
 fab.id = "lf-comment-button";
 fab.title = "Comment";
-const fabMore = responseAction(el("button", "lf-ui lf-response-more"), {
-  icon: "more",
-  label: "Other responses",
-  behavior: "disclosure",
-  collapse: true,
-});
-fabMore.setAttribute("aria-label", "Show other responses");
-fabMore.title = "Show other responses";
 export const fabOptions = el("span", "lf-response-options");
 fabOptions.id = "lf-response-options";
 fabOptions.setAttribute("role", "group");
 fabOptions.setAttribute("aria-label", "Other responses");
-fabMore.setAttribute("aria-controls", fabOptions.id);
 const fabSuggest = responseAction(el("button", "lf-ui lf-fab-suggest"), {
   icon: "edit",
   label: "Suggest",
   collapse: true,
 });
 fabOptions.append(fabSuggest);
-fabBar.append(fab, fabMore, fabOptions);
+fabBar.append(fab, fabOptions);
 
 export const composer = el("div", "lf-ui lf-composer");
 composer.id = "lf-composer";
@@ -156,6 +154,7 @@ export function createSelectionComposer({
   landSent,
   refreshThread,
   wireInput,
+  drawingEdits,
 }) {
   const closeReactions = () => setReact(false);
 
@@ -191,13 +190,22 @@ export function createSelectionComposer({
     saveDraft(composerCtx(pendingAnchor), composerDraftValue(text));
   // One passage's draft record, or null when it holds none. Parsed under its own guard: a
   // record that no longer parses costs the user that one draft, where throwing would
-  // cost them the page, at module top level.
+  // cost them the page, at module top level. The page's ink reads every draft on each
+  // paint, scroll frames included, so a record is parsed again only when its stored
+  // words change; readers take it as read-only.
+  const parsedRecords = new Map();
   const composerRecord = (ctx) => {
+    const stored = loadDraft(ctx);
+    const known = parsedRecords.get(ctx);
+    if (known?.stored === stored) return known.record;
+    let record = null;
     try {
-      return JSON.parse(loadDraft(ctx));
+      record = JSON.parse(stored);
     } catch {
-      return null;
+      record = null;
     }
+    parsedRecords.set(ctx, { stored, record });
+    return record;
   };
   // The drawing a passage's draft holds, whether or not its box is up: putting the box
   // away keeps the draft, strokes included.
@@ -205,6 +213,40 @@ export function createSelectionComposer({
     const drawing = composerRecord(composerCtx(anchor))?.drawing;
     return validDrawing(drawing) ? drawing : null;
   };
+  // Every passage's draft that holds a drawing, box up or not: each is ink the user drew
+  // and has neither sent nor taken back, so the page shows all of it. `open` says the
+  // composer stands on it now.
+  function heldDrawings() {
+    const at = composerCtx(pendingAnchor);
+    const held = [];
+    for (const ctx of draftContexts()) {
+      if (!ctx.startsWith(COMPOSER_KEY)) continue;
+      const record = composerRecord(ctx);
+      const drawing = ctx === at ? pendingDrawing : record?.drawing;
+      if (!record || !validDrawing(drawing)) continue;
+      held.push({ anchor: record.anchor, drawing, open: composerOpen && ctx === at });
+    }
+    return held;
+  }
+  // Replace the drawing a passage's draft holds, or take it off with null, leaving the
+  // words. The composer standing on that passage, up or put away, holds the draft's
+  // current reading, so it takes the change and saves it; any other draft is rewritten
+  // where it is stored, and one left holding nothing is settled.
+  function setDraftDrawing(anchor, drawing) {
+    const ctx = composerCtx(anchor);
+    if (ctx === composerCtx(pendingAnchor)) {
+      pendingDrawing = drawing;
+      saveComposerDraft();
+      syncSuggestMode();
+      return;
+    }
+    const record = composerRecord(ctx);
+    if (!record) return;
+    if (!record.text && !drawing) clearDraft(ctx);
+    else saveDraft(ctx, JSON.stringify({ ...record, drawing }));
+  }
+  // News of any passage's draft, whose ink the page shows whether or not its box is up.
+  const watchHeldDrawings = (callback) => watchDrafts(COMPOSER_KEY, callback);
   // An open box the user emptied keeps its record, which is what tells another tab's
   // composer on that passage that this one is merely empty rather than settled — and leaves
   // nothing to reopen on. So the draft to come back to is the most recently touched one
@@ -311,8 +353,8 @@ export function createSelectionComposer({
     );
   }
 
-  // More has the same contract as a target's margin disclosure: replace the ellipsis
-  // with the remaining local actions and keep the group's primary control in place.
+  // The other responses have the same contract as a target's margin disclosure: unfold
+  // the remaining local actions and keep the group's primary control in place.
   // The composer supplies a field instead of a primary margin entry, so it owns this layout
   // adapter rather than borrowing the margin's target aggregation and spill machinery.
   const focusResponseOption = (focus) => {
@@ -340,13 +382,12 @@ export function createSelectionComposer({
     if (next) setReact(false);
     responseOptionsOpen = next;
     fabBar.classList.toggle("lf-response-open", next);
-    fabMore.setAttribute("aria-expanded", String(next));
     if (place && fabAnchorAt()) showFab(fabAnchorAt());
     if (next && focus) focusResponseOption(focus);
     else if (!next && returnFocus) {
-      (composerOpen && fabInput.checkVisibility() ? fabInput : fabMore).focus({
-        preventScroll: true,
-      });
+      [fabInput, fab]
+        .find((control) => control.checkVisibility())
+        ?.focus({ preventScroll: true });
     }
     paintKeys();
     return next;
@@ -361,7 +402,6 @@ export function createSelectionComposer({
         (!composerOpen || (!pendingAbout && !pendingDrawing))
       ),
     );
-    keepsHidden(fabMore, !anchor || !responseOptionsAvailable());
     if (responseOptionsOpen && !responseOptionsAvailable())
       setResponseOptions(false, { place: false });
   }
@@ -432,6 +472,7 @@ export function createSelectionComposer({
     const previousCtx = composerCtx(pendingAnchor);
     const drawingSupplied = drawing !== undefined;
     let carriedDraft = false;
+    let standing = null;
     if (previousCtx !== ctx) {
       composerEpoch += 1;
       const previousText = syncComposer.value();
@@ -442,23 +483,24 @@ export function createSelectionComposer({
       // the old Alt-click promise without replacing independent work already held at
       // the destination or making a user's next selection silently re-anchor a draft.
       const record = text ? null : composerRecord(ctx);
+      standing = composerRecord(ctx)?.drawing ?? null;
+      // A drawing marks its own passage, so a draft holding one stays where it is, as
+      // its words do with it (`carryComposerToReply` says the same of a reply).
       const carrying =
         carry &&
-        (previousText || previousDrawing) &&
+        previousText &&
+        !previousDrawing &&
         !(record?.text || validDrawing(record?.drawing));
       if (carrying) {
         text ||= previousText;
-        if (!drawingSupplied) drawing = previousDrawing;
         carriedDraft = true;
       } else if (record) {
         ({ text, suggest, about } = record);
-        if (!drawingSupplied) drawing = record.drawing ?? null;
-      } else if (!drawingSupplied) drawing = null;
+      }
     }
     pendingAnchor = anchor || null;
     pendingAbout = about;
-    if (previousCtx !== ctx || drawingSupplied)
-      pendingDrawing = validDrawing(drawing) ? drawing : null;
+    if (previousCtx !== ctx) pendingDrawing = validDrawing(standing) ? standing : null;
     const target = pendingAnchor?.section ? elementById(pendingAnchor.section) : null;
     keeps(
       fabBar,
@@ -466,6 +508,10 @@ export function createSelectionComposer({
       target && inChrome(target) ? "chrome" : "page",
     );
     if (text) syncComposer.load(text);
+    // The box takes up the passage's draft as it stands, and its history starts there; a
+    // drawing the gesture brings is a change to that draft, which the history holds.
+    if (previousCtx !== ctx) syncComposer.arrive();
+    if (drawingSupplied) pendingDrawing = validDrawing(drawing) ? drawing : null;
     suggestCheck.checked = Boolean(suggest);
     // Chromium may collapse the native page Selection before dispatching the field's
     // focus event. Mark the handoff before showing the surface so that an intermediate
@@ -513,6 +559,10 @@ export function createSelectionComposer({
         // tombstone them first and there would be nothing left to give.
         if (value === null) return settleComposer();
         const { text, suggest, about, drawing = null } = JSON.parse(value);
+        const incoming = validDrawing(drawing) ? drawing : null;
+        const outside =
+          syncComposer.value() !== text ||
+          JSON.stringify(incoming) !== JSON.stringify(pendingDrawing);
         if (syncComposer.value() !== text) {
           syncComposer.load(text);
           // Whatever stood here is another tab's words now, not this box's machine seed.
@@ -522,7 +572,9 @@ export function createSelectionComposer({
         // it (pendingAbout, above), so a box taking up those words sends them under the word
         // they were written with. Design mode is this tab's and the draft's about is not.
         pendingAbout = about;
-        pendingDrawing = validDrawing(drawing) ? drawing : null;
+        pendingDrawing = incoming;
+        // Another tab's change is the draft this box takes up, not a step it can take back.
+        if (outside) syncComposer.arrive();
         suggestCheck.checked = Boolean(suggest);
         syncSuggestMode();
         refreshThread();
@@ -543,6 +595,7 @@ export function createSelectionComposer({
     pendingAnchor = null;
     pendingAbout = null;
     pendingDrawing = null;
+    syncComposer.arrive();
     syncSuggestMode(); // after the state it renders, which is now all of it
     hideComposer();
   }
@@ -635,12 +688,18 @@ export function createSelectionComposer({
           : true,
       hasContent: holdsContent,
       save: saveComposerDraft,
+      drawing: {
+        read: () => pendingDrawing,
+        replace: (drawn) => drawingEdits.replace(pendingAnchor, drawn),
+        undoStroke: () => drawingEdits.undoStroke(pendingAnchor),
+        remove: () => drawingEdits.remove(pendingAnchor),
+      },
       send: async (_text, raw, owns, visible) => {
         const anchor = structuredClone(pendingAnchor);
         const ctx = composerCtx(anchor);
         const suggestion = suggestCheck.checked;
         const about = pendingAbout;
-        const drawing = structuredClone(pendingDrawing);
+        const drawing = pendingDrawing && sentDrawing(structuredClone(pendingDrawing));
         // The accepted comment becomes a thread, drawn as a card beside the passage unless
         // Threads is open. Carry the submitted field's geometry into the new card, which
         // stands where the field did: by the row a pointing gesture named.
@@ -700,13 +759,8 @@ export function createSelectionComposer({
     });
     suggestCheck.onchange = () => setSuggestionMode(suggestCheck.checked);
     fabSuggest.onclick = () => setSuggestionMode(!suggestCheck.checked);
-    fabMore.onclick = () =>
-      setResponseOptions(!responseOptionsOpen, {
-        focus: responseOptionsOpen ? null : "first",
-        returnFocus: responseOptionsOpen,
-      });
-    document.addEventListener("focusin", (event) => {
-      if (responseOptionsOpen && !fabBar.contains(event.composedPath()[0]))
+    onStanding((node) => {
+      if (node && responseOptionsOpen && !fabBar.contains(node))
         setResponseOptions(false);
     });
     fab.onclick = () => {
@@ -795,6 +849,10 @@ export function createSelectionComposer({
     pendingComposer,
     keptDraft,
     draftDrawing,
+    heldDrawings,
+    watchHeldDrawings,
+    setDraftDrawing,
+    draftKey: composerCtx,
     composerHolds,
     setSuggestionMode,
     responseOptionsAreOpen,

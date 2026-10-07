@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from .activity import Turn, current_turn
+from .activity import Turn, current_turn, declared_at
 from .event_log import read_cursor
 from .files import (
     entry_stamps,
@@ -31,12 +31,11 @@ from .service import (
     claim_is_active,
     claim_path,
     claim_records,
-    claim_update_sources,
     page_claim,
     read_status,
     unacknowledged,
 )
-from .state import now_iso
+from .state import now_iso, page_key
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -116,6 +115,11 @@ def other_leaves(page_dir: Path) -> list:
     Each candidate costs its server lease/service and one disposable row read.
     Never open another page's log, document, or projection. A row belongs to
     the server incarnation that computed it; absent or older rows stay absent.
+
+    Each entry names its page by `page_key`, the identity the page's own state-home
+    records already use, and links it by `url`. The two are separate because a page
+    outlives its server: a restart may serve the same page at a new port, which
+    changes where the row leads and not which page it is.
     """
     from .server_rows import read_row
 
@@ -134,7 +138,9 @@ def other_leaves(page_dir: Path) -> list:
                 continue
             row = read_row(candidate, info)
             if row is not None:
-                others.append({**row, "url": info["url"]})
+                others.append(
+                    {**row, "page_key": page_key(candidate), "url": info["url"]}
+                )
         except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
             continue
     return sorted(others, key=lambda entry: entry["title"].lower())
@@ -170,12 +176,12 @@ def presence_with_activity(
     claim-against-proof judgment reads these fields. The server's row publication
     carries only the compact presentation fields derived from these facts."""
     stored_status = read_status(page_dir)
+    # The declaration's own fields; the harness's stream stays server-side.
     status = {
         key: value
         for key, value in stored_status.items()
-        if key not in {"work", "stream"}
+        if key in {"state", "detail", "ts"}
     }
-    status.setdefault("after", 0)
     claim = page_claim(page_dir)
     active = claim if claim_is_active(claim) else None
     # What the wait owner has acknowledged after the complete batch reached its
@@ -184,7 +190,6 @@ def presence_with_activity(
     cursor = read_cursor(page_dir)
     reading = {
         "status": status,
-        "claims": claim_update_sources(stored_status),
         **live_facts(page_dir, claim),
         "cursor": cursor,
         # The user's number, not the watcher's: their own messages the agent
@@ -214,11 +219,9 @@ def presence_with_activity(
         # since a record written before this existed is still a valid claim.
         "turn_closed": claim.get("turn_closed") if claim else None,
         # When that turn opened, and whether an open turn of this session's takes
-        # new input before it ends: its hooks carry input, so the Stop hook hands
-        # over what arrives. The banner reads such a turn as listening between two
-        # waits; a session whose carrier is a process it runs has no such turn.
+        # new input before it ends (`Harness.turn_takes_input`).
         "turn_opened": claim.get("turn_opened") if claim else None,
-        "turn_takes_input": bool(active and claim_harness(active).hooks_carry()),
+        "turn_takes_input": bool(active and claim_harness(active).turn_takes_input()),
         # When a browser last had the page visible (the server bumps viewed.json,
         # throttled, while a visible tab asks for news), or None for a page
         # nobody has ever viewed — which used to be indistinguishable from one the
@@ -242,7 +245,10 @@ def claimant_reading(page_dir: Path, events: list) -> tuple[dict, Turn]:
     read."""
     present, stream = presence_with_activity(page_dir, events)
     turn, _ = current_turn(
-        present, (stream or {}).get("activity"), datetime.fromisoformat(now_iso())
+        present,
+        declared_at(present, events),
+        (stream or {}).get("activity"),
+        datetime.fromisoformat(now_iso()),
     )
     return present, turn
 

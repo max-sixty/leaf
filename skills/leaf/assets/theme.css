@@ -33,9 +33,9 @@
  * The stylesheet uses declarations as open selectors too. A box that draws a frame
  * declares `--lf-block-frame: 1` in the rule that draws it. Style queries use that custom
  * property to trim child margins and to bound wide content. A project box then receives
- * the same behavior without joining a tag list. A frame that holds the page's own flow,
- * `main` or a page tab's panel, also declares `--lf-page-flow: 1`, so it passes wide
- * room on to its contents rather than withholding it.
+ * the same behavior without joining a tag list. A box whose edges trim but which draws
+ * nothing, such as `main` or a page tab's panel, declares `--lf-block-frame: trim`, so
+ * it passes wide room on to its contents rather than withholding it.
  *
  * Where the fact belongs to the registry rather than to the rule that draws the box,
  * delivery paints it into the served document (revision_delivery.py, `mark_declared`;
@@ -75,6 +75,7 @@
 
    A spatial element reads the room declared by `x-space`:
 
+   - `column` keeps the reading measure and starts where text does;
    - `wide` takes the shared capped evidence width;
    - `available` takes all room the page can give it.
 
@@ -83,11 +84,12 @@
    outer page's. Packages arrange content inside the allocation. Size the widget's box
    with `contain: inline-size` where its contents would otherwise make the box wider.
 
-   Every box that frames authored block flow declares `--lf-block-frame: 1` where the frame is
-   drawn. The declaration may belong to a nested-state selector or a generated internal
-   box rather than the tag's base rule. Widgets with `x-content: markup` or `members` can
-   admit authored flow; data-only, empty, and inline widgets do not automatically owe a
-   frame declaration.
+   Every box that frames authored block flow declares `--lf-block-frame` where the frame is
+   drawn: `1` for a box that draws one, `trim` for one that only keeps its children's
+   margins in (it pads or contains them but paints no edge). The declaration may belong
+   to a nested-state selector or a generated internal box rather than the tag's base rule.
+   Widgets with `x-content: markup` or `members` can admit authored flow; data-only,
+   empty, and inline widgets do not automatically owe a frame declaration.
 
    The shared style query trims the outer margins of the first and last non-generated
    children inside a frame. It ignores `GENERATED` because a positioned pick mark or
@@ -142,12 +144,16 @@
   --lf-banner-row: max(42px, calc(var(--t-5) * var(--lf-ui-lh) + 19px),
     calc(var(--aim-floor) + 9px));
   --lf-banner-status-row: max(36px, calc(var(--t-5) * var(--lf-ui-lh) + 4px));
-  /* The complete toolbar owns 30em of UI type and leaves 210px for
-     status, insets, and the gap. Both rooms are independent of page capabilities.
+  /* The complete toolbar owns 30em of UI type, the queue counts beside the status
+     11em, about what "9 on you · 9 on Claude" takes, and 220px is left for the status,
+     insets, and the gaps. Below that the banner takes two rows, and the sentence has the
+     first to itself (chrome.css), until a phone's face makes it one row again (below).
+     The rooms are independent of page capabilities and of
+     whether anything waits, since the counts come and go with the log after first paint.
      A larger UI font raises the same capacity boundary before first paint. */
   --lf-banner-actions-w: calc(30 * var(--t-5));
   --lf-banner-rows: clamp(1, round(up,
-    calc((var(--lf-banner-actions-w) + 210px + var(--lf-safe-left)
+    calc((var(--lf-banner-actions-w) + 11 * var(--t-5) + 220px + var(--lf-safe-left)
       + var(--lf-safe-right)) / 100vw)), 2);
   --lf-banner-h: calc(var(--lf-banner-status-row) * (var(--lf-banner-rows) - 1) + var(--lf-banner-row)
     + var(--lf-safe-top));
@@ -400,8 +406,8 @@
      quarter of the accent, beside a border already tinted with it, and in dark that
      ring all but vanished where every other control wore the solid band.
 
-     Naming this token is how a shadow-drawn ring joins the population the corpus floor
-     divides by, exactly as naming --focus-ring is for an outline-drawn one; the ring
+     Naming this token is how the suite's ring samples recognise a shadow-drawn ring,
+     exactly as naming --focus-ring is for an outline-drawn one; the ring
      itself is still what the box paints, not what it names. */
   --focus-shadow: 0 0 0 var(--focus-ring-w) var(--accent);
   --target-trace-w: 1.5px;
@@ -430,13 +436,13 @@
   --danger-tint: light-dark(#f7e0da, #35211b); --danger-ink: light-dark(#9c3526, #e0a091);
   --add-tint: light-dark(#e4efe0, #1b2a1c); --del-tint: light-dark(#f7e2dc, #33201b);
   --hi-tint: light-dark(#fff8c5, #342d14);
-  /* Six syntax roles are enough to find structure without turning evidence into a
-     paint box. Unmapped scopes keep the inherited code ink. Each role clears 4.5:1
-     on the code canvas and semantic line tints; the render gate checks the result. */
-  --syn-comment: light-dark(#696458, #a59d8e); --syn-keyword: light-dark(#a3372c, #e59a8c);
+  /* Shiki's theme reads these CSS variables directly. The palette follows the
+     page's color scheme and can be overridden wherever code is drawn. The render
+     gate checks the colors the browser actually paints on each code canvas. */
+  --syn-comment: light-dark(#5a5549, #cac2b3); --syn-keyword: light-dark(#8d251d, #efafa0);
   --syn-string: light-dark(#1d4f6b, #9dc4dd);
-  --syn-number: light-dark(#2f5480, #a8c4e2); --syn-name: light-dark(#6b4a9e, #c3a8de);
-  --syn-type: light-dark(#8a5a12, #dcb27e);
+  --syn-number: light-dark(#2f5480, #a8c4e2); --syn-name: light-dark(#573387, #cdb2e8);
+  --syn-type: light-dark(#6b4305, #e6bc88);
 
   /* Series colors, for a chart's marks. Five, and the sixth is refused rather than
      drawn: these are the most a user can hold apart, and a palette that runs out and
@@ -462,10 +468,13 @@
   --series-5: light-dark(#8c2d2a, #b13d54);
 }
 /* The narrow face a phone held upright wears (chrome.css) holds forty-pixel controls,
-   and a finger's row 44px aims wherever it stands. */
+   and a finger's row 44px aims wherever it stands. It is one row, whatever the toolbar's
+   desk capacity: the status in words, then Threads as an icon with its count, then
+   More, which holds Approval and everything else. */
 @media screen and (width <= 480px) {
   :root { --lf-banner-row: max(52px, calc(var(--t-5) * var(--lf-ui-lh) + 19px),
-    calc(var(--aim-floor) + 9px)); }
+    calc(var(--aim-floor) + 9px));
+    --lf-banner-rows: 1; }
 }
 /* Only a live page draws the banner. Without one, what sticks below the banner sticks
    to the top of the window. */
@@ -501,8 +510,9 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-bottom-bar-h: 0px; }
    spelled out in full — falls back to `none` rather than reading as one.
 
    Naming is not how the layer says a ring is there; the outline is, and nothing the
-   product ships reads this. What holds the layer to naming what it draws is the corpus
-   floor, in the suite, which divides by these names and credits what the page paints. */
+   product ships reads this. What holds the layer to naming what it draws is the suite's
+   ring samples, which require every rule drawing the ring to name it and credit what
+   the page paints. */
 @property --lf-focus-ring {
   syntax: "<custom-ident>";
   inherits: false;
@@ -528,7 +538,12 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-bottom-bar-h: 0px; }
  * hold is the closed list the norms forbid: a layer's stylesheet can only name that
  * layer's own, so a project's card is outside it and the failure is a silent 13px rather
  * than an error. A box says so itself instead, in the same declaration where it draws the
- * frame, and the trim finds it through a style query. `--lf-block-frame` inherits, so the reset
+ * frame, and the trim finds it through a style query. Every box that draws a frame traps
+ * its children's margins, and some boxes trap them without drawing anything (`main`'s
+ * padding, a page tab's panel, a goal's float containment), so the declaration has one
+ * value for each: `1` draws a frame, and `trim` only trims. The trim reads both; what
+ * else a frame does (withholding the page's room, layouts.css; filling it with a table,
+ * below) reads `1`. `--lf-block-frame` inherits, so the reset
  * inside holds the claim to the box's own children; a nested frame outranks the reset
  * by being a selector rather than `*`.
  *
@@ -574,7 +589,7 @@ html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-bottom-bar-h: 0px; }
   inherits: false;
   initial-value: 0;
 }
-@container style(--lf-block-frame: 1) {
+@container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
   :nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-start: 0;
     --lf-frame-start: 1;
@@ -651,7 +666,7 @@ html { background: var(--paper); }
     main { padding-block: 24px; }
   }
 }
-/* The auxiliary surfaces — the Asks drawer on the left, the thread panel on the right, the
+/* The auxiliary surfaces — the Queue drawer on the left, the thread panel on the right, the
  * Leaves drawer — stand over the page and never take room from it. The page's geometry is
  * the author's, and a surface the user raises for a moment does not reflow it: the shell
  * is the same width with a surface up as without one, so every container query, rail and
@@ -699,13 +714,20 @@ body {
     var(--lf-auxiliary-width, 0px));
 }
 @media screen {
-  html[data-lf-live] body[data-lf-auxiliary-surface="asks"] {
+  html[data-lf-live] body[data-lf-auxiliary-surface="queue"] {
     --lf-auxiliary-width: var(--lf-drawer-slot-width, 300px);
   }
   html[data-lf-live] body[data-lf-auxiliary-surface="threads"] {
     --lf-auxiliary-width: var(--lf-thread-panel-width, 420px);
   }
 }
+/* What delivery writes into an upgraded widget for its first paint (`x-prepaint`,
+ * revision_delivery.py): the structure its module will draw, so the browser sizes the
+ * widget as it will size the drawing. It holds that room and shows none of its
+ * placeholder words, which the drawing replaces with the log's. A reading with no
+ * runtime gets no drawing, so the room goes with it. */
+[data-lf-prepaint] { visibility: hidden; }
+html:not([data-lf-interactive]) [data-lf-prepaint] { display: none; }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
  * parse while JavaScript upgrades widgets and reads the standing log. Generated page
  * interface joins it as soon as widget and page-interface upgrade gives that apparatus
@@ -742,6 +764,9 @@ body {
   color: var(--muted); font: var(--t-6)/var(--lf-ui-lh) var(--sans); white-space: nowrap;
   border: 1px solid var(--rule); border-radius: var(--r); background: var(--card);
 }
+/* The room a text field keeps after its last words for the action standing in its
+   trailing corner (composing/text-field.js). Typed, so a reading resolves to a length. */
+@property --lf-field-end-room { syntax: "<length>"; inherits: true; initial-value: 0px; }
 /* The general leaf text box, in one rule. It is stated page-side like the rest of the
    shared vocabulary's faces (chrome.css), so a widget's own box that names the same
    property wins. The compact response field is excluded because it shares its complete
@@ -786,8 +811,7 @@ body {
  * either side. */
 main {
   position: relative;
-  --lf-block-frame: 1;
-  --lf-page-flow: 1;
+  --lf-block-frame: trim;
   container-name: lf-content-frame;
   padding-block: 72px 96px;
   --lf-free-l: 0px;
@@ -801,25 +825,43 @@ main {
  * grew out of it. Outside the page, where nothing states them, neither side holds a
  * widget back. */
 @property --lf-width { syntax: "<length>"; inherits: true; initial-value: 0px; }
-/* A box that frames its blocks for the trim and holds the page's own flow: `main`, and a
- * page tab's panel. It passes the page's room to what it holds rather than withholding it
- * (layouts.css), and a table in it keeps to its content rather than filling it (below).
- * Not inherited, so a box inside one answers only for itself. */
-@property --lf-page-flow { syntax: "<integer>"; inherits: false; initial-value: 0; }
 /* Where a box sticking here stops: the sticky headers standing over the top of its
- * scroller, stacked. On the root it starts at the banner's height (above); a box the
- * theme makes scroll that can hold a header starts it again from its own top (a bounded
- * block, a table, a board; a workspace pane's body from minus its top padding,
- * layouts.css). A sticky header (a page tab strip, a diff's file header) has a stated
- * height and sticks at the `--lf-top` it inherits; what it stands over takes that value
- * plus its height, which the header's holder passes on under a second name, since a
- * custom property cannot read itself. The stacked value goes on a box that does not
- * itself scroll, since a box that scrolls is read where it stands. A landing clears the
+ * scroller, stacked. On the root it starts at the banner's height (above). Every other
+ * box that scrolls starts it again from its own top. A box the theme makes scroll
+ * states that beside its overflow, so it holds from the first paint, before the runtime
+ * runs (a bounded block, a table, a board; a workspace pane's body from minus its top
+ * padding, layouts.css). The runtime marks every box it finds scrolling, whoever made
+ * it scroll (reach.js, `paintSlot`), and the mark restarts the slot ([data-lf-scrolls],
+ * state.css), so a box the page or a package makes scroll restarts too. The mark sits
+ * above packages and Layouts, so it outranks a value stacked onto a box that scrolls (a
+ * page tab's panel the page makes scroll), and it restarts at `--lf-top-start`, which a
+ * box that starts its slot other than at 0 states beside its `--lf-top` (a workspace
+ * pane's body, a thread list). A box that clips without scrolling says
+ * `overflow: clip`, since `hidden` scrolls, for a script, and so holds the headers
+ * inside it. A box that sticks keeps the value it met for its own `top`, so a sticking
+ * box that scrolls headers restarts the slot for them itself (a column's sidebar,
+ * layouts.css).
+ * A sticky header (a page tab strip, a diff's file header) has a stated height and
+ * sticks at the `--lf-top` it inherits; what it stands over takes that value plus its
+ * height, which the header's holder passes on under a second name, since a custom
+ * property cannot read itself. The stacked value goes on a box that does not itself
+ * scroll, since a box that scrolls is read where it stands. A landing clears the
  * headers over a whole scroller through its `scroll-padding` and one over part of it
  * through `scroll-margin` on the rows under it, and the runtime's reading of what is on
  * screen takes the value at each element (geometry.js, `headerInset`). Registered so
  * that reading is a length. */
 @property --lf-top { syntax: "<length>"; inherits: true; initial-value: 0px; }
+/* Where a box that scrolls starts the slot for what it holds, read by the restart above;
+ * its own, so not inherited, which would start a scroller inside it there too. */
+@property --lf-top-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+/* The same for a box sticking at its scroller's foot: what it stands over takes its
+ * height and offset as `--lf-bottom`, and the runtime's reading of what is on screen
+ * leaves that band out too (geometry.js, `footerInset`). A long open thread's reply
+ * row is one (chrome.css). No box restarts it. Nothing inside what a footer stands
+ * over carries a footer of its own, and the slot's other reader, the landing margin of
+ * every box in that thread's content (chrome.css), is read on a box that scrolls too:
+ * a restart there would let a landing on that box stop under the reply row. */
+@property --lf-bottom { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --lf-free-l { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 @property --lf-free-r { syntax: "<length>"; inherits: true; initial-value: 99999px; }
 /* Registered so the runtime reads each margin resident's width in pixels, whatever
@@ -828,12 +870,43 @@ main {
 @property --map { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --sidebar { syntax: "<length>"; inherits: true; initial-value: 0px; }
 @property --note { syntax: "<length>"; inherits: true; initial-value: 0px; }
-/* Text keeps the reading measure wherever it stands: a paragraph, a list item or a
- * heading is never set wider than the column, however wide the box around it. Package
- * captions may span their own frame, so this typography rule shares their base layer. */
+/* The column: the reading measure, and the one rule that sets it. Text keeps it wherever
+ * it stands: a paragraph, a list item or a heading is never set wider than the column,
+ * however wide the box around it. So does a block allocated the column
+ * (`data-lf-space="column"`): a widget whose content is read as lines of text, or a box
+ * that frames prose (an Ask, a callout, which declares it as an idiom), declares it
+ * (`x-space: column`), and an occurrence asks for it with `data-width`. Both start at
+ * their holder's start edge, so in a flow wider than the column (a wide page, a pane, a
+ * sidebar Layout's body) the widget's box and the prose around it share one left edge
+ * and one width. It caps the width and sets no margin, so a widget's own arrangement,
+ * such as an Ask's options track, still places the box. Package captions may span their
+ * own frame, so this rule shares their base layer at zero specificity. */
 @media screen {
-  :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6) {
+  :where(p, li, dt, dd, blockquote, figcaption, h1, h2, h3, h4, h5, h6,
+    [data-lf-space="column"]) {
     max-inline-size: var(--col);
+  }
+  /* The measure is a text's line length, and an allocated box's outer width: the box
+   * the column would give it, its border and padding inside. The box states the column
+   * as the width it may reach (`--lf-reach`, as a breakout states its own in
+   * layouts.css), so a widget whose minimum reads it, such as a board's columns, keeps
+   * to the column and scrolls inside it. */
+  :where([data-lf-space="column"]) {
+    box-sizing: border-box;
+    --lf-reach: min(var(--col), var(--lf-room, 0px));
+  }
+  /* A box allocated the column widens to the widest allocation among its own blocks, so
+   * an Ask or a callout around a chart or table that declares `wide` or `available`
+   * frames that block rather than clipping it to the measure. On a column page the box
+   * stays in the column and the block breaks out of it (layouts.css); in a wider flow
+   * the box takes the room. Only its children count: a block inside one of them, such as
+   * a table in an option or a folded disclosure, is held to that child's width, so an
+   * option list keeps the measure whatever one option holds. */
+  :where([data-lf-space="column"]:has(> [data-lf-space="wide"])) {
+    max-inline-size: var(--wide);
+  }
+  :where([data-lf-space="column"]:has(> [data-lf-space="available"])) {
+    max-inline-size: none;
   }
   /* A bounded block scrolls within its stated height. A widget can assign that bound to
    * an inner reader instead, keeping its own caption outside the scroller. */
@@ -901,24 +974,6 @@ hr { border: none; border-top: 1px solid var(--rule); margin: 40px 0; }
 .density-working h3 { margin: 12px 0 4px; }
 .density-working h4 { margin: 10px 0 4px; }
 .density-working :is(th, td) { padding: 4px 10px; }
-/* Syntax roles. The runtime writes these into any code block that names a language —
-   a <pre><code class="language-*"> or a lf-code with `language` — having collapsed the
-   tokenizer's scopes into six of leaf's own first. Styled at document level like
-   the marks, because they land on the page's own elements; one attribute rather than
-   six classes, so the shared class vocabulary doesn't widen at all. A tokenizer swap
-   costs one table in leaf.js and no page that has already shipped. */
-[data-lf-syn="cm"] { color: var(--syn-comment); font-style: italic; }
-[data-lf-syn="kw"] { color: var(--syn-keyword); }
-[data-lf-syn="st"] { color: var(--syn-string); }
-[data-lf-syn="nu"] { color: var(--syn-number); }
-[data-lf-syn="fn"] { color: var(--syn-name); }
-[data-lf-syn="ty"] { color: var(--syn-type); }
-/* A diff's own lines take the tints lf-diff and lf-suggestion already carry, so an
-   added line reads the same whichever of the three drew it. Ink only: these spans
-   cover a line's text and not its box, and a background would print as a ragged
-   half-width band. */
-[data-lf-syn="ins"] { color: var(--ok-ink); }
-[data-lf-syn="del"] { color: var(--danger-ink); }
 figure { margin: 22px 0; }
 figcaption { font-size: var(--t-6); color: var(--muted); margin-top: 8px; }
 img, svg, video { max-width: 100%; height: auto; }
@@ -965,16 +1020,17 @@ img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
  * one. */
 /* A table scrolls its own columns, so, like `pre`, its rows never size what holds it.
  * Scrolling sideways makes it the scroller for anything sticking inside it, which
- * sticks at the table's own top (`--lf-top`). */
-table { display: block; overflow-x: auto; container-type: inline-size; --lf-top: 0px;
+ * sticks at the table's own top (`--lf-top`), and, like `pre`, leaves room under its
+ * last row for an overlay scrollbar (shadow.css, beside `pre`). */
+table { display: block; overflow-x: auto; container-type: inline-size scroll-state; --lf-top: 0px;
         border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
 /* A table standing in a drawn frame (a panel, a callout, a pane, a cell) fills it. The
    frame's inner edge is a line the eye measures the rules against, so a table that
    kept to its content there read as cut short: live-progress's Checks rules stopped
    158px before the panel's edge. In the column the same shortfall is only the measure,
-   and the rule above keeps it, so a frame that holds the page's own flow (`main`, a page
-   tab's panel; `--lf-page-flow`) draws nothing to fill and leaves the table to its content.
+   and the rule above keeps it, so a box that only trims (`--lf-block-frame: trim`: `main`,
+   a page tab's panel) draws nothing to fill and leaves the table to its content.
 
    The grid is an anonymous box inside the block that scrolls, which no rule can size,
    and a table box doesn't stretch as a flex or grid item. What it does do is grow to
@@ -985,7 +1041,7 @@ table { display: block; overflow-x: auto; container-type: inline-size; --lf-top:
    Registered so the claim stays on the table and a table nested deeper in it asks its
    own holder. */
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
-@container style(--lf-block-frame: 1) and (not style(--lf-page-flow: 1)) {
+@container style(--lf-block-frame: 1) {
   table { --lf-fills-frame: 1; }
 }
 @container style(--lf-fills-frame: 1) {
@@ -1542,7 +1598,7 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   transition-delay: 90ms;
 }
 /* A reaction held under a press says its word at once, as a keyboard destination does
-   below (reactions.js, holdToRead). */
+   below (held-word.js). */
 .lf-margin-entry[data-lf-held-word] > .lf-margin-entry-label {
   opacity: 1; visibility: visible; transform: translateY(0); transition: none;
 }
@@ -1614,28 +1670,14 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
  * only its own widgets (layer.py, `widget_confinement`), and these reach every
  * package's.
  *
- * The grammar (the rows, and which child stands in which) carries the role's own weight,
- * so it holds over what a widget declares for itself, such as a board's block margin
- * when the board is a pane's body. The look (frame, paper, padding, the header's voice)
- * is a default inside :where(), so a package that draws its generated pane another way,
- * the visual review framing its evidence with the review's own border, does so with one
- * class rather than by outranking the attribute. */
-[data-lf-reading-role="pane"] {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  grid-template-columns: minmax(0, 1fr);
-  min-width: 0;
-  --lf-block-frame: 1;
-}
-[data-lf-reading-role="pane"] > header {
-  grid-row: 1; margin: 0;
-}
-[data-lf-reading-role="pane"] > footer {
-  grid-row: 3; margin: 0;
-}
-[data-lf-reading-role="pane"] > :not(header, footer) {
-  grid-row: 2; grid-column: 1; min-width: 0; margin: 0;
-}
+ * The grammar (the rows, and which child stands in which) holds over what a widget
+ * declares for itself, such as a board's block margin and minimum width when the board
+ * is a pane's body, so it stands in the Layouts tier above every package (layouts.css)
+ * rather than here: a widget's root rule (`:scope:is(lf-board)`) ties a selector here
+ * on specificity and wins on scope proximity. The look (frame, paper, padding, the
+ * header's voice) is a default inside :where(), so a package that draws its generated
+ * pane another way, the visual review framing its evidence with the review's own
+ * border, does so with one class rather than by outranking the attribute. */
 /* A pane's body is a keyboard stop of its own where it scrolls with nothing in it to
  * Tab to (reach.js), and the layer's ring stands outside the box it names. A held pane
  * stands flush with the scrollport of the workspace body holding it, so that ring lost
@@ -1698,4 +1740,18 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   padding: var(--lf-pane-top) var(--pane-inset) var(--pane-inset);
   container-type: inline-size;
   --lf-block-frame: 1;
+}
+
+/* Board and swipe motion carry a compact card label without duplicating its live
+ * controls. The motion owner sets position and travel; this face stays bounded. */
+.lf-motion-preview {
+  box-sizing: border-box; max-width: 24rem; max-height: 3.5rem;
+  padding: 12px; border: 1px solid var(--rule); border-radius: var(--r);
+  background: var(--card); color: var(--ink); font: inherit;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  pointer-events: none;
+}
+.lf-motion-preview.lf-inhand {
+  max-width: none; /* Keep Sortable’s card width so its grip stays under the pointer. */
+  opacity: 1; box-shadow: 0 8px 24px var(--shade);
 }

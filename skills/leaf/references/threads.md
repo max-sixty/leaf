@@ -16,7 +16,7 @@ including edits and retired content. Quote exact visible authored words inside
 one widget part. The command refuses ambiguous, retired, replaced, or
 cross-boundary text instead of creating a detached comment. The thread's id is its
 opening comment's `id`, in the record `leaf thread open` prints. `leaf page state
-<page> <id>`, `leaf thread reply`, `edit` and `resolve`, and `leaf status --on` all
+<page> <id>`, `leaf thread reply`, `edit` and `resolve`, and `leaf task open` all
 take the id of any message in the thread.
 
 Title a thread with `--title` on the command that first handles it: the `open` that
@@ -129,8 +129,9 @@ user can reopen a resolved thread, and it comes back pointing at a coordinate no
 revision declares any more, while a detached thread reads as **No longer in this
 version** and a later reply may still move it to a replacement.
 
-An ordinary reply answers the thread without adding it to the outstanding Ask
-list. Add `--awaits` when the reply's prose asks the user to answer:
+An ordinary reply answers the thread without putting anything on the user's queue.
+Add `--awaits` when the reply's prose asks the user to answer; the reply is then a
+task on them, under the reply's id, until they answer in the thread:
 
 ```bash
 leaf thread reply <page> --awaits --text "Which store should own it?"
@@ -149,8 +150,12 @@ Use `--ephemeral` for an interim update that is useful while work is underway:
 leaf thread reply <page> --for <event-id> --ephemeral --text "Checking the keyboard route."
 ```
 
-This posts progress without answering the input or ending its work claim. You can
-also name the thread to post progress there. The updates stay visible until the
+This posts progress without answering the input. Progress on a move you owe also
+takes that move in hand, as `leaf task start` does, with the update as its
+**Working** line beside the thread and in the banner, so it is one line.
+[Conversation handoff](conversation-loop.md#when-to-write), "When to write", makes
+the first one your first command after a delivery. You can also name the thread to
+post progress there. The updates stay visible until the
 next non-ephemeral agent reply in that thread, then fold under “Previous updates”
 without summary prose. The original messages remain available to expand and edit.
 Intervening user messages remain visible; separate runs of updates fold separately.
@@ -162,8 +167,8 @@ disclosure appears in the panel and contextual thread surfaces. A completing rep
 held behind a new-reply notice keeps its progress visible until the reply is shown;
 originals already being read or focused stay expanded.
 
-A widget whose registry entry declares a local `x-awaits` already joins the
-page's Ask list and keeps its thread "On you" while that Ask stands. Leaf refuses
+A widget whose registry entry declares a local `x-awaits` is already an Ask, a task
+on the user, and keeps its thread "On you" while that Ask stands. Leaf refuses
 `--awaits` beside such markup; the widget's state is the one reading.
 
 Correct one of this session's sent messages without adding another turn:

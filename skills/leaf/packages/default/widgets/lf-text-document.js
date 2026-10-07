@@ -8,24 +8,24 @@ import {
   synNodes,
   syntax,
   watchData,
+  once,
+  watchOwner,
   keepsText,
   setRenderedChildren,
+  setChildren,
 } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-text-document",
   class extends HTMLElement {
     connectedCallback() {
-      if (this.stopWatching) return;
-      this.stopWatching = watchData(this, "document", (snapshot) =>
-        this.render(snapshot),
-      );
-    }
-
-    disconnectedCallback() {
-      this.rendering = (this.rendering ?? 0) + 1;
-      this.stopWatching?.();
-      this.stopWatching = null;
+      if (!once(this)) return;
+      watchOwner(this, {
+        disconnect: () => {
+          this.rendering = (this.rendering ?? 0) + 1;
+        },
+      });
+      watchData(this, "document", (snapshot) => this.render(snapshot));
     }
 
     async render(snapshot) {
@@ -34,15 +34,13 @@ customElements.define(
       const source = snapshot?.value ?? "";
       try {
         const language = this.getAttribute("language");
-        const tokens = language ? await syntax(source, language) : [{ text: source }];
+        const tokens = language
+          ? await syntax(source, language)
+          : [{ text: source, style: {} }];
         if (rendering !== this.rendering || !this.isConnected) return;
-        projectData(
-          this,
-          [{ snapshot, tokens }],
-          () => "document",
-          (record, prior) => sourceNode(this, record, prior),
-          { snapshot },
-        );
+        this.figure = sourceNode(this, { snapshot, tokens }, this.figure);
+        setChildren(this, [this.figure]);
+        projectData(this, [{ key: "document", node: this.figure }], { snapshot });
         this.classList.toggle("lf-rendered", true);
       } catch (error) {
         if (rendering !== this.rendering || !this.isConnected) return;

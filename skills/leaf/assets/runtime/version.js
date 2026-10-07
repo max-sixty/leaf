@@ -72,7 +72,7 @@ import {
 } from "./drafts.js";
 import { heldThreadId, replyDestination } from "./thread/focus.js";
 import { restoreReplyEditing } from "./thread/replies.js";
-import { focusDestination } from "./focus.js";
+import { focusDestination, onStanding } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { patchTree } from "./dom-children.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
@@ -92,6 +92,7 @@ import {
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { prepareDeclaredInlineMarkdown } from "./markdown.js";
 import { pageScroller } from "./scrolling.js";
+import { TEXT_BOX } from "./control-selectors.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
@@ -104,6 +105,7 @@ import {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 import { LIVE_ROOT, PAGE_SCOPE, tabStore, unmarkedCopy } from "./storage.js";
+import { initialOrigin, restoreInitialSource } from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
@@ -150,7 +152,7 @@ import {
   capturePlace,
   hasLandmark,
   rawOffsetFits,
-  readingBlock,
+  pageReadingBlock,
   restorePlace,
   textBlocks,
 } from "./reading-place.js";
@@ -194,19 +196,26 @@ const versionedHeadNode = (node) =>
 // applies the difference between two revisions, so it needs the revision the page is
 // standing on as source — not the page, which by then carries a tokenizer's spans, a
 // user's open disclosure, a tab stop the runtime lent, and whatever a page module
-// built. The module graph can define chrome-only elements before this clone, but authored
-// markup cannot contain those tags, so the authored main is untouched but for the marks
-// the prepaint painted for the first paint, which the copy takes off. Runtime-owned
-// head nodes carry `data-lf-runtime` and are excluded from the separate head baseline above.
-// The source and live main are therefore the same tree, which makes the pairing below a
-// plain walk of the two together.
+// built. The early coordinator keeps the source of each initially rendered host
+// before its package moves or replaces anything. unmarkedCopy uses those sources
+// and removes delivery's placeholders and invocation scripts. Each copied source
+// node retains its route to the original live node, so pairing still works when a
+// producer has rearranged children. Runtime-owned head nodes carry data-lf-runtime
+// and are excluded from the separate head baseline above. A later arriving source
+// that has not been initially rendered pairs by the ordinary parallel walk.
 const pairSources = (source, live, pairs) => {
+  live = initialOrigin(source) === source ? live : initialOrigin(source);
   pairs.set(source, live);
   const held = source.localName === "template" ? source.content : source;
   const shown = live.localName === "template" ? live.content : live;
-  const children = [...shown.childNodes];
-  for (const [at, child] of [...held.childNodes].entries())
-    if (children[at]) pairSources(child, children[at], pairs);
+  const children = [...shown.childNodes].filter(
+    (child) => !child.matches?.("[data-lf-prepaint], script[data-lf-initial]"),
+  );
+  for (const [at, child] of [...held.childNodes].entries()) {
+    const original = initialOrigin(child);
+    const peer = original === child ? children[at] : original;
+    if (peer) pairSources(child, peer, pairs);
+  }
   return pairs;
 };
 // Where a delivered document's captured resources are addressed: the directory its
@@ -233,7 +242,6 @@ export function createVersionController({
   midComposition,
   hasPending,
   readAndApply,
-  forgetAuthoredOwners,
   retireProjectionCoverage,
   syncLayout,
   captureRetainedStanding = () => null,
@@ -335,15 +343,8 @@ export function createVersionController({
     description: "Open a numbered version",
     title: "open version",
     when: () => versionsToWalk() && numberedVersionRoutes().length > 0,
-    // The focused menu and its standing picker share this route. The first gives g V a
-    // visible compact hint; the second preserves the key across a browser hand-back that
-    // leaves the menu open with focus at its door. Close first, as the numbered key is the
-    // keyboard form of pressing that row; this matters when it names the version already
-    // being read and travel itself is a no-op.
-    run: (binding) => {
-      closeVersionMenu();
-      goVersion(+binding);
-    },
+    // The focused menu and its standing picker delegate each numbered key to the
+    // native row. Its view closes the menu and activates that exact entry once.
   };
   // The menu's own scope. The walk is the menu's rather than the page's, because ArrowUp and
   // ArrowDown anywhere else are the page's own scroll; ⏎ is the browser's, a row being a
@@ -505,7 +506,6 @@ export function createVersionController({
     // The same predicate the menu's Escape stands on, so the key cannot open a layer the
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,
-    run: () => versionBtn.click(),
   };
 
   let versionsWalkable = false;
@@ -1096,7 +1096,8 @@ export function createVersionController({
     const doc = new DOMParser().parseFromString(await response.text(), "text/html");
     if (doc.querySelectorAll("body > main").length !== 1)
       throw new Error(`${url} has no single authored main`);
-    return doc;
+    // First-paint delivery wrappers have no place in the authored revision.
+    return restoreInitialSource(doc);
   }
   // Repeated comparisons of the same immutable revision share its document fetch.
   const revisionDocuments = new Map();
@@ -1414,15 +1415,6 @@ export function createVersionController({
         same: (before, after) => sameAuthoredMarkup(before, after, arrivingRoot),
         sameValue: (name, held, value) => sameValue(name, held, value, arrivingRoot),
         touched: (element) => touched.push(element),
-        // An element going is not the same as its name going. Authored state capture
-        // still needs to forget removed upgraded owners here; the complete incoming
-        // descriptor inventory below decides which identities actually retired.
-        retire: (element) => {
-          if (!element.id || !registry[element.localName]) return;
-          for (const claimant of live.querySelectorAll(`#${CSS.escape(element.id)}`))
-            if (claimant !== element) return;
-          if (upgraded(element)) forgetAuthoredOwners(new Set([element.id]));
-        },
       });
       // The revision's sheets, in its head and in its body alike, keep off the layer.
       keepPageRulesOffLayer();
@@ -1618,7 +1610,7 @@ export function createVersionController({
     const active =
       regions.get(view.activeRegion) ??
       containingReadingRegionFor(focused()) ??
-      readingRegionFor(readingBlock());
+      readingRegionFor(pageReadingBlock());
     if (active) reveal(active.host, currentIntent);
     const restored = new Set();
     const activeReading = active && view.regions?.[active.id];
@@ -1753,7 +1745,8 @@ export function createVersionController({
 
   // A region handed to another scroller keeps the reading recorded before the handover.
   // Focus can remain on a control the user has since scrolled past, so a posture change
-  // restores that reading without making the focused control a navigation destination.
+  // restores that reading. A visible editor is itself a live reading landmark;
+  // focus retained on a field the reader scrolled past is not.
   // A composition change in progress owns any shift inside it.
   function restoreShifted(shifted, currentIntent) {
     if (compositionChanges.size) return;
@@ -1825,6 +1818,15 @@ export function createVersionController({
     readingContinuityInstalled = true;
     watchReadingRegionTransitions(readingRegionTransition);
     document.addEventListener("scroll", queueRecord, { capture: true, passive: true });
+    // Opening or editing a native field changes the reading place even when no
+    // scroller moves. Record after its seat commits, through the same frame door.
+    const recordEditing = () => {
+      const at = focused();
+      if (at?.matches(TEXT_BOX) && under(at, document.querySelector("body > main")))
+        queueRecord();
+    };
+    onStanding(recordEditing);
+    document.addEventListener("input", recordEditing);
     queueRecord();
   }
 

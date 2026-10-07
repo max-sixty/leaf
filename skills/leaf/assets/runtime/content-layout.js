@@ -7,9 +7,10 @@ import { nextFrame, nextRender } from "./rendering.js";
 import { skipped } from "./geometry.js";
 import { keeps } from "./keeps.js";
 import { repaintPage } from "./repaint.js";
+import { layoutChanged } from "./widget-elements.js";
 // The postures a margin resident may take besides the rail: the side each stands on and
 // the token holding the room it needs there beyond `main`'s box. The stylesheet says
-// which element takes which, in order of preference (`--lf-resident`, theme.css, at
+// which element takes which, in order of preference (`--lf-resident`, layouts.css, at
 // aside.sidebar), so the media and Layout conditions on each are the stylesheet's own.
 const POSTURES = {
   sidebar: ["left", "--sidebar"],
@@ -20,7 +21,7 @@ const POSTURES = {
 // One computed reading seats the rail first without moving the column, then each
 // authored resident on its preferred side, or in flow when there is no room. The
 // column's actual CSS offset is removed before measuring, including RTL, so its
-// last written shift cannot feed the next decision. Theme's --lf-resident declares
+// last written shift cannot feed the next decision. --lf-resident (layouts.css) declares
 // posture preferences; data-lf-margin and --lf-shift publish their geometry.
 // Read at most once per frame after widgets upgrade. Every completed read notifies
 // the selected annotation owner, including an unchanged or missing column; only a
@@ -121,10 +122,13 @@ function settleResidency() {
         : 0,
   );
   const tokens = standing.join(" ");
-  const changed =
-    (main.getAttribute("data-lf-margin") ?? "") !== tokens || shift !== written;
-  if (!changed) return false;
+  const seated = (main.getAttribute("data-lf-margin") ?? "") !== tokens;
+  if (!seated && shift === written) return false;
   keeps(main, "data-lf-margin", tokens || null);
+  // The Layout reads the seats (layouts.css): a sidebar seated in the margin sticks and
+  // scrolls there, so `main` announces what it holds as rearranged (reach.js reads which
+  // boxes scroll again).
+  if (seated) layoutChanged(main);
   if (shift !== written) {
     if (shift) main.style.setProperty("--lf-shift", `${shift}px`);
     else main.style.removeProperty("--lf-shift");

@@ -7,13 +7,9 @@ description: Project-specific instructions loaded by tend workflows alongside AG
 
 ## Landing
 
-Tend uses `merge: yolo`. Merge a pull request that fixes tests, without waiting
-for maintainer approval, once each test it claims to fix failed before the change
-and passes after it (a skipped or deleted test has not passed), and `monitor-ci`'s
-poll exits 0 on the exact head. Pull requests run only the nightly tests they edit,
-so run the claimed ones yourself.
+Tend uses `merge: yolo`. **Fix every failure in a red run** defines when a CI
+repair can land without maintainer approval.
 
-Merge a fix that is correct but incomplete, and open an issue for what it leaves.
 Changes to workflows, Tend's configuration, CODEOWNERS, or agent instructions
 require the control-plane owner's fresh approval.
 
@@ -39,7 +35,7 @@ change meets the deferral condition in **Fix the underlying issue**.
 Before approving a product change, run the few tests that exercise the failures
 the diff most plausibly introduces, chosen from the product paths and contracts
 it touches rather than the test files it edits, and within the local limit in
-`tests/AGENTS.md` ("Run the narrowest useful surface"): the complete `test` job
+`tests/AGENTS.md` ("Run what the change needs"): the complete `test` job
 reports the rest once the change lands. A docs-only or generated-workflow change
 may need none; a selected failure withholds approval.
 Where a test itself is at issue, `tests/AGENTS.md` says which boundary it
@@ -49,10 +45,34 @@ profiles from CI.
 
 ## Reading a red suite
 
-Nearly every test drives a real browser, so a traceback can name a symptom
-several boundaries after its cause. Before updating a test to its new expectation,
-apply `tests/AGENTS.md`, **A failure is evidence about the test too**. Two
-test-owned failures recur:
+Preserve intended behavior when repairing a red suite. Decide whether the failure
+calls for changing the test or the behavior: an existing assertion is evidence,
+not authority. Read the originating pull request's description, discussion and
+diff alongside the current contract; an intentional behavior change can leave
+an old test stale. Apply `tests/AGENTS.md`, **A failure is evidence about the test too**.
+
+When the test itself is wrong, validate the intended behavior with corrected or
+replacement checks. Justify removing a test that protects no user behavior
+rather than claiming the removed test passed.
+
+If the evidence leaves that choice uncertain, make and validate the best-supported
+fix, then open an issue asking the original contributor to judge whether to keep
+or revise it. Address the issue to that contributor, link the originating and
+repair pull requests, and explain the evidence, the choice and what remains
+uncertain. Mark the issue as awaiting that contributor's judgment and leave it
+open until they settle it; subsequent Tend runs must not decide on their behalf.
+Proceed under **Fix every failure in a red run** rather than waiting for that judgment.
+
+Read the failing test's record in main's earlier complete runs before choosing a
+fix: each `ci` run uploads its junit results
+(`gh run download <run> -p 'pytest-results-*'`). A test that failed with the same
+message, then passed on code that didn't fix it, then failed again, is
+non-deterministic, so fix the cause rather than the symptom this run shows.
+Different messages across runs call for checking the intervening changes and the
+behavior each failure caught; simplify when unrelated changes repeatedly break
+the test without changing that behavior.
+
+Two test-owned failures recur:
 
 - **A read or press before the page said it was ready**, which a re-run hides.
   State the ordering (`tests/AGENTS.md`, **State races are arrangements, not
@@ -68,12 +88,29 @@ test-owned failures recur:
 
 Every failure in the run is the session's, including those earlier runs also hit;
 a tracking issue records a failure but doesn't fix it. Open one pull request per
-cause that no open pull request already covers.
+cause that no open pull request already covers. For each durable failure, look
+for the pull request that introduced it, first among those merged since the last
+run where the failing check passed and then earlier, since a failure that comes
+and goes can pass after its cause landed. Establish the cause from the failing
+diagnostic and the pull request's context, following **Reading a red suite**.
+Where a pull request introduced it, explain which behavior its author intended
+and why the repair changes the test or the behavior; link it from the fix's
+description.
+
+Merge a pull request that fixes tests, without waiting for maintainer approval,
+once each test it claims to fix failed before the change and passes after it
+(a skipped or deleted test has not passed). Run `monitor-ci`'s poll on the exact
+head to a terminal result. If that result is red only because other tests fail,
+merge the verified fix for its subset; handle the other failures separately.
+Pull requests run only the nightly tests they edit, so run the claimed ones
+yourself. GitHub's applying merge rules still govern the merge.
+
+Merge a fix that is correct but incomplete, and open an issue for what it leaves.
 
 ## A red `ci` on main is live
 
-Pull requests run the everyday and website-worker gates; main runs the complete
-suite once, alongside its runtime, browser-framework and bundle gates. A red `ci`
+Pull requests run the broad selection and the website-worker gate; main runs the
+complete suite once, alongside its runtime, browser-framework and bundle gates. A red `ci`
 on main affects whoever pulls next, so treat it as live. Main holds one complete-suite slot and a newer commit
 replaces the one waiting, which GitHub records as a cancelled run whose `test`
 job has no runner (`runner_id` 0); that is not a regression. A `test` that

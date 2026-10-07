@@ -100,6 +100,6 @@
     "x-shadow": true,
     "x-thread-surface": true,
     "x-height": true,
-    "x-example": "<lf-diff id=\"mount-diff\" data-height=\"201\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,2 +1,2 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre></lf-diff>"
+    "x-example": "<lf-diff id=\"mount-diff\" data-height=\"169\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,2 +1,2 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre></lf-diff>"
   }
 }

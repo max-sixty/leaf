@@ -453,6 +453,7 @@ export function createHintSession({
 
   return {
     arm,
+    armed: () => armed,
     backOneLetter,
     candidates: () => candidates,
     choose: () => take(hinted()[at]),

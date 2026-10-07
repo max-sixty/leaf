@@ -9,13 +9,22 @@ import click
 from leaf.files import read_json
 
 
+def prepaint_markup(registry, tag: str) -> str | None:
+    """The markup a widget's first paint shows (`x-prepaint`): its own, or that of the
+    widget it names with `as`, which validation holds to one that declares markup."""
+    declared = registry.get(tag, {}).get("x-prepaint")
+    if isinstance(declared, dict):
+        declared = registry[declared["as"]]["x-prepaint"]
+    return declared
+
+
 def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
     """What the layer asks of the agent for one delivered event, read off the
     vendored `$events`: the event kind's `handling` clauses, then the `answering`
     clauses of the answer it owes, each kept when its `when` schema matches.
 
     `entry` is the event record, plus the `answer` a delivery captured when the
-    event owes one, routed for the carrier delivering it (`workflows` and
+    event owes one, addressed for the route delivering it (`workflows` and
     `delivery` own those derivations), and the `thread` digest of the thread
     it belongs to (`thread_context` owns that one). A `when` can therefore read any
     of them as well as the record, so a clause states the case a delivery is in
@@ -182,12 +191,43 @@ def declares_string(field_schema) -> bool:
     return allowed == {"string"}
 
 
+def detail_schema(entry: dict, spec: dict) -> dict:
+    """The event payload contract: an effect's fixed fields or custom command data.
+
+    Recorded values use `value`; positions add `unit` and `rank`, and a report
+    declaring `update` adds required nonempty `text`. Attribute values inherit
+    the destination's exact schema. Derived schemas are readings, never inserted
+    into the registry beside the effect that owns them.
+    """
+    record = spec.get("record")
+    if record is None:
+        return spec["detail"]
+    kind = record["kind"]
+    if kind == "value":
+        value = entry["properties"][record["attr"]]
+    elif kind == "attribute":
+        value = {"type": "array", "items": {"type": "string"}, "uniqueItems": True}
+    else:
+        value = {"type": "string"}
+    properties = {"value": value}
+    if kind == "position":
+        properties.update(unit={"type": "string"}, rank={"type": "string"})
+    if spec.get("update"):
+        properties["text"] = {"type": "string", "minLength": 1}
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": list(properties),
+        "additionalProperties": False,
+    }
+
+
 def decides(spec: dict) -> bool:
     """Whether one verb is a deciding verb: its detail declares the reserved
     `outcome`, which says which retirable members leave the page (x-retired-when,
     x-withdrawn-as). The browser reads the answer from `$decisions`
     (`registry.contract.stamp_decisions`)."""
-    return "outcome" in spec["detail"].get("properties", {})
+    return not spec.get("record") and "outcome" in spec["detail"].get("properties", {})
 
 
 def deciding_verbs(entry: dict) -> list[str]:

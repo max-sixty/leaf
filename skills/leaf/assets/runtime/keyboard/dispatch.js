@@ -73,11 +73,10 @@
    purpose, and a user who pressed away into the page is not asking to be moved to the
    control they pressed away from.
 
-   When Leaf handles a binding that promises a visible control's activation, its command
-   path calls that control's `click()`; it does not call the handler or reproduce its
-   result. A platform-native press stays native. Arrival may focus or reveal the control
-   before activation. Modality checks belong only to gesture guards before activation,
-   such as refusing the mouseup that ends a text-selection drag. */
+   A declared native button's click and keyboard route invoke the same semantic `run`.
+   Native inputs and links retain their platform activation. Arrival may focus or reveal
+   a control before activation. Modality checks belong only to gesture guards before
+   activation, such as refusing the mouseup that ends a text-selection drag. */
 import {
   answers,
   bindings,
@@ -88,6 +87,7 @@ import {
   commandRoutes,
   live,
   routedCommand,
+  referencedCommandEntry,
   spell,
   word,
 } from "./bindings.js";
@@ -307,15 +307,9 @@ export const shadow = () => {
 // an intrinsic key press. The source scope need not be where focus stands: that is the
 // point of an ancestor projection such as Ask.
 function referencedInvocation(reference) {
-  if (!reference?.source?.isConnected) return null;
-  if (!scopesAt(reference.source).includes(reference.scope)) return null;
-  if (!pageHas(reference.scope) || !reference.scope.rows.includes(reference.row))
-    return null;
-  if (!live(reference.row)) return null;
-  const current = commandEntries(reference.row, allBindings(reference.row)).find(
-    ({ id, binding }) => id === reference.id && (binding ?? null) === reference.binding,
-  );
-  if (!current) return null;
+  if (!reference) return null;
+  const current = referencedCommandEntry(reference);
+  if (!current || !scopesAt(reference.source).includes(reference.scope)) return null;
   const run = reference.row.run
     ? () => reference.row.run(reference.binding ?? undefined)
     : current.route
@@ -340,10 +334,11 @@ function invocationFor(row, binding, command, recovered = null) {
   if (!current) return null;
   const reference = routedCommand(current.route);
   if (reference) return referencedInvocation(reference);
+  const nativeControl = recovered ?? word(current.route?.control ?? row.control);
   const run = row.run
     ? () => row.run(current.route?.binding ?? binding)
-    : recovered
-      ? () => recovered.click()
+    : nativeControl?.isConnected
+      ? () => nativeControl.click()
       : null;
   return run
     ? { id: command?.id ?? row.id, row, binding, run, native: Boolean(row.native) }
@@ -377,7 +372,7 @@ export function lineOwner(binding) {
       (row) =>
         bindings(row).includes(binding) &&
         !nearer.takes(binding) &&
-        live(row) &&
+        commandEntries(row, [binding]).length > 0 &&
         lineOf(row) !== false,
     );
     if (owners.length > 1)

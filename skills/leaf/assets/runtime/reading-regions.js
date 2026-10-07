@@ -25,11 +25,11 @@
    return null bounds. Cleanup removes live DOM bindings, so a replacement can reclaim an
    id. */
 import { sizeObserver } from "./rendering.js";
-import { shownRect } from "./geometry.js";
+import { shownRect, skipped } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, upFrom } from "./shadow.js";
-import { deepFocus } from "./focus.js";
+import { deepFocus, onStanding } from "./focus.js";
 
 const regions = new Map();
 const transitionWatchers = new Set();
@@ -42,11 +42,12 @@ const depthOf = (node) => {
 
 const live = (region) => region?.host?.isConnected && region.body?.isConnected;
 
-const hidden = (region) =>
-  !live(region) ||
+const concealed = (region) =>
   region.host.hidden ||
-  region.host.closest?.("[hidden], [aria-hidden='true']") !== null ||
-  shownRect(region.host, new Map()) === null;
+  region.host.closest?.("[hidden], [aria-hidden='true']") !== null;
+
+const hidden = (region) =>
+  !live(region) || concealed(region) || shownRect(region.host, new Map()) === null;
 
 const regionRecord = (region) => ({
   id: region.id,
@@ -110,6 +111,13 @@ export const readingRegion = (id) => {
 export const readingRegions = () =>
   [...regions.values()].filter(live).map(regionRecord);
 
+// Keep a region in the inventory while an authored disclosure or tab conceals it,
+// but never ask its geometry merely to decide whether to sample it.
+export const unconcealedReadingRegions = () =>
+  [...regions.values()]
+    .filter((region) => live(region) && !concealed(region) && !skipped(region.body))
+    .map(regionRecord);
+
 export const readingRegionFor = (node) => {
   const region = [...regions.values()]
     .filter((candidate) => live(candidate) && under(node, candidate.host))
@@ -128,23 +136,60 @@ export const readingRegionFor = (node) => {
 // (`releaseFocus`) or a press on nothing puts the user. Anything in the chrome names
 // nothing new, so opening a menu leaves the pane the user was reading as the answer.
 // A key press is not among them: its target is where focus already stands, which
-// arrived by `focusin`, or the body, which is where a click on words leaves it.
+// arrived as a change where the user stands (focus.js, `onStanding`), or the body,
+// which is where a click on words leaves it.
+//
+// The page's own answer is kept apart from a surface's. A region in the chrome, such as
+// the Threads list, answers while it shows; once it has closed, the user is back in the
+// page region they acted in last (`pageReadingRegion`), which a surface opened on top of
+// it never replaced. A landing in the document asks the page's answer alone, since a
+// surface is no part of the document it lands in.
 let recentRegionId = null;
+let pageRegionId = null;
+// Chrome can focus body between pointerdown on unfocusable words and pointerup.
+// That focus belongs to the same press; pointerdown has already named its place.
+let pressing = false;
 const pageRoot = () => document.querySelector("body > main");
-const actedIn = (event) => {
-  const at = event.composedPath()[0];
+const actedAt = (at, arriving) => {
   const region = readingRegionFor(at);
-  if (region) recentRegionId = region.id;
-  else if (at === document.body || under(at, pageRoot())) recentRegionId = null;
+  if (region) {
+    recentRegionId = region.id;
+    if (under(region.host, pageRoot())) pageRegionId = region.id;
+  } else if (
+    (at === document.body || under(at, pageRoot())) &&
+    !(arriving && at === document.body && pressing)
+  )
+    recentRegionId = pageRegionId = null;
 };
-for (const type of ["pointerdown", "wheel", "touchstart", "focusin"])
-  addEventListener(type, actedIn, { capture: true, passive: true });
+for (const type of ["pointerdown", "wheel", "touchstart"])
+  addEventListener(
+    type,
+    (event) => {
+      if (type === "pointerdown") pressing = true;
+      actedAt(event.composedPath()[0], false);
+    },
+    { capture: true, passive: true },
+  );
+// An arrival, by whatever route, a move inside a widget's shadow tree included.
+onStanding((node) => {
+  if (node) actedAt(node, true);
+});
+for (const type of ["pointerup", "pointercancel"])
+  addEventListener(type, () => (pressing = false), { capture: true });
 export const recentReadingRegion = () => readingRegion(recentRegionId);
+// A region hidden from layout — a closed panel's list, a pane in a tab not shown — is not
+// where the user reads. One scrolled out of the window still is.
+const shown = (region) => (region?.host.checkVisibility() ? region : undefined);
+export const pageReadingRegion = () => {
+  const at = deepFocus();
+  if (under(at, pageRoot())) return readingRegionFor(at);
+  return shown(readingRegion(pageRegionId));
+};
 export const userReadingRegion = () => {
   const at = deepFocus();
   const region = readingRegionFor(at);
   if (region || under(at, pageRoot())) return region;
-  return recentReadingRegion();
+  return shown(recentReadingRegion()) ?? pageReadingRegion();
 };
 
 // The deepest region whose body actually contains this node. A region's host includes

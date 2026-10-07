@@ -249,15 +249,21 @@ export function keyBadgePlacement() {
         [corner.right, corner.top],
         [corner.left, corner.bottom],
         [corner.right, corner.bottom],
-      ].map(
-        ([x, y]) =>
-          new DOMRect(
-            clamp(start.left + x - corner.left, 0, right - start.width),
-            clamp(start.top + y - corner.top, covered, bottom - start.height),
-            start.width,
-            start.height,
-          ),
-      );
+      ].map(([x, y]) => {
+        const left = start.left + x - corner.left;
+        const top = start.top + y - corner.top;
+        const place = new DOMRect(
+          clamp(left, 0, right - start.width),
+          clamp(top, covered, bottom - start.height),
+          start.width,
+          start.height,
+        );
+        // Pulled down below the banner or up above the window's foot, the chip is held
+        // by that edge rather than by its control's corner. The page never scrolls
+        // sideways, so a chip pulled in at a side still rides the scroll.
+        place.held = Math.abs(place.top - top) >= 0.5;
+        return place;
+      });
       const box =
         places.find((place) => free(place) && !coversAnotherControl(place, owner)) ??
         places[0];
@@ -266,7 +272,12 @@ export function keyBadgePlacement() {
         continue;
       }
       chip.style.removeProperty("visibility");
-      placeChip(chip, at.left + box.left - start.left, at.top + box.top - start.top);
+      placeChip(
+        chip,
+        at.left + box.left - start.left,
+        at.top + box.top - start.top,
+        box.held,
+      );
     }
   }
 

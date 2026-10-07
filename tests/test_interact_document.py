@@ -31,10 +31,10 @@ from interact_support import (
     _board,
     _decided,
     _report,
-    _status,
     _tasks_version,
     append_carried_log_record,
     append_command,
+    asks_on_you,
     before_choice,
     check,
     comment,
@@ -295,11 +295,11 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     assert restamped.digest != revendored.digest
     assert restamped.executable == revendored.executable
 
-    # Vendoring writes that epoch into `runtime/layer-client.js`, which every
+    # Vendoring writes that epoch into `runtime/layer-generation.js`, which every
     # document evaluates, so a real re-vendor reaches the digest through the
     # module rather than through the stamp beside it.
     files_model.replace_files(
-        [(page_dir / "runtime" / "layer-client.js", b"// re-vendored epoch", False)]
+        [(page_dir / "runtime" / "layer-generation.js", b"// re-vendored epoch", False)]
     )
     reissued = activate()
     assert reissued.executable != restamped.executable
@@ -701,7 +701,7 @@ def test_undoing_one_cards_move_leaves_the_other_cards_order(page_dir):
                 "revision": 1,
                 "widget": "b1",
                 "action": "move",
-                "detail": {"card": card, "to": "c-todo", "rank": rank},
+                "detail": {"unit": card, "value": "c-todo", "rank": rank},
             },
         )
         # The ranks lf-board sends: d before a's "1", then c between d and a.
@@ -752,7 +752,11 @@ def test_the_position_fold_matches_the_browser_cases(case):
         ("board", move["card"], "move"): (
             {
                 "seq": seq,
-                "detail": {key: move[key] for key in ("card", "to", "rank")},
+                "detail": {
+                    "unit": move["card"],
+                    "value": move["to"],
+                    "rank": move["rank"],
+                },
                 # A move is absorbed where the markup authors its container unlike
                 # the units it was made among.
                 "meaning": {"among": []} if move.get("absorbed") else {},
@@ -813,7 +817,7 @@ def _move(page_dir, card, to, rank, revision=1):
             "revision": revision,
             "widget": "b1",
             "action": "move",
-            "detail": {"card": card, "to": to, "rank": rank},
+            "detail": {"unit": card, "value": to, "rank": rank},
         },
     )
 
@@ -1005,10 +1009,14 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
     publish(page_dir)
     actions = [
         ("g1", "add", {"option": "o-user", "text": "Try a canary."}),
-        ("g1", "choose", {"options": ["o-user"]}),
-        ("summary", "edit", {"text": "  Ship after migration.\n\nKeep  two spaces.\n"}),
-        ("b1", "move", {"card": "card-y", "to": "c-done", "rank": "i"}),
-        ("b1", "move", {"card": "card-x", "to": "c-done", "rank": "9"}),
+        ("g1", "choose", {"value": ["o-user"]}),
+        (
+            "summary",
+            "edit",
+            {"value": "  Ship after migration.\n\nKeep  two spaces.\n"},
+        ),
+        ("b1", "move", {"unit": "card-y", "value": "c-done", "rank": "i"}),
+        ("b1", "move", {"unit": "card-x", "value": "c-done", "rank": "9"}),
     ]
     for widget, action, detail in actions:
         append_command(
@@ -1105,7 +1113,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
             "revision": 1,
             "widget": "frozen",
             "action": "choose",
-            "detail": {"options": ["second"]},
+            "detail": {"value": ["second"]},
         },
     )
     runner = CliRunner()
@@ -1127,6 +1135,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
     drawing = {
         "format": "leaf-drawing/2",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
+        "box": [640.5, 96],
         "viewport": [1200, 900],
         "scheme": "light",
     }
@@ -2262,7 +2271,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
 
 def test_inferred_reply_attempt_is_idempotent(page_dir):
     """An attempt is an opaque durable key, and the append door holds every
-    writer to the record contract's shape for one — the delivery carriers mint
+    writer to the record contract's shape for one — the delivery transports mint
     theirs from a digest, so a short hand-written label is not a retry key."""
     attempt = "retry-inferred-reply-1"
     comment = append_carried_log_record(
@@ -2561,7 +2570,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "revision": files_model.latest_revision(page_dir),
             "widget": "g1",
             "action": "choose",
-            "detail": {"options": ["o-shim"]},
+            "detail": {"value": ["o-shim"]},
         },
     )
     runner = CliRunner()
@@ -2614,7 +2623,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "revision": files_model.latest_revision(page_dir),
             "widget": "t-store",
             "action": "choose",
-            "detail": {"options": ["t-sqlite"]},
+            "detail": {"value": ["t-sqlite"]},
         },
     )
     undone = append_carried_log_record(
@@ -2624,14 +2633,15 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         read = run("page", "state", name)
         assert read.exit_code == 0, read.output
         assert json.loads(read.output)["thread"]["id"] == opened["id"]
-    claimed = runner.invoke(
+    opened_task = runner.invoke(
         cli_model.cli,
-        ["status", str(page_dir), "working", "weighing it", "--on", "t-ask"],
+        ["task", "open", str(page_dir), "t-ask", "Weigh it"],
     )
-    assert claimed.exit_code == 0, claimed.output
-    assert [claim["subject"] for claim in json.loads(claimed.output)["work"]] == [
-        {"kind": "thread", "id": opened["id"]}
-    ]
+    assert opened_task.exit_code == 0, opened_task.output
+    assert json.loads(opened_task.output)["subject"] == {
+        "kind": "thread",
+        "id": opened["id"],
+    }
 
     not_a_thread = run("thread", "resolve", "g1")
     assert not_a_thread.exit_code != 0
@@ -2665,7 +2675,7 @@ def test_an_id_held_twice_is_refused_for_both_reasons_at_once(page_dir):
             "revision": files_model.latest_revision(page_dir),
             "widget": "g1",
             "action": "choose",
-            "detail": {"options": ["o-shim"]},
+            "detail": {"value": ["o-shim"]},
         },
     )
     append_carried_log_record(
@@ -2704,7 +2714,7 @@ def test_an_answered_ask_moves_into_a_collapsed_section_with_its_pick_standing(
             "revision": files_model.latest_revision(page_dir),
             "widget": "g1",
             "action": "choose",
-            "detail": {"options": ["o-shim"]},
+            "detail": {"value": ["o-shim"]},
         },
     )
 
@@ -2820,7 +2830,7 @@ def test_a_standing_action_protects_its_fold_unit_until_undone(page_dir):
             "revision": files_model.latest_revision(page_dir),
             "widget": "b1",
             "action": "move",
-            "detail": {"card": "card-x", "to": "c-done", "rank": "0i"},
+            "detail": {"unit": "card-x", "value": "c-done", "rank": "0i"},
         },
     )
     write([])
@@ -2844,14 +2854,8 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
     registry["lf-card"]["properties"]["flagged"] = {"type": "boolean"}
     registry["lf-board"]["x-state"]["flag"] = {
         "writer": "agent",
-        "detail": {
-            "type": "object",
-            "properties": {"cards": {"type": "array", "items": {"type": "string"}}},
-            "required": ["cards"],
-            "additionalProperties": False,
-        },
         "unit": "widget",
-        "record": {"kind": "attribute", "attr": "flagged", "value": "cards"},
+        "record": {"kind": "attribute", "attr": "flagged"},
     }
     registry_path.write_text(json.dumps(registry))
 
@@ -2864,7 +2868,7 @@ def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
                 "revision": files_model.latest_revision(page_dir),
                 "widget": "b1",
                 "action": "flag",
-                "detail": {"cards": cards},
+                "detail": {"value": cards},
             },
         )
 
@@ -2963,7 +2967,7 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     )
     activation = revisioning_model.activate_source(page_dir)
     assert activation.error is None and activation.revision == 1
-    draft_report = _report(page_dir, "t-parser", "status", "status=review")
+    draft_report = _report(page_dir, "t-parser", "status", "value=review")
     assert draft_report.exit_code == 0, draft_report.output
 
     publish(page_dir)
@@ -2975,16 +2979,16 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
         ]
     )
     for args, message in [
-        (("nope", "status", "status=review"), "unknown report widget"),
-        (("tree", "status", "status=review"), "does not declare report verb"),
-        (("t-parser", "finish", "status=done"), "does not declare report verb"),
+        (("nope", "status", "value=review"), "unknown report widget"),
+        (("tree", "status", "value=review"), "does not declare report verb"),
+        (("t-parser", "finish", "value=done"), "does not declare report verb"),
         (
             ("choice", "choose", "option=flag-first"),
             "'choose' is a verb the user writes; this report came from the agent",
         ),
-        (("t-parser", "status", "status=shipping"), "detail is invalid"),
+        (("t-parser", "status", "value=shipping"), "detail is invalid"),
         (("t-parser", "status", "status"), "name=value"),
-        (("t-parser", "status"), "'status' is a required property"),
+        (("t-parser", "status"), "'value' is a required property"),
     ]:
         refused = _report(page_dir, *args)
         assert refused.exit_code == 1, args
@@ -3002,18 +3006,18 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
-    sent = _report(page_dir, "t-parser", "status", "status=review")
+    sent = _report(page_dir, "t-parser", "status", "value=review")
     assert sent.exit_code == 0, sent.output
     event = events_model.read_events(page_dir)[-1]
     assert event["kind"] == "report" and event["author"] == "agent"
     assert (event["agent"], event["session"]) == ("Indexer", "worker-1")
     assert event["widget"] == "t-parser" and event["action"] == "status"
-    assert event["detail"] == {"status": "review"} and event["revision"] == 1
+    assert event["detail"] == {"value": "review"} and event["revision"] == 1
 
     # A call prints the event it appended, whose coordinate is the one it moved.
     named = CliRunner().invoke(
         cli_model.cli,
-        ["page", "report", str(page_dir), "t-parser", "status", "status=done"],
+        ["page", "report", str(page_dir), "t-parser", "status", "value=done"],
     )
     assert named.exit_code == 0, named.output
     printed = json.loads(named.output)
@@ -3029,7 +3033,7 @@ def test_a_version_may_not_quietly_contradict_a_standing_report(page_dir):
     news without anyone adjudicating it."""
     _tasks_version(page_dir, "active")
     publish(page_dir)
-    assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
+    assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
 
     # Unchanged markup leaves the report provisional without a copying warning.
     _tasks_version(page_dir, "active")
@@ -3077,13 +3081,15 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     _tasks_version(page_dir, "active")
     add_board()
     assert stamp(page_dir, "cut").exit_code == 0
-    sent = _report(page_dir, "t-parser", "status", "status=review")
+    sent = _report(page_dir, "t-parser", "status", "value=review")
     assert sent.exit_code == 0
     report_id = json.loads(sent.output)["id"]
-    claimed = _status(
-        page_dir, "working", "checking the rollout", "--on", "rollout-card"
+    opened = CliRunner().invoke(
+        cli_model.cli,
+        ["task", "open", str(page_dir), "rollout-card", "Check the rollout"],
     )
-    assert claimed.exit_code == 0, claimed.output
+    assert opened.exit_code == 0, opened.output
+    task = json.loads(opened.output)
 
     _tasks_version(page_dir, "review")
     add_board()
@@ -3092,7 +3098,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     note = [e for e in events_model.read_events(page_dir) if e["kind"] == "note"][-1]
     assert note["settles"] == [
         {"kind": "report", "id": report_id},
-        {"kind": "work", "id": "rollout-card"},
+        {"kind": "task", "id": task["id"]},
     ]
 
     # The report ended at v2, so v3 owes it nothing.
@@ -3109,7 +3115,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
 
     # Reusing older source creates a new revision and the next public stamp. If
     # those current bytes state the reported value, that new stamp absorbs it.
-    sent = _report(page_dir, "t-parser", "status", "status=review")
+    sent = _report(page_dir, "t-parser", "status", "value=review")
     assert sent.exit_code == 0, sent.output
     future_report = json.loads(sent.output)["id"]
     _tasks_version(page_dir, "review")
@@ -3137,7 +3143,9 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     def held_append_record(page, event):
         if event.get("kind") == "note" and event.get("version") == 2:
             at_commit.set()
-            assert resume.wait(timeout=10), "the report did not enter the publish gap"
+            assert resume.wait(timeout=STATED_TIMEOUT), (
+                "the report did not enter the publish gap"
+            )
         return original_append_record(page, event)
 
     monkeypatch.setattr(
@@ -3145,14 +3153,16 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     )
     with ThreadPoolExecutor(max_workers=2) as executor:
         publishing = executor.submit(publishing_model.cmd_stamp, page_dir, "absorb")
-        assert at_commit.wait(timeout=10), "publish never reached its note commit"
+        assert at_commit.wait(timeout=STATED_TIMEOUT), (
+            "publish never reached its note commit"
+        )
         serialized = leases_model.lock_is_held(page_dir / "events.jsonl")
         reporting = executor.submit(
             thread_model.cmd_report,
             page_dir,
             "t-parser",
             "status",
-            ("status=review",),
+            ("value=review",),
         )
         # This branch only prevents the test harness from deadlocking in the
         # correct implementation: a transaction-holding publish must finish
@@ -3160,12 +3170,12 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
         # lets the report finish first and exposes the inconsistent order.
         if serialized:
             resume.set()
-            publishing.result(timeout=10)
-            reporting.result(timeout=10)
+            publishing.result(timeout=STATED_TIMEOUT)
+            reporting.result(timeout=STATED_TIMEOUT)
         else:
-            reporting.result(timeout=10)
+            reporting.result(timeout=STATED_TIMEOUT)
             resume.set()
-            publishing.result(timeout=10)
+            publishing.result(timeout=STATED_TIMEOUT)
 
     events = events_model.read_events(page_dir)
     report = [event for event in events if event["kind"] == "report"][-1]
@@ -3183,7 +3193,7 @@ def test_absorption_is_by_id_never_inferred_from_markup(page_dir):
     the report die silently."""
     _tasks_version(page_dir, "active")
     publish(page_dir)
-    assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
+    assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
     _tasks_version(page_dir, "review")
     publish(page_dir, version=2)  # a bare note: honoring markup, nothing named
 
@@ -3207,7 +3217,7 @@ def test_an_unearned_overruled_is_refused(page_dir):
     assert "nothing to overrule" in result.output
 
     # Standing, but the markup writes the reported state: that is absorption.
-    assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
+    assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
     _tasks_version(page_dir, "review", " overruled")
     result = check(page_dir)
     assert result.exit_code == 1
@@ -3218,7 +3228,7 @@ def test_an_effective_report_protects_its_unit_until_a_stamp_settles_it(page_dir
     """An effective report keeps its unit addressable until a stamp settles it."""
     _tasks_version(page_dir, "active")
     publish(page_dir)
-    assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
+    assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
 
     (page_dir / "index.html").write_text(PAGE)
     standing = check(page_dir)
@@ -3262,7 +3272,7 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
             "revision": 1,
             "widget": "b1",
             "action": "move",
-            "detail": {"card": "card-x", "to": "c-done", "rank": "0i"},
+            "detail": {"unit": "card-x", "value": "c-done", "rank": "0i"},
         },
     )
     assert check(page_dir).exit_code == 0
@@ -3348,7 +3358,7 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
             "revision": 1,
             "widget": "g1",
             "action": "choose",
-            "detail": {"options": ["o-shim"]},
+            "detail": {"value": ["o-shim"]},
         },
     )
     assert check(page_dir).exit_code == 0
@@ -3389,7 +3399,7 @@ def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
             "revision": 1,
             "widget": "g1",
             "action": "choose",
-            "detail": {"options": ["o-stage"]},
+            "detail": {"value": ["o-stage"]},
         },
     )
     write(b=" chosen", shim="The shim now has a bounded removal date.")
@@ -3444,7 +3454,7 @@ def test_a_later_pick_keeps_a_user_added_option_live(page_dir):
                 "revision": 1,
                 "widget": "g1",
                 "action": "choose",
-                "detail": {"options": options},
+                "detail": {"value": options},
             },
         )
 
@@ -3454,7 +3464,7 @@ def test_a_later_pick_keeps_a_user_added_option_live(page_dir):
     }
     assert standing == {
         "add": {"option": added, "text": "Use the user's _route_."},
-        "choose": {"options": ["o-stage"]},
+        "choose": {"value": ["o-stage"]},
     }
     write(added_words=None)
     unchanged = check(page_dir)
@@ -3548,7 +3558,7 @@ def test_user_added_words_do_not_become_liveness_coordinates(page_dir):
             "revision": 1,
             "widget": "g1",
             "action": "choose",
-            "detail": {"options": ["o-stage"]},
+            "detail": {"value": ["o-stage"]},
         },
     )
 
@@ -3586,7 +3596,7 @@ def test_a_cleared_pick_rests_on_the_group_that_holds_it(page_dir):
             "revision": 1,
             "widget": "g1",
             "action": "choose",
-            "detail": {"options": []},
+            "detail": {"value": []},
         },
     )
     write(shim="Fastest to ship, and we own the shim forever.")
@@ -3629,7 +3639,7 @@ def test_a_version_may_not_quietly_move_the_pick(page_dir):
             "revision": 1,
             "widget": "g1",
             "action": "choose",
-            "detail": {"options": ["o-shim"]},
+            "detail": {"value": ["o-shim"]},
         },
     )
 
@@ -3681,7 +3691,7 @@ def test_user_state_survives_without_source_copying(page_dir):
             "revision": 1,
             "widget": "g1",
             "action": "choose",
-            "detail": {"options": ["o-shim"]},
+            "detail": {"value": ["o-shim"]},
         },
     )
     write()
@@ -3689,8 +3699,8 @@ def test_user_state_survives_without_source_copying(page_dir):
     assert result.exit_code == 0
     assert "record behind the log" not in result.output
     state = state_json(page_dir)
-    assert state["state"][0]["detail"] == {"options": ["o-shim"]}
-    assert state["asks"] == []
+    assert state["state"][0]["detail"] == {"value": ["o-shim"]}
+    assert asks_on_you(state) == []
 
     # Explicit incorporation is permitted but unnecessary for correctness.
     write(a=" chosen")
@@ -3794,7 +3804,7 @@ def test_file_state_scopes_a_nested_pick_to_its_nearest_recorded_owner(page_dir)
             "revision": 1,
             "widget": "outer",
             "action": "choose",
-            "detail": {"options": ["outer-a"]},
+            "detail": {"value": ["outer-a"]},
         },
     )
 
@@ -3830,12 +3840,12 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
     # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The ask
     # names the region the user is sent to and the group that answers it.
-    assert state["asks"] == [
+    assert asks_on_you(state) == [
         {
             "id": "g1-decision",
             "tag": "lf-ask",
-            "source": "g1",
-            "source_tag": "lf-options",
+            "widget": "g1",
+            "widget_tag": "lf-options",
             "thread": None,
         }
     ]
@@ -3850,22 +3860,22 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             "revision": 1,
             "widget": "g1",
             "action": "choose",
-            "detail": {"options": ["o-shim"]},
+            "detail": {"value": ["o-shim"]},
         },
     )
     state = state_json(page_dir)
-    assert state["asks"] == []
+    assert asks_on_you(state) == []
     assert state["state"] == [
         {
             "widget": "g1",
             "unit": "g1",
             "action": "choose",
-            "detail": {"options": ["o-shim"]},
+            "detail": {"value": ["o-shim"]},
             "revision": 1,
             "seq": 2,
             # On every entry, and null for a page widget: the key names which of the
-            # page's two documents the decision was made in, and `asks` above has
-            # carried it exactly this way all along.
+            # page's two documents the decision was made in, as each task's `thread`
+            # does.
             "thread": None,
         }
     ]
@@ -4557,12 +4567,12 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
     publish(page_dir)
 
     state = state_json(page_dir)
-    assert state["asks"] == [
+    assert asks_on_you(state) == [
         {
             "id": "plan-decision",
             "tag": "lf-ask",
-            "source": "g1",
-            "source_tag": "lf-options",
+            "widget": "g1",
+            "widget_tag": "lf-options",
             "thread": None,
         },
     ]
@@ -4575,11 +4585,11 @@ def test_page_state_names_the_ask_region_but_keeps_state_on_its_request(page_dir
             "revision": 1,
             "widget": "g1",
             "action": "choose",
-            "detail": {"options": ["o-shim"]},
+            "detail": {"value": ["o-shim"]},
         },
     )
     state = state_json(page_dir)
-    assert state["asks"] == []
+    assert asks_on_you(state) == []
     assert state["state"][0]["widget"] == "g1"
 
 
@@ -4591,7 +4601,7 @@ def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
     publish(page_dir)
-    assert state_json(page_dir)["asks"] == []
+    assert asks_on_you(state_json(page_dir)) == []
 
 
 def test_page_state_keeps_thread_history_out_of_its_current_reading(page_dir):
@@ -4691,7 +4701,7 @@ def test_a_reader_that_closes_the_pipe_ends_page_events_quietly(page_dir):
             shell=True,
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=STATED_TIMEOUT,
             check=True,
         )
         assert json.loads(piped.stdout)["seq"] == 1
@@ -4734,7 +4744,7 @@ def test_events_follow_prints_each_admitted_event_as_it_lands(page_dir, spawn):
     standing = events_model.read_events(page_dir)
     assert [follower.next() for _ in standing] == standing
 
-    reported = _report(page_dir, "t-parser", "status", "status=review")
+    reported = _report(page_dir, "t-parser", "status", "value=review")
     assert reported.exit_code == 0, reported.output
     opened = comment(page_dir, "--text", "Is review the right stage?")
     assert opened.exit_code == 0, opened.output
@@ -4841,12 +4851,12 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
             "</lf-options></lf-ask>",
         },
     )
-    assert state_json(page_dir)["asks"] == [
+    assert asks_on_you(state_json(page_dir)) == [
         {
             "id": "gm-decision",
             "tag": "lf-ask",
-            "source": "gm",
-            "source_tag": "lf-options",
+            "widget": "gm",
+            "widget_tag": "lf-options",
             "thread": root["id"],
         },
     ]
@@ -4858,15 +4868,15 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
             "revision": 1,
             "widget": "gm",
             "action": "choose",
-            "detail": {"options": ["m-cap"]},
+            "detail": {"value": ["m-cap"]},
         },
     )
-    assert state_json(page_dir)["asks"] == [
+    assert asks_on_you(state_json(page_dir)) == [
         {
             "id": "gm-decision",
             "tag": "lf-ask",
-            "source": "gm",
-            "source_tag": "lf-options",
+            "widget": "gm",
+            "widget_tag": "lf-options",
             "thread": root["id"],
         },
     ]
@@ -4881,7 +4891,7 @@ def test_page_state_holds_a_thread_ask_open_until_its_verb(page_dir):
             "detail": {},
         },
     )
-    assert state_json(page_dir)["asks"] == []
+    assert asks_on_you(state_json(page_dir)) == []
 
 
 def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
@@ -4911,19 +4921,19 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
     )
     publish(page_dir)
 
-    assert state_json(page_dir)["asks"] == [
+    assert asks_on_you(state_json(page_dir)) == [
         {
             "id": "future-decision",
             "tag": "lf-ask",
-            "source": "future-review",
-            "source_tag": "lf-options",
+            "widget": "future-review",
+            "widget_tag": "lf-options",
             "thread": None,
         },
         {
             "id": "decision-decision",
             "tag": "lf-ask",
-            "source": "decision-options",
-            "source_tag": "lf-options",
+            "widget": "decision-options",
+            "widget_tag": "lf-options",
             "thread": None,
         },
     ]
@@ -4941,7 +4951,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + tasks)
     )
     publish(page_dir)
-    assert state_json(page_dir)["asks"] == []
+    assert asks_on_you(state_json(page_dir)) == []
     rep = append_command(
         page_dir,
         {
@@ -4951,18 +4961,18 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "revision": 1,
             "widget": "t-parser",
             "action": "status",
-            "detail": {"status": "done"},
+            "detail": {"value": "done"},
         },
     )
     state = state_json(page_dir)
-    assert state["asks"] == []
+    assert asks_on_you(state) == []
     assert state["updates"] == [
         {
             "id": rep["id"],
             "target": {"kind": "widget", "id": "t-parser"},
             "source": "report",
             "action": "status",
-            "detail": {"status": "done"},
+            "detail": {"value": "done"},
             "text": None,
             "ts": rep["ts"],
             "revision": 1,
@@ -5001,7 +5011,7 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "target": {"kind": "widget", "id": "t-parser"},
             "source": "report",
             "action": "status",
-            "detail": {"status": "done"},
+            "detail": {"value": "done"},
             "text": None,
             "ts": rep["ts"],
             "revision": 1,
@@ -5011,12 +5021,12 @@ def test_page_state_carries_a_report_until_a_version_answers_it(page_dir):
             "disposition": "settled",
         }
     ]
-    assert state["asks"] == []
+    assert asks_on_you(state) == []
 
 
 def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
-    """A claim sits after the log floor it observed and before the next event.
-    Equal second-precision timestamps cannot reverse that known causal order."""
+    """Reports are ordered by the log, so equal second-precision timestamps cannot
+    reverse their known causal order."""
     task = (
         '<lf-tasks id="work"><lf-task id="t-parser" status="review">'
         "<strong>Parser</strong></lf-task></lf-tasks>"
@@ -5035,15 +5045,9 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
             "revision": 1,
             "widget": "t-parser",
             "action": "status",
-            "detail": {"status": "done"},
+            "detail": {"value": "done"},
         },
     )
-    thread = append_carried_log_record(
-        page_dir,
-        {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
-    )
-    assert _status(page_dir, "working", "checking", "--on", thread["id"]).exit_code == 0
-    claim_id = files_model.read_json(page_dir / "status.json")["work"][0]["id"]
     second = append_command(
         page_dir,
         {
@@ -5052,14 +5056,13 @@ def test_update_feed_orders_clock_ties_by_log_causality(page_dir, monkeypatch):
             "revision": 1,
             "widget": "t-parser",
             "action": "status",
-            "detail": {"status": "done"},
+            "detail": {"value": "done"},
         },
     )
 
     updates = state_json(page_dir)["updates"]
     assert [(update["source"], update["id"]) for update in updates] == [
         ("report", first["id"]),
-        ("claim", claim_id),
         ("report", second["id"]),
     ]
 
@@ -5071,7 +5074,7 @@ def test_page_state_before_first_stamp(page_dir):
     assert state["active"]["revision"] == 1
     assert state["active"]["version"] is None
     assert state["active"]["label"] == "Draft"
-    assert state["elements"] and state["asks"] == []
+    assert state["elements"] and asks_on_you(state) == []
     assert state["title"] == "t"
 
 
@@ -5131,12 +5134,12 @@ def test_a_quoted_ask_does_not_hide_a_real_request_in_the_same_goal(page_dir):
         PAGE.replace("</section>", markup + "</section>")
     )
     publish(page_dir)
-    assert state_json(page_dir)["asks"] == [
+    assert asks_on_you(state_json(page_dir)) == [
         {
             "id": "real-decision",
             "tag": "lf-ask",
-            "source": "real",
-            "source_tag": "lf-options",
+            "widget": "real",
+            "widget_tag": "lf-options",
             "thread": None,
         },
     ]
@@ -5160,12 +5163,12 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
         PAGE.replace("</section>", command("active", True, "paste") + "</section>")
     )
     publish(page_dir)
-    assert state_json(page_dir)["asks"] == [
+    assert asks_on_you(state_json(page_dir)) == [
         {
             "id": "cargo",
             "tag": "lf-draft",
-            "source": "cargo",
-            "source_tag": "lf-draft",
+            "widget": "cargo",
+            "widget_tag": "lf-draft",
             "thread": None,
         },
     ]
@@ -5178,10 +5181,10 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
             "revision": 1,
             "widget": "cargo",
             "action": "edit",
-            "detail": {"text": "ledger_id,amount\n7,42"},
+            "detail": {"value": "ledger_id,amount\n7,42"},
         },
     )
-    assert state_json(page_dir)["asks"] == []
+    assert asks_on_you(state_json(page_dir)) == []
 
     (page_dir / "index.html").write_text(
         PAGE.replace(
@@ -5190,7 +5193,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
         )
     )
     publish(page_dir, 2)
-    assert state_json(page_dir)["asks"] == []
+    assert asks_on_you(state_json(page_dir)) == []
 
 
 # The colour-vision maths the series palette is stepped against, written out here because
@@ -5324,7 +5327,7 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
             "revision": initial["active"]["revision"],
             "widget": "reading-board",
             "action": "move",
-            "detail": {"card": "reading-a", "to": "reading-done", "rank": "0i"},
+            "detail": {"unit": "reading-a", "value": "reading-done", "rank": "0i"},
         },
     )
     assert folded(page_dir, "reading-board")["reading-done"] == [
@@ -5584,9 +5587,8 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "x-verbatim": True,
             "x-state": {
                 "edit": {
-                    "detail": {"type": "object"},
                     "unit": "widget",
-                    "record": {"kind": "body", "value": "text"},
+                    "record": {"kind": "body"},
                 }
             },
         }
@@ -5602,7 +5604,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "revision": 2,
             "widget": identity,
             "action": "edit",
-            "detail": {"text": text},
+            "detail": {"value": text},
             "meaning": {
                 "unit": identity,
                 "depends": [identity],

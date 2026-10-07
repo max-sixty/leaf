@@ -1,8 +1,10 @@
-"""Leaf's side of one Codex task, shared by every carrier that holds one open.
+"""Leaf's side of one Codex task, shared by every App Server client that holds
+one open.
 
-A carrier is whatever keeps a Codex task reachable on Leaf's behalf: the detached
-process in `codex_adapter.py`, which observes a task it does not own, and the
-website's embedded harness in `leaf_website` (`worker/`), which owns the tasks it starts.
+An App Server client is whatever connects to a Codex task's App Server on Leaf's
+behalf: the detached process in `codex_adapter.py`, which observes a task it does
+not own, and the website's host in `leaf_website` (`worker/`), which owns the tasks
+it starts.
 What both need is here — the App Server connection and the request shapes one Leaf
 turn is opened with, the per-turn fold from a turn's notifications into its
 activity, its reply and its ending (`TurnFold`), the loop that reads a started
@@ -10,23 +12,32 @@ turn's own connection to its end (`CarriedTurn`), the writers that put those
 readings on a claimed page, and the durable records a delivery passes through.
 
 A delivery record under the state home is the handoff between Leaf capturing a
-user's moves and a carrier taking them. One record is offered once, accepted once,
+user's moves and a transport taking them. One record is offered once, accepted once,
 and receipted per page batch, whichever transport carried it — an App Server turn or
-the `codex queue` command, or an async tool hook — so preparing, accepting, opening
-and abandoning one live here rather than beside either carrier. The immutable
+the `codex queue` command, or the tool hook — so preparing, accepting, opening
+and abandoning one live here rather than beside either client. The immutable
 payload itself belongs to `delivery`; what this module keeps is which task holds it and how far it has got.
 
 Starting a delivery's App Server turn is shared as well: `start_app_server_delivery`
 reserves the reply seat, sends `turn/start`, and says whether a failed start may have
 left a turn running. Which delivery is offered, when, and what an uncertain start
-means for the turn it may have made are each carrier's own policy: the adapter's offer
+means for the turn it may have made are each client's own policy: the adapter's offer
 loop and the website's turn follower each keep theirs.
+
+Codex's tool hook imports this module after every tool call of a task holding a page
+(`offer_hook_delivery`), so `thread`, which brings the page model and its validators,
+is imported inside the functions that write a reply or a failure onto a thread
+rather than here.
 """
 
+import atexit
 import json
+import os
 import subprocess
 import sys
+import tempfile
 import time
+from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -71,15 +82,11 @@ from .state import (
     start_session_turn,
     write_json,
 )
-from .thread import (
-    DeliveryReply,
-    answered_by_reply,
-    fail_answer,
-    release_delivery_reply,
-    reserve_delivery_reply,
-)
 
 START_TIMEOUT = 20
+# Names the App Server a task runs on to the `leaf` commands it runs, so they hand
+# its pages to that server (`private_app_server`, `leaf codex start`).
+APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
 # The `config` of a thread Leaf starts, less what Codex loads by default and no such
 # thread uses: the skills list, plugin and app suggestions, other agents, memories,
 # browser and computer use, image generation and web search. Each is context the
@@ -198,10 +205,75 @@ def stop_app_server(process: subprocess.Popen) -> None:
         process.wait(timeout=5)
 
 
+def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:
+    deadline = time.monotonic() + START_TIMEOUT
+    while time.monotonic() < deadline:
+        if path.exists():
+            return
+        if process.poll() is not None:
+            log.seek(0)
+            detail = log.read().decode(errors="replace").strip()
+            raise RuntimeError(detail or "Codex App Server exited before it was ready")
+        time.sleep(0.05)
+    raise RuntimeError("Codex App Server did not become ready")
+
+
+@contextmanager
+def private_app_server(
+    executable: str,
+    *,
+    env: dict[str, str] | None = None,
+    arguments: tuple[str, ...] = (),
+) -> Iterator[str]:
+    """Run one App Server on a Unix socket only this user can reach, and yield its
+    endpoint until the block ends or this process exits, and the server stops.
+
+    The server's environment names that endpoint as `LEAF_CODEX_APP_SERVER`, so a
+    task it runs hands its pages to this server when it serves them.
+    An eval may supply an isolated child environment without mutating this process,
+    and a caller `arguments` that follow `app-server` on its command line.
+
+    The server runs in a session of its own and never exits by itself, and a block
+    on a daemon thread, as a page server's title request is, never reaches its
+    `finally` when the process exits. So each running server is also stopped at
+    exit (`_stop_private_app_servers`), and on a SIGTERM or SIGHUP in a process that
+    turns them into an exit (`leases.release_on_termination`), as a page server
+    does. A SIGKILL leaves one running.
+    """
+    with tempfile.TemporaryDirectory(prefix="leaf-codex-", dir="/tmp") as directory:
+        path = Path(directory) / "app-server.sock"
+        endpoint = f"unix://{path}"
+        with tempfile.TemporaryFile() as log:
+            server = subprocess.Popen(
+                [executable, "app-server", "--listen", endpoint, *arguments],
+                env=(os.environ if env is None else env) | {APP_SERVER_ENV: endpoint},
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+            )
+            _private_app_servers.add(server)
+            try:
+                _wait_for_app_server(path, server, log)
+                yield endpoint
+            finally:
+                stop_app_server(server)
+                _private_app_servers.discard(server)
+
+
+_private_app_servers: set[subprocess.Popen] = set()
+
+
+@atexit.register
+def _stop_private_app_servers() -> None:
+    for server in list(_private_app_servers):
+        stop_app_server(server)
+
+
 def retry_delay(failures: int) -> int:
     """Seconds to hold off after this many consecutive failures, the first being 1.
 
-    Every carrier retries the same kinds of failure — a connection that dropped, a
+    Every client retries the same kinds of failure — a connection that dropped, a
     turn the provider refused, a delivery that could not be offered — so they hold
     off on one ladder: a second after the first, doubling to a half-minute ceiling.
     The first retry is prompt because the common failure is a provider restart that
@@ -278,7 +350,7 @@ def app_server_turn_start_params(thread_id: str, payload: dict) -> dict:
 def start_app_server_delivery(send, thread_id: str, payload: dict) -> dict:
     """Start one delivery's turn on an idle thread with its reply seat reserved.
 
-    `send(method, params)` is the carrier's request on its own connection, under
+    `send(method, params)` is the client's request on its own connection, under
     its own request ids. The task thread id is the Leaf session id. Immediately
     before the request, this boundary captures its epoch; the returned identity
     is adopted only against that epoch or its own synchronous provider prompt.
@@ -294,9 +366,11 @@ def start_app_server_delivery(send, thread_id: str, payload: dict) -> dict:
     A request that went out with no answer
     raises `AppServerDeliveryUncertain` with the seat still reserved: a turn carrying
     this delivery may be running, and until something sees it, no other writer may
-    answer for the delivery. Each carrier decides what an uncertain start means for
+    answer for the delivery. Each client decides what an uncertain start means for
     the turn it may have made.
     """
+    from .thread import release_delivery_reply, reserve_delivery_reply
+
     reply_target = stream_reply_target(payload)
     if reply_target is not None:
         reserve_delivery_reply(thread_id, payload["id"], reply_target)
@@ -407,9 +481,9 @@ def recv_notification(
 
     `socket.recv` raises `TimeoutError` every second a subscription has nothing to
     say, and a turn that is thinking or running a command says nothing for a while.
-    A carrier that gives a silence bound lets that timeout through once the quiet
+    A client that gives a silence bound lets that timeout through once the quiet
     outlasts it, which ends the turn on the same path a dropped socket takes rather
-    than waiting on it for the carrier's life. A carrier whose task can sit waiting
+    than waiting on it for the client's life. A client whose task can sit waiting
     on a person gives none: a terminal approval is silent for as long as nobody
     answers it, and the turn is still running.
     """
@@ -463,7 +537,7 @@ class AppServerEvents:
     """Fold one turn's notifications into activity and terminal readings.
 
     The turn is fixed when the fold is made, and a notification naming any other
-    turn reads as nothing: which turn a notification belongs to is the carrier's
+    turn reads as nothing: which turn a notification belongs to is the client's
     routing, not something this fold follows.
 
     A turn's reply is its opening and its final answer. The opening is a `commentary`
@@ -831,6 +905,8 @@ class AppServerReplyStream:
         delivery_id: str,
         target: dict,
     ):
+        from .thread import DeliveryReply
+
         self.reply = DeliveryReply(session_id, turn_id, delivery_id, target)
         self.last_update = 0.0
 
@@ -874,7 +950,7 @@ class AppServerReplyStream:
 def _locked_task_pages(session_id: str, *, expected: dict | None):
     """Lock this task's current page set in its stable path order.
 
-    Ownership is the whole test. Both carriers that reach here — the detached
+    Ownership is the whole test. Both clients that reach here — the detached
     adapter and an embedded harness — write App Server readings onto the pages
     their own session holds, and the claim's session id says which those are.
     Discovery is only a candidate read, so each claim is checked again under
@@ -932,7 +1008,7 @@ class TurnFold:
     """One Codex turn, folded onto the pages its task claims from its first
     notification to its ending.
 
-    Every carrier that watches a turn does this same work with what the turn says.
+    Every client that watches a turn does this same work with what the turn says.
     Each notification folds into the turn's activity and final-answer readings,
     and the activity reaches every page the task claims. The reply streams into
     the seat of the delivery the turn carries, when that delivery owes a `turn`
@@ -945,20 +1021,20 @@ class TurnFold:
     session generation; an old fold cannot clear or close a newer lifetime that
     reuses the provider ID. Historical answer settlement borrows no live authority.
     `close` closes only that generation and id; delivery acceptance only records which turn
-    took the moves. A carrier opens a fold's turn only while it runs, so a turn
+    took the moves. A client opens a fold's turn only while it runs, so a turn
     read back from a snapshot after it ended is committed without reopening it.
 
-    What differs between carriers is only how notifications reach the fold.
+    What differs between clients is only how notifications reach the fold.
     `CarriedTurn` reads a connection the turn owns, from the start that made the
     turn to its end. The adapter's `TaskConnection` reads one subscription the whole
     task shares and routes each notification to the fold of the turn it names.
     That is also why the ways a read can stop other than a completion — a lost
-    connection, a silence, an adapter going — belong to each carrier rather than
+    connection, a silence, an adapter going — belong to each client rather than
     to the fold.
 
     `close` runs whatever the answer did. Committing the answer re-reads a page
     the turn's own work may have left unopenable, and the turn has ended either
-    way: until the carrier's account of it is written, the page goes on telling
+    way: until the client's account of it is written, the page goes on telling
     its user the agent is working, with nothing but the claim's fifteen-minute
     grace to correct it.
     """
@@ -1083,6 +1159,8 @@ class TurnFold:
                 self.events.final_text(terminal),
             )
         if self.reply_target is not None:
+            from .thread import release_delivery_reply
+
             release_delivery_reply(self.session_id, self.delivery_id, self.reply_target)
         return None
 
@@ -1118,7 +1196,7 @@ class TurnFold:
 class CarriedTurn(TurnFold):
     """One delivery's Codex turn, read on the connection that started it.
 
-    The turn exists because `turn/start` answered with it, so a carrier knows
+    The turn exists because `turn/start` answered with it, so a client knows
     which turn is its own before reading a notification and nothing recovers the
     binding off the stream. The connection belongs to the turn for the turn's
     whole life: `thread/start` and `thread/resume` subscribe it, `turn/start`
@@ -1126,7 +1204,7 @@ class CarriedTurn(TurnFold):
 
     Every way the read can stop other than the completion composes a terminal of
     its own in `ended`, so a turn ends exactly once however it ended. What each
-    carrier adds is what Leaf calls the turn — the page turn it opens and the seat
+    client adds is what Leaf calls the turn — the page turn it opens and the seat
     its answer commits into — which it opens in `begin`, and any account beyond
     the fold's that it owes in `close`.
     """
@@ -1173,9 +1251,9 @@ class CarriedTurn(TurnFold):
     def ended(self, error: BaseException) -> dict | None:
         """Compose the terminal of a turn whose stream ended it.
 
-        A carrier returns None instead to leave the provider turn running and
+        A client returns None instead to leave the provider turn running and
         account for nothing, which is only honest where somebody else is watching
-        it. Where nobody is, the carrier ends the turn before it composes this:
+        it. Where nobody is, the client ends the turn before it composes this:
         closing a connection ends no turn, and App Server runs it either way.
         """
         fault = type(error).__name__
@@ -1187,7 +1265,7 @@ class CarriedTurn(TurnFold):
         }
 
     def begin(self) -> None:
-        """Open Leaf's names for this turn, in whatever a carrier writes them."""
+        """Open Leaf's names for this turn, in whatever a client writes them."""
         raise NotImplementedError
 
 
@@ -1401,8 +1479,10 @@ def _readdress_record(path: Path) -> Path:
         return replacement
 
 
-def offer_delivery(path: Path, record: dict, carrier: str) -> PreparedDelivery:
-    """Freeze one payload for `carrier` before offering its permanent pointer.
+def offer_delivery(path: Path, record: dict, *, turn_replies: bool) -> PreparedDelivery:
+    """Freeze one payload before offering its permanent pointer, with its thread
+    reply addressed to the turn it opens where that turn writes it
+    (`turn_replies`, `delivery.freeze_delivery`).
 
     A record already offering keeps the payload it froze: its pointer may have
     reached the task, and a delivery never changes under its id."""
@@ -1419,7 +1499,7 @@ def offer_delivery(path: Path, record: dict, carrier: str) -> PreparedDelivery:
         try:
             payload = freeze_delivery(
                 record["batches"],
-                carrier=carrier,
+                turn_replies=turn_replies,
                 delivery_id=path.stem,
                 created_at=record["created_at"],
             )
@@ -1514,7 +1594,7 @@ def append_batch(
 
 
 def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
-    """Offer one plain-reply pointer through an async tool hook, without receipt.
+    """Offer one plain-reply pointer through the tool hook, without receipt.
 
     The agent's actual `delivery read` proves this pointer entered a turn. If the
     hook output arrives after the turn ends, the adapter queues the same frozen
@@ -1555,7 +1635,7 @@ def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
         if pending is None:
             return None
         path, record = pending
-        prepared = offer_delivery(path, record, "queue")
+        prepared = offer_delivery(path, record, turn_replies=False)
         record["transport"] = {"phase": "hook", "turn": turn_id}
         write_record(prepared.record_path, record)
         return prepared.prompt
@@ -1608,6 +1688,8 @@ UNCONFIRMED_TEXT = (
 
 def settle_answered_deliveries(session_id: str) -> bool:
     """Retire unknown harness attempts already answered manually, even while offline."""
+    from .thread import answered_by_reply
+
     with flocked(delivery_lock_path(session_id)):
         pending = [
             path.stem
@@ -1654,6 +1736,8 @@ def abandon_uncertain_delivery(session_id: str, payload: dict) -> None:
 
 def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
     """Write honest failure receipts and retire this batch under current ownership."""
+    from .thread import fail_answer, release_delivery_reply
+
     page_dir = Path(batch["page"])
     session_id = batch["session"]
     # Seat release is part of this resumable receipt, not just its initiator.
@@ -1780,7 +1864,7 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                     None,
                 )
                 if pending is not None:
-                    offered = offer_delivery(*pending, "app-server")
+                    offered = offer_delivery(*pending, turn_replies=True)
                     return PreparedDelivery(offered.prompt, offered.payload, transition)
                 captured = append_batch(
                     session_id,
@@ -1791,7 +1875,7 @@ def prepare_codex_delivery(page_dir: Path, harness: Harness) -> PreparedDelivery
                 if captured is None:
                     raise RuntimeError("the page input is already in a Codex delivery")
                 path, _, _ = captured
-                offered = offer_delivery(path, read_record(path), "app-server")
+                offered = offer_delivery(path, read_record(path), turn_replies=True)
                 return PreparedDelivery(offered.prompt, offered.payload, transition)
     except BaseException:
         restore_page_claim(page_dir, transition)
@@ -1809,11 +1893,12 @@ def accept_codex_delivery(
 
     A turn id proves entry into that provider turn; None proves durable queue
     acceptance. A hook pointer's read also supplies the observation that must
-    still stand under the route lock. All transports commit accepted state first,
+    still stand under the delivery lock. All transports commit accepted state first,
     then receipt each batch through finish_codex_batch, which recovery also uses.
 
     A retry finishes only outstanding receipts, preserving its original acceptance
-    evidence. Acceptance opens no turn: its carrier observes that separately.
+    evidence. Acceptance opens no turn: an App Server client observes that
+    separately.
     Return successfully completed page/event addresses for binding verification.
     """
     path = record_path(session_id, delivery_id)
@@ -1872,8 +1957,7 @@ def open_app_server_delivery(
             )
         return
     with PageTransaction(page_dir) as page:
-        claim = page.active_claim
-        if claim is None or claim["id"] != session_id:
+        if page.claim_of(session_id) is None:
             raise RuntimeError("the App Server delivery no longer owns its page")
         by_id = {event["id"]: event for event in page.events}
         if any(event_id not in by_id for event_id in event_ids):

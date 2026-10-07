@@ -2,10 +2,9 @@
 
 import re
 
-from interact_support import record_claim
+from interact_support import declare_idle, record_claim, working
 from leaf import leases as leases_model
 from leaf import service as service_model
-from leaf import session as session_model
 from leaf import thread as thread_model
 from playwright.sync_api import expect
 from render_cases_interaction import (
@@ -141,7 +140,7 @@ def test_initial_history_and_repeated_stage_readings_are_quiet(browser, serve):
     expect(page.locator(".lf-notice")).to_be_hidden()
 
     # A fresh accepted status reading must not rediscover historical content.
-    session_model.cmd_status(serve.page_dir, "idle", "done")
+    declare_idle(serve.page_dir)
     told(page)
     expect(page.locator(".lf-notice")).to_be_hidden()
     assert "replied" not in page.locator(".lf-live").text_content()
@@ -151,16 +150,16 @@ def test_page_availability_announces_once_while_work_stage_changes_remain_quiet(
     browser, serve
 ):
     url = serve(PANEL_PAGE)
-    session_model.cmd_status(serve.page_dir, "idle", "done")
+    declare_idle(serve.page_dir)
     page = open_page(browser, url)
     expect(page.locator(".lf-notice")).to_be_hidden()
 
-    session_model.cmd_status(serve.page_dir, "working", "Checking the page")
+    working(serve.page_dir, "Checking the page")
     told(page)
     expect(page.locator(".lf-notice")).to_have_text("Agent active on this page")
     expect(page.locator(".lf-live")).to_have_text("Agent active on this page")
-    expect(page.locator(".lf-notice")).to_be_hidden(timeout=6000)
+    expect(page.locator(".lf-notice")).to_be_hidden()
 
-    session_model.cmd_status(serve.page_dir, "working", "Using a tool")
+    working(serve.page_dir, "Using a tool")
     told(page)
     expect(page.locator(".lf-notice")).to_be_hidden()

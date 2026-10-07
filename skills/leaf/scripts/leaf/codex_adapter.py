@@ -6,8 +6,8 @@ the same Codex task instead of waiting for the agent to ask again. It owns the s
 task's delivery record, offers one delivery at a time, and reconciles the receipt its
 page is owed however that delivery was taken.
 
-While a proven async tool hook has a running turn, it can offer the shared record
-between steps (`codex.offer_hook_delivery`). The adapter reserves its own route
+While a proven tool hook has a running turn, it can offer the shared record
+between steps (`codex.offer_hook_delivery`). The adapter reserves its own transport
 only when that turn is idle or no such hook has run, and an unread hook pointer
 then falls back to the same durable delivery.
 
@@ -21,9 +21,9 @@ turn. It observes the user's turns and Leaf delivery turns alike. Losing the
 connection disconnects the folds; reconnecting reconciles them with the provider's
 transcript, because a terminal task keeps running after this adapter disconnects.
 
-`codex.py` owns the protocol, the per-turn fold every carrier runs, the delivery
-records, and the page writers both transports share. What is here is the process
-around them.
+`codex.py` owns the protocol, the per-turn fold every App Server client runs, the
+delivery records, and the page writers both transports share. What is here is the
+process around them.
 """
 
 import json
@@ -32,18 +32,17 @@ import queue
 import shutil
 import subprocess
 import sys
-import tempfile
 import threading
 import time
-from collections.abc import Iterator
 from concurrent.futures import Future
 from contextlib import contextmanager
 from pathlib import Path
 
 # The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
-# one binding: whatever takes a turn's readings there takes every carrier's too.
+# one binding: whatever takes a turn's readings there takes every client's too.
 from . import codex
 from .codex import (
+    APP_SERVER_ENV,
     START_TIMEOUT,
     AppServerDeliveryUncertain,
     TurnFold,
@@ -60,17 +59,17 @@ from .codex import (
     delivery_stream_reply_target,
     finish_codex_batch,
     offer_delivery,
+    private_app_server,
     retire_gone_task_records,
     retry_delay,
     start_app_server_delivery,
-    stop_app_server,
     stream_reply_target,
     write_record,
 )
 from .codex_state import delivery_lock_path, hook_turn, step_delivery_turn
 from .detached import Handshake, starting_detached
 from .event_log import read_cursor
-from .harness import CodexHarness, session_harness
+from .harness import CodexHarness, Harness, session_harness
 from .leases import (
     adapter_is_live,
     adapter_lease_path,
@@ -96,10 +95,8 @@ from .thread import (
     answered_by_reply,
     delivery_reply_reserved,
 )
-from .thread_titles import app_server_title, name_untitled_threads
 
 QUEUE_TIMEOUT = 20
-APP_SERVER_ENV = "LEAF_CODEX_APP_SERVER"
 
 
 def _run_codex(codex_path: str, *arguments: str) -> None:
@@ -475,7 +472,7 @@ class TaskConnection:
         A running turn is followed, whether or not it was before the connection
         dropped. An ended one is committed if something here was following it, or
         if it carries a delivery: its item was written while this connection was
-        down, or its carrier process died while the turn ran on, and its answer
+        down, or its adapter process died while the turn ran on, and its answer
         is still to write. Its turn is closed, never reopened. The snapshot's other
         turns are history. Return whether this snapshot supplied complete items.
         """
@@ -684,11 +681,6 @@ def _turn_delivery_id(turn: dict) -> str | None:
     return app_server_delivery_id({"method": "turn/started", "params": {"turn": turn}})
 
 
-def _log_record(event: str, **fields) -> None:
-    """One structured line in the adapter's log."""
-    print(json.dumps({"event": event, **fields}), file=sys.stderr, flush=True)
-
-
 def adapter_log_path(session_id: str) -> Path:
     return session_state_path(session_id, "codex.log")
 
@@ -791,7 +783,7 @@ def _offer_queued_delivery(
     with flocked(lock):
         if hook_turn(session_id) != observed_hook_turn:
             # A prompt, ending, or tool step changed while activity was read.
-            # Retry before reserving a route against that newer observation.
+            # Retry before reserving a transport against that newer observation.
             return False
         records = delivery_records(session_id)
         unoffered = next(
@@ -805,9 +797,7 @@ def _offer_queued_delivery(
         prepared = None
         if unoffered is not None:
             path, record = unoffered
-            prepared = offer_delivery(
-                path, record, "queue" if connection is None else "app-server"
-            )
+            prepared = offer_delivery(path, record, turn_replies=connection is not None)
             if (record.get("transport") or {}).get("phase") != "starting":
                 record["transport"] = {
                     "phase": "queue" if connection is None else "app-server",
@@ -825,15 +815,7 @@ def _offer_queued_delivery(
             "the observed App Server delivery is awaiting reconciliation"
         )
     if connection is not None:
-        started = connection.start_delivery(prepared.payload)
-        if started:
-            name_untitled_threads(
-                app_server_title(connection.endpoint, None),
-                prepared.payload,
-                session_id,
-                _log_record,
-            )
-        return started
+        return connection.start_delivery(prepared.payload)
     if target is not None and delivery_reply_reserved(
         session_id, prepared.payload["id"], target
     ):
@@ -903,15 +885,12 @@ def run_adapter(
         failures = 0
         while True:
             try:
-                # Receipt recovery judges page ownership as retirement does, so
-                # both wait out a starter's claim handoff under the start lock
-                # (`session-lifetime.md`, "Carriers").
-                with flocked(start_lock):
-                    recovered = _recover_receipt(harness.session)
-                    if not recovered and not owned_pages(harness.session):
-                        retire()
-                        return 0
+                recovered = _recover_receipt(harness.session)
                 if not recovered:
+                    with flocked(start_lock):
+                        if not owned_pages(harness.session):
+                            retire()
+                            return 0
                     recovered = _offer_queued_delivery(
                         codex_path,
                         harness.session,
@@ -953,9 +932,9 @@ def run_adapter(
                     if not owned_pages(harness.session):
                         retire()
                         return reading.outcome or 0
-                # The route belongs to the session's ownership, not its current
+                # The adapter belongs to the session's ownership, not its current
                 # authored status. Idle pages deliver nothing; a later status
-                # resumes this same route. Wait outside the startup lock.
+                # resumes this same adapter. Wait outside the startup lock.
                 watch.await_news(mark, timeout=1)
                 continue
             # A second a pass, as well as each time a page moves: the queued offer
@@ -976,23 +955,27 @@ def cmd_codex_start(
     codex_path: str | None = None,
     app_server: str | None = None,
 ) -> dict:
-    """Claim PAGE and start one detached delivery carrier for this task, or find
+    """Claim PAGE and start one detached delivery adapter for this task, or find
     the one already running; return which, with its task and transport."""
-    with preparing_adapter(codex_path, app_server) as prepared:
+    with preparing_adapter(session_harness(), codex_path, app_server) as prepared:
         claim_page(page_dir)
         return prepared
 
 
 @contextmanager
-def preparing_adapter(codex_path: str | None = None, app_server: str | None = None):
-    """Retain a ready carrier until the caller commits page ownership.
+def preparing_adapter(
+    harness: Harness | None,
+    codex_path: str | None = None,
+    app_server: str | None = None,
+):
+    """Retain a ready adapter for `harness`'s task until the caller commits page
+    ownership.
 
-    The same task start lock serializes carrier startup and no-page retirement.
+    The same task start lock serializes adapter startup and no-page retirement.
     Holding it across the caller's publication lets delivery prepare before any
-    claim exists, without a carrier retiring in that gap. A new carrier captures
+    claim exists, without an adapter retiring in that gap. A new adapter captures
     the launching harness's canonical session generation before subscribing to turns.
     """
-    harness = session_harness()
     if harness is None or harness.name != CodexHarness.name:
         raise RuntimeError("`leaf codex start` must run inside a Codex task")
     executable = codex_path or shutil.which("codex")
@@ -1027,6 +1010,7 @@ def preparing_adapter(codex_path: str | None = None, app_server: str | None = No
                 executable,
                 *(["--app-server", app_server] if app_server is not None else []),
             ],
+            harness=harness,
             what="Codex delivery",
             log=adapter_log_path(session_id),
             cwd=state_home(),
@@ -1047,49 +1031,6 @@ def _running_adapter(session_id: str) -> dict | None:
         return json.loads(adapter_lease_path(session_id).read_text())
     except FileNotFoundError:
         return None
-
-
-def _wait_for_app_server(path: Path, process: subprocess.Popen, log) -> None:
-    deadline = time.monotonic() + START_TIMEOUT
-    while time.monotonic() < deadline:
-        if path.exists():
-            return
-        if process.poll() is not None:
-            log.seek(0)
-            detail = log.read().decode(errors="replace").strip()
-            raise RuntimeError(detail or "Codex App Server exited before it was ready")
-        time.sleep(0.05)
-    raise RuntimeError("Codex App Server did not become ready")
-
-
-@contextmanager
-def private_app_server(
-    executable: str, *, env: dict[str, str] | None = None
-) -> Iterator[str]:
-    """Run one App Server on a Unix socket only this user can reach, and yield its
-    endpoint until the block ends and the server stops.
-
-    The server's environment names that endpoint as `LEAF_CODEX_APP_SERVER`, so a
-    task it runs hands its pages to this server when it serves them.
-    An eval may supply an isolated child environment without mutating this process.
-    """
-    with tempfile.TemporaryDirectory(prefix="leaf-codex-", dir="/tmp") as directory:
-        path = Path(directory) / "app-server.sock"
-        endpoint = f"unix://{path}"
-        with tempfile.TemporaryFile() as log:
-            server = subprocess.Popen(
-                [executable, "app-server", "--listen", endpoint],
-                env=(os.environ if env is None else env) | {APP_SERVER_ENV: endpoint},
-                stdin=subprocess.DEVNULL,
-                stdout=log,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-            )
-            try:
-                _wait_for_app_server(path, server, log)
-                yield endpoint
-            finally:
-                stop_app_server(server)
 
 
 def cmd_codex_launch(codex_path: str | None = None) -> int:

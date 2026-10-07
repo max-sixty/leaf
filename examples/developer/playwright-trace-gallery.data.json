@@ -1,0 +1,1151 @@
+{
+  "release-journey": {
+    "archive": {
+      "sha256": "11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965",
+      "format": 9
+    },
+    "viewerUrl": "https://trace.playwright.dev/?trace=https%3A%2F%2Fraw.githubusercontent.com%2Fmax-sixty%2Fleaf-assets%2F3c1292580c896430cb4e39a6586bf8214f8fc95b%2Fexamples%2Ftraces%2F11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965.zip",
+    "streams": [
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "origin": "library",
+        "playwrightVersion": "1.63.0",
+        "wallTime": 1791155411929,
+        "monotonicTime": 2403.699
+      }
+    ],
+    "pages": [
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "pageId": "page@2de330678f408b6e3138d71791223099"
+      }
+    ],
+    "actions": [
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-6d6859a752e2e001",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "callId": "call@7",
+        "pageId": null,
+        "title": "BrowserContext.newPage",
+        "startTime": 2416.095,
+        "endTime": 4107.181,
+        "error": null,
+        "phases": {}
+      },
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-459765577710bb98",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "callId": "call@9",
+        "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "title": "Frame.setContent",
+        "startTime": 4118.538,
+        "endTime": 4624.102,
+        "error": null,
+        "phases": {
+          "before": {
+            "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+            "timestamp": 4137.274,
+            "imageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-10",
+            "tree": {
+              "timestamp": 4602.348,
+              "nodes": []
+            }
+          },
+          "after": {
+            "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+            "timestamp": 4694.235,
+            "imageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-17",
+            "tree": {
+              "timestamp": 4759.122,
+              "nodes": [
+                {
+                  "path": "0",
+                  "role": "heading",
+                  "name": "Release review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 48,
+                    "width": 864,
+                    "height": 48
+                  }
+                },
+                {
+                  "path": "1",
+                  "role": "paragraph",
+                  "name": null,
+                  "text": "Review the documentation and API changes independently.",
+                  "box": {
+                    "x": 48,
+                    "y": 124,
+                    "width": 700,
+                    "height": 23
+                  }
+                },
+                {
+                  "path": "2",
+                  "role": "region",
+                  "name": "Documentation",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 167,
+                    "width": 864,
+                    "height": 170
+                  }
+                },
+                {
+                  "path": "2/children/0",
+                  "role": "heading",
+                  "name": "Documentation",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 213,
+                    "width": 864,
+                    "height": 35
+                  }
+                },
+                {
+                  "path": "2/children/1",
+                  "role": "button",
+                  "name": "Review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 273,
+                    "width": 112,
+                    "height": 44
+                  }
+                },
+                {
+                  "path": "2/children/2",
+                  "role": "status",
+                  "name": null,
+                  "text": "Pending",
+                  "box": {
+                    "x": 184,
+                    "y": 283,
+                    "width": 72,
+                    "height": 23
+                  }
+                },
+                {
+                  "path": "3",
+                  "role": "region",
+                  "name": "API changes",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 337,
+                    "width": 864,
+                    "height": 170
+                  }
+                },
+                {
+                  "path": "3/children/0",
+                  "role": "heading",
+                  "name": "API changes",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 383,
+                    "width": 864,
+                    "height": 35
+                  }
+                },
+                {
+                  "path": "3/children/1",
+                  "role": "button",
+                  "name": "Review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 443,
+                    "width": 112,
+                    "height": 44
+                  }
+                },
+                {
+                  "path": "3/children/2",
+                  "role": "status",
+                  "name": null,
+                  "text": "Pending",
+                  "box": {
+                    "x": 184,
+                    "y": 453,
+                    "width": 72,
+                    "height": 23
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-4e380b5061c4982e",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "callId": "call@11",
+        "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "title": "Frame.click",
+        "startTime": 4771.933,
+        "endTime": 5349.432,
+        "error": null,
+        "phases": {
+          "before": {
+            "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+            "timestamp": 4779.278,
+            "imageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-24",
+            "tree": {
+              "timestamp": 4989.014,
+              "nodes": [
+                {
+                  "path": "0",
+                  "role": "heading",
+                  "name": "Release review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 48,
+                    "width": 864,
+                    "height": 48
+                  }
+                },
+                {
+                  "path": "1",
+                  "role": "paragraph",
+                  "name": null,
+                  "text": "Review the documentation and API changes independently.",
+                  "box": {
+                    "x": 48,
+                    "y": 124,
+                    "width": 700,
+                    "height": 23
+                  }
+                },
+                {
+                  "path": "2",
+                  "role": "region",
+                  "name": "Documentation",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 167,
+                    "width": 864,
+                    "height": 170
+                  }
+                },
+                {
+                  "path": "2/children/0",
+                  "role": "heading",
+                  "name": "Documentation",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 213,
+                    "width": 864,
+                    "height": 35
+                  }
+                },
+                {
+                  "path": "2/children/1",
+                  "role": "button",
+                  "name": "Review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 273,
+                    "width": 112,
+                    "height": 44
+                  }
+                },
+                {
+                  "path": "2/children/2",
+                  "role": "status",
+                  "name": null,
+                  "text": "Pending",
+                  "box": {
+                    "x": 184,
+                    "y": 283,
+                    "width": 72,
+                    "height": 23
+                  }
+                },
+                {
+                  "path": "3",
+                  "role": "region",
+                  "name": "API changes",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 337,
+                    "width": 864,
+                    "height": 170
+                  }
+                },
+                {
+                  "path": "3/children/0",
+                  "role": "heading",
+                  "name": "API changes",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 383,
+                    "width": 864,
+                    "height": 35
+                  }
+                },
+                {
+                  "path": "3/children/1",
+                  "role": "button",
+                  "name": "Review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 443,
+                    "width": 112,
+                    "height": 44
+                  }
+                },
+                {
+                  "path": "3/children/2",
+                  "role": "status",
+                  "name": null,
+                  "text": "Pending",
+                  "box": {
+                    "x": 184,
+                    "y": 453,
+                    "width": 72,
+                    "height": 23
+                  }
+                }
+              ]
+            }
+          },
+          "action": {
+            "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+            "timestamp": 5082.053,
+            "imageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-38",
+            "tree": {
+              "timestamp": 5159.826,
+              "nodes": [
+                {
+                  "path": "0",
+                  "role": "heading",
+                  "name": "Release review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 48,
+                    "width": 864,
+                    "height": 48
+                  }
+                },
+                {
+                  "path": "1",
+                  "role": "paragraph",
+                  "name": null,
+                  "text": "Review the documentation and API changes independently.",
+                  "box": {
+                    "x": 48,
+                    "y": 124,
+                    "width": 700,
+                    "height": 23
+                  }
+                },
+                {
+                  "path": "2",
+                  "role": "region",
+                  "name": "Documentation",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 167,
+                    "width": 864,
+                    "height": 170
+                  }
+                },
+                {
+                  "path": "2/children/0",
+                  "role": "heading",
+                  "name": "Documentation",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 213,
+                    "width": 864,
+                    "height": 35
+                  }
+                },
+                {
+                  "path": "2/children/1",
+                  "role": "button",
+                  "name": "Review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 273,
+                    "width": 112,
+                    "height": 44
+                  }
+                },
+                {
+                  "path": "2/children/2",
+                  "role": "status",
+                  "name": null,
+                  "text": "Pending",
+                  "box": {
+                    "x": 184,
+                    "y": 283,
+                    "width": 72,
+                    "height": 23
+                  }
+                },
+                {
+                  "path": "3",
+                  "role": "region",
+                  "name": "API changes",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 337,
+                    "width": 864,
+                    "height": 170
+                  }
+                },
+                {
+                  "path": "3/children/0",
+                  "role": "heading",
+                  "name": "API changes",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 383,
+                    "width": 864,
+                    "height": 35
+                  }
+                },
+                {
+                  "path": "3/children/1",
+                  "role": "button",
+                  "name": "Review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 443,
+                    "width": 112,
+                    "height": 44
+                  }
+                },
+                {
+                  "path": "3/children/2",
+                  "role": "status",
+                  "name": null,
+                  "text": "Pending",
+                  "box": {
+                    "x": 184,
+                    "y": 453,
+                    "width": 72,
+                    "height": 23
+                  }
+                }
+              ]
+            }
+          },
+          "after": {
+            "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+            "timestamp": 5363.391,
+            "imageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-47",
+            "tree": {
+              "timestamp": 5412.184,
+              "nodes": [
+                {
+                  "path": "0",
+                  "role": "heading",
+                  "name": "Release review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 48,
+                    "width": 864,
+                    "height": 48
+                  }
+                },
+                {
+                  "path": "1",
+                  "role": "paragraph",
+                  "name": null,
+                  "text": "Review the documentation and API changes independently.",
+                  "box": {
+                    "x": 48,
+                    "y": 124,
+                    "width": 700,
+                    "height": 23
+                  }
+                },
+                {
+                  "path": "2",
+                  "role": "region",
+                  "name": "Documentation",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 167,
+                    "width": 864,
+                    "height": 170
+                  }
+                },
+                {
+                  "path": "2/children/0",
+                  "role": "heading",
+                  "name": "Documentation",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 213,
+                    "width": 864,
+                    "height": 35
+                  }
+                },
+                {
+                  "path": "2/children/1",
+                  "role": "button",
+                  "name": "Review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 273,
+                    "width": 112,
+                    "height": 44
+                  }
+                },
+                {
+                  "path": "2/children/2",
+                  "role": "status",
+                  "name": null,
+                  "text": "Reviewed",
+                  "box": {
+                    "x": 184,
+                    "y": 283,
+                    "width": 84,
+                    "height": 23
+                  }
+                },
+                {
+                  "path": "3",
+                  "role": "region",
+                  "name": "API changes",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 337,
+                    "width": 864,
+                    "height": 170
+                  }
+                },
+                {
+                  "path": "3/children/0",
+                  "role": "heading",
+                  "name": "API changes",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 383,
+                    "width": 864,
+                    "height": 35
+                  }
+                },
+                {
+                  "path": "3/children/1",
+                  "role": "button",
+                  "name": "Review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 443,
+                    "width": 112,
+                    "height": 44
+                  }
+                },
+                {
+                  "path": "3/children/2",
+                  "role": "status",
+                  "name": null,
+                  "text": "Pending",
+                  "box": {
+                    "x": 184,
+                    "y": 453,
+                    "width": 72,
+                    "height": 23
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-0684e283ed722175",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "callId": "call@13",
+        "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "title": "Frame.click",
+        "startTime": 5419.413,
+        "endTime": 5708.163,
+        "error": null,
+        "phases": {
+          "before": {
+            "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+            "timestamp": 5421.185,
+            "imageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-54",
+            "tree": {
+              "timestamp": 5529.868,
+              "nodes": [
+                {
+                  "path": "0",
+                  "role": "heading",
+                  "name": "Release review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 48,
+                    "width": 864,
+                    "height": 48
+                  }
+                },
+                {
+                  "path": "1",
+                  "role": "paragraph",
+                  "name": null,
+                  "text": "Review the documentation and API changes independently.",
+                  "box": {
+                    "x": 48,
+                    "y": 124,
+                    "width": 700,
+                    "height": 23
+                  }
+                },
+                {
+                  "path": "2",
+                  "role": "region",
+                  "name": "Documentation",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 167,
+                    "width": 864,
+                    "height": 170
+                  }
+                },
+                {
+                  "path": "2/children/0",
+                  "role": "heading",
+                  "name": "Documentation",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 213,
+                    "width": 864,
+                    "height": 35
+                  }
+                },
+                {
+                  "path": "2/children/1",
+                  "role": "button",
+                  "name": "Review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 273,
+                    "width": 112,
+                    "height": 44
+                  }
+                },
+                {
+                  "path": "2/children/2",
+                  "role": "status",
+                  "name": null,
+                  "text": "Reviewed",
+                  "box": {
+                    "x": 184,
+                    "y": 283,
+                    "width": 84,
+                    "height": 23
+                  }
+                },
+                {
+                  "path": "3",
+                  "role": "region",
+                  "name": "API changes",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 337,
+                    "width": 864,
+                    "height": 170
+                  }
+                },
+                {
+                  "path": "3/children/0",
+                  "role": "heading",
+                  "name": "API changes",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 383,
+                    "width": 864,
+                    "height": 35
+                  }
+                },
+                {
+                  "path": "3/children/1",
+                  "role": "button",
+                  "name": "Review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 443,
+                    "width": 112,
+                    "height": 44
+                  }
+                },
+                {
+                  "path": "3/children/2",
+                  "role": "status",
+                  "name": null,
+                  "text": "Pending",
+                  "box": {
+                    "x": 184,
+                    "y": 453,
+                    "width": 72,
+                    "height": 23
+                  }
+                }
+              ]
+            }
+          },
+          "action": {
+            "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+            "timestamp": 5604.42,
+            "imageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-68",
+            "tree": {
+              "timestamp": 5679.7,
+              "nodes": [
+                {
+                  "path": "0",
+                  "role": "heading",
+                  "name": "Release review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 48,
+                    "width": 864,
+                    "height": 48
+                  }
+                },
+                {
+                  "path": "1",
+                  "role": "paragraph",
+                  "name": null,
+                  "text": "Review the documentation and API changes independently.",
+                  "box": {
+                    "x": 48,
+                    "y": 124,
+                    "width": 700,
+                    "height": 23
+                  }
+                },
+                {
+                  "path": "2",
+                  "role": "region",
+                  "name": "Documentation",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 167,
+                    "width": 864,
+                    "height": 170
+                  }
+                },
+                {
+                  "path": "2/children/0",
+                  "role": "heading",
+                  "name": "Documentation",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 213,
+                    "width": 864,
+                    "height": 35
+                  }
+                },
+                {
+                  "path": "2/children/1",
+                  "role": "button",
+                  "name": "Review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 273,
+                    "width": 112,
+                    "height": 44
+                  }
+                },
+                {
+                  "path": "2/children/2",
+                  "role": "status",
+                  "name": null,
+                  "text": "Reviewed",
+                  "box": {
+                    "x": 184,
+                    "y": 283,
+                    "width": 84,
+                    "height": 23
+                  }
+                },
+                {
+                  "path": "3",
+                  "role": "region",
+                  "name": "API changes",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 337,
+                    "width": 864,
+                    "height": 170
+                  }
+                },
+                {
+                  "path": "3/children/0",
+                  "role": "heading",
+                  "name": "API changes",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 383,
+                    "width": 864,
+                    "height": 35
+                  }
+                },
+                {
+                  "path": "3/children/1",
+                  "role": "button",
+                  "name": "Review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 443,
+                    "width": 112,
+                    "height": 44
+                  }
+                },
+                {
+                  "path": "3/children/2",
+                  "role": "status",
+                  "name": null,
+                  "text": "Pending",
+                  "box": {
+                    "x": 184,
+                    "y": 453,
+                    "width": 72,
+                    "height": 23
+                  }
+                }
+              ]
+            }
+          },
+          "after": {
+            "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+            "timestamp": 5709.355,
+            "imageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-77",
+            "tree": {
+              "timestamp": 5781.038,
+              "nodes": [
+                {
+                  "path": "0",
+                  "role": "heading",
+                  "name": "Release review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 48,
+                    "width": 864,
+                    "height": 48
+                  }
+                },
+                {
+                  "path": "1",
+                  "role": "paragraph",
+                  "name": null,
+                  "text": "Review the documentation and API changes independently.",
+                  "box": {
+                    "x": 48,
+                    "y": 124,
+                    "width": 700,
+                    "height": 23
+                  }
+                },
+                {
+                  "path": "2",
+                  "role": "region",
+                  "name": "Documentation",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 167,
+                    "width": 864,
+                    "height": 170
+                  }
+                },
+                {
+                  "path": "2/children/0",
+                  "role": "heading",
+                  "name": "Documentation",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 213,
+                    "width": 864,
+                    "height": 35
+                  }
+                },
+                {
+                  "path": "2/children/1",
+                  "role": "button",
+                  "name": "Review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 273,
+                    "width": 112,
+                    "height": 44
+                  }
+                },
+                {
+                  "path": "2/children/2",
+                  "role": "status",
+                  "name": null,
+                  "text": "Reviewed",
+                  "box": {
+                    "x": 184,
+                    "y": 283,
+                    "width": 84,
+                    "height": 23
+                  }
+                },
+                {
+                  "path": "3",
+                  "role": "region",
+                  "name": "API changes",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 337,
+                    "width": 864,
+                    "height": 170
+                  }
+                },
+                {
+                  "path": "3/children/0",
+                  "role": "heading",
+                  "name": "API changes",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 383,
+                    "width": 864,
+                    "height": 35
+                  }
+                },
+                {
+                  "path": "3/children/1",
+                  "role": "button",
+                  "name": "Review",
+                  "text": null,
+                  "box": {
+                    "x": 48,
+                    "y": 443,
+                    "width": 112,
+                    "height": 44
+                  }
+                },
+                {
+                  "path": "3/children/2",
+                  "role": "status",
+                  "name": null,
+                  "text": "Reviewed",
+                  "box": {
+                    "x": 184,
+                    "y": 453,
+                    "width": 84,
+                    "height": 23
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "images": [
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-9",
+        "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "timestamp": 4495.624,
+        "kind": "frame",
+        "url": "/media/ebd6a07e7b701d74.jpg",
+        "width": 692,
+        "height": 461,
+        "callId": null,
+        "phase": null
+      },
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-10",
+        "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "timestamp": 4510.844,
+        "kind": "checkpoint",
+        "url": "/media/bdafd15b097d22a6.png",
+        "width": 960,
+        "height": 640,
+        "callId": "call@9",
+        "phase": "before"
+      },
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-11",
+        "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "timestamp": 4516.918,
+        "kind": "frame",
+        "url": "/media/171ed9e87f8ae55c.jpg",
+        "width": 800,
+        "height": 461,
+        "callId": null,
+        "phase": null
+      },
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-15",
+        "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "timestamp": 4693.9,
+        "kind": "frame",
+        "url": "/media/9b9982e1e80cbab7.jpg",
+        "width": 800,
+        "height": 461,
+        "callId": null,
+        "phase": null
+      },
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-17",
+        "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "timestamp": 4749.257,
+        "kind": "checkpoint",
+        "url": "/media/c9f9c30f168dd264.png",
+        "width": 960,
+        "height": 640,
+        "callId": "call@9",
+        "phase": "after"
+      },
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-24",
+        "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "timestamp": 4977.169,
+        "kind": "checkpoint",
+        "url": "/media/c9f9c30f168dd264.png",
+        "width": 960,
+        "height": 640,
+        "callId": "call@11",
+        "phase": "before"
+      },
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-38",
+        "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "timestamp": 5140.99,
+        "kind": "checkpoint",
+        "url": "/media/c9f9c30f168dd264.png",
+        "width": 960,
+        "height": 640,
+        "callId": "call@11",
+        "phase": "action"
+      },
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-43",
+        "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "timestamp": 5349.085,
+        "kind": "frame",
+        "url": "/media/8e5e7f9a93c21e11.jpg",
+        "width": 800,
+        "height": 461,
+        "callId": null,
+        "phase": null
+      },
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-47",
+        "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "timestamp": 5406.982,
+        "kind": "checkpoint",
+        "url": "/media/298268218fde4619.png",
+        "width": 960,
+        "height": 640,
+        "callId": "call@11",
+        "phase": "after"
+      },
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-54",
+        "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "timestamp": 5521.944,
+        "kind": "checkpoint",
+        "url": "/media/298268218fde4619.png",
+        "width": 960,
+        "height": 640,
+        "callId": "call@13",
+        "phase": "before"
+      },
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-68",
+        "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "timestamp": 5670.296,
+        "kind": "checkpoint",
+        "url": "/media/298268218fde4619.png",
+        "width": 960,
+        "height": 640,
+        "callId": "call@13",
+        "phase": "action"
+      },
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-73",
+        "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "timestamp": 5699.363,
+        "kind": "frame",
+        "url": "/media/4b0cc8ef0ba58ede.jpg",
+        "width": 800,
+        "height": 461,
+        "callId": null,
+        "phase": null
+      },
+      {
+        "id": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-77",
+        "pageId": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-page-d09f51c95a6ca2ff",
+        "stream": "trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a",
+        "timestamp": 5771.896,
+        "kind": "checkpoint",
+        "url": "/media/006a318b091c6d1d.png",
+        "width": 960,
+        "height": 640,
+        "callId": "call@13",
+        "phase": "after"
+      }
+    ]
+  }
+}

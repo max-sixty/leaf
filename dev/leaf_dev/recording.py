@@ -2,7 +2,7 @@
 
 `recording(page, directory)` works with any Playwright page, independently of Leaf.
 It must start before navigation; it owns tracing and screencasting on that context.
-The trace is read by `playwright show-trace`, never a second event parser. Video
+The trace is native evidence for Playwright's viewer and Leaf's review package. Video
 and optional GIF retain actual frame timing, without inserting demonstration waits.
 Action decorations are opt-in: Playwright waits 500 ms before each annotated
 input, so they are for demonstrations rather than timing-sensitive reproductions.
@@ -57,7 +57,9 @@ def write_gif(
 
 
 @contextmanager
-def recording(page: Page, directory: Path, *, gif=False, actions=False):
+def recording(
+    page: Page, directory: Path, *, gif=False, actions=False, checkpoint_images=False
+):
     """Write trace.zip and video.webm, and optionally a short journey's GIF.
 
     GIF encoding buffers frames in memory; video and trace stream to disk. Start
@@ -65,6 +67,10 @@ def recording(page: Page, directory: Path, *, gif=False, actions=False):
     than imposing its smaller thumbnail dimensions. Close this before the page.
     If the journey closes its page, the live context still saves its trace and
     buffered GIF frames, but Playwright cannot save the screencast's video.
+    Accessibility snapshots supply saved-element targets. `checkpoint_images`
+    adds native PNG images at action phases for checkpoint review. Taking them adds
+    capture work and temporarily hides the live caret, so ordinary motion capture
+    leaves them off; the filmstrip and video then retain ordinary caret paint.
     The directory's three generated filenames belong to this capture: retire
     previous outputs first so a repeat cannot mix evidence from different runs.
     """
@@ -84,7 +90,13 @@ def recording(page: Page, directory: Path, *, gif=False, actions=False):
     )
     completed = False
     try:
-        page.context.tracing.start(screenshots=True, snapshots=True, sources=True)
+        page.context.tracing.start(
+            screenshots=True,
+            snapshots=True,
+            aria_snapshots=True,
+            screen_snapshots=checkpoint_images,
+            sources=True,
+        )
         try:
             if actions:
                 page.screencast.show_actions()

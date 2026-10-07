@@ -22,9 +22,195 @@ from urllib.parse import urlsplit
 
 import pytest
 from conftest import LEAF_COMMAND
-from interact_support import ROOT, fetch, stamp, wait_for
-from leaf import codex_adapter, leases, server, service, session
+from interact_support import ROOT, STATED_TIMEOUT, declare_idle, fetch, stamp, wait_for
+from leaf import codex_adapter, hosting, leases, server, service, session, state
 from leaf_dev import preview
+
+
+def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
+    tmp_path, under_codex, codex_env, codex_queue
+):
+    """The command returns; unloading its chat keeps the watcher, URL and carrier.
+
+    The copied Codex executable states the desktop ancestry. Its queue endpoint
+    records delivery, while Leaf's detached watcher and HTTP service are real.
+    """
+    source = tmp_path / "review.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Review</title></head><body>"
+        '<main><h1>Review</h1><p id="candidate">Original candidate</p></main>'
+        "</body></html>"
+    )
+    page = tmp_path / "previews" / "review"
+    sid = "desktop-preview"
+    task = under_codex(
+        shlex.join(
+            [
+                sys.executable,
+                "-m",
+                "leaf_dev.preview",
+                "--worker",
+                "--user",
+                "--source",
+                str(source),
+                "--runtime",
+                str(ROOT),
+                "--slot",
+                page.name,
+            ]
+        ),
+        codex_env
+        | codex_queue
+        | {
+            "CODEX_THREAD_ID": sid,
+            "LEAF_PREVIEWS_ROOT": str(page.parent),
+        },
+        app_server=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
+        assert task.returncode == 0, f"{output}{errors}"
+        url = next(line for line in output.splitlines() if line.startswith("http://"))
+        acquired = service.page_claim(page)["acquisition"]
+        before = state.session_record(sid)
+        ended = subprocess.run(
+            [*LEAF_COMMAND, "session-end"],
+            check=False,
+            input=json.dumps({"hook_event_name": "SessionEnd", "session_id": sid}),
+            env=codex_env,
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+        )
+        assert ended.returncode == 0, ended.stderr
+        assert state.session_record(sid)["generation"] == before["generation"]
+        assert state.hook_needed({"hook_event_name": "PostToolUse", "session_id": sid})
+        assert leases.lock_is_held(preview.preview_lease(page))
+        assert server.running_server(page)["url"] == url
+
+        source.write_text(
+            source.read_text().replace("Original candidate", "Revised candidate")
+        )
+        wait_for(
+            lambda: (page / "index.html").read_text(),
+            lambda text: "Revised candidate" in text,
+            failure="the detached preview did not follow its source after unload",
+        )
+        endpoint = urlsplit(url)._replace(path="/api/event").geturl()
+        status, body = fetch(
+            endpoint,
+            data=json.dumps(
+                {
+                    "kind": "comment",
+                    "revision": 1,
+                    "text": "Please revise this candidate",
+                    "attempt": "desktop-after-unload",
+                }
+            ).encode(),
+            token=None,
+        )
+        assert status == 200, body
+        queued = Path(codex_queue["PREVIEW_QUEUE_RECORD"])
+        wait_for(queued.exists, bool, failure="feedback after unload was not queued")
+        assert json.loads(queued.read_text())[:4] == [
+            "queue",
+            "--thread",
+            sid,
+            "--message",
+        ]
+        assert service.page_claim(page)["acquisition"] == acquired
+    finally:
+        if (page / "events.jsonl").exists():
+            hosting.cmd_stop(page)
+            with service.PageTransaction(page) as transaction:
+                transaction.release_claim()
+            wait_for(
+                lambda: leases.lock_is_held(preview.preview_lease(page)),
+                lambda held: not held,
+                failure="the explicitly stopped detached preview kept watching",
+            )
+
+
+def test_abandoned_desktop_preview_publishes_no_claim(
+    tmp_path, spawn, under_codex, codex_env
+):
+    """Outer preview acceptance owns both watcher readiness and HTTP publication."""
+    source = tmp_path / "review.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Review</title></head>"
+        "<body><main><h1>Review</h1></main></body></html>"
+    )
+    page = tmp_path / "previews" / "review"
+    env = codex_env | {
+        "CODEX_THREAD_ID": "abandoned-desktop",
+        "LEAF_PREVIEWS_ROOT": str(page.parent),
+    }
+    preparing = under_codex(
+        shlex.join(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import json, sys; from pathlib import Path; "
+                    "from leaf.harness import session_harness; "
+                    "from leaf.service import prepare_claim; "
+                    "print(json.dumps(prepare_claim(session_harness(), Path(sys.argv[1]))))"
+                ),
+                str(page),
+            ]
+        ),
+        env,
+        app_server=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    output, errors = preparing.communicate(timeout=STATED_TIMEOUT)
+    assert preparing.returncode == 0, f"{output}{errors}"
+    intent = json.loads(output)
+    caller, child = socket.socketpair()
+    task = spawn(
+        [
+            sys.executable,
+            "-m",
+            "leaf_dev.preview",
+            "--worker",
+            "--user",
+            "--source",
+            str(source),
+            "--runtime",
+            str(ROOT),
+            "--slot",
+            page.name,
+            "--prepared-claim",
+            json.dumps(intent),
+            "--handshake",
+            str(child.fileno()),
+        ],
+        env=env,
+        pass_fds=(child.fileno(),),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    child.close()
+    caller.settimeout(STATED_TIMEOUT)
+    try:
+        with caller.makefile("rb") as announced:
+            ready = json.loads(announced.readline())
+        assert "url" in ready, ready
+        assert service.page_claim(page) is None
+        assert not (page / "service.json").exists()
+    finally:
+        caller.close()
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
+    assert task.returncode == 0, f"{output}{errors}"
+    assert service.page_claim(page) is None
+    assert server.running_server(page) is None
+    assert not leases.lock_is_held(preview.preview_lease(page))
 
 
 def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
@@ -264,7 +450,7 @@ def test_serving_connects_codex_feedback_before_handing_over_its_url(
     """
     stamp(page_dir)
     if initially_idle:
-        session.cmd_status(page_dir, "idle", "")
+        declare_idle(page_dir)
     queued = Path(codex_queue["PREVIEW_QUEUE_RECORD"])
     ready = tmp_path / "ready.json"
     done = tmp_path / "done"
@@ -287,7 +473,7 @@ foreground = None
 try:
     if handoff == "preview":
         started = preview.start()
-        # Joining the current carrier preserves the preview's acquisition.
+        # Joining the current adapter preserves the preview's acquisition.
         session_harness().ensure_delivery()
         assert page_claim(page)["acquisition"] == preview.claim["acquisition"]
         assert not preview.ended
@@ -351,7 +537,7 @@ finally:
         text=True,
     )
     if delivery_available is not True:
-        output, errors = task.communicate(timeout=60)
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
         assert task.returncode != 0, f"{output}{errors}"
         expected = (
             "cannot find the `codex` executable"
@@ -371,7 +557,6 @@ finally:
             ready.exists,
             bool,
             failure="the user preview never handed over its URL",
-            timeout=60,
         )
         url, _ = json.loads(ready.read_text())
         claim = service.page_claim(page_dir)
@@ -382,7 +567,7 @@ finally:
         assert codex_adapter.adapter_is_live("preview-thread")
         if initially_idle:
             assert service.read_status(page_dir)["state"] == "idle"
-            session.cmd_status(page_dir, "waiting", "Review this page")
+            session.cmd_waiting(page_dir, "Review this page")
         endpoint = urlsplit(url)._replace(path="/api/event").geturl()
         status, body = fetch(
             endpoint,
@@ -407,12 +592,12 @@ finally:
         assert 'operation="delivery read"' in arguments[-1]
     finally:
         done.touch()
-        output, errors = task.communicate(timeout=15)
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
     wait_for(
         lambda: codex_adapter.adapter_is_live("preview-thread"),
         lambda live: not live,
-        failure="the task's delivery carrier outlived its preview",
+        failure="the task's delivery adapter outlived its preview",
     )
 
 
@@ -430,9 +615,10 @@ def test_serving_preserves_a_direct_codex_wait(
 import json, subprocess, sys, time
 from pathlib import Path
 from leaf.leases import wait_is_live, adapter_is_live
-from leaf.session import cmd_status
+from leaf.service import PageTransaction
+from leaf.session import cmd_waiting
 page = Path(sys.argv[1])
-cmd_status(page, "waiting", "Review this page")
+cmd_waiting(page, "Review this page")
 watch = subprocess.Popen([sys.executable, "-m", "leaf", "wait", str(page)],
                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 try:
@@ -448,14 +634,15 @@ try:
         assert json.loads(served.stdout)["url"]
         assert watch.poll() is None
         assert not adapter_is_live("codex-thread")
-    stopped = subprocess.run([sys.executable, "-m", "leaf", "hook"],
+    stopped = subprocess.run([sys.executable, "-m", "leaf", "hook", "--harness", "codex"],
                              input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
                              capture_output=True, text=True)
     assert stopped.returncode == 0, stopped.stderr
     reason = json.loads(stopped.stdout)["reason"]
     assert "leaf wait" in reason and "no delivery adapter" not in reason
 finally:
-    cmd_status(page, "idle", "")
+    with PageTransaction(page) as held:
+        held.set_status("idle", "")
     output, errors = watch.communicate(timeout=30)
     assert watch.returncode == 2, (output, errors)
 """
@@ -468,7 +655,7 @@ finally:
         stderr=subprocess.PIPE,
         text=True,
     )
-    output, errors = task.communicate(timeout=60)
+    output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
 
 
@@ -485,6 +672,8 @@ def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
             "server",
             "_serve",
             str(page),
+            "--harness",
+            json.dumps({"name": "codex", "session": "codex-thread", "agent": "Codex"}),
             "--handshake",
             str(child.fileno()),
         ],
@@ -495,13 +684,13 @@ def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
         text=True,
     )
     child.close()
-    caller.settimeout(30)
+    caller.settimeout(STATED_TIMEOUT)
     try:
         with caller.makefile("rb") as announced:
             assert json.loads(announced.readline())["url"] == before["url"]
     finally:
         caller.close()
-    output, errors = task.communicate(timeout=60)
+    output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
     assert server.running_server(page) == before
 
@@ -511,7 +700,7 @@ def test_serving_adopts_existing_pages_and_joins_one_codex_delivery(
 ):
     """A revived handoff connects once, including a reused foreground server.
 
-    The first server already exists with no carrier. Two public starts and a
+    The first server already exists with no adapter. Two public starts and a
     foreground reuse must retain one adapter and leave Stop nothing to repair.
     """
     first = codex_claimed_page
@@ -540,7 +729,7 @@ try:
         assert json.loads(result.stdout)["url"]
         identities.append(lease.stat().st_ino)
     stopped = subprocess.run(
-        [sys.executable, "-m", "leaf", "hook"],
+        [sys.executable, "-m", "leaf", "hook", "--harness", "codex"],
         input=json.dumps({"hook_event_name": "Stop", "session_id": "codex-thread"}),
         capture_output=True, text=True,
     )
@@ -577,7 +766,6 @@ finally:
             ready.exists,
             bool,
             failure="the shared delivery handoff did not finish",
-            timeout=60,
         )
         assert len(set(json.loads(ready.read_text()))) == 1
         assert leases.wait_is_live(first, "codex-thread")
@@ -585,7 +773,7 @@ finally:
         assert codex_adapter.adapter_is_live("codex-thread")
     finally:
         done.touch()
-        output, errors = task.communicate(timeout=15)
+        output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
 
 
@@ -620,7 +808,7 @@ def test_failed_delivery_preserves_the_existing_preview(
                 with claim_and_start(page_dir):
                     pass
             else:
-                cmd_serve(page_dir, acquire=True)
+                cmd_serve(page_dir, harness=session_harness(), acquire=True)
         assert page_claim(page_dir) == claim
         assert not original.ended
         assert json.loads((page_dir / "service.json").read_text()) == published
@@ -786,7 +974,11 @@ def test_service_publication_failure_keeps_previous_preview_claim(
     try:
         with pytest.raises(PermissionError, match="service cannot be published"):
             hosting.cmd_serve(
-                page_dir, acquire=True, prepared_claim=intent, handshake=Accepted()
+                page_dir,
+                harness=session_harness(),
+                acquire=True,
+                prepared_claim=intent,
+                handshake=Accepted(),
             )
         assert page_claim(page_dir) == previous
         assert not original.ended

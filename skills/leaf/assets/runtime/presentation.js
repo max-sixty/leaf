@@ -435,8 +435,9 @@ export function dress(root) {
 // and a page carrying one had to be either a cramped board or a page whose every
 // paragraph was widened to suit it. Neither is a choice a page should have to make, so
 // the widget declares its capacity (x-space) and the theme spends the room the layout
-// resolved by the CSS shell (--lf-room). `wide` uses the shared evidence cap;
-// `available` uses all remaining room. Internal arrangement remains package-owned.
+// resolved by the CSS shell (--lf-room). `column` keeps the prose measure in a wider
+// flow; `wide` uses the shared evidence cap; `available` uses all remaining room.
+// Internal arrangement remains package-owned.
 //
 // Whether the widget is set among the words around it is the second (x-inline). What
 // reads it is the pair of selectors asking whether a suggestion slot or a variant holds
@@ -496,6 +497,23 @@ export function markDeclared(root) {
     if (authored)
       for (const el of elementsIn(root, `[${authored}]`))
         keeps(el, paint, el.getAttribute(authored));
+  }
+}
+
+// Write each widget's declared first-paint structure (`x-prepaint`) into a message's
+// markup while it is still inert, as delivery writes it into a page's document
+// (revision_delivery.py, `mark_declared`), so a widget a message holds lays out its
+// drawing's structure before its module draws there too. Its module takes it out.
+export function writePrepaint(root) {
+  for (const tag of tagsDeclaring((entry) => entry["x-prepaint"])) {
+    // Its own, or that of the widget it first paints as (`as`).
+    const declared = registry[tag]["x-prepaint"];
+    const markup = document.createElement("template");
+    markup.innerHTML = declared.as ? registry[declared.as]["x-prepaint"] : declared;
+    const written = markup.content.firstElementChild;
+    written.toggleAttribute("data-lf-prepaint", true);
+    written.dataset.lfGen = "1";
+    for (const el of elementsIn(root, tag)) el.prepend(written.cloneNode(true));
   }
 }
 

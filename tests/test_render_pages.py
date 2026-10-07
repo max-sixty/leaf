@@ -30,7 +30,7 @@ from render_cases_interaction import (
     SEATED_ASK_WIDGETS,
     live_url,
 )
-from render_cases_layout import banner_control, toggle_asks, with_one_ask
+from render_cases_layout import banner_control, toggle_queue, with_one_ask
 from render_cases_navigation import (
     composer_quote,
 )
@@ -100,7 +100,7 @@ def test_sort_source_follows_the_initial_step_when_code_arrives_later(browser, s
         reduced_motion="reduce", viewport={"width": 1440, "height": 900}
     )
     held = []
-    context.route("**/vendor/highlight.esm.js", lambda route: held.append(route))
+    context.route("**/vendor/syntax.esm.js", lambda route: held.append(route))
     page = open_page(
         browser,
         serve(example),
@@ -429,7 +429,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
             card = page.locator(f'.lf-thread[data-id="{thread["id"]}"]')
             expect(
                 card.get_by_role(
-                    "button", name="Reopen", exact=True, include_hidden=True
+                    "button",
+                    name=re.compile(r"\bReopen(?: thread)?$"),
+                    include_hidden=True,
                 )
             ).to_have_count(1)
             anchor = thread["anchor"]
@@ -819,9 +821,8 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     toggle.click()
     page.locator(".lf-thread-summary").first.click()
     thread = page.locator(".lf-thread").first
-    # The card lifts its first message's head beside the thread's actions.
     expect(thread.locator(".lf-msg.agent")).to_have_count(1)
-    expect(thread.locator(".lf-thread-root-meta .lf-msg-head b")).to_have_text("Codex")
+    expect(thread.locator(".lf-msg.agent > .lf-msg-head b")).to_have_text("Codex")
     expect(thread.locator(".lf-quote")).to_have_text("“Retries are capped at three”")
 
     write(thread.locator("leaf-text"), "three is the retry budget, not a guess")
@@ -1087,7 +1088,14 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     assert reply.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [5, 16, "backward"]
+    # The remote resolution waits behind the thread's notice while the focused
+    # draft is in view. The user can reveal it without losing their reply.
+    notice = thread.locator(".lf-thread-news")
+    expect(notice).to_have_text("Resolved")
+    expect(thread).to_have_attribute("data-resolved", "false")
+    notice.click()
     expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
+    expect(reply).to_have_js_property("value", "keep this inline reply")
 
 
 def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
@@ -1146,11 +1154,17 @@ def test_failed_resolve_candidate_restores_focused_reply(browser, serve):
     page.unroute("**/api/state*")
     nudge(page_dir)
     expect(page.locator('[data-filter-value="resolved"]')).to_have_text("Resolved (1)")
-    # The resolved card stays where the user is writing in it.
-    expect(page.locator(".lf-thread")).to_have_attribute("data-resolved", "true")
+    # The card keeps the user's editing place and holds the remote resolution
+    # behind a notice until they choose to show it.
+    thread = page.locator(".lf-thread")
+    expect(thread.locator(".lf-thread-news")).to_have_text("Resolved")
+    expect(thread).to_have_attribute("data-resolved", "false")
     expect(page.locator(".lf-thread leaf-text")).to_have_js_property(
         "value", "keep this unfinished reply"
     )
+    thread.locator(".lf-thread-news").click()
+    expect(thread).to_have_attribute("data-resolved", "true")
+    expect(thread.get_by_role("button", name="Reopen")).to_be_visible()
 
 
 def test_a_failed_state_keeps_focus_in_the_open_versions_menu(browser, serve):
@@ -2018,7 +2032,10 @@ def test_a_widget_that_declares_width_takes_the_room_and_the_column_stays_put(
 def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     """One authored width contract applies to native and package blocks. An occurrence
     wins over a package default, and column remains the prose measure when nested in a
-    wider section rather than inheriting its containing block's allocation."""
+    wider section rather than inheriting its containing block's allocation. There a
+    column block, authored or declared by its widget (lf-options), starts at the
+    section's edge as the section's text does, rather than centred in the room. A board
+    allocated the column keeps to it even where its four columns' minimum is wider."""
     source = leaf_page(
         "Authored block widths",
         """
@@ -2028,9 +2045,14 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
   <table id="table" data-width="available"><thead><tr><th>Case</th><th>Result</th></tr></thead>
     <tbody><tr><td>Native table</td><td>Uses its authored allocation.</td></tr></tbody></table>
   <p id="nested-column" data-width="column">Narrow prose within wide evidence.</p>
+  <p id="nested-prose">Prose within wide evidence.</p>
+  <lf-options id="options" choose><lf-option id="option">One</lf-option></lf-options>
 </section>
 <lf-board id="board" data-width="column">
   <lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column>
+  <lf-column id="doing" label="Doing"></lf-column>
+  <lf-column id="review" label="Review"></lf-column>
+  <lf-column id="done" label="Done"></lf-column>
 </lf-board>
 """,
     )
@@ -2038,7 +2060,8 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     resized(page, 1726, 900)
     at = page.evaluate("""() => {
       const result = {};
-      for (const id of ['prose', 'wide', 'table', 'nested-column', 'board']) {
+      for (const id of ['prose', 'wide', 'table', 'nested-column', 'nested-prose',
+                        'options', 'board']) {
         const el = document.getElementById(id), box = el.getBoundingClientRect();
         result[id] = {width: box.width, left: box.left,
           space: el.getAttribute('data-lf-space'), role: el.getAttribute('role')};
@@ -2050,8 +2073,11 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     assert at["board"]["space"] == "column"
     assert at["wide"]["width"] > at["prose"]["width"]
     assert at["table"]["width"] == pytest.approx(at["wide"]["width"], abs=1)
-    assert at["nested-column"]["width"] == pytest.approx(at["prose"]["width"], abs=1)
-    assert at["nested-column"]["left"] > at["wide"]["left"]
+    assert at["options"]["space"] == "column"
+    assert at["wide"]["left"] < at["prose"]["left"]
+    for column in ("nested-column", "nested-prose", "options"):
+        assert at[column]["width"] == pytest.approx(at["prose"]["width"], abs=1)
+        assert at[column]["left"] == pytest.approx(at["wide"]["left"], abs=1)
     assert at["board"]["width"] == pytest.approx(at["prose"]["width"], abs=1)
     assert page.locator("#table").evaluate("el => el.tagName") == "TABLE"
     assert root_overflow(page) == 0
@@ -2069,6 +2095,57 @@ def test_authored_blocks_choose_column_wide_or_available_space(browser, serve):
     assert root_overflow(page) == 0
 
 
+def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
+    """A widget's preferred minimum never claims the sidebar's margin. Native wide and
+    available blocks read the same capacity; four and five board columns previously
+    overrode it at mid widths, while the control without a sidebar fitted there.
+    Narrow boards scroll their columns inside that allocation rather than the page.
+    """
+    sidebar = '<aside class="sidebar"><lf-toc id="contents"></lf-toc></aside>'
+    boards = "".join(
+        f'<lf-board id="board-{count}">'
+        + "".join(
+            f'<lf-column id="col-{count}-{i}" label="Column {i}"></lf-column>'
+            for i in range(count)
+        )
+        + "</lf-board>"
+        for count in (4, 5, 6)
+    )
+    for resident in (sidebar, ""):
+        page = open_page(
+            browser,
+            serve(
+                leaf_page(
+                    "Board beside contents",
+                    resident
+                    + '<h1>Board beside contents</h1><section id="boards"><h2>Boards</h2>'
+                    + '<div id="wide" data-width="wide">Wide evidence.</div>'
+                    + '<div id="room" data-width="available">Available evidence.</div>'
+                    + boards
+                    + "</section>",
+                )
+            ),
+        )
+        for width in (540, 840, 1040, 1440):
+            resized(page, width, 900)
+            at = page.evaluate("""() => Object.fromEntries(
+              ['wide', 'room', 'board-4', 'board-5', 'board-6'].map(id => {
+                const el = document.getElementById(id), b = el.getBoundingClientRect();
+                return [id, {left: b.left, right: b.right, width: b.width,
+                             scrolls: el.scrollWidth - el.clientWidth}];
+              }))""")
+            for name in ("wide", "board-4", "board-5", "board-6"):
+                assert at[name]["left"] >= at["room"]["left"] - 1, (width, at)
+                assert at[name]["right"] <= at["room"]["right"] + 1, (width, at)
+            assert root_overflow(page) == 0, (width, at)
+            if width == 540:
+                assert at["board-4"]["scrolls"] > 0, at
+                assert at["board-5"]["scrolls"] > 0, at
+            elif width == 1440:
+                assert at["wide"]["width"] == pytest.approx(1080, abs=1), at
+                assert at["room"]["width"] > at["wide"]["width"], at
+
+
 def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
     """`wide` is the shared capped evidence width wherever a block stands. A wide
     Layout's track and a workspace pane are wider than `--wide` at a large window, so
@@ -2079,7 +2156,12 @@ def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
     narrow window's pane still bounds the wide block."""
     blocks = """
 <div id="named" data-width="wide">Named wide.</div>
-<lf-board id="board"><lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column></lf-board>
+<lf-board id="board">
+<lf-column id="todo" label="Todo"><lf-card id="card">One</lf-card></lf-column>
+<lf-column id="two" label="Two"></lf-column><lf-column id="three" label="Three"></lf-column>
+<lf-column id="four" label="Four"></lf-column><lf-column id="five" label="Five"></lf-column>
+<lf-column id="six" label="Six"></lf-column>
+</lf-board>
 <div id="plain">No width named.</div>
 <div id="available" data-width="available">Available.</div>
 """
@@ -2115,6 +2197,90 @@ def test_named_wide_is_the_evidence_width_in_every_layout(browser, serve):
         narrow = page.evaluate(measure)
         assert narrow["named"]["width"] == narrow["plain"]["width"] < 540, narrow
         assert root_overflow(page) == 0
+
+
+def test_an_ask_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
+    browser, serve
+):
+    """On a wide page an Ask and a callout keep the prose's width and left edge, so the
+    Ask's ring and pin stand beside what it asks, as on a column page. One granted
+    `data-width`, or holding a block of its own that declares one, takes that room for
+    the evidence. On a column page the Ask stays in the column and its wide block breaks
+    out of it, as the block would from a section."""
+    table = '<table id="{id}-t" data-width="wide"><tr><td>p95</td></tr></table>'
+    ask = (
+        '<lf-ask id="{id}"{width}><h3>Ship it?</h3>{table}<lf-options id="{id}-o" '
+        'choose><lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-ask>'
+    )
+    body = (
+        '<p id="prose">Prose.</p>'
+        + ask.format(id="ask", width="", table="")
+        + ask.format(id="granted", width=' data-width="wide"', table="")
+        + ask.format(id="holds", width="", table=table.format(id="holds"))
+        + ask.format(
+            id="deep", width="", table=f"<figure>{table.format(id='deep')}</figure>"
+        )
+        + ask.format(
+            id="nest",
+            width="",
+            table=f'<aside class="callout">{table.format(id="nest")}</aside>',
+        )
+        + '<lf-options id="plain"><lf-option id="plain-a">Raise it '
+        + table.format(id="plain")
+        + "</lf-option></lf-options>"
+        + '<lf-ask id="member"><h3>Which?</h3><lf-options id="member-o" choose>'
+        + '<lf-option id="member-a">Raise it <aside class="callout">'
+        + table.format(id="member")
+        + "</aside></lf-option></lf-options></lf-ask>"
+        + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
+        + '<aside class="callout" id="granted-c" data-width="wide"><p>Wide.</p></aside>'
+        + '<lf-options id="list" choose><lf-option id="list-a">Leave it</lf-option>'
+        + f'<lf-option id="list-b">Raise it {table.format(id="list")}</lf-option>'
+        + "</lf-options>"
+    )
+    measure = """() => Object.fromEntries(
+      ['prose', 'ask', 'granted', 'granted-c', 'holds', 'holds-t', 'callout', 'list']
+        .map(id => {
+        const box = document.getElementById(id).getBoundingClientRect();
+        return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
+      }))"""
+    page = open_page(browser, serve(leaf_page("Wide flow", body, layout="wide")))
+    resized(page, 1726, 900)
+    at = page.evaluate(measure)
+    edge = at["prose"]["left"]
+    # An option list keeps the measure whatever one option holds: only a box's own
+    # blocks widen it.
+    for boxed in ("ask", "callout", "list"):
+        assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
+    # A granted callout's padding and border fall inside the wide measure.
+    for wide in ("granted", "granted-c", "holds"):
+        assert at[wide] == {"width": 1080, "left": edge}, (wide, at)
+    # The widened Ask has the room for its options track, so the table stands beside
+    # the list rather than at the measure.
+    assert at["holds-t"]["width"] > 720, at
+    # A wide block deeper in, inside a figure, or in a callout the Ask holds at the
+    # measure, is held there, and the render check says to give the Ask the width. One
+    # an option carries, directly or in a callout, is the list's member's to hold, and
+    # goes unnamed, since no width given to the list or its Ask would free it.
+    held = {
+        finding["at"]: finding["text"]
+        for finding in render_checks_model.evaluate_probe(page, "misplacedBoxes")
+        if finding["kind"] == "held"
+    }
+    assert set(held) == {"<table id=deep-t>", "<table id=nest-t>"}, held
+    assert "give <lf-ask id=nest> the data-width" in held["<table id=nest-t>"], held
+
+    column = open_page(browser, serve(leaf_page("Column", body)))
+    resized(column, 1726, 900)
+    at = column.evaluate(measure)
+    assert at["holds"]["width"] == at["prose"]["width"] == 720, at
+    assert at["holds-t"]["width"] == 1080, at
+    assert at["holds-t"]["left"] < at["prose"]["left"], at
+    assert not [
+        finding
+        for finding in render_checks_model.evaluate_probe(column, "misplacedBoxes")
+        if finding["kind"] == "held"
+    ]
 
 
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
@@ -3100,7 +3266,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     takes, so the release-notes shot, the wide exhibit in the control, grows left only
     to stop short of it.
 
-    The Asks drawer stands over the left margin and moves nothing in it. A narrow viewport
+    The Queue panel stands over the left margin and moves nothing in it. A narrow viewport
     returns the aside to the flow, and print proves paper reserves no blank margin for a
     posture it cannot use.
 
@@ -3220,7 +3386,7 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
 
-    # The Asks drawer stands over the page's left margin and moves nothing in it: the fixed
+    # The Queue panel stands over the page's left margin and moves nothing in it: the fixed
     # ToC and the sidebar stay where the page put them, under the drawer while it stands.
     resized(page, 1700, 900)
     margin = """() => {
@@ -3229,10 +3395,10 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
           return {sidebarLeft: sidebar.left, tocLeft: toc.left};
         }"""
     before = page.evaluate(margin)
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_visible()
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_be_visible()
     page.wait_for_function(
-        """() => document.querySelector('.lf-asks-panel').getAnimations().length === 0"""
+        """() => document.querySelector('.lf-queue-panel').getAnimations().length === 0"""
     )
     assert page.evaluate(margin) == before
     geometry = page.evaluate(
@@ -3255,8 +3421,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     assert abs(geometry["tocBottom"] - (geometry["lineTop"] - 24)) <= 1, (
         f"the map's foot is not the band's top less its inset: {geometry}"
     )
-    banner_control(page, ".lf-asks").click()
-    expect(page.locator(".lf-asks-panel")).to_be_hidden()
+    banner_control(page, ".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_be_hidden()
 
     resized(page, 1400, 900)
 
@@ -3370,6 +3536,9 @@ aside.note { --lf-resident: note; display: none }
     loaded = []
     page.on("request", lambda request: loaded.append(request.url))
     page.goto(fixture)
+    # Runtime modules read the storage and initial-drawing services installed by
+    # the classic prepaint script before their module graph is imported.
+    page.add_script_tag(url=asset.replace("content-layout.js", "prepaint.js"))
     reading = page.evaluate(
         """async ({asset, rail}) => {
       const owner = await import(asset);
@@ -3521,8 +3690,8 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
         else:
             assert at["note"]["float"] == "none", (width, at)
 
-    # The Asks drawer stands over the page and grants or withdraws no margin.
-    toggle_asks(page)
+    # The Queue panel stands over the page and grants or withdraws no margin.
+    toggle_queue(page)
     panelled = page.evaluate(reading)
     assert panelled["sidebars"] == at["sidebars"]
     assert panelled["taken"] == at["taken"]

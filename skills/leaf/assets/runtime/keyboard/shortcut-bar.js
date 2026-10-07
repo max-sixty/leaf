@@ -54,7 +54,6 @@ import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
 
 import {
   activeRows,
-  ariaShortcuts,
   bindings,
   commandEntries,
   commandPresentations,
@@ -114,7 +113,6 @@ const EMPTY_BAR = Object.freeze({
     title: "More keyboard shortcuts",
     expanded: false,
     ariaLabel: "More keyboard shortcuts",
-    ariaShortcuts: null,
   }),
   tail: null,
   expanded: false,
@@ -157,9 +155,7 @@ const shortcutBarTemplate = (model) =>
       title=${model.more.title}
       aria-label=${model.more.ariaLabel}
       aria-expanded=${String(model.more.expanded)}
-      aria-keyshortcuts=${model.more.ariaShortcuts ?? nothing}
       ?hidden=${model.more.hidden}
-      @click=${() => activateShortcutMore?.()}
     >
       <kbd class="lf-key-badge">${model.more.binding}</kbd
       ><span>${model.more.line}</span></button
@@ -444,7 +440,6 @@ export function renderShortcutBar(goToStatus) {
       ariaLabel: referenceBinding
         ? `${spell(referenceBinding)} ${referenceLine}`
         : referenceTitle,
-      ariaShortcuts: referenceBinding ? ariaShortcuts([reference], false) : null,
     }),
     tail:
       expanded && tail
@@ -570,7 +565,7 @@ const SHORTCUT_HELP = pageCommand({
     shortcutBarExpanded() ? "Command reference" : "More keyboard shortcuts",
   line: () => (shortcutBarExpanded() ? "command reference" : "more"),
   control: () => shortcutBarMore,
-  run: () => shortcutBarMore.click(),
+  run: () => activateShortcutMore?.(),
 });
 
 const COLLAPSE_SHORTCUT_BAR = {

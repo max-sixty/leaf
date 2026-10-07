@@ -25,7 +25,15 @@
 
 import { nextRender } from "./rendering.js";
 import { blockAt, says } from "./passages.js";
-import { focusDestination, handBack, holdFocus, letGo, closeLayer } from "./focus.js";
+import {
+  focusDestination,
+  handBack,
+  holdFocus,
+  letGo,
+  closeLayer,
+  openLayer,
+  openerOf,
+} from "./focus.js";
 import { html, nothing, render, repeat } from "../vendor/browser-runtime.js";
 import { iconTemplate } from "./icons.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
@@ -113,7 +121,6 @@ export function createPageMapDialog({
 }) {
   const { targetFor } = inventory;
   let entries = [];
-  let from = null;
   let target = null;
   let trackedOffers = new Set();
 
@@ -175,7 +182,7 @@ export function createPageMapDialog({
       });
       return;
     }
-    const returnTo = from;
+    const returnTo = openerOf(dialog);
     closeLayer(
       () => dialog.close(),
       () => handBack(returnTo),
@@ -361,7 +368,7 @@ export function createPageMapDialog({
     const openedFrom = invoker ?? pageMapInvoker();
     target = entry ? targetFor(entry) : null;
     if (!dialog.open) {
-      from = openedFrom;
+      openLayer(dialog, openedFrom);
       dialogSearch.value = "";
     }
     renderSheet();
@@ -437,12 +444,11 @@ export function createPageMapDialog({
     });
     dialog.addEventListener("close", () => {
       if (dialog.open) return;
-      from = null;
       target = null;
       paintKeys();
     });
     dialogClose.onclick = () => {
-      const returnTo = from;
+      const returnTo = openerOf(dialog);
       const invoker = pageMapInvoker();
       closeLayer(
         () => dialog.close(),

@@ -148,9 +148,14 @@ const placed = (cause, move) => {
 
 // Whether focus stands on `node`, or inside a shadow tree it hosts, as it does inside a
 // text field's editor: the field is where the user is. A light child of it is somewhere
-// else, so a container a placement lands on is landed on itself.
+// else, so a container a placement lands on is landed on itself. The body is its
+// document's active element whenever nothing is focused, so only `:focus` says it holds
+// focus.
 const landedOn = (node) =>
-  node.matches(":focus") || Boolean(node.shadowRoot?.activeElement);
+  node === document.body
+    ? node.matches(":focus")
+    : node.getRootNode().activeElement === node ||
+      Boolean(node.shadowRoot?.activeElement);
 
 // A stop is lent only to a drawn element that is no control of its own: a control that
 // would not take focus is disabled, inert or hidden, and a stop would not change that.
@@ -649,9 +654,14 @@ const dropped = () => {
   if (at && at !== document.body) return null;
   return stood && !drawn(stood) ? stood : null;
 };
+// The host of a shadow root, and nothing for any other node: a document names a form
+// called `host` as `document.host`, so a climb reading `.host` off the document walks
+// back into the page and around again.
+const shadowHostOf = (node) => (node instanceof ShadowRoot ? node.host : null);
 // Whether `node` stands in `scope`, across every shadow tree between them.
 const within = (scope, node) => {
-  for (let at = node; at; at = at.parentNode ?? at.host) if (at === scope) return true;
+  for (let at = node; at; at = at.parentNode ?? shadowHostOf(at))
+    if (at === scope) return true;
   return false;
 };
 //
@@ -667,25 +677,38 @@ export function holdFocus(scope, { key = null } = {}) {
   const restore = holdOn(node);
   if (!key) return restore;
   let item = node;
-  while (item && !item.matches?.(`[${key}]`)) item = item.parentNode ?? item.host;
+  while (item && !item.matches?.(`[${key}]`))
+    item = item.parentNode ?? shadowHostOf(item);
   if (!item || item === scope || !within(scope, item)) return restore;
-  const items = () => [...scope.querySelectorAll(`[${key}]`)];
-  const keys = items().map((each) => each.getAttribute(key));
+  // The items are read in the tree the held one stands in, which is the scope's own or a
+  // shadow tree inside it.
+  const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
+  const items = () => [...tree.querySelectorAll(`[${key}]`)];
+  // A key marking several nodes of one place counts once, where it first stands.
+  const keys = [...new Set(items().map((each) => each.getAttribute(key)))];
   const at = keys.indexOf(item.getAttribute(key));
   const order = [keys[at], ...keys.slice(at + 1), ...keys.slice(0, at).reverse()];
   // In an item, the control like the one the user stood on, as Remove for Remove, read
   // in the item's own tree, or the item itself where it holds none.
   let control = node;
   while (control.getRootNode() !== item.getRootNode())
-    control = control.getRootNode().host;
+    control = shadowHostOf(control.getRootNode());
   const like =
-    control === item
-      ? null
-      : control.localName +
-        [...control.classList].map((name) => `.${CSS.escape(name)}`).join("");
+    control.localName +
+    [...control.classList].map((name) => `.${CSS.escape(name)}`).join("");
+  // The drawn item keyed so, where a hidden copy of it stands too. One key may mark
+  // several nodes of one place, as a diff line's text and its gutter's Comment: the one
+  // like the control the user stood on, or holding one, comes first.
   const find = (value) => {
-    const found = items().find((each) => each.getAttribute(key) === value);
-    return (found && like && found.querySelector(like)) || found || null;
+    const found = items().filter(
+      (each) => each.getAttribute(key) === value && drawn(each),
+    );
+    return (
+      (like && found.find((each) => each.matches(like))) ??
+      (like && found.map((each) => each.querySelector(like)).find(Boolean)) ??
+      found[0] ??
+      null
+    );
   };
   // The item keyed the same is the same place, so the caret goes with the user; a
   // neighbour is another place, which this hold lands on with no caret.
@@ -721,6 +744,16 @@ export function rove(items, stop) {
   for (const item of items) keeps(item, "tabindex", item === stop ? 0 : -1);
 }
 
+// Where a layer hands the user back when it closes: the control they stood on as it
+// opened, or the one its opener names, as a drawer's door. Recorded once at the opening
+// (`openLayer`) and read by the close (`openerOf`), so no layer keeps its own record.
+// The body is nowhere, so a layer opened from it hands back nothing and lets go.
+const openers = new WeakMap();
+export function openLayer(layer, opener = focused()) {
+  openers.set(layer, opener && opener !== document.body ? opener : null);
+}
+export const openerOf = (layer) => openers.get(layer) ?? null;
+
 // Closing a layer the user may stand in and handing them on, as one act. `close` hides
 // the layer and places nothing itself; whatever focus does while it runs, the platform's
 // own hand-back as a dialog or popover closes included, reaches no reader of where the
@@ -730,15 +763,29 @@ export function rove(items, stop) {
 // another node, as a platform hand-back does, readers hear it once as a `return`, which
 // is the layer's own and no newer word to a hold. One the close hid them under and no
 // landing put right is a drop, as any is.
+//
+// A close inside another, as a card closing while the page map that holds it closes,
+// is part of that act: it lands nobody and tells nobody. The outer close's landing
+// takes the user on, or where it names none, the first inner landing does.
 let closing = 0;
+let deferredLanding = null;
 export function closeLayer(close, land = null) {
   closing += 1;
+  let deferred = null;
   try {
     close();
   } finally {
     closing -= 1;
+    // The outermost close takes what an inner one deferred, whether or not it threw,
+    // so no landing outlives the act it belonged to.
+    if (!closing) [deferred, deferredLanding] = [deferredLanding, null];
   }
-  if (land) land();
+  if (closing) {
+    if (land) deferredLanding ??= land;
+    return;
+  }
+  const landing = land || deferred;
+  if (landing) landing();
   const at = deepFocus();
   if (!at || at === document.body || at === published) return;
   stood = at;

@@ -31,6 +31,8 @@ import {
   sizeObserver,
   watchData,
   widgetController,
+  focused,
+  standingIn,
 } from "/runtime/widget-api.js";
 
 const CLASSIFICATION = {
@@ -858,10 +860,15 @@ customElements.define(
     #select(id) {
       if (!this.#caseEntries.has(id)) return;
       const currentEntry = this.#caseEntries.get(this.#selected);
-      const restoreFocus = currentEntry && holdFocus(currentEntry.article);
-      const disposition = restoreFocus
-        ? document.activeElement.closest(".lf-vr-disposition")?.dataset.disposition
-        : null;
+      // A disposition lands on the corresponding one of the case shown now, keyed the
+      // same (focus.js, keyed `holdFocus`); any other control in the case is held where
+      // it stands.
+      const onDisposition = focused()?.closest?.(".lf-vr-disposition");
+      const restoreFocus = !currentEntry
+        ? null
+        : onDisposition && standingIn(currentEntry.article)
+          ? holdFocus(this, { key: "data-disposition" })
+          : holdFocus(currentEntry.article);
       if (id !== this.#selected) this.#scope = "focus";
       this.#selected = id;
       this.#queue.value = id;
@@ -881,11 +888,7 @@ customElements.define(
       // which the hold hands back. A hidden case-local control instead lands on the
       // corresponding disposition — or the primary disposition when it has no
       // counterpart — rather than leaving a keyboard user on the document body.
-      restoreFocus?.(
-        disposition &&
-          selected.article.querySelector(`[data-disposition="${disposition}"]`),
-        selected.article.querySelector(".lf-vr-disposition"),
-      );
+      restoreFocus?.(selected.article.querySelector(".lf-vr-disposition"));
     }
 
     #step(delta) {

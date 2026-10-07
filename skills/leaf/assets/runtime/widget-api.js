@@ -35,9 +35,9 @@ export { placeKeeper } from "./user-place.js";
 export { inUi, uiInside, upFrom } from "./shadow.js";
 // Putting the user on an element, saying what moved them there; holding their place,
 // caret included, across a move or re-render of the node they stand on, by key in a
-// list; where they stand and whether it is in a scope; handing them back as a layer
-// closes; running something once they move off an element; and a group's roving Tab
-// stop. TEXT_FIELD is the tag of the box a widget offers for the user to write
+// list; where they stand and whether it is in a scope; recording where a layer opened
+// from and handing them back as it closes; running something once they move off an
+// element; and a group's roving Tab stop. TEXT_FIELD is the tag of the box a widget offers for the user to write
 // Markdown in; TEXT_BOX matches it and any native textarea.
 export {
   closeLayer,
@@ -45,6 +45,8 @@ export {
   focused,
   handBack,
   holdFocus,
+  openLayer,
+  openerOf,
   rove,
   standingIn,
   whenLeft,

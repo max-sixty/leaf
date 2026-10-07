@@ -15,7 +15,13 @@
 
 import { html, render } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
-import { handBack, focusDestination } from "./focus.js";
+import {
+  handBack,
+  focusDestination,
+  closeLayer,
+  openLayer,
+  openerOf,
+} from "./focus.js";
 import { closeControl } from "./widget-elements.js";
 
 // Page media is whatever a reference names under this directory. The name a file there
@@ -79,18 +85,19 @@ mediaViewer.setAttribute("aria-modal", "true");
 mediaViewer.setAttribute("aria-labelledby", "lf-media-viewer-title");
 presentViewer(null);
 
-let origin = null;
+// The viewer hands the user back to the image they opened it from (focus.js,
+// `openLayer`) once the platform has closed it, by its button, Escape or a press outside.
 const open = (url, alt, from) => {
-  origin = from;
+  openLayer(mediaViewer, from);
   presentViewer({ url, alt });
   if (!mediaViewer.open) mediaViewer.showModal();
   focusDestination(viewerClose, "move");
 };
 mediaViewer.addEventListener("close", () => {
   if (mediaViewer.open) return;
-  presentViewer(null);
-  if (origin) handBack(origin);
-  origin = null;
+  const origin = openerOf(mediaViewer);
+  openLayer(mediaViewer, null);
+  closeLayer(() => presentViewer(null), origin && (() => handBack(origin)));
 });
 document.addEventListener("click", (event) => {
   // The path ends at the document and the window, and an element whose id is

@@ -6,7 +6,7 @@ import { drawnEdge } from "./drawn-edge.js";
 import { slide } from "./motion.js";
 import { declareOccluder } from "./geometry.js";
 import { currentAuxiliarySurface } from "./auxiliary-surfaces.js";
-import { letGo } from "./focus.js";
+import { letGo, openLayer, openerOf } from "./focus.js";
 import { keys } from "./keyboard/scopes.js";
 import { pageRung } from "./keyboard/register.js";
 import { pagePresented } from "./presentation.js";
@@ -155,7 +155,7 @@ export function createDrawers({
   function registerDrawer(key, panel, btn, close, paint) {
     const entrances = [btn, ...(doors[key] ?? [])];
     const returnDoor = () => {
-      const opened = drawers.get(key)?.openedBy;
+      const opened = openerOf(panel);
       return opened && opened !== btn && opened.checkVisibility()
         ? opened
         : bannerControlDoor(btn);
@@ -191,7 +191,7 @@ export function createDrawers({
         if (!panel.classList.contains("open")) return;
         // The door a press opened it from is that opening's, not the next one's; the
         // surfaces' owner read it (`opener`) before this hide.
-        drawers.get(key).openedBy = null;
+        openLayer(panel, null);
         // Slid out before hidden, and hidden only if still closed on arrival — a
         // reopen mid-slide leaves the panel standing rather than racing the finish.
         const out = slide(panel, "left", "out");
@@ -204,7 +204,7 @@ export function createDrawers({
         else hide();
       },
     });
-    drawers.set(key, { panel, btn, close, entrances, openedBy: null });
+    drawers.set(key, { panel, btn, close, entrances });
   }
   // The painters are thunks: each drawer's owner imports this module back, so neither
   // painter is a binding this module can read as it evaluates.
@@ -229,7 +229,7 @@ export function createDrawers({
       drawer.btn.classList.add("lf-auxiliary-toggle");
       for (const door of drawer.entrances) {
         door.onclick = () => {
-          drawer.openedBy = door;
+          openLayer(drawer.panel, door);
           setOpenDrawer(drawerIsOpen(key) ? null : key);
         };
         keeps(door, "aria-expanded", "false");

@@ -296,10 +296,12 @@ outside `scope`. A list of keyed items passes `holdFocus(list, { key })`, naming
 attribute each item carries: the restore then lands on the item keyed the same, or the
 nearest that survived, and on the control in it like the one the user stood on.
 
-A widget's own layer, such as a list it opens over its contents, closes with
-`closeLayer(close, land)`: `close` hides it, and `land` puts a user who stood in it where
-the close takes them, usually `handBack(opener)`, which lets go onto the page where the
-opener is gone. Readers of where the user stands hear only where they end up. A group
+A widget's own layer, such as a list it opens over its contents, records where it was
+opened from with `openLayer(layer)` as it opens, which reads where the user stands, and
+closes with `closeLayer(close, land)`: `close` hides it, and `land` puts a user who stood
+in it where the close takes them, usually `handBack(openerOf(layer))`, which lets go onto
+the page where the opener is gone. Readers of where the user stands hear only where they
+end up. The layer's Escape is a command row like any other key. A group
 reached by its own arrows offers one Tab stop with `rove(items, stop)`. `standingIn(scope)`
 says whether the user stands in a scope, across shadow trees, and `whenLeft(element, leave)`
 runs `leave` once when they move off an element.

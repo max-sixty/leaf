@@ -12,8 +12,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { closeLayer, focusDestination, focused, holdFocus, onStanding, rove } =
-  await import("/runtime/focus.js");
+const {
+  closeLayer,
+  focusDestination,
+  focused,
+  handBack,
+  holdFocus,
+  onStanding,
+  openLayer,
+  openerOf,
+  rove,
+} = await import("/runtime/focus.js");
 const { retainUserIntent } = await import("/runtime/user-intent.js");
 
 const heard = [];
@@ -247,4 +256,60 @@ test("a roving group offers one Tab stop", () => {
     items.map((item) => item.getAttribute("tabindex")),
     ["-1", "0", "-1"],
   );
+});
+
+test("a keyed hold reads its rows in the shadow tree they stand in, and lands on the like control", () => {
+  scene();
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = host.attachShadow({ mode: "open" });
+  const row = (key) => {
+    const item = document.createElement("li");
+    item.dataset.row = key;
+    const remove = document.createElement("button");
+    remove.className = "remove";
+    item.append(document.createElement("button"), remove);
+    return item;
+  };
+  root.append(row("a"), row("b"), row("c"));
+  focusDestination(root.children[1].querySelector(".remove"), "move");
+  const restore = holdFocus(host, { key: "data-row" });
+  root.replaceChildren(row("a"), row("c"));
+  assert.equal(restore(), true);
+  const at = focused();
+  assert.equal(at.className, "remove");
+  assert.equal(at.parentElement.dataset.row, "c");
+});
+
+test("a layer hands the user back to where it opened from, and a close inside another lands once", () => {
+  const { box, first, other } = scene();
+  focusDestination(first, "move");
+  openLayer(box);
+  assert.equal(openerOf(box), first);
+  focusDestination(other, "move");
+  heard.length = 0;
+  closeLayer(
+    () =>
+      closeLayer(
+        () => {},
+        () => focusDestination(other, "return"),
+      ),
+    () => handBack(openerOf(box)),
+  );
+  assert.equal(focused(), first);
+  assert.deepEqual(heard, [[first, "return"]]);
+});
+
+test("a close inside another lands the user where the outer close names no landing", () => {
+  const { first, other } = scene();
+  focusDestination(first, "move");
+  heard.length = 0;
+  closeLayer(() =>
+    closeLayer(
+      () => {},
+      () => focusDestination(other, "return"),
+    ),
+  );
+  assert.equal(focused(), other);
+  assert.deepEqual(heard, [[other, "return"]]);
 });

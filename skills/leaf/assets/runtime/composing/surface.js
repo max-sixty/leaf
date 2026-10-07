@@ -118,6 +118,9 @@ import {
   takesLetters,
   focusDestination,
   focused,
+  closeLayer,
+  openerOf,
+  openLayer,
 } from "../focus.js";
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
 import { shadowHost, under } from "../shadow.js";
@@ -182,7 +185,9 @@ export function createResponseSurface({
 
   // ---------- selection → comment ----------
   let fabAnchor = null;
-  let fabOrigin = null;
+  // The control the bar's opening gesture stood the user on is the bar's opener
+  // (focus.js, `openLayer`), where putting it away hands them back.
+  const fabOrigin = () => openerOf(fabBar);
   // The row inside the target the gesture that opened this bar pointed at, which the bar
   // stands level with (pointed-place.js).
   let fabPoint = null;
@@ -345,7 +350,7 @@ export function createResponseSurface({
       panelIsOpen,
       threadsBox,
       positioned: answerFabPosition,
-      dismiss: () => showFab(null, { returnFocus: "page" }),
+      dismiss: () => letGoOfFab(),
       standsIn,
       scrollToElement,
       scrollToRange,
@@ -361,18 +366,37 @@ export function createResponseSurface({
         ? origin
         : visualActionAnchor(anchor)
       : null;
-  function showFab(
-    anchor,
-    { returnFocus = "target", origin = null, place = true, point = undefined } = {},
-  ) {
+  // Putting the bar away is closing a layer (focus.js, `closeLayer`): `showFab(null)`
+  // moves no focus, and the closer names where a user who stood in the bar lands, read
+  // before it goes. `putAwayFab` hands them back to where the bar's gesture stood them;
+  // `letGoOfFab` lets them go onto the page, from the bar or from that control. Either
+  // goes to Threads instead where the bar stood in a panel it no longer fits beside.
+  function landingFromBar(toPage) {
+    const leavingBar = fabBar.contains(fabFocused());
+    const origin = fabOrigin();
+    const toPanel = leavingBar && panelIsOpen() && !(placement?.fits() ?? true);
+    const target = leavingBar ? returnDestination(fabAnchor, origin) : null;
+    return () => {
+      if (toPanel) focusDestination(threadsBox, "return");
+      // The proxy may have gone hidden since the gesture opened the box — a fold that
+      // closed under it, a row that re-rendered — and the page is the landing then, as it
+      // is for a box that had no proxy to begin with.
+      else if (leavingBar && !toPage) handBack(target);
+      else if (leavingBar || (toPage && document.activeElement === origin)) letGo();
+    };
+  }
+  function putAwayFab() {
+    const land = landingFromBar(false);
+    closeLayer(() => showFab(null), land);
+  }
+  function letGoOfFab() {
+    const land = landingFromBar(true);
+    closeLayer(() => showFab(null), land);
+  }
+  function showFab(anchor, { origin = null, place = true, point = undefined } = {}) {
     const previous = fabAnchor;
-    const previousOrigin = fabOrigin;
+    const previousOrigin = fabOrigin();
     const previousFloating = usesPlacement;
-    const leavingBar = !anchor && fabBar.contains(fabFocused());
-    const returnToPanel = leavingBar && panelIsOpen() && !(placement?.fits() ?? true);
-    const returnTarget = leavingBar
-      ? returnDestination(previous, previousOrigin)
-      : null;
     const keptInline = Boolean(
       fabInlineOutlet?.isConnected &&
       anchor &&
@@ -409,12 +433,14 @@ export function createResponseSurface({
     // rather than a fresh gesture that stood the user nowhere. It keeps the control the
     // opening gesture stood them on; otherwise the way out of a bar the user opened
     // from a proxy would depend on what they did inside it.
-    fabOrigin =
+    openLayer(
+      fabBar,
       fabAnchor && origin?.isConnected
         ? origin
         : fabAnchor && previous && sameAnchor(previous, fabAnchor)
           ? previousOrigin
-          : null;
+          : null,
+    );
     fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
     fabBar.style.display = fabAnchor
       ? "var(--lf-response-display, inline-flex)"
@@ -442,7 +468,7 @@ export function createResponseSurface({
           placement?.withhold();
         else {
           fabAnchor = null;
-          fabOrigin = null;
+          openLayer(fabBar, null);
           placement?.release();
           stopFabPositioning({ reset: true });
           resetResponseOptions();
@@ -462,24 +488,12 @@ export function createResponseSurface({
       dismissThreadView();
     if (!sameAnchor(previous, fabAnchor)) refreshThread();
     repaint(); // the c row names this anchor, so the line is one more rendering of it
-    if (!fabAnchor && returnFocus !== "none") {
-      if (returnToPanel) focusDestination(threadsBox, "return");
-      // The proxy may have gone hidden since the gesture opened the box — a fold that
-      // closed under it, a row that re-rendered — and the page is the landing then, as it
-      // is for a box that had no proxy to begin with.
-      else if (leavingBar && returnFocus === "target") handBack(returnTarget);
-      else if (
-        leavingBar ||
-        (returnFocus === "page" && document.activeElement === previousOrigin)
-      )
-        letGo();
-    }
   }
   let dismissedSelectionKeyup = false;
   function dismissFab() {
     dismissedSelectionKeyup = Boolean(pageSelection() || fabAnchor?.quote);
     pageSelection()?.removeAllRanges();
-    showFab(null);
+    putAwayFab();
   }
   function refreshFab() {
     if (!fabAnchor || !usesPlacement) return;
@@ -496,7 +510,7 @@ export function createResponseSurface({
   // placement that finds room stands it again.
   function standFab() {
     if (!anchorStands(fabAnchor)) {
-      showFab(null, { returnFocus: "page" });
+      letGoOfFab();
       return false;
     }
     if (!placement || placement.place()) return true;
@@ -525,7 +539,7 @@ export function createResponseSurface({
     (anchor?.quote && targetRange(resolveAnchor(anchor, pageText()))) ||
     anchorTargetAt(anchor);
   const fabTargetAt = () => anchorTargetAt(fabAnchor);
-  const fabReturnTo = () => returnDestination(fabAnchor, fabOrigin);
+  const fabReturnTo = () => returnDestination(fabAnchor, fabOrigin());
 
   // Opening Comment is an overlay gesture. Any visible part of its subject is
   // enough to open it: the physical presenter owns its attachment and measure.
@@ -632,7 +646,7 @@ export function createResponseSurface({
   function updateFab() {
     if (!anchoringIsReady()) {
       offerSelection(null);
-      showFab(null);
+      putAwayFab();
       return;
     }
     const sel = pageSelection();
@@ -660,7 +674,7 @@ export function createResponseSurface({
       // and the native context menu. An explicit Comment press uses the same field and
       // focuses it through focusFabComment below.
       openComment(anchor, "", { focus: false });
-    } else if (fabAnchor?.quote && !fabHoldsCapturedPassage()) showFab(null);
+    } else if (fabAnchor?.quote && !fabHoldsCapturedPassage()) putAwayFab();
   }
   // Where the pointer stopped is not the question; where the selection is, is. The guard
   // exists so a mouseup inside the runtime's layer — a click in the panel, the composer —
@@ -918,7 +932,7 @@ export function createResponseSurface({
       !reactionContextContains(target)
     ) {
       if (composerOpen) hideComposer();
-      showFab(null, { returnFocus: "page" });
+      letGoOfFab();
       // The armed react press goes with the bar it was armed on.
       setReact(false);
     }
@@ -1078,7 +1092,7 @@ export function createResponseSurface({
           // A drag that crossed out before it covered anything has no passage to offer and
           // no words to put back. The browser's own selection stays where it is — the user
           // can still copy it — and the response surface says nothing about it.
-          showFab(null);
+          putAwayFab();
           return;
         }
         if (ev.button === 0) snapSelection();
@@ -1390,6 +1404,8 @@ export function createResponseSurface({
     landFabFocus,
     anchorStands,
     showFab,
+    putAwayFab,
+    letGoOfFab,
     dismissFab,
     refreshFab,
     anchorTargetAt,

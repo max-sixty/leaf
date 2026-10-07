@@ -514,11 +514,79 @@ export const placementsRule = {
   },
 };
 
+// A layer hands the user back as it closes in one act (`closeLayer(close, land)` in
+// focus.js), so the platform's own hand-back and the owner's reach readers once, as where
+// the user ends up. A `handBack(...)` called anywhere else is a layer return beside it,
+// which readers hear as a second move and holds read as a newer word. The rule refuses a
+// call outside the arguments of a `closeLayer` call, or outside a landing a closer hands
+// to one: a function bound to a name or property beginning `land`, as a surface's
+// `landOnEntry` is. `letGo` lands the user on the page by a route too, as `g p` does, so
+// it is no layer return of itself. The option names the files that may still call it.
+const LAYER_RETURN_MESSAGE =
+  "Hand the user back as the layer closes, inside closeLayer(close, land) or a landing named land… (runtime/focus.js): a return beside it reaches readers as a second move.";
+export const layerReturnsRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    if ((context.options[0] ?? []).includes(file)) return {};
+    const landing = (name) => typeof name === "string" && /^land/u.test(name);
+    const allowed = (node) => {
+      for (let at = node.parent; at; at = at.parent) {
+        if (
+          at.type === "CallExpression" &&
+          at.callee.type === "Identifier" &&
+          at.callee.name === "closeLayer"
+        )
+          return true;
+        if (at.type === "FunctionDeclaration" && landing(at.id?.name)) return true;
+        if (at.type === "VariableDeclarator" && landing(at.id?.name)) return true;
+        if (at.type === "Property" && landing(at.key?.name)) return true;
+      }
+      return false;
+    };
+    // The local names `handBack` goes by in this file, an alias included.
+    const names = new Set(["handBack"]);
+    return {
+      ImportSpecifier(node) {
+        if (node.imported.name === "handBack") names.add(node.local.name);
+      },
+      CallExpression(node) {
+        const { callee } = node;
+        const called =
+          (callee.type === "Identifier" && names.has(callee.name)) ||
+          (callee.type === "MemberExpression" &&
+            !callee.computed &&
+            callee.property.name === "handBack");
+        if (called && !allowed(node))
+          context.report({ node, message: LAYER_RETURN_MESSAGE });
+      },
+      // Handed on as a value, it is called where no closeLayer frames it.
+      Identifier(node) {
+        if (!names.has(node.name) || allowed(node)) return;
+        const { parent } = node;
+        if (
+          (parent.type === "CallExpression" && parent.callee === node) ||
+          parent.type === "ImportSpecifier" ||
+          parent.type === "ExportSpecifier" ||
+          (parent.type === "MemberExpression" && parent.property === node) ||
+          (parent.type === "FunctionDeclaration" && parent.id === node)
+        )
+          return;
+        context.report({ node, message: LAYER_RETURN_MESSAGE });
+      },
+    };
+  },
+};
+
 const architecturePlugin = {
   rules: {
     "semantic-store-ownership": semanticStoreOwnershipRule,
     "standing-listeners": standingListenersRule,
     placements: placementsRule,
+    "layer-returns": layerReturnsRule,
     "root-state-ownership": {
       meta: { type: "problem", schema: [] },
       create(context) {
@@ -1095,6 +1163,13 @@ export default [
           // The text field's own `focus()`, which the placement calls, hands on to the
           // editor its shadow tree holds.
           "skills/leaf/assets/runtime/composing/text-field.js",
+        ],
+      ],
+      "architecture/layer-returns": [
+        "error",
+        [
+          // The owner of the hand-back and the let-go.
+          "skills/leaf/assets/runtime/focus.js",
         ],
       ],
     },

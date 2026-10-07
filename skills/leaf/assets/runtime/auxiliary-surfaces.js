@@ -273,9 +273,8 @@ export function createAuxiliarySurfaces({
     if (previous) {
       // Read before the hide, which forgets the door a press opened the surface from.
       const opener = previous.opener();
-      const landing =
-        land ?? (standingIn(previous.surface) && (() => handBack(opener)));
-      closeLayer(() => previous.hide(), landing);
+      const inside = standingIn(previous.surface);
+      closeLayer(() => previous.hide(), land ?? (inside && (() => handBack(opener))));
     }
     if (selected && !arriving) selected.show({ phase });
     sync();

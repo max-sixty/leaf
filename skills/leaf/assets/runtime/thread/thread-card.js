@@ -361,11 +361,8 @@ export class ThreadView {
       this.repaint();
     });
     if (surface === "panel") {
-      // Pointer focus waits for the click's landing; other title focus chooses now.
-      this.node.addEventListener("focusin", (event) => {
-        if (event.target.matches?.(".lf-thread-summary:not(:active)"))
-          this.#commands.choose();
-      });
+      // A press on the title chooses at its click, which lands it; focus arriving on the
+      // title any other way chooses at once (thread-list-view.js).
       this.node.addEventListener("click", (event) => {
         if (event.target.closest(".lf-thread-summary")?.parentElement !== this.node)
           return;

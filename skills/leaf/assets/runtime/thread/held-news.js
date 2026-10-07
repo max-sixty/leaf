@@ -368,13 +368,17 @@ function everySeat(id, show) {
 // The thread the user stands in, and their arrivals at another, which show what it holds.
 let standing = null;
 onStanding((node, cause) => {
+  // A drop leaves them standing in the thread, for its owner to put them back in.
+  if (cause === "drop") return;
   const thread = node && closestAcross(node, THREAD);
   const id = thread ? (thread.dataset.id ?? thread.dataset.thread) : null;
   const title = thread && threadFocusStop(thread);
   const arrived =
     id !== null &&
     id !== standing &&
-    (cause === "move" || (cause === "press" && title !== thread && node === title));
+    (cause === "move" ||
+      cause === "step" ||
+      (cause === "press" && title !== thread && node === title));
   standing = id;
   if (arrived) showHeld(id);
 });

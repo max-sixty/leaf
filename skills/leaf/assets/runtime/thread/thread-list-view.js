@@ -26,7 +26,7 @@
    nothing the user sees. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
-import { holdFocus } from "../focus.js";
+import { holdFocus, onStanding } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { draftHasContent } from "../drafts.js";
@@ -54,7 +54,6 @@ class ThreadListView extends RetainedFace {
   #rows = [];
   #retaining = false;
   #rollbackFocus = null;
-  #passingFocus = false;
   #selection = [];
   #intent = null;
   #leaving = new Map();
@@ -87,6 +86,15 @@ class ThreadListView extends RetainedFace {
     if (!chosen) return;
     for (const row of this.#visibleRows())
       row.node.toggleAttribute("open", row === chosen);
+  }
+
+  // The user's own move onto a card's title chooses the card, whatever route took them
+  // there, so the focused thread is always the open one. A press waits for its click
+  // (thread-card.js), which lands what it chose, and a return puts them back where they
+  // had chosen, or on the card the list shows while a change holds theirs from it,
+  // which is no choice of theirs.
+  chooseTitle(title) {
+    this.#choose(title.parentElement);
   }
 
   // An open title is still the user's focus stop for the thread. A second press leaves
@@ -190,12 +198,8 @@ class ThreadListView extends RetainedFace {
       this.#showExpanded();
       const open = this.#expandedRow();
       if (!open) return;
-      this.#passingFocus = true;
-      try {
-        focusThread(open.node, { preventScroll: true });
-      } finally {
-        this.#passingFocus = false;
-      }
+      // Handed on with the cause that gave the list its focus (`chooseTitle`).
+      focusThread(open.node, { preventScroll: true });
       passOn(this, focused());
     });
   }
@@ -282,9 +286,7 @@ class ThreadListView extends RetainedFace {
           row.key,
           (view = new ThreadView("panel", {
             ...this.#commands.card,
-            choose: () => {
-              if (!this.#passingFocus) this.#choose(view.node);
-            },
+            choose: () => this.#choose(view.node),
           })),
         );
         // A card opened by something other than the list becomes the choice: a reveal
@@ -338,4 +340,9 @@ class ThreadListView extends RetainedFace {
   }
 }
 if (!customElements.get(TAG)) customElements.define(TAG, ThreadListView);
+
+onStanding((node, cause) => {
+  if ((cause === "move" || cause === "step") && node?.matches?.(".lf-thread-summary"))
+    node.closest(TAG)?.chooseTitle(node);
+});
 export const createThreadListView = () => document.createElement(TAG);

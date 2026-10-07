@@ -219,8 +219,8 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 Chrome: on the triage board, it tells the agent through Threads that a release
 passed its checks and asks it to record that, leaving how to the agent, then checks
 a reply shows and a reload presents a revision naming the release. It prints how long each step took, the agent's steps on the page
-server's clock, so the same journey benchmarks every harness. TARGET is `cc` or
-`codex` for an isolated session of that harness running this working tree's
+server's clock, so the same journey benchmarks every harness. TARGET is `claude-code`
+or `codex` for an isolated session of that harness running this working tree's
 plugin, `local` for the website's adapter against the host's Codex login (no
 Worker, container limits, credential proxy or Docker), `wrangler` for the built
 site through the local Worker, or a website origin. A run on this machine spends
@@ -239,7 +239,7 @@ this working tree installed as their plugin, through both transports of automati
 server handoff. It checks each comment is answered once, a comment during queue-backed
 work is picked up and answered in that same turn, and each turn is closed under
 App Server's id. Run it after a change to `codex.py`,
-`codex_adapter.py`, `hooks.py`, `hook_carrier.py`, or the claim's turn in
+`codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's turn in
 `service.py`; the suite scripts App Server, and only this run shows what Codex
 itself sends. It spends a few turns on the host's Codex login, and CI has none.
 
@@ -250,8 +250,9 @@ restores both the address and working feedback without a source edit.
 
 ## Test a Claude Code session
 
-`uv run --project <root> leaf-dev verify-cc-task` runs a real interactive Claude Code
-session in a tmux pane, with this working tree as its plugin and the host's login.
+`uv run --project <root> leaf-dev verify-claude-code-task` runs a real interactive
+Claude Code session in a tmux pane, with this working tree as its plugin and the
+host's login.
 It checks each comment is answered once, a comment during a turn is picked up in
 that turn, comments after an Escape are answered, and quitting ends the session's
 claim; `--hooks-module` runs the same journey with the plugin's hooks module on,
@@ -328,7 +329,7 @@ base and the working tree:
 
 ```bash
 npm ci --prefix evals
-uv run leaf-dev eval [CASE]... --base [--harness cc|codex] [--repeat N]
+uv run leaf-dev eval [CASE]... --base [--harness claude-code|codex] [--repeat N]
 npm run view --prefix evals
 ```
 

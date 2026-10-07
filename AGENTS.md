@@ -166,6 +166,11 @@ kind of task goes in `/developing-leaf`.
 
 ### The install runs this tree
 
+Consumer installers follow the CI-built `prepared` Git branch. The browser kernel
+is compiled there; development branches keep its source modules. Installation,
+page authoring, custom packages, and export require no browser build or npm command.
+`dev/leaf_dev/distribution.py` owns preparation and publication.
+
 An install is the tracked tree copied into a harness's plugin cache, and nothing is
 built at install time: `bin/leaf` is `uv run --no-dev` on the tree, so the
 install must be writable, and Leaf writes nothing else there. Point Codex

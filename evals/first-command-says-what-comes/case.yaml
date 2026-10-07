@@ -1,6 +1,6 @@
 # Added when an ephemeral reply to an owed move began taking that move in hand, so
 # the user's first sign of the agent is words in their thread rather than a Working
-# label. Two `leaf-dev journey cc` runs on 18142adc showed the agent's first command
+# label. Two `leaf-dev journey claude-code` runs on 18142adc showed the agent's first command
 # was `leaf task start` and a read of the page, with nothing in the thread until the
 # final reply 21-26 s after the comment. The delivery's handling is read from each
 # arm's own registry, since that clause is what a real delivery hands the agent.

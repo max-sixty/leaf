@@ -752,7 +752,7 @@ def test_a_layer_mismatch_signals_startup_failure_on_window(served_example, brow
         )
         route.fulfill(response=response, body=body)
 
-    page.route("**/runtime/layer-client.js", mismatch_layer)
+    page.route("**/runtime/layer-generation.js", mismatch_layer)
     page.goto(url, wait_until="domcontentloaded")
     expect(page.get_by_role("status")).to_have_text(
         "Leaf couldn't start. Waiting for the server to update."

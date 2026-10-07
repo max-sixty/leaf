@@ -132,11 +132,11 @@ def reply_binding_stands(
     turn's reply opens, and before then the turn that stood when the seat was
     reserved. It stands while that is still the claim's turn and the turn is
     open. A turn that opens without taking it over is not the delivery's, and a
-    turn that has ended writes nothing more; either way nothing says a carrier
-    will still commit the delivery turn's messages: its start may have produced
-    no turn, or its carrier stopped reading. So the move is answered the ordinary
-    way again, and a carrier that does commit late yields to that answer
-    (`thread.cmd_reply`, `post`). A carrier that is still reading commits before
+    turn that has ended writes nothing more; either way nothing says an App
+    Server client will still commit the delivery turn's messages: its start may
+    have produced no turn, or the client stopped reading. So the move is answered
+    the ordinary way again, and a client that does commit late yields to that
+    answer (`thread.cmd_reply`, `post`). A client that is still reading commits before
     it closes the turn (`codex.TurnFold.commit`)."""
     return bool(
         binding
@@ -169,10 +169,10 @@ def unanswered(obligations: list[dict], of: str = "") -> str:
 def _turn_wrote(obligation: dict, state: dict) -> bool:
     """Whether the claimant's open turn finished the reply it owes this move.
 
-    A `turn` answer is written by the claimant's own turn, and the carrier commits
-    it once the turn ends, after the agent's last command. So the move is answered
-    now when the turn's final message is complete, with text, in the reply draft
-    bound to it."""
+    A `turn` answer is written by the claimant's own turn, and the App Server
+    client commits it once the turn ends, after the agent's last command. So the
+    move is answered now when the turn's final message is complete, with text, in
+    the reply draft bound to it."""
     draft = obligation.get("response") or {}
     return bool(
         obligation["answer"]["kind"] == "turn"
@@ -193,21 +193,21 @@ def acknowledged_obligations(state: dict) -> list[dict]:
     ]
 
 
-def blocking_obligations(state: dict, *, carried: bool) -> list[dict]:
+def blocking_obligations(state: dict, *, watched: bool) -> list[dict]:
     """The owed answers that keep the agent from idling the page, and from which
     the Stop hook takes the ones that hold its turn (`turn_obligations`).
 
     `leaf status idle` refuses over exactly these: the acknowledged moves nothing
-    else is set to answer. A move a carrier queued is answered by the later turn
+    else is set to answer. A move the adapter queued is answered by the later turn
     the queue opens, where the prompt hook records it `opened` and it blocks from
     then on. A turn answer the open turn has finished is committed by the
-    claimant's carrier once the turn ends, so it is answered while that carrier
-    (`carried`) is live."""
+    claimant's App Server client once the turn ends, so it is answered while the
+    session's watcher (`watched`) is live."""
     return [
         obligation
         for obligation in acknowledged_obligations(state)
         if obligation["stage"] != "queued"
-        and not (carried and _turn_wrote(obligation, state))
+        and not (watched and _turn_wrote(obligation, state))
     ]
 
 
@@ -231,7 +231,7 @@ def started_in_turn(obligation: dict, state: dict) -> bool:
     )
 
 
-def turn_obligations(state: dict, *, carried: bool) -> list[dict]:
+def turn_obligations(state: dict, *, watched: bool) -> list[dict]:
     """The owed answers that hold the claimant's turn open: the blocking ones its
     open turn has not started.
 
@@ -244,7 +244,7 @@ def turn_obligations(state: dict, *, carried: bool) -> list[dict]:
     since closing the page answers nothing."""
     return [
         obligation
-        for obligation in blocking_obligations(state, carried=carried)
+        for obligation in blocking_obligations(state, watched=watched)
         if not started_in_turn(obligation, state)
     ]
 
@@ -279,9 +279,9 @@ def claimant_turn(
     """Whether the claimant's turn is running, from every piece of evidence,
     each dated by when it was written, the newest deciding.
 
-    The claim's stamps are the spine: the prompt hook or a carrier opens the turn,
-    a prompt or delivery into an open turn renews its stamp, and the Stop hook or
-    a carrier closes it. Not every harness runs a hook on interruption, so an open stamp is believed
+    The claim's stamps are the spine: the prompt hook or an App Server client opens
+    the turn, a prompt or delivery into an open turn renews its stamp, and the Stop
+    hook or an App Server client closes it. Not every harness runs a hook on interruption, so an open stamp is believed
     only while something in that turn renewed it within the working grace: its
     last opening, the agent's newest declaration (`declared`: a status or a start
     written during it), or the claimant's streamed activity. Past that nothing says whether it runs, which reads as not

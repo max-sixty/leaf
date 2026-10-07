@@ -455,7 +455,7 @@ foreground = None
 try:
     if handoff == "preview":
         started = preview.start()
-        # Joining the current carrier preserves the preview's acquisition.
+        # Joining the current adapter preserves the preview's acquisition.
         session_harness().ensure_delivery()
         assert page_claim(page)["acquisition"] == preview.claim["acquisition"]
         assert not preview.ended
@@ -579,7 +579,7 @@ finally:
     wait_for(
         lambda: codex_adapter.adapter_is_live("preview-thread"),
         lambda live: not live,
-        failure="the task's delivery carrier outlived its preview",
+        failure="the task's delivery adapter outlived its preview",
     )
 
 
@@ -682,7 +682,7 @@ def test_serving_adopts_existing_pages_and_joins_one_codex_delivery(
 ):
     """A revived handoff connects once, including a reused foreground server.
 
-    The first server already exists with no carrier. Two public starts and a
+    The first server already exists with no adapter. Two public starts and a
     foreground reuse must retain one adapter and leave Stop nothing to repair.
     """
     first = codex_claimed_page

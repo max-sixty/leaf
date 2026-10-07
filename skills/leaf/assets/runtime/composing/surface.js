@@ -123,7 +123,7 @@ import {
   openLayer,
 } from "../focus.js";
 import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
-import { shadowHost, under } from "../shadow.js";
+import { shadowHost, under, upFrom } from "../shadow.js";
 import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldAsk } from "../standing-target.js";
 
@@ -241,8 +241,7 @@ export function createResponseSurface({
     // judged, not the editor moved into it, which measures no width until the outlet
     // renders it; a boxless outlet is judged by the box that lays out what it holds.
     let seat = outlet;
-    while (seat && !(seat.getBoundingClientRect().width > 0))
-      seat = seat.parentElement ?? seat.getRootNode().host;
+    while (seat && !(seat.getBoundingClientRect().width > 0)) seat = upFrom(seat);
     if (seat && underOccluder(seat)) return false;
     // Admit the actual editor after its native move: an empty or display:contents
     // outlet has no visibility of its own. A rejected nomination leaves the previous

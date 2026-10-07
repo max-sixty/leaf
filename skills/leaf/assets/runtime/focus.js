@@ -656,8 +656,13 @@ const dropped = () => {
 };
 // The host of a shadow root, and nothing for any other node: a document names a form
 // called `host` as `document.host`, so a climb reading `.host` off the document walks
-// back into the page and around again.
-const shadowHostOf = (node) => (node instanceof ShadowRoot ? node.host : null);
+// back into the page and around again. shadow.js's `shadowHost` answers the same, but
+// this module is a runtime primitive, which may import no other owner (eslint's
+// `runtimePrimitives`), and shadow.js reaches the registry.
+// It asks the node type rather than `instanceof ShadowRoot`, as `shadowHost` does, since
+// a frame's runtime climbs its parent document's nodes.
+const shadowHostOf = (node) =>
+  node?.nodeType === Node.DOCUMENT_FRAGMENT_NODE ? (node.host ?? null) : null;
 // Whether `node` stands in `scope`, across every shadow tree between them.
 const within = (scope, node) => {
   for (let at = node; at; at = at.parentNode ?? shadowHostOf(at))

@@ -2072,6 +2072,28 @@ def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
 
 
 @pytest.mark.parametrize(
+    ("upgrade", "prepaint", "message"),
+    [
+        (False, None, "x-initial requires x-upgrade: true"),
+        (True, "<span>Room</span>", "declares both x-initial and x-prepaint"),
+    ],
+)
+def test_initial_rendering_has_one_structure_owner(
+    page_dir, upgrade, prepaint, message
+):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    tag = next(tag for tag in registry if tag.startswith("lf-"))
+    entry = registry[tag]
+    entry.update({"x-initial": "/vendor/early.js", "x-upgrade": upgrade})
+    if prepaint is None:
+        entry.pop("x-prepaint", None)
+    else:
+        entry["x-prepaint"] = prepaint
+    with pytest.raises(registry_contract.RegistryError, match=message):
+        registry_validation.validate_registry(registry, "test registry")
+
+
+@pytest.mark.parametrize(
     ("change", "message"),
     [
         (

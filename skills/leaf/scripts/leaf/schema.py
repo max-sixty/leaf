@@ -395,6 +395,12 @@ EXTENSION_SCHEMA = {
             "uniqueItems": True,
         },
         "x-history": {"const": True},
+        # A captured classic bundle registering one synchronous DOM producer. Delivery
+        # runs it after each occurrence closes; the module adopts its existing nodes.
+        "x-initial": {
+            "type": "string",
+            "pattern": r"^/(?:[a-z0-9-]+/)*[a-z0-9.-]+\.js$",
+        },
         # The markup an upgraded widget's first paint shows until its module draws:
         # one element, the structure the module will draw, with words that size it
         # as the drawing will. Delivery writes it as each occurrence's first child,

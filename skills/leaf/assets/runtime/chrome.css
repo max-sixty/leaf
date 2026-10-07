@@ -653,13 +653,17 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-page-comment[aria-expanded="true"] { color: var(--accent); background: var(--chip); }
   /* The card hangs from the control: its top edge on the banner's foot and its right
      edge on the control's, with no border along the edge it hangs from, so control and
-     card read as one piece while it is open. On a phone, where the control is behind
-     More, it spans the window under the banner, inside its side safe areas. */
+     card read as one piece while it is open. Where the control stands too near the
+     window's left for the card's width, as on a narrow desk whose row the banner's
+     status shares, the card slides right to stay in the window. On a phone, where the
+     control is behind More, it spans the window under the banner. Both keep inside the
+     side safe areas. */
   .lf-page-comment-card { position: fixed; position-anchor: --lf-page-comment;
-    top: var(--lf-banner-h); right: anchor(right); bottom: auto; left: auto;
+    --lf-card-w: min(28rem, calc(100% - 16px - var(--lf-safe-left) - var(--lf-safe-right)));
+    top: var(--lf-banner-h); bottom: auto; left: auto;
+    right: min(anchor(right), calc(100% - var(--lf-card-w) - 8px - var(--lf-safe-left)));
     margin: 0; z-index: var(--lf-z-menu);
-    box-sizing: border-box;
-    width: min(28rem, calc(100vw - 16px - var(--lf-safe-left) - var(--lf-safe-right)));
+    box-sizing: border-box; width: var(--lf-card-w);
     padding: 12px; background: var(--paper); color: var(--ink);
     border: 1px solid var(--border-2); border-top: 0;
     border-radius: 0 0 var(--r) var(--r); box-shadow: 0 12px 36px var(--shade); }
@@ -1165,9 +1169,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     outline: var(--focus-ring); --lf-focus-ring: summary-fold;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
   /* The reply box stands on the inset the quote and messages share, the column the
-     find box and the page composer also stand on. Standing wider so its draft began
-     at the sent messages' text
-     edge put the one bordered field in the list 7px past every other box on both sides.
+     find box also stands on. Standing wider so its draft began at the sent messages'
+     text edge put the one bordered field in the list 7px past every other box on both
+     sides.
      Send shares the field's row; right padding keeps draft text clear of it as the
      field grows.
 

@@ -531,11 +531,20 @@ def test_words_a_popover_the_browser_closes_puts_away_its_fields(browser, route)
     judge_watches()
 
 
-def test_words_a_popover_a_timer_closes_still_fail(browser):
+@pytest.mark.parametrize("pressed_inside", [False, True])
+def test_words_a_popover_a_timer_closes_still_fail(browser, pressed_inside):
+    """A timer's close is passive, including during a press inside the popover, which
+    light dismissal never closes."""
     page = popover_page(browser)
+    if pressed_inside:
+        box = page.locator("#pop").bounding_box()
+        page.mouse.move(box["x"] + 2, box["y"] + 2)
+        page.mouse.down()
     page.evaluate(
         "() => new Promise(done => setTimeout(() => { pop.hidePopover(); done(); }))"
     )
+    if pressed_inside:
+        page.mouse.up()
     judge_watches()
     consume_browser_errors(page, "typed words left the screen without a key or press")
 

@@ -154,8 +154,15 @@
     // without assigning unrelated native-await work to the input. A press's light
     // dismissal falls between its own events, outside every dispatch, so the closes a
     // pointerdown retains stand until its click has dispatched.
+    // A press inside a popover never light-dismisses it, so only those it lands outside
+    // are retained for a press.
+    const path = source.event.composedPath();
     const closes = new Set(
-      GESTURES.has(source.event.type) ? document.querySelectorAll(":popover-open") : [],
+      GESTURES.has(source.event.type)
+        ? [...document.querySelectorAll(":popover-open")].filter(
+            (popover) => source.event.type === "keydown" || !path.includes(popover),
+          )
+        : [],
     );
     const summary =
       source.event.type === "click" ? source.node?.closest?.(nativeActivation) : null;

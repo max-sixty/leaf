@@ -6793,10 +6793,15 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
 
 
 def test_the_page_comment_card_keeps_its_send_inside_the_side_safe_area(browser, serve):
-    """The page comment card's Send stays inside an unsafe side edge, on a phone where
-    the card spans the window and beside it where the card hangs from its control."""
+    """The page comment card stays inside both unsafe side edges, on a phone where it
+    spans the window and beside it where it hangs from its control."""
     page = open_page(browser, serve(LONG_PAGE))
-    page.evaluate("document.body.style.setProperty('--lf-safe-right', '31px')")
+    page.evaluate(
+        """() => {
+          document.body.style.setProperty('--lf-safe-right', '31px');
+          document.body.style.setProperty('--lf-safe-left', '23px');
+        }"""
+    )
     for width in (500, 420):
         resized(page, width, 700)
         page_comment(page)
@@ -6814,6 +6819,9 @@ def test_the_page_comment_card_keeps_its_send_inside_the_side_safe_area(browser,
         assert boxes["send"]["right"] <= boxes["viewport"]["width"] - 31 + 1, (
             f"the page comment card's Send sat under the side safe area at {width}px: "
             f"{boxes}"
+        )
+        assert boxes["card"]["left"] >= 23 - 1, (
+            f"the page comment card sat under the left safe area at {width}px: {boxes}"
         )
         page.keyboard.press("Escape")
         expect(page.locator(".lf-page-comment-card")).to_be_hidden()

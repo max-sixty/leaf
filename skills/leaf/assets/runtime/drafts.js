@@ -607,15 +607,18 @@ export const draftEditingStands = (editing) =>
 // Resume writing route when a disclosure holds it shut; `handoff` gates that showing on
 // the user's intent.
 export function draftEditingDestination(editing, handoff) {
-  const editor = [...draftEditors].find(
+  const shown = (view) =>
+    editorInput(view).checkVisibility({ visibilityProperty: true });
+  const roots = [...draftEditors].filter(
     (view) =>
       view.ctx === editing.context && !view.mirrored && editorInput(view)?.isConnected,
   );
+  const editor = roots.find(shown) ?? roots[0];
   if (!editor) return null;
-  const input = editorInput(editor);
-  if (!input.checkVisibility({ visibilityProperty: true }) && editor.resume)
-    handoff(editor.resume().open);
-  return input.checkVisibility({ visibilityProperty: true }) ? input : null;
+  // A route may have no place to offer now, or no disclosure of its own to open.
+  const open = shown(editor) ? null : editor.resume?.()?.open;
+  if (open) handoff(open);
+  return shown(editor) ? editorInput(editor) : null;
 }
 
 export function restoreDraftEditing(editing, input) {

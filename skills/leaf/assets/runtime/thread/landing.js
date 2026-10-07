@@ -182,8 +182,9 @@ pageScope("text entry", {
       keys: ["Escape"],
       description: "Leave the box, keeping what is typed",
       title: () => backFromBox()?.line ?? "back to list",
-      // The thread the box belongs to, or the panel's list from its own find box. A page text box that is neither leaves the row dead and the page's rung
-      // standing, which is the honest answer: nothing there to go back to.
+      // The thread the box belongs to, or the panel's list from its own find box. A
+      // page text box that is neither leaves the row dead and the page's rung standing,
+      // which is the honest answer: nothing there to go back to.
       when: boxHandsBack,
       run: () => {
         const back = backFromBox();

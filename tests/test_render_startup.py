@@ -1617,6 +1617,9 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     comments.click()
     expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "queue")
     expect(page.locator(".lf-thread-panel")).to_be_visible()
+    # The page's box takes words while the first state answer is still held.
+    expect(page_comment(page)).to_be_editable()
+    page.keyboard.press("Escape")
 
     held.pop(0).continue_()
     wait_until_ready(page)

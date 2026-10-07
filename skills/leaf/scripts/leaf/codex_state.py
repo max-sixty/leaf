@@ -1,4 +1,4 @@
-"""Codex delivery eligibility and paths for its serialized route reservations.
+"""Codex delivery eligibility and paths for its serialized transport reservations.
 
 The session lifecycle owner records provider identity, lifetime and revision.
 This module derives an observation from that authority, and proves eligibility
@@ -21,7 +21,7 @@ def delivery_lock_path(session_id: str) -> Path:
 
 
 def hook_turn(session_id: str) -> dict | None:
-    """The canonical session observation for delivery route revision checks.
+    """The canonical session observation for transport reservation revision checks.
 
     Running is derived from the dated session lifecycle, never stored by a
     second Codex writer. Page activity still proves current delivery eligibility.

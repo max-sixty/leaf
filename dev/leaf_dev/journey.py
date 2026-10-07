@@ -10,8 +10,8 @@ request; the journey requires only a reply in Threads and a reload presenting a
 published revision that names the release. Every target gets the same ask and the
 same checks. TARGET names what answers:
 
-- `cc` or `codex`: an isolated Claude Code or Codex session running this working
-  tree's plugin, asked to serve the page and handle its comments (`REQUEST`);
+- `claude-code` or `codex`: an isolated Claude Code or Codex session running this
+  working tree's plugin, asked to serve the page and handle its comments (`REQUEST`);
 - `local`: the website's adapter on this machine, against the host's Codex login;
 - `wrangler`: the built site through the local Worker and its page container;
 - an origin such as `https://leaf.page`: the deployed website, at `--release` or
@@ -22,10 +22,12 @@ admitted the comment, titled its thread, activated the published revision and
 admitted the reply; `sinceAdmissionMs` reads those from the comment's admission, so
 every target is timed on one clock, the page server's. The browser alone sees the
 POST's answer and the reply showing in Threads; `sinceSendMs` reads those from the
-first send. Where the journey runs the agent itself, `cc` or `codex`, its stream
-also splits the turn between those two moments into delivery, model and tool phases
-(`turn`), so a slow reply shows where it went. The JSON on stdout carries all of it,
-with the code version the journey ran.
+first send. Where the journey runs the agent itself, `claude-code` or `codex`, its
+stream also splits the turn between those two moments into delivery, model and tool
+phases (`turn`), so a slow reply shows where it went. The JSON on stdout carries all of it,
+with the code version the journey ran and, for `codex`, the Leaf transport its
+session takes (`transport`: `app-server`; `leaf-dev verify-codex-task` alone runs
+the queue transport).
 
 A `startup_failed` receipt gets one more ask; any other failure receipt fails on
 the first (`worker/README.md` owns that contract).
@@ -54,11 +56,13 @@ from typing import NamedTuple
 from urllib.parse import urljoin, urlsplit
 
 import click
+from leaf.harness import ClaudeCodeHarness, CodexHarness
 from playwright.sync_api import BrowserContext, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
+    HARNESSES,
     PAYLOAD,
     URL,
     LiveChild,
@@ -99,7 +103,6 @@ VISIBLE_REPLY_PATIENCE = 30_000
 TITLE_PATIENCE = 60
 # How long a local harness gets to serve the page and start watching it.
 SETUP_LIMIT = 600
-HARNESSES = ("cc", "codex")
 
 
 def samples_path() -> Path:
@@ -679,9 +682,11 @@ def website_session(
 
 
 @contextmanager
-def harness_session(browser, harness: str) -> Iterator[tuple[Session, str]]:
+def harness_session(browser, harness: str) -> Iterator[tuple[Session, str, dict]]:
     """A user's session on a page an isolated `harness` session serves and watches,
-    running this working tree's plugin, and the version that plugin is.
+    running this working tree's plugin, the version that plugin is, and what names
+    the session in the journey's output: the harness, and the Leaf transport its
+    turns take where the harness has more than one.
 
     The page is the triage board under a state home of its own (`review_scenario`),
     in a scratch directory outside the repository, so the session reads none of its
@@ -738,7 +743,10 @@ def harness_session(browser, harness: str) -> Iterator[tuple[Session, str]]:
                 )
                 time.sleep(1)
             session = local_session(browser, found["url"])
-            yield session._replace(stream=run / "stream.jsonl"), version
+            named = {"target": harness, "harness": harness}
+            if child.transport is not None:
+                named["transport"] = child.transport
+            yield session._replace(stream=run / "stream.jsonl"), version, named
         finally:
             child.close()
             # A turn in progress ends on its own once stdin closes; the context's
@@ -790,8 +798,8 @@ def target_session(
     and what names TARGET in the journey's output: `target` the same across runs, as
     a local server's `origin` is not."""
     if target in HARNESSES:
-        with harness_session(browser, target) as (session, version):
-            yield session, version, {"target": target, "harness": target}
+        with harness_session(browser, target) as answering:
+            yield answering
     elif target == "local":
         with local_adapter() as (origin, built):
             session, version = website_session(
@@ -833,9 +841,9 @@ def target_session(
 def journey(target: str, release: str | None) -> None:
     """Run the user's journey against TARGET and print its timed profile.
 
-    TARGET is `cc` or `codex` for a session of that harness on this working tree,
-    `local` for the website's adapter on this machine, `wrangler` for the built site
-    through the local Worker, or a website origin.
+    TARGET is `claude-code` or `codex` for a session of that harness on this working
+    tree, `local` for the website's adapter on this machine, `wrangler` for the built
+    site through the local Worker, or a website origin.
     """
     with (
         chrome() as browser,
@@ -865,7 +873,10 @@ SIGNS = (
     ("first words", "sinceAdmissionMs", "progress", "var(--series-4)"),
     ("reply", "sinceAdmissionMs", "replied", "var(--series-3)"),
 )
-HARNESS_NAMES = {"cc": "Claude Code", "codex": "Codex App Server"}
+HARNESS_NAMES = {
+    ClaudeCodeHarness.name: "Claude Code",
+    CodexHarness.name: "Codex App Server",
+}
 TICKS = (0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500)
 # Plot sizes no margin to its labels: about this many px a character at its font.
 LABEL_PX = 5.5

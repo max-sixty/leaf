@@ -3,15 +3,15 @@ behind one of them.
 
 A harness is the program an agent session runs in, such as Claude Code or Codex, as
 Leaf meets it. `Harness` collects everything that
-differs between them — session lifetime, delivery carrier, the hook's remedies,
+differs between them — session lifetime, watcher and transports, the hook's remedies,
 the way to reach a session with nothing watching — so that every module below
 this one dispatches on what a harness declares rather than on which harness it
 is. `session_harness` reads the one running this command out of the
 environment; `claim_harness` rebuilds the one a page's claim recorded.
 
 The machine facts a harness rests on live elsewhere: `machine` reads the
-processes running above this one, and `leases` holds the lease a detached
-carrier proves itself with."""
+processes running above this one, and `leases` holds the leases a watcher
+proves itself with."""
 
 import itertools
 import json
@@ -46,8 +46,24 @@ class Harness:
     re-deriving anything from an environment that may not be the claimant's.
     Nothing compares the name outside this module and a harness's own code.
 
-    What differs between harnesses is how a leaf's input reaches the session
-    between its turns, and the methods below answer for that carrier:
+    What differs between harnesses is how a leaf's input reaches the session.
+    Two things carry it. The *watcher* holds the session's wait lease between
+    turns and brings the page's input to a turn; it is one of four kinds:
+
+    - a hook watch, which the harness itself starts as each turn ends
+      (`watches_between_turns`);
+    - a model wait, `leaf wait`, which the model runs directly or in a watcher
+      task;
+    - the adapter, a detached process proven by a lease of its own
+      (`adapter_is_live`);
+    - the host, a program that drives App Server and starts every turn itself.
+
+    The *transport* is how one delivery enters a turn's context: the hooks
+    (`hook_delivers`, or Codex's tool hook offering a pointer), the wait's
+    output, Codex's queue, or a turn Leaf starts over App Server. The envelope
+    states what the transport decides (`../../references/event-batches.md`).
+    The methods below answer for each
+    harness's watcher and transports:
 
     - Claude Code runs Leaf's Stop hooks as each turn ends: one watches the
       session's pages in the background and wakes the session when input arrives
@@ -91,34 +107,34 @@ class Harness:
         consumes these fields without knowing which harness wrote them."""
         raise NotImplementedError
 
-    def carrier_live(self, *, listening: bool) -> bool:
-        """Whether this session's carrier can still take the page's input into a
+    def watcher_live(self, *, listening: bool) -> bool:
+        """Whether this session's watcher can still take the page's input into a
         turn — the Stop hook's watch question, and its reason to believe a draft
         reply will be committed.
 
         `listening` is the session's wait lease: some process is reading this
-        page's events for it. That is the whole proof for a carrier that is one
+        page's events for it. That is the whole proof for a watcher that is one
         process holding one lease. Where the session's own hooks carry its input,
-        the watch is started again as every turn ends, so the carrier stands
+        the watch is started again as every turn ends, so the watcher stands
         across the turn as well as between turns. Where the harness runs no watch
         between turns (`watches_between_turns`), as under Claude Code's plain
         `--print`, the session ends with its run and its claims with it, so no
-        page is left owed a carrier. A carrier that has to prove more overrides
+        page is left owed a watcher. A watcher that has to prove more overrides
         this."""
         return listening or self.hooks_carry()
 
     def ensure_delivery(self) -> None:
-        """Prepare this harness's input route before handing over a served page.
+        """Prepare this harness's watcher before handing over a served page.
 
-        Harnesses whose hooks or embedding own delivery need no separate process.
-        A detached carrier starts or joins its task-wide watch here.
+        Harnesses whose hooks or host own delivery need no separate process.
+        The adapter starts or joins its task-wide watch here.
         """
 
     @contextmanager
     def preparing_delivery(self):
         """Prepare delivery and retain it until the caller publishes its page.
 
-        Detached carriers prevent no-page retirement throughout this boundary.
+        The adapter is kept from no-page retirement throughout this boundary.
         A failed preparation therefore precedes any page ownership transition.
         """
         self.ensure_delivery()
@@ -199,9 +215,9 @@ class Harness:
         """Put this page's new input in front of the session, and say whether
         anything took it.
 
-        Only a carrier the session's own turns start stops between turns while
+        Only a watcher the session's own turns start stops between turns while
         its session stands, so only such a harness has anywhere to put this. A
-        carrier that is a process of its own is either running, and needs no
+        watcher that is a process of its own is either running, and needs no
         telling, or gone along with the session it served."""
         return False
 
@@ -210,7 +226,7 @@ class Harness:
         as the comment is admitted (`thread_titles`), or None where it cannot.
 
         Only a harness whose model any process on the machine can ask has one. The
-        website's carrier names the thread instead, as the move opening it is
+        website's host names the thread instead, as the move opening it is
         dispatched to it, since only it can reach the App Server it owns."""
         return None
 
@@ -426,7 +442,7 @@ class CodexHarness(EnvironmentHarness):
     def preparing_delivery(self):
         from .codex_adapter import preparing_adapter
 
-        # A direct wait already selected by this task remains its carrier.
+        # A model wait already selected by this task remains its watcher.
         if wait_is_live(None, self.session) and not adapter_is_live(self.session):
             yield
             return
@@ -490,9 +506,9 @@ class CodexHarness(EnvironmentHarness):
 
         accept_codex_delivery_read(self.session, payload["id"])
 
-    def carrier_live(self, *, listening: bool) -> bool:
+    def watcher_live(self, *, listening: bool) -> bool:
         """A wait lease says only that some process can read page events. The
-        adapter's second lease is the narrower fact this carrier rests on: that
+        adapter's second lease is the narrower fact this watcher rests on: that
         the process can durably hand those events to a turn after this one
         ends."""
         return listening and adapter_is_live(self.session)
@@ -537,7 +553,7 @@ class CodexHarness(EnvironmentHarness):
 
 class PiHarness(EnvironmentHarness):
     """Pi (<https://pi.dev>): Leaf's extension (`hooks/pi.ts`) runs inside the Pi
-    process and is the carrier, the way Claude Code's hooks are. A highly
+    process and runs the watch and the hooks, the way Claude Code does. A highly
     experimental trial.
 
     Pi states the session in every shell-tool command as PI_SESSION_ID, and

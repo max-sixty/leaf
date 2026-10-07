@@ -1244,7 +1244,7 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
             },
             "sinceSendMs": {"workVisible": working, "responseVisible": replied + 1000},
         }
-        harness = target if target in ("cc", "codex") else "website"
+        harness = target if target in ("claude-code", "codex") else "website"
         return {
             "target": target,
             "harness": harness,
@@ -1255,9 +1255,9 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
 
     old, new = "a" * 40, "b" * 40 + "+working-tree"
     samples = [
-        sample("cc", old, 1800, 7000, None, 17500),
+        sample("claude-code", old, 1800, 7000, None, 17500),
         sample("codex", old, 4700, 200, None, 69600),
-        sample("cc", new, 1300, 7000, 6900, 18600),
+        sample("claude-code", new, 1300, 7000, 6900, 18600),
         sample("codex", old, 4600, 300, None, 102900),
         # Each local run serves on a port of its own, but is the same target.
         sample("local", old, 900, 300, None, 30000, origin="http://127.0.0.1:8080"),

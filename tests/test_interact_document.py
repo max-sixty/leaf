@@ -2263,7 +2263,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
 
 def test_inferred_reply_attempt_is_idempotent(page_dir):
     """An attempt is an opaque durable key, and the append door holds every
-    writer to the record contract's shape for one — the delivery carriers mint
+    writer to the record contract's shape for one — the delivery transports mint
     theirs from a digest, so a short hand-written label is not a retry key."""
     attempt = "retry-inferred-reply-1"
     comment = append_carried_log_record(

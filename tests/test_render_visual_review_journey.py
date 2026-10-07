@@ -17,7 +17,6 @@ from render_cases_layout import (
 from render_harness import (
     CORPUS_SOURCES,
     consume_browser_errors,
-    fills_the_window,
     leaf_page,
     open_page,
     resized,
@@ -34,8 +33,9 @@ VISUAL_REVIEW_GALLERY = next(
 )
 
 
-def test_embedded_visual_review_uses_native_scroll_chaining(browser, serve):
-    """The evidence owns its useful range without containing its scroll boundary."""
+def test_a_visual_review_in_flow_takes_its_evidence_height(browser, serve):
+    """In a document the review's evidence is as tall as its captures in every view,
+    so the page scrolls through it rather than a smaller pane inside it."""
     url = serve(VISUAL_REVIEW_GALLERY)
     stamp_page(
         serve.page_dir,
@@ -55,12 +55,18 @@ def test_embedded_visual_review_uses_native_scroll_chaining(browser, serve):
     expect(widget.get_by_role("button", name="Expand inspection")).to_have_count(0)
     widget.scroll_into_view_if_needed()
     host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
+    whole = """node => {
+      const shot = node.querySelector('lf-shot').getBoundingClientRect();
+      const stage = node.getBoundingClientRect();
+      return node.scrollHeight <= node.clientHeight + 1
+        && shot.bottom <= stage.bottom + 1;
+    }"""
     widget.get_by_role("radio", name="Full frame").click()
-    widget.get_by_role("radio", name="100%").click()
-    page.wait_for_function(
-        "node => node.scrollHeight > node.clientHeight", arg=host.element_handle()
-    )
-    assert host.evaluate("node => getComputedStyle(node).overscrollBehaviorY") == "auto"
+    for scale in ("Fit", "100%"):
+        widget.get_by_role("radio", name=scale).click()
+        for mode in ("Compare", "Flip", "Overlay"):
+            widget.get_by_role("radio", name=mode).click()
+            page.wait_for_function(whole, arg=host.element_handle())
     point = host.evaluate(
         "node => { const r = node.getBoundingClientRect();"
         " return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }"
@@ -68,12 +74,21 @@ def test_embedded_visual_review_uses_native_scroll_chaining(browser, serve):
     page.mouse.move(point["x"], point["y"])
     document_start = page.evaluate("document.scrollingElement.scrollTop")
     page.mouse.wheel(0, 320)
-    page.wait_for_function("node => node.scrollTop > 0", arg=host.element_handle())
-    assert page.evaluate("document.scrollingElement.scrollTop") == document_start
+    page.wait_for_function(f"document.scrollingElement.scrollTop > {document_start}")
+    assert host.evaluate("node => node.scrollTop") == 0
+    # The reading keys page the same scroller from a press on the captures.
+    page.evaluate("scrollTo({top: 0, behavior: 'instant'})")
+    scroll_settled(page)
+    host.click()
+    page.keyboard.press("d")
+    page.wait_for_function("document.scrollingElement.scrollTop > 0")
 
 
 def go_to(page, target, kind="Control"):
     """Type the opaque hint painted beside one rendered destination."""
+    # Hints label what the window shows, so the reader scrolls the page to it first.
+    target.scroll_into_view_if_needed()
+    scroll_settled(page)
     page.keyboard.press("g")
     hints = page.locator(".lf-go-to-hint[data-lf-hint-code]")
     expect(hints.first).to_be_visible()
@@ -181,7 +196,6 @@ def test_visual_review_keeps_its_inline_comment_editor_in_view_after_phone_resiz
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1366, 768)
     widget = page.locator("#visual-review-run")
-    fills_the_window(page, widget, True)
     widget.get_by_role("button", name="Next").click()
     expect(widget.locator(".lf-vr-case-select")).to_have_js_property(
         "value", "keep-mobile-destinations"
@@ -195,7 +209,6 @@ def test_visual_review_keeps_its_inline_comment_editor_in_view_after_phone_resiz
 
     # Resizing alone must keep the focused editor in view. The reader has not scrolled.
     resized(page, 390, 760)
-    fills_the_window(page, widget, False)
     expect(field).to_have_js_property("value", "Keep the destinations together")
     assert_keyboard_focus(page, field)
 
@@ -260,7 +273,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
         leaf_page(
             "authenticated navigation review",
             '<lf-visual-review id="journey" source="journey-run"></lf-visual-review>',
-            layout="workspace",
+            layout="wide",
         ),
         packages=("visual-review",),
     )
@@ -382,7 +395,6 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     response = user.context.request.get(f"{target_base}v1.html")
     assert response.status == 401
     widget = user.locator("#journey")
-    fills_the_window(user, widget, True)
     first = widget.locator('[data-lf-datum="open-release-list"]')
     second = widget.locator('[data-lf-datum="follow-release-link"]')
     first_images = first.locator("lf-shot img")
@@ -414,16 +426,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(widget).to_have_attribute("data-inspection-mode", "compare")
     assert_keyboard_focus(user, compare)
     first_stage = first.locator(".lf-vr-shot-host")
-    assert first_stage.evaluate("node => node.scrollHeight > node.clientHeight")
-    user.keyboard.press("d")
-    user.wait_for_function(
-        "() => document.querySelector('[data-lf-datum=\"open-release-list\"] .lf-vr-shot-host').scrollTop > 0"
-    )
-    scroll_settled(user, first_stage)
-    user.keyboard.press("u")
-    user.wait_for_function(
-        "() => document.querySelector('[data-lf-datum=\"open-release-list\"] .lf-vr-shot-host').scrollTop === 0"
-    )
+    assert first_stage.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
 
     first_looks_right = first.get_by_role("button", name="Looks right")
     with sending(user, "the intended authenticated-navigation change"):
@@ -451,7 +454,6 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     resized(user, 390, 760)
     field.scroll_into_view_if_needed()
     scroll_settled(user)
-    fills_the_window(user, widget, False)
     expect(field).to_have_js_property("value", "Restore Back to releases")
     assert_keyboard_focus(user, field)
     field.evaluate("node => node.setSelectionRange(8, 12, 'backward')")
@@ -491,7 +493,6 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert_keyboard_focus(user, field)
 
     resized(user, 1366, 768)
-    fills_the_window(user, widget, True)
     expect(field).to_have_js_property("value", "Restore Back to releases")
     assert_keyboard_focus(user, field)
     user.keyboard.press("Escape")
@@ -504,7 +505,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     expect(user.locator("body > main")).not_to_have_attribute("inert", "")
     user.keyboard.press("Escape")
     expect(user.get_by_role("dialog")).to_be_hidden()
-    assert user.evaluate("() => document.activeElement === document.body")
+    assert user.evaluate("() => document.activeElement === document.body"), user.evaluate("() => document.activeElement.outerHTML.slice(0, 300)")
     user.keyboard.press("g")
     user.keyboard.press("i")
     expect(field).to_be_focused()
@@ -657,7 +658,19 @@ def test_a_visual_review_keeps_its_own_frame_where_a_pane_grid_meets_at_hairline
     corners and 1px row gap, and the evidence the ring, in place of the review's
     `--border-2` frame at 1.25×`--r` with an evidence pane drawing only its inner rule.
     The page's own grid of panes is the control that keeps the hairline grid."""
-    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    url = serve(VISUAL_REVIEW_GALLERY)
+    stamp_page(
+        serve.page_dir,
+        leaf_page(
+            "visual review as a workspace body",
+            '<lf-visual-review id="visual-review-run" source="gallery-visual-run">'
+            "</lf-visual-review>",
+            layout="workspace",
+        ),
+        "make the review a workspace's body",
+    )
+    url = url.rsplit("/versions/", 1)[0] + "/?" + url.partition("?")[2]
+    page = open_page(browser, url)
     resized(page, 1280, 800)
     review = page.locator("main.layout-workspace > lf-visual-review")
     evidence = review.locator(":scope > .lf-vr-evidence-region")

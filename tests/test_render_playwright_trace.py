@@ -371,7 +371,28 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     assert returned["evidence"][0] == pytest.approx(returned["stepper"][1], abs=1), (
         returned
     )
+    # Focus moving through the stuck stepper leaves the page where it is: each of
+    # its controls counts as shown where it sticks.
+    slider.focus()
+    user.evaluate("document.scrollingElement.scrollTop += 200")
+    rendered(user)
+    page_place = user.evaluate("document.scrollingElement.scrollTop")
+    for key in ("Tab", "Shift+Tab", "Tab", "Shift+Tab"):
+        user.keyboard.press(key)
+        assert user.evaluate(
+            "document.activeElement.closest('.lf-trace-stepper') !== null"
+        ), key
+        assert user.evaluate("document.scrollingElement.scrollTop") == page_place, key
     resized(user, 1440, 900)
+    # Folding the saved elements at the page's end keeps their summary under the press.
+    summary = widget.locator(".lf-trace-tree summary")
+    user.evaluate("document.scrollingElement.scrollTop = 1e6")
+    rendered(user)
+    pressed = summary.bounding_box()["y"]
+    summary.click()
+    expect(widget.locator(".lf-trace-tree")).not_to_have_attribute("open", "")
+    rendered(user)
+    assert summary.bounding_box()["y"] == pytest.approx(pressed, abs=1)
     frames_toggle.check()
     slider.focus()
     user.keyboard.press("Home")
@@ -496,10 +517,17 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         widget.get_by_role("checkbox", name="Show intermediate frames")
     ).to_be_checked()
     expect(widget.locator(".lf-trace-readout")).to_contain_text("Captured frame")
+    readout_top = widget.locator(".lf-trace-readout").bounding_box()["y"]
     widget.get_by_role("button", name="Previous", exact=True).click()
     expect(slider).to_have_value("1")
     expect(widget.locator(".lf-trace-phase")).to_contain_text("Completion")
     expect(widget.locator(".lf-trace-missing-image")).to_be_visible()
+    # A stop with no image keeps the image's box and caption row, so what follows
+    # stands where it stood beside the frame.
+    rendered(user)
+    assert widget.locator(".lf-trace-readout").bounding_box()["y"] == pytest.approx(
+        readout_top, abs=1
+    )
 
     # Calls without snapshots get their real start/completion stops, without
     # fabricating checkpoint captures or borrowing a future frame.
@@ -626,15 +654,24 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     assert user.evaluate("document.scrollingElement.scrollTop") == page_place
 
 
-def test_trace_frames_and_checkpoints_share_one_image_box(browser, serve):
-    """A filmstrip encoded at other sizes than the checkpoints draws at their zoom, in
-    one box, so stepping between them moves nothing beneath the image."""
+def test_trace_frames_and_checkpoints_share_one_box_per_shape(browser, serve):
+    """A filmstrip encoded smaller than the checkpoints of the same viewport draws at
+    their zoom, in their box, so stepping between them moves nothing beneath the
+    image; a frame of another shape has a box of its own."""
     example = ROOT / "examples/developer/playwright-trace-gallery.html"
     data = json.loads(example.with_name(example.stem + ".data.json").read_text())
     images = data["release-journey"]["images"]
-    ratios = {round(image["width"] / image["height"], 2) for image in images}
-    assert len(ratios) > 1, (
-        "the gallery's frames must differ in shape from its checkpoints"
+
+    def shape(width, height):
+        return round(width / height, 2)
+
+    sizes = {}
+    for image in images:
+        sizes.setdefault(shape(image["width"], image["height"]), set()).add(
+            image["width"]
+        )
+    assert any(len(widths) > 1 for widths in sizes.values()), (
+        "the gallery's frames must be smaller encodings of its checkpoints' viewport"
     )
     user = open_page(browser, serve(example))
     resized(user, 1440, 900)
@@ -646,7 +683,7 @@ def test_trace_frames_and_checkpoints_share_one_image_box(browser, serve):
     readout = widget.locator(".lf-trace-readout")
     raster = widget.locator(".lf-trace-image img")
     stops = int(slider.get_attribute("max")) + 1
-    first = None
+    first = {}
     for index in range(stops):
         if index:
             user.keyboard.press("ArrowRight")
@@ -654,6 +691,13 @@ def test_trace_frames_and_checkpoints_share_one_image_box(browser, serve):
         rendered(user)
         if not raster.count():
             continue
+        key = shape(
+            int(raster.get_attribute("width")), int(raster.get_attribute("height"))
+        )
         reading = (readout.bounding_box()["y"], raster.bounding_box()["width"])
-        first = first or reading
-        assert reading == pytest.approx(first, abs=1), (index, reading, first)
+        first.setdefault(key, reading)
+        assert reading == pytest.approx(first[key], abs=1), (index, reading, first)
+        # Its box is its own shape's, so no room another shape needs stands blank.
+        box = raster.locator("xpath=..").bounding_box()
+        assert box["height"] - raster.bounding_box()["height"] <= 2, (index, box)
+    assert len(first) > 1, "the review must reach frames of both shapes"

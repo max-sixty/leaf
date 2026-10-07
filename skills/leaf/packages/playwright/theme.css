@@ -5,6 +5,7 @@
  * is the layer's (`x-height`, layouts.css). */
 :scope:is(lf-trace) {
   --lf-block-frame: 1;
+
   /* One row of 44px presses, its padding and its divider (.lf-trace-stepper). */
   --lf-trace-stepper-h: calc(44px + 2 * var(--sp-2) + 1px);
   display: block;
@@ -24,14 +25,17 @@
  * stated height, so a phone keeps most of its screen for the evidence, while the page
  * selector and the frames row above it scroll away. It sticks at the `--lf-top` the
  * frame met, and what it stands over takes that value plus its height; a landing in the
- * evidence arrives below it through `scroll-margin-top`. Its divider is the frame's own
- * rule, so where the evidence passes under it the edge reads as an edge. Screen only:
- * paper has no scroll to pin against. */
+ * evidence arrives below it through `scroll-margin-top`, and its own controls take back
+ * the room a landing leaves below the banner (`--lf-landing-room`, kernel theme.css), so
+ * focusing one where it sticks scrolls nothing. Its divider is the frame's own rule, so
+ * where the evidence passes under it the edge reads as an edge. Screen only: paper has
+ * no scroll to pin against. */
 @media screen {
   :scope:is(lf-trace) { --lf-top-outer: var(--lf-top); }
   .lf-trace-stepper { position: sticky; top: var(--lf-top); z-index: 1; }
   .lf-trace-body { --lf-top: calc(var(--lf-top-outer) + var(--lf-trace-stepper-h)); }
   .lf-trace-body * { scroll-margin-top: var(--lf-trace-stepper-h); }
+  .lf-trace-stepper * { scroll-margin-top: calc(var(--sp-2) - var(--lf-landing-room)); }
 }
 .lf-trace-choices { min-inline-size: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
 .lf-trace-select {
@@ -81,7 +85,7 @@
 }
 .lf-trace-image img { display: block; inline-size: 100%; block-size: auto; border: 1px solid var(--border-2); box-sizing: border-box; }
 .lf-trace-caption { margin-block: 6px 0; }
-.lf-trace-missing-image { box-sizing: border-box; inline-size: min(100%, var(--lf-trace-image-w, 100%)); aspect-ratio: var(--lf-trace-image-ratio, auto); margin: 0 auto; padding: var(--sp-4); border: 1px dashed var(--border-2); color: var(--muted); }
+.lf-trace-missing-image > .lf-trace-frame { box-sizing: border-box; border: 1px dashed var(--border-2); }
 .lf-trace-tree { margin-block-start: var(--sp-3); }
 .lf-trace-tree > summary { min-block-size: 44px; align-content: center; cursor: pointer; }
 .lf-trace-tree-clock { margin-block: var(--sp-2); }

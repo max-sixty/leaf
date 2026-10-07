@@ -238,10 +238,16 @@ read itself:
 .file > .head { position: sticky; top: var(--lf-top); block-size: var(--head-h); }
 .file > .rows { --lf-top: calc(var(--lf-top-outer) + var(--head-h)); }
 .file .row { scroll-margin-top: var(--head-h); }
+.file > .head :is(button, input, summary) {
+  scroll-margin-top: calc(var(--head-pad) - var(--lf-landing-room)); }
 ```
 
 The rows' `scroll-margin-top` has a landing on a row, native or the runtime's, arrive
-below the header. The runtime reads what passes under it as off screen from `--lf-top`,
+below the header. The header's own controls stand where it sticks, inside the room the
+root's `scroll-padding` leaves below the banner (`--lf-landing-room`), so the browser
+would scroll toward each one it focuses, a few pixels a key, without the header ever
+moving; their negative margin, the offset they stand at less that room, counts them as
+shown. The runtime reads what passes under it as off screen from `--lf-top`,
 for read acknowledgement, arrival checks, and chrome placement, so nothing is declared.
 The stacked value goes on a box that does not itself scroll, since the runtime reads a
 box that scrolls where it stands. A box a package makes scroll starts `--lf-top` again

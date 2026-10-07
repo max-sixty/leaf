@@ -10,7 +10,8 @@
  * authored height, which left a page scrolling inside the page. The stepper instead
  * sticks at the top of the page's band while the recording is on screen (theme.css),
  * and the page selector and frames row above it scroll away. Evidence comes first, in
- * a box every image of the page fits at one zoom, and optional metadata follows it.
+ * a box shared at one zoom by its page's images of one shape, and optional metadata
+ * follows it.
  * Stepping keeps the evidence where the reader sees it, except that evidence the stuck
  * stepper covers starts again at the stepper's foot (`#navigate`). One cursor
  * walks native action checkpoints chronologically; captured frames can join that
@@ -18,6 +19,7 @@
  * its first image; empty earlier stops stay navigable. Following a visual part restores its exact
  * stop and page. */
 import {
+  cancelRender,
   commands,
   effectiveScroller,
   keepsHidden,
@@ -71,6 +73,40 @@ function streamOrigins(trace) {
   }
   return origins;
 }
+// The box each image is drawn in, by image id, and each page's box for a stop with no
+// image, by page id: that of its most frequent shape. Filmstrip JPEGs are smaller
+// encodings of the same viewport, so the images of one page and shape share the
+// widest one's width, and a frame's pixel width never becomes a different display
+// zoom at a timeline stop; their box is as tall as the tallest of them at that width,
+// so the caption and everything below stand still from one stop to the next. A
+// viewport of another shape is a box of its own, so a portrait capture never makes a
+// landscape one stand in blank room.
+function imageBoxes(images) {
+  const shapes = [];
+  for (const image of images) {
+    const ratio = image.width / image.height;
+    let shape = shapes.find(
+      (other) =>
+        other.pageId === image.pageId && Math.abs(other.ratio / ratio - 1) < 0.02,
+    );
+    if (!shape) shapes.push((shape = { pageId: image.pageId, ratio, members: [] }));
+    shape.members.push(image);
+  }
+  const boxes = new Map();
+  const counts = new Map();
+  for (const { pageId, members } of shapes) {
+    const width = Math.max(...members.map((image) => image.width));
+    const height = Math.max(
+      ...members.map((image) => Math.ceil((image.height * width) / image.width)),
+    );
+    for (const image of members) boxes.set(image.id, { width, height });
+    if (members.length > (counts.get(pageId) ?? 0)) {
+      counts.set(pageId, members.length);
+      boxes.set(pageId, { width, height });
+    }
+  }
+  return boxes;
+}
 const nodeName = (node) =>
   [node.role, node.name || node.text].filter(Boolean).join(" · ") ||
   "Unnamed saved element";
@@ -99,6 +135,7 @@ customElements.define(
     #selected = null;
     #intermediates = false;
     #resized = null;
+    #releaseFrame = 0;
     #keys = null;
     #parts = null;
     #inventory = [];
@@ -139,10 +176,9 @@ customElements.define(
       // released to what the reader's place still needs. After the delivery, since
       // the release resizes the element observed.
       if (!this.#resized) {
-        let pending = 0;
         this.#resized = sizeObserver(() => {
-          pending ||= nextRender(() => {
-            pending = 0;
+          this.#releaseFrame ||= nextRender(() => {
+            this.#releaseFrame = 0;
             this.#release();
           });
         });
@@ -154,6 +190,8 @@ customElements.define(
     disconnectedCallback() {
       this.#resized?.disconnect();
       this.#resized = null;
+      cancelRender(this.#releaseFrame);
+      this.#releaseFrame = 0;
       // Element command scopes leave with their element; reconnect keeps the declaration.
     }
 
@@ -186,7 +224,12 @@ customElements.define(
       this.phaseHeading = el("h3", "lf-trace-phase");
       this.error = el("p", "lf-trace-error");
       this.imageHost = el("div", "lf-trace-images");
-      this.missingImage = el("p", "lf-trace-missing-image");
+      // Where no image is captured, the box an image would fill stands empty and the
+      // message takes the caption's row, so what follows stays where it was.
+      this.missingImage = el("figure", "lf-trace-image lf-trace-missing-image");
+      this.missingBox = el("div", "lf-trace-frame");
+      this.missingNote = el("figcaption", "lf-trace-caption");
+      this.missingImage.append(this.missingBox, this.missingNote);
       this.imageHost.append(this.missingImage);
       this.treeDetails = document.createElement("details");
       this.treeDetails.className = "lf-trace-tree";
@@ -216,6 +259,15 @@ customElements.define(
         reveal: (id) => this.#reveal(id),
       });
       this.treeDetails.addEventListener("toggle", () => this.#draw());
+      // Folding the saved elements keeps their summary under the press, which the
+      // browser's own toggle would let the page's end pull down.
+      this.treeSummary.addEventListener("click", (event) => {
+        if (event.defaultPrevented) return;
+        event.preventDefault();
+        const top = this.treeSummary.getBoundingClientRect().top;
+        this.treeDetails.open = !this.treeDetails.open;
+        this.#keep(this.treeSummary, top);
+      });
       if (quoted(this)) {
         this.previous.disabled = true;
         this.next.disabled = true;
@@ -362,21 +414,25 @@ customElements.define(
     // one scroll at which the stuck stepper also meets its place in flow, so it stays
     // under the gesture, and after which later steps move nothing. Otherwise the new
     // evidence starts where the old one did. A stepper parked at the recording's
-    // foot, the whole recording scrolled past, covers nothing. A point with less
-    // beneath its evidence (a captured frame has no action or saved elements)
-    // shortens the page, which near its end would pull everything down; the body
-    // then holds the room that place needs (`held`), released as soon as a later
-    // draw or width no longer needs it.
+    // foot, the whole recording scrolled past, covers nothing.
     #navigate(id) {
-      const scroller = effectiveScroller(this);
       const before = this.imageHost.getBoundingClientRect().top;
       const stepper = this.stepper.getBoundingClientRect();
       const stuck = this.body.getBoundingClientRect().bottom > stepper.bottom + 1;
       const target = stuck && before < stepper.bottom - 1 ? stepper.bottom : before;
       this.#selected = id;
       this.#draw();
-      const move = this.imageHost.getBoundingClientRect().top - target;
+      this.#keep(this.imageHost, target);
+    }
+    // Scrolls `element`, after a change the reader made, back to `top` on screen. A
+    // change that shortens what follows (a captured frame has no action or saved
+    // elements; folded saved elements have no rows) would, near the page's end, pull
+    // everything down; the body then holds the room that place needs (`held`),
+    // released as soon as a later draw or width no longer needs it.
+    #keep(element, top) {
+      const move = element.getBoundingClientRect().top - top;
       if (Math.abs(move) < 1) return;
+      const scroller = effectiveScroller(this);
       const room = this.#room(scroller);
       if (move > room) this.#hold(this.#heldRoom() + move - room);
       scroller.scrollBy({ top: move, behavior: "instant" });
@@ -424,22 +480,7 @@ customElements.define(
       this.#snapshot = snapshot;
       this.#trace = snapshot?.value ?? null;
       this.#origins = this.#trace ? streamOrigins(this.#trace) : new Map();
-      // Filmstrip JPEGs are smaller encodings of the same viewport, so every image of
-      // a page is drawn at its widest image's width: a frame's pixel width must not
-      // become a different display zoom at every timeline stop. The box they are
-      // drawn in is as tall as the tallest of them at that width, so the caption and
-      // everything below stand still from one stop to the next.
-      const widths = new Map();
-      for (const image of this.#trace?.images ?? [])
-        widths.set(image.pageId, Math.max(widths.get(image.pageId) ?? 0, image.width));
-      this.#imageBoxes = new Map();
-      for (const image of this.#trace?.images ?? []) {
-        const width = widths.get(image.pageId);
-        const height = Math.ceil((image.height * width) / image.width);
-        const box = this.#imageBoxes.get(image.pageId);
-        if (!box || height > box.height)
-          this.#imageBoxes.set(image.pageId, { width, height });
-      }
+      this.#imageBoxes = imageBoxes(this.#trace?.images ?? []);
       this.classList.toggle("lf-rendered", this.#trace !== null);
       if (oldArchive !== this.#trace?.archive.sha256) {
         this.#images.clear();
@@ -674,13 +715,14 @@ customElements.define(
       }
       keepsHidden(this.missingImage, !!image);
       keepsText(
-        this.missingImage,
+        this.missingNote,
         !this.#trace
           ? "The recording has not arrived."
           : "No captured image is available at or before this timeline point.",
       );
       setChildren(this.imageHost, imageNodes);
-      const box = this.#imageBoxes.get(this.#page);
+      const box = this.#imageBoxes.get(image?.id ?? this.#page);
+      keepsHidden(this.missingBox, !box);
       this.#keepStyle(this.imageHost, "--lf-trace-image-w", box && `${box.width}px`);
       this.#keepStyle(
         this.imageHost,

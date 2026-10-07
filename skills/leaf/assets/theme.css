@@ -168,6 +168,12 @@
      document already keeps clear of both (html[data-lf-live], below). */
   --lf-view-height: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-bar-h));
   --lf-top: var(--lf-banner-h);
+  /* The room a landing leaves between what stands over the root and what it lands on,
+     for the focus ring (the root's `scroll-padding-top`, below). A sticky header's own
+     controls take it back through a negative `scroll-margin-top`, since a control the
+     band counts as covered is scrolled toward on every focus, and a stuck header never
+     comes out from under it. */
+  --lf-landing-room: 12px;
   /* The page tab strip's stated height: its 8px head, a name's 38px face or the aim
      floor where that is taller, and its 1px rule. The default package draws the strip
      at it, and the root's `scroll-padding` adds it where a page tab strip stands over
@@ -643,7 +649,8 @@ html { background: var(--paper); }
     overflow-y: scroll;
     /* A sticky header over the whole root, a page tab strip, adds its stated height as
      * `--lf-root-headers` (lf-tabs.js). */
-    scroll-padding-top: calc(var(--lf-banner-h) + var(--lf-root-headers, 0px) + 12px);
+    scroll-padding-top: calc(var(--lf-banner-h) + var(--lf-root-headers, 0px)
+      + var(--lf-landing-room));
     scroll-padding-bottom: calc(var(--lf-bottom-bar-h) + max(12px, var(--focus-ring-room)));
     /* The bottom bar's room is the body's own end, where content growing above it only
      * lengthens the body: a box standing after the content would move with each growth. */

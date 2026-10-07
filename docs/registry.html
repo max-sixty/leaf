@@ -137,6 +137,7 @@
           <a href="#x-face"><code>x-face</code></a>
           <a href="#x-height"><code>x-height</code></a>
           <a href="#x-history"><code>x-history</code></a>
+          <a href="#x-initial"><code>x-initial</code></a>
           <a href="#x-inline"><code>x-inline</code></a>
           <a href="#x-instructions"><code>x-instructions</code></a>
           <a href="#x-language"><code>x-language</code></a>
@@ -370,6 +371,33 @@
                   words its ids had in the document it was made in, so a later version
                   rewording or removing what was chosen leaves the row as made. The
                   module reads it through <code>watchHistory</code>.
+                </p>
+              </details>
+            </div>
+          </section>
+          <section class="reference-entry" id="x-initial">
+            <h3><code>x-initial</code></h3>
+            <div class="reference-copy">
+              <p>
+                The rooted path of a captured classic JavaScript bundle registering the
+                widget's synchronous initial renderer with
+                document.documentElement.lfInitial.register(tag, render).
+              </p>
+              <details class="reference-more">
+                <summary aria-label="Full x-initial contract">Full contract</summary>
+                <p>
+                  Delivery inlines each used bundle once in the head, buffers each outer
+                  host in an inert template until its source is complete, and inserts
+                  and draws it in one synchronous turn, nested hosts deepest-first.
+                  render(host, {tabStore, offer, offerElement}) builds the instance's
+                  real markup using authored values and tab-local mechanical state; it
+                  performs no network or asynchronous work and returns the structure the
+                  behavior module adopts with initialRender(host). The widget loader
+                  imports that same bundle before the behavior module for later revision
+                  and thread arrivals, only where it has not already registered. The
+                  coordinator preserves the original authored markup and node routes
+                  before rendering, so source comparisons and semantic readings do not
+                  consume the drawing. Requires x-upgrade: true and excludes x-prepaint.
                 </p>
               </details>
             </div>
@@ -738,40 +766,43 @@
             <h3><code>x-state</code></h3>
             <div class="reference-copy">
               <p>
-                What x-state declares, once per widget with state: each verb's detail
-                schema (the payload half of the log's forever-contract), its fold unit,
-                the record form its state takes in markup, and who writes it.
+                What x-state declares, once per widget with state: each verb's fold
+                unit, who writes it, and either its recorded effect or its custom
+                unrecorded detail schema.
               </p>
               <details class="reference-more">
                 <summary aria-label="Full x-state contract">Full contract</summary>
                 <p>
-                  A verb is the user's unless it declares <code>writer: "agent"</code>:
-                  the user writes theirs through the page as <code>action</code> events,
-                  and the agent reports its own through <code>leaf page report</code> as
-                  <code>report</code> events, so every coordinate has one writer. A user
-                  verb may declare a created child (<code>creates</code>). An agent verb
-                  requires a record form other than <code>body</code>, since a report
-                  moves declared state and never the page's words, which keeps the
-                  passage reading untouched by it; it may name with
-                  <code>update</code> the required non-empty string detail field that is
-                  the report's short human-readable news, which the canonical update
-                  feed exposes without guessing from a widget, verb, or field name. The
-                  runtime paints a standing report live (data-lf-reported); it is
-                  provisional news, standing only until a version answers it, as $report
-                  says. Each verb is its own state: the owning Leaf element, the unit,
-                  and the verb together name one independently standing fact, the latest
-                  surviving action of that verb there supersedes its predecessors, and
-                  different verbs coexist. The framework composes the last surviving
-                  action per coordinate with typed authored values and gives every
-                  widget its complete state through renderState, keyed by verb, and one
-                  declaration drives the POST and re-vendor contract gates,
-                  <code>page check</code>'s state gate (a version whose markup actively
-                  contradicts the fold without <code>restated</code> is refused; writing
-                  the folded state is honoring; re-emitting the previous version's state
-                  is blessed silence, except for a position whose container the version
-                  changes, which it writes), construction-linked inspection, the
-                  runtime's user- and report-origin readings, and the version diff's
-                  state half. When an action's admission makes its widget's x-awaits
+                  A recorded effect derives its closed payload from the effect kind and
+                  destination attribute; it declares no separate detail schema or
+                  payload-field mappings. A verb is the user's unless it declares
+                  <code>writer: "agent"</code>: the user writes theirs through the page
+                  as <code>action</code> events, and the agent reports its own through
+                  <code>leaf page report</code> as <code>report</code> events, so every
+                  coordinate has one writer. A user verb may declare a created child
+                  (<code>creates</code>). An agent verb requires a record form other
+                  than <code>body</code>, since a report moves declared state and never
+                  the page's words, which keeps the passage reading untouched by it; it
+                  may declare <code>update: true</code> to require non-empty
+                  <code>detail.text</code> as the report's short human-readable news,
+                  which the canonical update feed exposes without guessing from a
+                  widget, verb, or field name. The runtime paints a standing report live
+                  (data-lf-reported); it is provisional news, standing only until a
+                  version answers it, as $report says. Each verb is its own state: the
+                  owning Leaf element, the unit, and the verb together name one
+                  independently standing fact, the latest surviving action of that verb
+                  there supersedes its predecessors, and different verbs coexist. The
+                  framework composes the last surviving action per coordinate with typed
+                  authored values and gives every widget its complete state through
+                  renderState, keyed by verb, and one declaration drives the POST and
+                  re-vendor contract gates, <code>page check</code>'s state gate (a
+                  version whose markup actively contradicts the fold without
+                  <code>restated</code> is refused; writing the folded state is
+                  honoring; re-emitting the previous version's state is blessed silence,
+                  except for a position whose container the version changes, which it
+                  writes), construction-linked inspection, the runtime's user- and
+                  report-origin readings, and the version diff's state half. When an
+                  action's admission makes its widget's x-awaits
                   <code>answered</code> condition hold, admission records meaning.answer
                   on it: the widget's authored <code>resolves</code> attribute, read
                   from the sending document, names the comment thread the answer closes,

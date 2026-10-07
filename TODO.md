@@ -232,13 +232,6 @@ Boxes that still move without input, which the "Stability" rule in
 `skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Draw the playground at its final size from first paint.** `lf-playground`,
-  `lf-playground-control`, `-output`, `-preview` and `-value` are `keeps-first-box`
-  findings: the module builds each control's inputs and the words of the instruction it
-  copies after first paint. Put each control's initial value and text in the authored markup, so
-  the module fills in what is there rather than adding it. Check first how values a
-  viewer restores from the tab's storage change the size, since markup carries only
-  the authored defaults.
 - **Size the activity feed and text documents at first paint.** `lf-activity` draws the
   log's history and `lf-text-document` its bound source's value, and both arrive with
   the first state answer, after first paint. Serving that state inside the page does
@@ -254,11 +247,9 @@ that changes size after first paint, with its cause.
   it measures at that point. A held summary does not answer that cause. Check first whether a
   container or media query on the space beside the column can make the same decision
   in CSS.
-- **Find a first-paint fix for the gallery's margin entry and for targeting.**
-  `lf-margin-entry-gallery` wraps words whose height follows the viewer's fonts (22px
-  to 45px taller on CI's Linux than on macOS), so no height its examples state holds
-  everywhere. `lf-targeting` has no recorded cause; read `lf-targeting.js` for what it
-  builds after first paint before choosing an approach.
+- **Find a first-paint fix for targeting.** `lf-targeting` has no recorded cause;
+  read `lf-targeting.js` for what it builds after first paint before choosing an
+  approach.
 - **Check that margin markers paint in place in their first frame.** The shift watch
   exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first

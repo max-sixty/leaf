@@ -82,7 +82,7 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
             "revision": 1,
             "widget": "order",
             "action": "choose",
-            "detail": {"options": ["mounts"]},
+            "detail": {"value": ["mounts"]},
         },
     )
     assert status == 200, answer

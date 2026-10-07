@@ -703,7 +703,7 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
             "revision": 1,
             "widget": "thread-region",
             "action": "choose",
-            "detail": {"options": ["thread-east"]},
+            "detail": {"value": ["thread-east"]},
         },
     )
     answered = append_command(
@@ -809,7 +809,7 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
             "revision": 1,
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+            "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
         },
     )
 
@@ -855,7 +855,7 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
             "revision": 1,
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-baffle", "value": "col-done", "rank": "0i"},
         },
     )
     renewed = _start(page_dir, moved["id"], "Moving it on")
@@ -895,7 +895,7 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
             "revision": 1,
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-heater", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-heater", "value": "col-done", "rank": "0i"},
         },
     )
     state, attention = reading()
@@ -1073,7 +1073,7 @@ def test_a_start_on_a_page_move_holds_that_move_and_not_a_later_one(page_dir):
             "revision": 1,
             "widget": "choice",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
         },
     )
 
@@ -1094,7 +1094,7 @@ def test_a_start_on_a_page_move_holds_that_move_and_not_a_later_one(page_dir):
             "revision": 1,
             "widget": "choice",
             "action": "choose",
-            "detail": {"options": ["backfill-first"]},
+            "detail": {"value": ["backfill-first"]},
         },
     )
     assert [
@@ -5963,7 +5963,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         "revision": 1,
         "widget": "w",
         "action": "choose",
-        "detail": {"options": ["a"]},
+        "detail": {"value": ["a"]},
         "meaning": {
             "scope": "page",
             "unit": "w",
@@ -6251,7 +6251,7 @@ def test_delivery_distinguishes_composing_an_ask_from_changing_input_in_hand(pag
             },
         )
 
-    composing = action("choice", "choose", {"options": ["flag-first"]})
+    composing = action("choice", "choose", {"value": ["flag-first"]})
     assert not composing["attention"]
     assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
     completed = action("choice", "answer", {})
@@ -6271,17 +6271,17 @@ def test_delivery_distinguishes_composing_an_ask_from_changing_input_in_hand(pag
     )
     assert undone["attention"]
     # The Ask is unfinished again, but the agent is already acting on its pick.
-    changed = action("choice", "choose", {"options": ["backfill-first"]})
+    changed = action("choice", "choose", {"value": ["backfill-first"]})
     assert changed["attention"]
     assert append_command(
         page_dir, {"kind": "undo", "author": "user", "undoes": changed["id"]}
     )["attention"]
-    quiet = action("draft", "edit", {"text": "Green room."})
+    quiet = action("draft", "edit", {"value": "Green room."})
     assert not quiet["attention"]
     assert not append_command(
         page_dir, {"kind": "undo", "author": "user", "undoes": quiet["id"]}
     )["attention"]
-    quiet = action("draft", "edit", {"text": "Red room."})
+    quiet = action("draft", "edit", {"value": "Red room."})
     assert (
         CliRunner()
         .invoke(
@@ -6290,7 +6290,7 @@ def test_delivery_distinguishes_composing_an_ask_from_changing_input_in_hand(pag
         .exit_code
         == 0
     )
-    assert action("draft", "edit", {"text": "Orange room."})["attention"]
+    assert action("draft", "edit", {"value": "Orange room."})["attention"]
     selected = service_model.unacknowledged(
         events_model.read_events(page_dir), completed["seq"]
     )
@@ -6319,7 +6319,7 @@ def test_a_put_down_start_holds_no_input_in_hand(page_dir):
                 "revision": 1,
                 "widget": "draft",
                 "action": "edit",
-                "detail": {"text": text},
+                "detail": {"value": text},
             },
         )
 
@@ -6360,7 +6360,7 @@ def test_signoff_withdrawals_reports_and_errors_remain_deliverable(page_dir):
             "revision": 1,
             "widget": "task",
             "action": "status",
-            "detail": {"status": "done"},
+            "detail": {"value": "done"},
         },
     )
     error = append_command(
@@ -6399,7 +6399,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
             "revision": 1,
             "widget": "b",
             "action": "move",
-            "detail": {"card": "x", "to": "y", "rank": "0i"},
+            "detail": {"unit": "x", "value": "y", "rank": "0i"},
             "meaning": {
                 "scope": "page",
                 "unit": "x",
@@ -6411,7 +6411,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
     payload, header, shown = printed(capsys.readouterr().out)
     assert header["page"] == str(page_dir)
     assert [e["kind"] for e in shown] == ["comment", "action"]
-    assert shown[1]["detail"]["to"] == "y"
+    assert shown[1]["detail"]["value"] == "y"
     # Printing is not acknowledgement: a detached Codex command can finish without
     # putting its output in the model's context, so wait leaves both events pending.
     assert files_model.read_json(page_dir / "cursor.json") is None
@@ -6468,7 +6468,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
                 "depends": ["t1"],
             },
             "action": "status",
-            "detail": {"status": "review"},
+            "detail": {"value": "review"},
             "revision": 1,
         },
     )
@@ -7015,7 +7015,7 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
             "revision": 1,
             "widget": "region",
             "action": "choose",
-            "detail": {"options": ["east"]},
+            "detail": {"value": ["east"]},
         },
     )
     newer = append_carried_log_record(
@@ -7080,7 +7080,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
             "revision": 1,
             "widget": "regions",
             "action": "choose",
-            "detail": {"options": ["east"]},
+            "detail": {"value": ["east"]},
         },
     )
     selecting = state_json(page_dir)
@@ -7276,7 +7276,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "revision": 1,
             "widget": "gm",
             "action": "choose",
-            "detail": {"options": ["m-cap"]},
+            "detail": {"value": ["m-cap"]},
         },
     )
 
@@ -7310,7 +7310,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     assert [
         (a["author"], a["widget"], a["action"], a["detail"])
         for a in standing["actions"]
-    ] == [("user", "gm", "choose", {"options": ["m-cap"]})]
+    ] == [("user", "gm", "choose", {"value": ["m-cap"]})]
 
     # Taken back, and the thread stops carrying it — the log keeps the
     # gesture, and no reading of the log stands on it.
@@ -7354,7 +7354,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
             "revision": 1,
             "widget": "plan-choice",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
         },
     )
     answered = append_command(
@@ -7512,7 +7512,7 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
             "revision": 1,
             "widget": "thread-commands",
             "action": "choose",
-            "detail": {"options": ["restart"]},
+            "detail": {"value": ["restart"]},
         },
     )
 
@@ -7729,7 +7729,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
             "revision": 1,
             "widget": "picks",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
         },
     )
     # Rewriting the option they picked retracts the pick: the thing they chose is
@@ -7866,7 +7866,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "revision": 1,
             "widget": "gm",
             "action": "choose",
-            "detail": {"options": ["m-cap"]},
+            "detail": {"value": ["m-cap"]},
         },
     )
     # Bury the question: enough later exchange that the bound would drop it.
@@ -13412,7 +13412,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
             "revision": 1,
             "widget": "picks",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
         },
     )
     note = {
@@ -14771,7 +14771,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
                 "depends": ["t1"],
             },
             "action": "status",
-            "detail": {"status": "review"},
+            "detail": {"value": "review"},
             "revision": 1,
         },
     )
@@ -16396,7 +16396,7 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, capsys):
             "</lf-options>",
         },
     )
-    for action, detail in (("choose", {"options": ["thread-east"]}), ("answer", {})):
+    for action, detail in (("choose", {"value": ["thread-east"]}), ("answer", {})):
         done = append_command(
             claimed,
             {
@@ -16521,7 +16521,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
             "revision": 1,
             "widget": "note",
             "action": "edit",
-            "detail": {"text": "Green room."},
+            "detail": {"value": "Green room."},
         },
     )
     edited = state_json(claimed)
@@ -16541,7 +16541,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
             "revision": 1,
             "widget": "choice",
             "action": "choose",
-            "detail": {"options": ["backfill-first"]},
+            "detail": {"value": ["backfill-first"]},
         },
     )
     state = state_json(claimed)
@@ -16606,7 +16606,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
             "revision": 1,
             "widget": "choice",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
         },
     )
     ticked = state_json(claimed)
@@ -16672,7 +16672,7 @@ def test_a_finished_deck_owes_every_card_the_user_sorted(page_dir):
                 "revision": 1,
                 "widget": "triage",
                 "action": "swipe",
-                "detail": {"card": card, "to": "keep", "rank": rank},
+                "detail": {"unit": card, "value": "keep", "rank": rank},
             },
         )
 
@@ -16718,7 +16718,7 @@ def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
                 "revision": 1,
                 "widget": "triage",
                 "action": "swipe",
-                "detail": {"card": card, "to": "keep", "rank": rank},
+                "detail": {"unit": card, "value": "keep", "rank": rank},
             },
         )
 

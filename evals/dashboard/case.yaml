@@ -34,7 +34,7 @@ variants:
       conditions:
       - leaf
       harnesses:
-      - cc
+      - claude-code
   reader-clean:
     metadata:
       executor: leaf_dev.reader_eval
@@ -44,4 +44,4 @@ variants:
       conditions:
       - leaf
       harnesses:
-      - cc
+      - claude-code

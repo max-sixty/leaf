@@ -95,8 +95,8 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
             )
         owed = blocking_obligations(
             state,
-            carried=harness is not None
-            and harness.carrier_live(listening=state["listening"]),
+            watched=harness is not None
+            and harness.watcher_live(listening=state["listening"]),
         )
         if owed:
             sys.exit(
@@ -310,7 +310,7 @@ class Watch:
         )
 
     def release(self) -> None:
-        """Release this carrier's liveness proof, however it ended."""
+        """Release this watcher's liveness proof, however it ended."""
         for lease in self.leases:
             release_lease(lease)
         self.leases.clear()
@@ -401,7 +401,7 @@ def read_watch_pass(
             deliver(reading)
             return _WatchPass(readings, live, 0)
         if reading.lost:
-            # A session-wide carrier still serves its other leaves. Treat the
+            # A session-wide watcher still serves its other leaves. Treat the
             # unavailable page as fatal only when it is the named watch, or when
             # the completed pass finds no live page left to carry.
             if named is None or not paths_same(reading.page_dir, named):
@@ -576,7 +576,8 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
             return last > end
         # TODO: this wakes for pending input the turn already answered without
         # picking it up, as an agent does after `leaf status` names the move, and
-        # the turn it opens only says so (seen in `verify-cc-task`'s `ending` step).
+        # the turn it opens only says so (seen in `verify-claude-code-task`'s
+        # `ending` step).
         return (
             (claim is not None and claim.get("turn_closed") is not None)
             or last > end

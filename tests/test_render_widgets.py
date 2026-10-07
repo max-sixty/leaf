@@ -708,32 +708,54 @@ def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
     assert code["top"] >= code["head"], code
 
 
+LONG_DIFF_PATH = "src/deeply/nested/module/file.rs"
+LONG_DIFF_PATCH = (
+    f"diff --git a/{LONG_DIFF_PATH} b/{LONG_DIFF_PATH}\n"
+    f"--- a/{LONG_DIFF_PATH}\n+++ b/{LONG_DIFF_PATH}\n"
+    "@@ -1 +1,81 @@\n fn main() {\n"
+    + "".join(f"+    let value_{i} = {i};\n" for i in range(80))
+)
+
+
+def long_diff(id):
+    return f'<lf-diff id="{id}"><pre>{LONG_DIFF_PATCH}</pre></lf-diff>'
+
+
+# Scrolls the box with the given id 400px down and reads how far below the top of its
+# content the diff's file header inside it stands. A sticky box stops at its scroller's
+# padding edge, so a box that states no start of its own pins it below its padding.
+PINNED_IN_BOX = """async (id) => {
+    const box = document.getElementById(id);
+    box.scrollTop = 400;
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const head = box.querySelector('lf-diff').shadowRoot
+        .querySelector('.lf-diff-file > details > summary');
+    return {
+        scrolled: box.scrollTop,
+        gap: head.getBoundingClientRect().top - (box.getBoundingClientRect().top
+            + box.clientTop + parseFloat(getComputedStyle(box).paddingTop)),
+    };
+}"""
+
+
 def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve):
     """A diff's file header pins at the top of the box that scrolls it, whoever made the
-    box scroll: a page rule, an inline style, and a column's sticky sidebar each start
-    `--lf-top` again, where each pinned the header the banner's height below the box's
-    top. The root keeps the banner's height though a page rule makes it scroll, and a
-    page's sticky box keeps the slot it met though another rule makes it scroll, so both
-    still stop at the banner's foot."""
-    path = "src/deeply/nested/module/file.rs"
-    rows = "".join(f"+    let value_{i} = {i};\n" for i in range(80))
-    patch = (
-        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
-        f"@@ -1 +1,81 @@\n fn main() {{\n{rows}"
-    )
-
-    def diff(id):
-        return f'<lf-diff id="{id}"><pre>{patch}</pre></lf-diff>'
-
+    box scroll: a page rule, an inline style, `overflow: hidden`, and a column's sticky
+    sidebar each start `--lf-top` again, where each pinned the header the banner's
+    height below the box's top. The root keeps the banner's height though a page rule
+    makes it scroll, and a page's sticky box keeps the slot it met though another rule
+    makes it scroll, so both still stop at the banner's foot."""
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Scrolling boxes",
-                f'<aside class="sidebar" id="side">{diff("in-side")}</aside>'
-                f'<h1>Scrolling boxes</h1><div id="box">{diff("in-box")}</div>'
+                f'<aside class="sidebar" id="side">{long_diff("in-side")}</aside>'
+                f'<h1>Scrolling boxes</h1><div id="box">{long_diff("in-box")}</div>'
                 '<div id="inline" style="max-height: 320px; overflow: auto">'
-                f"{diff('in-inline')}</div>"
+                f"{long_diff('in-inline')}</div>"
+                '<div id="hidden" style="max-height: 320px; overflow: hidden">'
+                f"{long_diff('in-hidden')}</div>"
                 '<div id="panel" class="tall"><p>Panel.</p></div>'
                 + "<p>Filler.</p>"
                 * 60,
@@ -748,35 +770,71 @@ def test_any_box_that_scrolls_starts_the_sticky_header_slot_again(browser, serve
         "data-lf-margin", re.compile("sidebar")
     )
     page.wait_for_function(
-        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 3"
+        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 4"
     )
     read = page.evaluate(
-        """async () => {
-        const pinned = async (id) => {
-            const box = document.getElementById(id);
-            box.scrollTop = 400;
-            await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-            const head = box.querySelector('lf-diff').shadowRoot
-                .querySelector('.lf-diff-file > details > summary');
-            return {
-                scrolled: box.scrollTop,
-                gap: head.getBoundingClientRect().top
-                    - (box.getBoundingClientRect().top + box.clientTop),
-            };
-        };
-        return {
+        f"""async () => {{
+        const pinned = {PINNED_IN_BOX};
+        return {{
             box: await pinned('box'),
             inline: await pinned('inline'),
+            hidden: await pinned('hidden'),
             side: await pinned('side'),
             panel: getComputedStyle(document.querySelector('#panel')).top,
             root: getComputedStyle(document.documentElement).getPropertyValue('--lf-top'),
-        };
-    }"""
+        }};
+    }}"""
     )
-    for box in ("box", "inline", "side"):
+    for box in ("box", "inline", "hidden", "side"):
         assert read[box]["scrolled"] == 400, read
         assert read[box]["gap"] == pytest.approx(0, abs=1.5), read
     assert read["root"] != "0px" and read["panel"] == read["root"], read
+
+
+def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve):
+    """A page tab panel the page makes scroll is the box its diff's header pins to, though
+    the tab strip stacks its height onto what the panel holds: the panel's own scroll
+    restarts `--lf-top`. An undecided option card clips its rounded corners and scrolls
+    nothing, so a diff in an option pins under the banner as the page scrolls past it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Panel and option",
+                '<lf-tabs id="tabs"><lf-tab id="tab" label="Diff">'
+                f"{long_diff('in-tab')}</lf-tab></lf-tabs>"
+                '<lf-ask id="ask"><h2>Which?</h2><lf-options id="opts" choose>'
+                f'<lf-option id="opt-a"><strong>A</strong>{long_diff("in-option")}'
+                '</lf-option><lf-option id="opt-b"><strong>B</strong></lf-option>'
+                "</lf-options></lf-ask>" + "<p>Filler.</p>" * 60,
+                head="<style>#tab { max-height: 320px; overflow: auto; }</style>",
+            )
+        ),
+    )
+    resized(page, 1280, 900)
+    expect(page.locator("lf-tabs")).to_have_attribute("data-lf-tabs-flow", "page")
+    page.wait_for_function(
+        "() => document.querySelectorAll('lf-diff.lf-rendered').length === 2"
+    )
+    read = page.evaluate(
+        f"""async () => {{
+        const tab = await ({PINNED_IN_BOX})('tab');
+        const diff = document.getElementById('in-option');
+        const head = diff.shadowRoot.querySelector('.lf-diff-file > details > summary');
+        const rows = [...diff.shadowRoot.querySelectorAll('[data-line]')];
+        rows[40].scrollIntoView({{block: 'start', behavior: 'instant'}});
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        return {{
+            tab,
+            option: head.getBoundingClientRect().top,
+            banner: parseFloat(getComputedStyle(document.documentElement)
+                .getPropertyValue('--lf-top')),
+        }};
+    }}"""
+    )
+    assert read["tab"]["scrolled"] == 400, read
+    assert read["tab"]["gap"] == pytest.approx(0, abs=1.5), read
+    assert read["option"] == pytest.approx(read["banner"], abs=1), read
 
 
 def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):
@@ -11994,6 +12052,30 @@ def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
     ).to_contain_text("new beginning")
 
 
+@pytest.mark.parametrize("manifest", [False, True])
+def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve, manifest):
+    """A file that a revision turns from a rename into a changed file gets a new row,
+    and that row, too, says whether it cuts its path short."""
+    path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/handlers.py"
+    rename = (
+        f"diff --git a/old.py b/{path}\n"
+        f"similarity index 100%\nrename from old.py\nrename to {path}\n"
+    )
+    regular = MULTI_HUNK_PATCH.replace("app/handlers.py", path)
+    value = patch_manifest if manifest else lambda patch: patch
+    url = serve(LONG_LINE_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value(rename))
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = open_page(browser, url, context=context)
+    expect(page.locator("lf-diff .lf-diff-rename")).to_have_count(1)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value(regular))
+    told(page)
+    rendered(page)
+    head = page.locator("lf-diff .lf-diff-head").first
+    expect(head).to_have_attribute("data-path-cut", "")
+    expect(head.locator(".lf-diff-path")).to_have_attribute("title", path)
+
+
 @pytest.mark.parametrize("language", [None, "python"])
 def test_a_text_document_refresh_keeps_selection_in_unchanged_text(
     browser, serve, language
@@ -12964,6 +13046,9 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, s
             title: path.title,
             base: base.textContent,
             baseCut: base.scrollWidth > base.clientWidth,
+            room: parseFloat(getComputedStyle(head).paddingRight),
+            bar: head.closest('.lf-diff-file')
+                .querySelector('.lf-diff-file-actions').getBoundingClientRect().width,
         };
         return reading;
     }"""
@@ -12978,6 +13063,9 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, s
     )
     assert head["height"] == pytest.approx(head["reserved"], abs=0.5), head
     assert head["base"] == "config.md" and not head["baseCut"], head
+    # An inline patch's file has its review press and no comment press, and its row
+    # holds open the bar's width and 14px beside it, inside its 10px padding.
+    assert head["room"] == pytest.approx(10 + head["bar"] + 14, abs=0.5), head
     assert head["title"] == path, head
     assert path in said[0] and said[1] > 0, said
 
@@ -12988,7 +13076,8 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     """A file's row gives way from its folders, and its title reaches only a pointer
     resting on it. The keyboard standing on the row, and a finger held on it, read the
     whole path in a box under the row, a folded file's too, over the next file's row.
-    Releasing the hold folds the file, as a tap does, and a tap shows nothing."""
+    Releasing the hold folds the file, as a tap does, and a tap shows nothing. A row
+    that shows its whole path at the width it has now shows no box and has no title."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/nested/file.md"
     patch = "".join(
         f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
@@ -13083,6 +13172,25 @@ def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(
     rendered(page)
     assert head.evaluate(read)["open"] is True, "a tap unfolds it"
     assert head.evaluate(read)["word"] is None
+
+    # A row that shows its whole path shows no box and has no title, and a row's box
+    # and title follow the width the row is given while the keyboard stays on it.
+    page.keyboard.press("Shift")
+    titled = "head => head.querySelector('.lf-diff-path').getAttribute('title')"
+    short = page.locator("lf-diff .lf-diff-head").nth(1)
+    short.focus()
+    assert short.evaluate(read)["word"] is None, "a short path is said twice"
+    assert short.evaluate(titled) is None, "a short path's title repeats it"
+    head.focus()
+    assert head.evaluate(read)["word"] == whole and head.evaluate(titled) == path
+    page.set_viewport_size({"width": 1400, "height": 844})
+    rendered(page)
+    assert head.evaluate(read)["word"] is None, "a path the row shows whole is said"
+    assert head.evaluate(titled) is None
+    page.set_viewport_size({"width": 390, "height": 844})
+    rendered(page)
+    assert head.evaluate(read)["word"] == whole, "a narrowed row hides its path"
+    assert head.evaluate(titled) == path
 
 
 # A page-authored driver that points at a code block's lines through its declared `for`,

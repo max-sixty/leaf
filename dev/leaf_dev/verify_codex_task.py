@@ -364,7 +364,7 @@ def journey(
 
 def task_codex(root: Path, executable: str, transport: str) -> str:
     """Route the queue to the private server without exposing Leaf's observed
-    App Server transport to the task. Both routes use the real Codex executable."""
+    App Server transport to the task. Both transports use the real Codex executable."""
     directory = root / "bin"
     directory.mkdir()
     wrapper = directory / "codex"

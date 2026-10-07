@@ -837,24 +837,36 @@ main {
 /* Where a box sticking here stops: the sticky headers standing over the top of its
  * scroller, stacked. On the root it starts at the banner's height (above). Every other
  * box that scrolls starts it again from its own top. A box the theme makes scroll
- * states that beside its overflow, so it holds from the first paint, before the
- * runtime runs (a bounded block, a table, a board; a workspace pane's body from minus
- * its top padding, layouts.css). The runtime marks every box it finds scrolling,
- * whoever made it scroll (reach.js, `paintSlot`), and the mark restarts the slot at no
- * specificity ([data-lf-scrolls], shadow.css), so a box the page or a package makes
- * scroll restarts too, and one that states its own start keeps it. A box that sticks
- * keeps the value it met for its own `top`, so a sticking box that scrolls headers
- * restarts the slot for them itself (a column's sidebar, layouts.css). A sticky header
- * (a page tab strip, a diff's file header) has a stated height and sticks at the
- * `--lf-top` it inherits; what it stands over takes that value plus its height, which
- * the header's holder passes on under a second name, since a custom property cannot
- * read itself. The stacked value goes on a box that does not itself scroll, since a
- * box that scrolls is read where it stands. A landing clears the headers over a whole
- * scroller through its `scroll-padding` and one over part of it through
- * `scroll-margin` on the rows under it, and the runtime's reading of what is on screen
- * takes the value at each element (geometry.js, `headerInset`). Registered so that
- * reading is a length. */
+ * states that beside its overflow, so it holds from the first paint, before the runtime
+ * runs (a bounded block, a table, a board; a workspace pane's body from minus its top
+ * padding, layouts.css). The runtime marks every box it finds scrolling, whoever made
+ * it scroll (reach.js, `paintSlot`), and the mark restarts the slot ([data-lf-scrolls],
+ * state.css), so a box the page or a package makes scroll restarts too. The mark sits
+ * above packages and Layouts, so it outranks a value stacked onto a box that scrolls (a
+ * page tab's panel the page makes scroll), and it restarts at `--lf-top-start`, which a
+ * box that starts its slot other than at 0 states beside its `--lf-top` (a workspace
+ * pane's body, a thread list). A box that clips without scrolling says
+ * `overflow: clip`, since `hidden` scrolls, for a script, and so holds the headers
+ * inside it. A box that sticks keeps the value it met for its own `top`, so a sticking
+ * box that scrolls headers restarts the slot for them itself (a column's sidebar,
+ * layouts.css).
+ * A sticky header (a page tab strip, a diff's file header) has a stated height and
+ * sticks at the `--lf-top` it inherits; what it stands over takes that value plus its
+ * height, which the header's holder passes on under a second name, since a custom
+ * property cannot read itself. The stacked value goes on a box that does not itself
+ * scroll, since a box that scrolls is read where it stands. A landing clears the
+ * headers over a whole scroller through its `scroll-padding` and one over part of it
+ * through `scroll-margin` on the rows under it, and the runtime's reading of what is on
+ * screen takes the value at each element (geometry.js, `headerInset`). Registered so
+ * that reading is a length. */
 @property --lf-top { syntax: "<length>"; inherits: true; initial-value: 0px; }
+/* Where a box that scrolls starts the slot for what it holds, read by the restart above;
+ * its own, so not inherited, which would start a scroller inside it there too. */
+@property --lf-top-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+/* Where a box that scrolls starts the landing room for what it holds: its own
+ * `scroll-padding-top` less where its slot starts, 0 unless it states one (a thread
+ * list keeps the ring's room). */
+@property --lf-landing-room-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
 /* The same for a box sticking at its scroller's foot: what it stands over takes its
  * height and offset as `--lf-bottom`, and the runtime's reading of what is on screen
  * leaves that band out too (geometry.js, `footerInset`). A long open thread's reply

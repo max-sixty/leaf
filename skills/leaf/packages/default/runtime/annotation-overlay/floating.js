@@ -163,7 +163,7 @@ const stood = new Map();
 export const floatingSelections = () => [...stood.values()];
 
 const physicalContext = (context) =>
-  context?.nodeType === Node.TEXT_NODE ? context.parentElement : context;
+  context instanceof Element ? context : context?.parentElement;
 
 // The box a surface anchors to for `context`. Words standing directly in a box that
 // scrolls them move with that scroll, which an anchor on the box itself does not

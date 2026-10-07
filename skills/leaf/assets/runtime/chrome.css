@@ -1017,10 +1017,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      That padding is inside the scrollport, so the list's words scroll through it, and
      a sticky offset is measured from the content box inside it. A row pinned to an
      edge therefore either offsets back across the padding or paints over it. At the
-     top, the sticky-header slot `--lf-top` (theme.css) restarts at minus the top
-     padding, as a workspace pane's does, so an open thread's title stands on the
-     scrollport's edge. At the foot, the reply row stands where a landing puts a
-     thread's end and paints the band below it (below). */
+     top, the list states its own start of the sticky-header slot (`--lf-top-start`,
+     theme.css) at minus the top padding, as a workspace pane's body does, so an open
+     thread's title stands on the scrollport's edge. At the foot, the reply row stands
+     where a landing puts a thread's end and paints the band below it (below). */
   /* The editor takes a share of this actual list, so typing leaves the preceding
      turn readable even when the panel is short. */
   .lf-threads-frame { flex: 1; min-height: 0; display: grid; container-type: size; }
@@ -1028,7 +1028,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-threads { overflow-y: auto; overscroll-behavior: contain; z-index: 0;
     padding: var(--focus-ring-room) var(--lf-list-inset); --lf-block-frame: 1;
     scroll-padding: var(--focus-ring-room) 0;
-    --lf-top: calc(-1 * var(--focus-ring-room)); --lf-landing-room: var(--focus-ring-room); }
+    --lf-top-start: calc(-1 * var(--focus-ring-room)); --lf-top: var(--lf-top-start);
+    --lf-landing-room-start: var(--focus-ring-room);
+    --lf-landing-room: var(--lf-landing-room-start); }
   /* The list holds focus itself only while it shows no thread (thread-list-view.js):
      an empty list, or the last one folding away as it resolves. That folding card is
      positioned, so it paints after the scrollport and an outline on the list itself
@@ -1402,9 +1404,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      their resting 38px: beside the open Threads panel at 1024px the bar had 256px for
      a 288px row, and the reactions dropped whole beneath Suggest. So the reactions give
      up their spare inline padding before the row breaks, down to the floor every
-     response action keeps, and only a bar narrower than that wraps them. */
+     response action keeps; a still narrower side wraps the controls. */
   .lf-fab-bar.lf-response-open > .lf-response-options {
-    display: inline-flex; align-items: center; flex-wrap: nowrap; gap: 4px;
+    display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px;
     max-width: 100%;
   }
   .lf-response-options .lf-response-action {

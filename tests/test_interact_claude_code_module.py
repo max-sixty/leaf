@@ -18,7 +18,7 @@ from interact_support import (
     serving,
     wait_for,
 )
-from leaf import hook_carrier as hook_carrier_model
+from leaf import hook_transport as hook_transport_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import service as service_model
@@ -263,7 +263,7 @@ def test_the_module_keeps_a_stop_hooks_delivery_out_of_the_terminal(
     context = json.loads(capsys.readouterr().out)["hookSpecificOutput"][
         "additionalContext"
     ]
-    assert context.startswith(hook_carrier_model.INLINE_DELIVERY)
+    assert context.startswith(hook_transport_model.INLINE_DELIVERY)
 
     answer = {"additionalContext": [context]}
     result = claude_code.emit("classic.Stop", payload, answer)["result"]
@@ -272,13 +272,13 @@ def test_the_module_keeps_a_stop_hooks_delivery_out_of_the_terminal(
     [batch] = json.loads(appended.split("\n")[1])["batches"]
     assert [event["id"] for event in batch["events"]] == [pending["id"]]
     [shown] = result["additionalContext"]
-    assert hook_carrier_model.INLINE_DELIVERY not in shown
+    assert hook_transport_model.INLINE_DELIVERY not in shown
 
 
 def test_a_wake_during_the_stop_hooks_waits_for_them(page_dir, claude_code):
     """Leaf's Stop hook hands over the input pending as it runs, and decides
     whether the turn goes on. A watch that wakes while a turn's Stop hooks run
-    waits for them, so the input has one carrier: here they let the turn end, and
+    waits for them, so the input has one transport: here they let the turn end, and
     only then does the module submit its prompt."""
     claude_code.start_turn()
     payload = {"hook_event_name": "Stop", "session_id": claude_code.session}

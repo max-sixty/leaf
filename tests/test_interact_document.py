@@ -295,11 +295,11 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     assert restamped.digest != revendored.digest
     assert restamped.executable == revendored.executable
 
-    # Vendoring writes that epoch into `runtime/layer-client.js`, which every
+    # Vendoring writes that epoch into `runtime/layer-generation.js`, which every
     # document evaluates, so a real re-vendor reaches the digest through the
     # module rather than through the stamp beside it.
     files_model.replace_files(
-        [(page_dir / "runtime" / "layer-client.js", b"// re-vendored epoch", False)]
+        [(page_dir / "runtime" / "layer-generation.js", b"// re-vendored epoch", False)]
     )
     reissued = activate()
     assert reissued.executable != restamped.executable
@@ -2263,7 +2263,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
 
 def test_inferred_reply_attempt_is_idempotent(page_dir):
     """An attempt is an opaque durable key, and the append door holds every
-    writer to the record contract's shape for one — the delivery carriers mint
+    writer to the record contract's shape for one — the delivery transports mint
     theirs from a digest, so a short hand-written label is not a retry key."""
     attempt = "retry-inferred-reply-1"
     comment = append_carried_log_record(

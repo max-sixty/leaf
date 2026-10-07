@@ -203,7 +203,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    margin takes the band's room back from that, so a focused control where its header
    sticks is shown, and one revealed from elsewhere lands exactly there.
    `--lf-landing-room` is the scroller's own: 12px on the root (theme.css), none where
-   a box that scrolls restarts the slot (below), and a list that pads its edge for the
+   a box that scrolls restarts the slot (state.css), and a list that pads its edge for the
    ring says so (chrome.css). */
 :where(:focus) {
   scroll-margin-top: calc(var(--lf-head-inset, calc(var(--focus-ring-room)
@@ -684,10 +684,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * every declared tree, and a diff's lines scroll in one. No offsets: relative moves
  * nothing. */
 [data-lf-holds] { position: relative; }
-/* A box that scrolls starts the sticky-header slot again at its own top (theme.css, at
- * `--lf-top`), whoever made it scroll: reachScrollers marks it. At no specificity, so a
- * box that states where its own slot starts keeps that. */
-:where([data-lf-scrolls]) { --lf-top: 0px; --lf-landing-room: 0px; }
 /* The layer's marks for a box that shows less than it holds across (reachScrollers, for
  * why the sweep and not a rule beside each overflow decides who wears them). Scrolling
  * is the honest answer when the room ran short, and on a platform drawing overlay

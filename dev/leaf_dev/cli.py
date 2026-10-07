@@ -9,12 +9,14 @@ from importlib import import_module
 import click
 
 COMMANDS = {
+    "distribution": "distribution",
     "bench-check": "bench_check",
     "bench-latency": "bench_latency",
     "bugback": "bugback",
     "corpus": "corpus",
     "fetch-assets": "leaf_assets",
     "journey": "journey",
+    "journey-chart": "journey",
     "flake": "flake",
     "eval": "eval",
     "keydocs": "keydocs",
@@ -22,6 +24,7 @@ COMMANDS = {
     "probe": "probe",
     "profile": "profile",
     "publish-media": "page_fixtures",
+    "publish-distribution": "distribution",
     "record-demo": "record_demo",
     "refresh-previews": "example_previews",
     "site": "site",
@@ -29,7 +32,7 @@ COMMANDS = {
     "test-select": "test_select.command",
     "thread-snapshots": "thread_snapshots",
     "trace-server": "trace_server",
-    "verify-cc-task": "verify_cc_task",
+    "verify-claude-code-task": "verify_claude_code_task",
     "verify-codex-task": "verify_codex_task",
     "verify-pi-task": "verify_pi_task",
     "verify-site": "verify_site",

@@ -106,7 +106,7 @@ nothing and needs no item.
 
 User input comes before the work in hand, in this order:
 
-1. Where the delivery's `acknowledge` names a receipt route, take it first, so the
+1. Where the delivery's `acknowledge` names a receipt command, take it first, so the
    user's moves read **Picked up**; where it is `null`, your harness has confirmed
    receipt already. Until you start an item, the banner can say only that you are
    working on their update.

@@ -31,6 +31,7 @@ from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
+from leaf.render_gate.readings import DevtoolsIssues
 from leaf.schema import ELEMENT_ID
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
@@ -491,6 +492,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         },
     )
     page = open_page(browser, url)
+    assert not DevtoolsIssues(page).findings()
     widget = page.locator("#request-calls")
     lines = widget.locator(".lf-call-line")
 
@@ -505,6 +507,11 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     groups = widget.locator(":scope > .lf-call-group")
     expect(groups).to_have_count(1)
     group = groups.first
+    summary = group.locator(":scope > summary")
+    root_location = widget.locator(".lf-call-root-location .lf-call-location").first
+    expect(root_location).to_have_text("gateway/limits.py:38")
+    expect(root_location).to_be_visible()
+    expect(summary.locator("a, button")).to_have_count(0)
     assert group.evaluate("el => getComputedStyle(el).backgroundColor") == page.locator(
         "#code-surface"
     ).evaluate("el => getComputedStyle(el).backgroundColor")
@@ -607,7 +614,11 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator("#patch [data-line-type]")).to_have_count(0)
     entries = page.evaluate("history.length")
-    lines.nth(1).locator(".lf-call-location").click()
+    summary.click()
+    expect(group).not_to_have_attribute("open", "")
+    expect(root_location).to_be_visible()
+    root_location.click()
+    expect(group).not_to_have_attribute("open", "")
     context = page.locator(
         'lf-diff [data-lf-datum=\'["gateway/limits.py","both",38,38]\']'
     )
@@ -616,6 +627,8 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "Opened gateway/limits.py:38 in the exact patch"
     )
     expect(context).to_be_focused()
+    summary.click()
+    expect(group).to_have_attribute("open", "")
 
     search = page.locator("#patch .lf-diff-search input")
     search.fill("nothing-matches")
@@ -640,11 +653,28 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     )
     told(page)
     expect(context).to_contain_text("class Limiter:  # raw source")
-    lines.nth(1).locator(".lf-call-location").click()
+    root_location.click()
     expect(context).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:38 in the exact patch"
     )
+
+    # Native tab order exposes source navigation even with the call tree closed.
+    summary.click()
+    expect(group).not_to_have_attribute("open", "")
+    page.keyboard.press("Shift+Tab")
+    expect(root_location).to_be_focused()
+    assert root_location.evaluate("node => node.matches(':focus-visible')")
+    page.keyboard.press("Enter")
+    expect(context).to_be_focused()
+    expect(group).not_to_have_attribute("open", "")
+    expect(context).to_be_in_viewport()
+    summary.click()
+    expect(group).to_have_attribute("open", "")
+    page.keyboard.press("Space")
+    expect(group).not_to_have_attribute("open", "")
+    page.keyboard.press("Enter")
+    expect(group).to_have_attribute("open", "")
 
     page.evaluate("() => getSelection().removeAllRanges()")
     lines.nth(2).click(modifiers=["Alt"])
@@ -675,7 +705,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     shifted = page.locator(
         'lf-diff [data-lf-datum=\'["gateway/limits.py","both",100,102]\']'
     )
-    widget.locator(".lf-call-line").nth(1).locator(".lf-call-location").click()
+    root_location.click()
     expect(shifted).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:100 in the exact patch"
@@ -696,6 +726,17 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
         "line 2 appears before a changed root"
     )
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "request-call-diff",
+        "calldiff diff main → feature\n  missing_location()",
+    )
+    told(page)
+    expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
+        "line 2 has no source location; capture --locs output"
+    )
+    expect(widget.locator(".lf-call-root-location, .lf-call-group")).to_have_count(0)
 
     resized(page, 390, 900)
     assert root_overflow(page) == 0
@@ -750,6 +791,52 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
         groups.first.locator(".lf-call-group-body .lf-call-body").first
     ).to_have_text("├─ three()")
     expect(row).to_be_focused()
+
+    # Equal root names can share a stable call row while its group changes. The
+    # closed destination may already exist or arrive in this capture; both expose
+    # the user's focused row while a transfer without focus leaves its group closed.
+    first_work = "  work()  app.py:1\n"
+    second_work = "  work()  app.py:20\n"
+    third_work = "  work()  app.py:60\n"
+    unfocused = "  ├─ other_helper()  utils.py:3\n"
+    shared = "  └─ helper()  utils.py:2\n"
+    capture(first_work + unfocused + shared, second_work, third_work)
+    told(page)
+    expect(groups).to_have_count(3)
+    expect(groups.nth(1)).not_to_have_attribute("open", "")
+    location = widget.locator(".lf-call-location", has_text="utils.py:2")
+    location.focus()
+    location.evaluate(
+        """node => {
+          window.heldCallDiffControl = node;
+          window.heldCallDiffRow = node.closest('.lf-call-line');
+        }"""
+    )
+    for destination, roots in (
+        ("app.py:20", (first_work, second_work + shared, third_work + unfocused)),
+        (
+            "app.py:40",
+            (
+                "  work()  app.py:30\n",
+                "  work()  app.py:40\n" + shared,
+                third_work + unfocused,
+            ),
+        ),
+    ):
+        capture(*roots)
+        told(page)
+        expect(
+            location.locator("xpath=ancestor::details").locator(
+                ".lf-call-group-summary .lf-call-location"
+            )
+        ).to_have_text(destination)
+        expect(location).to_be_visible()
+        expect(location).to_be_focused()
+        expect(groups.last).not_to_have_attribute("open", "")
+        assert location.evaluate(
+            """node => node === window.heldCallDiffControl &&
+              node.closest('.lf-call-line') === window.heldCallDiffRow"""
+        ), "a surviving call's group change replaced its row or control"
 
 
 def test_visual_review_guides_one_typed_still_run(browser, serve):
@@ -2353,9 +2440,8 @@ def test_a_revision_that_moves_the_block_the_user_types_in_keeps_them_there(
 ):
     """A revision that reorders siblings moves the element the user is typing in.
 
-    The patch keeps that element, so the carry leaves it alone, and moving it blurs it to
-    the page body in the same call. The patch's placement holds the user's place across
-    the move: they stay in the box, caret included.
+    The patch keeps that element, so the carry leaves it alone. Native placement retains
+    the browser's own state across the move: they stay in the box, caret included.
     """
     first = leaf_page(
         "Moved first",
@@ -2399,6 +2485,56 @@ def test_a_revision_that_moves_the_block_the_user_types_in_keeps_them_there(
         "focused": True,
         "caret": [6, 9, "backward"],
     }, f"the revision's move took the user out of their box: {standing}"
+
+
+def test_a_revision_reorders_a_live_sample_without_replacing_its_document(
+    browser, serve
+):
+    """Moving a retained sample keeps its child document and focused unsent editor.
+
+    A removal and reinsertion keeps the iframe element but reloads its document.
+    Draft persistence can recover the words while still dropping the child's focus,
+    so identity, words, and focus together establish that the child stayed live.
+    """
+    first = leaf_page(
+        "Sample first",
+        """
+<h1 id="sample-title">Live sample revision</h1>
+<p id="sample-before">This paragraph comes first.</p>
+<lf-sample id="sample-held" label="Live draft" window>
+  <template id="sample-source" data-sample>
+    <h1>Practice draft</h1>
+    <lf-draft id="sample-draft"><pre>Authored sample words.</pre></lf-draft>
+  </template>
+</lf-sample>
+""",
+    )
+    paragraph = '<p id="sample-before">This paragraph comes first.</p>\n'
+    second = (
+        first.replace("Sample first", "Sample second")
+        .replace(paragraph, "")
+        .replace("</lf-sample>\n", "</lf-sample>\n" + paragraph)
+    )
+    page = open_page(browser, live_url(serve(first)))
+    sample = page.locator("#sample-held")
+    expect(sample.get_by_role("button", name="Reset", exact=True)).to_be_enabled()
+    frame = sample.locator("iframe")
+    frame.evaluate("frame => window.heldSampleDocument = frame.contentDocument")
+    child = page.frame_locator("#sample-held iframe")
+    child.locator(".lf-draft-body").click()
+    editor = child.locator("#sample-draft leaf-text")
+    write(editor, "Unsent sample words.")
+    expect(editor).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Sample second")
+    expect(page.locator("#sample-held + #sample-before")).to_be_attached()
+    assert frame.evaluate(
+        "frame => frame.contentDocument === window.heldSampleDocument"
+    ), "the revision's retained sample move replaced its child document"
+    expect(editor).to_have_js_property("value", "Unsent sample words.")
+    expect(editor).to_be_focused()
 
 
 def test_a_declared_widget_with_no_id_survives_a_revision_that_left_it_alone(

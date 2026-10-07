@@ -634,7 +634,11 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 
   :scope:is(lf-options)[choose]:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid; background: var(--card);
-    border: 1px solid var(--border-2); border-radius: var(--r); overflow: hidden;
+    border: 1px solid var(--border-2); border-radius: var(--r);
+    /* Clipped to its corners, not hidden: a hidden box is a scroll container, and the
+     * box a sticky header in an option sticks in, so a diff's file header there would
+     * scroll off with the page rather than pin under the banner. */
+    overflow: clip;
     /* Where the runtime runs, the authored options paint before their generated Add
      * and Done cells. Keep their rows occupied until upgrade so the next block stays
      * put. The form needs more room in a card because its action seat sits inside the
@@ -1711,7 +1715,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
     align-self: start;
     height: 0;
     min-height: 0;
-    overflow: hidden;
+    overflow: clip;
     pointer-events: none;
   }
 

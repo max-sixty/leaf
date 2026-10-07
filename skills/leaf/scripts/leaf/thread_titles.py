@@ -13,7 +13,7 @@ reach the harness's model:
   (`Harness.title_generator`): a `claude -p` Haiku request for Claude Code
   (`claude_code_title`), and an App Server of its own for Codex (`codex_title`),
   whichever transport carries the task's turns;
-- the website's carrier, as the Worker dispatches the user's move in the untitled
+- the website's host, as the Worker dispatches the user's move in the untitled
   thread to it (`name_thread`), through an ephemeral thread on the App Server it owns
   (`app_server_title`), whether the move starts a turn or waits for a running one
   to end. Its page server cannot: the page has no claim before the first turn, and

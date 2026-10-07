@@ -186,7 +186,10 @@ that harness too (`harness.harness_argument`).
 A second Claude Code Stop registration runs the watch (`--watch`), which Claude Code
 keeps in the background (`asyncRewake`) as the session's watch between turns
 (`session.watch_between_turns`): its exit 2 wakes the session with its stderr, and
-every other ending is silent.
+every other ending is silent. Where the user turns on the plugin's `hooks_module`
+option and Claude Code loads hooks modules, Leaf's module (`hooks/claude-code.ts`)
+runs the watch itself and marks the Stop payload it passes on, and the registration
+given a marked payload stands down (`hooks/scripts/loop-guard.py`).
 Its unanswered-work guard reads `activity.turn_obligations` over the page's
 activity, selected from the same `workflows` projection the browser reads; it does not reconstruct threads
 itself. The hook planner reads each page once under its transaction, including
@@ -314,11 +317,26 @@ say when it is not, rather than comparing the name itself. The carriers are:
   background command at two hours and a hook only at its own `timeout`, which is
   why the watch is a hook. Plain `--print` runs the hook in the foreground,
   holding the turn, so there it watches nothing.
+- Under Claude Code with the `hooks_module` option on, the same watch, which Leaf's
+  hooks module (`hooks/claude-code.ts`) starts as the session starts and as each
+  main-loop turn ends, in place of that Stop hook. A watch that wakes an idle session
+  submits its line as a prompt, whose prompt hook hands the batch over; one that
+  wakes during a turn calls the prompt hook itself and appends its context to that
+  turn, which reads it at its next step. An interrupted turn runs no Stop hook, but
+  the module still sees it end, so it starts the watch with the Interrupt payload,
+  as Pi's extension does. Claude Code prints a Stop hook's context in the user's
+  terminal, so the module moves a delivery the Stop hook hands over into the
+  session as an appended row, which it does not show, and the turn goes on with
+  one line.
 - Under Pi, the same watch, which Leaf's extension (`hooks/pi.ts`) starts as the
-  session starts and as each run settles. When the watch exits with input, the
-  extension calls the prompt hook and sends its context, which starts a run or
-  steers the running one. After an interrupted run it starts the watch with the
-  Interrupt payload, which wakes only for input admitted after its first look.
+  session starts and as each run settles. When the watch exits with input and no
+  run is going, the extension calls the prompt hook and sends its context, which
+  starts a run; during a run it calls the prompt hook at the run's next turn end
+  and adds the context to the session there, since a steer waits in a queue
+  Escape clears, and the hook confirms only what is in the session's context.
+  After an interrupted run it starts the watch with the
+  Interrupt payload, which first answers the Interrupt hook, closing the turn,
+  and then wakes only for input admitted after its first look.
 - A sequence of direct watchers the model itself runs, where the wait prints the
   batch (a Codex task's own loop, a bare shell, a Claude Code session under plain
   `--print`): `leaf wait --ack <delivery-id>` advances the captured cursors and
@@ -334,7 +352,8 @@ pass, and produces the same envelope (`../../references/event-batches.md`, "One 
 on every transport").
 
 A carrier the session's own turns start is the one that stops while its session
-lives on: a turn interrupted without its Stop hooks starts no watch, a watch fails
+lives on: a turn interrupted without its Stop hooks starts no watch unless Leaf's
+hooks module keeps it, a watch fails
 open or reaches its hook's timeout, or a model-run wait is stopped after the turn
 ends. Input that reaches the page after that has no carrier, so browser-event
 admission asks the claimant's harness for its nudge — the way to reach a session

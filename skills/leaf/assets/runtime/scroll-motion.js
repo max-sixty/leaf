@@ -37,7 +37,7 @@
    read when they were measured, or zero for contents placed where they stand at the
    scroller's start, which a later scroll does not change, so placing them again
    writes nothing. */
-import { scrollAxes } from "./geometry.js";
+import { scrollAxes, scrollport, scrollsBy } from "./geometry.js";
 import { renderedParent } from "./shadow.js";
 
 // Timelines express displacement linear in scroll, while sticky and fixed boxes
@@ -68,10 +68,7 @@ export function scrollOrigins(contexts) {
 }
 
 export const scrollContainer = (box) =>
-  box === box.ownerDocument.scrollingElement ||
-  /auto|scroll|hidden/.test(
-    `${getComputedStyle(box).overflowX} ${getComputedStyle(box).overflowY}`,
-  );
+  box === box.ownerDocument.scrollingElement || scrollsBy(getComputedStyle(box));
 
 // Whether `box` scrolls what it holds: it clips into a scrollport, `hidden` included,
 // which a script or focus can scroll, and holds more than that scrollport shows on that
@@ -79,10 +76,9 @@ export const scrollContainer = (box) =>
 export function scrollsContent(box) {
   if (!(box instanceof Element) || box instanceof SVGElement) return false;
   const style = getComputedStyle(box);
-  const port = (overflow) => overflow !== "visible" && overflow !== "clip";
   return (
-    (port(style.overflowX) && box.scrollWidth > box.clientWidth) ||
-    (port(style.overflowY) && box.scrollHeight > box.clientHeight)
+    (scrollport(style.overflowX) && box.scrollWidth > box.clientWidth) ||
+    (scrollport(style.overflowY) && box.scrollHeight > box.clientHeight)
   );
 }
 

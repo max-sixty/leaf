@@ -40,6 +40,7 @@ import {
   offer,
   once,
   projectData,
+  setChildren,
   relabel,
   selectableOffer,
   shortAgo,
@@ -527,39 +528,38 @@ function renderStopped(snapshot) {
       list.id = `lf-${plan.id}-stopped`;
       box.append(list);
     }
-    projectData(
+    const datums = snapshot.stopped.map((goal) => {
+      const downstream = descendants(plan, goal.element.id);
+      const reason = goal.held
+        ? "paused by you"
+        : goal.role.review?.includes(goal.state)
+          ? "awaiting review"
+          : goal.role.stalled?.includes(goal.state)
+            ? "stalled"
+            : "blocked";
+      const item = document.createElement("li");
+      item.dataset.lfGoal = goal.element.id;
+      item.dataset.lfReason = reason;
+      const why = chip("", "lf-stopped-why");
+      why.append(chip(age(goal), "lf-stopped-age"), ` ${reason}`);
+      if (downstream.length)
+        why.append(
+          ` · holds ${downstream.length} downstream goal${downstream.length === 1 ? "" : "s"}`,
+        );
+      item.append(button(goal.title, goal.element), why);
+      return {
+        node: item,
+        key: goal.element.id,
+        origin: {
+          derived: [goal.element.id, ...downstream].map((widget) => ({ widget })),
+        },
+      };
+    });
+    setChildren(
       list,
-      snapshot.stopped,
-      (goal) => goal.element.id,
-      (goal) => {
-        const downstream = descendants(plan, goal.element.id);
-        const reason = goal.held
-          ? "paused by you"
-          : goal.role.review?.includes(goal.state)
-            ? "awaiting review"
-            : goal.role.stalled?.includes(goal.state)
-              ? "stalled"
-              : "blocked";
-        const item = document.createElement("li");
-        item.dataset.lfGoal = goal.element.id;
-        item.dataset.lfReason = reason;
-        const why = chip("", "lf-stopped-why");
-        why.append(chip(age(goal), "lf-stopped-age"), ` ${reason}`);
-        if (downstream.length)
-          why.append(
-            ` · holds ${downstream.length} downstream goal${downstream.length === 1 ? "" : "s"}`,
-          );
-        item.append(button(goal.title, goal.element), why);
-        return item;
-      },
-      {
-        originOf: (goal) => ({
-          derived: [goal.element.id, ...descendants(plan, goal.element.id)].map(
-            (widget) => ({ widget }),
-          ),
-        }),
-      },
+      datums.map(({ node }) => node),
     );
+    projectData(list, datums);
   } else box.querySelector(":scope > ol")?.remove();
   return true;
 }

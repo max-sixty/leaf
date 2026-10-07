@@ -658,16 +658,14 @@ customElements.define(
       // in the inventory reader's label/reveal routes, not in a second semantic fold.
       projectData(
         this,
-        projection,
-        (record) => record.id,
-        (record) => record.element,
-        {
-          nested: true,
-          snapshot: this.#snapshot,
-          identify: (record) => record.id,
-          labelOf: (record) => record.label,
-          originOf: (record) => ({ ...this.#snapshot.origin, path: record.path }),
-        },
+        projection.map((record) => ({
+          node: record.element,
+          key: record.id,
+          identity: record.id,
+          label: record.label,
+          origin: { ...this.#snapshot.origin, path: record.path },
+        })),
+        { snapshot: this.#snapshot },
       );
       this.#parts.update();
       paintKeys();

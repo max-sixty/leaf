@@ -25,7 +25,7 @@
    return null bounds. Cleanup removes live DOM bindings, so a replacement can reclaim an
    id. */
 import { sizeObserver } from "./rendering.js";
-import { shownRect } from "./geometry.js";
+import { shownRect, skipped } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
 import { reachReadingScroller } from "./reach.js";
 import { under, upFrom } from "./shadow.js";
@@ -115,7 +115,7 @@ export const readingRegions = () =>
 // but never ask its geometry merely to decide whether to sample it.
 export const unconcealedReadingRegions = () =>
   [...regions.values()]
-    .filter((region) => live(region) && !concealed(region))
+    .filter((region) => live(region) && !concealed(region) && !skipped(region.body))
     .map(regionRecord);
 
 export const readingRegionFor = (node) => {

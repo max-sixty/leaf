@@ -418,7 +418,7 @@ Revisit these when their stated trigger becomes real; they are not an active que
   on a task the agent put on them, so dropping a task, renaming it or ending one of the
   agent's means asking in a thread. Editing the row directly in the panel would record the user's change as
   their own move. Trigger: a user writes a comment only to close or adjust an item.
-- **Name the record both queues share.** The page calls what's on the user Decisions
+- **Name the record both queues share.** The page calls what's on the user Questions
   and what's on the agent Tasks, while the code, the event log, `leaf page state` and
   `leaf task open --on user` still call the shared record a task. "Task" also means
   the harness's unit of work, as in a task claim. Obligation, commitment and item are

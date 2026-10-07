@@ -437,10 +437,10 @@ export function createAskView({
 
   // The user's standing on an Ask, said in terms a replaced document can still answer.
   // Focus by shape does not cross a document replacement — version.js says why — but an
-  // Ask is not a shape. Its id is a declared identity that the inventory, the Queue rows,
-  // and the walk already resolve against whichever document is standing, so a user
-  // working an Ask when a revision lands is put back on the same Ask rather than dropped
-  // to `body`.
+  // Ask is not a shape. Its id is a declared identity that the inventory, the Questions
+  // panel's rows, and the walk already resolve against whichever document is standing,
+  // so a user working an Ask when a revision lands is put back on the same Ask rather
+  // than dropped to `body`.
   //
   // The id is the whole of what is captured, and the Ask itself is the whole of what is
   // handed back. Which control inside it they held is not something this can answer: the

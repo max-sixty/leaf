@@ -263,6 +263,9 @@ export function createQueuePanel({ arriveAtItem, endTask, next, announce }) {
       });
     }
     const { queues, done } = reading();
+    // Before the log's first answer the panel, like its door, counts nothing, and says
+    // so as the Threads panel does.
+    const known = Boolean(readApplication().authoritative);
     const you = queues.onYou.map((item) => row(item, "you"));
     const them = queues.onAgent.map((item) => row(item, "agent"));
     const finished = done.map((item) => row(item, "done"));
@@ -272,15 +275,15 @@ export function createQueuePanel({ arriveAtItem, endTask, next, announce }) {
       queues: Object.freeze([
         Object.freeze({
           id: "you",
-          label: `Questions · ${you.length}`,
+          label: known ? `Questions · ${you.length}` : "Questions",
           rows: Object.freeze(you),
-          empty: "No questions for you.",
+          empty: known ? "No questions for you." : "Loading current questions…",
         }),
         Object.freeze({
           id: "agent",
-          label: `Tasks · ${them.length}`,
+          label: known ? `Tasks · ${them.length}` : "Tasks",
           rows: Object.freeze(them),
-          empty: `${agent()} has no tasks.`,
+          empty: known ? `${agent()} has no tasks.` : "Loading current tasks…",
         }),
       ]),
       done: Object.freeze({

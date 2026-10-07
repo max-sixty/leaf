@@ -1616,6 +1616,10 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     expect(page.locator(".lf-queue")).to_have_text("Questions")
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
     expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
+    # Opened by hand, the panel counts nothing yet either.
+    page.locator(".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_contain_text("Loading current questions…")
+    expect(page.locator(".lf-queue-panel")).not_to_contain_text("Questions · 0")
 
     comments = page.locator(".lf-threads-toggle")
     expect(comments).to_be_enabled()

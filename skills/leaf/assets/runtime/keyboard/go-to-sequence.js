@@ -49,7 +49,7 @@
    including panel narrowing. A surface covering the document cannot make that promise,
    so its ordinary Escape rung remains the route back.
 
-   A destination declares no way back. `g T`, `g A` and `g L` may exchange a standing
+   A destination declares no way back. `g T`, `g Q` and `g L` may exchange a standing
    panel or drawer for another, and the surface the user ends in owns the one step that
    takes it off again — the same step whichever door opened it, and the same for a
    surface they already had. Exchanging one for another is lateral, so the one replaced
@@ -593,9 +593,10 @@ export function createGoToSequence({
         // A focused thread is one place, so its two placements complete the sequence
         // without naming a list or taking a digit. This is the thread-local counterpart
         // to the page edges below: k/j place the card inside its panel rather than moving
-        // the document to the passage the card is about. It leads while live because it
-        // is the one offer specific to where the user stands; list members wear their
-        // Go-to hints directly when the sequence starts.
+        // the document to the passage the card is about. It leads while live, after only
+        // the door to the standing surface, because it is the one offer specific to where
+        // the user stands; list members wear their Go-to hints directly when the sequence
+        // starts.
         keys: THREAD_EDGE_KEYS,
         routes: [
           {

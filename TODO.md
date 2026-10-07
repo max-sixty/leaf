@@ -370,6 +370,11 @@ in the integration.
   in `notes/user-feedback-responsiveness.md`. Uploading a CI artifact needs no extra
   token but keeps 90 days; a file in `max-sixty/leaf-assets` keeps history but needs
   a token that can push there.
+- **Decide whether `leaf-dev` should draw charts.** `leaf-dev journey-chart` prints
+  an `lf-chart` of the kept journey samples, so a reading needs no numbers copied
+  into a page by hand. It is an experiment: the alternative is for the command to
+  print the samples' rows and leave the chart to the agent writing the page. Keep it
+  if it gets used for later readings; otherwise reduce it to the rows.
 - **Consider bundling the browser runtime.** A navigation loads about 220 JS modules
   over HTTP/1.1's six connections. A prototype bundling `leaf.js` with esbuild cut a
   widgetless page from 217 requests to 38 and its open from 332–483 ms to 238–258 ms,

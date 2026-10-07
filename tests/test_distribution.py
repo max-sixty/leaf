@@ -23,6 +23,7 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
 ):
     install = tmp_path / "install"
     prepare(install)
+    assert (install / "LICENSE").read_bytes() == (ROOT / "LICENSE").read_bytes()
     manifest = json.loads((install / "package.json").read_text())
     assert "devDependencies" not in manifest
     assert "scripts" not in manifest

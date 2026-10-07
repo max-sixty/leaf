@@ -52,6 +52,7 @@ PAYLOAD = (
     ".agents/plugins",
     ".claude-plugin",
     ".codex-plugin",
+    "LICENSE",
     "bin",
     "hooks",
     "skills",

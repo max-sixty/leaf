@@ -90,6 +90,11 @@ agent. Present visible and interaction changes using the proof below.
 
 ## Prove and hand off a visible change
 
+The handoff lets the user inspect the changed behavior. Open the exact preview
+URL in a fresh browser context and verify that the review state is visible on
+arrival or reached by the route the handoff names. Setup from a private probe
+that the user cannot repeat belongs in the fixture or a replay control.
+
 Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
 "Layout and motion"), and capture the viewport when fixed chrome should
 appear. A Playwright screenshot of an element taller than the viewport draws
@@ -107,7 +112,10 @@ merge base beside it (`dev/AGENTS.md`).
 
 When a complex interaction depends on a sequence of inputs or changes over time,
 show a recorded journey with a timeline so the user can inspect intermediate
-states and motion. Use that same probe with `--record .tmp/recordings/NAME`.
+states and motion. Review the final exported recording through playback or decoded
+frames at their recorded times, including its loop boundary; select the interval
+that shows the behavior being reviewed. Use that same probe with
+`--record .tmp/recordings/NAME`.
 Its Playwright trace has an action timeline, a screenshot
 filmstrip, DOM snapshots, console and network; its WebM shows the actual frames.
 Add `--gif` for a short shareable loop, or `--actions` to decorate clicks and keys.
@@ -120,13 +128,16 @@ least one second. `--motion reduce`
 reproduces the reduced-motion preference. A failed journey keeps its recording
 and exits unsuccessfully. The same command takes any HTTP(S) URL for general
 browser work. Keep the page and context open until the recorder finalizes:
-Playwright cannot save screencast video after its page closes. Serve the trace in
-a browser tab with:
+Playwright cannot save screencast video after its page closes. Serve the trace
+without opening a desktop browser with:
 
 ```bash
-uv run playwright show-trace --host 127.0.0.1 --port 0 \
+uv run leaf-dev trace-server \
   .tmp/recordings/NAME/worktree/trace.zip
 ```
+
+The command prints the viewer URL and stays running. Link that URL in the review
+page; open a desktop browser only when the user asks to watch.
 
 When showing a timeline in Leaf, select the optional `playwright` package and
 read its author instructions. Bind `lf-trace` to the original archive's imported
@@ -173,7 +184,9 @@ id) and stays running.
 `uv run leaf-dev preview <example> --export` writes one file that opens offline.
 `uv run leaf-dev preview <example>` serves a live page at `.tmp/previews/<example>`
 in the foreground, like a dev server, so run it as a long-running command
-(`run_in_background` in Claude Code). `--source <file>` serves any authored HTML
+(`run_in_background` in Claude Code). A desktop Codex `--user` preview instead
+detaches its watcher and returns its URL: the page and feedback stay available
+when Codex unloads the chat's idle instance. `--source <file>` serves any authored HTML
 file in place of a shipped example. It follows source and runtime edits at one
 URL; each start rebuilds the page from the fixture, and `--slot <name>` runs another copy.
 
@@ -189,9 +202,10 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 
 ### In Codex
 
-1. Start the preview with `--user` as a long-running command from the current
+1. Start the preview with `--user` from the current
    chat. It connects Leaf feedback to this Codex chat before printing the URL;
-   each restart reconnects the rebuilt page automatically.
+   desktop Codex returns after the detached watcher subscribes to source edits.
+   Each restart reconnects the rebuilt page automatically.
 2. Call `mcp__codex_app__open_in_codex` with the printed keyed URL and the semantic
    block's fragment, as a browser target with `placement: "right"`.
 3. Tell the user to comment on the surrounding review page to steer this chat.
@@ -205,8 +219,8 @@ idle a preview to quiet the loop; `idle` closes the page in the browser.
 Chrome: on the triage board, it tells the agent through Threads that a release
 passed its checks and asks it to record that, leaving how to the agent, then checks
 a reply shows and a reload presents a revision naming the release. It prints how long each step took, the agent's steps on the page
-server's clock, so the same journey benchmarks every harness. TARGET is `cc` or
-`codex` for an isolated session of that harness running this working tree's
+server's clock, so the same journey benchmarks every harness. TARGET is `claude-code`
+or `codex` for an isolated session of that harness running this working tree's
 plugin, `local` for the website's adapter against the host's Codex login (no
 Worker, container limits, credential proxy or Docker), `wrangler` for the built
 site through the local Worker, or a website origin. A run on this machine spends
@@ -225,7 +239,7 @@ this working tree installed as their plugin, through both transports of automati
 server handoff. It checks each comment is answered once, a comment during queue-backed
 work is picked up and answered in that same turn, and each turn is closed under
 App Server's id. Run it after a change to `codex.py`,
-`codex_adapter.py`, `hooks.py`, `hook_carrier.py`, or the claim's turn in
+`codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's turn in
 `service.py`; the suite scripts App Server, and only this run shows what Codex
 itself sends. It spends a few turns on the host's Codex login, and CI has none.
 
@@ -233,6 +247,20 @@ For a change to preview startup or lifetime, add `--preview`. It starts the
 canonical user preview in each task, checks the keyed URL across those turns,
 and interrupts its isolated server between turns to prove that the preview
 restores both the address and working feedback without a source edit.
+
+## Test a Claude Code session
+
+`uv run --project <root> leaf-dev verify-claude-code-task` runs a real interactive
+Claude Code session in a tmux pane, with this working tree as its plugin and the
+host's login.
+It checks each comment is answered once, a comment during a turn is picked up in
+that turn, comments after an Escape are answered, and quitting ends the session's
+claim; `--hooks-module` runs the same journey with the plugin's hooks module on,
+and also checks that Escape closes the turn and leaves a watch running. Run it,
+with and without the flag, after a change to `hooks/hooks.json`,
+`hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, `loop-guard.py`, or the
+watch between turns in `session.py`; the suite stands in for Claude Code, and only
+this run shows what Claude Code itself does.
 
 ## Test a Pi session
 
@@ -260,8 +288,9 @@ git worktree add --detach "$baseline_root" "$baseline_commit"
 
 Choose sources that isolate the change: one shared source for a runtime change,
 or each checkout's copy when the authored content changed. Run the two previews
-as separate long-running commands, adding `--user` to both when their URLs go to
-the user:
+as separate commands, adding `--user` to both when their URLs go to the user.
+Keep foreground previews running; desktop Codex user previews return after
+startup:
 
 ```bash
 uv run --project "$candidate_root" leaf-dev preview --source <baseline-source.html> \
@@ -291,12 +320,16 @@ A page that explains how a Leaf interface behaves lets the user operate it
 
 ## Score an instruction change
 
-Score an instruction change by running the cases that bear on it on both the merge
+Score an instruction change when an agent could read it more than one way, so what
+it will do under the new text is uncertain: a new or reworded rule, a goal that
+competes with another, a cut that may have carried a behavior. A change whose reading
+is plain needs no score, such as deleting the description of an input that can no
+longer arrive or correcting a fact. Run the cases that bear on it on both the merge
 base and the working tree:
 
 ```bash
 npm ci --prefix evals
-uv run leaf-dev eval [CASE]... --base [--harness cc|codex] [--repeat N]
+uv run leaf-dev eval [CASE]... --base [--harness claude-code|codex] [--repeat N]
 npm run view --prefix evals
 ```
 
@@ -304,15 +337,15 @@ npm run view --prefix evals
 results go and how far a pass can be trusted. Read the outputs as well as the pass
 counts.
 
-The suite is a library that grows with the instructions, so a later edit, whether a fix
-or a cut, is scored against the behaviors earlier edits had to produce. Add to it
-where a change's behavior gives the library breadth, a behavior or kind of situation
-no case yet covers. First try to extend an existing case, with an assertion, a
-criterion, or context in its prompt, so coverage grows without the cases
-proliferating; add a new case only where no existing one can carry the behavior.
-Keep a case small: one prompt carrying only the context the behavior needs, and a
-few assertions. Measure with whatever scenarios and guardrails the change needs, and
-keep what you add whether or not it separated the arms. The leading comment says
+Score with the cases already there wherever one fits, and add to the suite sparingly:
+every case costs time and money on each later run that selects it. Where an existing
+case nearly fits, extend it with an assertion, a criterion, or context in its prompt.
+Add a new case only where the change needs measuring and no existing case can carry
+the behavior. What the suite holds then scores later edits, whether fixes or cuts,
+against the behaviors earlier edits had to produce. Keep a case small: one prompt
+carrying only the context the behavior needs, and a few assertions. Measure with
+whatever scenarios and guardrails the change needs, and keep what you add whether or
+not it separated the arms. The leading comment says
 whether the case told two wordings apart or has only guarded.
 
 The prompt never states the behavior under test. A prompt pointing at a file beyond

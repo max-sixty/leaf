@@ -1028,8 +1028,8 @@
     </style>
 <!-- pr-walkthrough.html authored styles -->
 <style>
-      /* The rail runs the body's full height, so the contents at its foot can stay in
-         view while the review scrolls past. */
+      /* Navigation starts the stacked reading order; the stretched side track keeps
+         it beside the review on a wide window. Supporting history stays in the body. */
       #pr-rail {
         align-self: stretch;
       }
@@ -1037,7 +1037,6 @@
       #pr-contents-panel {
         position: sticky;
         top: calc(var(--lf-top) + var(--sp-4));
-        margin-top: var(--sp-4);
       }
 
       .pr-review-gesture {
@@ -3704,6 +3703,9 @@ export const summarize = checks =>
         </p>
       </header>
 
+      <aside id="pr-rail">
+      </aside>
+
       <div id="pr-body">
         <aside class="callout ok" id="pr-verdict">
           <p>
@@ -3927,7 +3929,7 @@ flowchart TB
             This exact hunk from <code>src/summary.rs</code> replaces direct Git
             argument assembly with the repository’s <code>PreparedDiff</code> API.
           </p>
-          <lf-diff id="pr-key-hunk" data-height="524" review>
+          <lf-diff id="pr-key-hunk" data-height="539" review>
             <pre>
 diff --git a/src/summary.rs b/src/summary.rs
 --- a/src/summary.rs
@@ -4109,14 +4111,16 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
             <pre></pre>
           </lf-diff>
         </section>
-      </div>
 
-      <aside id="pr-rail">
-        <lf-pull-request
-          id="pr-reviewed-request"
-          data-height="1321"
-          source="pr-review-facts"
-        ></lf-pull-request>
+        <section class="panel" id="pr-source-facts">
+          <h2>Captured pull request</h2>
+          <lf-pull-request
+            id="pr-reviewed-request"
+            data-height="959"
+            source="pr-review-facts"
+          ></lf-pull-request>
+        </section>
+
         <section class="panel" id="pr-history">
           <h2>Review history</h2>
           <lf-chronology id="pr-review-chronology">
@@ -4166,7 +4170,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
             </lf-chronology-entry>
           </lf-chronology>
         </section>
-      </aside>
+      </div>
 </lf-tab>
 
 <lf-tab id="corpus-wt-merge" label="Merge film">

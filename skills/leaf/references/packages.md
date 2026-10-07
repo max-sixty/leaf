@@ -4,6 +4,9 @@ A package is the directory Leaf authors, shares, and adds to a page. It may hold
 theme, one widget, a family of widgets, helper modules, libraries, external-data
 contracts, or any combination of them. The layer is different: it is the checked
 result that `page init` vendors after composing the kernel and packages.
+Creating, checking, installing, and using a package requires no browser build or
+npm command. Write widgets and helper modules as browser-loadable JavaScript;
+Leaf copies them directly and they use the shipped `/runtime/widget-api.js`.
 
 ## Package reach
 
@@ -90,12 +93,11 @@ package/
 ├── theme.css           rules in the layer's shared cascade layer
 ├── shadow.css          rules that also reach declared shadow trees
 ├── instructions/       Markdown instructions named for their audiences
-├── runtime/            browser modules and replacements by vendored path
+├── runtime/            package-owned browser modules
 ├── widgets/            entry modules and their private helpers
 ├── vendor/             third-party libraries or data files
 ├── scripts/            command-line tools `leaf package run` runs; never vendored
 ├── icon.svg            optional replacement by path
-└── leaf.js             optional runtime replacement
 ```
 
 No individual file is required. The kernel supplies the files every complete layer
@@ -118,8 +120,15 @@ vocabulary in the kernel; a package without widgets is an unscoped page theme.
 A widget module's adopted sheet joins the same layer. Shadow files concatenate:
 a declared `x-shadow` root built with `shadowStage` receives every package's `shadow.css`
 in layer order, and the document reads each package's `shadow.css` just ahead of its
-`theme.css`. Runtime, icon, widget,
-and vendor files replace by path. A later package replaces a tag's complete element
+`theme.css`. Icon, widget,
+and vendor files replace by path. Runtime modules add package-owned paths; they
+cannot replace the kernel or default package's JavaScript, including `leaf.js`.
+Those modules are private and may be compiled together in an installation.
+Package checks refuse imports of private kernel modules as well as replacements,
+so source checkouts and prepared installations expose the same extension contract.
+`/runtime/widget-api.js` is the public behavior-module interface, shared with
+the running kernel rather than copied into each widget.
+A later package replaces a tag's complete element
 declaration and one member inside a shared `$` declaration. A tag can be added or
 replaced whole, but it has no deletion marker.
 Shared `$` entries compose by member, and map-valued members compose one level further
@@ -161,12 +170,6 @@ Composition order is kernel, bundled default package, selected packages in comma
 order. Later packages win collisions. `page init`
 records package selections under `$layer.packages`; a plain re-init resolves them again
 in the same order. `page init --no-packages PAGE` clears the explicit list.
-
-A replacement `runtime/layer-client.js` must retain the quoted
-`"__LEAF_LAYER_GENERATION__"` placeholder exactly once. `page init` replaces it
-with the same fresh epoch it writes into the merged registry; without that pair,
-a runtime loaded before a re-vendor could speak the replacement registry as though
-the two files were one contract.
 
 A replacement `icon.svg` must be valid SVG and contain an element with
 `class="lf-tone"`. The runtime paints the page's status on that element; without it,
@@ -304,18 +307,8 @@ declares one verb on `lf-swipe-deck` and the condition that answers its Ask, and
 {
   "x-state": {
     "swipe": {
-      "detail": {
-        "type": "object",
-        "properties": {
-          "card": { "type": "string" },
-          "to": { "type": "string" },
-          "rank": { "type": "string" }
-        },
-        "required": ["card", "to", "rank"],
-        "additionalProperties": false
-      },
-      "unit": "card",
-      "record": { "kind": "position", "within": "lf-swipe-pile", "value": "to", "rank": "rank" }
+      "unit": "unit",
+      "record": { "kind": "position", "within": "lf-swipe-pile" }
     }
   },
   "x-awaits": {
@@ -326,17 +319,39 @@ declares one verb on `lf-swipe-deck` and the condition that answers its Ask, and
 }
 ```
 
-`detail` is the JSON Schema every event of that verb must satisfy. Each verb is its own
-piece of state: the owning element, the `unit`, and the verb together form the fold
+The record determines the event's payload schema. A swipe sends
+`detail: {unit: cardId, value: pileId, rank}`: the moved card, its destination pile,
+and its rank key. Leaf checks their types and ownership at admission. The package
+declares no separate `detail` schema or input-field mapping for a recorded verb.
+
+Each verb is its own piece of state: the owning element, the `unit`, and the verb together form the fold
 coordinate. At each coordinate the latest surviving action stands, and different
 coordinates stand side by side. Swiping a card again therefore replaces that card's
-earlier verdict, while verdicts on different cards coexist. `unit` is `"widget"` for a
-verb that states the whole widget's value at once, or the detail field naming the
-element it is per. `record` says how the standing state reads in markup: here, the
+earlier verdict, while verdicts on different cards coexist. Recorded body, attribute,
+and value verbs use `unit: "widget"`; position verbs use `unit: "unit"`, naming the
+canonical detail field for the moved element. `record` says how the standing state reads in markup: here, the
 card's position inside a pile. `page check` refuses a version that contradicts
 it without `restated`, and `authoring-revisions.md`, "Honor user state", says which
 record forms the agent's next version writes back. The `$keys`
 entries in `assets/registry.json` define each key exactly.
+
+Recorded payloads are closed objects: all listed fields are required and extra fields
+are refused. Their fields come from the effect:
+
+| Record kind | Detail fields | Value validation |
+| --- | --- | --- |
+| `body` | `{value}` | String replacing the widget's body. |
+| `attribute` | `{value}` | Array of distinct owned member ids; `record.attr` names the boolean attribute marking them. |
+| `value` | `{value}` | The schema of the destination in the widget's `properties`; `record.attr` names that attribute. |
+| `position` | `{unit, value, rank}` | Strings naming the owned element, valid destination container, and rank key; `record.within` names the container tag. |
+
+`update: true` on an agent-written verb adds required nonempty `text` for its news.
+Omit `update` when the verb has no news. The effect determines the complete payload;
+a recorded verb cannot add contextual fields or independent schema refinements.
+
+A verb with no record declares its own closed `detail` JSON Schema. Its `unit` is
+`"widget"` or a required detail field naming the element it changes. This supports
+custom actions, such as a playground's submitted settings, and generated children.
 
 `x-awaits.answered` says when the widget's Ask is answered, as a condition on that
 standing state for each verb that can answer it. `{}` holds while the verb's state
@@ -367,10 +382,11 @@ document already holds, and `page check` enforces the declared tag and
 direct-ownership relation once an author writes the child into the markup.
 
 A verb whose state the agent writes rather than the user declares `"writer": "agent"`
-beside its `detail`, `unit`, and `record`. A worker posts it with
+beside its `unit` and `record`. A worker posts it with
 `leaf page report`, the page paints it live, and it stands until a version
-answers it; the user has no control for it. Its record is required and may not be `body`, and it may name the detail field
-carrying its short human-readable news with `update`. Every verb has exactly one
+answers it; the user has no control for it. It uses `unit: "widget"` and a required
+`attribute` or `value` record. It declares `update: true` when each report also supplies short human-readable
+news in `detail.text`. Every verb has exactly one
 writer, so a coordinate never holds a user's action and an agent's report at once.
 Command Hub's `lf-task` `status` is the shipped example, and a widget declaring such a
 verb also declares the boolean `overruled` attribute a version keeps its own state
@@ -596,7 +612,31 @@ and a blank image stands in for any media an example names. The checks:
   rather than summing its line heights in the theme: delivery writes it into each
   occurrence for the first paint, the browser sizes and wraps it as it will the
   drawing, and the module removes it (`:scope > [data-lf-prepaint]`) in the same step
-  that draws its replacement. Where the markup cannot say how tall the drawing will
+  that draws its replacement. Where the structure depends on the instance's authored
+  members or remembered tab values, declare `x-initial` instead: the rooted path of a
+  captured classic JavaScript bundle. It registers one synchronous producer with
+  `document.documentElement.lfInitial.register(tag, render)`. Delivery inlines each
+  bundle used by the document once. It holds each outer host in an inert template
+  until its source is complete, then inserts and draws it in one synchronous turn,
+  nested hosts deepest-first. Prose before that host can paint while its source is
+  still arriving; the widget first appears with its complete real structure and values.
+  The parser opens that template only while scripts run; a scripts-disabled reading
+  keeps the single original authored host, with no generated drawing or copied fallback.
+  `render(host, {tabStore, offer, offerElement})` builds the drawing and returns the
+  node references and mechanical state its behavior module needs. It may move
+  authored nodes within its host; Leaf retains their original source and node routes
+  for semantic intake, anchoring fences, and version comparison. The producer does
+  no asynchronous or network work and consumes no log-derived state. The module
+  calls `initialRender(host)` from the helper surface:
+  that call adopts the existing drawing, or produces it for a later revision or
+  thread arrival. Leaf loads its declared initial bundle before the behavior module
+  only if it has not already registered. Add behavior to those nodes without rebuilding
+  their structure.
+  The theme styles their actual initial layout; neither the producer nor the module
+  reserves an estimated height. `x-initial` requires `x-upgrade: true` and cannot
+  accompany `x-prepaint`. Build its classic bundle during development and commit it;
+  installation, serving, and export run the captured bundle without a compiler.
+  Where the markup cannot say how tall the drawing will
   be, declare `x-height`, add the class `lf-rendered` once the drawing is in, and
   draw at the stated height where the drawing can take any; `page check --render`
   advises a page's author the height to state for one that cannot. Where the widget

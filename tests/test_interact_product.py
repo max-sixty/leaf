@@ -983,7 +983,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
-    assert _report(page_dir, "t-parser", "status", "status=review").exit_code == 0
+    assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
     assert reply("indexing done").exit_code == 0
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
     monkeypatch.setenv("LEAF_AGENT", "Crawler")
@@ -1010,7 +1010,10 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert "- **Crawler**: crawl running" in transcript.output
 
 
-def test_ephemeral_reply_keeps_the_exact_input_and_its_start_owed(claimed):
+def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
+    """Progress on a move the agent owes is the user's first sign it is handled: one
+    write posts it in the thread and takes the move in hand, Working with the update's text as its line,
+    while the answer stays owed. The line is the banner's, so the update is one line."""
     published(claimed)
     root = append_command(
         claimed,
@@ -1021,27 +1024,41 @@ def test_ephemeral_reply_keeps_the_exact_input_and_its_start_owed(claimed):
             "text": "Check the schedule.",
         },
     )
-    run_leaf("task", "start", str(claimed), root["id"], "Checking the schedule")
-    before = page_state(claimed)["workflows"]
-    assert len(before) == 1 and before[0]["stage"] == "working"
 
-    progress = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            str(claimed),
-            "--for",
-            root["id"],
-            "--ephemeral",
-            "--text",
-            "Checking the camera.",
-        ],
-    )
-    assert progress.exit_code == 0, progress.output
-    update = json.loads(progress.output)
+    def progress(text, *address):
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                "thread",
+                "reply",
+                str(claimed),
+                *(address or ("--for", root["id"])),
+                "--ephemeral",
+                "--text",
+                text,
+            ],
+        )
+
+    refused = progress("Checking the camera.\n\nThen the clock.")
+    assert refused.exit_code != 0 and "one line" in refused.output
+
+    posted = progress("Checking the camera.")
+    assert posted.exit_code == 0, posted.output
+    update, start = map(json.loads, posted.output.splitlines())
     assert update["ephemeral"] is True and "responds" not in update
-    assert page_state(claimed)["workflows"] == before
+    assert (start["kind"], start["item"], start["text"]) == (
+        "start",
+        root["id"],
+        "Checking the camera.",
+    )
+    [working] = page_state(claimed)["workflows"]
+    assert (working["stage"], working["detail"]) == ("working", "Checking the camera.")
+    assert working["answer"]["for"] == root["id"]
+    # Naming the thread reaches the move it owes, and the newer line replaces the older.
+    again = progress("Checking the clock.", root["id"])
+    assert again.exit_code == 0, again.output
+    [working] = page_state(claimed)["workflows"]
+    assert working["detail"] == "Checking the clock."
 
     answer = CliRunner().invoke(
         cli_model.cli,
@@ -1061,7 +1078,14 @@ def test_ephemeral_reply_keeps_the_exact_input_and_its_start_owed(claimed):
     state = page_state(claimed)
     assert state["workflows"] == []
     [thread] = state["browser"]["thread"]["threads"]
-    assert thread["summaries"][0]["covers"] == [update["id"]]
+    assert thread["summaries"][0]["covers"] == [
+        update["id"],
+        json.loads(again.output.splitlines()[0])["id"],
+    ]
+    # Once nothing is owed, an update takes nothing in hand, so it may run long.
+    later = progress("The clock drifts.\n\nWatching it overnight.", root["id"])
+    assert later.exit_code == 0, later.output
+    assert [json.loads(line)["kind"] for line in later.output.splitlines()] == ["reply"]
 
 
 def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir):
@@ -1419,7 +1443,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "revision": 1,
             "widget": "b",
             "action": "move",
-            "detail": {"card": "card-x", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-x", "value": "col-done", "rank": "0i"},
             "meaning": {
                 "scope": "page",
                 "unit": "card-x",
@@ -1435,7 +1459,7 @@ def test_export_prints_threads_and_versions(page_dir):
             "revision": 1,
             "widget": "plan-options",
             "action": "choose",
-            "detail": {"options": ["backfill-first"]},
+            "detail": {"value": ["backfill-first"]},
             "meaning": {
                 "scope": "page",
                 "unit": "plan-options",
@@ -1468,10 +1492,10 @@ def test_export_prints_threads_and_versions(page_dir):
     assert "- v1: first cut" in result.output
     # The user's direct edits are outcomes of the exchange, not just events.
     assert "### Edits" in result.output
-    assert "- `b`: move card=card-x to=col-done rank=0i (on v1)" in result.output
+    assert "- `b`: move unit=card-x value=col-done rank=0i (on v1)" in result.output
     # A choice says what was chosen in the words of the version it was made on.
     assert (
-        "- `plan-options`: choose options=['backfill-first'] — “effort: med risk: low "
+        "- `plan-options`: choose value=['backfill-first'] — “effort: med risk: low "
         "Backfill first Verify, then flip. My take: do this first.” (on v1)"
     ) in result.output
 
@@ -1484,7 +1508,7 @@ def test_export_prints_threads_and_versions(page_dir):
     result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert (
-        "- `b`: move card=card-x to=col-done rank=0i (on v1) — taken back"
+        "- `b`: move unit=card-x value=col-done rank=0i (on v1) — taken back"
         in result.output
     )
     assert "> “flip reads”  — resolved" in result.output

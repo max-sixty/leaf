@@ -61,7 +61,7 @@ from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev.browser import (
-    scroll_settled,  # noqa: F401 — shared browser wait, re-exported to tests
+    scroll_settled,
 )
 from leaf_dev.example_data import regression_sources
 from leaf_dev.page_fixtures import (
@@ -1274,11 +1274,12 @@ def judge_watches():
     Chrome hands a frame's shifts to the observer only after it paints, so a test whose
     last act moves the page or takes words away would end before the report. Judgement
     waits for that evidence with a hang deadline; elapsed time cannot count as a
-    completed paint. `conftest.py` calls this as the test body returns, while the
+    completed paint. Scripts-disabled pages have no script-driven sensors to judge.
+    `conftest.py` calls this as the test body returns, while the
     pages' servers still answer: a page left painting
     after its server is gone lets its failed fetches reach the console."""
     for page, _ in _BROWSER_PROBLEM_LISTS or ():
-        if not page.is_closed():
+        if not page.is_closed() and page.lf_java_script_enabled:
             for frame in page.frames:
                 frame.wait_for_function(
                     """async () => {
@@ -1291,7 +1292,7 @@ def judge_watches():
                 )
 
 
-def watched(page):
+def watched(page, *, java_script_enabled=True):
     """Collect browser problems into one retained list per page.
 
     Console warnings/errors and uncaught exceptions are joined by window errors
@@ -1300,7 +1301,9 @@ def watched(page):
     by layout shifts without input or that carry a field being typed in
     (`shift_watch.js`), and by typed words leaving the screen without a key or press
     (`words_watch.js`).
-    Call before navigation so the init scripts take effect.
+    Call before navigation so the init scripts take effect. With scripting disabled,
+    retain native console and page errors but install no script-driven sensors and
+    await none at judgement.
     Repeated calls return the existing list. `tests/AGENTS.md`, "Consume a browser
     error where it is caused", owns consumption and cleanup policy."""
     assert _BROWSER_PROBLEM_LISTS is not None, (
@@ -1311,6 +1314,7 @@ def watched(page):
     errors = []
     _BROWSER_PROBLEM_LISTS.append((page, errors))
     page.lf_errors = errors
+    page.lf_java_script_enabled = java_script_enabled
 
     def console_message(message):
         problem = render_gate_model.console_problem(message)
@@ -1319,6 +1323,8 @@ def watched(page):
 
     page.on("console", console_message)
     page.on("pageerror", lambda e: errors.append(str(e)))
+    if not java_script_enabled:
+        return errors
     render_checks_model.install_window_errors(page)
     page.add_init_script(path=WRITE_WATCH_SOURCE)
     # One init script keeps cause tracking installed before its words subscriber;
@@ -1755,7 +1761,9 @@ def opened_tab(page, destination, press):
     # handed over, so the tab this makes is readable only because it is made readable
     # here — and before the navigation, which is the only side of it an init script
     # reaches.
-    tab = readable(page.context.new_page())
+    tab = readable(
+        page.context.new_page(), java_script_enabled=page.lf_java_script_enabled
+    )
     tab.goto(destination)
     return tab
 
@@ -1788,10 +1796,10 @@ arm_interception = render_gate_model.arm_interception
 expect.set_options(timeout=render_checks_model.SERVED_TIMEOUT_MS)
 
 
-def readable(page):
+def readable(page, *, java_script_enabled=True):
     """Install what the suite reads off a page, before the page navigates.
 
-    The three readings are the same for every page: the delivery ledger the traffic
+    The three readings are the same for every scripted page: the delivery ledger the traffic
     helpers consume, the arm that keeps a later route real, and the problem list the
     browser fixture rejects at the end of the test. None of them can be installed
     afterwards — an init script has to precede the navigation it instruments, and a
@@ -1802,13 +1810,16 @@ def readable(page):
     They are therefore installed where a page is made rather than asked for by each
     test, which is what `WatchedBrowser` is for. A page that already carries them is
     left alone, since a second console listener would report every problem twice.
+    A scripts-disabled context keeps the native error collector and shared deadlines;
+    the script-driven readings are unavailable there.
     """
     if getattr(page, "lf_errors", None) is not None:
         return page
     page.set_default_timeout(render_checks_model.SERVED_TIMEOUT_MS)
-    page.lf_traffic = Traffic(page)
     arm_interception(page)
-    watched(page)
+    if java_script_enabled:
+        page.lf_traffic = Traffic(page)
+    watched(page, java_script_enabled=java_script_enabled)
     return page
 
 
@@ -1824,11 +1835,15 @@ class WatchedContext:
     opened.
     """
 
-    def __init__(self, context):
+    def __init__(self, context, *, java_script_enabled=True):
         self._context = context
+        self._java_script_enabled = java_script_enabled
 
     def new_page(self, **kwargs):
-        return readable(self._context.new_page(**kwargs))
+        return readable(
+            self._context.new_page(**kwargs),
+            java_script_enabled=self._java_script_enabled,
+        )
 
     def __getattr__(self, name):
         return getattr(self._context, name)
@@ -1855,10 +1870,16 @@ class WatchedBrowser:
         self.unwatched = browser
 
     def new_context(self, **kwargs):
-        return WatchedContext(self._browser.new_context(**kwargs))
+        return WatchedContext(
+            self._browser.new_context(**kwargs),
+            java_script_enabled=kwargs.get("java_script_enabled", True),
+        )
 
     def new_page(self, **kwargs):
-        return readable(self._browser.new_page(**kwargs))
+        return readable(
+            self._browser.new_page(**kwargs),
+            java_script_enabled=kwargs.get("java_script_enabled", True),
+        )
 
     def __getattr__(self, name):
         return getattr(self._browser, name)
@@ -2162,6 +2183,44 @@ def marked_tops(image):
             if green > 130 and red < 60 and blue < 130:
                 follower.append(y)
     return (min(subject, default=None), min(follower, default=None))
+
+
+def assert_follows_in_every_frame(page, scroller):
+    """Wheel `scroller` down and back, under the pointer, and require every frame the
+    compositor draws meanwhile to show the follower (`FOLLOWER_MARK`) at one offset from
+    its subject (`SUBJECT_MARK`).
+
+    A box the browser carries through the scroll paints in step with it. A scroll-driven
+    layer carries the same motion but has painted a frame early or late on Linux under
+    load, and reading rectangles after the scroll forces layout and hides that frame,
+    so this reads the compositor's own frames."""
+    width = page.viewport_size["width"]
+    with compositor_trace(page) as events:
+        for delta in (40, 40, -40, -40):
+            page.mouse.wheel(0, delta)
+            scroll_settled(page, scroller)
+    readings = []
+    for event in events:
+        if event["name"] != "Screenshot":
+            continue
+        image = frame_image(event)
+        scale = width / image.width
+        tops = [None if top is None else top * scale for top in marked_tops(image)]
+        readings.append((*tops, scale))
+    assert all(
+        subject is not None and follower is not None
+        for subject, follower, _ in readings
+    ), readings
+    assert len({subject for subject, _, _ in readings}) >= 3, (
+        "the scroller never scrolled",
+        readings,
+    )
+    offset = readings[0][1] - readings[0][0]
+    # Chrome downsamples trace frames, so two samples allow the blended edges.
+    assert all(
+        abs(follower - subject - offset) <= 2 * scale
+        for subject, follower, scale in readings
+    ), readings
 
 
 def root_overflow(page) -> float:

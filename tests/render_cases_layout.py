@@ -823,7 +823,7 @@ def unfolded_button(control):
 
 # The banner's controls in their one ranked order: fixed secondary menu seats followed
 # by the primary row. The door itself and controls the page has taken away are omitted.
-BANNER_ORDER = """() => {
+BANNER_ORDER = r"""() => {
   const toolbar = document.querySelector('.lf-banner-actions');
   const menu = document.querySelector('.lf-banner-menu');
   const more = document.querySelector('.lf-banner-more');
@@ -831,7 +831,9 @@ BANNER_ORDER = """() => {
     .filter(control => control !== more &&
             getComputedStyle(control).display !== 'none' &&
             getComputedStyle(control).visibility !== 'hidden')
-    .map(control => (control.getAttribute('aria-label') || control.textContent).trim());
+    .map(control => (control.getAttribute('aria-label') || control.textContent).trim()
+      // The version's age ticks with the clock between two readings; the order does not.
+      .replace(/ · \S+ ago$/, ''));
 }"""
 
 

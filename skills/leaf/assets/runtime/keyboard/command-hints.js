@@ -23,6 +23,7 @@ import { under } from "../shadow.js";
 import { el } from "../widget-elements.js";
 import { keepsText } from "../keeps.js";
 import { repaint } from "../repaint.js";
+import { watchScrolls } from "../arrivals.js";
 
 export const commandHintLayer = Object.assign(document.createElement("div"), {
   className: "lf-ui lf-key-badges lf-command-binding-badges",
@@ -302,14 +303,14 @@ export function createCommandHints({ presentedControl }) {
   }
 
   const pageScrolled = () => hasRoutes && repaint();
+  let stopScrolls = null;
   function mount() {
     if (mounted) return;
     mounted = true;
-    addEventListener("scroll", pageScrolled, { capture: true, passive: true });
+    stopScrolls = watchScrolls(pageScrolled);
   }
   function destroy() {
-    if (mounted)
-      globalThis.removeEventListener("scroll", pageScrolled, { capture: true });
+    if (mounted) stopScrolls();
     mounted = false;
     hasRoutes = false;
     clearProjections();

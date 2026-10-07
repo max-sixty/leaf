@@ -1196,6 +1196,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     local_result = runner.invoke(journey.journey, ["local"])
     assert local_result.exit_code == 0, local_result.output
     assert json.loads(local_result.stdout) == {
+        "target": "local",
         "harness": "website",
         "origin": "http://127.0.0.1:8080",
         "version": "a" * 40,
@@ -1204,6 +1205,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     remote_result = runner.invoke(journey.journey, ["https://leaf-dev.example/"])
     assert remote_result.exit_code == 0, remote_result.output
     assert json.loads(remote_result.stdout) == {
+        "target": "https://leaf-dev.example",
         "harness": "website",
         "origin": "https://leaf-dev.example",
         "version": "served",
@@ -1226,6 +1228,66 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
         "https://leaf-dev.example",
         "http://127.0.0.1:8787",
     ]
+
+
+def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples():
+    """`journey-chart` charts the samples the journey kept, so a later reading needs
+    no transcription: each target's latest version only, each sign a sample saw."""
+
+    def sample(target, version, titled, working, progress, replied, **named):
+        comment = {
+            "sinceAdmissionMs": {
+                "titled": titled,
+                "progress": progress,
+                "published": replied - 500,
+                "replied": replied,
+            },
+            "sinceSendMs": {"workVisible": working, "responseVisible": replied + 1000},
+        }
+        harness = target if target in ("claude-code", "codex") else "website"
+        return {
+            "target": target,
+            "harness": harness,
+            **named,
+            "version": version,
+            "comment": comment,
+        }
+
+    old, new = "a" * 40, "b" * 40 + "+working-tree"
+    samples = [
+        sample("claude-code", old, 1800, 7000, None, 17500),
+        sample("codex", old, 4700, 200, None, 69600),
+        sample("claude-code", new, 1300, 7000, 6900, 18600),
+        sample("codex", old, 4600, 300, None, 102900),
+        # Each local run serves on a port of its own, but is the same target.
+        sample("local", old, 900, 300, None, 30000, origin="http://127.0.0.1:8080"),
+        sample("local", new, 800, 300, None, 25000, origin="http://127.0.0.1:9090"),
+    ]
+    path = journey.samples_path()
+    path.parent.mkdir(parents=True)
+    path.write_text("".join(json.dumps(s) + "\n" for s in samples))
+    result = CliRunner().invoke(journey.journey_chart)
+    assert result.exit_code == 0, result.output
+    markup = result.stdout
+    assert markup.startswith('<lf-chart id="journey-signs"')
+    rows = journey.chart_rows(samples)
+    assert {r["row"] for r in rows} == {
+        "Claude Code at bbbbbbbb+working-tree",
+        "Codex App Server at aaaaaaaa",
+        "local at bbbbbbbb+working-tree",
+    }
+    # Older versions are left out; Codex's two runs of one version stay.
+    assert sorted(r["s"] for r in rows if r["sign"] == "reply") == [
+        18.6,
+        25.0,
+        69.6,
+        102.9,
+    ]
+    # A step the run never reached draws no dot.
+    assert [r["row"] for r in rows if r["sign"] == "first words"] == [
+        "Claude Code at bbbbbbbb+working-tree"
+    ]
+    assert json.dumps(rows) in markup
 
 
 def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatch):
@@ -1873,7 +1935,7 @@ def _page_pick(page_dir: Path) -> dict:
             "revision": 1,
             "widget": "choice",
             "action": "choose",
-            "detail": {"options": ["backfill-first"]},
+            "detail": {"value": ["backfill-first"]},
         },
     )
 
@@ -2121,7 +2183,7 @@ def test_a_harness_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
             "revision": 1,
             "widget": "region",
             "action": "choose",
-            "detail": {"options": ["east"]},
+            "detail": {"value": ["east"]},
         },
     )
 
@@ -2205,7 +2267,7 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
             "revision": 1,
             "widget": "region",
             "action": "choose",
-            "detail": {"options": ["east"]},
+            "detail": {"value": ["east"]},
         },
     )
     with website_server.PageTransaction(page_dir) as page:
@@ -4705,6 +4767,30 @@ def test_a_title_written_after_the_reply_is_still_timed():
     assert journey.recorded_steps(events, comment, published)["titled"] == 2.25
     assert journey.recorded_steps(answered["events"], comment, published) == {
         "titled": None,
+        "progress": None,
+        "published": 12.0,
+        "replied": 12.5,
+    }
+
+
+def test_a_progress_update_is_timed_apart_from_the_answer():
+    """An agent says what it will do in the thread before the work, as an ephemeral
+    update; the journey times that update as `progress` and keeps waiting for the
+    reply that answers."""
+    comment, _title, reply = TURN_LOG
+    progress = {
+        "kind": "reply",
+        "parent": comment["id"],
+        "text": "Recording the release on the board.",
+        "ephemeral": True,
+        "ts": "2026-10-04T12:00:03.000-07:00",
+    }
+    assert journey.deployment_answer([progress]) is None
+    assert journey.deployment_answer([progress, reply]) is reply
+    published = {"activated_at": "2026-10-04T19:00:12+00:00"}
+    assert journey.recorded_steps([comment, progress, reply], comment, published) == {
+        "titled": None,
+        "progress": 3.0,
         "published": 12.0,
         "replied": 12.5,
     }
@@ -5265,6 +5351,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "asks": 1,
             "sinceAdmissionMs": {
                 "titled": 2250.0,
+                "progress": None,
                 "published": 12000.0,
                 "replied": 12500.0,
             },

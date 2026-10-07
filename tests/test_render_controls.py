@@ -7078,13 +7078,10 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     example = next(e for e in EXAMPLES if e.stem == "release-notes")
     url = serve(example, comments=2)
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    page.locator(".lf-thread-summary").first.click()
-    panel_settled(page)
     page.locator("body").click()
     # A real press, because `.focus()` alone never raises `:focus-visible` and a control
     # with no ring is a control with nothing to report about one.
-    page.locator(".lf-threads .lf-btn").first.focus()
+    page.locator(".lf-threads-toggle").focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     assert standing_ring(page), "no ring is drawn, so nothing is covered"
@@ -7655,6 +7652,7 @@ RING_SCOPES_STARTING_WITHOUT_PANEL = {
     "a contents link",
     "a thread card",
     "the Page Map dialog",
+    "a landed diff line",
 }
 RING_SCOPE_WIDTH = {
     "a contents link": 1600,

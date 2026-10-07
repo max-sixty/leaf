@@ -669,10 +669,6 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
  * every declared tree, and a diff's lines scroll in one. No offsets: relative moves
  * nothing. */
 [data-lf-holds] { position: relative; }
-/* A box that scrolls starts the sticky-header slot again at its own top (theme.css, at
- * `--lf-top`), whoever made it scroll: reachScrollers marks it. At no specificity, so a
- * box that states where its own slot starts keeps that. */
-:where([data-lf-scrolls]) { --lf-top: 0px; }
 /* The layer's marks for a box that shows less than it holds across (reachScrollers, for
  * why the sweep and not a rule beside each overflow decides who wears them). Scrolling
  * is the honest answer when the room ran short, and on a platform drawing overlay
@@ -858,6 +854,54 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-resolve.lf-icon-action:not([aria-disabled="true"]):hover::before {
           background: var(--ok-tint); }
 .lf-resolve.lf-icon-action .lf-action-icon { inline-size: 15px; block-size: 15px; }
+/* Every composition input renders the same attachment shelf, including inputs seated
+   in widget shadow trees. Surfaces set its allocation and thumbnail size; the shelf
+   owns its controls, image inspection face, and drawing paint here. */
+:is(.lf-thread-reply, .lf-general, .lf-say):has(> .lf-composer-media:not([hidden])) {
+  flex-wrap: wrap; }
+.lf-composer-media {
+  display: flex; flex: 1 0 100%; gap: 6px; min-width: 0; overflow-x: auto;
+  padding: 2px; box-sizing: border-box; }
+.lf-composer-media[hidden] { display: none !important; }
+.lf-composer-media-item { flex: none; display: flex; align-items: stretch;
+  box-sizing: border-box; border: 1px solid var(--border-2);
+  border-radius: var(--r); background: var(--paper); overflow: hidden; }
+.lf-media-open { display: block; width: fit-content; max-width: 100%; padding: 0;
+  border: 0; border-radius: var(--r); background: transparent; color: inherit;
+  font: inherit; }
+button.lf-media-open { cursor: zoom-in; }
+.lf-media-open:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+  --lf-focus-ring: media; outline-offset: 2px; }
+.lf-composer-media-open { width: 68px; height: 52px; overflow: hidden;
+  border: 0; border-radius: 0; align-self: center; }
+.lf-composer-media-open img { display: block; width: 100%; height: 100%;
+  object-fit: cover; }
+/* Controls stay inside each tile, so the scrolling shelf never cuts their hit area.
+   Images and drawings keep their own thumbnail dimensions beside full-height presses. */
+.lf-composer-drawing > .lf-composer-media-open { padding: 4px;
+  box-sizing: border-box; }
+.lf-composer-drawing > .lf-composer-media-open > svg { display: block; width: 100%;
+  height: 100%; overflow: visible; }
+.lf-composer-drawing > .lf-composer-media-open path { fill: none;
+  stroke: var(--accent); stroke-width: 2px; stroke-linecap: round;
+  stroke-linejoin: round; }
+.lf-composer-media-item > button:not(.lf-media-open) { flex: none; display: grid; place-items: center;
+  inline-size: max(26px, var(--aim-floor)); min-block-size: var(--aim-floor);
+  padding: 0; border: 0; font: inherit;
+  border-inline-start: 1px solid var(--border-2); background: transparent;
+  color: var(--ink-2); cursor: pointer; }
+.lf-composer-media-item > button:not(.lf-media-open):hover { color: var(--accent); background: var(--chip); }
+.lf-composer-media-item > button:not(.lf-media-open):is(:focus-visible, .lf-focus-visible) {
+  outline: var(--focus-ring); --lf-focus-ring: composer-media;
+  outline-offset: calc(-1 * var(--focus-ring-w)); }
+.lf-composer-media-item > button:not(.lf-media-open) > svg { inline-size: 14px; block-size: 14px; }
+.lf-composer-media-item > .lf-media-open:is(:focus-visible, .lf-focus-visible) {
+  outline-offset: calc(-1 * var(--focus-ring-w)); }
+/* Sent media can live in chrome-owned threads or page-owned widget threads.
+   Scale the complete image in both surfaces; a tall capture must not become the whole
+   thread, and nothing is cropped. */
+.lf-message-media img { display: block;
+  max-width: 100%; max-height: min(60vh, 480px); border-radius: var(--r); }
 /* Core may seat its one response bar in a widget's exact-datum Thread outlet. The
    widget supplies only the layout location; these rules carry the canonical composer
    into the same trees as the Thread view around it. */
@@ -905,34 +949,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 .lf-fab-bar[data-lf-presentation="inline"].lf-response-open
           > .lf-response-options { display: inline-flex; align-items: center;
           flex-wrap: wrap; gap: 4px; max-width: 100%; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media { display: flex;
-          flex: none; gap: 6px; max-width: 148px; padding: 0; overflow-x: auto; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media[hidden] {
-          display: none !important; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-item {
-          position: relative; flex: none; }
+.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media {
+          flex: none; max-width: 148px; padding: 0; }
 .lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-open {
-          width: 42px; height: 34px; overflow: hidden; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-open img {
-          display: block; width: 100%; height: 100%; object-fit: cover; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-media-remove {
-          position: absolute; top: -5px; right: -5px; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-drawing {
-          display: flex; align-items: stretch; border: 1px solid var(--border-2);
-          border-radius: var(--r); background: var(--paper); overflow: hidden; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-drawing
-          > .lf-composer-media-open { padding: 4px; box-sizing: border-box; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-drawing
-          > .lf-composer-media-open > svg {
-          display: block; width: 100%; height: 100%; overflow: visible; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-drawing
-          > .lf-composer-media-open path {
-          fill: none; stroke: var(--accent); stroke-width: 2px; }
-.lf-fab-bar[data-lf-presentation="inline"] .lf-composer-drawing > button {
-          display: grid; place-items: center; inline-size: max(26px, var(--aim-floor));
-          min-block-size: var(--aim-floor);
-          padding: 0; border: 0; border-inline-start: 1px solid var(--border-2);
-          background: transparent; color: var(--ink-2); }
+          width: 42px; height: 34px; }
 @media print {
   .lf-fab-bar[data-lf-presentation="inline"] { display: none !important; }
 }
@@ -1020,3 +1040,5 @@ pre:hover + .lf-code-copy,
 .lf-reply-continuity:not(details) { display: flex; flex-direction: column;
   min-block-size: var(--lf-thread-body-extent, 0px); }
 .lf-reply-space { flex: 1 0 0; min-block-size: 0; }
+.lf-reply-continuity > .lf-thread-reply leaf-text:not(:state(placeholder-shown)) {
+  block-size: var(--lf-reply-writing-room, auto); }

@@ -192,6 +192,24 @@ SHADOW_VISUAL_LAYER = {
 SHADOW_VISUAL_WIDGETS = {
     "lf-test-shadow-visual.js": browser_source("widgets/shadow-visual.js")
 }
+SHADOW_SCROLLER_PAGE = leaf_page(
+    "shadow scroller",
+    """
+<h1 id="title">Shadow scroller</h1>
+<lf-test-shadow-scroller id="shadow-scroller" parts="part"></lf-test-shadow-scroller>
+""",
+)
+SHADOW_SCROLLER_LAYER = {
+    "lf-test-shadow-scroller": {
+        **SHADOW_VISUAL_LAYER["lf-test-shadow-visual"],
+        "description": "A visual part in a shadow-stage scroller.",
+        "x-example": '<lf-test-shadow-scroller id="shadow-scroller" parts="part">'
+        "</lf-test-shadow-scroller>",
+    }
+}
+SHADOW_SCROLLER_WIDGETS = {
+    "lf-test-shadow-scroller.js": browser_source("widgets/shadow-scroller.js")
+}
 # Every supported structural diagram whose authored ids reach a drawn box. State
 # machines carry nested boxes and ER entities carry attribute tables, while sequence
 # and class diagrams exercise source ids outside the flowchart renderer.
@@ -362,7 +380,7 @@ BROKEN_DIAGRAM_PAGE = leaf_page(
 <h1 id="t">Broken</h1>
 <lf-diagram id="bad"><pre>
 sankey-beta
-  POST /api/event {kind: "action", widget: "lf-board", detail: {card: "card-heater"}},Board,1
+  POST /api/event {kind: "action", widget: "lf-board", detail: {unit: "card-heater"}},Board,1
 </pre></lf-diagram>
 """,
 )

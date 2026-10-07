@@ -112,11 +112,12 @@ over today, and give the user the new URL.
 
 ## Page lifetime
 
-Serving from an agent session claims the page and prepares the harness's feedback
-route before returning its URL. In Codex, this starts or joins the task's delivery
-adapter, or honors a direct wait already running. Re-serving restores delivery
-even when the existing server needs no restart. The harness-specific references
-describe how incoming comments reach your turn.
+Serving from an agent session claims the page and prepares the harness's watcher,
+which brings comments to your turns, before returning its URL. In Codex, this
+starts or joins the task's delivery adapter, or honors a direct wait already
+running. Re-serving restores delivery even when the existing server needs no
+restart. The harness-specific references describe how incoming comments reach
+your turn.
 
 On a page with no recorded lifetime, a normal `server start` from an agent
 session chooses a session lifetime. Its process retires when no live session
@@ -125,6 +126,12 @@ enabled page revives its server under the recorded lifetime and exact URL if the
 process dies, and ends if that revival does not hold. Only `leaf server stop
 <page>` disables a service, and a `leaf wait` goes on watching a stopped page until
 it is idle.
+
+Desktop Codex can unload the chat's idle running instance while the app and chat
+remain open. Leaf keeps that chat's ownership, server and feedback route across
+the unload. Its pages retire after four hours without page use; a visible page
+or agent revision renews that activity. Process-backed terminal sessions still
+release ownership when their harness ends.
 
 `server start --standing`, or a serve started from the user's own shell, chooses
 a standing lifetime and prepares no agent delivery. Its process ignores session claims and remains live between

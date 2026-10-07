@@ -10,6 +10,7 @@
 export { LitElement, html, repeat } from "../vendor/browser-runtime.js";
 export { keyed, unsafeHTML } from "../vendor/lit.js";
 export { widgetController } from "./widget-controller.js";
+export { initialRender } from "./initial-render.js";
 export { watchOwner } from "./arrivals.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
@@ -152,6 +153,7 @@ export {
 } from "./registry.js";
 export {
   FOLD_MS,
+  backgroundFlash,
   motion,
   onMotionPreferenceChange,
   reducedMotion,
@@ -193,7 +195,9 @@ export {
   el,
   layoutChanged,
   measure,
+  motionPreview,
   offer,
+  offerElement,
   offered,
   quoted,
   reachedForWords,

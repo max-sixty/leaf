@@ -71,6 +71,11 @@ RESOURCE_TYPES = {
     ".otf": "font/otf",
 }
 _JAVASCRIPT = Language(tree_sitter_javascript.language())
+JAVASCRIPT_SUFFIXES = frozenset(
+    suffix
+    for suffix, mime in RESOURCE_TYPES.items()
+    if mime == "application/javascript"
+)
 
 
 class ArtifactError(ValueError):
@@ -203,9 +208,8 @@ class RevisionArtifact:
         return json.loads(self.manifest).get("widgets", {})
 
 
-def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | None:
-    """Resolve an authored URL to the page file a revision holds for it, without a
-    filesystem escape.
+def dependency_path(specifier: str, importer: str, *, module=False) -> str | None:
+    """Resolve a browser dependency URL without assigning it to an application owner.
 
     None is a reference the revision does not hold, which stays as written: one on
     another server, a fragment of this document, or a data: URL.
@@ -234,7 +238,7 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
         raise ArtifactError(f"{where}: encoded dependency path is not allowed")
     if module and not path.startswith(("/", "./", "../")):
         raise ArtifactError(
-            f"{where}: a module import must name a relative or /page/ URL"
+            f"{where}: a module import must name a relative or absolute local URL"
         )
     if path.startswith("/"):
         resolved = posixpath.normpath(path)
@@ -242,14 +246,23 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
         resolved = posixpath.normpath(posixpath.join(posixpath.dirname(importer), path))
     if resolved.startswith("//") or not resolved.startswith("/"):
         raise ArtifactError(f"{where}: dependency escapes the page")
+    if module and Path(resolved).suffix not in JAVASCRIPT_SUFFIXES:
+        raise ArtifactError(
+            f"{where}: a module dependency must have JavaScript MIME type"
+        )
+    return resolved
+
+
+def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | None:
+    """Admit an authored resource to the files or public entry points a revision holds."""
+    resolved = dependency_path(specifier, importer, module=module)
+    if resolved is None:
+        return None
+    where = f"{importer}: {specifier!r}"
     if module:
         if not resolved.startswith("/page/") and resolved not in PUBLIC_MODULES:
             raise ArtifactError(
                 f"{where}: module imports may use /page/ or a public layer entry point"
-            )
-        if Path(resolved).suffix not in {".js", ".mjs"}:
-            raise ArtifactError(
-                f"{where}: a module dependency must have JavaScript MIME type"
             )
     elif not resolved.startswith(("/page/", "/media/")):
         raise ArtifactError(f"{where}: dependency escapes /page/ and /media/")
@@ -280,7 +293,7 @@ def javascript_tree(data: bytes, path: str):
     return tree
 
 
-def _javascript_imports(data: bytes, path: str):
+def javascript_imports(data: bytes, path: str):
     """Yield exact string-literal spans of static exports/imports and import().
 
     A computed import() binds when it runs, so capture neither follows nor refuses it:
@@ -618,7 +631,7 @@ def _capture_artifact(
         data, mime = resource.data, resource.mime
         edges = []
         if mime == "application/javascript" and path.startswith("/page/"):
-            for _, _, specifier in _javascript_imports(data, path):
+            for _, _, specifier in javascript_imports(data, path):
                 edges.append(resolve_dependency(specifier, path, module=True))
         elif mime == "text/css" and path.startswith("/page/"):
             try:
@@ -644,6 +657,9 @@ def _capture_artifact(
             ):
                 capture("/" + path.relative_to(page_dir).as_posix())
     resources["/registry.json"] = Resource(_json(registry), "application/json")
+    for tag, entry in registry.items():
+        if tag.startswith("lf-") and (initial := entry.get("x-initial")):
+            capture(initial)
 
     if widget_sources is None:
         widget_sources = {
@@ -673,7 +689,7 @@ def _capture_artifact(
         for script in authored.inline_scripts:
             if script_kind(script["attrs"]) not in {"module", "classic"}:
                 continue
-            for _, _, specifier in _javascript_imports(
+            for _, _, specifier in javascript_imports(
                 script["body"].encode("utf-8"), "/index.html"
             ):
                 entries.append(
@@ -731,7 +747,7 @@ def _capture_artifact(
     # The vocabulary is digested without `$layer`, which describes the vendoring
     # run rather than the code it installed. Its fingerprint and producer commit
     # say where a layer was built, and its generation reaches a document through
-    # `runtime/layer-client.js`, where vendoring writes the epoch: a re-vendor
+    # `runtime/layer-generation.js`, where vendoring writes the epoch: a re-vendor
     # moves that module, so the modules below already carry it.
     executable = _digest(
         _canonical_json(
@@ -1154,7 +1170,7 @@ def _materialize(path: Path, bundle: Path) -> RevisionArtifact:
 
 def authored_imports(data: bytes, logical_path: str):
     """Yield each literal import of an authored module as its span and logical path."""
-    for start, end, specifier in _javascript_imports(data, logical_path):
+    for start, end, specifier in javascript_imports(data, logical_path):
         target = resolve_dependency(specifier, logical_path, module=True)
         if target is not None:
             yield start, end, target
@@ -1179,7 +1195,7 @@ def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Res
     if logical_path.startswith("/page/"):
         yield from authored_imports(data, logical_path)
         return
-    for start, end, specifier in _javascript_imports(data, logical_path):
+    for start, end, specifier in javascript_imports(data, logical_path):
         parsed = urlsplit(specifier)
         if (
             not specifier

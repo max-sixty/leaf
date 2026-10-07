@@ -294,34 +294,9 @@ export function worksInside(node, container) {
 // registers its widget-specific keys. An input supplies its type here so the type and the
 // pressability marker cannot disagree. Custom controls opt in when their host exposes
 // the complete activation method that the go-to sequence can call.
-export function offer(tag, cls, label, inputType, pressable = false) {
-  const node = document.createElement(tag);
-  if (inputType !== undefined) {
-    if (tag !== "input")
-      throw new TypeError("only an input offer can declare an input type");
-    node.type = inputType;
-  }
-  presentOffer(node, cls, pressable);
-  if (label !== undefined) node.textContent = label;
-  return node;
-}
-
-function presentOffer(node, cls, pressable) {
-  if (node instanceof HTMLButtonElement && !node.hasAttribute("type"))
-    keeps(node, "type", "button");
-  keeps(node, "class", cls ? `${cls} lf-ui` : "lf-ui");
-  keeps(node, "data-lf-gen", "1");
-  keeps(
-    node,
-    "data-lf-offer",
-    pressable
-      ? node.localName
-      : node instanceof HTMLButtonElement ||
-          (node.localName === "input" && ["checkbox", "radio"].includes(node.type))
-        ? node.type
-        : "",
-  );
-}
+export const offer = (...args) => document.documentElement.lfInitial.offer(...args);
+export const offerElement = (...args) =>
+  document.documentElement.lfInitial.offerElement(...args);
 
 // The template form of `offer`: `<button ${offered("lf-btn")}>`. It owns the
 // element's class and generated-control markers; attributes, values and handlers
@@ -337,7 +312,7 @@ export const offered = directive(
       return nothing;
     }
     update(part, [cls, pressable = false]) {
-      presentOffer(part.element, cls, pressable);
+      offerElement(part.element, cls, pressable);
       return nothing;
     }
   },
@@ -586,4 +561,13 @@ export function responseAction(
   labelNode.textContent = label;
   control.replaceChildren(glyphNode, spaceNode, labelNode);
   return control;
+}
+
+// Motion carries the card's label, never a second live widget tree. Native chrome
+// avoids copied form groups, widget lifetimes and iframe browsing contexts.
+export function motionPreview(label) {
+  const preview = offer("div", "lf-motion-preview", label);
+  preview.inert = true;
+  preview.setAttribute("aria-hidden", "true");
+  return preview;
 }

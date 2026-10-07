@@ -84,6 +84,12 @@ export function motion(el, keyframes, ms) {
 // states the same length.
 export const FLASH_MS = 1200;
 
+// A cue supplies only its starting tint. Its target's live CSS owns the endpoint,
+// so hover, theme changes and transparent surfaces never snap back when it ends.
+export function backgroundFlash(el, ms) {
+  return motion(el, [{ backgroundColor: "var(--hi-tint)", offset: 0 }], ms);
+}
+
 // How long room takes to go back. Long enough that the eye can follow a paragraph's
 // worth of page closing, short enough that the act still reads as having happened at
 // the press: the board's own FLIP is 150ms over a card's width, and this is a taller

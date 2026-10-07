@@ -3,16 +3,17 @@ behind one of them.
 
 A harness is the program an agent session runs in, such as Claude Code or Codex, as
 Leaf meets it. `Harness` collects everything that
-differs between them — session lifetime, delivery carrier, the hook's remedies,
+differs between them — session lifetime, watcher and transports, the hook's remedies,
 the way to reach a session with nothing watching — so that every module below
 this one dispatches on what a harness declares rather than on which harness it
 is. `session_harness` reads the one running this command out of the
 environment; `claim_harness` rebuilds the one a page's claim recorded.
 
 The machine facts a harness rests on live elsewhere: `machine` reads the
-processes running above this one, and `leases` holds the lease a detached
-carrier proves itself with."""
+processes running above this one, and `leases` holds the leases a watcher
+proves itself with."""
 
+import itertools
 import json
 import os
 import socket
@@ -27,7 +28,7 @@ from pathlib import Path
 from typing import ClassVar
 
 from leaf.files import read_json
-from leaf.leases import adapter_is_live, hooks_ran, wait_is_live
+from leaf.leases import adapter_is_live, hooks_ran, step_hook_ran, wait_is_live
 from leaf.machine import ancestry, pid_alive, process_argv
 
 
@@ -45,8 +46,24 @@ class Harness:
     re-deriving anything from an environment that may not be the claimant's.
     Nothing compares the name outside this module and a harness's own code.
 
-    What differs between harnesses is how a leaf's input reaches the session
-    between its turns, and the methods below answer for that carrier:
+    What differs between harnesses is how a leaf's input reaches the session.
+    Two things carry it. The *watcher* holds the session's wait lease between
+    turns and brings the page's input to a turn; it is one of four kinds:
+
+    - a hook watch, which the harness itself starts as each turn ends
+      (`watches_between_turns`);
+    - a model wait, `leaf wait`, which the model runs directly or in a watcher
+      task;
+    - the adapter, a detached process proven by a lease of its own
+      (`adapter_is_live`);
+    - the host, a program that drives App Server and starts every turn itself.
+
+    The *transport* is how one delivery enters a turn's context: the hooks
+    (`hook_delivers`, or Codex's tool hook offering a pointer), the wait's
+    output, Codex's queue, or a turn Leaf starts over App Server. The envelope
+    states what the transport decides (`../../references/event-batches.md`).
+    The methods below answer for each
+    harness's watcher and transports:
 
     - Claude Code runs Leaf's Stop hooks as each turn ends: one watches the
       session's pages in the background and wakes the session when input arrives
@@ -54,7 +71,10 @@ class Harness:
       wake opens begins, and the other Stop hook put the input in the turn's
       context and confirm it (`hook_delivers`). A turn that ends without its Stop
       hooks, as an interrupt does, leaves nothing watching while the session lives
-      on, which is why this is the harness with a `nudge`.
+      on, which is why this is the harness with a `nudge`. With its option on,
+      Leaf's hooks module (`hooks/claude-code.ts`) keeps the watch in place of
+      that Stop hook, as Pi's extension does: it closes an interrupted turn
+      and goes on watching after it.
     - Pi runs Leaf's extension in its own process, which calls the same hooks at
       the same points of a run and starts the same watch as each run settles, and
       starts the turn the watch wakes itself.
@@ -87,31 +107,34 @@ class Harness:
         consumes these fields without knowing which harness wrote them."""
         raise NotImplementedError
 
-    def carrier_live(self, *, listening: bool) -> bool:
-        """Whether this session's carrier can still take the page's input into a
+    def watcher_live(self, *, listening: bool) -> bool:
+        """Whether this session's watcher can still take the page's input into a
         turn — the Stop hook's watch question, and its reason to believe a draft
         reply will be committed.
 
         `listening` is the session's wait lease: some process is reading this
-        page's events for it. That is the whole proof for a carrier that is one
+        page's events for it. That is the whole proof for a watcher that is one
         process holding one lease. Where the session's own hooks carry its input,
-        the watch is started again as every turn ends, so the carrier stands
-        across the turn as well as between turns. A carrier that has to prove
-        more overrides this."""
+        the watch is started again as every turn ends, so the watcher stands
+        across the turn as well as between turns. Where the harness runs no watch
+        between turns (`watches_between_turns`), as under Claude Code's plain
+        `--print`, the session ends with its run and its claims with it, so no
+        page is left owed a watcher. A watcher that has to prove more overrides
+        this."""
         return listening or self.hooks_carry()
 
     def ensure_delivery(self) -> None:
-        """Prepare this harness's input route before handing over a served page.
+        """Prepare this harness's watcher before handing over a served page.
 
-        Harnesses whose hooks or embedding own delivery need no separate process.
-        A detached carrier starts or joins its task-wide watch here.
+        Harnesses whose hooks or host own delivery need no separate process.
+        The adapter starts or joins its task-wide watch here.
         """
 
     @contextmanager
     def preparing_delivery(self):
         """Prepare delivery and retain it until the caller publishes its page.
 
-        Detached carriers prevent no-page retirement throughout this boundary.
+        The adapter is kept from no-page retirement throughout this boundary.
         A failed preparation therefore precedes any page ownership transition.
         """
         self.ensure_delivery()
@@ -123,6 +146,24 @@ class Harness:
         the delivery for its reader to confirm, so a session whose hooks never run
         still reads its input rather than being woken to an empty turn."""
         return self.hook_delivers and hooks_ran(self.session)
+
+    def turn_takes_input(self) -> bool:
+        """Whether an open turn of this session takes new input before it ends: its
+        hooks hand pending input into the turn between steps and as it would end.
+        The banner reads such a turn as listening between two waits
+        (`activity.takes_input`)."""
+        return self.hooks_carry()
+
+    def receive_pointer(self, payload: dict) -> None:
+        """Confirm a pointer this session read whose `acknowledge` names nobody,
+        the receipt its hooks left to the read.
+
+        Hooks that deliver confirm each batch the session still holds; a harness
+        whose hooks hand nothing over has no pointer of its own to confirm."""
+        if self.hook_delivers:
+            from .delivery import receive_held
+
+            receive_held(payload, self.session)
 
     def input_unpicked(self, page_dir: Path, *, listening: bool) -> str:
         """What to do about events past this page's cursor that nothing will
@@ -174,9 +215,9 @@ class Harness:
         """Put this page's new input in front of the session, and say whether
         anything took it.
 
-        Only a carrier the session's own turns start stops between turns while
+        Only a watcher the session's own turns start stops between turns while
         its session stands, so only such a harness has anywhere to put this. A
-        carrier that is a process of its own is either running, and needs no
+        watcher that is a process of its own is either running, and needs no
         telling, or gone along with the session it served."""
         return False
 
@@ -185,7 +226,7 @@ class Harness:
         as the comment is admitted (`thread_titles`), or None where it cannot.
 
         Only a harness whose model any process on the machine can ask has one. The
-        website's carrier names the thread instead, as the move opening it is
+        website's host names the thread instead, as the move opening it is
         dispatched to it, since only it can reach the App Server it owns."""
         return None
 
@@ -283,11 +324,16 @@ class ClaudeCodeHarness(EnvironmentHarness):
         session when it exits 2, except under plain `--print`, where it waits on
         the hook as on any other and the turn would hold until input came
         (measured at 2.1.286). A print session fed `--input-format stream-json`
-        backgrounds it like an interactive one. Only the process's own argv
-        tells the two apart: the hook's input and environment are the same."""
+        backgrounds it like an interactive one; `--output-format stream-json`
+        alone does not. Only the process's own argv tells the two apart: the
+        hook's input and environment are the same.
+        Leaf's hooks module states CLAUDE_PID to the watch it keeps, so the same
+        reading holds there."""
         argv = process_argv(int(os.environ["CLAUDE_PID"])) or []
         printing = "-p" in argv or "--print" in argv
-        streaming = "stream-json" in argv or "--input-format=stream-json" in argv
+        streaming = "--input-format=stream-json" in argv or (
+            ("--input-format", "stream-json") in itertools.pairwise(argv)
+        )
         return not printing or streaming
 
     def process_runs(self) -> bool:
@@ -396,7 +442,7 @@ class CodexHarness(EnvironmentHarness):
     def preparing_delivery(self):
         from .codex_adapter import preparing_adapter
 
-        # A direct wait already selected by this task remains its carrier.
+        # A model wait already selected by this task remains its watcher.
         if wait_is_live(None, self.session) and not adapter_is_live(self.session):
             yield
             return
@@ -449,9 +495,20 @@ class CodexHarness(EnvironmentHarness):
             f"above this one ({chain}); leaf takes the session's lifetime from it"
         )
 
-    def carrier_live(self, *, listening: bool) -> bool:
+    def turn_takes_input(self) -> bool:
+        """Codex's tool hook offers input between steps once one has proven that
+        Codex runs Leaf's hooks for this task (`codex.offer_hook_delivery`), and
+        its Stop hook keeps the turn going over input nothing else will carry."""
+        return step_hook_ran(self.session)
+
+    def receive_pointer(self, payload: dict) -> None:
+        from .codex_state import accept_codex_delivery_read
+
+        accept_codex_delivery_read(self.session, payload["id"])
+
+    def watcher_live(self, *, listening: bool) -> bool:
         """A wait lease says only that some process can read page events. The
-        adapter's second lease is the narrower fact this carrier rests on: that
+        adapter's second lease is the narrower fact this watcher rests on: that
         the process can durably hand those events to a turn after this one
         ends."""
         return listening and adapter_is_live(self.session)
@@ -496,7 +553,7 @@ class CodexHarness(EnvironmentHarness):
 
 class PiHarness(EnvironmentHarness):
     """Pi (<https://pi.dev>): Leaf's extension (`hooks/pi.ts`) runs inside the Pi
-    process and is the carrier, the way Claude Code's hooks are. A highly
+    process and runs the watch and the hooks, the way Claude Code does. A highly
     experimental trial.
 
     Pi states the session in every shell-tool command as PI_SESSION_ID, and
@@ -507,13 +564,14 @@ class PiHarness(EnvironmentHarness):
 
     The extension calls the prompt hook as a user's prompt starts a run, the
     Stop hook as a run is about to settle (`agent_before_settle`, whose
-    `continue` keeps it going), and the Interrupt hook when a run settles
-    without going on from there, which is what an Escape does. As the session
-    starts and as each run settles it starts the watch (`leaf hook --harness pi
-    --watch`), with the Interrupt payload after an interrupted run. When the watch wakes
-    it, it calls the prompt hook itself and sends what that returns: a message
-    an extension sends to an idle Pi starts a run without its prompt events
-    (measured at 1.0.2)."""
+    `continue` keeps it going). As the session starts and as each run settles
+    it starts the watch (`leaf hook --harness pi --watch`), with the Interrupt
+    payload, which closes the turn, after a run that settles without going on
+    from there, which is what an Escape does. When the watch wakes an idle
+    session, it calls the prompt hook itself and sends what that returns: a
+    message an extension sends to an idle Pi starts a run without its prompt
+    events (measured at 1.0.2). When it wakes during a run, the run's next turn
+    end calls the prompt hook and adds its context to the session."""
 
     name = "pi"
     default_agent = "Pi"

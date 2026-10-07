@@ -24,11 +24,15 @@
  * focus, the scope climb and every `focused() === box` comparison land on the host,
  * never on CodeMirror's content node. Outside, the host answers the textarea members the
  * runtime uses — `value`, the selection triple, `setSelectionRange`, `placeholder`,
- * `readOnly`, `name` — and fires `input` for a user edit only, as a textarea does. A
+ * `readOnly`, `name` — and brackets user edits with `lf-before-edit` and `input`.
+ * The first announces the old layout before browser text input or an editor command
+ * changes the words; the second announces the updated value and layout. A
  * write to `value` fires nothing, puts the caret at the end, and starts a new undo
  * history, so undo never walks back into a draft the runtime swapped out. A box owner
  * that takes pasted pictures intercepts paste in capture; otherwise the field pastes
  * the clipboard's text, including text carried beside a picture.
+ * `naturalBlockSize` reads the field's intrinsic border-box block size in CSS pixels,
+ * before the host's block size or its minimum and maximum constrain the writing room.
  *
  * The placeholder is a layer under the words, shown while the field is empty. It reads
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
@@ -390,6 +394,7 @@ class LeafText extends HTMLElement {
   // for no editor.
   #model;
   #view = null;
+  #nativeInput = false;
   #root;
   #internals = null;
   #editable = new Compartment();
@@ -445,15 +450,22 @@ class LeafText extends HTMLElement {
       });
   });
 
-  // Whether the host scrolls, for the action's room. CSS has a scroll-state query for
-  // this, which only Chromium supports; elsewhere every field read as scrolled. The
-  // host's height stops at the page's limit while the words grow inside it, so the
-  // reading watches the editor's scroller too. A resize observer reports before paint,
-  // so the room never shows a frame on the wrong lines.
-  #overflow = sizeObserver(() => {
-    if (this.scrollHeight > this.clientHeight) this.#internals.states.add("scrolls");
-    else this.#internals.states.delete("scrolls");
-  });
+  // Host overflow holds the action's room on every line. The host stops at the page's
+  // height limit while words grow inside it, so the reading watches the editor's
+  // scroller too. Editor updates and size changes share its read/write phase: the room
+  // changes layout there, rather than feeding back into resize observer delivery.
+  #overflow = sizeObserver(() => this.#measureOverflow());
+
+  #measureOverflow() {
+    this.#view?.requestMeasure({
+      key: this.#overflow,
+      read: () => this.scrollHeight > this.clientHeight,
+      write: (scrolls) => {
+        if (scrolls) this.#internals.states.add("scrolls");
+        else this.#internals.states.delete("scrolls");
+      },
+    });
+  }
 
   static observedAttributes = ["aria-label", "aria-describedby", "placeholder"];
 
@@ -471,6 +483,9 @@ class LeafText extends HTMLElement {
     this.#root.append(this.#frame);
     this.#model = this.#create("");
     this.addEventListener("mousedown", (event) => this.#pressPadding(event));
+    this.#root.addEventListener("beforeinput", () => this.#beforeEdit(), {
+      capture: true,
+    });
     // The content node's own input events would reach the host too, retargeted, and
     // announce every edit twice. The host's is the one the page hears.
     for (const type of ["input", "beforeinput"])
@@ -484,6 +499,18 @@ class LeafText extends HTMLElement {
       doc: text,
       selection: { anchor: text.length },
       extensions: [
+        // DOM input has already changed the words when CodeMirror reads it, so its
+        // bracket started at beforeinput. EditContext leaves rendering to the editor;
+        // its transactions, like commands, still start before the DOM changes.
+        EditorView.inputHandler.of((view, _from, _to, _text, insert) => {
+          this.#nativeInput = !view.contentDOM.editContext;
+          try {
+            view.dispatch(insert());
+          } finally {
+            this.#nativeInput = false;
+          }
+          return true;
+        }),
         this.#history.of(history()),
         invertedEffects.of((tr) =>
           tr.effects
@@ -536,17 +563,19 @@ class LeafText extends HTMLElement {
       root: this.#root,
       parent: this.#frame,
       state: this.#model,
-      // Every change to the words is the user's: the value setter replaces the state
-      // instead, and an owner's `record` changes none.
+      // Dispatched word changes are the user's. The value setter updates the view
+      // directly and silently; an owner's `record` changes no words.
       dispatchTransactions: (transactions, view) => {
+        const edited = transactions.some((tr) => tr.docChanged);
+        if (edited && !this.#nativeInput) this.#beforeEdit();
         view.update(transactions);
         for (const tr of transactions)
           if (tr.isUserEvent("undo") || tr.isUserEvent("redo"))
             for (const effect of tr.effects)
               if (effect.is(ownerStep)) effect.value.run();
         this.#paintEmpty();
-        if (transactions.some((tr) => tr.docChanged))
-          this.dispatchEvent(new Event("input", { bubbles: true }));
+        this.#measureOverflow();
+        if (edited) this.dispatchEvent(new Event("input", { bubbles: true }));
       },
     });
     this.#model = null;
@@ -560,6 +589,11 @@ class LeafText extends HTMLElement {
     this.#describe();
     this.#paintEmpty();
     this.#internals.states.add("ready");
+    this.#measureOverflow();
+  }
+
+  #beforeEdit() {
+    this.dispatchEvent(new Event("lf-before-edit", { bubbles: true }));
   }
 
   // A move between parents reconnects within the task and keeps its editor.
@@ -683,16 +717,44 @@ class LeafText extends HTMLElement {
     this.#apply({ effects: this.#history.reconfigure(history()) });
   }
 
+  get naturalBlockSize() {
+    const host = getComputedStyle(this);
+    return (
+      parseFloat(getComputedStyle(this.#frame).blockSize) +
+      parseFloat(host.paddingBlockStart) +
+      parseFloat(host.paddingBlockEnd) +
+      parseFloat(host.borderBlockStartWidth) +
+      parseFloat(host.borderBlockEndWidth)
+    );
+  }
+
   set value(text) {
     text = String(text ?? "").replace(/\r\n?/g, "\n");
     if (text === this.value) return;
-    const state = this.#create(text);
     if (!this.#view) {
-      this.#model = state;
+      this.#model = this.#create(text);
       return;
     }
-    this.#view.setState(state);
+    // Loading another draft ends the old native composition. Deactivating its
+    // attachment resets the platform's replacement range without moving focus.
+    const content = this.#view.contentDOM;
+    const composing = this.#view.composing && content.editContext;
+    if (composing) content.editContext = null;
+    // Updating the live view keeps its native input context in sync with the words.
+    // Remove and restore history in successive states so the loaded draft starts it
+    // empty, while both transactions paint together and announce no user edit.
+    const reset = this.#view.state.update({
+      changes: { from: 0, to: this.#view.state.doc.length, insert: text },
+      selection: { anchor: text.length },
+      effects: this.#history.reconfigure([]),
+    });
+    const fresh = reset.state.update({
+      effects: this.#history.reconfigure(history()),
+    });
+    this.#view.update([reset, fresh]);
+    if (composing) content.editContext = composing;
     this.#paintEmpty();
+    this.#measureOverflow();
   }
 
   get selectionStart() {

@@ -192,7 +192,7 @@ window.authoredModuleRan = true;
     assert any(
         event.get("kind") == "action"
         and event.get("widget") == "pick"
-        and event.get("detail") == {"options": ["yes"]}
+        and event.get("detail") == {"value": ["yes"]}
         for event in events_model.read_events(serve.page_dir)
     )
 
@@ -894,11 +894,11 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
     module.write_text(
         module.read_text()
         .replace("{offer,", "{keeps, keepsText, offer,")
-        .replace("({value}) => {", "({value}, prior) => {")
         .replace(
             "const row = document.createElement('p');\n"
             "      row.append(value, offer('button', 'inspect', 'Inspect'));",
-            """const row = prior ?? document.createElement('p');
+            """const prior = [...this.children].find(row => row.dataset.lfDatum === key);
+      const row = prior ?? document.createElement('p');
       const link = row.querySelector('a') ?? document.createElement('a');
       keeps(link, 'href', value === 'Ready' ? 'https://example.com/status' : '#title');
       keepsText(link, value);
@@ -1356,7 +1356,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             "revision": 1,
             "widget": "startup-note",
             "action": "edit",
-            "detail": {"text": "Ship on Friday from the green room."},
+            "detail": {"value": "Ship on Friday from the green room."},
         },
     )
     held = []
@@ -1889,7 +1889,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
             "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
-            "detail": {"text": DRAFT_EDITED},
+            "detail": {"value": DRAFT_EDITED},
         },
     )
     corrected = "Run the migration after deploying — it needs the new column."
@@ -1999,7 +1999,7 @@ def test_foreign_state_waits_until_a_live_drag_releases_the_page(browser, serve)
             "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
-            "detail": {"text": "Foreign words held behind the drag."},
+            "detail": {"value": "Foreign words held behind the drag."},
         },
     )
     told(page)

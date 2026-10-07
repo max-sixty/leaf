@@ -98,7 +98,11 @@ Each helper's header under `runtime/` explains its contract.
 
 A registry-declared widget implements a total, idempotent `renderState(state)`.
 Record user state through `widgetController(owner).dispatch()` with detail matching
-the declared browser schema. Ordinary script-owned elements do not acquire a
+the effect's payload contract in [packages.md, "User state"](packages.md#user-state).
+For a recorded body, attribute, or scalar value, send `detail: {value}`. For a position,
+send `detail: {unit, value, rank}`: the moved element's id, destination container's id,
+and the key from `rankAt`. A verb with no record uses its declared `detail` schema.
+Ordinary script-owned elements do not acquire a
 semantic controller; use the general helpers for their local behavior.
 
 `renderState` receives the state of every declared verb, keyed by verb name, including
@@ -244,8 +248,14 @@ The rows' `scroll-margin-top` has a landing on a row, native or the runtime's, a
 below the header. The runtime reads what passes under it as off screen from `--lf-top`,
 for read acknowledgement, arrival checks, and chrome placement, so nothing is declared.
 The stacked value goes on a box that does not itself scroll, since the runtime reads a
-box that scrolls where it stands. A box a package makes scroll starts `--lf-top` again
-at `0px`, on the box that scrolls and only there.
+box that scrolls where it stands. The runtime starts `--lf-top` again on every box that
+scrolls and doesn't itself stick, `overflow: hidden` included, so a header inside one
+sticks at that box's top. A box a package makes scroll also states `--lf-top: 0px`
+beside its overflow, so the restart holds from the first paint. A header sticks below its scroller's top padding;
+to have it stand on the scroller's top edge, state `--lf-top-start` at minus that
+padding and `--lf-top: var(--lf-top-start)`. A box that only clips, such as a card
+rounding its corners, uses `overflow: clip`, since a `hidden` box is a scroller and a
+header inside it would scroll off with the page rather than stick below the banner.
 
 A box a package makes scroll text sideways carries the class `lf-text-scroller`. An
 overlay scrollbar paints over the box's lower edge and widens under the pointer, so while
@@ -333,6 +343,10 @@ same preference where a module has to branch on it, and `FOLD_MS` is how long a 
 to leave, so a widget retiring one uses that constant rather than choosing a number. Spend
 a duration only on letting the eye follow a box from where it was to where it is. A result
 the module can already draw is drawn in the gesture rather than after a wait.
+
+A temporary yellow cue calls `backgroundFlash(element, ms)`. It supplies only the
+starting tint; the browser fades to the element's live CSS background, including any
+hover or theme change during the cue, and shares `motion`'s gates and cleanup.
 
 A module implementing its own navigation captures `retainUserIntent()` in the gesture
 that starts it, before its

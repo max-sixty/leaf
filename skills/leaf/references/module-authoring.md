@@ -244,8 +244,14 @@ The rows' `scroll-margin-top` has a landing on a row, native or the runtime's, a
 below the header. The runtime reads what passes under it as off screen from `--lf-top`,
 for read acknowledgement, arrival checks, and chrome placement, so nothing is declared.
 The stacked value goes on a box that does not itself scroll, since the runtime reads a
-box that scrolls where it stands. A box a package makes scroll starts `--lf-top` again
-at `0px`, on the box that scrolls and only there.
+box that scrolls where it stands. The runtime starts `--lf-top` again on every box that
+scrolls and doesn't itself stick, `overflow: hidden` included, so a header inside one
+sticks at that box's top. A box a package makes scroll also states `--lf-top: 0px`
+beside its overflow, so the restart holds from the first paint. A header sticks below its scroller's top padding;
+to have it stand on the scroller's top edge, state `--lf-top-start` at minus that
+padding and `--lf-top: var(--lf-top-start)`. A box that only clips, such as a card
+rounding its corners, uses `overflow: clip`, since a `hidden` box is a scroller and a
+header inside it would scroll off with the page rather than stick below the banner.
 
 A box a package makes scroll text sideways carries the class `lf-text-scroller`. An
 overlay scrollbar paints over the box's lower edge and widens under the pointer, so while

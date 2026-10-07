@@ -16,7 +16,7 @@ import {
   selectEnds,
   segmentBlock,
 } from "../passages.js";
-import { bannerFoot, shownParts } from "../geometry.js";
+import { bannerFoot, shownBox, shownParts } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
 import { anchorFor } from "../anchor-names.js";
@@ -542,6 +542,8 @@ export function createTargetPicker({
         )
       : [];
     const anchor = owner && anchorFor(segments[0].node);
+    // A line's box can reach past the block that holds it; the mark keeps to the block.
+    const own = owner && shownBox(owner);
     while (markBoxes.length < boxes.length)
       markBoxes.push(el("span", "lf-page-search-match"));
     marks.place(
@@ -550,7 +552,12 @@ export function createTargetPicker({
         target: owner,
         held: true,
         anchor,
-        rect: box,
+        rect: {
+          left: Math.max(box.left, own.left),
+          top: Math.max(box.top, own.top),
+          right: Math.min(box.right, own.right),
+          bottom: Math.min(box.bottom, own.bottom),
+        },
       })),
     );
   }

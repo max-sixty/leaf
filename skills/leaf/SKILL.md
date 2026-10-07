@@ -175,7 +175,8 @@ so a phase does not depend on discovering a chain of references.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a user-owned draft, or revising standing state.
 - `references/authoring-evidence.md`: before drawing a figure, or using measured
-  facts, diagrams, charts, source files, images, or before/after captures.
+  facts, diagrams, charts, source files, images, recordings, or before/after
+  captures.
 
 ### First handoff
 

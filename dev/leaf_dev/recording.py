@@ -2,7 +2,8 @@
 
 `recording(page, directory)` works with any Playwright page, independently of Leaf.
 It must start before navigation; it owns tracing and screencasting on that context.
-The trace is native evidence for Playwright's viewer and Leaf's review package. Video
+The trace is native evidence for Playwright's viewer and for a Leaf page's `lf-trace`
+widget, from the `playwright` package. Video
 and optional GIF retain actual frame timing, without inserting demonstration waits.
 Action decorations are opt-in: Playwright waits 500 ms before each annotated
 input, so they are for demonstrations rather than timing-sensitive reproductions.

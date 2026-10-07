@@ -174,6 +174,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     # commentable coordinate must be the exact recorded checkpoint or image.
     archive_id = record["archive"]["sha256"]
     slider.fill("0")
+    controls = widget.locator(".lf-trace-controls")
     evidence_top = None
     image_rect = None
     for index, (_, kind, identity, name) in enumerate(points):
@@ -184,18 +185,19 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         if kind == "phase":
             coordinate += f"-{name}"
         expect(widget.locator(f'[data-lf-datum="{coordinate}"]')).to_be_visible()
-        # The timeline replaces evidence, not the viewport it is read in.
-        # Checkpoint metadata and its absence on a frame must not carry the image.
+        # The timeline replaces evidence, not the viewport it is read in: neither
+        # the image nor the controls stepping it move on screen. Checkpoint
+        # metadata and its absence on a frame must not carry the image.
         rendered(user)
         top = widget.locator(".lf-trace-images").bounding_box()["y"]
-        top -= widget.locator(".lf-trace-body").bounding_box()["y"]
         if evidence_top is None:
             evidence_top = top
+            controls_top = controls.bounding_box()["y"]
         assert abs(top - evidence_top) <= 1, (index, kind, top, evidence_top)
+        assert abs(controls.bounding_box()["y"] - controls_top) <= 1, (index, kind)
         raster = widget.locator(".lf-trace-image img")
         if raster.count():
             rect = raster.bounding_box()
-            rect["y"] -= widget.locator(".lf-trace-body").bounding_box()["y"]
             if image_rect is None:
                 image_rect = rect
             # JPEG filmstrip dimensions round the native aspect ratio; at the
@@ -209,6 +211,47 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
                 rect,
                 image_rect,
             )
+    # At the page's end, a step onto a frame, which has no action or saved elements
+    # beneath its image, would shorten the page under the reader; the evidence and
+    # the controls still stay where they stand.
+    actions = {candidate["id"]: candidate for candidate in record["actions"]}
+    tall = next(
+        index
+        for index, (_, kind, identity, name) in enumerate(points[:-1])
+        if kind == "phase"
+        and actions[identity]["phases"][name]["tree"]["nodes"]
+        and points[index + 1][1] == "image"
+    )
+    user.keyboard.press("Home")
+    for _ in range(tall):
+        user.keyboard.press("ArrowRight")
+    expect(slider).to_have_value(str(tall))
+    # The page's end, less what leaves the image's foot showing beneath the controls.
+    user.evaluate(
+        """() => {
+          const page = document.scrollingElement;
+          page.scrollTop = page.scrollHeight;
+          const foot = document.querySelector("#journey .lf-trace-controls")
+            .getBoundingClientRect().bottom;
+          const evidence = document.querySelector("#journey .lf-trace-images")
+            .getBoundingClientRect().bottom;
+          page.scrollTop -= Math.max(0, foot - evidence) + 60;
+        }"""
+    )
+    rendered(user)
+    at_end = widget.locator(".lf-trace-images").bounding_box()
+    assert (
+        at_end["y"] + at_end["height"]
+        > controls.bounding_box()["y"] + controls.bounding_box()["height"]
+    ), "the evidence must still show at the page's end for this regression"
+    controls_top = controls.bounding_box()["y"]
+    user.keyboard.press("ArrowRight")
+    expect(slider).to_have_value(str(tall + 1))
+    rendered(user)
+    assert widget.locator(".lf-trace-images").bounding_box()["y"] == pytest.approx(
+        at_end["y"], abs=1
+    )
+    assert controls.bounding_box()["y"] == pytest.approx(controls_top, abs=1)
     frame_index = next(
         index for index, point in enumerate(points) if point[1] == "image"
     )
@@ -226,15 +269,53 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     user.keyboard.press("t")
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
     expect(frames_toggle).to_be_checked()
+    user.keyboard.press("Escape")
+    # The page is the recording's only scroller: the widget takes its evidence's
+    # height, and its controls stick over the evidence while the page scrolls
+    # through the saved elements beneath it.
+    frames_toggle.uncheck()
+    slider.focus()
+    user.keyboard.press("Home")
+    for _ in range(after_index):
+        user.keyboard.press("ArrowRight")
+    expect(slider).to_have_value(str(after_index))
+    expect(widget.locator(".lf-trace-node")).not_to_have_count(0)
+    widget.locator(".lf-trace-node").last.scroll_into_view_if_needed()
+    rendered(user)
+    reading = """() => {
+      const trace = document.querySelector("#journey");
+      const box = (el) => el.getBoundingClientRect();
+      const press = box(trace.querySelector(".lf-trace-previous"));
+      const hit = document.elementFromPoint(press.x + press.width / 2, press.y + press.height / 2);
+      return {
+        scrollers: [trace, trace.querySelector(".lf-trace-body")]
+          .filter((el) => el.scrollHeight > el.clientHeight + 1
+            || /auto|scroll/.test(getComputedStyle(el).overflowY)).length,
+        controls: [box(trace.querySelector(".lf-trace-controls")).top,
+                   box(trace.querySelector(".lf-trace-controls")).bottom],
+        evidence: [box(trace.querySelector(".lf-trace-images")).top,
+                   box(trace.querySelector(".lf-trace-images")).bottom],
+        pressable: !!hit?.closest(".lf-trace-previous"),
+      };
+    }"""
+    below = user.evaluate(reading)
+    assert below["scrollers"] == 0, below
+    assert below["pressable"], below
+    assert below["evidence"][1] <= below["controls"][1], (
+        "the saved elements must run past the evidence for this regression",
+        below,
+    )
+    # Stepping from below the evidence brings the new point's evidence back to the
+    # controls' foot, without moving the controls under the press.
+    widget.get_by_role("button", name="Previous", exact=True).click()
+    rendered(user)
+    returned = user.evaluate(reading)
+    assert returned["controls"] == pytest.approx(below["controls"], abs=1), returned
+    assert returned["evidence"][0] == pytest.approx(returned["controls"][1], abs=1), (
+        returned
+    )
     # Following the frame includes it even after the reader hides intermediate
     # frames; a node comment returns to its checkpoint without changing capture.
-    user.keyboard.press("Escape")
-    body = widget.locator(".lf-trace-body")
-    body.hover()
-    user.mouse.wheel(0, 80)
-    expect(body).not_to_have_js_property("scrollTop", 0)
-    frames_toggle.uncheck()
-    expect(body).to_have_js_property("scrollTop", 0)
     user.keyboard.press("t")
     expect(frames_toggle).to_be_checked()
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()

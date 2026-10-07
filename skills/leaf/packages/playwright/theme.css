@@ -1,10 +1,11 @@
-/* The controls stay next to the evidence. Native images keep their recorded aspect
- * ratio; the saved-element list is a separate semantic surface, never an overlay. */
+/* The recording is as tall as its evidence: native images at their recorded size, then
+ * the saved-element list, a separate semantic surface rather than an overlay. The page
+ * scrolls it, and the controls stay next to the evidence by sticking at the top of the
+ * page's band while the recording is on screen (below). The height the page holds
+ * before the drawing arrives is the layer's (`x-height`, layouts.css). */
 :scope:is(lf-trace) {
   --lf-block-frame: 1;
-  display: flex;
-  flex-direction: column;
-  block-size: attr(data-lf-height px, 640px);
+  display: block;
   min-inline-size: 0;
   max-inline-size: 100%;
   box-sizing: border-box;
@@ -17,9 +18,33 @@
   font: var(--t-5) / 1.45 var(--sans);
   overflow-wrap: anywhere;
 }
-.lf-trace-body { flex: 1 1 auto; min-block-size: 0; min-inline-size: 0; overflow: auto; }
+/* The controls take over the frame's top padding, so at rest they stand where the
+ * padding put them and, stuck, keep that room between the banner and the first control. */
 .lf-trace-controls {
-  flex: none; min-inline-size: 0; inline-size: 100%; grid-template-columns: minmax(0, 1fr); display: grid; gap: var(--sp-2); }
+  box-sizing: border-box;
+  min-inline-size: 0;
+  inline-size: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--sp-2);
+  margin-block-start: calc(-1 * var(--sp-3));
+  padding-block: var(--sp-3) var(--sp-2);
+  background: var(--paper);
+}
+/* Its children's margins stay inside it, so the height it holds across a step
+ * (lf-trace.js, `#navigate`) is the height it had. */
+.lf-trace-body { display: flow-root; }
+/* A sticky header over the evidence (kernel theme.css, at `--lf-top`): the controls
+ * stick at the `--lf-top` the frame met, and what they stand over takes that value plus
+ * their height. The height changes as their row wraps, so the module measures it
+ * (`--lf-trace-controls-h`); a landing in the evidence arrives below them through
+ * `scroll-margin-top`. Screen only: paper has no scroll to pin against. */
+@media screen {
+  :scope:is(lf-trace) { --lf-top-outer: var(--lf-top); }
+  .lf-trace-controls { position: sticky; top: var(--lf-top); z-index: 1; }
+  .lf-trace-body { --lf-top: calc(var(--lf-top-outer) + var(--lf-trace-controls-h, 0px)); }
+  .lf-trace-body * { scroll-margin-top: var(--lf-trace-controls-h, 0px); }
+}
 .lf-trace-choices { min-inline-size: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
 .lf-trace-select {
   box-sizing: border-box;
@@ -60,8 +85,6 @@
   .lf-trace-stepper { gap: 6px; }
 }
 @media print {
-  :scope:is(lf-trace) { block-size: auto; }
-  .lf-trace-body { overflow: visible; }
   .lf-trace-tree { display: block; }
   .lf-trace-nodes { display: block; }
 }

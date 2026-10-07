@@ -4,17 +4,23 @@
  * A phase prefers its checkpoint PNG, otherwise the latest same-page frame at or
  * before that time. Pixel comments name the actual image; semantic comments name a
  * saved tree path. Sequential image/tree captures never imply exact pixel alignment.
- * The authored height allocates one scrollable evidence region beneath retained
- * controls. Evidence starts that region; optional metadata follows it. Selecting
- * another point returns to its evidence. One cursor
+ * Once drawn, the recording takes its content's height and the page is its only
+ * scroller; a stated height only holds the page's room until then (`x-height`). This
+ * reverses the first version's decision to scroll the evidence inside a frame of the
+ * authored height, which left a page scrolling inside the page. The controls instead
+ * stick at the top of the page's band while the recording is on screen (theme.css);
+ * this module measures their height for what they stand over. Evidence comes first
+ * and optional metadata follows it. Stepping keeps the reader's place while any of
+ * the evidence is in view, so the pixels being compared stay put; from below it, in
+ * the saved elements, a newly selected point brings its evidence back under the
+ * controls, which stay where they stand. One cursor
  * walks native action checkpoints chronologically; captured frames can join that
  * same timeline. Initial selection prefers its first nonempty saved tree, then
  * its first image; empty earlier stops stay navigable. Following a visual part restores its exact
  * stop and page. */
 import {
   commands,
-  compoundReadingRegionId,
-  registerReadingRegion,
+  effectiveScroller,
   keepsHidden,
   el,
   holdFocus,
@@ -28,6 +34,7 @@ import {
   registerVisualParts,
   scopedMediaUrl,
   setChildren,
+  sizeObserver,
   watchData,
 } from "/runtime/widget-api.js";
 
@@ -91,7 +98,7 @@ customElements.define(
     #page = null;
     #selected = null;
     #intermediates = false;
-    #stopReading = null;
+    #controlsSize = null;
     #keys = null;
     #parts = null;
     #inventory = [];
@@ -128,17 +135,24 @@ customElements.define(
             when: () => this.#checkpoints().length > 0 && this.#frames().length > 0,
           },
         ]);
-      this.#stopReading ??= registerReadingRegion({
-        id: compoundReadingRegionId(this, "recording"),
-        host: this,
-        body: this.body,
-      });
+      // The controls stick over the evidence, which takes their height past `--lf-top`
+      // (theme.css). It changes as their row wraps, so it is measured rather than
+      // stated, and it changes no layout: only what the runtime reads as covered and
+      // where a landing stops.
+      if (!this.#controlsSize) {
+        this.#controlsSize = sizeObserver(([entry]) => {
+          const height = `${Math.ceil(entry.borderBoxSize[0].blockSize)}px`;
+          if (this.body.style.getPropertyValue("--lf-trace-controls-h") !== height)
+            this.body.style.setProperty("--lf-trace-controls-h", height);
+        });
+        this.#controlsSize.observe(this.controls);
+      }
       if (firstConnection) watchData(this, "trace", (snapshot) => this.#show(snapshot));
     }
 
     disconnectedCallback() {
-      this.#stopReading?.();
-      this.#stopReading = null;
+      this.#controlsSize?.disconnect();
+      this.#controlsSize = null;
       // Element command scopes leave with their element; reconnect keeps the declaration.
     }
 
@@ -338,12 +352,39 @@ customElements.define(
         this.#items().findIndex((point) => point.id === this.#selected),
       );
     }
+    // Stepping replaces the evidence where the reader sees it. While any of it shows,
+    // the new point's evidence starts where the old one did, so the pixels being
+    // compared stay put. From the saved elements, below all of it, the new point's
+    // evidence starts at the controls' foot: the one scroll at which stuck controls
+    // also meet their place in flow, so they stay under the gesture either way. A
+    // point with less beneath its evidence (a captured frame has no action or saved
+    // elements) shortens the page, which near its end would pull everything down; the
+    // body then holds the height the place needs (a minimum, so it binds only while
+    // the content is shorter), and a later step lowers it to what that step needs.
     #navigate(id) {
+      const scroller = effectiveScroller(this);
+      const before = this.imageHost.getBoundingClientRect();
+      const target =
+        before.bottom <= this.controls.getBoundingClientRect().bottom
+          ? null
+          : before.top;
       this.#selected = id;
       this.#draw();
-      // A newly selected point starts at its evidence, including when the reader
-      // left the previous point down in its saved-element list.
-      if (this.body.scrollTop) this.body.scrollTop = 0;
+      const top = this.imageHost.getBoundingClientRect().top;
+      const move = top - (target ?? this.controls.getBoundingClientRect().bottom);
+      if (Math.abs(move) < 1) return;
+      const room = () =>
+        scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
+      const hold = (extra) => {
+        const height = this.body.getBoundingClientRect().height + extra;
+        const held = `${Math.max(0, Math.ceil(height))}px`;
+        if (this.body.style.minBlockSize !== held) this.body.style.minBlockSize = held;
+      };
+      // Grow before the scroll that needs the room; lower after it, so the page
+      // never shortens under a scroll position it still holds.
+      if (move > room()) hold(move - room());
+      scroller.scrollBy({ top: move, behavior: "instant" });
+      if (this.body.style.minBlockSize && room() > 0) hold(-room());
     }
     #step(delta) {
       const items = this.#items();

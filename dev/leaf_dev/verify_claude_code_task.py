@@ -41,7 +41,7 @@ carries the next comment.
 Each step prints when the session picked its comments up and answered them,
 counted from the post, and whether the page nudged the session; a step with an
 Escape also prints whether it left the turn open, a watch running, and what the
-page's banner read. That is the reading that compares the two carriers.
+page's banner read. That is the reading that compares the two watchers.
 
 It needs tmux, and spends a few model turns on the host's Claude Code login, so CI
 does not run it. The session's screen at the end of each step, Claude Code's debug
@@ -64,7 +64,7 @@ from pathlib import Path
 import click
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
-from leaf.hook_carrier import INLINE_DELIVERY
+from leaf.hook_transport import INLINE_DELIVERY
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
@@ -257,7 +257,7 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
             not module or INLINE_DELIVERY not in cc.shown(),
             f"{name}: a delivery was printed in the terminal",
         )
-        # The turn that answers ends with a watch running, under either carrier.
+        # The turn that answers ends with a watch running, under either watcher.
         cc.until(watched, f"{name}: no watch holds the session's pages", 60)
         details = [escaped] if escaped else []
         details += [timings(page, posted_step) for posted_step in steps]

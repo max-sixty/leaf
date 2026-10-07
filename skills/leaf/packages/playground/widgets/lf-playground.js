@@ -213,9 +213,7 @@ customElements.define(
             const next = { ...this.#values, ...this.#presetSettings.get(preset) };
             this.#apply(next);
           });
-        this.#reset.addEventListener("click", () => this.#apply(this.#defaults));
         this.#copy.addEventListener("click", () => this.#copyInstruction());
-        this.#submit.addEventListener("click", () => this.#choose());
         this.addEventListener("mousedown", (event) => {
           if (event.target.closest(".lf-playground-control-label")) return;
           const pressed = event.target.closest(ONE_PRESS);

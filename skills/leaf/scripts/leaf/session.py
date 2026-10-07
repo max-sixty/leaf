@@ -576,7 +576,7 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
             return last > end
         # TODO: this wakes for pending input the turn already answered without
         # picking it up, as an agent does after `leaf status` names the move, and
-        # the turn it opens only says so (seen in `verify-cc-task`'s `ending` step).
+        # the turn it opens only says so (seen in `verify-claude-code-task`'s `ending` step).
         return (
             (claim is not None and claim.get("turn_closed") is not None)
             or last > end

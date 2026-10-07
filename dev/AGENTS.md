@@ -118,11 +118,11 @@ in `leaf-assets.json` and the README's image URLs that name it.
   diagnostics and the failure contract.
 - `leaf-dev journey TARGET` runs one user's journey, a request through Threads to
   record that a release passed its checks, answered with a revision and a reply, on
-  any harness: `cc` or `codex`
+  any harness: `claude-code` or `codex`
   on this working tree, `local` for the website's adapter, `wrangler`, or a website
   origin. It prints one JSON sample: the title, published revision and reply timed
   on the page server's clock from the comment's admission, and what only the browser
-  sees from the send; on `cc` or `codex`, also the agent's turn split into delivery,
+  sees from the send; on `claude-code` or `codex`, also the agent's turn split into delivery,
   model and tool phases. Each sample is also appended to
   `$XDG_STATE_HOME/leaf-dev/journey.jsonl` on the machine that ran it.
   `publish-site` runs it against each release.
@@ -140,8 +140,8 @@ in `leaf-assets.json` and the README's image URLs that name it.
 
 ## Claude Code
 
-- `leaf-dev verify-cc-task` runs a real interactive Claude Code session, in a tmux
-  pane, with this working tree as its plugin under a throwaway home holding only
+- `leaf-dev verify-claude-code-task` runs a real interactive Claude Code session, in a
+  tmux pane, with this working tree as its plugin under a throwaway home holding only
   the host's login. It posts comments while the session is idle, during a shell
   command, after an Escape, and after an Escape that stopped a turn the watch had
   woken, and fails when a comment is not answered exactly once, a comment posted

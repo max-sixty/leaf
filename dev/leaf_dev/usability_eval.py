@@ -267,7 +267,7 @@ class Run:
     case: str
     payload: Path
     dir: Path
-    harness: str = "cc"
+    harness: str = "claude-code"
 
     @property
     def state(self) -> Path:
@@ -1742,7 +1742,7 @@ def execute_scenario(
     payload: Path,
     work: Path,
     *,
-    harness: str = "cc",
+    harness: str = "claude-code",
     condition: str = "leaf",
 ) -> dict:
     """One Promptfoo provider call owns all phases, live rounds, and evidence."""

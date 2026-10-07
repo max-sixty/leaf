@@ -62,7 +62,9 @@ def stop_blocked(record: dict) -> bool:
     )
 
 
-def run_session(arm: Path, case: str, run: Path, *, harness: str = "cc") -> None:
+def run_session(
+    arm: Path, case: str, run: Path, *, harness: str = "claude-code"
+) -> None:
     """Drive delivery timing through the same feedback loop as larger examples."""
     run.mkdir(parents=True, exist_ok=True)
     work = scratch()
@@ -251,7 +253,7 @@ def execute_scenario(
     payload: Path,
     work: Path,
     *,
-    harness: str = "cc",
+    harness: str = "claude-code",
     condition: str = "leaf",
 ) -> dict:
     run_session(payload, case, work, harness=harness)

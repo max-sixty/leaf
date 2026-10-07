@@ -548,7 +548,7 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                   <tr>
                     <td>
                       <strong>Receive feedback</strong><br />Read a feedback batch,
-                      confirm receipt when its delivery route requires it, or wait for
+                      confirm receipt when its transport requires it, or wait for
                       feedback directly.
                     </td>
                     <td><code>leaf delivery read</code><br /><code>leaf wait</code></td>
@@ -779,9 +779,9 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
               end of each turn and wakes the agent when you send a move, and Leaf's
               prompt hook puts the move into the turn that opens. In Codex, a detached
               adapter queues the move as the task's next message or, where Leaf is a
-              client of the task's Codex App Server, starts a turn with it. Every route
-              hands the agent a delivery of the same shape, which says who confirms
-              receipt.
+              client of the task's Codex App Server, starts a turn with it. Every
+              transport hands the agent a delivery of the same shape, which says who
+              confirms receipt.
             </p>
             <p id="wait-ack">
               The harness does the delivering, so Leaf records a move as received only
@@ -846,9 +846,9 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
               </tbody>
             </table>
             <p id="route-instructions">
-              One task can receive feedback through several routes. Each delivery states
-              how to confirm receipt and how to answer, so the agent follows those
-              instructions for the input it has received.
+              One task can receive feedback through several transports. Each delivery
+              states how to confirm receipt and how to answer, so the agent follows
+              those instructions for the input it has received.
             </p>
             <details id="claude-integration">
               <summary>Claude Code integration</summary>
@@ -1112,8 +1112,7 @@ python -m leaf server _serve &lt;page&gt; --handshake &lt;fd&gt;</code></pre>
                       <p>
                         HTTP gesture posts and freshness polling with
                         <code>GET /api/news</code>; a changed token triggers a state
-                        read. The browser reaches the agent through Leaf's delivery
-                        route.
+                        read. The browser reaches the agent through a Leaf delivery.
                       </p>
                     </td>
                   </tr>
@@ -1144,10 +1143,14 @@ python -m leaf server _serve &lt;page&gt; --handshake &lt;fd&gt;</code></pre>
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-codex.md"
                   >Codex queue delivery</a
-                >, and
+                >,
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-codex-app-server.md"
                   >Codex App Server</a
+                >, and
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/harness-pi.md"
+                  >Pi</a
                 >.
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/scripts/leaf/page-storage.md"

@@ -1,7 +1,7 @@
 """Run a real interactive Claude Code session with Leaf's plugin and check what it
 leaves.
 
-    uv run leaf-dev verify-cc-task [--hooks-module]
+    uv run leaf-dev verify-claude-code-task [--hooks-module]
 
 The suite stands in for Claude Code around Leaf's hooks (`hooks.json`, and
 `tests/claude_code_driver.mjs` for the hooks module); this runs Claude Code itself,
@@ -41,11 +41,11 @@ carries the next comment.
 Each step prints when the session picked its comments up and answered them,
 counted from the post, and whether the page nudged the session; a step with an
 Escape also prints whether it left the turn open, a watch running, and what the
-page's banner read. That is the reading that compares the two carriers.
+page's banner read. That is the reading that compares the two watchers.
 
 It needs tmux, and spends a few model turns on the host's Claude Code login, so CI
 does not run it. The session's screen at the end of each step, Claude Code's debug
-log and the page's log stay in a run directory under `.tmp/verify-cc/`. The session's home, page and state
+log and the page's log stay in a run directory under `.tmp/verify-claude-code/`. The session's home, page and state
 home live in a temporary directory, removed when every check passes and kept, with
 its path printed, when one fails.
 """
@@ -64,7 +64,7 @@ from pathlib import Path
 import click
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
-from leaf.hook_carrier import INLINE_DELIVERY
+from leaf.hook_transport import INLINE_DELIVERY
 from leaf.leases import wait_is_live
 from leaf.server import running_server
 from leaf.service import claim_is_active, page_claim
@@ -106,7 +106,7 @@ class ClaudeCode:
     def __init__(
         self, root: Path, run: Path, cwd: Path, argv: list[str], env: dict
     ) -> None:
-        self.pane = f"leaf-verify-cc-{os.getpid()}"
+        self.pane = f"leaf-verify-claude-code-{os.getpid()}"
         self.exited, self.kept = root / "exited", run / "screen.txt"
         self.session: str | None = None
         # The environment's values reach the pane through tmux, so no file holds
@@ -257,7 +257,7 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
             not module or INLINE_DELIVERY not in cc.shown(),
             f"{name}: a delivery was printed in the terminal",
         )
-        # The turn that answers ends with a watch running, under either carrier.
+        # The turn that answers ends with a watch running, under either watcher.
         cc.until(watched, f"{name}: no watch holds the session's pages", 60)
         details = [escaped] if escaped else []
         details += [timings(page, posted_step) for posted_step in steps]
@@ -421,14 +421,14 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
     is_flag=True,
     help="Turn the plugin's `hooks_module` option on.",
 )
-def verify_cc_task(hooks_module: bool) -> None:
+def verify_claude_code_task(hooks_module: bool) -> None:
     """Run an interactive Claude Code session with Leaf's plugin and check what it
     carries."""
-    require(shutil.which("tmux") is not None, "verify-cc-task drives tmux")
-    run = run_directory(ROOT / ".tmp" / "verify-cc")
+    require(shutil.which("tmux") is not None, "verify-claude-code-task drives tmux")
+    run = run_directory(ROOT / ".tmp" / "verify-claude-code")
     # Outside any repository, so the session loads no project instructions. Claude
     # Code records trust by the resolved path.
-    root = Path(tempfile.mkdtemp(prefix="leaf-verify-cc-")).resolve()
+    root = Path(tempfile.mkdtemp(prefix="leaf-verify-claude-code-")).resolve()
     state, work, payload = root / "state", root / "work", root / "plugin"
     work.mkdir()
     page = work / "page"
@@ -447,7 +447,7 @@ def verify_cc_task(hooks_module: bool) -> None:
         "pluginConfigs": {"leaf@inline": {"options": {"hooks_module": hooks_module}}}
     }
     argv = [
-        "claude", "--model", MODELS["cc"], "--plugin-dir", str(payload),
+        "claude", "--model", MODELS[ClaudeCodeHarness.name], "--plugin-dir", str(payload),
         "--settings", json.dumps(settings), "--strict-mcp-config",
         "--permission-mode", "default", "--add-dir", str(payload),
         "--allowedTools", "Bash Read Write Edit Glob Grep Skill",

@@ -2,7 +2,7 @@
 
 ## One envelope on every transport
 
-Every route into your context presents an immutable object of the same shape:
+Every transport into your context presents an immutable object of the same shape:
 
 ```json
 {
@@ -27,7 +27,7 @@ machine's immutable delivery store.
 
 Some harnesses deliver it inline; others deliver a pointer that `leaf delivery read <id>`
 resolves to the same object. Your harness contract names which. The envelope states
-receipt and response routes once:
+once how to confirm receipt and how to answer:
 
 - `acknowledge` says how to confirm receipt after the complete envelope is in
   context. Follow that instruction. When it is `null`, your harness confirms
@@ -123,7 +123,7 @@ delivery nor answers the move.
 
 Whatever the harness, treat a page-and-sequence pair already handled in this task as a
 retry, even if a later delivery also includes newer events; your harness contract owns
-the wait and acknowledgement route.
+how you wait and acknowledge.
 
 `leaf wait` ends one of two ways: exit 0 with the next input, or exit 2 with the
 ending named on stderr. The input is one JSON envelope, or, where the harness's hook

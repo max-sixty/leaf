@@ -111,7 +111,7 @@ following are the baseline, not proposed additions.
   sends empty user input and a structured `leaf_delivery` tool result. Desktop
   access and rendering remain unverified. Prove agent wake-up and exact
   input/reply identity while keeping automatic user-message text out of chat.
-- **#2 — Native Claude Code carrier, Leaf experiment.** Plannotator's
+- **#2 — Native Claude Code watcher, Leaf experiment.** Plannotator's
   [released module](https://github.com/backnotprop/plannotator/blob/v0.28.4/apps/hook/hooks/mod/register.ts)
   runs in the interactive session and calls `$.prompt.submit({text})`; Claude
   waits for idle and adds a plugin-origin message. Session/turn callbacks supply

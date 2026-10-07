@@ -684,7 +684,10 @@ rewritten message:
         now and `was` how it read before, and the thread shows only the new wording.
         Answer the message as it now reads. Where your earlier answer or work rested
         on what changed, say what that changes and redo the work it requires; where
-        it changes nothing you did, say so.
+        it changes nothing you did, say so. If `message` opens the thread and the
+        thread's title no longer fits what it now asks, retitle the thread with
+        `leaf thread edit <page> <message> --title "<a few words>"`, so the thread
+        panel names what the thread is about now.
     - text: >-
         When the event asks for work, say in its thread what you will do before
         any other command, including reading the source it concerns: `leaf thread
@@ -721,7 +724,10 @@ rewritten suggestion:
         now and `was` how it read before, and the thread shows only the new wording.
         Answer the message as it now reads. Where your earlier answer or work rested
         on what changed, say what that changes and redo the work it requires; where
-        it changes nothing you did, say so.
+        it changes nothing you did, say so. If `message` opens the thread and the
+        thread's title no longer fits what it now asks, retitle the thread with
+        `leaf thread edit <page> <message> --title "<a few words>"`, so the thread
+        panel names what the thread is about now.
     - when: {"required": ["suggestion"], "properties": {"suggestion": {"const": true}}}
       text: >-
         The message is a suggestion, so `text` is now the exact replacement it proposes.

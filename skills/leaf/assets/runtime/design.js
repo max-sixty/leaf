@@ -409,9 +409,10 @@ export function createDesignMode({
   // order, so the part's over its widget's) steps away from the corner by tag heights
   // until it stands clear. A tag stands above its box, or inside its corner where the
   // banner or a frame cutting the box leaves no room above. Read where the elements and
-  // the cuts stand now, so a scroll steps a tag inside only as its box crosses one.
-  let tagsInward = new Map();
-  function placeTags(scrolled = false) {
+  // the cuts stand now, on every scroll, since a sticky or fixed element's tag and the
+  // tags the page carries past it move apart; a tag is written only where its step or
+  // its side changed.
+  function placeTags() {
     const roomTop = bannerFoot();
     const holders = new Map();
     const tags = [];
@@ -430,13 +431,6 @@ export function createDesignMode({
       );
       tags.push({ entry, rect, inward: rect.top - 1 - legendTagH < room });
     }
-    if (
-      scrolled &&
-      tags.length === tagsInward.size &&
-      tags.every(({ entry, inward }) => tagsInward.get(entry) === inward)
-    )
-      return;
-    tagsInward = new Map(tags.map(({ entry, inward }) => [entry, inward]));
     const said = []; // tag boxes already placed, in viewport coordinates
     for (const { entry, rect, inward } of tags) {
       const { box, tagW } = entry;
@@ -464,7 +458,7 @@ export function createDesignMode({
     }
   }
   const legendScrolled = () => {
-    if (designModeOn && legendBoxes.size) placeTags(true);
+    if (designModeOn && legendBoxes.size) placeTags();
   };
 
   // What a design press is about: the nearest addressable element, the same answer the ⌥

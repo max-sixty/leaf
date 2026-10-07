@@ -4303,6 +4303,38 @@ OFF_FLOW_PAGE = leaf_page(
 )
 
 
+def test_legend_tags_step_apart_as_the_page_slides_under_a_sticky_bar(browser, serve):
+    """A paragraph's tag scrolls past the tag a sticky bar keeps still, and the two
+    step apart as they meet, with no legend pass between (design.js, `placeTags`):
+    a scroll that left every tag on the same side of its box once kept the steps it
+    found, though the tags it had stepped apart now stood elsewhere."""
+    page = open_page(browser, serve(OFF_FLOW_PAGE))
+    resized(page, 1280, 720)
+    _design_mode(page)
+    expect(
+        page.locator('.lf-legend-box[data-for="nav"] .lf-legend-tag')
+    ).to_be_visible()
+    overlaps = """() => {
+      const tags = [...document.querySelectorAll('.lf-legend-tag')]
+        .filter((tag) => tag.checkVisibility())
+        .map((tag) => [tag.closest('.lf-legend-box').dataset.for,
+                       tag.getBoundingClientRect()]);
+      const found = [];
+      for (const [i, [a, r]] of tags.entries())
+        for (const [b, q] of tags.slice(i + 1))
+          if (r.left < q.right - 0.5 && q.left < r.right - 0.5 &&
+              r.top < q.bottom - 0.5 && q.top < r.bottom - 0.5)
+            found.push([a, b]);
+      return found;
+    }"""
+    met = []
+    for _ in range(60):
+        page.evaluate("() => document.scrollingElement.scrollBy(0, 4)")
+        rendered(page)
+        met += page.evaluate(overlaps)
+    assert met == [], met
+
+
 def test_each_legend_box_stays_on_what_it_names_without_a_pass(browser, serve):
     """Each legend box is anchored to its own element, so it stays on a sticky bar the
     page scrolls under and on an element a transform moves, with no pass to place it

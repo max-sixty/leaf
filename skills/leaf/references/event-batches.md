@@ -85,11 +85,10 @@ only for raw-log diagnostics. `leaf page transcript
 <page>` is the human-facing Markdown export.
 
 Long-thread context may include `summary_hint`, naming a contiguous message range to
-summarize, and new input in that thread carries a `handling` clause suggesting it.
-Choose whether and when it would help the user; it adds no response obligation and
-does not resolve the thread. To write a summary, follow
-[threads](threads.md#summarize-a-long-discussion): read
-the covered originals, write the summary, and keep outcomes in the document.
+review, and new input in that thread carries a `handling` clause pointing to
+[threads, "Summarize a long discussion"](threads.md#summarize-a-long-discussion)
+for when and how to summarize. The hint adds no response obligation and does not
+resolve the thread.
 
 ## Delivery and acknowledgement
 

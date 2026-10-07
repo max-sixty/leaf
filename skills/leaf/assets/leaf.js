@@ -370,6 +370,7 @@ pageGeometry = createPageGeometry({
   visualMarkPaint,
   shiftDrawings: drawingPaint.shifted,
   queueLegend: designMode.queueLegend,
+  legendScrolled: designMode.legendScrolled,
   activeActionAnchor: () => responseSurface.fabAnchorAt(),
   refreshActionBar: () => responseSurface.refreshFab(),
 });

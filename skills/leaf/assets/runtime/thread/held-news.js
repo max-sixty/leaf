@@ -1,10 +1,13 @@
 /* News a thread surface holds back while it would move what the reader reads.
 
-   The rule: what the user sees moves only in answer to a gesture of theirs
+   The rule: what the user continuously sees moves only in answer to a gesture of theirs
    (`skills/leaf/assets/AGENTS.md`, "Layout and motion"). News is not one, so where
    drawing it would move something on screen it waits, and the first gesture that takes
    the user to it shows it, since the motion is then that gesture's. Everything here
-   follows from that.
+   follows from that. A hidden tab ends that reading. Returning reveals its held
+   news and its first refreshed reading through the shared reading-continuity owner;
+   keyboard blur alone leaves the reading protected. The ordinary message arrival
+   tint and retirement fold explain the changed layout without withholding its words.
 
    A seat draws its threads in the page's flow (inline.js: a widget's seat, or a widget's
    outlet such as a diff line's), so whatever the agent adds grows the page there: a turn
@@ -95,6 +98,7 @@ import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
 import { onStanding } from "../focus.js";
+import { readingIsContinuous } from "../reading-continuity.js";
 
 // Whether this page's ledger holds a gesture of the user's on `thread`: one of its
 // messages, a reply or a settlement naming one, a move on a widget one of them holds, an
@@ -243,6 +247,7 @@ function withheld(was, now) {
 // Whether growth after `node` would move what the user sees: the node's foot stands
 // inside every box that scrolls it. A node not drawn has no foot to grow from.
 export function growthAfterIsSeen(node) {
+  if (!readingIsContinuous()) return false;
   const { bottom, height } = node?.getBoundingClientRect() ?? {};
   if (!height) return false;
   for (const box of scrollersOf(node)) {
@@ -256,6 +261,7 @@ export function growthAfterIsSeen(node) {
 // sees: some of them stands inside every box that scrolls it. Growth wholly above the
 // screen goes into what scroll anchoring holds, and wholly below it moves nothing seen.
 export function growthInsideIsSeen(nodes) {
+  if (!readingIsContinuous()) return false;
   return nodes.some((node) => {
     const { top, bottom, height } = node.getBoundingClientRect();
     if (!height) return false;
@@ -410,7 +416,7 @@ export class HeldNews {
   // whose place a new thread's notice can stand.
   hold(reading, { row }) {
     const read = readApplication().phase === "ready";
-    if (!read) this.#forget();
+    if (!read || !readingIsContinuous()) this.#forget();
     const prior = read ? this.#shown : null;
     const keys = new Set(reading.threads.map(({ key }) => key));
     for (const key of this.#threads) if (!keys.has(key)) this.#threads.delete(key);
@@ -678,6 +684,10 @@ export class HeldArrivals {
   }
 
   #take(threads, drawn) {
+    if (!readingIsContinuous()) {
+      this.#lapse(() => true);
+      return;
+    }
     const keys = new Set(threads.map(({ thread }) => thread.key));
     this.#release(({ key }) => !keys.has(key));
     // Settling a thread or reopening it is the user's gesture in it, as a turn is. A

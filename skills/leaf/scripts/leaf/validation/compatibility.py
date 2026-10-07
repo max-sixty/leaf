@@ -164,7 +164,7 @@ def candidate_vocabulary_gaps(
                         e, candidate_page.by_id, thread.by_id, incoming
                     )
                 else:
-                    error = event_contracts.report_contract_error(
+                    error = event_contracts.declared_report_error(
                         e, candidate_page, incoming
                     )
                 if error:

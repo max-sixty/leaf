@@ -1,7 +1,7 @@
 {
   "producer": {
-    "commit": "7277a514a652",
-    "committed": "2026-10-07T08:16:24Z",
+    "commit": "4085f4a706be",
+    "committed": "2026-10-07T08:20:53Z",
     "dirty": false
   },
   "runtime_paths": [
@@ -83,6 +83,7 @@
     "icons.js",
     "image-difference.js",
     "indication.js",
+    "initial-render.js",
     "inline-contributions.js",
     "interaction-gallery-frame.js",
     "interaction-gallery.js",

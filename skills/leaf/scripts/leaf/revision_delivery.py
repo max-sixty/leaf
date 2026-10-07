@@ -310,11 +310,23 @@ _PREPAINT_MARKS = ' data-lf-prepaint data-lf-gen="1"'
 
 
 def mark_declared(
-    source: str, registry: Mapping, resources: Mapping[str, Resource]
+    source: str,
+    registry: Mapping,
+    resources: Mapping[str, Resource],
+    *,
+    initial: bool = False,
 ) -> str:
     """Paint each element's declared marks (`DECLARED_MARKS`) onto its start tag, the
     rest byte-for-byte, the size of the page media it names, and its declared
-    `x-prepaint` as its first child.
+    `x-prepaint` as its first child. With `initial`, an `x-initial` host receives
+    an inert source template and a parser invocation immediately after that template
+    closes. The complete host is then inserted and drawn in one synchronous turn;
+    nested initial hosts share the outer template and draw deepest-first.
+
+    The opening script writes only the fixed template delimiter at the parser's
+    active insertion point. With scripts disabled, or in a DOMParser source reading,
+    no template opens and the unmatched closing delimiter is ignored: the one raw
+    authored host remains readable, including code containing raw-text delimiters.
 
     A mark painted by the runtime would land a registry fetch after the document first
     draws, so a workspace would draw its panes before knowing they are panes. An image
@@ -379,9 +391,75 @@ def mark_declared(
                     prepaint[:root] + _PREPAINT_MARKS + prepaint[root:],
                 )
             )
+        if (
+            initial
+            and registry.get(element.tag, {}).get("x-initial")
+            and not any(
+                registry.get(getattr(parent, "tag", ""), {}).get("x-initial")
+                for parent in element.ancestors
+            )
+        ):
+            if location.end_tag is None:
+                raise ValueError(
+                    f"<{element.tag}> initial rendering needs a closing tag"
+                )
+            start = index(location.start_tag.start_line, location.start_tag.start_col)
+            end = index(location.end_tag.end_line, location.end_tag.end_col)
+            edits.append(
+                (
+                    start,
+                    (
+                        "<script data-lf-runtime data-lf-initial>"
+                        'document.write("<template data-lf-runtime data-lf-initial-source>");'
+                        "</script>"
+                    ),
+                )
+            )
+            edits.append(
+                (
+                    end,
+                    (
+                        "</template>"
+                        "<script data-lf-runtime data-lf-initial>"
+                        "document.documentElement.lfInitial.mount("
+                        "document.currentScript.previousElementSibling);"
+                        "document.currentScript.remove();</script>"
+                    ),
+                )
+            )
     for offset, text in sorted(edits, reverse=True):
         source = source[:offset] + text + source[offset:]
     return source
+
+
+def initial_scripts(
+    source: str, registry: Mapping, resources: Mapping[str, Resource]
+) -> str:
+    """Inline only the captured producers this document uses, before its body parses.
+
+    Bundles register synchronous package renderers with the prepaint coordinator. The
+    widget loader imports its same bundle only for unregistered later arrivals;
+    serving and export need neither a compiler nor a second implementation of the
+    widget's structure.
+    """
+    tree = turbohtml.parse(source, scripting=True)
+    used = dict.fromkeys(
+        path
+        for element in tree.find_all(True)
+        if element.closest("template") is None
+        and (path := registry.get(element.tag, {}).get("x-initial"))
+    )
+    return "".join(
+        "<script data-lf-runtime>"
+        + re.sub(
+            r"</script",
+            r"<\\/script",
+            resources[path].data.decode(),
+            flags=re.IGNORECASE,
+        )
+        + "</script>"
+        for path in used
+    )
 
 
 @dataclass(frozen=True)
@@ -629,15 +707,24 @@ def compose_document(
     prepaint (`runtime/prepaint.js`), which says before the first paint what the
     runtime will draw and whether it could not start. It reads the canonical address,
     so that comes first; it names a startup fault before the host's runtime script
-    hears of it, so it comes before that; and it stands before the theme, since a
+    hears of it, so it comes before that. Used `x-initial` bundles follow it and
+    register the package producers that the body's parser invocations run; and it
+    stands before the theme, since a
     script after a stylesheet still loading waits for it. The root carries the host's attributes and the page's
     declared review (`data-lf-review`), which the render-blocking theme reads to
     reserve the banner a sign-off page will draw before the runtime draws it. The
     import map precedes every script, since a browser reads no map once a module has
     begun to load.
     """
+    initial = (
+        initial_scripts(source, registry, resources)
+        if delivery.runtime is not None
+        else ""
+    )
     source = rebase_document(
-        mark_declared(source, registry, resources),
+        mark_declared(
+            source, registry, resources, initial=delivery.runtime is not None
+        ),
         delivery.address,
         inline_stylesheet=delivery.inline_stylesheet,
     )
@@ -678,7 +765,7 @@ def compose_document(
         )
         + (
             "<script data-lf-runtime>"
-            f"{resources['/runtime/prepaint.js'].data.decode()}</script>"
+            f"{resources['/runtime/prepaint.js'].data.decode()}</script>" + initial
             if delivery.runtime is not None
             else ""
         )

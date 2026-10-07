@@ -295,11 +295,11 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     assert restamped.digest != revendored.digest
     assert restamped.executable == revendored.executable
 
-    # Vendoring writes that epoch into `runtime/layer-client.js`, which every
+    # Vendoring writes that epoch into `runtime/layer-generation.js`, which every
     # document evaluates, so a real re-vendor reaches the digest through the
     # module rather than through the stamp beside it.
     files_model.replace_files(
-        [(page_dir / "runtime" / "layer-client.js", b"// re-vendored epoch", False)]
+        [(page_dir / "runtime" / "layer-generation.js", b"// re-vendored epoch", False)]
     )
     reissued = activate()
     assert reissued.executable != restamped.executable

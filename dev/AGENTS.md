@@ -102,6 +102,13 @@ reaches a module by importing it from this package, never through `sys.path`,
 
 ## Website and demo
 
+`leaf-dev distribution --output NEW-DIRECTORY` builds the prepared Git payload.
+`publish-distribution DIRECTORY` advances the `prepared` branch with a verified
+payload from current main, retaining source ancestry and using a normal push.
+The `prepared-install` workflow owns publication. Never merge that generated
+branch into a development branch. Source checkouts remain directly runnable;
+consumer installs and custom packages require no browser compiler.
+
 CI, `worker/`'s npm scripts and `.config/wt.toml` run these. The images they
 write live in `max-sixty/leaf-assets`, so outside `.tmp/` they write only the pin
 in `leaf-assets.json` and the README's image URLs that name it.

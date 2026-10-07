@@ -29,25 +29,27 @@ You need [`uv`](https://docs.astral.sh/uv/),
 [`jq`](https://jqlang.github.io/jq/download/) 1.6 or newer on `PATH`, and a
 browser that can reach the machine the agent runs on. No Leaf account or
 configuration is required.
+Leaf ships a prepared browser runtime. Users and package authors never need to
+build Leaf or run npm; custom widgets are ordinary browser JavaScript.
 
 Claude Code:
 
 ```
-/plugin marketplace add max-sixty/leaf
+/plugin marketplace add max-sixty/leaf#prepared
 /plugin install leaf@leaf
 ```
 
 Codex:
 
 ```
-codex plugin marketplace add max-sixty/leaf
+codex plugin marketplace add max-sixty/leaf --ref prepared
 codex plugin add leaf@leaf
 ```
 
 Pi (a highly experimental trial, which the rest of these docs don't cover yet):
 
 ```
-pi install git:github.com/max-sixty/leaf
+pi install git:github.com/max-sixty/leaf@prepared
 ```
 
 Then ask: “Use Leaf to write up the options for this change.” The explicit skill is

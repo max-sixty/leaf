@@ -56,6 +56,7 @@ PAYLOAD = (
     "hooks",
     "skills",
     "package.json",
+    "leaf-distribution.json",
     "pyproject.toml",
     "uv.lock",
     "dev/pyproject.toml",

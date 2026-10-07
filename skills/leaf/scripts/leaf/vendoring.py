@@ -343,8 +343,8 @@ def _stamp_layer(
     }
     top_files = composition.top_files
     directory_files = composition.directory_files
-    client = directory_files["runtime"]["layer-client.js"]
-    directory_files["runtime"]["layer-client.js"] = client.replace(
+    client = directory_files["runtime"]["layer-generation.js"]
+    directory_files["runtime"]["layer-generation.js"] = client.replace(
         LAYER_PLACEHOLDER, json.dumps(generation).encode()
     )
     # The registry makes the theme and modules live, so it commits last.

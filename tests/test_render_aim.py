@@ -59,6 +59,9 @@ from render_cases_widgets import (
     PART_DIAGRAM_V2,
     PICTURE_PAGE,
     PREFIXED_VISUAL_PAGE,
+    SHADOW_SCROLLER_LAYER,
+    SHADOW_SCROLLER_PAGE,
+    SHADOW_SCROLLER_WIDGETS,
     SHADOW_VISUAL_LAYER,
     SHADOW_VISUAL_PAGE,
     SHADOW_VISUAL_WIDGETS,
@@ -3170,6 +3173,43 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     shown = page.evaluate(SHOWN_PAINT, ".lf-aim")
     assert shown["left"] >= host_box["x"]
     assert shown["right"] <= host_box["x"] + host_box["width"]
+    page.keyboard.up("Alt")
+
+
+def test_an_aim_follows_a_scroll_inside_a_widgets_shadow_stage(browser, serve):
+    """A scroll inside a widget's shadow stage reaches the page's scroll door, though
+    no scroll event leaves a shadow tree: the aim over a part in a box that began to
+    scroll after the aim stood, anchored through the widget, stands over the part
+    again once that box scrolls."""
+    url = serve(
+        SHADOW_SCROLLER_PAGE,
+        layer_registry=SHADOW_SCROLLER_LAYER,
+        layer_widgets=SHADOW_SCROLLER_WIDGETS,
+    )
+    page = open_page(browser, url)
+    host = page.locator("#shadow-scroller")
+    part = host.locator(".part")
+    part.hover()
+    page.keyboard.down("Alt")
+    expect(page.locator(".lf-aim")).to_be_visible()
+    offset = """() => {
+      const part = document.querySelector('#shadow-scroller').shadowRoot
+        .querySelector('.part').getBoundingClientRect();
+      const aim = document.querySelector('.lf-aim').getBoundingClientRect();
+      return [aim.left - part.left, aim.top - part.top];
+    }"""
+    at = page.evaluate(offset)
+    assert at == pytest.approx([0, 0], abs=1), "the aim stood off its part"
+    host.evaluate(
+        "host => { host.shadowRoot.querySelector('.content').style.height = '600px'; }"
+    )
+    rendered(page)
+    host.evaluate("host => { host.shadowRoot.querySelector('.port').scrollTop = 20; }")
+    page.wait_for_function(
+        f"([x, y]) => {{ const [dx, dy] = ({offset})(); "
+        "return Math.abs(dx - x) < 1 && Math.abs(dy - y) < 1; }",
+        arg=at,
+    )
     page.keyboard.up("Alt")
 
 

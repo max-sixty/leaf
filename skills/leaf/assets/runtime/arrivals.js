@@ -21,9 +21,10 @@
 
    Standing means in `document.body`, or in a declared shadow stage whose host is
    connected. No observer crosses a shadow boundary on its own, so shadow-stage.js, the
-   one door a stage is built through, hands each one it fills to `watchArrivalsIn`. This
-   module is the stages' one registry (`liveStages`), held weakly: a stage outlives its
-   widget only as garbage. A stage built while its host was detached arrives with the
+   one door a stage is built through, hands each one it fills to `watchArrivalsIn`. No
+   scroll crosses one either, so `watchScrolls` hears the document's and every stage's.
+   This module is the stages' one registry (`liveStages`), held weakly: a stage outlives
+   its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
 import { under } from "./shadow.js";
 
@@ -165,4 +166,25 @@ export function watchArrivalsIn(stage) {
   stages.add(stage);
   stageRefs.add(new WeakRef(stage));
   for (const watch of watches) enroll(watch, stage);
+  stage.addEventListener("scroll", heardIn(stage), SCROLL);
+}
+
+// Every scroll in the page, a stage's included: `scroll` is not composed, so a scroller
+// inside a shadow stage reaches no listener outside it. Each stage hears its own
+// scrollers for every listener, through one listener of its own that holds nothing but
+// the stage, and only its own, since one slotted into it from the document reaches the
+// document too.
+const scrollListeners = new Set();
+const SCROLL = { capture: true, passive: true };
+const heardIn = (stage) => (event) => {
+  if (event.target.getRootNode() !== stage) return;
+  for (const listener of scrollListeners) listener(event);
+};
+export function watchScrolls(listener) {
+  scrollListeners.add(listener);
+  document.addEventListener("scroll", listener, SCROLL);
+  return () => {
+    scrollListeners.delete(listener);
+    document.removeEventListener("scroll", listener, SCROLL);
+  };
 }

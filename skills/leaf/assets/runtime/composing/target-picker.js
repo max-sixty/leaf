@@ -19,6 +19,7 @@ import {
 import { bannerFoot, shownParts } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
+import { watchScrolls } from "../arrivals.js";
 import { handBack, releaseFocus } from "../focus.js";
 import {
   createHintSession,
@@ -733,12 +734,11 @@ export function createTargetPicker({
     // The open search's mark is page-attached paint in a layer no ancestor scrolls, so it
     // follows the page only while something asks for a frame. The hint session's own door
     // answers for the map, and a slash pressed from the page arms no map — so search asks
-    // for its own. Capture, because a panel's list and a board's own overflow scroll in
-    // boxes of their own and a scroll event does not bubble.
+    // for its own, from every box that scrolls (arrivals.js, `watchScrolls`).
     const followMatch = () => {
       if (pageSearchOpen) repaint();
     };
-    addEventListener("scroll", followMatch, { capture: true, passive: true });
+    watchScrolls(followMatch);
     addEventListener("resize", followMatch);
     document.addEventListener(LAYOUT, refreshMatchWalk);
   }

@@ -5176,16 +5176,18 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
         page.locator(f'.lf-thread[data-id="{asked}"] .lf-thread-status')
     ).to_have_text("Sending")
     expect(page.locator('[data-filter-value="user"]')).to_have_text("You (0)")
+    # The answer takes the thread off the user, and the user goes with it out of
+    # "Waiting on you" (thread-card.js, `#speak`).
     expect(page.locator('[data-filter-value="user"]')).to_have_attribute(
-        "aria-pressed", "true"
+        "aria-pressed", "false"
     )
-    expect(page.locator(".lf-thread:not([hidden])")).to_have_count(1)
+    expect(page.locator(f'.lf-thread[data-id="{asked}"]')).to_be_visible()
     expect(reply).to_have_js_property("value", "")
     held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect(page.locator(".lf-needs")).to_have_text("You (0)")
-    expect(page.locator(".lf-thread:not([hidden])")).to_have_count(0)
+    expect(page.locator(f'.lf-thread[data-id="{asked}"]')).to_be_visible()
 
 
 def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
@@ -8190,19 +8192,13 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     expect(page.locator(".lf-queue-row[data-lf-kind='ask']")).to_have_count(2)
 
 
-def test_a_narrowing_that_hides_the_card_the_user_stands_in_lands_them_on_the_list(
+def test_a_reply_that_takes_its_card_out_of_the_view_takes_the_user_with_it(
     browser, serve
 ):
-    """A hidden card is a removal to the user standing in it.
-
-    The user's own reply answers the question, so "Waiting on you" no longer shows the
-    card, and their turn takes it as it is sent (news would leave it in place). The
-    narrowing keeps the card, hidden, and the browser drops a focus inside a hidden
-    element to body only at its next rendering step, after the reconcile has run. Read
-    as still in the list, the user was left to that drop, and the next Space went to
-    the page behind the panel. The disarm test in `test_render_reactions.py` covers a
-    reaction list moving the focus itself; this is the plain case, with nothing in the
-    card but the reply box the user is typing in."""
+    """The user's own reply answers the question, so "Waiting on you" no longer holds
+    the thread. Their turn widens the view to show it and leaves them standing on it,
+    as a sent reply does, rather than dropping them on the list once the log answers
+    (the user's decision, 2026-10-07, #46 on the rewrite survey)."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     theirs = panel_comment(d, "Is forty enough?", {"section": "how-cap"}, "agent")
@@ -8219,8 +8215,9 @@ def test_a_narrowing_that_hides_the_card_the_user_stands_in_lands_them_on_the_li
     expect(box).to_be_focused()
     with sending(page, "the reply"):
         page.keyboard.press("ControlOrMeta+Enter")
-    expect(card).to_be_hidden()
-    expect(page.locator(".lf-threads")).to_be_focused()
+    expect(page.locator(".lf-needs")).to_have_attribute("aria-pressed", "false")
+    expect(card).to_be_visible()
+    expect(card.locator(":scope > .lf-thread-summary")).to_be_focused()
 
 
 def test_a_growing_panel_reply_keeps_the_previous_turn_visible(browser, serve):
@@ -10533,10 +10530,11 @@ def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
     expect(earlier).to_have_js_property("value", "Fit the north bracket.")
 
 
-def _rewrite_surface(browser, serve, surface, size=(1400, 900)):
+def _rewrite_surface(browser, serve, surface, size=(1400, 900), resolved=False):
     """A thread holding the user's message and the agent's answer, drawn on `surface`:
-    the Threads panel, the seat in the page's flow, or the margin card. Returns the
-    page, the thread, and the message as that surface draws it."""
+    the Threads panel, the seat in the page's flow, or the margin card; `resolved`, in
+    the panel, under its Resolved filter. Returns the page, the thread, and the message
+    as that surface draws it."""
     url = serve(PANEL_PAGE if surface == "card" else THREAD_DIFF_PAGE)
     anchor = "how-store" if surface == "card" else "cd-q"
     mine = append_carried_log_record(
@@ -10561,10 +10559,17 @@ def _rewrite_surface(browser, serve, surface, size=(1400, 900)):
             "text": "Fitted.",
         },
     )
+    if resolved:
+        append_carried_log_record(
+            serve.page_dir, {"kind": "resolve", "author": "user", "parent": mine["id"]}
+        )
     page = open_page(browser, url)
     resized(page, *size)
     if surface == "panel":
         page.locator(".lf-threads-toggle").click()
+        if resolved:
+            page.locator(".lf-thread-filter-toggle").click()
+            page.locator('[data-filter-value="resolved"]').click()
         thread = page.locator(f'.lf-thread:has(.lf-msg[data-mid="{mine["id"]}"])')
         message = thread.locator(f'.lf-msg[data-mid="{mine["id"]}"]')
     elif surface == "seat":
@@ -11234,3 +11239,115 @@ def test_saving_one_of_two_open_rewrites_leaves_no_gap(browser, serve):
     expect(earlier.locator(".lf-msg-editor leaf-text")).to_have_js_property(
         "value", "Fit the north bracket. And the east."
     )
+
+
+@pytest.mark.watch_shifts
+def test_a_rewrite_saved_under_the_resolved_filter_goes_with_its_thread(browser, serve):
+    """Saving a rewrite reopens its thread, which took the card out of the Resolved
+    filter it was written under and dropped the user's focus on the list. The save
+    carries them into the open thread, landing in its reply box, with nothing moving
+    after the key (#46, the user's decision, 2026-10-07)."""
+    page, thread, message = _rewrite_surface(browser, serve, "panel", resolved=True)
+    resolved_filter = page.locator('[data-filter-value="resolved"]')
+    reply = thread.locator(":scope > .lf-thread-reply leaf-text")
+    held = []
+    page.route(
+        "**/api/event",
+        lambda route: (
+            held.append(route) if route.request.method == "POST" else route.continue_()
+        ),
+    )
+    message.locator(".lf-msg-text").dblclick()
+    page.keyboard.press("End")
+    page.keyboard.type(" Now.")
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the rewrite")
+    expect(reply).to_be_focused()
+    expect(resolved_filter).to_have_attribute("aria-pressed", "false")
+    held.pop().continue_()
+    round_trip(page)
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket. Now.")
+    expect(reply).to_be_focused()
+    page.unroute_all(behavior="wait")
+
+
+# TODO(2026-10-07): watch shifts here once a refused landing no longer redraws the
+# filter group after the input window (the escape-focus-landings branch fixes it).
+def test_a_refused_rewrite_puts_the_resolved_filter_back(browser, serve):
+    """A refused rewrite saved under the Resolved filter puts that filter and the user
+    back on the thread, and its words wait on the message."""
+    page, thread, message = _rewrite_surface(browser, serve, "panel", resolved=True)
+    resolved_filter = page.locator('[data-filter-value="resolved"]')
+    held = []
+    page.route(
+        "**/api/event",
+        lambda route: (
+            held.append(route) if route.request.method == "POST" else route.continue_()
+        ),
+    )
+    message.locator(".lf-msg-text").dblclick()
+    page.keyboard.press("End")
+    page.keyboard.type(" Now.")
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the refused rewrite")
+    expect(resolved_filter).to_have_attribute("aria-pressed", "false")
+    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+    round_trip(page)
+    expect(resolved_filter).to_have_attribute("aria-pressed", "true")
+    expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
+    expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
+    page.unroute_all(behavior="wait")
+
+
+def test_a_refusal_leaves_the_view_on_a_thread_the_user_spoke_in_since(browser, serve):
+    """A refused rewrite puts back the view it left only where that view shows the
+    thread again. Once the user has replied in the reopened thread, their reply keeps
+    it open, so the Resolved view would hide the thread they are writing in."""
+    page, thread, message = _rewrite_surface(browser, serve, "panel", resolved=True)
+    resolved_filter = page.locator('[data-filter-value="resolved"]')
+    reply = thread.locator(":scope > .lf-thread-reply leaf-text")
+    held = []
+    posts = []
+
+    def hold_first(route):
+        if route.request.method != "POST":
+            return route.continue_()
+        posts.append(route)
+        if len(posts) == 1:
+            return held.append(route)
+        return route.continue_()
+
+    page.route("**/api/event", hold_first)
+    message.locator(".lf-msg-text").dblclick()
+    page.keyboard.press("End")
+    page.keyboard.type(" Now.")
+    page.keyboard.press("Enter")
+    holding(page, held, 1, "the rewrite")
+    expect(reply).to_be_focused()
+    write(reply, "And the south one.")
+    page.keyboard.press("ControlOrMeta+Enter")
+    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+    round_trip(page)
+    expect(resolved_filter).to_have_attribute("aria-pressed", "false")
+    expect(thread).to_be_visible()
+    page.unroute_all(behavior="wait")
+
+
+def test_a_reopen_in_a_view_that_still_holds_its_thread_keeps_that_view(browser, serve):
+    """Reopening a thread the current view goes on showing, as under All with a search
+    its words match, leaves the view as the user set it: only a view that leaves the
+    thread out is changed to one that holds it."""
+    page, thread, _ = _rewrite_surface(browser, serve, "panel", resolved=True)
+    page.locator('[data-filter-value="resolved"]').click()
+    search = page.get_by_role("searchbox", name="Find in threads")
+    search.fill("north bracket")
+    expect(thread).to_be_visible()
+    focus_panel_thread(thread)
+    with sending(page, "the reopen"):
+        page.keyboard.press("r")
+    round_trip(page)
+    expect(search).to_have_value("north bracket")
+    expect(page.locator('[data-filter-value="open"]')).to_have_attribute(
+        "aria-pressed", "false"
+    )
+    expect(thread.locator(":scope > .lf-thread-reply leaf-text")).to_be_focused()

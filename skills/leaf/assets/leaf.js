@@ -90,6 +90,7 @@ import { createPageComment } from "./runtime/thread/page-comment.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
+import { pageOutline, threadSection } from "./runtime/thread/placement.js";
 import { createThreadPanelElements } from "./runtime/thread/panel-elements.js";
 import { createPageMapDialog } from "./runtime/page-map-dialog.js";
 import { createAskView } from "./runtime/asks/view.js";
@@ -230,6 +231,7 @@ const narrowing = createThreadNarrowing({
   view: narrowingView,
   listRoot: threadsBox,
   readThreads: threadList,
+  placeOf: (thread) => threadSection(thread, pageOutline(), anchorPlacement.placedAt),
   ready: () => runtime.statePhase === "ready",
   repaint: () => app.presentThread(),
 });
@@ -387,6 +389,7 @@ landing = createThreadLanding({
   threadsBox,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   revealThread: narrowing.revealThread,
+  excludesThread: narrowing.excludesThread,
   cardTarget: (thread) => app?.overlay?.cardTarget(thread),
 });
 declareThreadKeys(landing.landIn, narrowing);
@@ -514,6 +517,7 @@ app.registerThreadPanel({
       retainPanelLanding: (source) =>
         retainPanelLanding(source, panelIsOpen, threadsBox),
       retainNarrowing: narrowing.retainNarrowing,
+      excludesThread: narrowing.excludesThread,
     },
   },
 });

@@ -39,7 +39,13 @@ import {
   dismissReply,
   threadHoldsDraft,
 } from "./replies.js";
-import { settleThread, foldOut, finishFold, isFolding } from "./folding.js";
+import {
+  settleThread,
+  landGesture,
+  foldOut,
+  finishFold,
+  isFolding,
+} from "./folding.js";
 import { iconTemplate } from "../icons.js";
 import { SAY_BOX } from "./selectors.js";
 import { focusThread, threadFocusStop } from "./focus.js";
@@ -327,7 +333,11 @@ export class ThreadView {
       edit: {
         paint: (message) => this.repaint({ writing: message }),
         send: (id, text, options) =>
-          commands.reply.actions.edit(this.#model.key, id, text, options),
+          this.#speak(
+            () => commands.reply.actions.edit(this.#model.key, id, text, options),
+            options.attempt,
+            "reply",
+          ),
         // The rung above a rewrite is the thread's reply box, where ↑ came from, while
         // it is in view; a thread showing none, as a resolved one or a margin card not
         // replying, or one whose box is off screen, hands the user on as a sent reply
@@ -1205,8 +1215,18 @@ export class ThreadView {
         if (this.#model.resolved) this.#commands.reply.changed();
       });
     };
+    const { actions } = this.#commands.reply;
     const lifetime = wireReply(model.key, row, input, send, {
       ...this.#commands.reply,
+      actions: {
+        ...actions,
+        reply: (key, text, options) =>
+          this.#speak(
+            () => actions.reply(key, text, options),
+            options.attempt,
+            "thread",
+          ),
+      },
       onChange: replyChanged,
       editLast: {
         available: () => Boolean(this.#lastEditable()),
@@ -1252,11 +1272,46 @@ export class ThreadView {
         },
       };
     }
-    const narrowing = travel.retainNarrowing();
+    return this.#goWithThread({ focus: "reply", always: true });
+  }
+
+  // A turn of the user's own in a panel thread: `post` sends it and answers the send.
+  // Where the turn takes the thread out of the view the user wrote it in, as a reply
+  // under "Waiting on you" or a rewrite under Resolved does, the view widens to show
+  // it and the user goes with it, landing as `focus` says, and back if the log refuses
+  // it; a refusal after they spoke in the thread again leaves the view showing it.
+  #speak(post, attempt, focus) {
+    const landing =
+      this.#model.surface === "panel"
+        ? this.#goWithThread({ focus, always: false })
+        : null;
+    const answer = post();
+    if (landing && answer)
+      void landGesture({
+        landing,
+        answer,
+        standing: () =>
+          this.#commands.settlement
+            .pendingEntries()
+            .some(({ event }) => event.attempt === attempt),
+      }).catch(() => {});
+    return answer;
+  }
+
+  // Carrying the user with the thread into the view that holds it as it now stands:
+  // always, for a Reopen, or, for another turn, only where the view leaves it out.
+  #goWithThread({ focus, always }) {
+    const { travel } = this.#commands;
+    const mayLand = travel.retainPanelLanding(this.node);
+    const shownCard = () =>
+      !this.node.hidden && this.node.isConnected ? this.node : null;
+    let mayRestore = () => false;
+    const narrowing = travel.retainNarrowing(this.#model.id);
     return {
       optimistic: async () => {
         if (!mayLand()) return false;
-        const arriving = travel.showThread(this.#model.id);
+        if (!always && !travel.excludesThread(this.#model.id)) return false;
+        const arriving = travel.showThread(this.#model.id, { focus });
         narrowing.replaced();
         if (!(await arriving)) return false;
         const destination = shownCard();

@@ -430,7 +430,14 @@ const listNode = (id, threadsBox, preferMessage = false) => {
 // Direct navigation reveals what was requested, including a message's interactive
 // controls or a resolved thread. A thread arrives ready for a reply; a message keeps
 // focus at its own words so Tab reaches its controls.
-async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArrive) {
+async function showThreadNow(
+  id,
+  focus,
+  flash,
+  { revealThread, excludesThread },
+  threadsBox,
+  mayArrive,
+) {
   // A native continuation owns its presented row even after Tab moves standing.
   // The original gesture still gates focus, scrolling, and any later reveal action.
   const mayPresent = () => (focus === false ? mayArrive.available() : mayArrive());
@@ -439,7 +446,9 @@ async function showThreadNow(id, focus, flash, revealThread, threadsBox, mayArri
   const revealDestination = bindQueuedWork(() => {
     const node = listNode(id, threadsBox, focus === "message");
     const going = node?.closest(".lf-going");
-    if (node && !going) return { node };
+    // A card the view only keeps, for words in flight or news, is drawn but not in the
+    // view, so arriving at it chooses the view that holds it as one hidden would.
+    if (node && !going && !excludesThread(id)) return { node };
     if (!mayArrive()) return null;
     if (going) finishFold(going);
     const ready = revealThread(threadNames(allThreads()).get(id)?.id ?? id);
@@ -547,6 +556,7 @@ export function accompanyThread(ids, threadsBox) {
 export function createThreadLanding({
   setPanel,
   revealThread,
+  excludesThread,
   threadsBox,
   cardTarget,
 }) {
@@ -611,7 +621,14 @@ export function createThreadLanding({
       !threadsBox.querySelector(`.lf-msg[data-mid="${CSS.escape(id)}"]`)
     )
       showHeld(id);
-    const ready = showThreadNow(id, focus, flash, revealThread, threadsBox, intent);
+    const ready = showThreadNow(
+      id,
+      focus,
+      flash,
+      { revealThread, excludesThread },
+      threadsBox,
+      intent,
+    );
     // Pointer and keyboard routes deliberately discard this ticket. The thread
     // coordinator reports its one failure; the landing result keeps that rejection out
     // of both discarded event-handler promises and callers that continue a delivery.

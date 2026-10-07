@@ -114,7 +114,8 @@ class ThreadListView extends RetainedFace {
   // the render that first does, and its card carries the answer while it stays. The
   // user's own gesture on the thread (`gesturedOn`) takes the card in the turn it is
   // drawn, or, while its reply holds words, once the words go ("draft"), so settlement
-  // never puts a draft away; its thread owner folds a settlement out. Anything else is
+  // never puts a draft away; its thread owner folds a settlement out, and widens the
+  // view to hold a thread the user's own turn took out of it. Anything else is
   // news ("news"), and its card stays, holding the news (held-news.js) or drawn as the
   // news left it in the shape it stood in, while its going would move something the
   // user sees: while any of it shows, since every card after it would rise, and, as

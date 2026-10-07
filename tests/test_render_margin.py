@@ -56,9 +56,12 @@ from render_harness import (
     BOARD_PAGE,
     EXAMPLES,
     FEATURE_GALLERY,
+    FOLLOWER_MARK,
     RELEASE_FOCUS,
+    SUBJECT_MARK,
     _traffic,
     _until,
+    assert_follows_in_every_frame,
     comment_note,
     compare_with,
     consume_browser_errors,
@@ -7962,7 +7965,7 @@ def test_an_agent_reply_into_an_open_card_cues_only_its_own_words(browser, serve
     rendered(page)
     cued = """preview => [...preview.querySelectorAll('.lf-msg')].filter(message =>
       message.getAnimations().some(animation =>
-        animation.effect.getKeyframes().some(frame => frame.backgroundColor)))
+        animation.effect.getKeyframes().some(frame => frame['--lf-msg-arrival'])))
       .map(message => message.textContent.includes('arriving') ? 'reply' : 'root')"""
     assert preview.evaluate(cued) == []
     # Pause the cue at its first frame, before driver latency can let it finish.
@@ -7974,7 +7977,7 @@ def test_an_agent_reply_into_an_open_card_cues_only_its_own_words(browser, serve
               node.textContent.includes('arriving'));
             if (!message) return;
             const cue = message.getAnimations().find(animation =>
-              animation.effect.getKeyframes().some(frame => frame.backgroundColor));
+              animation.effect.getKeyframes().some(frame => frame['--lf-msg-arrival']));
             if (cue) { cue.pause(); cue.currentTime = 0; }
             window.__arrival = Boolean(cue);
             observer.disconnect();
@@ -9129,8 +9132,8 @@ def test_a_card_an_outer_panes_edge_holds_stands_in_that_panes_plane(browser, se
 
 def test_the_paint_over_a_target_in_panes_rides_each_panes_scroll(browser, serve):
     """The trace and the mark drawn over an element inside nested scrolling panes stand
-    in frames cut to each pane's band, each moved by the scroll of the pane holding it
-    (target-paint-geometry.js, `paintStand`). A scroll of either pane writes nothing to
+    in frames cut to each pane's band, each carried by the scrolls around the pane holding
+    it (target-paint-geometry.js, `paintStand`). A scroll of either pane writes nothing to
     them and leaves them over the element. Drawn in the document's plane from the
     element's box as the panes cut it, they were rewritten on every scroll step, a frame
     behind the words."""
@@ -9974,6 +9977,54 @@ def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, ser
     expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
     page.locator("#pin-pane > div").evaluate("body => { body.scrollTop = 0; }")
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+
+
+def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
+    """Every frame Chrome draws while a pane scrolls shows the pin level with its
+    target, since the browser carries both through the same scroll."""
+    marks = (
+        f"<style>#pane-top {{ background:{SUBJECT_MARK}; }}"
+        f' [data-lf-margin-for="pane-top"] {{ outline:6px solid {FOLLOWER_MARK}'
+        " !important; }</style></head>"
+    )
+    page = open_page(
+        browser,
+        serve(
+            PANE_PIN_PAGE.replace("</head>", marks), events=[_comment_on("pane-top")]
+        ),
+    )
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    margins_laid_out(page)
+    target = page.locator("#pane-top").bounding_box()
+    page.mouse.move(target["x"] + 40, target["y"] + 5)
+    assert_follows_in_every_frame(page, "#pin-pane > div")
+
+
+@pytest.mark.parametrize(
+    "wrapper", ["", "overflow: hidden; border-radius: 8px", "overflow-x: auto"]
+)
+def test_a_pin_in_a_pane_rides_an_anchored_carrier_through_boxes_that_scroll_nothing(
+    browser, serve, wrapper
+):
+    """A pin whose target stands in a pane stands in a carrier anchored to what the
+    pane's scroll carries, rather than a scroll-driven layer, which can paint a frame
+    off its scroll. A box between the target and the pane that clips but scrolls
+    nothing, as a rounded wrapper or a table wrapper that fits, leaves it there."""
+    source = PANE_PIN_PAGE.replace(
+        '<p id="pane-top">The first finding, commented on.</p>',
+        f'<div style="{wrapper}"><p id="pane-top">The first finding, commented on.</p>'
+        "</div>",
+    )
+    page = open_page(browser, serve(source, events=[_comment_on("pane-top")]))
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="pane-top"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    assert row.evaluate(
+        "row => row.parentElement.classList.contains('lf-margin-carrier')"
+    ), wrapper
 
 
 @pytest.mark.parametrize("change", ["size", "layout"])

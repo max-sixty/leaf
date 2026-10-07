@@ -12,6 +12,7 @@ import {
   watchOwner,
   keepsText,
   setRenderedChildren,
+  setChildren,
 } from "/runtime/widget-api.js";
 
 customElements.define(
@@ -37,13 +38,9 @@ customElements.define(
           ? await syntax(source, language)
           : [{ text: source, style: {} }];
         if (rendering !== this.rendering || !this.isConnected) return;
-        projectData(
-          this,
-          [{ snapshot, tokens }],
-          () => "document",
-          (record, prior) => sourceNode(this, record, prior),
-          { snapshot },
-        );
+        this.figure = sourceNode(this, { snapshot, tokens }, this.figure);
+        setChildren(this, [this.figure]);
+        projectData(this, [{ key: "document", node: this.figure }], { snapshot });
         this.classList.toggle("lf-rendered", true);
       } catch (error) {
         if (rendering !== this.rendering || !this.isConnected) return;

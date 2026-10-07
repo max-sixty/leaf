@@ -4713,6 +4713,30 @@ def test_a_title_written_after_the_reply_is_still_timed():
     assert journey.recorded_steps(events, comment, published)["titled"] == 2.25
     assert journey.recorded_steps(answered["events"], comment, published) == {
         "titled": None,
+        "progress": None,
+        "published": 12.0,
+        "replied": 12.5,
+    }
+
+
+def test_a_progress_update_is_timed_apart_from_the_answer():
+    """An agent says what it will do in the thread before the work, as an ephemeral
+    update; the journey times that update as `progress` and keeps waiting for the
+    reply that answers."""
+    comment, _title, reply = TURN_LOG
+    progress = {
+        "kind": "reply",
+        "parent": comment["id"],
+        "text": "Recording the release on the board.",
+        "ephemeral": True,
+        "ts": "2026-10-04T12:00:03.000-07:00",
+    }
+    assert journey.deployment_answer([progress]) is None
+    assert journey.deployment_answer([progress, reply]) is reply
+    published = {"activated_at": "2026-10-04T19:00:12+00:00"}
+    assert journey.recorded_steps([comment, progress, reply], comment, published) == {
+        "titled": None,
+        "progress": 3.0,
         "published": 12.0,
         "replied": 12.5,
     }
@@ -5273,6 +5297,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "asks": 1,
             "sinceAdmissionMs": {
                 "titled": 2250.0,
+                "progress": None,
                 "published": 12000.0,
                 "replied": 12500.0,
             },

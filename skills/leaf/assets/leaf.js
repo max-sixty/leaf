@@ -412,7 +412,6 @@ const version = createVersionController({
   midComposition: () => app.midComposition(),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
-  forgetAuthoredOwners: (...args) => app.forgetAuthoredOwners(...args),
   retireProjectionCoverage: () => app.retireProjectionCoverage(),
   syncLayout: () => layout.syncLayout(),
   captureRetainedStanding: () => app?.overlay?.captureStanding() ?? null,

@@ -154,8 +154,12 @@ const fileDatum = (entry, origin = null) => ({
   node: fileNode(entry),
   ...(origin ? { origin } : {}),
 });
-const datumKey = (record) => (record.file ? fileKey(record) : lineKey(record));
-const datumLabel = (record) => (record.file ? fileLabel(record) : lineLabel(record));
+const projectionDatum = (record) => ({
+  node: record.node,
+  key: record.file ? fileKey(record) : lineKey(record),
+  label: record.file ? fileLabel(record) : lineLabel(record),
+  ...(record.origin ? { origin: record.origin } : {}),
+});
 
 function renderedLines(file, rendered) {
   const records = sourceLines(file);
@@ -834,13 +838,7 @@ customElements.define(
           this.manifestBody = null;
           this.replaceChildren();
           shadowStage(this, []);
-          projectData(
-            this,
-            [],
-            () => "",
-            () => null,
-            { nested: true, snapshot },
-          );
+          projectData(this, [], { snapshot });
           this.classList.toggle("lf-rendered", false);
           return;
         }
@@ -921,10 +919,10 @@ customElements.define(
           if (bound)
             projectData(
               this,
-              entries.flatMap((entry) => [fileDatum(entry), ...entry.lines]),
-              datumKey,
-              ({ node }) => node,
-              { nested: true, labelOf: datumLabel, snapshot },
+              entries
+                .flatMap((entry) => [fileDatum(entry), ...entry.lines])
+                .map(projectionDatum),
+              { snapshot },
             );
           this.classList.toggle("lf-rendered", true);
           this.filterFiles(this.diffTools.search.value);
@@ -942,14 +940,7 @@ customElements.define(
         this.classList.toggle("lf-rendered", false);
         failSoft(this, err, source);
         if (this.shadowRoot) shadowStage(this, [...this.childNodes]);
-        if (bound)
-          projectData(
-            this,
-            [],
-            () => "",
-            () => null,
-            { nested: true, snapshot },
-          );
+        if (bound) projectData(this, [], { snapshot });
       }
     }
 
@@ -1135,27 +1126,22 @@ customElements.define(
     projectManifest() {
       projectData(
         this,
-        (this.manifestEntries ?? []).flatMap((entry, index) => [
-          fileDatum(entry, {
-            ...this.manifestSnapshot.origin,
-            path: ["files", index, "path"],
-          }),
-          ...(entry.loaded ? entry.lines : []).map((line) => ({
-            ...line,
-            origin: {
+        (this.manifestEntries ?? [])
+          .flatMap((entry, index) => [
+            fileDatum(entry, {
               ...this.manifestSnapshot.origin,
-              path: ["files", index, "patch"],
-            },
-          })),
-        ]),
-        datumKey,
-        ({ node }) => node,
-        {
-          nested: true,
-          labelOf: datumLabel,
-          snapshot: this.manifestSnapshot,
-          originOf: ({ origin }) => origin,
-        },
+              path: ["files", index, "path"],
+            }),
+            ...(entry.loaded ? entry.lines : []).map((line) => ({
+              ...line,
+              origin: {
+                ...this.manifestSnapshot.origin,
+                path: ["files", index, "patch"],
+              },
+            })),
+          ])
+          .map(projectionDatum),
+        { snapshot: this.manifestSnapshot },
       );
     }
 

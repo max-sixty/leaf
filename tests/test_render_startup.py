@@ -4339,15 +4339,17 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
         },
     }
     module = """
-import {projectData, watchData} from '/runtime/widget-api.js';
+import {projectData, watchData, setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-feed', class extends HTMLElement {
   connectedCallback() {
     this.stopWatching ??= watchData(this, 'rows', snapshot => {
-      projectData(this, snapshot?.value?.rows ?? [], row => `${row.id}-${row.updated}`, row => {
+      const datums = (snapshot?.value?.rows ?? []).map(row => {
         const node = document.createElement('p');
         node.textContent = `${row.label} ${row.updated}`;
-        return node;
-      }, {snapshot, identify: row => row.id});
+        return {node, key: `${row.id}-${row.updated}`, identity: row.id};
+      });
+      setChildren(this, datums.map(({node}) => node));
+      projectData(this, datums, {snapshot});
     });
   }
   disconnectedCallback() { this.stopWatching?.(); this.stopWatching = null; }
@@ -4496,10 +4498,10 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
         "x-example": '<lf-test-surface id="surface-example"></lf-test-surface>',
     }
     module = """
-import {projectData, placeThreads} from '/runtime/widget-api.js';
+import {projectData, placeThreads, setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-test-surface', class extends HTMLElement {
   connectedCallback() {
-    projectData(this, ['first', 'second'], key => key, key => {
+    const datums = ['first', 'second'].map(key => {
       const row = document.createElement('section');
       const words = document.createElement('p');
       words.textContent = `${this.id} ${key} datum`;
@@ -4507,8 +4509,10 @@ customElements.define('lf-test-surface', class extends HTMLElement {
       outlet.className = 'test-outlet';
       row.outlet = outlet;
       row.append(words, outlet);
-      return row;
+      return {node: row, key};
     });
+    setChildren(this, datums.map(({node}) => node));
+    projectData(this, datums);
     this.surface = placeThreads(this, async (targets) => {
       const outlets = targets.map((target) => {
         const {anchor, placement} = target;
@@ -4747,8 +4751,7 @@ def test_a_declared_external_projection_must_receive_its_snapshot(browser, serve
           const {projectData} = await window.__lfRuntimeImport('/runtime/widget-api.js');
           try {
             projectData(
-              document.querySelector('#deployments'), [], row => row.key,
-              () => document.createElement('p')
+              document.querySelector('#deployments'), []
             );
             return null;
           } catch (error) {
@@ -4785,18 +4788,20 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
         "x-example": '<lf-derived id="derived-example"></lf-derived>',
     }
     module = """
-import {offer, projectData} from '/runtime/widget-api.js';
+import {offer, projectData, setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-derived', class extends HTMLElement {
   connectedCallback() {
     window.lfDerived = this;
     this.show([{key: 'api', value: 'Ready'}, {key: 'worker', value: 'Ready'}]);
   }
   show(rows) {
-    projectData(this, rows, row => row.key, ({value}) => {
+    const datums = rows.map(({key, value}) => {
       const row = document.createElement('p');
       row.append(value, offer('button', 'inspect', 'Inspect'));
-      return row;
+      return {node: row, key};
     });
+    setChildren(this, datums.map(({node}) => node));
+    projectData(this, datums);
   }
 });
 """
@@ -5948,14 +5953,16 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
         "x-example": '<lf-test-seat id="sample"></lf-test-seat>',
     }
     module = """
-import {projectData, placeThreads} from '/runtime/widget-api.js';
+import {projectData, placeThreads, setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-test-seat', class extends HTMLElement {
   connectedCallback() {
-    projectData(this, ['row'], key => key, key => {
+    const datums = ['row'].map(key => {
       const row = document.createElement('section');
       row.textContent = 'Source row';
-      row.outlet = document.createElement('div'); row.append(row.outlet); return row;
+      row.outlet = document.createElement('div'); row.append(row.outlet); return {node: row, key};
     });
+    setChildren(this, datums.map(({node}) => node));
+    projectData(this, datums);
   }
   start() {
     this.surface = placeThreads(this, (targets) => {
@@ -6089,15 +6096,17 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
         "x-example": '<lf-test-seat id="seat"></lf-test-seat>',
     }
     module = """
-import {projectData,placeThreads} from '/runtime/widget-api.js';
+import {projectData,placeThreads,setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-test-seat',class extends HTMLElement{
   connectedCallback(){
     this.style.cssText='display:block;height:360px;overflow:auto';
-    projectData(this,['row'],x=>x,()=>{
+    const datums=['row'].map(key=>{
       const row=document.createElement('section');row.textContent='Source row';
       for(const name of ['a','b']){row[name]=document.createElement('div');row[name].dataset.seat=name;row.append(row[name]);}
-      return row;
+      return {node:row,key};
     });
+    setChildren(this,datums.map(({node})=>node));
+    projectData(this,datums);
     this.side='a';
     this.surface=placeThreads(this,targets=>
       targets.map(target=>target.placement.datumElement[this.side]));

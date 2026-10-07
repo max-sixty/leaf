@@ -73,6 +73,19 @@ export const scrollContainer = (box) =>
     `${getComputedStyle(box).overflowX} ${getComputedStyle(box).overflowY}`,
   );
 
+// Whether `box` scrolls what it holds: it clips into a scrollport, `hidden` included,
+// which a script or focus can scroll, and holds more than that scrollport shows on that
+// axis. An inline SVG drawing clips what it draws but scrolls none of it.
+export function scrollsContent(box) {
+  if (!(box instanceof Element) || box instanceof SVGElement) return false;
+  const style = getComputedStyle(box);
+  const port = (overflow) => overflow !== "visible" && overflow !== "clip";
+  return (
+    (port(style.overflowX) && box.scrollWidth > box.clientWidth) ||
+    (port(style.overflowY) && box.scrollHeight > box.clientHeight)
+  );
+}
+
 // Whether `source` starts scrolled to the far end of `axis`, its right or bottom, where
 // `scrollLeft` or `scrollTop` runs negative: the platform's rule, from the writing mode
 // and direction that set its inline and block axes, and a flex box that reverses one.

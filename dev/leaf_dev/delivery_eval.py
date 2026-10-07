@@ -107,7 +107,9 @@ def score(run: Path) -> list[dict]:
         replies = [
             datetime.fromisoformat(e["ts"]).timestamp()
             for e in events
-            if e["kind"] == "reply" and e.get("parent") == comment["id"]
+            if e["kind"] == "reply"
+            and e.get("parent") == comment["id"]
+            and not e.get("ephemeral")
         ]
         # From the post to the turn's end: what carried the comment in, what the
         # agent ran before claiming its work, and the claim.

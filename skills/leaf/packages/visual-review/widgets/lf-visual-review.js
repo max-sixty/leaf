@@ -557,14 +557,8 @@ customElements.define(
       setChildren(this.#casesBody, [empty]);
       projectData(
         this,
-        [{ id: "unavailable", node: empty }],
-        ({ id }) => id,
-        ({ node }) => node,
-        {
-          nested: true,
-          labelOf: () => "Visual run unavailable",
-          snapshot,
-        },
+        [{ key: "unavailable", node: empty, label: "Visual run unavailable" }],
+        { snapshot },
       );
       setText(this.#progress, "No cases reviewed");
       layoutChanged(this);
@@ -596,19 +590,14 @@ customElements.define(
       for (const entry of this.#caseEntries.values()) this.#syncCaptureWidth(entry);
       projectData(
         this,
-        cases,
-        ({ id }) => id,
-        ({ id }) => this.#caseEntries.get(id).article,
-        {
-          nested: true,
-          labelOf: (record, index) => `Case ${index + 1}: ${record.title}`,
-          identify: ({ id }) => id,
-          snapshot: this.#snapshot,
-          originOf: (_, index) => ({
-            ...this.#snapshot.origin,
-            path: ["cases", index],
-          }),
-        },
+        cases.map((record, index) => ({
+          node: this.#caseEntries.get(record.id).article,
+          key: record.id,
+          identity: record.id,
+          label: `Case ${index + 1}: ${record.title}`,
+          origin: { ...this.#snapshot.origin, path: ["cases", index] },
+        })),
+        { snapshot: this.#snapshot },
       );
     }
 

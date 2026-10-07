@@ -397,8 +397,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      response bar, and inspect in their ordinary order within it. */
   :is(.lf-page-paint, .lf-target-paint) { z-index: var(--lf-z-page-paint); }
   .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: var(--lf-z-chrome-paint); }
-  /* A paint box stands in the frames that cut what it is drawn over, each moved by the
-     scroll of the box that holds it (target-paint-geometry.js, `paintStand`). */
+  /* A paint box stands in the frames that cut what it is drawn over, each carried by the
+     scrolls around the box that holds it: anchored to that box where anchors reach, else
+     in its motion layers (target-paint-geometry.js, `paintStand`). */
   .lf-paint-stand { left: 0; top: 0; pointer-events: none; }
   .lf-paint-frame { position: absolute; }
   .lf-paint-motion { position: absolute; left: 0; top: 0; }
@@ -1134,9 +1135,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-thread-header-action:hover { text-decoration-style: solid; }
   .lf-thread-compact:not([open]) > .lf-thread-header-action { display: none; }
   /* The container supplies navigation and an inset; shadow.css owns the conversation. */
-  .lf-thread-compact > .lf-thread-content > .lf-thread-head { margin: 12px var(--lf-thread-inset); }
+  .lf-thread-compact > .lf-thread-content { padding-block-start: 12px; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-head { margin: 0 var(--lf-thread-inset) 12px; }
   .lf-thread-compact > .lf-thread-content > .lf-thread-transcript {
     margin: 12px var(--lf-thread-inset) 0; }
+  .lf-thread-compact > .lf-thread-content > .lf-thread-transcript:first-child {
+    margin-block-start: 0; }
   .lf-thread-compact > .lf-thread-content > .lf-thread-transcript
     > .lf-thread-checkpoint:nth-child(1 of .lf-msg, .lf-thread-checkpoint) { margin-block-start: 0; }
   .lf-thread-compact > .lf-thread-content > .lf-thread-transcript

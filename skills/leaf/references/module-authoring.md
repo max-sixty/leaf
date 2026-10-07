@@ -701,49 +701,61 @@ belong in a separate synchronous `clocked` paint. The timer does not reapply sta
 redeliver unchanged data to keep a timestamp current.
 
 `origin` identifies the declared `input`, concrete `source`, `contract`, and source
-`revision`. An unchanged source keeps that origin when another source changes. Passing
-`{snapshot}` to `projectData` supplies this default origin. When the emitter knows the
-exact JSON coordinate within the source value, its `originOf(record, index)` returns
-`{...snapshot.origin, path: [...]}`;
-path segments are object keys or array indices. A formatted or parsed record may only
-name its whole input. This identifies construction inputs, not an inverse edit mapping.
+`revision`. An unchanged source keeps that origin when another source changes.
 
-Render the value with `projectData(root, records, keyOf, render, options)`. The root is an
-id-bearing authored seat and owns the projection's children. `keyOf` returns a
-non-empty rendering key, unique in that projection; `render` receives
-`(record, priorNode, index)` and returns its element, reusing `priorNode` where that
-preserves a focused control or selection. Leaf marks those words as readable data
-rather than authored prose and reconciles their order by key. A renderer
-that owns a nested layout passes `{nested: true}` and returns its existing descendants;
-Leaf labels those nodes without moving them, and the module orders each container with
-`setChildren(parent, nodes)`, which moves only what is out of place and keeps the user
-in a node it moves. For a subtree whose entire contents and descendant attributes
-belong to the renderer, use `setRenderedChildren(parent, nodes)`: it matches unchanged
-nodes and edits only changed text, preserving native selections in text the source kept.
-Keep independently stateful controls outside that subtree. Add `labelOf(record, index)`
-when a thread
-should name a projected datum with a human coordinate; the rendering key remains opaque to
-the runtime. A widget declaring `x-data` passes `{snapshot}` with the delivery from
-`watchData`, including `null` when no current value exists. Leaf stamps the projection
-with that snapshot's source and revision. Pass `identify(record, index)` when the
-emitter can name the same subject across source replacements. Its non-empty string
-need not equal the rendering key and must be unique within the projection; a comment
-follows that subject and retains the quote from the value the user saw. A reused
-identifier for a new subject needs a new identity. Other projected keys remain exact
-only within the captured revision; replacing that value marks their placement outdated.
-Derived projections omit `snapshot`
-and retain their section/key identity. If a `watchData` callback renders asynchronously,
-it returns that promise so Leaf publishes the source revision as ready only after the
-projection settles. A rejection is reported as that subscriber's page
-error; it does not make later state
-reads repeat the same page-wide failure. A rejection from the callback's first run is
-stronger: Leaf permanently ends that registration.
+The renderer owns its nodes and their placement. Use `setChildren(parent, nodes)`
+for retained native nodes: it moves only what is out of place and preserves focus
+and caret in a row it moves. Leaf's public `render(template, container)` applies
+Lit templates with the same focus protection; `repeat(records, keyOf, template)`
+retains keyed template rows. Leave native disclosure, editor and scroll state with
+the retained nodes, rather than binding them to initial defaults on each update.
+For a subtree whose contents and descendant attributes all belong to the renderer,
+use `setRenderedChildren(parent, nodes)`: it matches unchanged nodes and edits only
+changed text, preserving native selections in text the source kept. Keep independently
+stateful controls outside that subtree.
 
-Leaf records the default origin or `originOf(record, index)` result as JSON in
-`data-lf-origin` on each datum; a null origin removes any previous provenance. Derived records outside the data
-store can instead name their contributing widget seats as `{derived: [{widget: id}]}`.
-Leaf never infers them from displayed
-text or datum keys.
+After placing the nodes, annotate their words with `projectData(root, datums, {snapshot})`.
+The root is an id-bearing seat. Each datum is `{node, key, label?, identity?, origin?}`;
+its node must already stand under that root, including inside a declared shadow stage.
+Leaf validates the coordinates and marks readable data rather than authored prose;
+it never builds, moves or removes nodes. A node retained as ordinary furniture but
+omitted from the next datum list loses its former projection labels and provenance.
+
+```js
+setChildren(this, rows.map(row => row.node));
+projectData(this, rows.map(row => ({
+  node: row.node,
+  key: row.key,
+  label: row.label,
+  identity: row.id,
+  origin: {...snapshot.origin, path: ["rows", row.index]},
+})), {snapshot});
+```
+
+`key` is a non-empty string unique in the projection and opaque to the runtime.
+`label` is an optional human coordinate for thread chrome. `identity`, when supplied,
+is a non-empty string unique in the projection, naming the same subject across
+source replacements independently of its rendering key. A comment follows that subject
+and retains the quote from the value the user saw. A reused identifier for a new subject
+needs a new identity. Without one, source-backed keys remain exact only within the
+captured revision; replacing the value marks their placement outdated. Derived
+projections omit `snapshot` and retain their section/key identity.
+
+A widget declaring `x-data` passes the delivery's `snapshot`, including `null` when
+no current value exists. Leaf stamps the seat and every datum with that snapshot's
+source and revision and uses `snapshot.origin` as their default provenance. A datum
+that knows its exact JSON coordinate supplies `origin: {...snapshot.origin, path: [...]}`;
+path segments are object keys or array indices. A formatted or parsed datum may name
+its whole input. Derived records can name contributing widget seats as
+`origin: {derived: [{widget: id}]}`. Explicit `origin: null` removes provenance.
+These are construction inputs, not an inverse edit mapping; Leaf never infers them
+from displayed words or datum keys.
+
+If a `watchData` callback renders asynchronously, it returns that promise so Leaf
+publishes the source revision as ready only after the projection settles. A rejection
+is that subscriber's page error and does not make later state reads repeat the
+page-wide failure. A rejection from the callback's first run permanently ends that
+registration.
 
 ## Reading and opening Threads from a widget
 

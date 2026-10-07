@@ -37,7 +37,6 @@ import {
   once,
   quietSince,
   saidAt,
-  updateSequence,
   widgetController,
   watchUpdates,
 } from "/runtime/widget-api.js";
@@ -217,7 +216,7 @@ customElements.define(
     connectedCallback() {
       if (once(this)) {
         render(this);
-        this.#controller.subscribe(() => heard(this, updateSequence(this)));
+        this.#controller.subscribe(() => {});
         // The shared clock refreshes a changed age by touching its one text node.
         watchUpdates(this, (updates) => heard(this, updates));
       }

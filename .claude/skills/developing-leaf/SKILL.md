@@ -234,6 +234,19 @@ canonical user preview in each task, checks the keyed URL across those turns,
 and interrupts its isolated server between turns to prove that the preview
 restores both the address and working feedback without a source edit.
 
+## Test a Claude Code session
+
+`uv run --project <root> leaf-dev verify-cc-task` runs a real interactive Claude Code
+session in a tmux pane, with this working tree as its plugin and the host's login.
+It checks each comment is answered once, a comment during a turn is picked up in
+that turn, comments after an Escape are answered, and quitting ends the session's
+claim; `--hooks-module` runs the same journey with the plugin's hooks module on,
+and also checks that Escape closes the turn and leaves a watch running. Run it,
+with and without the flag, after a change to `hooks/hooks.json`,
+`hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, `loop-guard.py`, or the
+watch between turns in `session.py`; the suite stands in for Claude Code, and only
+this run shows what Claude Code itself does.
+
 ## Test a Pi session
 
 `uv run --project <root> leaf-dev verify-pi-task` runs a real Pi session, the
@@ -291,7 +304,11 @@ A page that explains how a Leaf interface behaves lets the user operate it
 
 ## Score an instruction change
 
-Score an instruction change by running the cases that bear on it on both the merge
+Score an instruction change when an agent could read it more than one way, so what
+it will do under the new text is uncertain: a new or reworded rule, a goal that
+competes with another, a cut that may have carried a behavior. A change whose reading
+is plain needs no score, such as deleting the description of an input that can no
+longer arrive or correcting a fact. Run the cases that bear on it on both the merge
 base and the working tree:
 
 ```bash
@@ -304,15 +321,15 @@ npm run view --prefix evals
 results go and how far a pass can be trusted. Read the outputs as well as the pass
 counts.
 
-The suite is a library that grows with the instructions, so a later edit, whether a fix
-or a cut, is scored against the behaviors earlier edits had to produce. Add to it
-where a change's behavior gives the library breadth, a behavior or kind of situation
-no case yet covers. First try to extend an existing case, with an assertion, a
-criterion, or context in its prompt, so coverage grows without the cases
-proliferating; add a new case only where no existing one can carry the behavior.
-Keep a case small: one prompt carrying only the context the behavior needs, and a
-few assertions. Measure with whatever scenarios and guardrails the change needs, and
-keep what you add whether or not it separated the arms. The leading comment says
+Score with the cases already there wherever one fits, and add to the suite sparingly:
+every case costs time and money on each later run that selects it. Where an existing
+case nearly fits, extend it with an assertion, a criterion, or context in its prompt.
+Add a new case only where the change needs measuring and no existing case can carry
+the behavior. What the suite holds then scores later edits, whether fixes or cuts,
+against the behaviors earlier edits had to produce. Keep a case small: one prompt
+carrying only the context the behavior needs, and a few assertions. Measure with
+whatever scenarios and guardrails the change needs, and keep what you add whether or
+not it separated the arms. The leading comment says
 whether the case told two wordings apart or has only guarded.
 
 The prompt never states the behavior under test. A prompt pointing at a file beyond

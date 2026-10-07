@@ -309,14 +309,14 @@ export class MessageView {
       model,
     );
     if (!prior && (model.pending || arrived)) {
-      // A background cue can finish while the message remains unconfirmed. The
-      // shared motion gate answers for restoration and reduced motion; opacity
-      // continues to describe delivery independently (marks.css). It settles on the
-      // message's own ground, which a surface may paint (the margin card's sticky
-      // heads take it).
+      // One phase drives the message's ground and its sticky header. CSS resolves
+      // the tint and resting colour at this message after insertion; Firefox's
+      // Web Animations interpolates a var() colour keyframe discretely.
+      // The shared motion gate answers for restoration and reduced motion; opacity
+      // continues to describe delivery independently (marks.css).
       this.#arrivalMotion = motion(
         this.node,
-        [{ backgroundColor: "var(--hi-tint)", offset: 0 }],
+        [{ "--lf-msg-arrival": 1, offset: 0 }],
         1200,
       );
     }

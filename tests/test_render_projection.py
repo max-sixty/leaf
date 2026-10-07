@@ -31,6 +31,7 @@ from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
+from leaf.render_gate.readings import DevtoolsIssues
 from leaf.schema import ELEMENT_ID
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
@@ -491,6 +492,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         },
     )
     page = open_page(browser, url)
+    assert not DevtoolsIssues(page).findings()
     widget = page.locator("#request-calls")
     lines = widget.locator(".lf-call-line")
 
@@ -505,6 +507,11 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     groups = widget.locator(":scope > .lf-call-group")
     expect(groups).to_have_count(1)
     group = groups.first
+    summary = group.locator(":scope > summary")
+    root_location = widget.locator(".lf-call-root-location .lf-call-location").first
+    expect(root_location).to_have_text("gateway/limits.py:38")
+    expect(root_location).to_be_visible()
+    expect(summary.locator("a, button")).to_have_count(0)
     assert group.evaluate("el => getComputedStyle(el).backgroundColor") == page.locator(
         "#code-surface"
     ).evaluate("el => getComputedStyle(el).backgroundColor")
@@ -607,7 +614,11 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator("#patch [data-line-type]")).to_have_count(0)
     entries = page.evaluate("history.length")
-    lines.nth(1).locator(".lf-call-location").click()
+    summary.click()
+    expect(group).not_to_have_attribute("open", "")
+    expect(root_location).to_be_visible()
+    root_location.click()
+    expect(group).not_to_have_attribute("open", "")
     context = page.locator(
         'lf-diff [data-lf-datum=\'["gateway/limits.py","both",38,38]\']'
     )
@@ -616,6 +627,8 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "Opened gateway/limits.py:38 in the exact patch"
     )
     expect(context).to_be_focused()
+    summary.click()
+    expect(group).to_have_attribute("open", "")
 
     search = page.locator("#patch .lf-diff-search input")
     search.fill("nothing-matches")
@@ -640,11 +653,28 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     )
     told(page)
     expect(context).to_contain_text("class Limiter:  # raw source")
-    lines.nth(1).locator(".lf-call-location").click()
+    root_location.click()
     expect(context).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:38 in the exact patch"
     )
+
+    # Native tab order exposes source navigation even with the call tree closed.
+    summary.click()
+    expect(group).not_to_have_attribute("open", "")
+    page.keyboard.press("Shift+Tab")
+    expect(root_location).to_be_focused()
+    assert root_location.evaluate("node => node.matches(':focus-visible')")
+    page.keyboard.press("Enter")
+    expect(context).to_be_focused()
+    expect(group).not_to_have_attribute("open", "")
+    expect(context).to_be_in_viewport()
+    summary.click()
+    expect(group).to_have_attribute("open", "")
+    page.keyboard.press("Space")
+    expect(group).not_to_have_attribute("open", "")
+    page.keyboard.press("Enter")
+    expect(group).to_have_attribute("open", "")
 
     page.evaluate("() => getSelection().removeAllRanges()")
     lines.nth(2).click(modifiers=["Alt"])
@@ -675,7 +705,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     shifted = page.locator(
         'lf-diff [data-lf-datum=\'["gateway/limits.py","both",100,102]\']'
     )
-    widget.locator(".lf-call-line").nth(1).locator(".lf-call-location").click()
+    root_location.click()
     expect(shifted).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:100 in the exact patch"
@@ -696,6 +726,17 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
         "line 2 appears before a changed root"
     )
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "request-call-diff",
+        "calldiff diff main → feature\n  missing_location()",
+    )
+    told(page)
+    expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
+        "line 2 has no source location; capture --locs output"
+    )
+    expect(widget.locator(".lf-call-root-location, .lf-call-group")).to_have_count(0)
 
     resized(page, 390, 900)
     assert root_overflow(page) == 0

@@ -270,13 +270,36 @@
 
 .lf-call-toggle { flex: none; }
 
-.lf-call-group {
-  border-top: 1px solid var(--code-border);
+.lf-call-group,
+.lf-call-root-location {
   background: var(--pre-bg);
 }
 
-.lf-call-group:first-of-type {
-  border-top: 0;
+.lf-call-group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+
+/* The root source link is a sibling control before its native disclosure. Both use
+ * the disclosure and status columns, so the link aligns with the root's call text
+ * without being nested in the summary or positioned over another control. */
+.lf-call-root-location {
+  display: grid;
+  grid-template-columns: 1.25rem 2rem minmax(0, 1fr);
+  padding-block-start: var(--sp-1);
+  padding-inline-end: var(--sp-3);
+  border-top: 1px solid var(--code-border);
+}
+
+.lf-call-root-location > .lf-call-location {
+  grid-column: 3;
+  min-width: 0;
+  margin-inline-start: 0;
+  overflow: hidden;
+  font-size: var(--t-7);
+  text-overflow: ellipsis;
 }
 
 .lf-call-group > summary {
@@ -292,7 +315,7 @@
   content: "›";
   align-self: center;
   grid-column: 1;
-  grid-row: 1 / span 2;
+  grid-row: 1;
   color: var(--code-muted);
   font-family: var(--sans);
   font-weight: 700;
@@ -320,7 +343,7 @@
 .lf-call-group-summary {
   box-sizing: border-box;
   grid-template-columns: 1.25rem 2rem minmax(0, 1fr) max-content;
-  grid-template-rows: auto auto;
+  grid-template-rows: auto;
   width: 100%;
   min-width: 0;
   padding-block: var(--sp-1);
@@ -331,16 +354,6 @@
   grid-row: 1;
   min-width: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.lf-call-group-summary .lf-call-location {
-  grid-column: 3 / 5;
-  grid-row: 2;
-  min-width: 0;
-  margin-inline-start: 0;
-  overflow: hidden;
-  font-size: var(--t-7);
   text-overflow: ellipsis;
 }
 
@@ -364,11 +377,11 @@
   border-top: 0;
 }
 
-.lf-call-line[data-status="added"] {
+:is(.lf-call-line, .lf-call-root-location)[data-status="added"] {
   background: color-mix(in srgb, var(--ok) 16%, var(--pre-bg));
 }
 
-.lf-call-line[data-status="removed"] {
+:is(.lf-call-line, .lf-call-root-location)[data-status="removed"] {
   background: color-mix(in srgb, var(--danger) 16%, var(--pre-bg));
 }
 
@@ -435,6 +448,7 @@
 @media print {
   :scope:is(lf-call-diff),
   .lf-call-line[data-meta],
+  .lf-call-root-location,
   .lf-call-line[data-status="added"],
   .lf-call-line[data-status="removed"] {
     background: transparent;
@@ -461,9 +475,5 @@
 
   .lf-call-group-summary {
     grid-template-columns: 1.25rem 2rem minmax(0, 1fr);
-  }
-
-  .lf-call-group-summary .lf-call-location {
-    grid-column-end: 4;
   }
 }

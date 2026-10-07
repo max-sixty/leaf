@@ -1752,6 +1752,69 @@ def test_the_feature_gallery_exercises_live_external_data(browser, serve):
     )
 
 
+@pytest.mark.parametrize("viewport", [(1440, 900), (390, 844)])
+def test_pr_walkthrough_navigation_starts_the_review_at_every_width(
+    browser, serve, viewport
+):
+    """Contents must be available before the reader works through this long review.
+
+    The former sidebar placed the outline after the complete PR facts and history;
+    when the tracks stacked, it also came after the entire article. The authored
+    reading order now puts navigation first and supporting evidence in the article.
+    """
+    source = next(example for example in EXAMPLES if example.stem == "pr-walkthrough")
+    url = serve(source)
+    width, height = viewport
+    context = browser.new_context(
+        viewport={"width": width, "height": height},
+        has_touch=width < 500,
+        is_mobile=width < 500,
+    )
+    page = open_page(browser, url, context=context)
+    page.evaluate("() => document.fonts.ready")
+    navigation = page.locator("#pr-contents")
+    first = navigation.get_by_role("link", name="Review finding", exact=True)
+    expect(first).to_be_in_viewport()
+    if width < 500:
+        assert (
+            page.locator("#pr-contents-panel").bounding_box()["y"]
+            < (page.locator("#pr-body").bounding_box()["y"])
+        )
+
+    # A real pointer press leaves the reader at a later section, with its heading
+    # visible rather than under page chrome. On desktop the same outline persists.
+    change = navigation.get_by_role("link", name="Change surface", exact=True)
+    expect(change).to_be_in_viewport()
+    change.click()
+    expect(page).to_have_url(re.compile(r"#pr-change-surface$"))
+    heading = page.locator("#pr-change-surface > h2")
+    expect(heading).to_be_in_viewport()
+    scroll_settled(page)
+    assert (
+        heading.bounding_box()["y"]
+        >= page.locator(".lf-banner").bounding_box()["height"]
+    )
+    if width > 500:
+        expect(first).to_be_in_viewport()
+
+    # Begin again at the opening, and take the native tab order to another route.
+    navigate(page, url)
+    page.evaluate(RELEASE_FOCUS)
+    invariant = navigation.get_by_role("link", name="Review invariants", exact=True)
+    for _ in range(30):
+        page.keyboard.press("Tab")
+        if invariant.evaluate("node => node.matches(':focus')"):
+            break
+    expect(invariant).to_be_focused()
+    assert invariant.evaluate("node => node.matches(':focus-visible')")
+    page.keyboard.press("Enter")
+    expect(page).to_have_url(re.compile(r"#pr-invariants$"))
+    expect(page.locator("#pr-invariants > h2")).to_be_in_viewport()
+    scroll_settled(page)
+    if width > 500:
+        expect(first).to_be_in_viewport()
+
+
 def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     """The diff package's worked page carries a real line thread through both seats."""
     source = next(example for example in EXAMPLES if example.stem == "pr-walkthrough")

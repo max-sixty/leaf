@@ -62,8 +62,11 @@ browser's order.
   The list stands alone only while it shows no thread. A title selects the same
   thread as its body, and the user's move onto a title selects its thread, by any
   route, so the focused thread is always the open one and its reply box is the one
-  `c` names; the runtime putting them back on a title chooses nothing. Enter or
-  Space keeps it selected.
+  `c` names. The runtime putting them back on a title chooses nothing: it returns them
+  to the title they had chosen, or to the open one the list stands in with when a
+  change took theirs away, and a hold put back after the choice moved under it, which
+  leaves them on a closed title, is the one place the two part. Enter or Space keeps it
+  selected.
 - The versions menu opens from inside More, so More is its parent whichever route
   opened it (`g V` included), and Escape steps back to the version picker there.
 - A selected destination (thread, Ask, heading) has a let-go step back to the

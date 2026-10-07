@@ -388,9 +388,9 @@ export const semanticStoreOwnershipRule = {
 // nodes of one shadow tree beneath it, and a reader that tells the runtime's returns or
 // the keyboard's arrivals apart for itself answers a question focus.js already answers.
 // So the two event names appear nowhere else, in a listener, a list of event types, a
-// comparison or a Lit binding, and `focus` and `blur` are not heard on the document,
-// where capturing them would hear every element. An element's own `focus` or `blur`,
-// and the window's, which is the system's focus, are other questions. The option names,
+// comparison or a Lit binding, and `focus` and `blur` are not heard on the document or
+// captured anywhere, which would hear every element beneath. An element's own `focus`
+// or `blur`, and the window's, which is the system's focus, are other questions. The option names,
 // by path from the repository root, the files that may still name a focus event, each
 // with the reason in the config that grants it.
 const standingRepoRoot = path.dirname(fileURLToPath(import.meta.url));
@@ -410,6 +410,17 @@ export const standingListenersRule = {
     const named = (node, type) => {
       if (!allowed.has(type)) context.report({ node, message: STANDING_MESSAGE });
     };
+    // Capturing `focus` or `blur` on any node hears every element beneath it, the
+    // window's included.
+    const capturing = (options) =>
+      (options?.type === "Literal" && options.value === true) ||
+      (options?.type === "ObjectExpression" &&
+        options.properties.some(
+          (property) =>
+            property.key?.name === "capture" &&
+            property.value.type === "Literal" &&
+            property.value.value === true,
+        ));
     const documentReceiver = (callee) =>
       callee.type === "MemberExpression" &&
       callee.object.type === "Identifier" &&
@@ -432,7 +443,7 @@ export const standingListenersRule = {
         const type = node.arguments[0];
         if (
           method === "addEventListener" &&
-          documentReceiver(callee) &&
+          (documentReceiver(callee) || capturing(node.arguments[2])) &&
           type?.type === "Literal" &&
           (type.value === "focus" || type.value === "blur")
         )
@@ -985,8 +996,9 @@ export default [
         {
           // The owner of every focus event.
           "skills/leaf/assets/runtime/focus.js": ["focusin", "focusout"],
-          // Records the raw events of a session for the interaction log; it reads no
-          // standing of its own.
+          // Records the raw events of a session for the interaction log, the one
+          // exception that is not one element's or one subtree's own question: it is a
+          // recorder of events, and reads no standing from them.
           "skills/leaf/assets/runtime/interaction-log.js": ["focusin", "focusout"],
           // A reply row's own entry begins its composition. The box's host is in the
           // row's tree, so entering its shadow tree reaches the row, and a move inside

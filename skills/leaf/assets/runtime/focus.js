@@ -3,17 +3,18 @@
    that moves or replaces the node they stand on keeps them there, and who moved them
    each time where they stand changes (`onStanding`).
 
-   This module is the one listener for focus events. Every other reader of where the
-   user stands, or of what moved them there, reads `onStanding`, whose causes are
-   `return`, `press`, `step` and `move`. A `focusin` listener on a node hears nothing of
-   a move between two nodes of one shadow tree beneath it, which reaches it as no event,
+   This module is the one reader of where the user stands. Every other reader of it,
+   or of what moved them there, reads `onStanding`, whose causes are `return`,
+   `press`, `step`, `move` and `drop`. A `focusin` listener on a node hears nothing of a
+   move between two nodes of one shadow tree beneath it, which reaches it as no event,
    and each reader guessing for itself which moves were the runtime's own returns or
    the keyboard's arrivals answered the same question several ways. The lint
    (`architecture/standing-listeners`) refuses `focusin` and `focusout` elsewhere, and
-   `focus` and `blur` on the document, except for the few readers it names that ask
-   about one element or its own subtree. Rejected: keeping each reader's listener and
-   having stages re-dispatch their moves to the document, which leaves every reader's
-   own reading of the cause.
+   `focus` and `blur` on the document or captured anywhere, except in the few files it
+   names: those that ask about one element or its own subtree, and the interaction
+   log, which records events and reads no standing. Rejected: keeping each reader's
+   listener and having stages re-dispatch their moves to the document, which leaves
+   every reader's own reading of the cause.
 
    The selector vocabulary lives in control-selectors.js, which imports nothing.
    This module imports only that vocabulary and rendering.js: importing a gesture
@@ -230,10 +231,13 @@ let stood = null;
 // - `step`: sequential navigation, Tab or Shift+Tab, whether the browser moves them or
 //   a handler of that key does in its place, as a modal's Tab loop does;
 // - `move`: anything else, a key's own move other than Tab, or a route that took them
-//   somewhere, whether a key or a press began it (`pressLed` says which).
-//
-// A dropped place is still where they stand, so a reader hears nothing until they are
-// placed again or go on. The reading is synchronous, inside the `focus()` that moved
+//   somewhere, whether a key or a press began it (`pressLed` says which);
+// - `drop`: a change hid or removed the node they stood on, and focus fell to the body,
+//   read as `null`. The dropped place is still where they stand for every hold, and the
+//   one to put them back is the owner of the change, so a reader of where they stand
+//   lets it pass; what it tells is that the node holding focus is gone from the screen,
+//   which a reader painting focus answers.
+// The reading is synchronous, inside the `focus()` that moved
 // them and ahead of every listener below the document or the stage, so a reader that
 // redraws on it does so before the route that moved them measures its landing. A
 // reader that moves them itself starts a newer reading, and the older one goes to no
@@ -248,14 +252,24 @@ const readers = new Set();
 export const onStanding = (read) => readers.add(read);
 let published = null;
 let departed = false;
+let readings = 0;
 function publish(node, cause) {
   if (node === published && !departed) return;
   departed = false;
   const left = published;
-  published = node;
+  const reading = ++readings;
+  // A drop leaves the place where readers last heard the user stood, so the next
+  // reading, the owner putting them back there included, is told against it.
+  if (cause === "drop") departed = true;
+  else published = node;
   for (const read of readers) {
-    read(node, cause, left);
-    if (published !== node) return;
+    // Each reader answers alone: one that throws is reported and the rest still hear.
+    try {
+      read(node, cause, left);
+    } catch (error) {
+      reportError(error);
+    }
+    if (readings !== reading) return;
   }
 }
 // The press the user last made, as the nodes under it, until a key follows it.
@@ -314,7 +328,8 @@ document.addEventListener(
     if (restoring) return;
     queueMicrotask(() => {
       const at = document.activeElement;
-      if ((at !== null && at !== document.body) || !drawn(left)) return;
+      if (at !== null && at !== document.body) return;
+      if (!drawn(left)) return publish(null, "drop");
       placements += 1;
       if (stood === left) stood = null;
       publish(null, cause(null));
@@ -327,6 +342,33 @@ document.addEventListener(
 // with the task; holding Tab down repeats the keydown and so the step.
 const sequential = (event) =>
   event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey;
+// Where the user stands, read again once a key's or a press's task ends, and once a
+// click's does, since a tap focuses at the click that follows it rather than at its
+// press. A move between two nodes of a shadow tree no stage watches, as a component's
+// own root makes, reaches no root this module listens on, so the reading the input left
+// is told then, with the cause that input gave it, a Tab's step included, and a return
+// where it came out of a layer that closed.
+function reconcile(step, pressed) {
+  const at = deepFocus();
+  if (!at || at === document.body || at === published) return;
+  placements += 1;
+  stood = at;
+  const was = [stepping, pressedPath];
+  [stepping, pressedPath] = [step, pressed];
+  try {
+    publish(at, cause(at, published));
+  } finally {
+    [stepping, pressedPath] = was;
+  }
+}
+addEventListener(
+  "click",
+  () => {
+    const pressed = pressedPath;
+    setTimeout(() => reconcile(null, pressed));
+  },
+  { capture: true, passive: true },
+);
 for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
   addEventListener(
     type,
@@ -334,10 +376,13 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
       if (type === "pointerdown") pressedPath = new Set(event.composedPath());
       else if (type === "keydown") pressedPath = null;
       stepping = null;
-      if (type === "keydown" && sequential(event)) {
-        const step = (stepping = event);
+      if (type === "keydown" || type === "pointerdown") {
+        const step = type === "keydown" && sequential(event) ? event : null;
+        const pressed = pressedPath;
+        stepping = step;
         setTimeout(() => {
-          if (stepping === step) stepping = null;
+          if (step && stepping === step) stepping = null;
+          reconcile(step, pressed);
         });
       }
       const at = deepFocus();

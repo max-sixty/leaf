@@ -1222,8 +1222,9 @@ export function createMarginProjection({
       revealHost(null);
   });
   // A cluster the user comes to stand in. Any arrival there outranks a pointer parked on
-  // the previous target, which real pointer movement can take back without a press. A
-  // step, Tab or Shift+Tab, onto one of its controls also opens what it offers: a folded
+  // the previous target, which real pointer movement can take back without a press. The
+  // keyboard arriving on one of its controls, a step or a route a key began, also opens
+  // what it offers; a press opens it at its click, and a return opens nothing. A folded
   // cluster's toggle is its only control and stands after the actions it unfolds, so
   // Tab arriving on it lands on the first of them, and Shift+Tab on the last.
   function arriveAtCluster(host, node, cause, left) {
@@ -1231,7 +1232,7 @@ export function createMarginProjection({
     refreshHighlight();
     const control = node.closest?.(".lf-margin-entry");
     if (
-      cause !== "step" ||
+      !(cause === "step" || (cause === "move" && !pressLed())) ||
       settlingOptionsFocus ||
       suppressingOptionsArrival ||
       !control ||
@@ -2538,7 +2539,9 @@ export function createMarginProjection({
     document.addEventListener("pointerover", scheduleMarginEntryLabels, {
       capture: true,
     });
-    onStanding(() => {
+    // A drop is the change's own to put right: the margin follows where the user stands.
+    onStanding((node, cause) => {
+      if (cause === "drop") return;
       scheduleMarginEntryLabels();
       queueMicrotask(followStanding);
     });

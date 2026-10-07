@@ -170,6 +170,7 @@ overflowBtn.addEventListener("pointerdown", () => holdOpener());
 // A key's way onto More holds the place it left. Arriving from nowhere leaves the
 // press's own reading, which saw the selection the press would go on to keep.
 onStanding((node, cause, left) => {
+  if (cause === "drop") return;
   if (node === overflowBtn) {
     if (left) holdOpener(left);
   } else if (!overflowMenu.contains(node)) opener = null;

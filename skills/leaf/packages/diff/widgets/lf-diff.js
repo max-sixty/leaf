@@ -45,6 +45,7 @@ import {
   notice,
   widgetController,
   watchData,
+  watchOwner,
 } from "/runtime/widget-api.js";
 import "../vendor/webawesome.esm.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
@@ -661,7 +662,17 @@ customElements.define(
 
     connectedCallback() {
       this.addEventListener("lf-reveal", this.revealPassage);
-      if (once(this)) this.controller.subscribe(this.paintReviewAvailability);
+      const firstConnection = once(this);
+      if (firstConnection) {
+        this.controller.subscribe(this.paintReviewAvailability);
+        watchOwner(this, {
+          disconnect: () => {
+            this.rendering = (this.rendering ?? 0) + 1;
+            this.manifestEntries = null;
+            this.manifestSnapshot = null;
+          },
+        });
+      }
       if (!this.threadSurface)
         this.threadSurface = placeThreads(this, (targets) => {
           this.beginThreadSurface();
@@ -669,7 +680,6 @@ customElements.define(
           this.endThreadSurface();
           return outlets;
         });
-      if (this.stopWatching) return;
       // A page diff's file header pins at `--lf-top`, the top of the page's box that
       // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
       // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
@@ -795,20 +805,16 @@ customElements.define(
         this.present(this.render(this.inlineSource));
         return;
       }
-      this.stopWatching = watchData(this, "document", (snapshot) => {
-        const rendering = this.render(snapshot?.value ?? null, snapshot);
-        this.sourceRendering = rendering;
-        return rendering;
-      });
+      if (firstConnection)
+        watchData(this, "document", (snapshot) => {
+          const rendering = this.render(snapshot?.value ?? null, snapshot);
+          this.sourceRendering = rendering;
+          return rendering;
+        });
     }
 
     disconnectedCallback() {
       this.removeEventListener("lf-reveal", this.revealPassage);
-      this.rendering = (this.rendering ?? 0) + 1;
-      this.stopWatching?.();
-      this.stopWatching = null;
-      this.manifestEntries = null;
-      this.manifestSnapshot = null;
       this.threadSurface?.unregister();
       this.threadSurface = null;
       this.threadOutlets = null;

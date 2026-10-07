@@ -63,7 +63,8 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-cluster:is(:hover, :focus-within) { z-index: var(--lf-z-margin-raised); }
   /* A pane's lane is a stacking context of its own (its clip makes it one), so the lane
      rises with the row the pointer or the keyboard is on. */
-  .lf-margin-lane:has(.lf-margin-cluster:is(:hover, :focus-within)) {
+  .lf-margin-lane:has(.lf-margin-cluster:is(:hover, :focus-within)),
+  .lf-margin-carrier:has(.lf-margin-cluster:is(:hover, :focus-within)) {
     z-index: var(--lf-z-margin-raised); }
   /* Placement fits the finished thread before typing. Only the editor paints; the
      transparent header/reply slots neither take document flow nor intercept presses. */
@@ -279,10 +280,10 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
     inset-inline-end: 0; z-index: 2; display: flex; align-items: center; gap: 4px;
     min-height: var(--lf-comment-head); padding-inline-start: var(--sp-2);
     background: var(--paper); }
-  /* A head takes its message's ground, so an arriving turn's cue tints both. */
-  .lf-margin-thread .lf-thread-transcript .lf-msg { background-color: var(--paper); }
+  /* A sticky head and its words paint the message's one animated ground. */
+  .lf-margin-thread .lf-thread-transcript .lf-msg { --lf-msg-rest-ground: var(--paper); }
   .lf-margin-thread .lf-thread-transcript .lf-msg-head { position: sticky;
-    inset-block-start: 0; z-index: 1; background-color: inherit;
+    inset-block-start: 0; z-index: 1; background-color: var(--lf-msg-ground);
     max-inline-size: calc(100% - var(--lf-margin-controls-width, 0px));
     min-height: auto; padding-inline-end: 0;
     overflow: hidden; white-space: nowrap;

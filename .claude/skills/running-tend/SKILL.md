@@ -9,9 +9,11 @@ description: Project-specific instructions loaded by tend workflows alongside AG
 
 Tend uses `merge: yolo`. Merge a pull request that fixes tests, without waiting
 for maintainer approval, once each test it claims to fix failed before the change
-and passes after it (a skipped or deleted test has not passed), and `monitor-ci`'s
-poll exits 0 on the exact head. Pull requests run only the nightly tests they edit,
-so run the claimed ones yourself.
+and passes after it (a skipped or deleted test has not passed). Run `monitor-ci`'s
+poll on the exact head to a terminal result. If that result is red only because
+other tests fail, merge the verified fix for its subset; handle the other failures
+separately. Pull requests run only the nightly tests they edit, so run the claimed
+ones yourself. GitHub's applying merge rules still govern the merge.
 
 Merge a fix that is correct but incomplete, and open an issue for what it leaves.
 Changes to workflows, Tend's configuration, CODEOWNERS, or agent instructions

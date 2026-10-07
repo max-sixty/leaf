@@ -92,6 +92,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    page_comment,
     pane_posture,
     panel_settled,
     plant_quiet_word,
@@ -7668,8 +7669,7 @@ def test_a_reduced_motion_swipe_moves_without_an_exit_animation(browser, serve):
 def test_composer_grows_caps_and_shrinks_with_its_text(browser, serve):
     """The comment box fits its content, scrolls at its cap, and shrinks back."""
     page = open_page(browser, serve(LONG_PAGE))
-    page.locator(".lf-threads-toggle").click()
-    box = page.locator(".lf-general leaf-text")
+    box = page_comment(page)
 
     def state():
         return box.evaluate("""ta => ({ h: Math.round(ta.getBoundingClientRect().height),

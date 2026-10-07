@@ -26,7 +26,6 @@ export function createThreadPanelController({
   refreshThread,
   closeReactionMode,
   closePreview,
-  syncGeneral,
 }) {
   const stopSide = declareSide((node) => {
     const listed = panel.contains(node)
@@ -85,7 +84,6 @@ export function createThreadPanelController({
       showPanelLayer();
       if (phase === "gesture") slide(panel, "right", "in");
       refreshThread();
-      syncGeneral(); // a restored draft has to reach the Send button's disabled state
     } else if (panel.open) {
       ++viewRequest;
       // Closed at once, with no slide out: the panel is a dialog that the thread list,

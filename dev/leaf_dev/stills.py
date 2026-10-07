@@ -196,9 +196,8 @@ def panel_reply_long(page: Page) -> None:
 
 
 def page_comment_long(page: Page) -> None:
-    """The Threads panel's page comment with two wrapped paragraphs."""
-    threads_panel(page)
-    page.locator(".lf-general leaf-text").click()
+    """The page comment card with two wrapped paragraphs."""
+    page.locator(".lf-banner-actions > .lf-page-comment").click()
     page.keyboard.insert_text(LONG_DRAFT)
 
 

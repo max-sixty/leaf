@@ -94,14 +94,16 @@ class ThreadSurface:
 
 
 def open_surface(page: Page, surface: str) -> ThreadSurface:
-    """Open the existing last thread, or the panel's page-comment field."""
+    """Open the existing last thread, or the page comment card beside Threads."""
     if surface in {"panel", "general"}:
         page.locator(".lf-threads-toggle").click()
         expect(page.locator(".lf-thread-panel")).to_be_visible()
         wait_for_probe(page, "pageSettled")
         if surface == "general":
+            # The card starts the thread; Threads, open beside it, shows it arrive.
+            page.locator(".lf-banner-actions > .lf-page-comment").click()
             return ThreadSurface(
-                page.locator(".lf-general leaf-text"),
+                page.locator(".lf-page-comment-card leaf-text"),
                 page.locator(".lf-threads .lf-msg.user"),
                 page.locator("body"),
                 ".lf-threads .lf-msg",

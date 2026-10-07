@@ -59,6 +59,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    page_comment,
     panel_settled,
     primed,
     resized,
@@ -1297,9 +1298,7 @@ def test_resolve_acknowledges_the_press_and_recovers_a_refusal(
         page.keyboard.press("Enter")
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
     if view == "panel":
-        write(
-            page.locator(".lf-general leaf-text"), "My next thought can keep its focus."
-        )
+        write(page_comment(page), "My next thought can keep its focus.")
     held.pop().continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -1872,10 +1871,11 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
 
 def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     """A send is the one gesture that produces a thread, so it gets the same answer a
-    click on a page mark does: the panel scrolls the new thread into its scrollport.
+    click on a page mark does: an open panel scrolls the new thread into its scrollport.
     On a list long enough to scroll, the old rebuild appended the comment below the
     fold and put the scroll back where it was — the user's own words landed out of
-    sight, silently. Both routes leave the user in the box they sent from."""
+    sight, silently. Both routes to the send put the card away and leave the user on
+    the control it hangs from, with the panel still open."""
     page = open_page(browser, serve(LONG_PAGE, comments=30))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
@@ -1884,26 +1884,30 @@ def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
         "        return t.scrollTop === 0 && t.scrollHeight > t.clientHeight; }"
     ), "this list starts revealed or doesn't scroll, so it proves nothing"
 
-    box = page.locator(".lf-general leaf-text")
+    control = page.locator(".lf-banner-actions > .lf-page-comment")
+    box = page_comment(page)
     write(box, "Where did my words go?")
-    send = page.locator(".lf-general button")
     with sending(page, "the first comment"):
-        send.click()
+        page.locator(".lf-general button").click()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert (sent["kind"], sent["text"]) == ("comment", "Where did my words go?")
     in_threads_scrollport(page, f'.lf-thread[data-id="{sent["id"]}"]')
     assert page.evaluate("() => document.querySelector('.lf-threads').scrollTop") > 0, (
         "the new thread was in view without scrolling, so the reveal proved nothing"
     )
-    expect(box).to_be_focused()
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
+    expect(control).to_be_focused()
     expect(box).to_have_js_property("value", "")
 
+    page.keyboard.press("c")
+    expect(box).to_be_focused()
     write(box, "And the second thought lands the same way.")
     with sending(page, "the second comment"):
         page.keyboard.press("ControlOrMeta+Enter")  # the other route, same destination
     second = events_model.read_events(serve.page_dir)[-1]
     in_threads_scrollport(page, f'.lf-thread[data-id="{second["id"]}"]')
-    expect(box).to_be_focused()
+    expect(control).to_be_focused()
+    expect(page.locator(".lf-thread-panel")).to_have_class(re.compile(r"\bopen\b"))
 
 
 def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
@@ -1912,7 +1916,7 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     """The banner's Comment on the page starts a page thread with Threads shut: a card
     hangs flush from the control, and its send puts the card away and flashes Threads,
     whose count takes the new thread, without opening the panel. `c` on the floor goes
-    to the same card, and with Threads open both go to Threads' own box instead."""
+    to the same card, with Threads open or shut."""
     page = open_page(browser, serve(LONG_PAGE))
     control = page.locator(".lf-banner-actions > .lf-page-comment")
     card = page.locator(".lf-page-comment-card")
@@ -1966,6 +1970,12 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     expect(box).to_have_js_property("value", "Kept for later")
     page.keyboard.press("Escape")
     assert not card.evaluate(is_open)
+    # A press elsewhere puts it away too, as the browser's light dismissal, keeping
+    # the words.
+    control.click()
+    page.locator("main").click(position={"x": 4, "y": 4})
+    assert not card.evaluate(is_open)
+    expect(box).to_have_js_property("value", "Kept for later")
 
     # A refused send opens the card again on the words it handed back.
     page.route(
@@ -1985,14 +1995,15 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     assert all("400" in error for error in take_browser_errors(page))
     page.keyboard.press("Escape")
 
-    # The card and Threads' box are two views of the one page draft.
+    # With Threads open, the card is still where a page thread starts: it hangs over
+    # the panel, holding the same draft.
     toggle.click()
     panel_settled(page)
+    expect(page.locator(".lf-thread-panel .lf-general")).to_have_count(0)
     control.click()
-    general = page.locator(".lf-general leaf-text")
-    expect(general).to_be_focused()
-    expect(general).to_have_js_property("value", "Kept for later")
-    assert not card.evaluate(is_open)
+    assert card.evaluate(is_open)
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", "Kept for later")
 
 
 def test_comment_on_the_page_stands_in_more_on_a_phone(browser, serve):
@@ -3913,8 +3924,16 @@ def test_an_approval_made_elsewhere_reaches_the_panel_and_the_banner(browser, se
     expect(approve).to_have_text("Approve version")
     expect(page.locator(".lf-threads")).not_to_contain_text("Approved")
     thread = page.locator(".lf-threads > .lf-thread")
-    separator = page.locator(".lf-general").evaluate(
-        "node => getComputedStyle(node).borderTopColor"
+    # The chrome's separator, --rule, resolved where the panel's rules resolve it.
+    separator = page.locator(".lf-thread-panel").evaluate(
+        """panel => {
+          const probe = document.createElement('i');
+          probe.style.color = 'var(--rule)';
+          panel.append(probe);
+          const color = getComputedStyle(probe).color;
+          probe.remove();
+          return color;
+        }"""
     )
     assert (
         thread.evaluate("node => getComputedStyle(node).borderBottomColor") != separator
@@ -8312,7 +8331,7 @@ def test_an_agent_turn_arriving_while_the_user_writes_keeps_their_box_in_view(
 
 
 @pytest.mark.parametrize("size", [(1200, 900), (800, 520)])
-def test_a_thread_sent_from_the_panels_foot_lands_in_view(browser, serve, size):
+def test_a_page_comment_sent_beside_open_threads_lands_in_view(browser, serve, size):
     """The list's place hold finishing a render cancelled the smooth landing already
     under way, leaving the new thread below the list's foot."""
     url = serve(PANEL_PAGE)
@@ -8321,7 +8340,7 @@ def test_a_thread_sent_from_the_panels_foot_lands_in_view(browser, serve, size):
     open_threads_list(page, *size)
     page.locator(".lf-threads").evaluate("list => list.scrollTop = list.scrollHeight")
     scroll_settled(page, ".lf-threads")
-    write(page.locator(".lf-general leaf-text"), "What the general box says.")
+    write(page_comment(page), "What the general box says.")
     with sending(page, "the page comment"):
         page.keyboard.press("Enter")
     rendered(page)
@@ -8330,9 +8349,7 @@ def test_a_thread_sent_from_the_panels_foot_lands_in_view(browser, serve, size):
     card = page.locator(f'.lf-thread[data-id="{sent["id"]}"]')
     landed = card.locator(":scope > .lf-thread-summary").evaluate(IN_LANDING_BAND)
     assert landed["inside"], f"the new thread was left outside the band: {landed}"
-    assert page.evaluate(
-        "() => Boolean(document.activeElement.closest('.lf-general'))"
-    ), "the send moved focus out of the general box"
+    expect(page.locator(".lf-banner-actions > .lf-page-comment")).to_be_focused()
 
 
 @pytest.mark.parametrize("how", ["r", "button"])
@@ -8797,7 +8814,10 @@ def pressed_send_surface(browser, serve, surface):
             {"section": "how-store"},
         )
         page = open_page(browser, url)
-        if surface == "card":
+        if surface == "general":
+            box = page_comment(page)
+            holder = page.locator(".lf-page-comment-card .lf-general")
+        elif surface == "card":
             page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
             holder = page.locator(".lf-margin-preview")
             box = holder.locator(".lf-thread-reply leaf-text")
@@ -8812,17 +8832,14 @@ def pressed_send_surface(browser, serve, surface):
         else:
             page.locator(".lf-threads-toggle").click()
             panel_settled(page)
-            if surface == "panel":
-                holder = page.locator(f'.lf-thread[data-id="{root}"]')
-                holder.locator(".lf-thread-summary").click()
-                box = holder.locator(":scope > .lf-thread-reply leaf-text")
-            else:
-                holder = page.locator(".lf-general")
-                box = holder.locator("leaf-text")
+            holder = page.locator(f'.lf-thread[data-id="{root}"]')
+            holder.locator(".lf-thread-summary").click()
+            box = holder.locator(":scope > .lf-thread-reply leaf-text")
         send = holder.locator(".lf-compose-submit")
         # A send in the margin card, a reply's or the comment that opens it, leaves the
         # user on the element the card is about; a panel reply on its thread's title;
-        # the panel's general box stays to take more.
+        # the page comment card goes away, handing the user back to its control, where
+        # `c` opens it again for the next page comment.
         after = {
             "card": page.locator("#how-store"),
             "composer": page.locator("#how-cap"),
@@ -8830,7 +8847,7 @@ def pressed_send_surface(browser, serve, surface):
                 ".lf-thread", has_text="Sent from the box."
             ).locator(":scope > .lf-thread-summary"),
             "panel": holder.locator(".lf-thread-summary"),
-            "general": box,
+            "general": page.locator(".lf-banner-actions > .lf-page-comment"),
         }[surface]
         reply = (
             page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
@@ -9102,7 +9119,7 @@ def test_a_pointer_send_finishes_the_words_an_input_method_holds(browser, serve)
     rendered(page)
     assert ended.evaluate("ended => ended.count") == 1
     expect(after).to_be_focused()
-    expect(after).to_have_js_property("value", "")
+    expect(box).to_have_js_property("value", "")
     sent = events_model.read_events(serve.page_dir)
     assert any(event.get("text") == "Sent from the box.にほ" for event in sent), sent
 
@@ -9914,9 +9931,8 @@ def test_unused_panel_space_is_neutral_but_keeps_the_thread_context(
 
 
 def test_the_panel_boxes_share_one_column_and_one_button_face(browser, serve):
-    """Every bordered box in the Threads panel stands on one column: the find box, an
-    open thread's messages and its reply box, and the page composer at the foot. The
-    reply box once stood 7px wider on each side, so its words started at the messages'
+    """Every bordered box in the Threads panel stands on one column: the find box, and
+    an open thread's messages and its reply box. The reply box once stood 7px wider on each side, so its words started at the messages'
     text edge while its border overhung the column everything else keeps. The View
     button beside the find box wears the chrome's own button type, as the rest of the
     panel's buttons do."""
@@ -9937,14 +9953,13 @@ def test_the_panel_boxes_share_one_column_and_one_button_face(browser, serve):
             message: box('.lf-thread[open] .lf-thread-transcript'),
             reply: box('.lf-thread[open] > .lf-thread-reply .lf-compose-field'),
             find: box('.lf-find-box', '.lf-thread-filter-toggle'),
-            general: box('.lf-general .lf-compose-field'),
           };
         }"""
     )
     left, right = boxes["message"]
     for name, (at, to) in boxes.items():
-        # The find box and the page composer stand on the panel's padding, a thread's
-        # boxes one transparent border inside the list's; a pixel is that border.
+        # The find box stands on the panel's padding, a thread's boxes one transparent
+        # border inside the list's; a pixel is that border.
         assert at == pytest.approx(left, abs=1.01), (name, boxes)
         assert to == pytest.approx(right, abs=1.01), (name, boxes)
     message_start = page.evaluate(

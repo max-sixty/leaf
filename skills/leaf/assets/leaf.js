@@ -609,9 +609,6 @@ pageComment = createPageComment({
   createPageComment: app.createPageComment,
   designModeActive: designMode.active,
   panelIsOpen,
-  setPanel: (...args) => threadPanelController.setPanel(...args),
-  panelBox: panelElements.generalInput,
-  panelSend: panelElements.generalSend,
   showThread: landing.showThread,
   threadsToggle: toggleBtn,
 });
@@ -769,7 +766,6 @@ threadPanelController = createThreadPanelController({
     pageComment.close();
     app.overlay?.closePreview(...args);
   },
-  syncGeneral: pageComment.sync,
 });
 // The sample host binds to this child's owners, rather than importing another
 // window's runtime. This capability is ready before the child presents.

@@ -90,7 +90,7 @@ export function createThreadListController({ panel, threadsBox, narrowingView })
   };
 
   const emptyText =
-    "No threads yet. Select any text on the page to comment on it, or use the box below.";
+    "No threads yet. Select any text on the page to comment on it, or comment on the whole page from the banner.";
 
   // Opening a card is the third thing that reflows this list, beside the two renders, and
   // the only one the browser performs on its own: the named group closes the card that was

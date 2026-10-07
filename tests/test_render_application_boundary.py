@@ -26,6 +26,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    page_comment,
     panel_settled,
     refuse,
     reported_browser_errors,
@@ -433,9 +434,10 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
-    box = page.locator(".lf-general leaf-text")
+    box = page_comment(page)
+    send = page.locator(".lf-page-comment-card .lf-general button")
     write(box, "Pending **words**")
-    page.locator(".lf-general button").click()
+    send.click()
     holding(page, held, 1, "the shared collection's pending root")
     expect(reader).to_contain_text("Pending words")
     pending = reader.evaluate(
@@ -455,8 +457,9 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     selected = page.locator(f'.lf-thread[data-id="{admitted["id"]}"]')
     expect(selected).to_have_attribute("open", "")
 
+    page_comment(page)
     write(box, "Refused words")
-    page.locator(".lf-general button").click()
+    send.click()
     holding(page, held, 1, "the shared collection's refused root")
     expect(reader).to_contain_text("Refused words")
     expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_attribute(
@@ -482,6 +485,13 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     consume_browser_errors(page, "400")
     expect(reader).not_to_contain_text("Refused words")
     expect(box).to_have_js_property("value", "Refused words")
+    if while_pending == "choose-earlier":
+        # The card takes no keys from a user who has moved on; the words wait in it.
+        expect(box).to_be_hidden()
+        expect(selected.locator(".lf-thread-summary")).to_be_focused()
+    else:
+        # Where the send left the user, the card opens again on the refused words.
+        expect(box).to_be_focused()
     expect(page.locator('.lf-thread[data-id^="pending:"]')).to_have_count(0)
     expect(selected).to_have_attribute("open", "")
     page.unroute("**/api/event")
@@ -520,13 +530,11 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     assert first.evaluate("node => node.sameReading")
     assert second.evaluate("node => node.sameReading")
 
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
     second.locator("input").fill("Cedar")
     before = [widget.evaluate("node => node.updates") for widget in (first, second)]
     with sending(page, "a Thread visible to both package widgets"):
-        write(page.locator(".lf-general leaf-text"), "Cedar")
-        page.locator(".lf-general button").click()
+        write(page_comment(page), "Cedar")
+        page.locator(".lf-page-comment-card .lf-general button").click()
     expect(second.locator("li")).to_have_text("Cedar")
     expect(first.locator("li")).to_have_text("Alpine")
     for widget, count in zip((first, second), before):
@@ -544,8 +552,8 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     first.locator("input").fill("Delta")
     first_before = first.evaluate("node => node.updates")
     with sending(page, "another Thread after one widget disconnected"):
-        write(page.locator(".lf-general leaf-text"), "Delta")
-        page.locator(".lf-general button").click()
+        write(page_comment(page), "Delta")
+        page.locator(".lf-page-comment-card .lf-general button").click()
     expect(first.locator("li")).to_have_text("Delta")
     assert first.evaluate("node => node.updates") > first_before
     assert removed.evaluate("node => node.updates") == stopped_at
@@ -553,6 +561,7 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     thread_id = first.evaluate(
         "node => node.reading.threads.find(thread => thread.root.body.text.trim() === 'Delta').id"
     )
+    # The widget's route through core opens the shut Threads on that thread.
     first.locator("button", has_text="Delta").click()
     expect(page.locator(f'.lf-thread[data-id="{thread_id}"]')).to_be_visible()
 
@@ -1025,11 +1034,8 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     first_document = page.evaluate("performance.timeOrigin")
     page.evaluate("window.__pageModuleState.oldDocumentOnly = true")
 
-    threads = page.locator(".lf-threads-toggle")
-    threads.click()
-    draft = page.locator(".lf-general leaf-text")
-    write(draft, "Keep this recoverable draft in the page instance.")
-    threads.click()
+    write(page_comment(page), "Keep this recoverable draft in the page instance.")
+    page.keyboard.press("Escape")
 
     page.locator("#live-reading").evaluate(
         "el => { el.scrollIntoView({block: 'start'}); scrollBy(0, -120); }"
@@ -1086,8 +1092,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
         "el => el.getBoundingClientRect().top"
     )
     assert abs(restored_top - reading_top) < 2, (reading_top, restored_top)
-    threads.click()
-    expect(page.locator(".lf-general leaf-text")).to_have_js_property(
+    expect(page_comment(page)).to_have_js_property(
         "value", "Keep this recoverable draft in the page instance."
     )
 
@@ -1681,7 +1686,8 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
 
 
 @pytest.mark.parametrize(
-    "place", ["inline-editor", "general", "choose-earlier", "leave-displaced-title"]
+    "place",
+    ["inline-editor", "page-comment", "choose-earlier", "leave-displaced-title"],
 )
 def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     browser, serve, place
@@ -1745,9 +1751,9 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
     write(editor, "draft survives sibling rollback")
     editor.evaluate("node => node.setSelectionRange(6, 14, 'backward')")
     expect(editor).to_be_focused()
-    general = page.locator(".lf-general leaf-text")
-    if place == "general":
-        general.click()
+    general = page.locator(".lf-page-comment-card .lf-general leaf-text")
+    if place == "page-comment":
+        page_comment(page)
     elif place in {"choose-earlier", "leave-displaced-title"}:
         selected.locator(".lf-thread-summary").click()
 
@@ -1860,8 +1866,7 @@ def test_a_failed_list_candidate_restores_its_complete_committed_reading(
         expect(selected).to_have_attribute("open", "")
     elif place == "leave-displaced-title":
         expect(page.locator(".lf-thread[open] > .lf-thread-summary")).to_be_focused()
-        general.click()
-        expect(general).to_be_focused()
+        page_comment(page)
     page.evaluate("window.releaseFirstListFailure()")
     page.wait_for_function(
         """() => window.completeListFailures === 2 &&
@@ -1969,8 +1974,7 @@ def test_an_unavailable_list_preserves_the_selected_conversation(browser, serve)
     )
     selected.locator(".lf-thread-summary").click()
     expect(selected).to_have_attribute("open", "")
-    general = page.locator(".lf-general leaf-text")
-    general.click()
+    general = page_comment(page)
     # Exercise the presentation owner's real unavailable reading. Keep focus outside
     # the list, so title restoration cannot conceal losing the selected conversation.
     page.evaluate(

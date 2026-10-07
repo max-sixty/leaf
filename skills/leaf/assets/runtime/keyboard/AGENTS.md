@@ -57,10 +57,9 @@ browser's order.
   is about, with the card still up, so one Escape takes the card down and moving
   elsewhere needs none. The page comment card, which only starts a thread, goes
   away on its send, as on Escape, handing them back to the control it hangs from.
-  A box that stays open for more messages, such as a seat's
-  or the Threads panel's general box, keeps the user in it.
+  A box that stays open for more messages, such as a seat's, keeps the user in it.
 - Threads selects one thread whenever it shows any, and focus on the list is focus
-  on that thread's title: `g T`, and an Escape from the general box, land there.
+  on that thread's title: `g T`, and an Escape from its find box, land there.
   The list stands alone only while it shows no thread. A title selects the same
   thread as its body, and focus on a title selects its thread, however it arrived,
   so the focused thread is always the open one and its reply box is the one `c`

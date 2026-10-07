@@ -94,6 +94,7 @@ from render_harness import (
     nudge,
     open_page,
     open_versions,
+    page_comment,
     panel_settled,
     primed,
     refuse,
@@ -1615,7 +1616,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     expect(comments).to_be_enabled()
     comments.click()
     expect(body).not_to_have_attribute("data-lf-auxiliary-surface", "queue")
-    expect(page.locator(".lf-general leaf-text")).to_be_editable()
+    expect(page.locator(".lf-thread-panel")).to_be_visible()
 
     held.pop(0).continue_()
     wait_until_ready(page)
@@ -2144,8 +2145,8 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     """The chrome and initial state read do not wait behind widget startup.
 
     That interval is real state, not a missing-registry fallback: the state answer waits
-    unapplied until upgrades have captured the authored page, general Threads accepts a
-    send but holds it until the layer identity arrives, and an anchored comment waits until
+    unapplied until upgrades have captured the authored page, the page comment card accepts
+    a send but holds it until the layer identity arrives, and an anchored comment waits until
     upgrades and the buffered replay have made the page's final words. The explicit gate
     proves each assertion runs on the intended side of the fetch rather than racing a timer.
     """
@@ -2218,8 +2219,10 @@ def test_startup_continues_while_the_registry_fetch_is_held(browser, serve):
     expect(page.locator(".lf-thread-panel")).to_be_visible()
     expect(page.locator(".lf-empty")).to_have_text("Loading current threads…")
     expect(page.locator(".lf-thread")).to_have_count(0)
-    write(page.locator(".lf-general leaf-text"), "General comment during startup")
-    page.locator(".lf-general").get_by_role("button", name="Send").click()
+    write(page_comment(page), "General comment during startup")
+    page.locator(".lf-page-comment-card .lf-general").get_by_role(
+        "button", name="Send"
+    ).click()
     expect(page.locator(".lf-thread")).to_have_count(0)
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
 
@@ -2574,9 +2577,9 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     old_route = older[0]
     old_state = old_route.fetch().json()
 
-    write(page.locator(".lf-general leaf-text"), "Newest **snapshot**")
+    write(page_comment(page), "Newest **snapshot**")
     with sending(page, "the newer comment"):
-        page.locator(".lf-general button").click()
+        page.locator(".lf-page-comment-card .lf-general button").click()
 
     old_route.fulfill(json=old_state)
     page.title()  # let the old response join the shared import before releasing it
@@ -2706,10 +2709,9 @@ def test_more_than_six_live_documents_share_an_origin_without_stalling(browser, 
     with browser.new_context() as context:
         pages = [open_page(browser, url, context=context) for _ in range(8)]
         last = pages[-1]
-        last.locator(".lf-threads-toggle").click()
-        write(last.locator(".lf-general leaf-text"), "All eight views are live.")
+        write(page_comment(last), "All eight views are live.")
         with sending(last, "the eighth view's comment"):
-            last.locator(".lf-general button").click()
+            last.locator(".lf-page-comment-card .lf-general button").click()
         assert any(
             event.get("text") == "All eight views are live."
             for event in events_model.read_events(serve.page_dir)

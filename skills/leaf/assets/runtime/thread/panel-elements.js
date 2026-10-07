@@ -8,7 +8,6 @@ import { createThreadListView } from "./thread-list-view.js";
 import { createThreadNarrowingView } from "./narrowing-view.js";
 import { under } from "../shadow.js";
 import { declareOccluder } from "../geometry.js";
-import { textField } from "../composing/text-field.js";
 
 let nextPanelId = 0;
 
@@ -42,13 +41,7 @@ export function createThreadPanelElements({
   threadsBox.setAttribute("aria-label", "Threads");
   const threadsFrame = el("div", "lf-threads-frame");
   threadsFrame.append(threadsBox);
-  const generalRow = el("div", "lf-general");
-  const generalInput = textField();
-  generalInput.name = "comment";
-  const generalSend = el("button", "lf-btn", "Send");
-  generalRow.append(generalInput, generalSend);
   const panelFoot = el("div", "lf-thread-panel-foot");
-  panelFoot.append(generalRow);
   panel.append(panelHead, narrowingView, threadsFrame, panelFoot);
   let stopOccluding = null;
   const mountOverlay = () => {
@@ -74,8 +67,6 @@ export function createThreadPanelElements({
     narrowingView,
     findInput,
     threadsBox,
-    generalInput,
-    generalSend,
     panelFoot,
     inPanel: (panelIsOpen) => panelIsOpen() && under(focused(), panel),
     mountOverlay,

@@ -36,6 +36,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    page_comment,
     panel_settled,
     resized,
     round_trip,
@@ -565,10 +566,12 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
-    # Opening Threads does not add an unanchored reaction target.
+    # Neither Threads nor the page comment card adds an unanchored reaction target.
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-thread-panel-foot .lf-react-strip")).to_have_count(0)
+    expect(page.locator(".lf-thread-panel .lf-react-strip")).to_have_count(0)
+    page_comment(page)
+    expect(page.locator(".lf-page-comment-card .lf-react-strip")).to_have_count(0)
 
 
 def test_a_target_hint_opens_comment_and_a_token_seats_only_its_glyph(browser, serve):

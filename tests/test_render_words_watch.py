@@ -502,6 +502,44 @@ def test_words_a_later_listener_can_cancel_native_disclosure_activation(browser)
     consume_browser_errors(page, "typed words left the screen without a key or press")
 
 
+POPOVER = """<button id=open popovertarget=pop>Open</button>
+<div id=pop popover><textarea id=field></textarea></div>
+<button id=elsewhere style="position:fixed;right:0;bottom:0">Elsewhere</button>"""
+
+
+def popover_page(browser):
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(POPOVER))
+    page.locator("#open").click()
+    page.locator("#field").fill("Keep my words")
+    return page
+
+
+@pytest.mark.parametrize("route", ["press-elsewhere", "invoker", "escape"])
+def test_words_a_popover_the_browser_closes_puts_away_its_fields(browser, route):
+    """The browser closes an auto popover itself, outside any page callback: light
+    dismissal by a press elsewhere, its popovertarget invoker's toggle, and Escape. Each
+    is the user putting the words away, as a native disclosure's close is."""
+    page = popover_page(browser)
+    if route == "press-elsewhere":
+        page.locator("#elsewhere").click()
+    elif route == "invoker":
+        page.locator("#open").click()
+    else:
+        page.keyboard.press("Escape")
+    assert not page.locator("#pop").evaluate("pop => pop.matches(':popover-open')")
+    judge_watches()
+
+
+def test_words_a_popover_a_timer_closes_still_fail(browser):
+    page = popover_page(browser)
+    page.evaluate(
+        "() => new Promise(done => setTimeout(() => { pop.hidePopover(); done(); }))"
+    )
+    judge_watches()
+    consume_browser_errors(page, "typed words left the screen without a key or press")
+
+
 def test_words_a_press_in_the_page_holding_their_frame_puts_away_are_put_away(browser):
     page = browser.new_page()
     page.goto(

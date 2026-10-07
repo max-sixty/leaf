@@ -651,25 +651,21 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* Open, the control takes the open surface's accent and ground, without the underline
      an auxiliary toggle wears: the card's top edge meets it there. */
   .lf-page-comment[aria-expanded="true"] { color: var(--accent); background: var(--chip); }
-  /* The card's box lays out as every composer does, its pasted media in a row of its
-     own (the unscoped rule above, for the boxes a shadow tree also holds). */
-  .lf-page-composer { --quote-inset: 10px; --pre-inset: 10px; }
-  .lf-page-composer:has(> .lf-composer-media:not([hidden])) { flex-wrap: wrap; }
-  .lf-page-composer > .lf-composer-media { display: flex; flex: 1 0 100%; gap: 6px;
-    min-width: 0; overflow-x: auto; padding: 2px; box-sizing: border-box; }
   /* The card hangs from the control: its top edge on the banner's foot and its right
      edge on the control's, with no border along the edge it hangs from, so control and
      card read as one piece while it is open. On a phone, where the control is behind
-     More, it spans the window under the banner. */
+     More, it spans the window under the banner, inside its side safe areas. */
   .lf-page-comment-card { position: fixed; position-anchor: --lf-page-comment;
     top: var(--lf-banner-h); right: anchor(right); bottom: auto; left: auto;
     margin: 0; z-index: var(--lf-z-menu);
-    box-sizing: border-box; width: min(28rem, calc(100vw - 16px));
+    box-sizing: border-box;
+    width: min(28rem, calc(100vw - 16px - var(--lf-safe-left) - var(--lf-safe-right)));
     padding: 12px; background: var(--paper); color: var(--ink);
     border: 1px solid var(--border-2); border-top: 0;
     border-radius: 0 0 var(--r) var(--r); box-shadow: 0 12px 36px var(--shade); }
   @media screen and (width <= 480px) {
-    .lf-page-comment-card { right: 8px; width: calc(100vw - 16px); }
+    .lf-page-comment-card { right: calc(8px + var(--lf-safe-right));
+      width: calc(100vw - 16px - var(--lf-safe-left) - var(--lf-safe-right)); }
   }
   /* The controls stay packed against the row's end. Approval and Threads each hold the
      widest words they can show, measured by the reserve calls where the banner is
@@ -1284,12 +1280,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
       / 0 0 0 6px; }
   .lf-thread-panel { --lf-thread-inset: 12px; --lf-list-inset: 8px;
     --lf-panel-inset: calc(var(--lf-list-inset) + 1px + var(--lf-thread-inset)); }
-  /* The foot is a column of its own so the composer and the page's reaction strip keep
-     the flex-item margins they had as the panel's own children, and so the one box the
-     chrome measures for its lift is the one the user sees standing there. */
+  /* The foot is where page annotations home the response bar, a column of its own so
+     the one box the chrome measures for its lift is the one the user sees standing
+     there. */
   .lf-thread-panel-foot { display: flex; flex-direction: column; flex: none; }
   /* Every composer gives its field the row; its submit action lives inside that field. */
-  :is(.lf-general, .lf-page-composer) { display: flex; gap: 6px; align-items: flex-end; }
+  .lf-general { display: flex; gap: 6px; align-items: flex-end; }
   .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
   .lf-thread-action:hover { color: var(--ok); }
   /* Reopen stands in the same row as Resolve and answers the same question from the
@@ -1299,7 +1295,6 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      halfway. */
   .lf-thread-action:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
     --lf-focus-ring: thread-action; outline-offset: 2px; }
-  .lf-general { padding: 12px var(--lf-panel-inset); border-top: 1px solid var(--rule); }
   .lf-system { color: var(--ok); margin: 8px 0; }
   /* The two floats that point at the page, the response bar and the thread card, are
      fixed and anchored to what they point at, so the page carries them, and are placed

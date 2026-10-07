@@ -95,6 +95,7 @@ from render_harness import (
     open_page,
     open_versions,
     opened_tab,
+    page_comment,
     panel_settled,
     resized,
     root_overflow,
@@ -1420,8 +1421,7 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
         "aria-checked", "false"
     )
 
-    child.locator(".lf-threads-toggle").click()
-    draft = child.locator(".lf-general leaf-text")
+    draft = page_comment(child)
     write(draft, "Keep this draft while I resize the page.")
     width_before = child.evaluate("innerWidth")
     page.set_viewport_size({"width": 720, "height": 900})
@@ -1433,9 +1433,11 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
     assert child.url == child_url
     with sending(child, "the sample comment"):
         draft.press("ControlOrMeta+Enter")
+    child.locator(".lf-threads-toggle").click()
     expect(
         child.locator(".lf-thread").filter(has_text="Keep this draft")
     ).to_be_visible()
+    child.get_by_role("button", name="Close threads").click()
     state_response = page.request.get(child_url + "api/state")
     assert state_response.ok, state_response.text()
     state = state_response.json()
@@ -1444,7 +1446,7 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
     assert page.request.get(other.url + "api/state").json()["events"] == []
     assert events_model.read_events(serve.page_dir) == parent_before
 
-    write(draft, "Discard this unsent practice draft on reset.")
+    write(page_comment(child), "Discard this unsent practice draft on reset.")
     page.evaluate("""() => {
         localStorage.setItem('parent-draft', 'retain');
         sessionStorage.setItem('parent-tab', 'retain');
@@ -1454,8 +1456,7 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
         "scope => Object.keys(localStorage).some(key => key.startsWith(scope))",
         old_scope,
     )
-    other.locator(".lf-threads-toggle").click()
-    write(other.locator(".lf-general leaf-text"), "Keep the other sample's draft.")
+    write(page_comment(other), "Keep the other sample's draft.")
     other_scope = other.evaluate("location.pathname")
     reset.click()
     expect(reset).to_be_enabled()
@@ -3663,16 +3664,12 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
     page.locator(".lf-threads-toggle").tap()
     panel_settled(page)
     # The shortcut bar is not among them: a touch device has no keyboard to advertise, so
-    # the whole line stands down and takes its More control with it. That control used
-    # to be half of what this counted, and the sheet's own foot is the honest other
-    # half — a Send a finger presses, where More was a keyboard's way into a keyboard
-    # reference.
+    # the whole line stands down and takes its More control with it.
     expect(page.locator(".lf-shortcut-bar")).to_be_hidden()
     compact = page.locator(
-        ".lf-thread-panel .lf-react:visible, .lf-thread-panel-head .lf-btn:visible, "
-        ".lf-thread-panel-foot .lf-btn:visible"
+        ".lf-thread-panel .lf-react:visible, .lf-thread-panel-head .lf-btn:visible"
     )
-    assert compact.count() >= 2, "the covering panel exposed no compact touch controls"
+    assert compact.count() >= 1, "the covering panel exposed no compact touch controls"
     for index in range(compact.count()):
         box = compact.nth(index).bounding_box()
         assert box["width"] >= 43.9 and box["height"] >= 43.9, (
@@ -3680,6 +3677,18 @@ def test_coarse_pointer_chrome_gives_its_compact_controls_humane_aims(browser, s
         )
     page.get_by_role("button", name="Close threads").tap()
     panel_settled(page, open=False)
+
+    # The page comment card's Send is the compact control a finger presses to start a
+    # page thread.
+    page_comment(page)
+    send = page.locator(".lf-page-comment-card .lf-general button")
+    expect(send).to_be_visible()
+    box = send.bounding_box()
+    assert box["width"] >= 43.9 and box["height"] >= 43.9, (
+        f"the page comment card's Send kept a mouse-sized aim: {box}"
+    )
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
 
     # Across the covering boundary the banner fits the same touch aims. Its toolbar and
     # a keyboard ring remain inside the derived edge rather than centred through it.
@@ -3995,10 +4004,7 @@ def test_forced_colors_restore_a_real_outline_to_shadow_focused_fields(browser, 
         viewport={"width": 420, "height": 800}, forced_colors="active"
     )
     page = open_page(browser, serve(LONG_PAGE), context=context)
-    page.locator(".lf-threads-toggle").click()
-    box = page.locator(".lf-general leaf-text")
-    box.focus()
-    expect(box).to_be_focused()
+    box = page_comment(page)
     focus = box.evaluate(
         "el => { const s = getComputedStyle(el);"
         " return {style: s.outlineStyle, width: s.outlineWidth}; }"
@@ -5563,13 +5569,13 @@ def test_a_newer_wheel_supersedes_a_panel_resize_landing(browser, serve):
     expect(title).to_be_focused()
 
 
-def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
+def test_covering_threads_keeps_the_user_inside(browser, serve):
     """A covering Threads sheet is the one place the user can work until it closes.
 
     The same open panel leaves the page beside it live on a wide window and covers it
     where it leaves too little of a narrow one. Crossing that line must not rebuild the
-    thread: the exact thread in focus, the general draft, and the list's reading
-    place survive both directions.
+    thread: the exact thread in focus and the list's reading place survive both
+    directions.
     While it covers, Tab, the Leaf reading keys, native paging, and the wheel all stay in
     the panel; none can move to or scroll the covered document. Closing gives a keyboard
     entrant their prior page focus and unchanged document reading back.
@@ -5583,8 +5589,6 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     panel_settled(page)
     expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
 
-    draft = "Keep this draft through both auxiliary placements."
-    write(page.locator(".lf-general leaf-text"), draft)
     threads = page.locator(".lf-threads")
 
     def reading_place():
@@ -5617,11 +5621,11 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
         ), f"the focused summary left the list's reading band: {shown}"
 
     thread = threads.locator(".lf-thread").nth(5)
+    identity = thread.get_attribute("data-id")
+    assert identity, "the fixture established no thread to stand on"
     thread.locator(":scope > .lf-thread-summary").focus()
     thread.evaluate("el => el.scrollIntoView({block: 'start'})")
     reading_place()
-    identity = thread.get_attribute("data-id")
-    assert identity, "the fixture established no thread to stand on"
 
     resized(page, 400, 640)
     panel_settled(page)
@@ -5630,7 +5634,6 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     expect(
         page.locator(f'.lf-thread[data-id="{identity}"] > .lf-thread-summary')
     ).to_be_focused()
-    expect(page.locator(".lf-general leaf-text")).to_have_js_property("value", draft)
     reading_place()
 
     # Focus persists when the reader wheels away. A later resize must keep the
@@ -5663,14 +5666,18 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     assert focus_stops.count() > 8, (
         "the panel has too few stops to expose a focus escape"
     )
+    # The last stop is behind its thread's summary, which is where this pass starts:
+    # a focused thread shows controls a resting one keeps out of the count.
     focus_stops.last.focus()
-    page.keyboard.press("Tab")
-    expect(page.locator(".lf-thread-panel > .lf-edge")).to_be_focused()
+    edge = page.locator(".lf-thread-panel > .lf-edge")
+    wrapped = False
     for _ in range(focus_stops.count() + 3):
         page.keyboard.press("Tab")
         assert page.evaluate(
             "() => document.querySelector('.lf-thread-panel').contains(document.activeElement)"
         ), "Tab reached a control behind the covering Threads panel"
+        wrapped = wrapped or edge.evaluate("el => el === document.activeElement")
+    assert wrapped, "Tab never wrapped to the panel's first stop"
 
     page.locator(".lf-thread-filter-toggle").click()
     open_filter = page.locator('[data-filter-value="open"]')
@@ -5723,7 +5730,6 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     assert not page.locator("main").evaluate("el => el.inert")
     expect(summary).to_be_focused()
     expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
-    expect(page.locator(".lf-general leaf-text")).to_have_js_property("value", draft)
     reading_place()
     resized(page, 400, 640)
     panel_settled(page)
@@ -6398,7 +6404,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     browser, serve, other_leaf, color_scheme, width
 ):
     """The feature-gallery sweep above reads broad authored UI with the chrome shut: it
-    never presses a key, so the thread panel, its box, the drawers, the versions
+    never presses a key, so the thread panel, the page comment card, the drawers, the versions
     menu, the command reference and the sequence's chips are surfaces four readings pass
     straight over. A `role="list"` whose children were not all list items shipped
     through it, green every time.
@@ -6426,8 +6432,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     sweep("the page as it arrives")
 
     # The panel, and then the thread its list shows open — which is where `g T` lands
-    # the user; `c` there enters that thread's reply box. The page comment box below the
-    # list is the panel's other box.
+    # the user; `c` there enters that thread's reply box.
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     shown = page.locator(".lf-threads > .lf-thread:not([hidden])[open]")
@@ -6436,12 +6441,16 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page.keyboard.press("c")
     expect(shown.locator("leaf-text")).to_be_focused()
     sweep("standing in a reply box")
-    page.locator(".lf-general leaf-text").focus()
-    expect(page.locator(".lf-general leaf-text")).to_be_focused()
-    sweep("standing in the general box")
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
+
+    # The page comment card, which `c` opens with nothing on the page to comment on.
+    page.keyboard.press("c")
+    expect(page.locator(".lf-page-comment-card .lf-general leaf-text")).to_be_focused()
+    sweep("standing in the page comment card")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-page-comment-card")).to_be_hidden()
 
     # A drawer on the far edge, which the sweep above never opens either. Waited out rather
     # than pressed past: the close is animated, so the next surface would otherwise be read
@@ -6663,17 +6672,21 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
 
     The covering panel and shortcut bar can occupy the same viewport pixels, but they are
     not peers: modality puts the panel above the scrim and makes the bar inert background.
-    Treating their rectangles as a collision made every newline in the panel's composer
-    lift the unrelated bar by one line. A thread walk shows no position over that panel
-    and takes no room from its list. Over a live page, the live bar yields the panel's
-    actual width."""
+    Treating their rectangles as a collision made every newline in a composer inside the
+    panel lift the unrelated bar by one line. A thread walk shows no position over that
+    panel and takes no room from its list. Over a live page, the live bar yields the
+    panel's actual width."""
     context = browser.new_context(
         viewport={"width": 400, "height": 900}, reduced_motion="reduce"
     )
     page = open_page(browser, serve(ADDRESSED_PAGE, comments=6), context=context)
     page.locator(".lf-threads-toggle").click()
-    field = page.locator(".lf-general leaf-text")
-    field.click()
+    panel_settled(page)
+    thread = page.locator(".lf-threads > .lf-thread").first
+    thread.locator(":scope > .lf-thread-summary").focus()
+    page.keyboard.press("c")
+    field = thread.locator("leaf-text")
+    expect(field).to_be_focused()
     write(field, "One line")
     rendered(page)
 
@@ -6688,7 +6701,9 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
             const style = getComputedStyle(list);
             const standing = document.activeElement?.closest(".lf-thread");
             return {shortcut_bar: rect(document.querySelector(".lf-shortcut-bar")),
-                    foot: rect(document.querySelector(".lf-thread-panel-foot")),
+                    panel: rect(document.querySelector(".lf-thread-panel")),
+                    composer: rect(document.activeElement.closest("leaf-text")
+                                   ?? document.body),
                     standingTitle: standing ? rect(document.activeElement) : null,
                     lineInert: document.querySelector(".lf-shortcut-bar").inert,
                     viewportHeight: innerHeight,
@@ -6698,11 +6713,11 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
 
     one_line = boxes()
     assert one_line["lineInert"], one_line
-    assert one_line["shortcut_bar"]["right"] > one_line["foot"]["left"], (
+    assert one_line["shortcut_bar"]["right"] > one_line["panel"]["left"], (
         f"the fixture no longer exercises the overlapping lanes: {one_line}"
     )
-    assert one_line["shortcut_bar"]["bottom"] > one_line["foot"]["top"], (
-        f"the fixture no longer exercises the old vertical collision: {one_line}"
+    assert one_line["shortcut_bar"]["top"] < one_line["panel"]["bottom"], (
+        f"the fixture no longer exercises the vertical overlap: {one_line}"
     )
     assert abs(one_line["shortcut_bar"]["bottom"] - one_line["viewportHeight"]) < 1, (
         one_line
@@ -6711,7 +6726,7 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     write(field, "One line\nSecond line\nThird line")
     rendered(page)
     multiline = boxes()
-    assert multiline["foot"]["height"] > one_line["foot"]["height"], (
+    assert multiline["composer"]["height"] > one_line["composer"]["height"], (
         f"the composer did not grow: {one_line}, {multiline}"
     )
     assert multiline["shortcut_bar"] == one_line["shortcut_bar"], (
@@ -6736,7 +6751,7 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     resized(page, 1200, 900)
     beside = boxes()
     assert not beside["lineInert"], beside
-    assert beside["shortcut_bar"]["right"] <= beside["foot"]["left"] + 1, (
+    assert beside["shortcut_bar"]["right"] <= beside["panel"]["left"] + 1, (
         f"the line crossed into the panel standing over the page: {beside}"
     )
 
@@ -6777,36 +6792,31 @@ def test_dynamic_chrome_offsets_keep_the_safe_area_in_their_arithmetic(browser, 
     assert boxes["first"]["bottom"] <= boxes["height"] - insets["bottom"] + 1, boxes
 
 
-def test_a_covering_composer_keeps_its_controls_inside_the_safe_area(browser, serve):
-    """The sheet's worked footer stays above and inside unsafe viewport edges."""
+def test_the_page_comment_card_keeps_its_send_inside_the_side_safe_area(browser, serve):
+    """The page comment card's Send stays inside an unsafe side edge, on a phone where
+    the card spans the window and beside it where the card hangs from its control."""
     page = open_page(browser, serve(LONG_PAGE))
-    resized(page, 500, 700)
-    insets = {"right": 31, "bottom": 23}
-    page.evaluate(
-        """insets => {
-          for (const [side, value] of Object.entries(insets))
-            document.body.style.setProperty(`--lf-safe-${side}`, `${value}px`);
-        }""",
-        insets,
-    )
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    boxes = page.evaluate(
-        """() => {
-          const rect = selector => {
-            const r = document.querySelector(selector).getBoundingClientRect();
-            return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
-          };
-          return {footer: rect('.lf-general'), send: rect('.lf-general button'),
-                  viewport: {width: innerWidth, height: innerHeight}};
-        }"""
-    )
-    assert boxes["footer"]["bottom"] <= boxes["viewport"]["height"] - 23 + 1, (
-        f"the covering composer sat under the bottom safe area: {boxes}"
-    )
-    assert boxes["send"]["right"] <= boxes["viewport"]["width"] - 31 + 1, (
-        f"the covering composer's primary action sat under the side safe area: {boxes}"
-    )
+    page.evaluate("document.body.style.setProperty('--lf-safe-right', '31px')")
+    for width in (500, 420):
+        resized(page, width, 700)
+        page_comment(page)
+        boxes = page.evaluate(
+            """() => {
+              const rect = selector => {
+                const r = document.querySelector(selector).getBoundingClientRect();
+                return {left: r.left, right: r.right, top: r.top, bottom: r.bottom};
+              };
+              return {card: rect('.lf-page-comment-card'),
+                      send: rect('.lf-page-comment-card .lf-general button'),
+                      viewport: {width: innerWidth, height: innerHeight}};
+            }"""
+        )
+        assert boxes["send"]["right"] <= boxes["viewport"]["width"] - 31 + 1, (
+            f"the page comment card's Send sat under the side safe area at {width}px: "
+            f"{boxes}"
+        )
+        page.keyboard.press("Escape")
+        expect(page.locator(".lf-page-comment-card")).to_be_hidden()
 
 
 # A page holding a paragraph and one control, for the readings below that plant the

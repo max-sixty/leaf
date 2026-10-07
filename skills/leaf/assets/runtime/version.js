@@ -1299,7 +1299,7 @@ export function createVersionController({
             ? replyDestination(replyThread, openThread, mayRestore)
             : null;
         })
-      : draftEditingDestination(draftEditing);
+      : draftEditingDestination(draftEditing, mayRestore.handoff);
     if (!replyThread && input) mayRestore.handoff(() => focusDestination(input));
     if (mayRestore()) restoreDraftEditing(draftEditing, input);
   }

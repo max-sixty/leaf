@@ -20,11 +20,14 @@
    disposes the subscription when removal commits.
 
    An editor belongs to its existing draft subscription. A root editor has the context's
-   one current connected, visible destination; reply mirrors use the current Thread
-   route instead. Revision continuity carries words, generation, caret and local scroll
-   under that identity. It restores only the same active generation and only after the
-   original input intent has landed the actual editor. Hidden editors are never opened
-   by this mechanical handoff, and a newer edit is never overwritten by it.
+   one current connected destination; reply mirrors use the current Thread route
+   instead. Revision continuity carries words, generation, caret and local scroll under
+   that identity. It restores only the same active generation and only after the
+   original input intent has landed the actual editor. A root editor the arriving
+   document holds behind a disclosure, as the page comment card holds the page's box,
+   is shown through the route its owner declares for Resume writing, since the user was
+   writing in it when the revision came; no other hidden editor is opened by this
+   mechanical handoff, and a newer edit is never overwritten by it.
 
    A draft generation stores `{text, attempt, base, payload?}` while active and
    `{attempt, base, settled: true}` after settlement. Its attempt is minted when an edit
@@ -580,9 +583,8 @@ export function createWritingResume({ revealReply, arriveEditor }) {
   };
 }
 
-// A subscription owns its editor's context and lifetime. A context's root editors are
-// the boxes it is written in directly, of which the one shown takes the caret back
-// after a revision: one for most, two for the page's own draft (thread/page-comment.js).
+// A subscription owns its editor's context and lifetime. A context's root editor is
+// the box it is written in directly, which takes the caret back after a revision.
 // Replies explicitly declare mirrors and land through their thread owner.
 // A revision carries mechanical editing, never another copy of the draft's words.
 export function captureDraftEditing(input = focused()) {
@@ -601,16 +603,19 @@ export function captureDraftEditing(input = focused()) {
 export const draftEditingStands = (editing) =>
   Boolean(editing) && activeDraftRecord(editing.context)?.attempt === editing.attempt;
 
-export function draftEditingDestination(editing) {
-  const input = [...draftEditors].find(
+// The root editor a revision hands the caret back to, shown first through its owner's
+// Resume writing route when a disclosure holds it shut; `handoff` gates that showing on
+// the user's intent.
+export function draftEditingDestination(editing, handoff) {
+  const editor = [...draftEditors].find(
     (view) =>
-      view.ctx === editing.context &&
-      !view.mirrored &&
-      editorInput(view)?.isConnected &&
-      editorInput(view).checkVisibility({ visibilityProperty: true }),
+      view.ctx === editing.context && !view.mirrored && editorInput(view)?.isConnected,
   );
-  const destination = editorInput(input ?? {});
-  return destination ?? null;
+  if (!editor) return null;
+  const input = editorInput(editor);
+  if (!input.checkVisibility({ visibilityProperty: true }) && editor.resume)
+    handoff(editor.resume().open);
+  return input.checkVisibility({ visibilityProperty: true }) ? input : null;
 }
 
 export function restoreDraftEditing(editing, input) {

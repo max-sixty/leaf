@@ -39,15 +39,20 @@
     const source = parents[0]?.current();
     return source ? localSource(source) : null;
   };
+  const closed = (owner) =>
+    owner.localName === "details" ? !owner.open : !owner.matches(":popover-open");
   const checkpoint = (source, completedEdit = false) => {
     // The first reader after activation owns the native default, even when a
     // toggle listener runs before the dispatch-completion task.
-    for (const [activation, owner] of nativeDefaults) {
-      if (!activation.event.defaultPrevented && !owner.open) {
-        nativeDefaults.delete(activation);
+    for (const [activation, owners] of nativeDefaults) {
+      if (activation.event.defaultPrevented) continue;
+      for (const owner of owners) {
+        if (!closed(owner)) continue;
+        owners.delete(owner);
         for (const subscriber of subscribers)
           subscriber({ ...activation, nativeDefault: owner }, true);
       }
+      if (!owners.size) nativeDefaults.delete(activation);
     }
     for (const subscriber of subscribers) subscriber(source, completedEdit);
   };
@@ -137,11 +142,21 @@
     }
   }
 
+  // A press is one gesture from pointerdown through its click; a key is its keydown.
+  const PRESS = new Set(["pointerdown", "mousedown", "pointerup", "mouseup"]);
+  const GESTURES = new Set(["pointerdown", "keydown"]);
   const endDispatch = (source) => {
     finishing.add(source);
     // A summary's native activation runs after the click listeners and their
-    // microtasks. Retain that one browser-owned close until dispatch completion,
-    // without assigning unrelated native-await work to the press.
+    // microtasks, and so do the closes the browser makes of the popovers open when a
+    // gesture starts: a press's light dismissal, a popovertarget invoker's toggle, and
+    // Escape. Retain those browser-owned closes until the gesture's dispatch completes,
+    // without assigning unrelated native-await work to the input. A press's light
+    // dismissal falls between its own events, outside every dispatch, so the closes a
+    // pointerdown retains stand until its click has dispatched.
+    const closes = new Set(
+      GESTURES.has(source.event.type) ? document.querySelectorAll(":popover-open") : [],
+    );
     const summary =
       source.event.type === "click" ? source.node?.closest?.(nativeActivation) : null;
     const details = summary?.parentElement;
@@ -150,12 +165,19 @@
       summary.localName === "summary" &&
       details.querySelector(":scope > summary") === summary &&
       details.open;
-    if (closesDetails) nativeDefaults.set(source, details);
+    if (closesDetails) closes.add(details);
+    if (closes.size) nativeDefaults.set(source, closes);
     task(() => {
       // The dispatch is over. A native await continuation since dispatch is not owned by
       // this event unless its committing callback was explicitly captured.
       checkpoint(null, true);
-      nativeDefaults.delete(source);
+      for (const activation of nativeDefaults.keys())
+        if (
+          activation === source
+            ? !PRESS.has(source.event.type)
+            : source.event.type === "click" && PRESS.has(activation.event.type)
+        )
+          nativeDefaults.delete(activation);
       finishing.delete(source);
       if (!finishing.size) {
         for (const resolve of finished) resolve();
@@ -185,6 +207,8 @@
           if (!event.isTrusted) return;
           // An earlier passive loss cannot be answered by the input that follows it.
           checkpoint(null, event.type !== "input");
+          // A new gesture ends what an earlier one retained.
+          if (GESTURES.has(event.type)) nativeDefaults.clear();
           const source = {
             event,
             node: event.composedPath()[0],

@@ -3,9 +3,9 @@ page's own record.
 
     uv run leaf-dev journey TARGET [--release RELEASE]
 
-The user opens the triage board in Chrome and tells the agent, through the Threads
-composer, that a release passed its deployment checks, asking it to record that on
-the board. How the page records it is the agent's call, as with a real user's
+The user opens the triage board in Chrome and tells the agent, through the page
+comment card, that a release passed its deployment checks, asking it to record that
+on the board. How the page records it is the agent's call, as with a real user's
 request; the journey requires only a reply in Threads and a reload presenting a
 published revision that names the release. Every target gets the same ask and the
 same checks. TARGET names what answers:
@@ -363,7 +363,8 @@ def ask_to_record(
         f"Release {marker} passed its deployment checks. Record that on the board, "
         "and tell me when it's done."
     )
-    box = page.locator(".lf-general leaf-text")
+    page.locator(".lf-banner-actions > .lf-page-comment").click()
+    box = page.locator(".lf-page-comment-card leaf-text")
     box.focus()
     page.keyboard.insert_text(text)
     if ask == 1:

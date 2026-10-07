@@ -60,6 +60,7 @@ from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
     open_page,
+    page_comment,
     panel_settled,
     told,
     write,
@@ -2941,8 +2942,8 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     told(page)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
+    box = page_comment(page)
     page.evaluate("window.__leafVerifier.startVisibleReplyClock")
-    box = page.locator(".lf-general leaf-text")
     write(box, "edit the page")
     box.press("ControlOrMeta+Enter")
     told(page)
@@ -3022,6 +3023,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     assert news.bounding_box()["x"] == news_left
     assert held_header() == held
     if read_elsewhere:
+        box = page_comment(page)
         write(box, "A separate thread")
         box.press("ControlOrMeta+Enter")
         told(page)
@@ -4330,8 +4332,14 @@ class _FailedFirstTurn:
         self.last_response = None
 
     def locator(self, selector: str):
-        assert selector == ".lf-general leaf-text"
+        assert selector in {
+            ".lf-banner-actions > .lf-page-comment",
+            ".lf-page-comment-card leaf-text",
+        }
         return self
+
+    def click(self) -> None:
+        pass
 
     def focus(self) -> None:
         pass

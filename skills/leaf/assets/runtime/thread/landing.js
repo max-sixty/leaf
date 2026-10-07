@@ -28,7 +28,7 @@
    “comment on the thread” going in and “back to thread” coming out name one element. It
    answers for every arrival — a keyboard command, a Tab, a pointer — because a box's way
    out is the thread it belongs to whichever of them put the user in it, and the
-   panel's own general box hands back to the Threads list. A page-owned first-message seat
+   panel's own find box hands back to the Threads list. A page-owned first-message seat
    has no standing place of its own; a widget control that explicitly enters its box
    supplies the caller-owned return target through `landInThread`. A send from a
    thread's box leaves it the same way, onto the thread, except in the margin card,
@@ -154,7 +154,7 @@ function backFromBox() {
   return route?.target?.isConnected ? route : null;
 }
 // Whether the box the user is typing in has somewhere to hand them back: the
-// thread it belongs to, or the panel's list where it is the chrome's own box. The
+// thread it belongs to, or the panel's list from the panel's own find box. The
 // page's standing scope asks the same question, since a box with nowhere to go back to
 // is a control the user is standing on, theirs to let go of.
 export const boxHandsBack = () =>
@@ -182,8 +182,7 @@ pageScope("text entry", {
       keys: ["Escape"],
       description: "Leave the box, keeping what is typed",
       title: () => backFromBox()?.line ?? "back to list",
-      // The thread the box belongs to, or the panel's list where it is the chrome's
-      // own box. A page text box that is neither leaves the row dead and the page's rung
+      // The thread the box belongs to, or the panel's list from its own find box. A page text box that is neither leaves the row dead and the page's rung
       // standing, which is the honest answer: nothing there to go back to.
       when: boxHandsBack,
       run: () => {

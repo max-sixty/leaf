@@ -1724,7 +1724,7 @@ def test_interaction_gallery_contains_page_chrome(serve, browser):
             }"""
     )
     expect(comment_input).to_have_attribute(
-        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
+        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter Tab"
     )
     expect(comment_input).to_have_js_property(
         "value",

@@ -397,8 +397,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      response bar, and inspect in their ordinary order within it. */
   :is(.lf-page-paint, .lf-target-paint) { z-index: var(--lf-z-page-paint); }
   .lf-target-paint[data-lf-paint-plane="chrome"] { z-index: var(--lf-z-chrome-paint); }
-  /* A paint box stands in the frames that cut what it is drawn over, each moved by the
-     scroll of the box that holds it (target-paint-geometry.js, `paintStand`). */
+  /* A paint box stands in the frames that cut what it is drawn over, each carried by the
+     scrolls around the box that holds it: anchored to that box where anchors reach, else
+     in its motion layers (target-paint-geometry.js, `paintStand`). */
   .lf-paint-stand { left: 0; top: 0; pointer-events: none; }
   .lf-paint-frame { position: absolute; }
   .lf-paint-motion { position: absolute; left: 0; top: 0; }

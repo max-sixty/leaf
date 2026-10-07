@@ -107,6 +107,7 @@ import {
   widgetController,
   reachedForWords,
   keepsText,
+  focusDestination,
 } from "/runtime/widget-api.js";
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
@@ -435,8 +436,8 @@ customElements.define(
             id: `draft:${this.id}`,
             text: this.#editor ? "Save or cancel draft edit" : `Edit ${this.id}`,
             activate: () => {
-              if (this.#editor) this.#editor.focus({ preventScroll: true });
-              else this.#margin?.focus("edit");
+              if (this.#editor) focusDestination(this.#editor, "move");
+              else this.#margin?.focus("edit", "move");
             },
           },
         ],
@@ -640,7 +641,7 @@ customElements.define(
       // in the body's text, so it names a word only in a box holding that text — a
       // resumed edit opens with different words at those offsets.
       if (at && editor.value === effective) editor.setSelectionRange(at[0], at[1]);
-      if (arrive) editor.focus({ preventScroll: at !== undefined });
+      if (arrive) focusDestination(editor, "move", { scroll: at === undefined });
     }
 
     #close(discard) {

@@ -75,7 +75,9 @@ export function createAnchorControls({
     record.margin?.update({ immediate: true });
     paintKeys();
     if (focus && eventId)
-      nextRender(() => record.margin?.focus(`reaction:${eventId}:remove`, surface));
+      nextRender(() =>
+        record.margin?.focus(`reaction:${eventId}:remove`, "move", surface),
+      );
   }
 
   const visualActionAnchor = (anchor) =>
@@ -237,7 +239,7 @@ export function createAnchorControls({
                     ),
                   ) ?? record.surface;
                 setReactionRemoval(record, null);
-                record.margin.focus(entryKey, surface);
+                record.margin.focus(entryKey, "return", surface);
               },
             },
           ],
@@ -284,7 +286,7 @@ export function createAnchorControls({
             readings: record.roots.map((root) => ({
               id: `reaction:${root.id}`,
               text: `${root.token} reaction actions`,
-              activate: () => record.margin.focus(`reaction:${root.id}:open`),
+              activate: () => record.margin.focus(`reaction:${root.id}:open`, "move"),
             })),
           }),
           activate: (activation, context) => {

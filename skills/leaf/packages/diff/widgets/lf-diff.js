@@ -792,7 +792,10 @@ customElements.define(
               keys: ["/"],
               title: "filter files",
               description: "Filter the files in this diff",
-              run: () => this.diffTools?.search.focus(),
+              run: () => {
+                const search = this.diffTools?.search;
+                if (search) focusDestination(search, "move", { scroll: true });
+              },
             },
             // The filter is a layer of this widget, so its way out is read off the
             // filter rather than off the press that put it on: a live query goes
@@ -817,13 +820,13 @@ customElements.define(
                 const search = this.diffTools?.search;
                 if (search?.value) {
                   this.clearFilter();
-                  search.focus({ preventScroll: true });
+                  focusDestination(search, "return");
                   return;
                 }
                 // The box's container is the patch it filters, so that is where it hands
                 // the user back: a blur alone would drop them out of this widget's
                 // scope with no ring anywhere, and the file walk would stop answering.
-                focusDestination(this);
+                focusDestination(this, "return");
               },
             },
             {
@@ -1700,9 +1703,8 @@ customElements.define(
     // The shared reading-region landing moves only vertically, including through
     // the shadow host. Neither the file nor a region around it loses its sideways place.
     land(box, node = box) {
-      if (node.tabIndex < 0) keeps(node, "tabindex", -1);
       scrollIntoReadingBand(box, box, "start", scrollBehavior());
-      node.focus({ preventScroll: true });
+      focusDestination(node, "move");
     }
 
     entryAroundFocus() {
@@ -1742,7 +1744,7 @@ customElements.define(
       }
       const target = entry.details?.firstElementChild ?? entry.review;
       scrollIntoReadingBand(target, target, "center", scrollBehavior());
-      target.focus({ preventScroll: true });
+      focusDestination(target, "move");
       this.markFileWalk("diff-unreviewed", "unreviewed");
       notice(`Next unreviewed file: ${entry.record.path}`);
     }

@@ -46,7 +46,7 @@ import {
   keySequenceTemplate,
   neutralStates,
 } from "./presentation.js";
-import { handBack, tabStops } from "../focus.js";
+import { handBack, tabStops, focusDestination } from "../focus.js";
 import { closeControl } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
 import { ELEMENTS, pageScope, pageScopes } from "./register.js";
@@ -816,13 +816,14 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
   // The results are a real overflow region and must enter the modal Tab loop.
   if (open) reachScrollers(commandReferenceDialog);
   if (open)
-    commandReferenceDialog
-      .querySelector(
+    focusDestination(
+      commandReferenceDialog.querySelector(
         preserveSelection
           ? ".lf-command-reference-close"
           : ".lf-command-reference-search",
-      )
-      .focus({ preventScroll: true });
+      ),
+      "move",
+    );
   repaint();
   // The reference is a bounded interaction rather than a level of the page: it claims the
   // whole keyboard while it stands and hands the user back itself, to the control the
@@ -834,7 +835,7 @@ function showCommandReference(open, restoreFocus, invokeCommand) {
 
 export function moveCommandReferenceFocus(dir) {
   const stops = tabStops(commandReferenceDialog);
-  if (!stops.length) return commandReferenceDialog.focus({ preventScroll: true });
+  if (!stops.length) return focusDestination(commandReferenceDialog, "step");
   const at = stops.indexOf(focused());
   const next =
     at < 0
@@ -842,7 +843,7 @@ export function moveCommandReferenceFocus(dir) {
         ? stops[0]
         : stops.at(-1)
       : stops[(at + dir + stops.length) % stops.length];
-  next.focus({ preventScroll: true });
+  focusDestination(next, "step");
 }
 
 const commandButton = (id) =>
@@ -883,7 +884,7 @@ export function moveCommandReferenceSelection(dir) {
   };
   presentCommandReference();
   const next = commandButton(nextId);
-  if (focusedId) next.focus({ preventScroll: true });
+  if (focusedId) focusDestination(next, "move");
   next.closest("tr").scrollIntoView({ block: "nearest" });
   beginWalk("shortcut-command", "Command", () => {
     const current = focusedCommandId() ?? commandReferenceState.selectedCommandId;

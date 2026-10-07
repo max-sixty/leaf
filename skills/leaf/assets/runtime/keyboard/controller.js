@@ -65,7 +65,8 @@ export function mountKeyboard({
   // Focus entering a box, or a control that claims Escape, disarms the sequence — a
   // digit typed in a box is text, and a chip left blooming would promise a cancel the
   // control would consume. The paint that answers the move is repaint.js's. A chrome
-  // placement moves no one (focus.js, `placeChrome`), so it publishes nothing to disarm.
+  // placement handing the user straight back to the node it moved moves no one, so it
+  // publishes nothing to disarm (focus.js, `onStanding`).
   onStanding(() => {
     // The same question `setGoToSequence` asks before arming, so it takes the same answer: two
     // readings of where the user is standing would refuse to arm somewhere they then

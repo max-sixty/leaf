@@ -7,7 +7,7 @@
  * This owner declares the panel's Escape ladder, which is the way out of a thread in
  * it: narrowing unwinds before the panel closes. Closing the panel lands the user on
  * the document. Leaving text entry belongs to thread/landing.js. */
-import { handBack, letGo } from "./focus.js";
+import { handBack, letGo, focusDestination } from "./focus.js";
 import { pageRung } from "./keyboard/register.js";
 import { slide } from "./motion.js";
 import { retainUserIntent } from "./user-intent.js";
@@ -50,7 +50,7 @@ export function createThreadPanelController({
     const invoker = document.activeElement;
     panel.show();
     if (invoker?.isConnected && !panel.contains(invoker))
-      invoker.focus({ preventScroll: true });
+      focusDestination(invoker, "return");
   }
   function setPanel(open, options) {
     if (open || panelIsOpen()) auxiliarySurfaces.select(open ? key : null, options);
@@ -103,7 +103,7 @@ export function createThreadPanelController({
     // user presses the marks and passages its threads are about while it is open. It
     // takes the covering boundary only where it leaves less than a usable page.
     beside: true,
-    focus: () => threadsBox,
+    landing: () => threadsBox,
     show: ({ phase }) => paintPanel(true, phase),
     hide: () => paintPanel(false),
   });

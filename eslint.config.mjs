@@ -453,10 +453,72 @@ export const standingListenersRule = {
   },
 };
 
+// Every focus the runtime and the packages place says what moved the user there
+// (`focusDestination(node, cause)` in focus.js), since that call is the only place that
+// knows whether it is a route or a return, and each reader of where they stand acts on
+// the word. A plain `focus()` publishes as the user's own move. The rule knows the
+// element method by its shape, no argument or an options object, so a method of the same
+// name taking a key, as a contribution's `focus(entryKey, cause)` does, is another
+// question. Each call to `focusDestination` names its cause, and the function is not
+// handed around as a value, where a caller would call it without one. The option names
+// the files that may still call `focus()`: the owner, and an element whose own `focus()`
+// hands on to the editor inside it.
+const PLACEMENT_MESSAGE =
+  "Put the user on an element with focusDestination(node, cause) (runtime/focus.js): a plain focus() publishes as the user's own move, so a return reads as one.";
+export const placementsRule = {
+  meta: { type: "problem", schema: [{ type: "array", items: { type: "string" } }] },
+  create(context) {
+    const file = path
+      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    const owner = (context.options[0] ?? []).includes(file);
+    const optionsLike = (arg) =>
+      arg.type === "ObjectExpression" ||
+      arg.type === "SpreadElement" ||
+      (arg.type === "Identifier" && /^opt/u.test(arg.name));
+    return {
+      CallExpression(node) {
+        const { callee, arguments: args } = node;
+        if (callee.type === "Identifier" && callee.name === "focusDestination") {
+          if (args.length < 2)
+            context.report({ node, message: "focusDestination names its cause." });
+          return;
+        }
+        if (
+          owner ||
+          callee.type !== "MemberExpression" ||
+          callee.computed ||
+          callee.property.name !== "focus"
+        )
+          return;
+        if (args.length === 0 || (args.length === 1 && optionsLike(args[0])))
+          context.report({ node, message: PLACEMENT_MESSAGE });
+      },
+      Identifier(node) {
+        if (node.name !== "focusDestination") return;
+        const { parent } = node;
+        if (
+          (parent.type === "CallExpression" && parent.callee === node) ||
+          parent.type === "ImportSpecifier" ||
+          parent.type === "ExportSpecifier" ||
+          (parent.type === "FunctionDeclaration" && parent.id === node)
+        )
+          return;
+        context.report({
+          node,
+          message: "Call focusDestination with its cause rather than passing it on.",
+        });
+      },
+    };
+  },
+};
+
 const architecturePlugin = {
   rules: {
     "semantic-store-ownership": semanticStoreOwnershipRule,
     "standing-listeners": standingListenersRule,
+    placements: placementsRule,
     "root-state-ownership": {
       meta: { type: "problem", schema: [] },
       create(context) {
@@ -1019,15 +1081,21 @@ export default [
           // row's tree, so entering its shadow tree reaches the row, and a move inside
           // it is no new entry.
           "skills/leaf/assets/runtime/thread/replies.js": ["focusin"],
-          // Whether focus is anywhere inside a cluster, or inside the card's reply row:
-          // leaving one closes what it opened. Their controls stand in their own tree.
-          "skills/leaf/packages/default/runtime/annotation-overlay/margin-projection.js":
-            ["focusout"],
           // A widget's own subtree, whose controls stand in its tree: whether focus is
           // within the gloss, and the contents link the user last stood on.
           "skills/leaf/packages/default/widgets/lf-gloss.js": ["focusin", "focusout"],
           "skills/leaf/packages/default/widgets/lf-toc.js": ["focusin"],
         },
+      ],
+      "architecture/placements": [
+        "error",
+        [
+          // The one placement, and the one handing on an arrival in progress.
+          "skills/leaf/assets/runtime/focus.js",
+          // The text field's own `focus()`, which the placement calls, hands on to the
+          // editor its shadow tree holds.
+          "skills/leaf/assets/runtime/composing/text-field.js",
+        ],
       ],
     },
   },

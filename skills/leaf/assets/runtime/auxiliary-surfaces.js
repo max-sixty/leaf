@@ -38,7 +38,7 @@ import { openPopovers } from "./keyboard/layer-stack.js";
 import { registerAuxiliaryModality } from "./keyboard/register.js";
 import { hides, placeHolder } from "./geometry.js";
 import { hostIn, under } from "./shadow.js";
-import { deepFocus, onStanding, tabStops } from "./focus.js";
+import { deepFocus, onStanding, tabStops, focusDestination } from "./focus.js";
 import { userStore } from "./storage.js";
 import { pagePresented } from "./presentation.js";
 import { keeps, keepsHidden } from "./keeps.js";
@@ -67,18 +67,11 @@ export function createAuxiliarySurfaces({
   scrim.hidden = true;
   scrim.setAttribute("aria-hidden", "true");
   let active = null;
-  let placingFocus = false;
   let mounted = false;
   let arriving = null;
 
-  const place = (node) => {
-    placingFocus = true;
-    try {
-      node.focus({ preventScroll: true });
-    } finally {
-      placingFocus = false;
-    }
-  };
+  // The node a surface lands the user on, or the surface itself.
+  const landingIn = (controller) => controller.landing() ?? controller.surface;
   const nativeLayerContains = (node) => node?.closest?.("dialog:modal, :popover-open");
   const overlay = (node) => node.matches?.("dialog:not(.lf-thread-panel), [popover]");
   // Every other surface is out of the background: only one is selected, so the rest are
@@ -137,7 +130,7 @@ export function createAuxiliarySurfaces({
     !(controller.underBand && band.contains(document.activeElement));
   const recover = () => {
     if (active && outside(active) && !nativeLayerContains(document.activeElement))
-      place(active.focus() ?? active.surface);
+      focusDestination(landingIn(active), "return");
   };
   const focusMutations = new MutationObserver(recover);
   addEventListener("focus", () => nextRender(recover));
@@ -174,7 +167,7 @@ export function createAuxiliarySurfaces({
     backgroundMutations.observe(chromeRoot, { childList: true });
     focusMutations.observe(next.surface, { childList: true, subtree: true });
 
-    if (outside(next)) place(next.focus() ?? next.surface);
+    if (outside(next)) focusDestination(landingIn(next), "move");
   }
 
   function registerAuxiliarySurface({
@@ -183,7 +176,7 @@ export function createAuxiliarySurfaces({
     scroller,
     beside = false,
     underBand = false,
-    focus,
+    landing,
     show,
     hide,
     arrival = "mount",
@@ -197,7 +190,7 @@ export function createAuxiliarySurfaces({
         surface.hasAttribute("aria-label") || surface.hasAttribute("aria-labelledby")
       ) ||
       !scroller ||
-      !focus ||
+      !landing ||
       !show ||
       !hide
     )
@@ -212,7 +205,7 @@ export function createAuxiliarySurfaces({
       scroller,
       covers: () => !beside || !standsBeside(),
       underBand,
-      focus,
+      landing,
       show,
       hide,
       arrival,
@@ -307,7 +300,7 @@ export function createAuxiliarySurfaces({
         const available = tabStops(active.surface);
         if (!available.length) {
           event.preventDefault();
-          place(active.surface);
+          focusDestination(active.surface, "step");
           return;
         }
         const at = available.indexOf(deepFocus());
@@ -316,7 +309,7 @@ export function createAuxiliarySurfaces({
           (event.shiftKey && at === 0)
         ) {
           event.preventDefault();
-          place(event.shiftKey ? available.at(-1) : available[0]);
+          focusDestination(event.shiftKey ? available.at(-1) : available[0], "step");
         }
       },
       true,
@@ -325,15 +318,9 @@ export function createAuxiliarySurfaces({
     // where the user stands, is taken back into it.
     onStanding((node) => {
       const at = node && hostIn(node, document);
-      if (
-        !at ||
-        !active ||
-        placingFocus ||
-        active.surface.contains(at) ||
-        nativeLayerContains(at)
-      )
+      if (!at || !active || active.surface.contains(at) || nativeLayerContains(at))
         return;
-      place(active.focus() ?? active.surface);
+      focusDestination(landingIn(active), "return");
     });
   }
 
@@ -351,7 +338,7 @@ export function createAuxiliarySurfaces({
   const selectedSurface = () => controllers.get(selectedKey)?.surface ?? null;
   const coveringSurface = () => active?.surface ?? null;
   const coveringScroller = () => active?.scroller() ?? null;
-  const coveringFocus = () => (active ? (active.focus() ?? active.surface) : null);
+  const coveringFocus = () => (active ? landingIn(active) : null);
   // The keyboard register carries this reading to the dispatcher, whose own closure stops
   // there: a direct edge to this owner would give a key press this owner's whole
   // initialization graph.

@@ -71,7 +71,7 @@ import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
 import { el, PRESSABLE } from "../widget-elements.js";
 import { allButCommandReference, pageCommand, pageScope } from "./register.js";
 import { focusedThreadTarget } from "../thread/focus.js";
-import { letGo } from "../focus.js";
+import { letGo, focusDestination } from "../focus.js";
 import { pageParts } from "../passages.js";
 import { addressableSays } from "../anchor-resolution.js";
 import { announce, notice } from "../notifications.js";
@@ -188,7 +188,7 @@ export function createGoToSequence({
       when: () => true,
       go: () => {
         setPanel(true);
-        threadsBox.focus({ preventScroll: true });
+        focusDestination(threadsBox, "move");
       },
       active: (...args) => panelIsOpen(...args),
       // The mnemonic pressed over an open panel closes it outright. The way back out of
@@ -207,7 +207,7 @@ export function createGoToSequence({
       when: () => queueOffered(),
       go: () => {
         setOpenDrawer("queue");
-        (queueRows()[0] ?? queuePanel).focus({ preventScroll: true });
+        focusDestination(queueRows()[0] ?? queuePanel, "move");
       },
       active: () => currentDrawer() === "queue",
       close: () => setOpenDrawer(null),
@@ -226,7 +226,7 @@ export function createGoToSequence({
       when: (...args) => leavesOffered(...args),
       go: () => {
         setOpenDrawer("leaves");
-        (othersLinks()[0] ?? othersPanel).focus({ preventScroll: true });
+        focusDestination(othersLinks()[0] ?? othersPanel, "move");
       },
       active: () => currentDrawer() === "leaves",
       close: () => setOpenDrawer(null),
@@ -249,7 +249,7 @@ export function createGoToSequence({
   // remain one behavior.
   function press(control) {
     scrollToElement(control, undefined, "nearest");
-    control.focus({ preventScroll: true });
+    focusDestination(control, "press");
     control.click();
   }
 
@@ -292,7 +292,7 @@ export function createGoToSequence({
       // the platform's own close route.
       go: (summary) => {
         scrollToElement(summary.parentElement, undefined, "nearest");
-        summary.focus({ preventScroll: true });
+        focusDestination(summary, "move");
       },
     },
   ];

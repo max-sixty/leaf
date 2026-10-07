@@ -8,6 +8,7 @@ import { el } from "./widget-elements.js";
 import { keys } from "./keyboard/scopes.js";
 import { setRuntimeRootStyle } from "./root-state.js";
 import { keeps, keepsHidden } from "./keeps.js";
+import { focusDestination } from "./focus.js";
 
 // The step an arrow takes, in the column's own gutter: the smallest move that shows in a
 // page of prose.
@@ -73,7 +74,7 @@ export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
       // drops focus to body during a rotation that closes the range.
       const fixed = cap() <= min;
       if (fixed && handle === document.activeElement)
-        handle.lfFixedFocus().focus({ preventScroll: true });
+        focusDestination(handle.lfFixedFocus(), "return");
       keepsHidden(handle, fixed);
     }
   }
@@ -148,7 +149,7 @@ export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {
       if (activeResize?.edge !== edge || activeResize.pointerId !== event.pointerId)
         return;
       activeResize = null;
-      edge.focus({ preventScroll: true });
+      focusDestination(edge, "move");
     };
     for (const ending of ["pointerup", "pointercancel", "lostpointercapture"])
       edge.addEventListener(ending, finish);

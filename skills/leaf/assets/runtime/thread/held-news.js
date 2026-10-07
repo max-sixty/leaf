@@ -297,7 +297,7 @@ export function newsNotice(header = false) {
   const show = () => {
     const standing = focused() === node;
     const landing = open();
-    if (standing && landing) focusThread(landing, { preventScroll: true });
+    if (standing && landing) focusThread(landing, "move");
   };
   keys(node, "On news waiting in a thread", [
     {

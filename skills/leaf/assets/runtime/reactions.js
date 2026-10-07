@@ -55,7 +55,7 @@ import {
 } from "./anchor-resolution.js";
 import { announce, notice } from "./notifications.js";
 import { claimsEsc, focused, saying } from "./keyboard/scopes.js";
-import { handBack, returningFocus } from "./focus.js";
+import { handBack, focusDestination } from "./focus.js";
 import { repaint } from "./repaint.js";
 
 import {
@@ -297,7 +297,9 @@ export function createReactionController({
     reactDeparture?.();
     reactDeparture = null;
     const picker = pickerFor(surface);
-    if (picker) returningFocus(() => picker.palette.hidePopover());
+    // The platform hands focus back to the opener as the list closes, the layer's own
+    // return (focus.js).
+    picker?.palette.hidePopover();
     picker?.trigger.setAttribute("aria-expanded", "false");
   }
 
@@ -379,8 +381,11 @@ export function createReactionController({
           if (reactSurface === opened) setReact(false);
         });
         picker.trigger.setAttribute("aria-expanded", "true");
-        if (surface && reactFrom === picker.trigger)
-          picker.palette.querySelector(".lf-react")?.focus({ preventScroll: true });
+        const first =
+          surface &&
+          reactFrom === picker.trigger &&
+          picker.palette.querySelector(".lf-react");
+        if (first) focusDestination(first, "move");
       }
       announce(`React — ${saying(REACT.rows)}`);
     } else {
@@ -419,7 +424,7 @@ export function createReactionController({
               destination.checkVisibility?.() &&
               (focused() === active || focused() === document.body)
             )
-              destination.focus({ preventScroll: true });
+              focusDestination(destination, "return");
           };
           // A reaction press may release held news and repaint this thread before
           // the next frame. Put focus on its trigger now so that repaint carries it.
@@ -451,7 +456,7 @@ export function createReactionController({
           ? choices.length - 1
           : 0
         : (at + (backward ? -1 : 1) + choices.length) % choices.length;
-    choices[next].focus({ preventScroll: true });
+    focusDestination(choices[next], "move");
     beginWalk("reaction", "Reaction", () =>
       listWalkPosition(responseChoices(reactSurface), focused()),
     );

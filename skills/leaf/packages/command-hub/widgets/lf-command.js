@@ -47,6 +47,7 @@ import {
   TEXT_BOX,
   watchUpdates,
   watchOwner,
+  focusDestination,
 } from "/runtime/widget-api.js";
 import {
   closestCommandRole,
@@ -321,7 +322,7 @@ function projectionFocus(plan) {
 function showView(box) {
   const title = box?.querySelector(":scope > h2");
   if (!title) return;
-  title.focus({ preventScroll: true });
+  focusDestination(title, "move");
   box.scrollIntoView({ block: "nearest" });
 }
 

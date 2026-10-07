@@ -41,7 +41,7 @@ import {
   word,
 } from "./bindings.js";
 import { nativeClaimAt } from "./text-entry.js";
-import { deepFocus } from "../focus.js";
+import { deepFocus, focusDestination } from "../focus.js";
 import { hostIn, upFrom } from "../shadow.js";
 import { repaint } from "../repaint.js";
 
@@ -739,7 +739,7 @@ document.addEventListener(
     const { held } = finishLabelPress();
     if (active === held) return;
     if (!held.isConnected) return;
-    held.focus({ preventScroll: true });
+    focusDestination(held, "return");
     if (deepFocus() === held) recoveredLabelKeys.set(event, held);
   },
   true,

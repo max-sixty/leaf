@@ -15,7 +15,7 @@
 
 import { html, render } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
-import { handBack } from "./focus.js";
+import { handBack, focusDestination } from "./focus.js";
 import { closeControl } from "./widget-elements.js";
 
 // Page media is whatever a reference names under this directory. The name a file there
@@ -84,7 +84,7 @@ const open = (url, alt, from) => {
   origin = from;
   presentViewer({ url, alt });
   if (!mediaViewer.open) mediaViewer.showModal();
-  viewerClose.focus({ preventScroll: true });
+  focusDestination(viewerClose, "move");
 };
 mediaViewer.addEventListener("close", () => {
   if (mediaViewer.open) return;

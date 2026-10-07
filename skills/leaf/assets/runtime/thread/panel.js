@@ -12,6 +12,7 @@ import { focused, keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
+import { focusDestination } from "../focus.js";
 
 export function createThreadPanelKeys({
   elements: { closeBtn, findInput, narrowingView, inPanel: panelFocusIsInside },
@@ -96,7 +97,7 @@ export function createThreadPanelKeys({
         title: "find",
         control: () => findInput,
         run: () => {
-          findInput.focus();
+          focusDestination(findInput, "move", { scroll: true });
           findInput.select();
         },
       },

@@ -18,6 +18,7 @@ import { html, nothing, repeat } from "../vendor/browser-runtime.js";
 import { PRESS } from "./keyboard/bindings.js";
 import { keys } from "./keyboard/scopes.js";
 import { RetainedFace, RowFocus } from "./retained-face.js";
+import { focusDestination } from "./focus.js";
 
 const QUEUE_AT = "data-lf-at";
 const QUEUE_ROW = "data-lf-row";
@@ -122,9 +123,8 @@ class QueueList extends RetainedFace {
 
   // Done on the row keyed `key`, from its button or its key, standing on the row first.
   #end(key) {
-    this.querySelector(`${ROW}[${QUEUE_ROW}="${CSS.escape(key)}"]`)?.focus({
-      preventScroll: true,
-    });
+    const row = this.querySelector(`${ROW}[${QUEUE_ROW}="${CSS.escape(key)}"]`);
+    if (row) focusDestination(row, "move");
     this.#finish?.(key);
   }
 

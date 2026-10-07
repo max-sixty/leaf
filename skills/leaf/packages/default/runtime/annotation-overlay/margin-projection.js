@@ -129,7 +129,6 @@ import {
   holdFocus,
   letGo,
   onStanding,
-  placeChrome,
   pressLed,
 } from "/runtime/focus.js";
 import { TEXT_FIELD } from "/runtime/control-selectors.js";
@@ -455,8 +454,6 @@ export function createMarginProjection({
   // standing readings or unrelated actions; Page Map still reads the whole entry.
   let expandedOptionsOwner = null;
   let hoveredHost = null;
-  let settlingOptionsFocus = false;
-  let suppressingOptionsArrival = false;
   let highlighted = null;
   let highlightFrame = 0;
   let rovingFrame = 0;
@@ -978,9 +975,10 @@ export function createMarginProjection({
     const at = buttons.indexOf(active);
     if (at < 0 || buttons.length < 2) return;
     const direction = binding === "ArrowRight" ? 1 : -1;
-    buttons[(at + direction + buttons.length) % buttons.length].focus({
-      preventScroll: true,
-    });
+    focusDestination(
+      buttons[(at + direction + buttons.length) % buttons.length],
+      "move",
+    );
     beginWalk("margin-entry", "Action", () => {
       const standing = focused();
       const standingHost = closestAcross(standing, "[data-lf-margin-for]");
@@ -1007,41 +1005,33 @@ export function createMarginProjection({
     expandedOptionsKey = nextKey;
     expandedOptionsOwner = nextOwner;
     const paint = () => {
-      settlingOptionsFocus = true;
-      try {
-        renderAnnotations.refresh();
-        if (returnFocus && previousKey) {
-          handBack(hosts.get(previousKey)?.more);
-        } else if (focusOption && nextKey) {
-          const choices = clusterMarginEntries(hosts.get(nextKey)?.options);
-          const fallback = clusterMarginEntries(hosts.get(nextKey));
-          const next =
-            (focusOption === "last" ? choices.at(-1) : choices[0]) ??
-            (focusOption === "last" ? fallback.at(-1) : fallback[0]);
-          next?.focus({ preventScroll: true });
-        }
-      } finally {
-        settlingOptionsFocus = false;
+      renderAnnotations.refresh();
+      if (returnFocus && previousKey) {
+        handBack(hosts.get(previousKey)?.more);
+      } else if (focusOption && nextKey) {
+        const choices = clusterMarginEntries(hosts.get(nextKey)?.options);
+        const fallback = clusterMarginEntries(hosts.get(nextKey));
+        const next =
+          (focusOption === "last" ? choices.at(-1) : choices[0]) ??
+          (focusOption === "last" ? fallback.at(-1) : fallback[0]);
+        // The arrival unfolding the cluster carries on to the action it lands on.
+        if (next) focusDestination(next, "return");
       }
     };
     // Opening needs controls before the caller reads availability. Closing paints
-    // the end of the gesture, where a submitted action replaces its contribution.
-    // Paint and its focus return share the guard, so the return cannot reopen it.
+    // the end of the gesture, where a submitted action replaces its contribution. Its
+    // return is a `return`, which opens nothing (`arriveAtCluster`).
     if (open) paint();
     else afterScript(paint);
     if (previousOwner === "responses")
       document.dispatchEvent(new CustomEvent("lf-margin-entry-options-closed"));
   }
 
-  function focusForNavigation(control, caret = null) {
+  // A placement on a margin control, revealing its row first where annotations are
+  // hidden: `focusDestination`'s call, with its cause.
+  function focusForNavigation(control, cause, options) {
     reveal(control);
-    const wasSuppressingOptionsArrival = suppressingOptionsArrival;
-    suppressingOptionsArrival = true;
-    try {
-      focusDestination(control, caret);
-    } finally {
-      suppressingOptionsArrival = wasSuppressingOptionsArrival;
-    }
+    focusDestination(control, cause, options);
   }
 
   // Ask decisions name a semantic entry through whichever retained projection control
@@ -1106,7 +1096,7 @@ export function createMarginProjection({
     scrollToElement(entryPlace(entry), undefined, "nearest");
     // Arrive before activation, then use the exact visible margin entry's own press. A generated
     // route never chooses among the cluster's actions on the user's behalf.
-    focusForNavigation(control);
+    focusForNavigation(control, "press");
     control.click();
     return true;
   }
@@ -1233,8 +1223,6 @@ export function createMarginProjection({
     const control = node.closest?.(".lf-margin-entry");
     if (
       !(cause === "step" || (cause === "move" && !pressLed())) ||
-      settlingOptionsFocus ||
-      suppressingOptionsArrival ||
       !control ||
       !host.contains(control)
     )
@@ -1265,11 +1253,33 @@ export function createMarginProjection({
     for (const host of hosts.values())
       if (host.contains(node)) return arriveAtCluster(host, node, cause, left);
   });
+  // Leaving a cluster folds what it unfolded, a drop no owner put right included, unless
+  // the user went into a surface that keeps its context (`inRetainedContext`). A change
+  // its owner puts right in the same script reaches no reader, and a window losing focus
+  // moves no one. The cluster they stood in is the one read when they came to it, since
+  // a drop that removed the node they stood on leaves it in no cluster.
+  let standingIn = null;
+  onStanding((node) => {
+    const host = node
+      ? ([...hosts.values()].find((each) => under(node, each)) ?? null)
+      : null;
+    const leaving = standingIn;
+    standingIn = host;
+    if (!leaving || leaving === host) return;
+    nextRender(refreshHighlight);
+    const current = leaving.lfEntry;
+    if (
+      current &&
+      expandedOptionsKey === current.key &&
+      !inRetainedContext(node && hostIn(node, document))
+    )
+      setOptionsOpen(current, false);
+  });
   watchAnnotations((hidden) => {
     if (hidden) {
       const holding = closestAcross(document.activeElement, ".lf-margin-cluster");
       if (holding?.dataset.lfPlace === "pin" && holding.lfTarget?.isConnected)
-        focusDestination(holding.lfTarget);
+        focusDestination(holding.lfTarget, "return");
       if (previewOpen()) closePreview();
       expandedOptionsKey = null;
       expandedOptionsOwner = null;
@@ -1376,7 +1386,7 @@ export function createMarginProjection({
     row.onclick = behavior === "status" ? null : pressMarker;
     if (row.lfTakeFocus) {
       delete row.lfTakeFocus;
-      (row.hidden ? document.body : row).focus({ preventScroll: true });
+      if (!row.hidden) focusDestination(row, "return");
     }
   }
 
@@ -1418,7 +1428,7 @@ export function createMarginProjection({
       expandedOptionsKey && expandedOptionsOwner === offered.key;
     const activated = activateSharedContribution(
       { offered, entry, control, surface, event },
-      focusForNavigation,
+      reveal,
     );
     // A disclosed contributor is a route to an action, not a mode that survives that
     // action. Its next immutable reading decides whether the resulting controls remain
@@ -1438,19 +1448,11 @@ export function createMarginProjection({
   });
 
   function presentCluster(host, marker, more, entry, projection, focus) {
-    let options = host.options;
-    // Retiring a focused projection fires focusout synchronously. The render already owns
-    // the resulting cluster state and transfers focus below, so do not let that event
-    // start a nested render against the same child list.
-    const wasSettlingOptionsFocus = settlingOptionsFocus;
-    settlingOptionsFocus = true;
-    let primary;
-    try {
-      primary = host.present(projection);
-    } finally {
-      settlingOptionsFocus = wasSettlingOptionsFocus;
-    }
-    options = host.options;
+    // Retiring a focused projection drops focus to the body, which reaches no reader
+    // while the transfer below puts the user back in the same script, and a drop where
+    // none does (focus.js, `onStanding`).
+    const primary = host.present(projection);
+    const options = host.options;
     const lostOptionFocus =
       focus.focusedOption && !options.contains(document.activeElement);
     if (
@@ -1459,7 +1461,7 @@ export function createMarginProjection({
     ) {
       const destination = primary ?? (primaryReading(entry) ? marker : null);
       if (destination === marker && marker.hidden) marker.lfTakeFocus = true;
-      else (destination ?? document.body).focus({ preventScroll: true });
+      else if (destination) focusDestination(destination, "return");
     } else if (lostOptionFocus) {
       // A secondary projection can become the primary when its press settles. Keep
       // focus on that same semantic control instead of jumping to the first status
@@ -1475,33 +1477,18 @@ export function createMarginProjection({
         primary ??
         clusterMarginEntries(options)[0] ??
         clusterMarginEntries(host)[0];
-      (next ?? document.body).focus({ preventScroll: true });
+      if (next) focusDestination(next, "return");
     }
     return primary;
   }
 
+  // Moving a focused cluster between lanes, when its target's scroller changes, blurs
+  // it to the body; the hold puts the user back in the same script, which no reader of
+  // where they stand hears as their leaving it (focus.js, `onStanding`).
   function moveHost(host, move) {
     const restoreFocus = holdFocus(host);
-    // Moving a focused expanded cluster between lanes, when its target's scroller
-    // changes, synchronously emits focusout. That is a placement transition, not the user
-    // leaving the cluster, so keep the options state machine from treating it as an
-    // instruction to fold the controls it just exposed — and say the same thing to every
-    // other reader of where the user stands, which is what `placeChrome` is for.
-    const wasSettlingOptionsFocus = settlingOptionsFocus;
-    settlingOptionsFocus = true;
-    let kept = true;
-    try {
-      kept = placeChrome(() => {
-        move();
-        return restoreFocus?.() ?? true;
-      });
-    } finally {
-      settlingOptionsFocus = wasSettlingOptionsFocus;
-    }
-    // The one case where the placement did move the user: the control they were
-    // standing on did not survive it, so focus is wherever the removal left it and the
-    // standing paint is owed the news the guard above withheld.
-    if (!kept) repaint();
+    move();
+    restoreFocus?.();
   }
 
   function unfoldOpenThreadOwner(entry) {
@@ -1520,7 +1507,7 @@ export function createMarginProjection({
     if (previewMarginEntry === button) return;
     forgetThreadPreviewPlacement();
     previewMarginEntry = button;
-    if (returnFocus) button.focus({ preventScroll: true });
+    if (returnFocus) focusDestination(button, "return");
   }
 
   function renderNow(inventory) {
@@ -1584,7 +1571,6 @@ export function createMarginProjection({
             focusOption: open ? "first" : null,
           });
         };
-        host.addEventListener("focusout", () => nextRender(refreshHighlight));
         const takePointerOwnership = (event) => {
           const control = document
             .elementFromPoint(event.clientX, event.clientY)
@@ -1598,18 +1584,6 @@ export function createMarginProjection({
             hoveredHost = null;
           }
           refreshHighlight();
-        });
-        host.addEventListener("focusout", (event) => {
-          const current = host.lfEntry;
-          if (
-            settlingOptionsFocus ||
-            !current ||
-            expandedOptionsKey !== current.key ||
-            inRetainedContext(event.relatedTarget) ||
-            host.contains(event.relatedTarget)
-          )
-            return;
-          setOptionsOpen(current, false);
         });
         // A direct primary belongs to its contribution rather than the reading marker.
         // Fold only a temporary expansion before that action; an engaged owner keeps
@@ -1802,7 +1776,7 @@ export function createMarginProjection({
     buildThreadCard(previewEntry, threadItems[next].id);
     const thread = previewList.querySelector(".lf-page-thread");
     if (thread) {
-      thread.focus({ preventScroll: true });
+      focusDestination(thread, "move");
       scrollThreadIntoView(thread, thread);
     }
   }
@@ -1837,7 +1811,7 @@ export function createMarginProjection({
           return {
             optimistic: () => {
               if (previewOpen()) return false;
-              return mayLand.handoff(() => focusDestination(target));
+              return mayLand.handoff(() => focusDestination(target, "return"));
             },
             reverse: async (may = mayLand) => {
               await whenDocumentPresented();
@@ -1943,7 +1917,7 @@ export function createMarginProjection({
         if (previewEntry?.key !== entry.key) return;
         const thread = previewList.querySelector(".lf-page-thread");
         if (!thread) return;
-        thread.focus({ preventScroll: true });
+        focusDestination(thread, "move");
         scrollThreadIntoView(thread, thread);
       });
   }
@@ -2040,7 +2014,7 @@ export function createMarginProjection({
         root: preview,
         description: "Return to the page element this thread is about",
         title: "back to page",
-        out: () => focusDestination(stepsOut()),
+        out: () => focusDestination(stepsOut(), "return"),
       };
     return {
       root: preview,
@@ -2129,7 +2103,7 @@ export function createMarginProjection({
     // target first, then lend that authored element a programmatic tab stop so keyboard
     // focus and the visible arrival name the same place.
     if (landsOnTarget && targetFor(entry)?.isConnected)
-      focusDestination(targetFor(entry));
+      focusDestination(targetFor(entry), "move");
   }
 
   function openThreadChoice(entry, button) {
@@ -2305,7 +2279,7 @@ export function createMarginProjection({
   // A folded cluster opens while the keyboard stands at its target, as it does when
   // the keyboard arrives on its toggle: what the user stands at offers its actions, and
   // an Ask's digits name them. It folds again when they stand anywhere else but in the
-  // cluster itself, whose own focus then keeps it open (the host's `focusout`).
+  // cluster itself, where standing keeps it open (the fold beside `arriveAtCluster`).
   let standingUnfolded = null;
   // The arrivals below are the keyboard's: the user's latest input was a key, not a
   // press (focus.js, `pressLed`), since a press asks only for what it lands on. A Tab is
@@ -2480,8 +2454,7 @@ export function createMarginProjection({
       const positioned = showPreview(entry, button, standing.preview.thread);
       if (standing.focus?.kind === "preview-close")
         deferThreadPreviewFocus(positioned, () => {
-          if (previewEntry?.key === entry.key)
-            previewClose.focus({ preventScroll: true });
+          if (previewEntry?.key === entry.key) focusDestination(previewClose, "return");
         });
       return true;
     }
@@ -2495,7 +2468,7 @@ export function createMarginProjection({
     if (!control) return false;
     // Roving tabindex is painted in the margin's next layout frame. The semantic
     // destination is already known here, so lend it a stop if that frame has not run.
-    focusDestination(control);
+    focusDestination(control, "return");
     return true;
   }
 
@@ -2505,13 +2478,11 @@ export function createMarginProjection({
   function mount() {
     mountMarginLayer(toolbar);
     previewClose.onclick = () => closePreview(true);
-    preview.addEventListener("focusout", (event) => {
-      const row = event.target.closest?.(".lf-thread-reply");
-      if (
-        row &&
-        !row.contains(event.relatedTarget) &&
-        !row.querySelector(REPLY_BOX)?.value
-      )
+    // Leaving the card's reply row with nothing typed lets the card take its place again.
+    onStanding((node, cause, left) => {
+      const row =
+        left && under(left, preview) && closestAcross(left, ".lf-thread-reply");
+      if (row && !(node && under(node, row)) && !row.querySelector(REPLY_BOX)?.value)
         scheduleThreadPreviewPosition();
     });
     // Carried away with what it is about, the card comes back with it.

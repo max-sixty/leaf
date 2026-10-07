@@ -26,11 +26,11 @@
    nothing the user sees. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
 import { focused } from "../keyboard/scopes.js";
-import { holdFocus, onStanding } from "../focus.js";
+import { holdFocus, onStanding, focusDestination } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { draftHasContent } from "../drafts.js";
-import { focusThread } from "./focus.js";
+import { forwardToThread } from "./focus.js";
 import { passOn, retainUserIntent } from "../user-intent.js";
 import { layoutChanged } from "../widget-elements.js";
 import { isFolding } from "./folding.js";
@@ -199,7 +199,7 @@ class ThreadListView extends RetainedFace {
       const open = this.#expandedRow();
       if (!open) return;
       // Handed on with the cause that gave the list its focus (`chooseTitle`).
-      focusThread(open.node, { preventScroll: true });
+      forwardToThread(open.node);
       passOn(this, focused());
     });
   }
@@ -258,7 +258,7 @@ class ThreadListView extends RetainedFace {
       if (generation !== this.#generation) return false;
       const focus = this.#rollbackFocus;
       if (focus?.node.isConnected && focus.mayRestore())
-        focus.node.focus({ preventScroll: true });
+        focusDestination(focus.node, "return");
       this.#rollbackFocus = null;
       return this.committed;
     } finally {

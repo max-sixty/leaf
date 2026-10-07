@@ -20,7 +20,7 @@ import { bannerFoot, shownParts } from "../geometry.js";
 import { focused } from "../keyboard/scopes.js";
 import { repaint } from "../repaint.js";
 import { watchScrolls } from "../arrivals.js";
-import { handBack, releaseFocus } from "../focus.js";
+import { handBack, releaseFocus, focusDestination } from "../focus.js";
 import {
   createHintSession,
   HINT_KEYS,
@@ -237,7 +237,7 @@ export function createTargetPicker({
     pageSearchOpen = on;
     keepsHidden(pageSearchSurface, !on);
     if (on) {
-      pageSearchInput.focus({ preventScroll: true });
+      focusDestination(pageSearchInput, "move");
       presentSearchStatus();
       announce("Search the page.");
     } else {

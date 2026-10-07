@@ -19,6 +19,7 @@
 import { html, nothing, render } from "../vendor/browser-runtime.js";
 import { el, reserve } from "./widget-elements.js";
 import { keeps, keepsText } from "./keeps.js";
+import { focusDestination } from "./focus.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";
@@ -68,7 +69,7 @@ class BannerStatusView extends HTMLElement {
       keeps(this.#button, "aria-expanded", open);
       // Focus the scrollable explanation so keyboard users can reach long details.
       if (open && document.activeElement === this.#button)
-        this.#detail.focus({ preventScroll: true });
+        focusDestination(this.#detail, "move");
       this.#onToggle?.();
     });
   }

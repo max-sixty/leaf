@@ -37,6 +37,7 @@ import {
   rankAt,
   widgetController,
   worksInside,
+  focusDestination,
 } from "/runtime/widget-api.js";
 
 const VERDICTS = {
@@ -281,8 +282,7 @@ customElements.define(
           this.#returning.delete(card.id);
           if (this.isConnected) this.#render();
         }
-        if (refocus)
-          (returned ? this.#active() : button).focus({ preventScroll: true });
+        if (refocus) focusDestination(returned ? this.#active() : button, "return");
       });
       card.append(button);
     }
@@ -322,8 +322,8 @@ customElements.define(
       layoutChanged(this);
 
       const next = this.#active();
-      if (focusWasCard && next) next.focus({ preventScroll: true });
-      else if (focusWasInside && !next) this.#progress.focus({ preventScroll: true });
+      if (focusWasCard && next) focusDestination(next, "return");
+      else if (focusWasInside && !next) focusDestination(this.#progress, "return");
       const sent = this.#controller.dispatch({ kind: "action", verb: "swipe", detail });
       this.#resumePresentation();
       void sent?.delivery;
@@ -485,7 +485,7 @@ customElements.define(
       this.#render();
       // Standing on a card follows the deck to its next one; anywhere else is held.
       if (focusedCard && focused !== this.#active())
-        (this.#active() ?? this.#progress).focus({ preventScroll: true });
+        focusDestination(this.#active() ?? this.#progress, "return");
       else restoreFocus?.();
       if (moved) layoutChanged(this);
       return played;

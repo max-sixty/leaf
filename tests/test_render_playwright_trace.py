@@ -1,6 +1,7 @@
 """An external Playwright journey becomes commentable evidence in Leaf."""
 
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
@@ -174,7 +175,9 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     # commentable coordinate must be the exact recorded checkpoint or image.
     archive_id = record["archive"]["sha256"]
     slider.fill("0")
-    controls = widget.locator(".lf-trace-controls")
+    stepper = widget.locator(".lf-trace-stepper")
+    readout = widget.locator(".lf-trace-readout")
+    caption_top = None
     evidence_top = None
     image_rect = None
     for index, (_, kind, identity, name) in enumerate(points):
@@ -186,17 +189,21 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
             coordinate += f"-{name}"
         expect(widget.locator(f'[data-lf-datum="{coordinate}"]')).to_be_visible()
         # The timeline replaces evidence, not the viewport it is read in: neither
-        # the image nor the controls stepping it move on screen. Checkpoint
-        # metadata and its absence on a frame must not carry the image.
+        # the image nor the stepper move on screen. Checkpoint metadata and its
+        # absence on a frame must not carry the image, and frames and checkpoints
+        # share one image box, so what follows the image stands still too.
         rendered(user)
         top = widget.locator(".lf-trace-images").bounding_box()["y"]
         if evidence_top is None:
             evidence_top = top
-            controls_top = controls.bounding_box()["y"]
+            stepper_top = stepper.bounding_box()["y"]
         assert abs(top - evidence_top) <= 1, (index, kind, top, evidence_top)
-        assert abs(controls.bounding_box()["y"] - controls_top) <= 1, (index, kind)
+        assert abs(stepper.bounding_box()["y"] - stepper_top) <= 1, (index, kind)
         raster = widget.locator(".lf-trace-image img")
         if raster.count():
+            if caption_top is None:
+                caption_top = readout.bounding_box()["y"]
+            assert abs(readout.bounding_box()["y"] - caption_top) <= 1, (index, kind)
             rect = raster.bounding_box()
             if image_rect is None:
                 image_rect = rect
@@ -212,8 +219,8 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
                 image_rect,
             )
     # At the page's end, a step onto a frame, which has no action or saved elements
-    # beneath its image, would shorten the page under the reader; the evidence and
-    # the controls still stay where they stand.
+    # beneath its image, would shorten the page under the reader. The evidence still
+    # starts at the stepper's foot and the stepper stays where it stands.
     actions = {candidate["id"]: candidate for candidate in record["actions"]}
     tall = next(
         index
@@ -226,36 +233,39 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     for _ in range(tall):
         user.keyboard.press("ArrowRight")
     expect(slider).to_have_value(str(tall))
-    # The page's end, less what leaves the image's foot showing beneath the controls.
-    user.evaluate(
-        """() => {
-          const page = document.scrollingElement;
-          page.scrollTop = page.scrollHeight;
-          const foot = document.querySelector("#journey .lf-trace-controls")
-            .getBoundingClientRect().bottom;
-          const evidence = document.querySelector("#journey .lf-trace-images")
-            .getBoundingClientRect().bottom;
-          page.scrollTop -= Math.max(0, foot - evidence) + 60;
-        }"""
-    )
+    # Saved elements folded, so the page's end still shows the evidence's foot.
+    widget.locator(".lf-trace-tree summary").click()
+    expect(widget.locator(".lf-trace-tree")).not_to_have_attribute("open", "")
+    slider.focus()
+    held = widget.locator(".lf-trace-held")
+    user.evaluate("document.scrollingElement.scrollTop = 1e6")
     rendered(user)
-    at_end = widget.locator(".lf-trace-images").bounding_box()
-    assert (
-        at_end["y"] + at_end["height"]
-        > controls.bounding_box()["y"] + controls.bounding_box()["height"]
-    ), "the evidence must still show at the page's end for this regression"
-    controls_top = controls.bounding_box()["y"]
+    stuck = stepper.bounding_box()
     user.keyboard.press("ArrowRight")
     expect(slider).to_have_value(str(tall + 1))
     rendered(user)
-    assert widget.locator(".lf-trace-images").bounding_box()["y"] == pytest.approx(
-        at_end["y"], abs=1
+    assert held.bounding_box()["height"] > 0, (
+        "the frame must shorten the page at its end for this regression"
     )
-    assert controls.bounding_box()["y"] == pytest.approx(controls_top, abs=1)
+    assert stepper.bounding_box()["y"] == pytest.approx(stuck["y"], abs=1)
+    assert widget.locator(".lf-trace-images").bounding_box()["y"] == pytest.approx(
+        stuck["y"] + stuck["height"], abs=1
+    )
+    # A later step that doesn't need that room gives it back: no gap stays below
+    # the evidence once the reader is elsewhere.
+    user.evaluate("document.scrollingElement.scrollTop = 0")
+    rendered(user)
+    user.keyboard.press("ArrowLeft")
+    expect(slider).to_have_value(str(tall))
+    rendered(user)
+    assert held.bounding_box()["height"] == 0
     frame_index = next(
         index for index, point in enumerate(points) if point[1] == "image"
     )
-    slider.fill(str(frame_index))
+    user.keyboard.press("Home")
+    for _ in range(frame_index):
+        user.keyboard.press("ArrowRight")
+    expect(slider).to_have_value(str(frame_index))
     image = widget.locator(".lf-trace-image img")
     captured = image.get_attribute("data-lf-datum")
     image.click(modifiers=["Alt"])
@@ -270,9 +280,18 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
     expect(frames_toggle).to_be_checked()
     user.keyboard.press("Escape")
+    # Following the frame includes it even after the reader hides intermediate
+    # frames; a node comment returns to its checkpoint without changing capture.
+    frames_toggle.uncheck()
+    user.keyboard.press("t")
+    expect(frames_toggle).to_be_checked()
+    expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
     # The page is the recording's only scroller: the widget takes its evidence's
-    # height, and its controls stick over the evidence while the page scrolls
-    # through the saved elements beneath it.
+    # height, and its stepper sticks over the evidence while the page scrolls
+    # through the saved elements beneath it. A thread followed above stands open over
+    # the page, wherever its target shows, until a press elsewhere.
+    user.locator("h1").click()
+    expect(user.locator(".lf-msg:visible")).to_have_count(0)
     frames_toggle.uncheck()
     slider.focus()
     user.keyboard.press("Home")
@@ -280,8 +299,10 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         user.keyboard.press("ArrowRight")
     expect(slider).to_have_value(str(after_index))
     expect(widget.locator(".lf-trace-node")).not_to_have_count(0)
-    widget.locator(".lf-trace-node").last.scroll_into_view_if_needed()
-    rendered(user)
+    widget.locator(".lf-trace-tree summary").click()
+    expect(widget.locator(".lf-trace-tree")).to_have_attribute("open", "")
+    user.locator("h1").click()
+    expect(user.locator(".lf-msg:visible")).to_have_count(0)
     reading = """() => {
       const trace = document.querySelector("#journey");
       const box = (el) => el.getBoundingClientRect();
@@ -291,33 +312,71 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         scrollers: [trace, trace.querySelector(".lf-trace-body")]
           .filter((el) => el.scrollHeight > el.clientHeight + 1
             || /auto|scroll/.test(getComputedStyle(el).overflowY)).length,
-        controls: [box(trace.querySelector(".lf-trace-controls")).top,
-                   box(trace.querySelector(".lf-trace-controls")).bottom],
+        stepper: [box(trace.querySelector(".lf-trace-stepper")).top,
+                  box(trace.querySelector(".lf-trace-stepper")).bottom],
         evidence: [box(trace.querySelector(".lf-trace-images")).top,
                    box(trace.querySelector(".lf-trace-images")).bottom],
         pressable: !!hit?.closest(".lf-trace-previous"),
       };
     }"""
-    below = user.evaluate(reading)
-    assert below["scrollers"] == 0, below
-    assert below["pressable"], below
-    assert below["evidence"][1] <= below["controls"][1], (
-        "the saved elements must run past the evidence for this regression",
-        below,
-    )
+    # A landing in the evidence (anchor travel, a thread's target) arrives below the
+    # stuck stepper rather than under it, at the layer's own landing operation.
+    landing = """async () => {
+      const {scrollIntoReadingBand} =
+        await window.__lfRuntimeImport("/runtime/landing-scroll.js");
+      const trace = document.querySelector("#journey");
+      const stepper = trace.querySelector(".lf-trace-stepper");
+      const heading = trace.querySelector(".lf-trace-phase");
+      const page = document.scrollingElement;
+      page.scrollTop += heading.getBoundingClientRect().top
+        - stepper.getBoundingClientRect().top - 4;
+      const covered =
+        heading.getBoundingClientRect().top < stepper.getBoundingClientRect().bottom;
+      scrollIntoReadingBand(heading, heading, "start", "instant");
+      const landed = heading.getBoundingClientRect();
+      const hit = document.elementFromPoint(landed.left + 4, landed.top + 2);
+      return {covered, top: landed.top, foot: stepper.getBoundingClientRect().bottom,
+              shown: heading.contains(hit)};
+    }"""
+
+    def stuck_over_saved_elements():
+        widget.locator(".lf-trace-node").last.scroll_into_view_if_needed()
+        rendered(user)
+        below = user.evaluate(reading)
+        assert below["scrollers"] == 0, below
+        assert below["pressable"], below
+        assert below["evidence"][1] <= below["stepper"][1], (
+            "the saved elements must run past the evidence for this regression",
+            below,
+        )
+        landed = user.evaluate(landing)
+        assert landed["covered"], landed
+        assert landed["top"] >= landed["foot"] - 1, landed
+        assert landed["shown"], landed
+
+    # Narrow, too, where the choices above the stepper wrap and scroll away.
+    resized(user, 390, 600)
+    stuck_over_saved_elements()
+    resized(user, 1440, 600)
+    stuck_over_saved_elements()
     # Stepping from below the evidence brings the new point's evidence back to the
-    # controls' foot, without moving the controls under the press.
+    # stepper's foot, without moving the stepper under the press.
+    widget.locator(".lf-trace-node").last.scroll_into_view_if_needed()
+    rendered(user)
+    below = user.evaluate(reading)
     widget.get_by_role("button", name="Previous", exact=True).click()
     rendered(user)
     returned = user.evaluate(reading)
-    assert returned["controls"] == pytest.approx(below["controls"], abs=1), returned
-    assert returned["evidence"][0] == pytest.approx(returned["controls"][1], abs=1), (
+    assert returned["stepper"] == pytest.approx(below["stepper"], abs=1), returned
+    assert returned["evidence"][0] == pytest.approx(returned["stepper"][1], abs=1), (
         returned
     )
-    # Following the frame includes it even after the reader hides intermediate
-    # frames; a node comment returns to its checkpoint without changing capture.
-    user.keyboard.press("t")
-    expect(frames_toggle).to_be_checked()
+    resized(user, 1440, 900)
+    frames_toggle.check()
+    slider.focus()
+    user.keyboard.press("Home")
+    for _ in range(frame_index):
+        user.keyboard.press("ArrowRight")
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
 
     # A replacement of the index for the same recording preserves local navigation.
@@ -486,7 +545,10 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     url = serve(
         leaf_page(
             "Navigation review",
-            '<h1>Navigation review</h1><lf-trace id="journey" source="navigation-trace"></lf-trace>',
+            '<h1>Navigation review</h1><lf-trace id="journey" source="navigation-trace"></lf-trace>'
+            + "<section><h2>After the recording</h2>"
+            + "<p>The review goes on below the recording.</p>" * 40
+            + "</section>",
         ),
         packages=("playwright",),
     )
@@ -550,3 +612,48 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     expect(
         widget.locator(".lf-trace-node").filter(has_text="Recorded completion")
     ).to_be_visible()
+    # A step from the keyboard after the reader has scrolled past the recording
+    # leaves the page where they are reading: the stepper parked at the recording's
+    # foot covers no evidence.
+    slider.focus()
+    user.evaluate("document.scrollingElement.scrollTop = 1e6")
+    rendered(user)
+    assert widget.bounding_box()["y"] + widget.bounding_box()["height"] < 0
+    page_place = user.evaluate("document.scrollingElement.scrollTop")
+    user.keyboard.press("ArrowLeft")
+    expect(slider).to_have_value("0")
+    rendered(user)
+    assert user.evaluate("document.scrollingElement.scrollTop") == page_place
+
+
+def test_trace_frames_and_checkpoints_share_one_image_box(browser, serve):
+    """A filmstrip encoded at other sizes than the checkpoints draws at their zoom, in
+    one box, so stepping between them moves nothing beneath the image."""
+    example = ROOT / "examples/developer/playwright-trace-gallery.html"
+    data = json.loads(example.with_name(example.stem + ".data.json").read_text())
+    images = data["release-journey"]["images"]
+    ratios = {round(image["width"] / image["height"], 2) for image in images}
+    assert len(ratios) > 1, (
+        "the gallery's frames must differ in shape from its checkpoints"
+    )
+    user = open_page(browser, serve(example))
+    resized(user, 1440, 900)
+    widget = user.locator("#release-trace")
+    widget.get_by_role("checkbox", name="Show intermediate frames").check()
+    slider = widget.get_by_role("slider", name="Timeline position")
+    slider.focus()
+    user.keyboard.press("Home")
+    readout = widget.locator(".lf-trace-readout")
+    raster = widget.locator(".lf-trace-image img")
+    stops = int(slider.get_attribute("max")) + 1
+    first = None
+    for index in range(stops):
+        if index:
+            user.keyboard.press("ArrowRight")
+        expect(slider).to_have_value(str(index))
+        rendered(user)
+        if not raster.count():
+            continue
+        reading = (readout.bounding_box()["y"], raster.bounding_box()["width"])
+        first = first or reading
+        assert reading == pytest.approx(first, abs=1), (index, reading, first)

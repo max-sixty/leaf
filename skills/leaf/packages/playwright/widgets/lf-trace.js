@@ -7,13 +7,12 @@
  * Once drawn, the recording takes its content's height and the page is its only
  * scroller; a stated height only holds the page's room until then (`x-height`). This
  * reverses the first version's decision to scroll the evidence inside a frame of the
- * authored height, which left a page scrolling inside the page. The controls instead
- * stick at the top of the page's band while the recording is on screen (theme.css);
- * this module measures their height for what they stand over. Evidence comes first
- * and optional metadata follows it. Stepping keeps the reader's place while any of
- * the evidence is in view, so the pixels being compared stay put; from below it, in
- * the saved elements, a newly selected point brings its evidence back under the
- * controls, which stay where they stand. One cursor
+ * authored height, which left a page scrolling inside the page. The stepper instead
+ * sticks at the top of the page's band while the recording is on screen (theme.css),
+ * and the page selector and frames row above it scroll away. Evidence comes first, in
+ * a box every image of the page fits at one zoom, and optional metadata follows it.
+ * Stepping keeps the evidence where the reader sees it, except that evidence the stuck
+ * stepper covers starts again at the stepper's foot (`#navigate`). One cursor
  * walks native action checkpoints chronologically; captured frames can join that
  * same timeline. Initial selection prefers its first nonempty saved tree, then
  * its first image; empty earlier stops stay navigable. Following a visual part restores its exact
@@ -33,6 +32,7 @@ import {
   quoted,
   registerVisualParts,
   scopedMediaUrl,
+  nextRender,
   setChildren,
   sizeObserver,
   watchData,
@@ -93,12 +93,12 @@ customElements.define(
   class extends HTMLElement {
     #snapshot = null;
     #origins = new Map();
-    #imageWidths = new Map();
+    #imageBoxes = new Map();
     #trace = null;
     #page = null;
     #selected = null;
     #intermediates = false;
-    #controlsSize = null;
+    #resized = null;
     #keys = null;
     #parts = null;
     #inventory = [];
@@ -135,29 +135,29 @@ customElements.define(
             when: () => this.#checkpoints().length > 0 && this.#frames().length > 0,
           },
         ]);
-      // The controls stick over the evidence, which takes their height past `--lf-top`
-      // (theme.css). It changes as their row wraps, so it is measured rather than
-      // stated, and it changes no layout: only what the runtime reads as covered and
-      // where a landing stops.
-      if (!this.#controlsSize) {
-        this.#controlsSize = sizeObserver(([entry]) => {
-          const height = `${Math.ceil(entry.borderBoxSize[0].blockSize)}px`;
-          if (this.body.style.getPropertyValue("--lf-trace-controls-h") !== height)
-            this.body.style.setProperty("--lf-trace-controls-h", height);
+      // A new width redraws every height, so the room held for an earlier one is
+      // released to what the reader's place still needs. After the delivery, since
+      // the release resizes the element observed.
+      if (!this.#resized) {
+        let pending = 0;
+        this.#resized = sizeObserver(() => {
+          pending ||= nextRender(() => {
+            pending = 0;
+            this.#release();
+          });
         });
-        this.#controlsSize.observe(this.controls);
+        this.#resized.observe(this);
       }
       if (firstConnection) watchData(this, "trace", (snapshot) => this.#show(snapshot));
     }
 
     disconnectedCallback() {
-      this.#controlsSize?.disconnect();
-      this.#controlsSize = null;
+      this.#resized?.disconnect();
+      this.#resized = null;
       // Element command scopes leave with their element; reconnect keeps the declaration.
     }
 
     #build() {
-      this.controls = offer("div", "lf-trace-controls");
       this.pageSelect = selector(`${this.id}-page`, "Recorded page or API stream", []);
       this.framesToggle = offer("input", "lf-trace-frames", undefined, "checkbox");
       this.framesToggle.name = `${this.id}-frames`;
@@ -174,11 +174,12 @@ customElements.define(
       this.slider.step = "1";
       this.slider.min = "0";
       this.slider.setAttribute("aria-label", "Timeline position");
-      const stepper = offer("div", "lf-trace-stepper");
-      stepper.append(this.previous, this.slider, this.next);
+      // The stepper sticks over the evidence (theme.css); the choices above it
+      // scroll away with the page.
+      this.stepper = offer("div", "lf-trace-stepper");
+      this.stepper.append(this.previous, this.slider, this.next);
       const choices = offer("div", "lf-trace-choices");
       choices.append(this.pageSelect, framesLabel, this.viewer);
-      this.controls.append(choices, stepper);
       this.clock = el("p", "lf-trace-clock");
       this.readout = el("p", "lf-trace-readout", "Waiting for a Playwright recording.");
       this.actionDetails = el("p", "lf-trace-action");
@@ -206,7 +207,10 @@ customElements.define(
         this.error,
         this.treeDetails,
       );
-      this.append(this.controls, this.body);
+      // Room held below the metadata across a step near the page's end (`#navigate`).
+      this.held = el("div", "lf-trace-held");
+      this.body.append(this.held);
+      this.append(choices, this.stepper, this.body);
       this.#parts = registerVisualParts(this, () => this.#inventory, {
         label: (id) => this.#targets.get(id)?.label ?? null,
         reveal: (id) => this.#reveal(id),
@@ -352,39 +356,54 @@ customElements.define(
         this.#items().findIndex((point) => point.id === this.#selected),
       );
     }
-    // Stepping replaces the evidence where the reader sees it. While any of it shows,
-    // the new point's evidence starts where the old one did, so the pixels being
-    // compared stay put. From the saved elements, below all of it, the new point's
-    // evidence starts at the controls' foot: the one scroll at which stuck controls
-    // also meet their place in flow, so they stay under the gesture either way. A
-    // point with less beneath its evidence (a captured frame has no action or saved
-    // elements) shortens the page, which near its end would pull everything down; the
-    // body then holds the height the place needs (a minimum, so it binds only while
-    // the content is shorter), and a later step lowers it to what that step needs.
+    // Stepping replaces the evidence where the reader sees it. Where the stuck
+    // stepper covers the evidence's top, or all of it while the reader is down in
+    // the saved elements, the new point's evidence starts at the stepper's foot: the
+    // one scroll at which the stuck stepper also meets its place in flow, so it stays
+    // under the gesture, and after which later steps move nothing. Otherwise the new
+    // evidence starts where the old one did. A stepper parked at the recording's
+    // foot, the whole recording scrolled past, covers nothing. A point with less
+    // beneath its evidence (a captured frame has no action or saved elements)
+    // shortens the page, which near its end would pull everything down; the body
+    // then holds the room that place needs (`held`), released as soon as a later
+    // draw or width no longer needs it.
     #navigate(id) {
       const scroller = effectiveScroller(this);
-      const before = this.imageHost.getBoundingClientRect();
-      const target =
-        before.bottom <= this.controls.getBoundingClientRect().bottom
-          ? null
-          : before.top;
+      const before = this.imageHost.getBoundingClientRect().top;
+      const stepper = this.stepper.getBoundingClientRect();
+      const stuck = this.body.getBoundingClientRect().bottom > stepper.bottom + 1;
+      const target = stuck && before < stepper.bottom - 1 ? stepper.bottom : before;
       this.#selected = id;
       this.#draw();
-      const top = this.imageHost.getBoundingClientRect().top;
-      const move = top - (target ?? this.controls.getBoundingClientRect().bottom);
+      const move = this.imageHost.getBoundingClientRect().top - target;
       if (Math.abs(move) < 1) return;
-      const room = () =>
-        scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
-      const hold = (extra) => {
-        const height = this.body.getBoundingClientRect().height + extra;
-        const held = `${Math.max(0, Math.ceil(height))}px`;
-        if (this.body.style.minBlockSize !== held) this.body.style.minBlockSize = held;
-      };
-      // Grow before the scroll that needs the room; lower after it, so the page
-      // never shortens under a scroll position it still holds.
-      if (move > room()) hold(move - room());
+      const room = this.#room(scroller);
+      if (move > room) this.#hold(this.#heldRoom() + move - room);
       scroller.scrollBy({ top: move, behavior: "instant" });
-      if (this.body.style.minBlockSize && room() > 0) hold(-room());
+      this.#release();
+    }
+    #keepStyle(element, name, value) {
+      if (element.style.getPropertyValue(name) === (value ?? "")) return;
+      if (value) element.style.setProperty(name, value);
+      else element.style.removeProperty(name);
+    }
+    #room(scroller = effectiveScroller(this)) {
+      return scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
+    }
+    #heldRoom() {
+      return Number.parseFloat(this.held.style.blockSize) || 0;
+    }
+    #hold(px) {
+      const size = px >= 1 ? `${Math.ceil(px)}px` : "";
+      if (this.held.style.blockSize !== size) this.held.style.blockSize = size;
+    }
+    // The held room shrinks by whatever the page has below the reader, which never
+    // shortens it under the scroll position it holds.
+    #release() {
+      const held = this.#heldRoom();
+      if (!held) return;
+      const room = this.#room();
+      if (room >= 1) this.#hold(held - room);
     }
     #step(delta) {
       const items = this.#items();
@@ -405,14 +424,21 @@ customElements.define(
       this.#snapshot = snapshot;
       this.#trace = snapshot?.value ?? null;
       this.#origins = this.#trace ? streamOrigins(this.#trace) : new Map();
-      // Filmstrip JPEGs are smaller encodings of the same viewport. Their pixel
-      // width must not become a different display zoom at every timeline stop.
-      this.#imageWidths = new Map();
+      // Filmstrip JPEGs are smaller encodings of the same viewport, so every image of
+      // a page is drawn at its widest image's width: a frame's pixel width must not
+      // become a different display zoom at every timeline stop. The box they are
+      // drawn in is as tall as the tallest of them at that width, so the caption and
+      // everything below stand still from one stop to the next.
+      const widths = new Map();
+      for (const image of this.#trace?.images ?? [])
+        widths.set(image.pageId, Math.max(widths.get(image.pageId) ?? 0, image.width));
+      this.#imageBoxes = new Map();
       for (const image of this.#trace?.images ?? []) {
-        this.#imageWidths.set(
-          image.pageId,
-          Math.max(this.#imageWidths.get(image.pageId) ?? 0, image.width),
-        );
+        const width = widths.get(image.pageId);
+        const height = Math.ceil((image.height * width) / image.width);
+        const box = this.#imageBoxes.get(image.pageId);
+        if (!box || height > box.height)
+          this.#imageBoxes.set(image.pageId, { width, height });
       }
       this.classList.toggle("lf-rendered", this.#trace !== null);
       if (oldArchive !== this.#trace?.archive.sha256) {
@@ -628,10 +654,9 @@ customElements.define(
         let figure = this.#images.get(image.id);
         if (!figure) {
           figure = el("figure", "lf-trace-image");
-          figure.append(
-            document.createElement("img"),
-            el("figcaption", "lf-trace-caption"),
-          );
+          const frame = el("div", "lf-trace-frame");
+          frame.append(document.createElement("img"));
+          figure.append(frame, el("figcaption", "lf-trace-caption"));
           this.#images.set(image.id, figure);
         }
         const img = figure.querySelector("img");
@@ -640,7 +665,6 @@ customElements.define(
         keeps(img, "alt", label);
         keeps(img, "width", String(image.width));
         keeps(img, "height", String(image.height));
-        keeps(img, "data-lf-image-width", String(this.#imageWidths.get(image.pageId)));
         keepsText(figure.querySelector("figcaption"), label);
         imageNodes.push(figure);
         add(this.#id("image", image.id), img, label, [
@@ -656,6 +680,13 @@ customElements.define(
           : "No captured image is available at or before this timeline point.",
       );
       setChildren(this.imageHost, imageNodes);
+      const box = this.#imageBoxes.get(this.#page);
+      this.#keepStyle(this.imageHost, "--lf-trace-image-w", box && `${box.width}px`);
+      this.#keepStyle(
+        this.imageHost,
+        "--lf-trace-image-ratio",
+        box && `${box.width} / ${box.height}`,
+      );
       const rows = [];
       if (action) {
         keepsText(
@@ -710,6 +741,8 @@ customElements.define(
       );
       this.#parts.update();
       paintKeys();
+      // Every draw, a same-sized one included, gives back held room it no longer needs.
+      this.#release();
     }
   },
 );

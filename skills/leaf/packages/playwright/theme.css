@@ -1,10 +1,12 @@
-/* The recording is as tall as its evidence: native images at their recorded size, then
- * the saved-element list, a separate semantic surface rather than an overlay. The page
- * scrolls it, and the controls stay next to the evidence by sticking at the top of the
- * page's band while the recording is on screen (below). The height the page holds
- * before the drawing arrives is the layer's (`x-height`, layouts.css). */
+/* The recording is as tall as its evidence: its images, then the saved-element list, a
+ * separate semantic surface rather than an overlay. The page scrolls it, and the stepper
+ * stays next to the evidence by sticking at the top of the page's band while the
+ * recording is on screen (below). The height the page holds before the drawing arrives
+ * is the layer's (`x-height`, layouts.css). */
 :scope:is(lf-trace) {
   --lf-block-frame: 1;
+  /* One row of 44px presses, its padding and its divider (.lf-trace-stepper). */
+  --lf-trace-stepper-h: calc(44px + 2 * var(--sp-2) + 1px);
   display: block;
   min-inline-size: 0;
   max-inline-size: 100%;
@@ -18,32 +20,18 @@
   font: var(--t-5) / 1.45 var(--sans);
   overflow-wrap: anywhere;
 }
-/* The controls take over the frame's top padding, so at rest they stand where the
- * padding put them and, stuck, keep that room between the banner and the first control. */
-.lf-trace-controls {
-  box-sizing: border-box;
-  min-inline-size: 0;
-  inline-size: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--sp-2);
-  margin-block-start: calc(-1 * var(--sp-3));
-  padding-block: var(--sp-3) var(--sp-2);
-  background: var(--paper);
-}
-/* Its children's margins stay inside it, so the height it holds across a step
- * (lf-trace.js, `#navigate`) is the height it had. */
-.lf-trace-body { display: flow-root; }
-/* A sticky header over the evidence (kernel theme.css, at `--lf-top`): the controls
- * stick at the `--lf-top` the frame met, and what they stand over takes that value plus
- * their height. The height changes as their row wraps, so the module measures it
- * (`--lf-trace-controls-h`); a landing in the evidence arrives below them through
- * `scroll-margin-top`. Screen only: paper has no scroll to pin against. */
+/* A sticky header over the evidence (kernel theme.css, at `--lf-top`): one row of a
+ * stated height, so a phone keeps most of its screen for the evidence, while the page
+ * selector and the frames row above it scroll away. It sticks at the `--lf-top` the
+ * frame met, and what it stands over takes that value plus its height; a landing in the
+ * evidence arrives below it through `scroll-margin-top`. Its divider is the frame's own
+ * rule, so where the evidence passes under it the edge reads as an edge. Screen only:
+ * paper has no scroll to pin against. */
 @media screen {
   :scope:is(lf-trace) { --lf-top-outer: var(--lf-top); }
-  .lf-trace-controls { position: sticky; top: var(--lf-top); z-index: 1; }
-  .lf-trace-body { --lf-top: calc(var(--lf-top-outer) + var(--lf-trace-controls-h, 0px)); }
-  .lf-trace-body * { scroll-margin-top: var(--lf-trace-controls-h, 0px); }
+  .lf-trace-stepper { position: sticky; top: var(--lf-top); z-index: 1; }
+  .lf-trace-body { --lf-top: calc(var(--lf-top-outer) + var(--lf-trace-stepper-h)); }
+  .lf-trace-body * { scroll-margin-top: var(--lf-trace-stepper-h); }
 }
 .lf-trace-choices { min-inline-size: 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
 .lf-trace-select {
@@ -60,7 +48,18 @@
   padding: 8px;
 }
 .lf-trace-viewer { min-block-size: 44px; display: inline-flex; align-items: center; }
-.lf-trace-stepper { min-inline-size: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--sp-2); }
+.lf-trace-stepper {
+  box-sizing: border-box;
+  block-size: var(--lf-trace-stepper-h);
+  min-inline-size: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-block: var(--sp-2);
+  border-block-end: 1px solid var(--border-2);
+  background: var(--paper);
+}
 .lf-trace-previous, .lf-trace-next { min-block-size: 44px; padding-inline: 12px; }
 .lf-trace-slider { inline-size: 100%; min-inline-size: 0; min-block-size: 44px; margin: 0; accent-color: var(--accent); }
 .lf-trace-clock, .lf-trace-readout, .lf-trace-caption, .lf-trace-tree-clock { color: var(--muted); font-size: var(--t-6); font-variant-numeric: tabular-nums; }
@@ -69,11 +68,20 @@
 .lf-trace-action { margin-block: var(--sp-2) 0; font-weight: 600; }
 .lf-trace-phase { margin-block: 4px var(--sp-2); font: 500 var(--t-5) / 1.4 var(--sans); font-variant-numeric: tabular-nums; }
 .lf-trace-error { color: var(--danger); }
-.lf-trace-images { min-inline-size: 0; }
+.lf-trace-images { min-inline-size: 0; padding-block-start: var(--sp-2); }
 .lf-trace-image { margin: 0; }
-.lf-trace-image img { display: block; inline-size: attr(data-lf-image-width px); max-inline-size: 100%; block-size: auto; margin-inline: auto; border: 1px solid var(--border-2); box-sizing: border-box; }
+/* Every image of a page is drawn at its widest image's width, top first, in a box as
+ * tall as the tallest of them (lf-trace.js, `#imageBoxes`), so what follows stands still
+ * between stops. The box keeps its ratio rather than growing by an image's border. */
+.lf-trace-frame {
+  inline-size: min(100%, var(--lf-trace-image-w, 100%));
+  aspect-ratio: var(--lf-trace-image-ratio, auto);
+  min-block-size: 0;
+  margin-inline: auto;
+}
+.lf-trace-image img { display: block; inline-size: 100%; block-size: auto; border: 1px solid var(--border-2); box-sizing: border-box; }
 .lf-trace-caption { margin-block: 6px 0; }
-.lf-trace-missing-image { padding: var(--sp-4); border: 1px dashed var(--border-2); color: var(--muted); margin-block: 0; }
+.lf-trace-missing-image { box-sizing: border-box; inline-size: min(100%, var(--lf-trace-image-w, 100%)); aspect-ratio: var(--lf-trace-image-ratio, auto); margin: 0 auto; padding: var(--sp-4); border: 1px dashed var(--border-2); color: var(--muted); }
 .lf-trace-tree { margin-block-start: var(--sp-3); }
 .lf-trace-tree > summary { min-block-size: 44px; align-content: center; cursor: pointer; }
 .lf-trace-tree-clock { margin-block: var(--sp-2); }

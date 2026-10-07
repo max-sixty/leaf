@@ -9,11 +9,12 @@ import { paintClips, shownBox } from "./geometry.js";
 import { atLayoutPrecision, keeps, layoutPx } from "./keeps.js";
 import {
   followScroll,
-  scrollContainer,
+  scrollsContent,
   scrollFollows,
   scrollMotions,
   scrolledBy,
 } from "./scroll-motion.js";
+import { renderedParent } from "./shadow.js";
 
 export const SVG_NS = "http://www.w3.org/2000/svg";
 const SHAPE_STROKE_ROOM = 2;
@@ -183,12 +184,14 @@ function anchoredBy(el, root) {
   const order = anchor.compareDocumentPosition(root);
   if (
     !(order & Node.DOCUMENT_POSITION_FOLLOWING) ||
-    order & Node.DOCUMENT_POSITION_CONTAINED_BY ||
-    anchor.closest(":popover-open, :modal")
+    order & Node.DOCUMENT_POSITION_CONTAINED_BY
   )
     return null;
+  // The top layer as rendered: a box slotted into a popover is in it.
+  for (let at = anchor; at; at = renderedParent(at))
+    if (at instanceof Element && at.matches(":popover-open, dialog:modal")) return null;
   return anchor === el ||
-    (scrollsWith(el, anchor) && !scrollContainer(anchor)) ||
+    (scrollsWith(el, anchor) && !scrollsContent(anchor)) ||
     scrollsWith(anchor, el)
     ? anchor
     : null;

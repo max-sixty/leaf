@@ -3580,6 +3580,70 @@ def test_a_held_aim_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, se
     page.keyboard.up("Alt")
 
 
+@pytest.mark.parametrize("subject", ["words", "diagram node"])
+def test_an_aim_in_a_pane_stands_anchored_to_what_it_outlines(browser, serve, subject):
+    """The aim over a target in a pane stands fixed and anchored to that target, cut by
+    a frame anchored to the pane's scroller, with no scroll-driven layer, which can
+    paint a frame off the scroll it carries (target-paint-geometry.js, `paintStand`). A
+    diagram's node anchors through its drawing, which clips what it draws and scrolls
+    none of it, so it stands anchored too."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "an aim in a pane",
+                """
+  <div id="aim-split">
+    <lf-pane id="aim-pane" label="Findings">
+      <div>
+        <div style="height: 200px"></div>
+        <p id="pane-words">The first finding, aimed at.</p>
+        <lf-diagram id="flow" parts="node:S"><pre>
+graph LR
+  S[Start request] --> H[Handle request]
+</pre></lf-diagram>
+        <div style="height: 1600px"></div>
+      </div>
+    </lf-pane>
+    <lf-pane id="other-pane" label="Notes"><div><p>Notes.</p></div></lf-pane>
+  </div>""",
+                head=regions_side_by_side("aim-split"),
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#aim-pane"), "bounded")
+    if subject == "words":
+        page.locator("#pane-words").hover()
+        page.keyboard.down("Alt")
+        expect(page.locator(".lf-aim")).to_have_attribute("data-for", "pane-words")
+    else:
+        page.locator('#flow g[data-id="S"]').hover()
+        page.keyboard.down("Alt")
+        # A part's aim is drawn as its shape's contour.
+        expect(page.locator(".lf-aim.lf-shaped")).to_be_visible()
+    stand = page.evaluate(
+        """() => {
+          const aim = document.querySelector('.lf-aim');
+          const stand = aim.closest('.lf-paint-stand');
+          return {
+            layers: stand.querySelectorAll('.lf-paint-motion').length,
+            boxes: [aim, ...stand.querySelectorAll('.lf-paint-frame')].map((box) => ({
+              position: getComputedStyle(box).position,
+              anchor: getComputedStyle(box).positionAnchor,
+            })),
+          };
+        }"""
+    )
+    page.keyboard.up("Alt")
+    assert stand["layers"] == 0, stand
+    assert all(
+        box["position"] == "fixed" and box["anchor"].startswith("--lf-a")
+        for box in stand["boxes"]
+    ), stand
+
+
 def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     """A pass that runs paints the truth, whatever ran it.
 

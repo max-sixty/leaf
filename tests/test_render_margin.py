@@ -10001,6 +10001,32 @@ def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
     assert_follows_in_every_frame(page, "#pin-pane > div")
 
 
+@pytest.mark.parametrize(
+    "wrapper", ["", "overflow: hidden; border-radius: 8px", "overflow-x: auto"]
+)
+def test_a_pin_in_a_pane_rides_an_anchored_carrier_through_boxes_that_scroll_nothing(
+    browser, serve, wrapper
+):
+    """A pin whose target stands in a pane stands in a carrier anchored to what the
+    pane's scroll carries, rather than a scroll-driven layer, which can paint a frame
+    off its scroll. A box between the target and the pane that clips but scrolls
+    nothing, as a rounded wrapper or a table wrapper that fits, leaves it there."""
+    source = PANE_PIN_PAGE.replace(
+        '<p id="pane-top">The first finding, commented on.</p>',
+        f'<div style="{wrapper}"><p id="pane-top">The first finding, commented on.</p>'
+        "</div>",
+    )
+    page = open_page(browser, serve(source, events=[_comment_on("pane-top")]))
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="pane-top"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    assert row.evaluate(
+        "row => row.parentElement.classList.contains('lf-margin-carrier')"
+    ), wrapper
+
+
 @pytest.mark.parametrize("change", ["size", "layout"])
 def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
     browser, serve, change

@@ -7,7 +7,7 @@
  * weakly retained binding restores that observation when the control returns. */
 import { pagePlaneRect, shownParts } from "./geometry.js";
 import { hostIn, renderedParent } from "./shadow.js";
-import { scrollContainer } from "./scroll-motion.js";
+import { scrollsContent } from "./scroll-motion.js";
 import { watchArrivals } from "./arrivals.js";
 
 // Anchor names are global to their tree, so one per target element, merged with whatever
@@ -61,7 +61,7 @@ export function scrollsWith(node, box) {
     if (
       at instanceof Element &&
       (!/^(static|relative)$/.test(getComputedStyle(at).position) ||
-        (at !== node && scrollContainer(at)))
+        (at !== node && scrollsContent(at)))
     )
       return false;
   }

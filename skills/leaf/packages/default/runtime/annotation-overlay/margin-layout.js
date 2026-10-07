@@ -54,7 +54,12 @@ import { pageScroller } from "/runtime/scrolling.js";
 import { arrivals, packRows, rowPosture, seatRows } from "./margin-placement.js";
 import { overlaps } from "/runtime/rect.js";
 import { pointBand } from "/runtime/pointed-place.js";
-import { followScroll, scrollFollows, scrollMotions } from "/runtime/scroll-motion.js";
+import {
+  followScroll,
+  scrollFollows,
+  scrollMotions,
+  scrollsContent,
+} from "/runtime/scroll-motion.js";
 import { residencyStarted } from "/runtime/content-layout.js";
 import { keeps, layoutPx } from "/runtime/keeps.js";
 import { declarationFor } from "/runtime/registry.js";
@@ -244,17 +249,7 @@ function scrollSources(node) {
     at && at !== pageScroller;
     at = renderedParent(at)
   ) {
-    if (!(at instanceof Element)) continue;
-    const style = getComputedStyle(at);
-    if (
-      (style.overflowX !== "visible" &&
-        style.overflowX !== "clip" &&
-        at.scrollWidth > at.clientWidth) ||
-      (style.overflowY !== "visible" &&
-        style.overflowY !== "clip" &&
-        at.scrollHeight > at.clientHeight)
-    )
-      sources.push(at);
+    if (scrollsContent(at)) sources.push(at);
   }
   return sources;
 }

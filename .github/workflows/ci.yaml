@@ -128,11 +128,16 @@ jobs:
           uv run pytest tests -n 3 -v --junitxml=.tmp/test-results/results.xml
           ${{ github.event_name == 'pull_request' && '--nightly-changed-since HEAD^1' || '--run-nightly' }}
 
-      # The PR website gate overlaps Python on this runner; its build, Worker tests
-      # and browser verification remain sequential because they share the release.
+      # The website build can overlap Python; Docker must wait because its host
+      # interface changes interrupt Chrome's loopback requests in browser tests.
       - name: Build website
         if: github.event_name == 'pull_request'
         run: uv run leaf-dev site
+
+      # wait runs even when the build fails. Propagate Python's result and finish
+      # its artifacts before starting Docker or the unconditional upload below.
+      - name: Wait for Python tests
+        wait: python-tests
 
       - name: 🧪 Website worker tests
         if: github.event_name == 'pull_request'
@@ -145,11 +150,6 @@ jobs:
       - name: Measure the bundled release in Chrome
         if: github.event_name == 'pull_request'
         run: uv run leaf-dev verify-site wrangler
-
-      # wait runs even when a foreground gate fails. Propagate Python's result and
-      # finish writing its artifacts before the unconditional upload below.
-      - name: Wait for Python tests
-        wait: python-tests
 
       - name: Upload pytest results
         if: always()

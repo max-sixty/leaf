@@ -996,7 +996,7 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
 
     edit_root("Start with the corrected measured constraint.")
     expect(
-        card.get_by_role("button", name="1 new reply · 1 summary changed", exact=True)
+        card.get_by_role("button", name="1 message edited · 1 summary changed", exact=True)
     ).to_be_visible()
     expect(checkpoint).to_have_count(1)
     expect(resolve).to_be_focused()

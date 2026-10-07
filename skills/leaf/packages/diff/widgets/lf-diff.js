@@ -223,19 +223,35 @@ function pathNode(className, path) {
 // each part's size is watched rather than polled. A part is cut where its words run
 // past its box, measured by a Range to the layout unit: `scrollWidth` rounds to whole
 // pixels, and the ellipsis is drawn for a fraction of one.
+//
+// One observer watches every file's row, so a delivery reads every row it names before
+// writing any. A row is watched from when it becomes its file's row (`fileRow`,
+// `replaceFileRendering`) until another replaces it; a fresh rendering whose content
+// goes into the kept row (`replaceFileContent`) brings a row that is never watched. A
+// row that leaves the page with its file or its diff is not unwatched: an observer
+// holds what it watches weakly, so the row is collected with its observation.
 const runsPast = (part) => {
   const words = new Range();
   words.selectNodeContents(part);
   return words.getBoundingClientRect().width > part.getBoundingClientRect().width;
 };
-function watchPathCut(summary, named, path) {
-  const parts = [...named.children];
-  const sizes = sizeObserver(() => {
-    const cut = parts.some(runsPast);
-    summary.toggleAttribute("data-path-cut", cut);
-    keeps(named, "title", cut ? path : null);
-  });
-  for (const part of parts) sizes.observe(part);
+const pathParts = (details) =>
+  details?.matches("details")
+    ? [...details.firstElementChild.querySelector(".lf-diff-path").children]
+    : [];
+const pathSizes = sizeObserver((entries) => {
+  const paths = new Set(entries.map(({ target }) => target.parentElement));
+  const readings = [...paths].map((path) => [path, [...path.children].some(runsPast)]);
+  for (const [path, cut] of readings) {
+    path.parentElement.toggleAttribute("data-path-cut", cut);
+    keeps(path, "title", cut ? path.textContent : null);
+  }
+});
+function watchPathCut(details) {
+  for (const part of pathParts(details)) pathSizes.observe(part);
+}
+function unwatchPathCut(details) {
+  for (const part of pathParts(details)) pathSizes.unobserve(part);
 }
 
 function summaryNode(file, open) {
@@ -258,7 +274,6 @@ function summaryNode(file, open) {
   const named = pathNode("lf-diff-path", path);
   named.dataset.path = path.replaceAll("/", "/\u200b");
   summary.append(named, stat);
-  watchPathCut(summary, named, path);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",
@@ -285,6 +300,7 @@ function fileRow(row) {
   actions.className = "lf-diff-file-actions lf-ui";
   actions.dataset.lfGen = "1";
   file.append(actions, row);
+  watchPathCut(row);
   return file;
 }
 
@@ -336,8 +352,10 @@ function holdFileFocus(entry, outlets) {
 
 function replaceFileRendering(entry, rendered, outlets) {
   const restore = holdFileFocus(entry, outlets);
+  unwatchPathCut(entry.details);
   setChildren(entry.node, [entry.node.firstElementChild, rendered.node]);
   entry.details = rendered.node.matches("details") ? rendered.node : null;
+  watchPathCut(entry.details);
   entry.lines = rendered.lines;
   entry.renderKey = null;
   return () => restore?.(entry.details?.firstElementChild, entry.node);

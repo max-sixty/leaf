@@ -11913,6 +11913,30 @@ def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
     ).to_contain_text("new beginning")
 
 
+@pytest.mark.parametrize("manifest", [False, True])
+def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve, manifest):
+    """A file that a revision turns from a rename into a changed file gets a new row,
+    and that row, too, says whether it cuts its path short."""
+    path = "plugins/worktrunk/skills/worktrunk/reference/config/deeply/handlers.py"
+    rename = (
+        f"diff --git a/old.py b/{path}\n"
+        f"similarity index 100%\nrename from old.py\nrename to {path}\n"
+    )
+    regular = MULTI_HUNK_PATCH.replace("app/handlers.py", path)
+    value = patch_manifest if manifest else lambda patch: patch
+    url = serve(LONG_LINE_DIFF_PAGE)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value(rename))
+    context = browser.new_context(viewport={"width": 390, "height": 844})
+    page = open_page(browser, url, context=context)
+    expect(page.locator("lf-diff .lf-diff-rename")).to_have_count(1)
+    data_model.cmd_data_set(serve.page_dir, "review-patch", value(regular))
+    told(page)
+    rendered(page)
+    head = page.locator("lf-diff .lf-diff-head").first
+    expect(head).to_have_attribute("data-path-cut", "")
+    expect(head.locator(".lf-diff-path")).to_have_attribute("title", path)
+
+
 @pytest.mark.parametrize("language", [None, "python"])
 def test_a_text_document_refresh_keeps_selection_in_unchanged_text(
     browser, serve, language

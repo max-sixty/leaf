@@ -14,6 +14,7 @@ from datetime import datetime
 from functools import partial
 from pathlib import Path
 
+from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.thread import successful_replies
@@ -102,10 +103,7 @@ def score(run: Path) -> list[dict]:
         pickup = next(
             (
                 datetime.fromisoformat(e["ts"]).timestamp()
-                for e in events
-                if e["kind"] == "pickup"
-                and e["phase"] == "opened"
-                and comment["id"] in e["events"]
+                for e in pickup_receipts(events, phase="opened", input_id=comment["id"])
             ),
             None,
         )

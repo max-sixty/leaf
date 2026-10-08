@@ -36,6 +36,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
+from typing import Literal
 
 from .files import read_json
 from .harness import claim_harness, session_harness
@@ -413,6 +414,37 @@ def cmd_delivery_read(delivery_id: str) -> None:
     if payload["acknowledge"] is None and harness is not None:
         harness.receive_pointer(payload)
     print(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
+def pickup_receipts(
+    events: list[dict],
+    *,
+    phase: Literal["queued", "opened", "failed"],
+    input_id: str | None = None,
+) -> list[dict]:
+    """Select admitted receipts for one transport milestone, in log order.
+
+    Keep each complete receipt: its exact input batch, session, turn and timestamp
+    belong together. Queued transport acceptance and failed delivery do not prove
+    context entry; readers checking pickup must request ``opened``. This reading
+    establishes transport evidence only, never work or a successful response.
+    """
+    return [
+        event
+        for event in events
+        if event["kind"] == "pickup"
+        and event["phase"] == phase
+        and (input_id is None or input_id in event["events"])
+    ]
+
+
+def opened_input_ids(events: list[dict]) -> set[str]:
+    """The exact attention inputs recorded as entering a harness's context."""
+    return {
+        input_id
+        for receipt in pickup_receipts(events, phase="opened")
+        for input_id in receipt["events"]
+    }
 
 
 def record_pickup(

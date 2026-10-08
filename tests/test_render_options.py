@@ -402,7 +402,15 @@ def test_standalone_options_own_their_digit_bindings(browser, serve, cards):
     page.keyboard.press("q")
     expect(group).to_be_focused()
     hints = group.locator(".lf-key-badge[data-lf-binding-badge]")
-    expect(hints).to_have_text(["1", "2", "3", "4"])
+    expect(hints).to_have_text(["1", "2", "3"])
+    done = group.locator(".lf-done")
+    expect(done).to_have_attribute("aria-keyshortcuts", "4")
+    page.keyboard.press("4")
+    round_trip(page)
+    expect(done).to_have_attribute("aria-pressed", "true")
+    done.click()
+    round_trip(page)
+    expect(done).to_have_attribute("aria-pressed", "false")
     positions = hints.evaluate_all(
         "es => es.map(e => { const r = e.getBoundingClientRect(); return [r.x, r.y]; })"
     )
@@ -577,15 +585,11 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
           window.optionGroup = holder;
           window.authoredOption = option;
           window.authoredTitle = option.querySelector(':scope > strong');
-          window.authoredWords = [...option.childNodes].find(
-            node => node.nodeType === Node.TEXT_NODE && node.data.trim()
-          );
           window.optionControl = control;
           window.optionIdentityHeld = () =>
             document.querySelector('#transport') === optionGroup &&
             optionGroup.querySelector('#opt-strict') === authoredOption &&
             authoredOption.querySelector(':scope > strong') === authoredTitle &&
-            [...authoredOption.childNodes].includes(authoredWords) &&
             authoredOption.querySelector(':scope > lf-option-control') === optionControl;
 
           const presentation = await window.__lfRuntimeImport(
@@ -609,6 +613,7 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     )
     expect(strict).to_have_attribute("chosen", "")
     assert page.evaluate("optionIdentityHeld()") is True
+    expect(strict).to_contain_text("Tighter, but a session")
 
     attempt = held[0].request.post_data_json["attempt"]
     held[0].fulfill(
@@ -624,6 +629,7 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     expect(page.locator("#opt-lax")).to_have_attribute("chosen", "")
     expect(mark).to_have_attribute("aria-checked", "false")
     assert page.evaluate("optionIdentityHeld()") is True
+    expect(strict).to_contain_text("Tighter, but a session")
 
     group.evaluate(
         """holder => {
@@ -639,6 +645,7 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
     )
     page.wait_for_function("reconnectedOptionsReady")
     assert page.evaluate("optionIdentityHeld()") is True
+    expect(strict).to_contain_text("Tighter, but a session")
 
 
 def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_field(

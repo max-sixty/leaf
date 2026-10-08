@@ -11680,11 +11680,11 @@ def test_a_rewrite_saved_under_the_resolved_filter_goes_with_its_thread(browser,
     page.unroute_all(behavior="wait")
 
 
-# TODO(2026-10-07): watch shifts here once a refused landing no longer redraws the
-# filter group after the input window (the escape-focus-landings branch fixes it).
+@pytest.mark.watch_shifts
 def test_a_refused_rewrite_puts_the_resolved_filter_back(browser, serve):
     """A refused rewrite saved under the Resolved filter puts that filter and the user
-    back on the thread, and its words wait on the message."""
+    back on the thread, and its words wait on the message. The refusal lands after
+    the input window, so nothing it puts back may move."""
     page, thread, message = _rewrite_surface(browser, serve, "panel", resolved=True)
     resolved_filter = page.locator('[data-filter-value="resolved"]')
     held = []
@@ -11700,6 +11700,11 @@ def test_a_refused_rewrite_puts_the_resolved_filter_back(browser, serve):
     page.keyboard.press("Enter")
     holding(page, held, 1, "the refused rewrite")
     expect(resolved_filter).to_have_attribute("aria-pressed", "false")
+    rendered(page)
+    # Chrome reports no shift within 500ms of input, so the refusal lands after it.
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     round_trip(page)
     expect(resolved_filter).to_have_attribute("aria-pressed", "true")

@@ -686,7 +686,11 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      pointer is over stays the one that looks pressable. */
   .lf-version-row[aria-current] .lf-version-num { color: var(--accent); font-weight: 600; }
   .lf-version-num { white-space: nowrap; }
-  .lf-version-note { color: var(--muted); font-size: var(--t-6); }
+  /* Notes are arbitrary agent text, including source URLs and artifact ids. Let
+     those runs break inside the note so they neither widen the grid nor escape
+     a row sharing its width with Compare. */
+  .lf-version-note { color: var(--muted); font-size: var(--t-6);
+    overflow-wrap: anywhere; }
   .lf-version-row:hover .lf-version-note { color: var(--ink-2); }
   /* The comparison a row offers: mark what changed between that version and the one
      being read. It draws its own box rather than waiting for a hover to draw one,

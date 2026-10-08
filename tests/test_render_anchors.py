@@ -2818,16 +2818,16 @@ rename to "\\357\\273\\277new.js"'''
         details: shadow?.querySelectorAll('details').length ?? 0,
         diffs: shadow?.querySelectorAll('pre[data-diff]').length ?? 0,
         renameCount: renames.length,
-        from: rename?.querySelector('.lf-diff-before')?.textContent ?? null,
-        to: rename?.querySelector('.lf-diff-after')?.textContent ?? null,
+        from: rename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
+        to: rename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
         stat: rename?.querySelector('.lf-diff-stat')?.textContent ?? null,
         generated: rename?.dataset.lfGen === '1',
         saidOverride: rename?.hasAttribute('data-lf-said') ?? null,
         quotedFrom:
-          quotedRename?.querySelector('.lf-diff-before')?.textContent ?? null,
-        quotedTo: quotedRename?.querySelector('.lf-diff-after')?.textContent ?? null,
-        bomFrom: bomRename?.querySelector('.lf-diff-before')?.textContent ?? null,
-        bomTo: bomRename?.querySelector('.lf-diff-after')?.textContent ?? null,
+          quotedRename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
+        quotedTo: quotedRename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
+        bomFrom: bomRename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
+        bomTo: bomRename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
         lines: [...(shadow?.querySelectorAll('[data-line]') ?? [])]
           .map(line => line.textContent),
         saysRename: says(document).includes('old-name.js → new-name.js'),
@@ -4449,6 +4449,58 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     expect(line).to_contain_text("walk — marking changes")
     expect(line).to_contain_text("open version")
     page.keyboard.press("Escape")
+
+
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_version_notes_stay_readable_beside_compare_at_narrow_widths(
+    browser, serve, color_scheme
+):
+    """A revision note may contain a URL or an unbroken identifier. Both latest
+    rows spanning the menu and earlier rows sharing it with Compare wrap the whole
+    note inside their own press, rather than clipping it behind the next column.
+    """
+    long_url = (
+        "Source: https://github.com/max-sixty/leaf/blob/"
+        + "a" * 40
+        + "/skills/leaf/assets/runtime/version-picker.js"
+    )
+    long_token = "Revision artifact: " + "abcdef0123456789" * 12
+    url = serve(INLINE_PAGE)
+    _publish(serve.page_dir, 2, INLINE_PAGE, long_url)
+    _publish(serve.page_dir, 3, INLINE_PAGE, long_token)
+    context = browser.new_context(
+        viewport={"width": 320, "height": 568},
+        has_touch=True,
+        is_mobile=True,
+        color_scheme=color_scheme,
+    )
+    page = open_page(browser, live_url(url), context=context)
+    for width in (320, 1200):
+        page.set_viewport_size({"width": width, "height": 568 if width == 320 else 900})
+        open_versions(page)
+        menu = page.locator(".lf-version-menu")
+        expect(menu).to_be_visible()
+        for version, note in ((2, long_url), (3, long_token)):
+            row = menu.locator(f'.lf-version-row[data-lf-version="{version}"]')
+            expect(row.locator(".lf-version-note")).to_have_text(note)
+            row.scroll_into_view_if_needed()
+            boxes = row.evaluate("""row => {
+              const menu = row.closest('.lf-version-menu');
+              const note = row.querySelector('.lf-version-note');
+              const r = row.getBoundingClientRect(), n = note.getBoundingClientRect();
+              return {menuWidth: menu.clientWidth, menuScroll: menu.scrollWidth,
+                rowWidth: row.clientWidth, rowScroll: row.scrollWidth,
+                noteLeft: n.left, noteRight: n.right, rowLeft: r.left, rowRight: r.right};
+            }""")
+            assert boxes["menuScroll"] <= boxes["menuWidth"] + 1, boxes
+            assert boxes["rowScroll"] <= boxes["rowWidth"] + 1, boxes
+            assert boxes["noteLeft"] >= boxes["rowLeft"], boxes
+            assert boxes["noteRight"] <= boxes["rowRight"], boxes
+        expect(
+            menu.get_by_role("menuitemcheckbox", name="Compare with v2")
+        ).to_be_visible()
+        page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
 
 
 @pytest.mark.watch_shifts

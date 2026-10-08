@@ -12,6 +12,7 @@ import shutil
 from pathlib import Path
 
 import click
+from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.server import running_server
 from leaf.service import page_claim
@@ -88,11 +89,8 @@ def settled(page: Path, session: str, posted: list[str]) -> dict:
         )
         posted_id = comment_id(page, step)
         require(
-            any(
-                event["kind"] == "pickup" and posted_id in event["events"]
-                for event in events
-            ),
-            f"comment `{step}` has a reply but no pickup",
+            bool(pickup_receipts(events, phase="opened", input_id=posted_id)),
+            f"comment `{step}` has a reply but never entered the harness context",
         )
     claim = page_claim(page)
     require(claim is not None, "the page has no claim")

@@ -147,7 +147,7 @@ def test_delivery_reads_admitted_progress_and_exact_answers(tmp_path):
 
 def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
     from leaf.thread import answered_by_reply, successful_replies
-    from leaf_dev import journey, review_scenario, usability_eval
+    from leaf_dev import journey, review_scenario
 
     comment = {
         "kind": "comment",
@@ -178,7 +178,6 @@ def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
         (tmp_path / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events))
         assert successful_replies(events, "input") == expected
         assert answered_by_reply(events, "input") is success
-        assert usability_eval.answered(events, "input") == expected
         assert review_scenario.answers(tmp_path, "first") == expected
         assert journey.deployment_answer(events, "input") == (
             reply if success else None

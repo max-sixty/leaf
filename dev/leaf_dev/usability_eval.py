@@ -1266,11 +1266,6 @@ def progress_shown(trace: list[dict], events: list[dict], thread: str) -> bool:
     return progress_start(events, thread) is not None
 
 
-def answered(events: list[dict], event_id: str) -> list[dict]:
-    """The agent's successful replies to one exact input."""
-    return successful_replies(events, event_id)
-
-
 def handed_page_url(trace: list[dict], reply: str) -> bool:
     """The final message links the exact server this live run observed."""
     served = next((r["url"] for r in trace if r["type"] == "eval_served"), None)
@@ -1322,12 +1317,12 @@ def score_handoff(run: Run, trace: list[dict]) -> dict:
             "edit_claimed": r["delivery"] is not None
             and r["end"] is not None
             and progress_shown(trace[r["delivery"] : r["end"]], events, comment["id"]),
-            "edit_replied": bool(answered(events, comment["id"])),
+            "edit_replied": bool(successful_replies(events, comment["id"])),
             "edit_done": check(DRY_RUN_DONE, element_text(html, "dry-run")),
         }
     if len(rounds) > 1:
         question = posted_event(run.work / "page", attempt_key(1, 0))
-        replies = answered(events, question["id"])
+        replies = successful_replies(events, question["id"])
         out |= round_scores(trace, rounds[1], "question") | {
             "question_answered": any(
                 check(r"snapshot", e.get("text", ""))
@@ -1368,7 +1363,7 @@ def score_mixed(run: Run, trace: list[dict]) -> dict:
         "comment_claimed": r["delivery"] is not None
         and r["end"] is not None
         and progress_shown(trace[r["delivery"] : r["end"]], events, comment["id"]),
-        "comment_replied": bool(answered(events, comment["id"])),
+        "comment_replied": bool(successful_replies(events, comment["id"])),
         "comment_done": check(DRY_RUN_DONE, element_text(html, "dry-run")),
         "stamped": len(state.get("versions", [])) >= 2,
         # Leaf's own reading: the pick owes nothing more, and the user still sees it,
@@ -1407,7 +1402,7 @@ def score_mixed(run: Run, trace: list[dict]) -> dict:
             )
             or f'resolves="{reaction["id"]}"' in html
         ),
-        "reaction_unreplied": not answered(events, reaction["id"]),
+        "reaction_unreplied": not successful_replies(events, reaction["id"]),
         "undo_kept": "card-lag-alert" in column_cards(html, "col-open")
         and column_cards(html, "col-done") == [],
         "error_fixed": copy_summary_works(run, page),
@@ -1495,7 +1490,7 @@ def score_elided(run: Run, trace: list[dict]) -> dict:
         ),
         None,
     )
-    replies = answered(events, question["id"])
+    replies = successful_replies(events, question["id"])
     return out | {
         # Validity: the delivery shortened the thread, as the case assumes.
         "shown_elided": any(

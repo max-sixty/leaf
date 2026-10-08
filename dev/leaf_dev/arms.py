@@ -738,7 +738,6 @@ def trace_summary(trace: list[dict]) -> dict:
         "completed": completed(trace),
         "turns": sum(r.get("num_turns", 0) for r in ended),
         "cost_usd": round(cost, 3) if cost is not None else None,
-        "cost_known": cost is not None,
         "minutes": round(sum(r["duration_ms"] for r in ended) / 60000, 1)
         if ended and all("duration_ms" in r for r in ended)
         else None,

@@ -230,7 +230,7 @@ def test_progress_uses_the_admitted_log_before_the_exact_answer():
     assert progress_shown([], [progress, answered], "comment")
 
 
-def test_native_opening_requires_page_response_evidence_before_the_first_tool():
+def test_native_opening_requires_page_response_evidence_during_handling():
     opening = {
         "type": "assistant",
         "message": {
@@ -354,8 +354,8 @@ def test_native_scenario_output_preserves_unavailable_usage(
         for field in ("input_tokens", "output_tokens"):
             assert phase[field] == (usage[index - 1] or {}).get(field)
             assert arrangement[field] == phase[field]
-        assert phase["cost_usd"] is None and phase["cost_known"] is False
-        assert arrangement["cost_usd"] is None and arrangement["cost_known"] is False
+        assert phase["cost_usd"] is None
+        assert arrangement["cost_usd"] is None
     assert "cost" not in response
 
 

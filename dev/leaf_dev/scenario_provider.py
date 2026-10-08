@@ -3,7 +3,7 @@
 The test's metadata names the executor and its scenario, a key of the executor's
 `CASES`; the provider column names the harness, condition and arm. Each call gets a
 fresh evidence directory, so repetitions never share one, and the response's
-`metadata.work` names it. An executor that declares `rubrics` also gets `shots`,
+`metadata.work` names it. An executor with screenshot `agent-rubric`s gets `shots`,
 the sample's directory under the run's screenshot tree, which is all its judge may
 read. Both are named by the case but not the column, so no path the judge sees
 tells the arm or condition. Errors remain provider errors.

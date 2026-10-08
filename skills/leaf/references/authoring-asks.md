@@ -3,7 +3,7 @@
 Use an Ask for every decision waiting on the user. A recommendation leaves
 that decision open until the user decides.
 
-The user answers an Ask from what is on screen when they reach it, and `a`
+The user answers an Ask from what is on screen when they reach it, and `q`
 brings its start to the top with everything above it out of view. Keep its question,
 short shared premise, and evidence together with the answering control. Use `lf-ask`
 to frame that material when it lives outside the answering widget: a question heading,
@@ -32,7 +32,7 @@ uses every column it gets takes `data-width="available"` (`page-authoring.md`,
 
 Write related, independently answerable Asks in page order. A widget can carry its
 own question and context, or an `lf-ask` can frame them around it. They remain visible
-as one complete page. The user can press `a` to reach the next thing waiting on them
+as one complete page. The user can press `q` to reach the next thing waiting on them
 (an open Ask, a thread whose question is theirs, a task you put on them, or a move
 whose reply failed and needs sending again) and use an Ask's displayed `1`–`9`
 actions. If a later Ask depends on an earlier answer, publish it in the next turn

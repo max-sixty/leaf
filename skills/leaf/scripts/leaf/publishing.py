@@ -1,5 +1,13 @@
-"""Stamping public version mappings from the mutable source."""
+"""Stamping public version mappings from the mutable source.
 
+An authored replacement supplies HTML and its complete page-owned resource tree.
+Installing, validating, stamping and restoring a refused replacement share the
+page transaction, so automatic HTTP activation cannot publish an intermediate
+combination. A source digest refuses a replacement prepared against other inputs.
+"""
+
+import hashlib
+import json
 import sys
 from pathlib import Path
 
@@ -9,15 +17,57 @@ from leaf.leases import contract_writer
 from leaf.projection import folded_value, markup_value, page_reading
 from leaf.revisioning import planned_activation, publish_checked_event
 from leaf.service import PageTransaction
-from leaf.tasks import log_tasks_open, owed_tasks
+from leaf.tasks import owed_tasks
 from leaf.validation.admission import read_text_arg
 from leaf.validation.source import check_source
-from leaf.work import tasks_without_targets
+
+
+def authored_files(source: Path, companions: Path) -> dict[str, bytes]:
+    """Read complete mutable authored inputs, keyed inside a page directory."""
+    return {
+        "index.html": source.read_bytes(),
+        **{
+            "page/" + path.relative_to(companions).as_posix(): path.read_bytes()
+            for path in sorted(companions.rglob("*"))
+            if path.is_file()
+        },
+    }
+
+
+def authored_digest(files: dict[str, bytes]) -> str:
+    """Identify the exact HTML and companion paths and bytes a writer read."""
+    manifest = {
+        name: hashlib.sha256(data).hexdigest() for name, data in sorted(files.items())
+    }
+    return hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
+
+
+def write_authored_files(
+    page: Path, incoming: dict[str, bytes], previous: dict[str, bytes]
+) -> None:
+    """Replace mutable authoring inputs; captured revisions remain untouched.
+
+    The publication caller holds a page transaction. Removing empty directories
+    permits a module file to replace a directory of modules, and the reverse.
+    """
+    for name in previous.keys() - incoming.keys():
+        (page / name).unlink()
+    directories = (path for path in (page / "page").rglob("*") if path.is_dir())
+    for directory in sorted(
+        directories, key=lambda path: len(path.parts), reverse=True
+    ):
+        if not any(directory.iterdir()):
+            directory.rmdir()
+    for name, data in incoming.items():
+        if previous.get(name) != data:
+            target = page / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
 
 
 def _stamp_candidate(page_dir: Path, events: list):
     """Check the exact source and determine its revision without publishing it."""
-    checked = check_source(page_dir, events, allow_transition=True)
+    checked = check_source(page_dir, events)
     if checked.errors:
         sys.exit(f"refusing to stamp index.html: {'; '.join(checked.errors)}")
     return checked, planned_activation(page_dir, checked)
@@ -34,18 +84,15 @@ def _stamp_reading(events: list, checked, revision: int):
 
 
 def _completed_tasks(
-    checked,
-    projection,
     events: list,
-    registry: dict,
     revision: int,
     completes: tuple[str, ...],
 ) -> list[str]:
-    """The open tasks this version ends `done`: every task on each widget `completes`
-    names. A version that would drop the target of an open widget task it does not
-    complete is refused, as is one that would drop the target of any other open task
-    on a widget or an element, either side's, since the task would stand beside
-    nothing."""
+    """End only the open widget tasks explicitly named by ``completes``.
+
+    Removing a target leaves its task open in the queue; a page edit does not
+    establish that the task is complete.
+    """
     if len(set(completes)) != len(completes):
         sys.exit("--completes names each widget at most once")
     tasks = owed_tasks(events)
@@ -61,16 +108,6 @@ def _completed_tasks(
         sys.exit(
             f"revision r{revision} is not later than the open task on "
             + ", ".join(repr(widget) for widget in not_later)
-        )
-    untargeted = tasks_without_targets(
-        checked.document, projection, log_tasks_open(events), registry, completes
-    )
-    if untargeted:
-        targets = ", ".join(repr(target) for target in untargeted)
-        sys.exit(
-            "refusing to stamp index.html: it would remove the target of the open "
-            f"task on {targets}; pass --completes for each widget this version "
-            "completes, or end the task with `leaf task end`"
         )
     return sorted(task["id"] for task in completed)
 
@@ -118,9 +155,7 @@ def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -
     checked, activation = _stamp_candidate(page_dir, events)
     revision = activation.revision
     registry, projection, parser, spk = _stamp_reading(events, checked, revision)
-    completed = _completed_tasks(
-        checked, projection, events, registry, revision, completes
-    )
+    completed = _completed_tasks(events, revision, completes)
     settled_reports = _settled_reports(projection, parser, spk, registry)
     notes = [event for event in events if event["kind"] == "note"]
     version = max((event["version"] for event in notes), default=0) + 1
@@ -131,8 +166,36 @@ def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -
 
 
 @contract_writer
-def cmd_stamp(page_dir: Path, text, completes: tuple[str, ...] = ()) -> dict:
+def cmd_stamp(
+    page_dir: Path,
+    text,
+    completes: tuple[str, ...] = (),
+    *,
+    from_directory: Path | None = None,
+    if_source: str | None = None,
+) -> dict:
     """Map the exact current source to the next public version."""
     body = read_text_arg(page_dir, text)
+    if (from_directory is None) != (if_source is None):
+        sys.exit("--from-directory and --if-source are used together")
+    incoming = (
+        authored_files(from_directory / "index.html", from_directory / "page")
+        if from_directory is not None
+        else None
+    )
     with PageTransaction(page_dir) as page:
-        return _stamp_locked(page_dir, page, body, completes)
+        if incoming is None:
+            return _stamp_locked(page_dir, page, body, completes)
+        previous = authored_files(page_dir / "index.html", page_dir / "page")
+        if authored_digest(previous) != if_source:
+            sys.exit("authored inputs changed; reconcile them before retrying")
+        try:
+            write_authored_files(page_dir, incoming, previous)
+            return _stamp_locked(page_dir, page, body, completes)
+        except BaseException:
+            write_authored_files(
+                page_dir,
+                previous,
+                authored_files(page_dir / "index.html", page_dir / "page"),
+            )
+            raise

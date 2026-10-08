@@ -27,7 +27,7 @@ const ROW = "data-lf-row";
 const EMPTY_ROWS = Object.freeze([]);
 const EMPTY_MODEL = Object.freeze({
   offered: false,
-  label: "All leaves (0)",
+  label: "All pages (0)",
   rows: EMPTY_ROWS,
 });
 
@@ -61,7 +61,7 @@ const rowBody = (row) => html`
   <div class="lf-others-head">
     <span class=${`lf-dot${row.tone ? ` ${row.tone}` : ""}`}></span>
     <span class="lf-others-title">${row.title}</span>
-    ${row.self ? html`<span class="lf-outline-chip">this page</span>` : ""}
+    ${row.self ? html`<span class="lf-others-current">this page</span>` : ""}
   </div>
   <div class="lf-others-line">${row.line}</div>
 `;
@@ -165,7 +165,7 @@ class LiveLeavesList extends RetainedFace {
     for (const link of this.querySelectorAll(LINK)) {
       if (this.#wiredLinks.has(link)) continue;
       this.#wiredLinks.add(link);
-      keys(link, "In the leaves drawer", openCommand);
+      keys(link, "In the pages drawer", openCommand);
     }
     const offered = this.querySelector(LINK) !== null;
     if (offered !== this.#linksOffered) {

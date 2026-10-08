@@ -18,7 +18,7 @@
  * apparatus, set in the UI sans at small sizes with tracking, so it reads as
  * machinery around the argument rather than as part of it. What it *shows* is mono:
  * code, diffs, trees, timestamps. The runtime's own chrome takes the same sans
- * (.lf-ui reads --sans), which is what finally makes "this is not the document"
+ * (native .lf-ui-face reads --sans), which is what finally makes "this is not the document"
  * a difference you can see rather than a claim resting on size and color. It
  * was invisible while document and chrome were the one system face.
  *
@@ -144,16 +144,16 @@
   --lf-banner-row: max(42px, calc(var(--t-5) * var(--lf-ui-lh) + 19px),
     calc(var(--aim-floor) + 9px));
   --lf-banner-status-row: max(36px, calc(var(--t-5) * var(--lf-ui-lh) + 4px));
-  /* The complete toolbar owns 30em of UI type, the queue counts beside the status
-     11em, about what "9 on you · 9 on Claude" takes, and 220px is left for the status,
-     insets, and the gaps. Below that the banner takes two rows, and the sentence has the
-     first to itself (chrome.css), until a phone's face makes it one row again (below).
-     The rooms are independent of page capabilities and of
-     whether anything waits, since the counts come and go with the log after first paint.
-     A larger UI font raises the same capacity boundary before first paint. */
-  --lf-banner-actions-w: calc(30 * var(--t-5));
+  /* The complete toolbar owns 37em of UI type, Questions' 7em beside the rest, the
+     agent's Tasks count beside the status 4em, what "Tasks: 9" takes, and 220px is
+     left for the status, insets, and the gaps. Below that the banner takes two rows, and
+     the sentence has the first to itself (chrome.css), until a phone's face makes it one
+     row again (below). The rooms are independent of page capabilities and of whether
+     anything waits, since the counts come and go with the log after first paint. A
+     larger UI font raises the same capacity boundary before first paint. */
+  --lf-banner-actions-w: calc(37 * var(--t-5));
   --lf-banner-rows: clamp(1, round(up,
-    calc((var(--lf-banner-actions-w) + 11 * var(--t-5) + 220px + var(--lf-safe-left)
+    calc((var(--lf-banner-actions-w) + 4 * var(--t-5) + 220px + var(--lf-safe-left)
       + var(--lf-safe-right)) / 100vw)), 2);
   --lf-banner-h: calc(var(--lf-banner-status-row) * (var(--lf-banner-rows) - 1) + var(--lf-banner-row)
     + var(--lf-safe-top));
@@ -681,9 +681,9 @@ html { background: var(--paper); }
     main { padding-block: 24px; }
   }
 }
-/* The auxiliary surfaces — the Queue drawer on the left, the thread panel on the right, the
- * Leaves drawer — stand over the page and never take room from it. The page's geometry is
- * the author's, and a surface the user raises for a moment does not reflow it: the shell
+/* The auxiliary surfaces — the thread panel and the Questions panel on the right, the
+ * Leaves drawer on the left — stand over the page and never take room from it. The
+ * page's geometry is the author's, and a surface the user raises for a moment does not reflow it: the shell
  * is the same width with a surface up as without one, so every container query, rail and
  * wide exhibit reads what the author laid out.
  *
@@ -729,10 +729,9 @@ body {
     var(--lf-auxiliary-width, 0px));
 }
 @media screen {
-  html[data-lf-live] body[data-lf-auxiliary-surface="queue"] {
-    --lf-auxiliary-width: var(--lf-drawer-slot-width, 300px);
-  }
-  html[data-lf-live] body[data-lf-auxiliary-surface="threads"] {
+  /* Threads and Questions share the right edge and its width. */
+  html[data-lf-live] body:is([data-lf-auxiliary-surface="threads"],
+      [data-lf-auxiliary-surface="queue"]) {
     --lf-auxiliary-width: var(--lf-thread-panel-width, 420px);
   }
 }
@@ -742,7 +741,11 @@ body {
  * placeholder words, which the drawing replaces with the log's. A reading with no
  * runtime gets no drawing, so the room goes with it. */
 [data-lf-prepaint] { visibility: hidden; }
-html:not([data-lf-interactive]) [data-lf-prepaint] { display: none; }
+/* Declared Markdown is the readable first paint, with its exact authored pre
+   retained for semantic capture until the formatter adopts these same nodes. */
+.lf-markdown-body[data-lf-prepaint] { visibility: visible; }
+:has(> .lf-markdown-body[data-lf-prepaint]) > pre { display: none; }
+html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) { display: none; }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
  * parse while JavaScript upgrades widgets and reads the standing log. Generated page
  * interface joins it as soon as widget and page-interface upgrade gives that apparatus
@@ -1604,7 +1607,9 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   margin-block-start: 2px; color: color-mix(in srgb, var(--paper) 72%, transparent);
   font-size: 10px; line-height: 1.25; font-weight: 450;
 }
-.lf-margin-entry[data-lf-label-side] > .lf-margin-entry-label {
+/* Inline controls keep their native label. Physical margin controls take the
+   geometry owner's placement, whose readiness gates their first visible paint. */
+.lf-margin-projection .lf-margin-entry[data-lf-label-side] > .lf-margin-entry-label {
   inset: auto; left: var(--lf-label-x); top: var(--lf-label-y);
 }
 .lf-margin-entry:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])
@@ -1624,6 +1629,9 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
 .lf-margin-entry:is(:focus-visible, .lf-focus-visible):not([aria-expanded="true"])
   > .lf-margin-entry-label {
   transition: none;
+}
+.lf-margin-projection .lf-margin-entry:not([data-lf-label-side]) > .lf-margin-entry-label {
+  opacity: 0; visibility: hidden; transition: none;
 }
 .lf-margin-count { position: absolute; top: -7px; right: -7px; min-width: 16px;
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;

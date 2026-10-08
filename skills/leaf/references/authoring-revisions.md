@@ -16,6 +16,23 @@ rewriting that file. `leaf page state <page> <id>` narrows the reading to what t
 names: a page widget's element, standing moves, Asks and workflows, or a thread's
 messages with their frozen widget content, which changes only through that thread.
 
+## Publish several authored files together
+
+When HTML and its modules must change together, prepare a separate candidate
+directory containing `index.html` and the complete `page/` tree, with its referenced
+media already present in the live page. Tools read the current authored inputs with
+`leaf.publishing.authored_files` and obtain their precondition through
+`leaf.publishing.authored_digest`. Publish the candidate with:
+
+```sh
+leaf page stamp <page> --from-directory <candidate> --if-source <digest> --text 'Updated the page'
+```
+
+The stamp owner replaces, validates and publishes those authored inputs in one
+transaction. A stale precondition refuses the replacement; a refused candidate
+restores the previous inputs before the page can read them. This replacement
+includes neither the event log nor external data.
+
 ## Revisions and user-owned words
 
 Fresh content is authored directly. Rewrite prose the user has already seen as
@@ -33,42 +50,38 @@ nothing to weigh: write the true thing straight and name the change in the versi
 note.
 
 Use `lf-draft` for a passage whose wording belongs to the user. Their submitted
-words remain effective across revisions. Editing uses the same Markdown text field
-as a message; Save records the exact source as the passage's replacement text.
+words remain effective across revisions. The passage renders Markdown for reading;
+Edit opens the exact source in the shared Markdown text field. Save records that
+source as the replacement, Cancel discards the unsaved edit, and Close keeps it.
+The editing controls stay inside the box; comments and receipts use annotations.
+The `<pre>` holds exact Markdown: indentation and trailing whitespace are content,
+so keep HTML layout indentation outside it. Enter writes a new line; ⌘/Ctrl+Enter
+saves the edit.
 
 ## Honor user state
 
-The event log preserves user choices, generated options, edits, and suggestion
-outcomes across revisions. Leave their authored inputs unchanged unless the
-content needs revision. The page directory and its export preserve that
-state without it being copied into markup.
+The event log preserves the user's choices, added options, edits, and suggestion
+outcomes. Revise their authored inputs when the content needs it, and preserve
+the decision's meaning in the record. The page directory and export retain
+state without copying it into markup. To withdraw a decision, follow the
+registry's `$restated`.
 
-A moved card, on a board or in a swipe deck's piles, is one exception. A move
-records a place among the cards the user saw, so when you change the cards in
-its column or pile, write the moved card where its move in `state` left it: in the
-column or pile the move names, ordered among the cards there by rank (`$state` in
-`registry.json` defines ranks). `page check` names the place when a version misses
-it. From then on your markup places it. Keep it there in later versions too: a version
-keeps a user's placement unless it marks the card `restated`, and `page check`
-refuses one that moves it silently.
+When changing cards in a board column or swipe pile, place each moved card
+in the column or pile and rank that `state` names. The registry's `$state`
+defines ranks. That placement becomes authored markup; later versions can
+revise it.
 
-A user's answer to a page Ask is the other: it shows as waiting on you until a
-stamped version takes it in, and until then it holds your turn open unless that turn
-started it. Where the answering widget declares a markup form for its state
-(its `x-state` `record`), that version's markup has to show the answer in that form:
-`chosen` on exactly the picked `lf-option` elements, with an option the user added
-written in as an ordinary option under its id and words, or the user's words as the
-body of a `needed` `lf-draft`. The next version you stamp takes in an answer with no
-such form, such as an accepted suggestion or a playground's submitted settings.
+Take in a user's answer to a page Ask in a stamped version. Where the widget's
+`x-state` declares a `record` form, show that form when incorporating the answer:
+`chosen` on exactly the picked `lf-option` elements, with user-added options under
+their original ids and words, or the user's words as the body of a `needed`
+`lf-draft`. Where it declares no form, such as an accepted suggestion or submitted
+playground settings, the next stamp takes in the answer. Until then the answer
+waits on you, as its delivered `handling` says.
 
 When incorporating a decided suggestion into surrounding prose, retain its
-surviving branch and ids.
-
-A worker's report stays provisional until a stamped version answers it, as its
-delivered `handling` says.
-
-To deliberately replace state established by an action, follow the registry's
-`$restated`.
+surviving branch and ids. A worker report also stays provisional until the
+stamped revision its delivered `handling` requires.
 
 ## Make changes easy to find
 
@@ -86,12 +99,13 @@ structure included, is an ordinary revision, and when the structure changes, wri
 `index.html` whole rather than as a series of edits. Ids are what carry threads and
 user state across a rewrite (`page-authoring.md`, "Stable anchors"), so a passage
 that survives keeps its id wherever on the page it goes, and moving it needs neither
-a suggestion nor `restated`. `page check` refuses a rewrite that drops an id an
-open thread or the user's state still rests on, and names the way out. It also
-lists every open thread whose quote the rewrite removes or makes ambiguous;
-activation keeps each at its surviving section. Prefer the replacement passage
-when you know it, and detach only when the subject itself leaves the page
-(`threads.md`, "Preserve revised anchors").
+a suggestion nor `restated`. Revisions may remove referenced ids or
+change decided wording. When a quoted passage or visual part disappears, its thread
+falls back to its surviving section; when that section disappears, it detaches.
+Prefer an explicit replacement passage when you know the subject's new location
+(`threads.md`, "Preserve revised anchors"). The original anchor and answer remain
+in the log.
+
 
 A list of work holds what is still to do. When an item of a plan, a backlog, or a list
 of problems found is done, move it out of that list to the finished work, which sits
@@ -110,7 +124,8 @@ to the finished work with the user's answer standing, and put anything still wor
 asking in a new Ask under new ids. An `lf-options` group takes `settled` there,
 which collapses it to the pick. The answered Ask is the record of what the user
 was asked and chose: say what came of the choice beside it, and correct its words
-only as the registry's `$restated` says. Keep an Ask live while it is being
+directly when needed. Use `$restated` when the decision itself should be withdrawn
+and asked again. Keep an Ask live while it is being
 applied, and settle it only after the work no longer revisits it. Keep a section
 live while the user is still commenting there.
 

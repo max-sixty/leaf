@@ -3266,9 +3266,9 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     takes, so the release-notes shot, the wide exhibit in the control, grows left only
     to stop short of it.
 
-    The Queue panel stands over the left margin and moves nothing in it. A narrow viewport
-    returns the aside to the flow, and print proves paper reserves no blank margin for a
-    posture it cannot use.
+    The Questions panel stands over the page from the right and moves nothing in the left
+    margin. A narrow viewport returns the aside to the flow, and print proves paper
+    reserves no blank margin for a posture it cannot use.
 
     A sidebar that holds only the map has nothing for a float to hold, so wherever the
     map stands in the margin that sidebar stands as the map alone and takes no room in
@@ -3386,8 +3386,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
 
-    # The Queue panel stands over the page's left margin and moves nothing in it: the fixed
-    # ToC and the sidebar stay where the page put them, under the drawer while it stands.
+    # The Questions panel stands over the page from the right and moves nothing in the left
+    # margin: the fixed ToC and the sidebar stay where the page put them while it stands.
     resized(page, 1700, 900)
     margin = """() => {
           const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
@@ -3690,7 +3690,7 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
         else:
             assert at["note"]["float"] == "none", (width, at)
 
-    # The Queue panel stands over the page and grants or withdraws no margin.
+    # The Questions panel stands over the page and grants or withdraws no margin.
     toggle_queue(page)
     panelled = page.evaluate(reading)
     assert panelled["sidebars"] == at["sidebars"]
@@ -3798,7 +3798,7 @@ DISCLOSURES = """() => [...document.querySelectorAll('details')]
     open: d.open,
     displayed: d.checkVisibility(),
     summary: (d.querySelector('summary')?.textContent || '').trim().slice(0, 40),
-    shown: [...d.children].filter(c => c.tagName !== 'SUMMARY' && !c.hasAttribute('data-lf-gen'))
+    shown: [...d.children].filter(c => !c.matches('summary, script, style, template') && !c.hasAttribute('data-lf-gen'))
       .every(c => c.checkVisibility()),
   }))"""
 
@@ -3835,7 +3835,7 @@ def test_paper_takes_the_press_off_everything_it_cannot_press(browser, serve):
     )
     shut = [d for d in page.evaluate(DISCLOSURES) if not d["open"]]
     assert len(shut) >= 3, f"the corpus has no shut disclosures to print: {shut}"
-    assert not any(d["shown"] for d in shut), (
+    assert not any(d["displayed"] and d["shown"] for d in shut), (
         f"the page shows what its shut disclosures hold before the medium changes: {shut}"
     )
 

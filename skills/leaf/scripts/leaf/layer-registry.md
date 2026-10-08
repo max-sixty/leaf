@@ -13,19 +13,20 @@ transition covers start, stop, init, contract-bearing CLI writes, and preview re
 Stop retains it through the server's release, so no operation can cross the old
 process's contract.
 
-A candidate layer must retain every page action or report whose sender it retains,
-including superseded predecessors that a later undo can expose. It must also retain
-all frozen thread markup and the actions sent from it, because that
-document has no revision boundary. Page events whose senders the candidate removes are
-historical-only and remain interpretable through the registry captured with their
-immutable revisions. Re-vendoring composes page-owned declarations over the
-prospective layer before running this same candidate check. Initialization compares
+A candidate layer validates its current vocabulary and the markup it renders;
+historical actions and reports do not veto a replacement. Each newly admitted state
+gesture records its operation and detail domain in `meaning.state`. Compatible
+decisions continue to paint; values outside a revised domain and removed senders
+remain historical-only. Immutable revisions retain their captured registries for
+historical readings. Frozen thread markup has no independent implementation boundary,
+so a candidate must still render that markup. Re-vendoring composes page-owned
+declarations over the prospective layer before checking it. Initialization compares
 the desired layer with every installed file it owns, including stale files in its
 directories. Identical initialization preserves files, generation, provenance, and
 the running server. Repairing installed files or changing the layer, package
 selection, or serving code requires a transition. `page init --dry-run` reports
 that decision as `changed` without writing or stopping the service. Each layer
-records four deliberately different identities under `$layer`:
+records its identities under `$layer`:
 
 - `generation` is a fresh epoch for each transition, embedded in both `runtime/layer-generation.js` and the
   registry. State reports it and event requests carry it; the server repeats it on

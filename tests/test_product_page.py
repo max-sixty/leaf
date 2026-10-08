@@ -196,15 +196,18 @@ def shown_log(records: list[dict]) -> str:
     """Stored records as the event-log page prints them: each record's JSON as
     `leaf page events` writes it, broken before and after each object-valued field and
     before `id`, so a record reads in a few lines rather than one wide one. An
-    object too long for one line puts each of its members on a line of its own."""
+    object too long for one line puts each of its members on a line of its own,
+    including nested state definitions and their detail schemas."""
     width = 96
 
-    def field(key, value):
+    def field(key, value, indent=0):
         line = f"{json.dumps(key)}: {json.dumps(value)}"
-        if not isinstance(value, dict) or len(line) <= width:
+        if not isinstance(value, dict) or len(line) + indent <= width:
             return line
-        members = [f"{json.dumps(k)}: {json.dumps(v)}" for k, v in value.items()]
-        return f"{json.dumps(key)}: {{" + ",\n   ".join(members) + "}"
+        members = [field(k, v, indent + 2) for k, v in value.items()]
+        return (
+            f"{json.dumps(key)}: {{" + (",\n" + " " * (indent + 3)).join(members) + "}"
+        )
 
     shown = []
     for record in records:

@@ -269,12 +269,12 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
     return resolved
 
 
-def javascript_tree(data: bytes, path: str):
-    """Parse UTF-8 JavaScript once at its source boundary, with located errors.
+def javascript_imports(data: bytes, path: str):
+    """Yield exact string-literal spans of static exports/imports and import().
 
-    Artifact capture and developer source analysis consume this same syntax
-    reading. Import admission remains with the artifact's reference reader.
-    """
+    A computed import() binds when it runs, so capture neither follows nor refuses it:
+    a CDN module named that way loads, and a page file it names is in the revision
+    only if something imports it literally."""
     try:
         data.decode("utf-8")
     except UnicodeDecodeError as error:
@@ -290,16 +290,6 @@ def javascript_tree(data: bytes, path: str):
                 )
             pending.extend(reversed(node.children))
         raise ArtifactError(f"{path}: invalid JavaScript")
-    return tree
-
-
-def javascript_imports(data: bytes, path: str):
-    """Yield exact string-literal spans of static exports/imports and import().
-
-    A computed import() binds when it runs, so capture neither follows nor refuses it:
-    a CDN module named that way loads, and a page file it names is in the revision
-    only if something imports it literally."""
-    tree = javascript_tree(data, path)
     pending = [tree.root_node]
     while pending:
         node = pending.pop()
@@ -623,6 +613,46 @@ def capture_local_resource(page_dir: Path, path: str) -> Resource:
     return Resource(data, mime)
 
 
+def _resource_dependencies(path: str, data: bytes, mime: str) -> tuple[str, ...]:
+    """The local dependencies of an authored module or stylesheet."""
+    edges = []
+    if mime == "application/javascript" and path.startswith("/page/"):
+        for _, _, specifier in javascript_imports(data, path):
+            edges.append(resolve_dependency(specifier, path, module=True))
+    elif mime == "text/css" and path.startswith("/page/"):
+        try:
+            css = data.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise ArtifactError(f"{path}: CSS is not UTF-8") from error
+        for specifier in _css_dependencies(css):
+            edges.append(resolve_dependency(specifier, path))
+    return tuple(dict.fromkeys(edge for edge in edges if edge is not None))
+
+
+class _ResourceCapture:
+    """One capture's resource graph, including cycles and arbitrarily deep imports.
+
+    Record a resource before following its edges, so each path is read once. The
+    explicit worklist keeps graph depth independent of Python's call stack.
+    """
+
+    def __init__(self, read_resource: Callable[[str], Resource]) -> None:
+        self.read_resource = read_resource
+        self.resources: dict[str, Resource] = {}
+
+    def add(self, path: str) -> None:
+        pending = [path]
+        while pending:
+            path = pending.pop()
+            if path in self.resources:
+                continue
+            resource = self.read_resource(path)
+            data = resource.data
+            edges = _resource_dependencies(path, data, resource.mime)
+            self.resources[path] = Resource(data, resource.mime, tuple(sorted(edges)))
+            pending.extend(reversed(edges))
+
+
 def _capture_artifact(
     page_dir: Path,
     document: SourceDocument,
@@ -633,44 +663,24 @@ def _capture_artifact(
     read_resource: Callable[[str], Resource],
 ) -> RevisionArtifact:
     """Build a capture after its public wrapper has identified every input."""
-    resources = {}
-
-    def capture(path: str):
-        if path in resources:
-            return
-        resource = read_resource(path)
-        data, mime = resource.data, resource.mime
-        edges = []
-        if mime == "application/javascript" and path.startswith("/page/"):
-            for _, _, specifier in javascript_imports(data, path):
-                edges.append(resolve_dependency(specifier, path, module=True))
-        elif mime == "text/css" and path.startswith("/page/"):
-            try:
-                css = data.decode("utf-8")
-            except UnicodeDecodeError as error:
-                raise ArtifactError(f"{path}: CSS is not UTF-8") from error
-            for specifier in _css_dependencies(css):
-                edges.append(resolve_dependency(specifier, path))
-        edges = [edge for edge in edges if edge is not None]
-        resources[path] = Resource(data, mime, tuple(sorted(set(edges))))
-        for edge in edges:
-            capture(edge)
+    capture = _ResourceCapture(read_resource)
+    resources = capture.resources
 
     # The layer's own imports are trusted and include computed widget module URLs.
     # Preserve the complete selected payload rather than infer that dynamic graph.
     for name in VENDORED_FILES:
         if (page_dir / name).is_file():
-            capture("/" + name)
+            capture.add("/" + name)
     for directory in BROWSER_DIRS:
         for path in sorted((page_dir / directory).rglob("*")):
             if path.is_file() and SERVED_PATH.fullmatch(
                 "/" + path.relative_to(page_dir).as_posix()
             ):
-                capture("/" + path.relative_to(page_dir).as_posix())
+                capture.add("/" + path.relative_to(page_dir).as_posix())
     resources["/registry.json"] = Resource(_json(registry), "application/json")
     for tag, entry in registry.items():
         if tag.startswith("lf-") and (initial := entry.get("x-initial")):
-            capture(initial)
+            capture.add(initial)
 
     if widget_sources is None:
         widget_sources = {
@@ -681,7 +691,7 @@ def _capture_artifact(
             and f"/widgets/{tag}.js" in resources
         }
     for source in widget_sources.values():
-        capture("/" + source.lstrip("/"))
+        capture.add("/" + source.lstrip("/"))
 
     # Live observations and headless checks are browser code too. Capture their
     # source beside the runtime it reads, so a revision and an export have one
@@ -738,7 +748,7 @@ def _capture_artifact(
         )
     entries = [entry for entry in entries if entry is not None]
     for entry in entries:
-        capture(entry)
+        capture.add(entry)
 
     implementations = {
         tag: {

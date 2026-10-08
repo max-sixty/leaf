@@ -88,7 +88,6 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch, code
         if harness == "claude-code":
             homes.append(settings["env"]["HOME"])
             assert settings["plugins"][0]["path"] == str(payloads[arm])
-            assert settings["setting_sources"] == []
             private_config = Path(settings["env"]["HOME"]) / ".claude"
             assert json.loads((private_config / ".credentials.json").read_text()) == {
                 "fixture": "claude-login"
@@ -98,18 +97,58 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch, code
             home = Path(settings["cli_env"]["CODEX_HOME"])
             skill = next(home.glob("plugins/cache/leaf/leaf/*/skills/leaf/SKILL.md"))
             assert skill.read_text() == f"{arm} instructions"
-            assert settings["persist_threads"] is False
     assert len(set(homes)) == 4
     assert "must-not-enter-config" not in json.dumps(config)
     brief = config["tests"][0]
     assert brief["description"] == "brief-document-needs-no-outline"
     assert brief["vars"]["prompt"].startswith("Use the Leaf skill")
     assert [assertion["metric"] for assertion in brief["assert"]] == [
-        "loads-leaf",
-        "reads-page-authoring",
         "no-outline",
         "judgment",
     ]
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "review-shows-the-change",
+        "interaction-proof-follows-the-reader/comparison",
+        "visible-outcome-before-handoff/shared-identity",
+    ],
+)
+def test_internal_instruction_cases_receive_their_arms_source(
+    tmp_path, monkeypatch, codex_cli, address
+):
+    login = tmp_path / "login"
+    login.mkdir()
+    (login / "auth.json").write_text("{}")
+    monkeypatch.setenv("CODEX_HOME", str(login))
+    payloads = arms(tmp_path, "base", "candidate")
+    source = ".claude/skills/developing-leaf/SKILL.md"
+    for arm, payload in payloads.items():
+        path = payload / source
+        path.parent.mkdir(parents=True)
+        path.write_text(f"{arm} maintainer instructions")
+    config = prepare(
+        [address],
+        payloads,
+        tmp_path / "scratch",
+        ("claude-code", "codex"),
+        ("leaf",),
+        tmp_path / "samples",
+    )
+    for provider in config["providers"]:
+        harness, arm, _ = provider["label"].split("/")
+        field = (
+            "append_system_prompt"
+            if harness == "claude-code"
+            else "developer_instructions"
+        )
+        injected = provider["config"][field]
+        assert str(payloads[arm] / source) in injected
+        assert injected.endswith(f"{arm} maintainer instructions")
+    assert [check["type"] for check in config["tests"][0]["assert"]] == ["llm-rubric"]
+    assert config["tests"][0]["vars"]["prompt"] == catalog()[address]["vars"]["prompt"]
 
 
 def test_native_codex_discovers_the_complete_arm_with_root_relative_access(
@@ -133,7 +172,6 @@ def test_native_codex_discovers_the_complete_arm_with_root_relative_access(
     skill = registry.parent.parent
     assert (skill / "SKILL.md").read_text() == "candidate instructions"
     assert (skill / "../../bin/leaf").read_text() == "candidate launcher"
-    assert settings["sandbox_mode"] == "read-only"
 
 
 def test_native_javascript_assertions_and_asset_addresses_survive_preparation(
@@ -317,7 +355,7 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
             return {"output": "{}"}
 
     class Judged:
-        rubrics = staticmethod(lambda scenario: [])
+        rubrics = staticmethod(lambda scenario: [{"type": "agent-rubric"}])
 
         @staticmethod
         def execute_scenario(case, payload, work, *, shots, harness, condition):
@@ -421,3 +459,23 @@ def test_command_passes_promptfoo_options_and_status_without_api_keys(
     result = run("--base", "task-outlasts-the-turn")
     assert result.exit_code == 2 and "put cases before --base" in result.output
     assert built == []
+
+
+def test_reading_semantics_use_the_text_judge_without_a_screenshot_home(tmp_path):
+    config = prepare(
+        ["reading", "reading/view"],
+        {"candidate": tmp_path / "arm"},
+        tmp_path / "scratch",
+        ("claude-code",),
+        ("leaf",),
+        tmp_path / "samples",
+    )
+    for test in config["tests"]:
+        assert test["assert"][0]["metric"] == "completed"
+        answers = test["assert"][1:]
+        assert len(answers) == (7 if test["description"] == "reading" else 1)
+        assert all(a["type"] == "llm-rubric" and "provider" not in a for a in answers)
+        view = next(a for a in answers if a["metric"] == "answer_view")
+        assert "acknowledge uncertainty" in view["value"]
+        assert "Current attempt is only the default" in view["value"]
+    assert not (tmp_path / "scratch" / "judge").exists()

@@ -807,8 +807,9 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
 
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    assert page.locator("main").evaluate("el => el.inert")
-    expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
+    assert page.locator(".lf-thread-panel").evaluate(
+        "surface => surface.closest('dialog').matches(':modal')"
+    )
     page.keyboard.press("s")
     assert page.locator(".lf-target-picker-hint").count() == 0, (
         "page target selection crossed the covering auxiliary surface boundary"
@@ -847,15 +848,20 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     expect(search).to_be_focused()
     status = page.locator(".lf-page-search-status")
     expect(status).to_be_empty()
+    search_box = search.bounding_box()
     search.fill("words absent from this page")
     expect(status).to_have_text("No matches")
+    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
     search.fill("")
     expect(status).to_be_empty()
+    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
     page.keyboard.type("b")
     expect(status).to_have_text(re.compile(r"\d+ of \d+"))
+    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     search.fill("button the key")
     expect(status).to_have_text("1 of 1")
+    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("select match")
     page.keyboard.press("Tab")

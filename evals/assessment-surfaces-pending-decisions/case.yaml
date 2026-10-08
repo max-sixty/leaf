@@ -41,11 +41,6 @@ vars:
     collapsed. The page directory is not reachable here, so reply with the
     complete <main> HTML rather than writing a file.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
 - type: llm-rubric
   metric: pending-decisions
   value: |

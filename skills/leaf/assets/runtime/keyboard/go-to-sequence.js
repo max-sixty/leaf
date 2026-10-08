@@ -15,7 +15,7 @@
    `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
    an edge of the list; `g p` returns focus to the page while leaving open surfaces
    standing. Uppercase mnemonics remain named
-   global destinations: `g T` Threads, `g Q` the Queue, `g L` All leaves, `g M` the searchable
+   global destinations: `g T` Threads, `g Q` Questions, `g L` All pages, `g M` the searchable
    Page Map and `g V` Versions. A named
    panel destination toggles that panel, matching its visible control. Completing one that
    opens a surface leaves the user in that surface, whose own Escape step is the way out
@@ -24,8 +24,11 @@
    covers the page: the sequence belongs to that modal surface while the inert document's
    ordinary scopes remain unavailable.
 
-   `BUILTIN_DIRECT_DESTINATIONS` declares the uppercase destinations this owner implements;
-   another owner contributes a complete row through `directDestinations`. `TARGET_KINDS`
+   Named destinations contribute complete command rows, including native controls whose
+   activation stays with their own owner. Each has an unbound semantic route for the
+   command reference and a prefixed keyboard presentation; arming the sequence changes
+   which keys reach it, not whether its capability exists. Another owner contributes a
+   complete row through `directDestinations`. `TARGET_KINDS`
    declares the members, label, exposure rule, and activation for each visible target
    family. `TARGET_FILTERS` declares semantic subsets of that complete map. Exact duplicate
    activation elements collapse to one candidate, while distinct overlapping actions remain
@@ -49,7 +52,7 @@
    including panel narrowing. A surface covering the document cannot make that promise,
    so its ordinary Escape rung remains the route back.
 
-   A destination declares no way back. `g T`, `g A` and `g L` may exchange a standing
+   A destination declares no way back. `g T`, `g Q` and `g L` may exchange a standing
    panel or drawer for another, and the surface the user ends in owns the one step that
    takes it off again — the same step whichever door opened it, and the same for a
    surface they already had. Exchanging one for another is lateral, so the one replaced
@@ -57,7 +60,7 @@
 
    The Go-to sequence has no timeout. The user is not charged a time limit for reading
    the hints just painted. */
-import { bindings, labelOf, live, spell, word } from "./bindings.js";
+import { bindings, labelOf, live, word } from "./bindings.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { createHintSession, HINT_KEYS, hintCodes, renderKeys } from "./hints.js";
 import {
@@ -76,15 +79,7 @@ import { pageParts } from "../passages.js";
 import { addressableSays } from "../anchor-resolution.js";
 import { announce, notice } from "../notifications.js";
 import { closestAcross, pageQueryAll } from "../passages.js";
-import {
-  currentDrawer,
-  othersBtn,
-  othersPanel,
-  queueBtn,
-  queueOffered,
-  queuePanel,
-  queueRows,
-} from "../drawers.js";
+import { currentDrawer, othersBtn, queueBtn } from "../drawers.js";
 import { mapButton } from "../page-map-dialog.js";
 
 import { claimsEsc, focused, saying } from "./scopes.js";
@@ -99,14 +94,11 @@ goToHintLayer.setAttribute("aria-hidden", "true");
 // the chrome is attached. All travel and auxiliary-surface effects are explicit capabilities.
 export function createGoToSequence({
   panelIsOpen,
-  elements: { banner, toggleBtn, threadsBox },
+  elements: { banner, toggleBtn },
   hintChrome,
   directDestinations,
-  setPanel,
-  setOpenDrawer,
   scrollToElement,
   leavesOffered,
-  othersLinks,
   activateMarginEntry,
   marginEntryKind,
   visibleMarginEntries,
@@ -115,9 +107,6 @@ export function createGoToSequence({
   seenScroller,
   stopGlide,
   coveringAuxiliarySurface,
-  enterPageMap,
-  leavePageMap,
-  pageMapIsActive,
 }) {
   // How a destination in this sequence is written where the sequence itself is not on screen —
   // a notice naming the way back to a draft that has just gone down, say. Spelled off the
@@ -176,74 +165,58 @@ export function createGoToSequence({
   // One-off direct travel is one vocabulary too. The mnemonic completes the trip or closes
   // the named panel already standing, and every destination owns the liveness, landing, and
   // close that make its surface useful rather than leaving the dispatcher to know which
-  // furniture it enters.
-  const BUILTIN_DIRECT_DESTINATIONS = [
+  // furniture it enters. Other owners' destinations rank ahead of the fixed doors, so a
+  // narrow line keeps the step a notice just named, such as Resume writing.
+  const destinations = [
+    ...directDestinations(),
     {
       id: "navigation.panel.threads",
-      key: "Shift+t",
+      keys: ["Shift+t"],
       description: () =>
         panelIsOpen() ? "Close the Threads panel" : "Go to the Threads panel",
       title: () => (panelIsOpen() ? "close Threads panel" : "Threads panel"),
       control: () => toggleBtn,
       when: () => true,
-      go: () => {
-        setPanel(true);
-        threadsBox.focus({ preventScroll: true });
-      },
-      active: (...args) => panelIsOpen(...args),
-      // The mnemonic pressed over an open panel closes it outright. The way back out of
-      // one it opened is the panel's own step, which is the same step for a panel the
-      // user already had.
-      close: () => setPanel(false),
-      toggle: true,
     },
     {
       id: "navigation.drawer.queue",
-      key: "Shift+q",
+      keys: ["Shift+q"],
       description: () =>
-        currentDrawer() === "queue" ? "Close the Queue panel" : "Go to the Queue panel",
-      title: () => (currentDrawer() === "queue" ? "close Queue panel" : "Queue panel"),
+        currentDrawer() === "queue"
+          ? "Close the Questions panel"
+          : "Go to the Questions panel",
+      title: () =>
+        currentDrawer() === "queue" ? "close Questions panel" : "Questions panel",
       control: () => queueBtn,
-      when: () => queueOffered(),
-      go: () => {
-        setOpenDrawer("queue");
-        (queueRows()[0] ?? queuePanel).focus({ preventScroll: true });
-      },
-      active: () => currentDrawer() === "queue",
-      close: () => setOpenDrawer(null),
-      toggle: true,
+      when: () => true,
     },
     {
       id: "navigation.drawer.leaves",
-      key: "Shift+l",
+      keys: ["Shift+l"],
       description: () =>
         currentDrawer() === "leaves"
-          ? "Close the Leaves drawer"
-          : "Go to the Leaves drawer",
+          ? "Close the Pages drawer"
+          : "Go to the Pages drawer",
       title: () =>
-        currentDrawer() === "leaves" ? "close Leaves drawer" : "Leaves drawer",
+        currentDrawer() === "leaves" ? "close Pages drawer" : "Pages drawer",
       control: () => othersBtn,
       when: (...args) => leavesOffered(...args),
-      go: () => {
-        setOpenDrawer("leaves");
-        (othersLinks()[0] ?? othersPanel).focus({ preventScroll: true });
-      },
-      active: () => currentDrawer() === "leaves",
-      close: () => setOpenDrawer(null),
-      toggle: true,
     },
     {
       id: "navigation.page-map",
-      key: "Shift+m",
+      keys: ["Shift+m"],
       description: "Open the Page Map dialog",
       title: "Page Map dialog",
       control: () => mapButton,
       when: () => true,
-      go: (...args) => enterPageMap(...args),
-      active: pageMapIsActive,
-      close: (...args) => leavePageMap(...args),
     },
   ];
+  // Whether each door's surface stands, by the door's id.
+  const DOOR_STANDS = new Map([
+    ["navigation.panel.threads", () => panelIsOpen()],
+    ["navigation.drawer.queue", () => currentDrawer() === "queue"],
+    ["navigation.drawer.leaves", () => currentDrawer() === "leaves"],
+  ]);
   // A press hint is an activation and an arrival. Reveal first so a nested control can open
   // the panel that holds it, then focus and use its click path so pointer and keyboard
   // remain one behavior.
@@ -571,204 +544,194 @@ export function createGoToSequence({
     at: () => goToActive,
     claims: allButCommandReference,
     // Built on first use, after composition supplied the other owners' destination rows.
+    // The door to a surface that stands leads them all: its press closes what the user
+    // stands beside, and a line too narrow for every door keeps that one.
     get rows() {
-      return (goRows ??= [
-        {
-          id: "navigation.thread.edge",
-          // A focused thread is one place, so its two placements complete the sequence
-          // without naming a list or taking a digit. This is the thread-local counterpart
-          // to the page edges below: k/j place the card inside its panel rather than moving
-          // the document to the passage the card is about. It leads while live because it
-          // is the one offer specific to where the user stands; list members wear their
-          // Go-to hints directly when the sequence starts.
-          keys: THREAD_EDGE_KEYS,
-          routes: [
-            {
-              id: "navigation.thread.top",
-              binding: "k",
-              title: "Put the focused thread at the top of its list",
-            },
-            {
-              id: "navigation.thread.bottom",
-              binding: "j",
-              title: "Put the focused thread at the bottom of its list",
-            },
-          ],
-          title: "thread top / bottom",
-          when: () => atGoToTargets() && Boolean(focusedThreadTarget()),
-          run: (binding) => {
-            const thread = focusedThreadTarget();
-            setGoToSequence(false);
-            placeThreadEdge(thread, binding === "k" ? "start" : "end");
-          },
-        },
-        {
-          id: "navigation.page.focus",
-          // This changes focus without unwinding an open surface. A covering surface
-          // makes the page inert, so its Escape rung remains the route back.
-          keys: PAGE_RETURN_KEYS,
-          description: "Focus the page",
-          title: "page",
-          when: () => atGoToTargets() && !coveringAuxiliarySurface(),
-          run: () => {
-            setGoToSequence(false);
-            letGo();
-          },
-        },
-        {
-          id: "navigation.target",
-          runFromCommandReference: false,
-          // Every alphabet key is claimed while the map stands. If a scene refresh retired
-          // a remembered route, that old letter must report the miss rather than falling
-          // through to an unrelated page shortcut such as `d`.
-          keys: () => (hints.prefix() ? HINT_KEYS : GO_TO_HINT_KEYS),
-          label: "letters",
-          sequenceSteps: () => [
-            ...(targetFilter ? [targetFilter.key] : []),
-            ...(hints.prefix() ? [...hints.prefix(), "…"] : ["letters"]),
-          ],
-          completeSequenceSteps: () => [
-            ...(targetFilter ? [targetFilter.key] : []),
-            "letters",
-          ],
-          description: "Type a visible target's hint",
-          title: "visible target",
-          // Once armed, keep the alphabet claimed even when a filter has no members. A key
-          // then reports the miss inside this sequence rather than falling through to a page
-          // command whose letter happened to match it.
-          when: () => (goToActive ? true : targetCapability()),
-          run: hints.type,
-        },
-        {
-          id: "navigation.target.filter",
-          keys: FILTER_KEYS,
-          routes: TARGET_FILTERS.map(({ id, key, word }) => ({
-            id: `navigation.target.filter.${id}`,
-            binding: key,
-            title: `Show only visible ${word}`,
-          })),
-          label: FILTER_KEYS.join(" / "),
-          sequenceSteps: ["kind"],
-          description: "Filter visible targets by kind",
-          title: "filter by kind",
-          when: () => atGoToTargets() && targetCapability(),
-          run: filterTargets,
-        },
-        {
-          id: "navigation.target.walk",
-          keys: ["Tab", "Shift+Tab"],
-          routes: [
-            {
-              id: "navigation.target.next",
-              binding: "Tab",
-              title: "Hear the next visible target",
-            },
-            {
-              id: "navigation.target.previous",
-              binding: "Shift+Tab",
-              title: "Hear the previous visible target",
-            },
-          ],
-          title: "browse hints",
-          repeat: true,
-          when: () => (goToActive ? hints.candidates().length > 0 : targetCapability()),
-          run: (binding) => hints.walk(binding === "Tab" ? 1 : -1),
-        },
-        {
-          id: "navigation.target.choose",
-          keys: ["Enter"],
-          description: "Go to the target just announced",
-          title: "go to target",
-          when: hints.walking,
-          run: hints.choose,
-        },
-        ...BUILTIN_DIRECT_DESTINATIONS.map((destination) => ({
-          id: destination.id,
-          keys: [destination.key],
-          label: spell(destination.key),
-          description: destination.description,
-          title: destination.title,
-          control: destination.control,
-          when: () => atGoToTargets() && destination.when(),
-          // No way back of its own: the surface the mnemonic travels to owns the step
-          // that takes it off again, and it is the same step whichever door opened it.
-          run: () => {
-            const closing = destination.toggle && destination.active();
-            setGoToSequence(false);
-            if (closing) destination.close();
-            else destination.go();
-          },
-        })),
-        // A destination whose control belongs to another runtime owner joins this one
-        // vocabulary as its complete row. The Go-to hint layer contributes only the sequence's
-        // progress and cancellation; liveness, words, landing, and return remain with the
-        // owner that can keep them true.
-        ...directDestinations().map((destination) => ({
-          ...destination,
-          // A direct destination's finger route is its standing page command in
-          // More. Arming this keyboard sequence doesn't seat another gesture control.
-          touch: false,
-          when: () => atGoToTargets() && live(destination),
-          run: (binding) => {
-            setGoToSequence(false);
-            if (destination.run) destination.run(binding);
-            else word(destination.control).click();
-          },
-        })),
-        {
-          id: "navigation.page.edge",
-          keys: PAGE_EDGE_KEYS,
-          routes: [
-            {
-              id: "navigation.page.top",
-              binding: "g",
-              title: "Go to the top of the page",
-            },
-            {
-              id: "navigation.page.bottom",
-              binding: "Shift+g",
-              title: "Go to the bottom of the page",
-            },
-          ],
-          title: "top / bottom",
-          when: atGoToTargets,
-          run: (binding) => {
-            setGoToSequence(false); // before the travel, so the arrival's own scrolling paints nothing
-            const box = seenScroller();
-            glideTo(box, binding === "g" ? 0 : box.scrollHeight);
-          },
-        },
-        {
-          id: "navigation.go-to.back",
-          keys: ["Escape"],
-          sequenceControl: true,
-          description: () =>
-            hints.prefix()
-              ? "Remove the last hint letter"
-              : targetFilter
-                ? "Show all visible targets"
-                : "Cancel the sequence",
-          title: () =>
-            hints.prefix()
-              ? "back one letter"
-              : targetFilter
-                ? "all targets"
-                : "cancel",
-          run: () => {
-            if (hints.backOneLetter()) return;
-            if (targetFilter) {
-              targetFilter = null;
-              hints.invalidate();
-              announce("All go-to targets.");
-              return;
-            }
-            setGoToSequence(false);
-            announce("Go to cancelled");
-          },
-        },
-      ]);
+      goRows ??= build();
+      const standing = goRows.filter((row) => DOOR_STANDS.get(row.id)?.());
+      return standing.length
+        ? [...standing, ...goRows.filter((row) => !standing.includes(row))]
+        : goRows;
     },
   };
+
+  function build() {
+    return [
+      {
+        id: "navigation.thread.edge",
+        // A focused thread is one place, so its two placements complete the sequence
+        // without naming a list or taking a digit. This is the thread-local counterpart
+        // to the page edges below: k/j place the card inside its panel rather than moving
+        // the document to the passage the card is about. It leads while live, after
+        // only the door to the standing surface, because it is the one offer specific to
+        // where the user stands; list members wear their Go-to hints directly when the
+        // sequence starts.
+        keys: THREAD_EDGE_KEYS,
+        routes: [
+          {
+            id: "navigation.thread.top",
+            binding: "k",
+            title: "Put the focused thread at the top of its list",
+          },
+          {
+            id: "navigation.thread.bottom",
+            binding: "j",
+            title: "Put the focused thread at the bottom of its list",
+          },
+        ],
+        title: "thread top / bottom",
+        when: () => atGoToTargets() && Boolean(focusedThreadTarget()),
+        run: (binding) => {
+          const thread = focusedThreadTarget();
+          setGoToSequence(false);
+          placeThreadEdge(thread, binding === "k" ? "start" : "end");
+        },
+      },
+      {
+        id: "navigation.page.focus",
+        // This changes focus without unwinding an open surface. A covering surface
+        // makes the page inert, so its Escape rung remains the route back.
+        keys: PAGE_RETURN_KEYS,
+        description: "Focus the page",
+        title: "page",
+        when: () => atGoToTargets() && !coveringAuxiliarySurface(),
+        run: () => {
+          setGoToSequence(false);
+          letGo();
+        },
+      },
+      {
+        id: "navigation.target",
+        runFromCommandReference: false,
+        // Every alphabet key is claimed while the map stands. If a scene refresh retired
+        // a remembered route, that old letter must report the miss rather than falling
+        // through to an unrelated page shortcut such as `d`.
+        keys: () => (hints.prefix() ? HINT_KEYS : GO_TO_HINT_KEYS),
+        label: "letters",
+        sequenceSteps: () => [
+          ...(targetFilter ? [targetFilter.key] : []),
+          ...(hints.prefix() ? [...hints.prefix(), "…"] : ["letters"]),
+        ],
+        completeSequenceSteps: () => [
+          ...(targetFilter ? [targetFilter.key] : []),
+          "letters",
+        ],
+        description: "Type a visible target's hint",
+        title: "visible target",
+        // Once armed, keep the alphabet claimed even when a filter has no members. A key
+        // then reports the miss inside this sequence rather than falling through to a page
+        // command whose letter happened to match it.
+        when: () => (goToActive ? true : targetCapability()),
+        run: hints.type,
+      },
+      {
+        id: "navigation.target.filter",
+        keys: FILTER_KEYS,
+        routes: TARGET_FILTERS.map(({ id, key, word }) => ({
+          id: `navigation.target.filter.${id}`,
+          binding: key,
+          title: `Show only visible ${word}`,
+        })),
+        label: FILTER_KEYS.join(" / "),
+        sequenceSteps: ["kind"],
+        description: "Filter visible targets by kind",
+        title: "filter by kind",
+        when: () => atGoToTargets() && targetCapability(),
+        run: filterTargets,
+      },
+      {
+        id: "navigation.target.walk",
+        keys: ["Tab", "Shift+Tab"],
+        routes: [
+          {
+            id: "navigation.target.next",
+            binding: "Tab",
+            title: "Hear the next visible target",
+          },
+          {
+            id: "navigation.target.previous",
+            binding: "Shift+Tab",
+            title: "Hear the previous visible target",
+          },
+        ],
+        title: "browse hints",
+        repeat: true,
+        when: () => (goToActive ? hints.candidates().length > 0 : targetCapability()),
+        run: (binding) => hints.walk(binding === "Tab" ? 1 : -1),
+      },
+      {
+        id: "navigation.target.choose",
+        keys: ["Enter"],
+        description: "Go to the target just announced",
+        title: "go to target",
+        when: hints.walking,
+        run: hints.choose,
+      },
+      // A destination whose control belongs to another runtime owner joins this one
+      // vocabulary as its complete row. The Go-to hint layer contributes only the sequence's
+      // progress and cancellation; liveness, words, landing, and return remain with the
+      // owner that can keep them true.
+      ...destinations.map((destination) => ({
+        ...destination,
+        // A direct destination's finger route is its standing page command in
+        // More. Arming this keyboard sequence doesn't seat another gesture control.
+        touch: false,
+        when: () => atGoToTargets() && live(destination),
+        run: (binding) => {
+          setGoToSequence(false);
+          if (destination.run) destination.run(binding);
+          else word(destination.control).click();
+        },
+      })),
+      {
+        id: "navigation.page.edge",
+        keys: PAGE_EDGE_KEYS,
+        routes: [
+          {
+            id: "navigation.page.top",
+            binding: "g",
+            title: "Go to the top of the page",
+          },
+          {
+            id: "navigation.page.bottom",
+            binding: "Shift+g",
+            title: "Go to the bottom of the page",
+          },
+        ],
+        title: "top / bottom",
+        when: atGoToTargets,
+        run: (binding) => {
+          setGoToSequence(false); // before the travel, so the arrival's own scrolling paints nothing
+          const box = seenScroller();
+          glideTo(box, binding === "g" ? 0 : box.scrollHeight);
+        },
+      },
+      {
+        id: "navigation.go-to.back",
+        keys: ["Escape"],
+        sequenceControl: true,
+        description: () =>
+          hints.prefix()
+            ? "Remove the last hint letter"
+            : targetFilter
+              ? "Show all visible targets"
+              : "Cancel the sequence",
+        title: () =>
+          hints.prefix() ? "back one letter" : targetFilter ? "all targets" : "cancel",
+        run: () => {
+          if (hints.backOneLetter()) return;
+          if (targetFilter) {
+            targetFilter = null;
+            hints.invalidate();
+            announce("All go-to targets.");
+            return;
+          }
+          setGoToSequence(false);
+          announce("Go to cancelled");
+        },
+      },
+    ];
+  }
 
   // The way in to the sequence. Its row supplies the same leader every painted Go-to hint uses,
   // so the letter the user presses and the letter the page prints cannot diverge.
@@ -791,9 +754,17 @@ export function createGoToSequence({
 
   pageScope("go to", GO_TO_SCOPE);
   pageCommand(OPEN_GO_TO);
-  for (const destination of directDestinations())
-    if (destination.touch)
-      pageCommand({ ...destination, keys: [], lineWhen: () => false });
+  // Every named capability stays invocable by id outside the armed sequence. Native
+  // control activation and generated touch controls remain separate from that route:
+  // a run-less row delegates to its control without replacing its native default.
+  for (const destination of destinations)
+    pageCommand({
+      ...destination,
+      keys: [],
+      touch: destination.touch ?? false,
+      covering: true,
+      lineWhen: () => false,
+    });
 
   return {
     goToStatus,

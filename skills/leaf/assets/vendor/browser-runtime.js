@@ -1,1 +1,2079 @@
-import{LitElement as Ft,html as Ht,noChange as Jt,nothing as Kt,render as Qt}from"./lit.js";import{repeat as Zt}from"./lit.js";var Je=Symbol.for("preact-signals");function fe(){if(F>1)F--;else{var e,t=!1;for((function(){var p=se;for(se=void 0;p!==void 0;){var g=p.S;if(g.v===p.v)for(var f=g.t;f!==void 0;f=f.x)f.i===p.i&&(f.i=g.i);p=p.o}})();re!==void 0;){var r=re;for(re=void 0,ie++;r!==void 0;){var a=r.u;if(r.u=void 0,r.f&=-3,!(8&r.f)&&we(r))try{r.c()}catch(p){t||(e=p,t=!0)}r=a}}if(ie=0,F--,t)throw e}}var ne,E=void 0;function de(e){var t=E,r=ne;E=void 0,ne=void 0;try{return e()}finally{E=t,ne=r}}var re=void 0,F=0,ie=0;var ke=0,se=void 0,ae=0;function ye(e){if(E!==void 0){var t=e.n;if(t===void 0||t.t!==E)return t={i:0,S:e,p:E.s,n:void 0,t:E,e:void 0,x:void 0,r:t},E.s!==void 0&&(E.s.n=t),E.s=t,e.n=t,32&E.f&&e.S(t),t;if(t.i===-1)return t.i=0,t.n!==void 0&&(t.n.p=t.p,t.p!==void 0&&(t.p.n=t.n),t.p=E.s,t.n=void 0,E.s.n=t,E.s=t),t}}function V(e,t){this.v=e,this.i=0,this.n=void 0,this.t=void 0,this.l=0,this.W=t?.watched,this.Z=t?.unwatched,this.name=t?.name}V.prototype.brand=Je;V.prototype.h=function(){return!0};V.prototype.S=function(e){var t=this,r=this.t;r!==e&&e.e===void 0&&(e.x=r,this.t=e,r!==void 0?r.e=e:de(function(){var a;(a=t.W)==null||a.call(t)}))};V.prototype.U=function(e){var t=this;if(this.t!==void 0){var r=e.e,a=e.x;r!==void 0&&(r.x=a,e.e=void 0),a!==void 0&&(a.e=r,e.x=void 0),e===this.t&&(this.t=a,a===void 0&&de(function(){var p;(p=t.Z)==null||p.call(t)}))}};V.prototype.subscribe=function(e){var t=this;return Qe(function(){var r=t.value;de(function(){return e(r)})},{name:"sub"})};V.prototype.valueOf=function(){return this.value};V.prototype.toString=function(){return this.value+""};V.prototype.toJSON=function(){return this.value};V.prototype.peek=function(){var e=this;return de(function(){return e.value})};Object.defineProperty(V.prototype,"value",{get:function(){var e=ye(this);return e!==void 0&&(e.i=this.i),this.v},set:function(e){if(e!==this.v){if(ie>100)throw new Error("Cycle detected");(function(r){F!==0&&ie===0&&r.l!==ke&&(r.l=ke,se={S:r,v:r.v,i:r.i,o:se})})(this),this.v=e,this.i++,ae++,F++;try{for(var t=this.t;t!==void 0;t=t.x)t.t.N()}finally{fe()}}}});function ce(e,t){return new V(e,t)}function we(e){for(var t=e.s;t!==void 0;t=t.n)if(t.S.i!==t.i||!t.S.h()||t.S.i!==t.i)return!0;return!1}function Pe(e){for(var t=e.s;t!==void 0;t=t.n){var r=t.S.n;if(r!==void 0&&(t.r=r),t.S.n=t,t.i=-1,t.n===void 0){e.s=t;break}}}function Se(e){for(var t=e.s,r=void 0;t!==void 0;){var a=t.p;t.i===-1?(t.S.U(t),a!==void 0&&(a.n=t.n),t.n!==void 0&&(t.n.p=a)):r=t,t.S.n=t.r,t.r!==void 0&&(t.r=void 0),t=a}e.s=r}function H(e,t){V.call(this,void 0,t),this.x=e,this.s=void 0,this.g=ae-1,this.f=4}H.prototype=new V;H.prototype.h=function(){if(this.f&=-3,1&this.f)return!1;if((36&this.f)==32||(this.f&=-5,this.g===ae))return!0;if(this.g=ae,this.f|=1,this.i>0&&!we(this))return this.f&=-2,!0;var e=E;try{Pe(this),E=this;var t=this.x();(16&this.f||this.v!==t||this.i===0)&&(this.v=t,this.f&=-17,this.i++)}catch(r){this.v=r,this.f|=16,this.i++}return E=e,Se(this),this.f&=-2,!0};H.prototype.S=function(e){if(this.t===void 0){this.f|=36;for(var t=this.s;t!==void 0;t=t.n)t.S.S(t)}V.prototype.S.call(this,e)};H.prototype.U=function(e){if(this.t!==void 0&&(V.prototype.U.call(this,e),this.t===void 0)){this.f&=-33;for(var t=this.s;t!==void 0;t=t.n)t.S.U(t)}};H.prototype.N=function(){if(!(2&this.f)){this.f|=6;for(var e=this.t;e!==void 0;e=e.x)e.t.N()}};Object.defineProperty(H.prototype,"value",{get:function(){if(1&this.f)throw new Error("Cycle detected");var e=ye(this);if(this.h(),e!==void 0&&(e.i=this.i),16&this.f)throw this.v;return this.v}});function Re(e,t){return new H(e,t)}function Te(e){var t=e.m;if(e.m=void 0,typeof t=="function"){F++;var r=E;E=void 0;try{t()}catch(a){throw e.f&=-2,e.f|=8,pe(e),a}finally{E=r,fe()}}}function pe(e){for(var t=e.s;t!==void 0;t=t.n)t.S.U(t);e.x=void 0,e.s=void 0,Te(e)}function Ke(e){if(E!==this)throw new Error("Out-of-order effect");Se(this),E=e,this.f&=-2,8&this.f&&pe(this),fe()}function X(e,t){this.x=e,this.m=void 0,this.s=void 0,this.u=void 0,this.f=32,this.name=t?.name,ne&&ne.push(this)}X.prototype.c=function(){var e=this.S();try{if(8&this.f||this.x===void 0)return;var t=this.x();typeof t=="function"&&(this.m=t)}finally{e()}};X.prototype.S=function(){if(1&this.f)throw new Error("Cycle detected");this.f|=1,this.f&=-9,Te(this),Pe(this),F++;var e=E;return E=this,Ke.bind(this,e)};X.prototype.N=function(){2&this.f||(this.f|=2,this.u=re,re=this)};X.prototype.d=function(){this.f|=8,1&this.f||pe(this)};X.prototype.dispose=function(){this.d()};function Qe(e,t){var r=new X(e,t);try{r.c()}catch(p){throw r.d(),p}var a=r.d.bind(r);return a[Symbol.dispose]=a,a}var je=new WeakSet;function J(e,t=new WeakMap){if(e!==null&&typeof e=="object"&&!je.has(e)){let r=t.get(e);if(r)return r;let a=e,p=()=>{throw new TypeError("Application snapshots are read-only")};if(e instanceof Map){let g=[...e].map(([o,u])=>[J(o,t),J(u,t)]),f=Object.isExtensible(e)?e:new Map;f.clear();for(let[o,u]of g)f.set(o,u);for(let o of["set","delete","clear"])Object.defineProperty(f,o,{value:p});a=f}else if(e instanceof Set){let g=[...e].map(o=>J(o,t)),f=Object.isExtensible(e)?e:new Set;f.clear();for(let o of g)f.add(o);for(let o of["add","delete","clear"])Object.defineProperty(f,o,{value:p});a=f}else{let g=Object.entries(e).map(([f,o])=>[f,o,J(o,t)]);if(g.some(([,f,o])=>f!==o)){let f=Object.isFrozen(e)?Array.isArray(e)?[...e]:{...e}:e;for(let[o,u,i]of g)u!==i&&(f[o]=i);a=f}}return Object.freeze(a),je.add(a),t.set(e,a),a}return e}function xe(e){let t=ce(J(e));return Object.freeze({read:()=>t.value,publish(r){return t.value=J(r),t.peek()},select(r){let a=Re(()=>J(r(t.value)));return Object.freeze({read:()=>a.value,subscribe:p=>a.subscribe(p)})}})}var Ee=/[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;function Ae(e,t){let r=e.detail.value;return t.kind==="body"?String(r??"").replace(Ee," ").trim():t.kind==="attribute"?[...r].sort().join(" "):r??null}var Oe=(e,t)=>{let r=Number.isInteger(e.e.seq),a=Number.isInteger(t.e.seq);return r&&a?e.e.seq-t.e.seq:r?-1:a?1:e.localOrder-t.localOrder};function ge({entries:e=[],actionIds:t=[],reportIds:r=[],desiredIds:a=[],coverage:p=[],pendingEntries:g=[]}={}){let f=new Map,o=new Map,u=new Map,i=new Map,b=new Map,h=new Map;for(let m of e)u.set(m.e.id,m),b.set(m.e.id,m);for(let m of t){let k=b.get(m);k&&!k.terminal&&f.set(k.coordinate,k)}for(let m of r){let k=b.get(m);if(!k||k.terminal)continue;let n=o.get(k.coordinate)??[];n.push(k),o.set(k.coordinate,n)}for(let m of a){let k=b.get(m);k&&!k.terminal&&i.set(k.coordinate,k)}for(let m of p){let k=m.event;k.kind==="undo"||u.has(k.id)||u.set(k.id,{e:k,terminal:m.coordinate===null})}let T=[],R=new Set,j=m=>{let k=T.filter(d=>d.coordinate===m&&!R.has(d.e.id)).at(-1),n=[...u.values()].filter(d=>d.stands&&d.coordinate===m&&!R.has(d.e.id)).sort(Oe).at(-1),s=k??n;for(let d of[f,i])s?d.set(m,s):d.delete(m)};for(let m of g){if(m.kind==="undo"){let k=m.targetId??m.target.e.id,n=u.get(k)??m.target;R.add(k),h.set(k,n),j(m.coordinate);continue}T.push(m),j(m.coordinate)}return{actions:f,reports:o,classified:u,desired:i,pendingWithdrawals:h}}var Ye=e=>(t,r)=>e[t]<e[r]?-1:e[t]>e[r]?1:t<r?-1:t>r?1:0;function me(e,t){let r=new Map([...e].map(([p,g])=>[p,{state:structuredClone(g.state),entries:[],specs:g.specs}])),a=({value:p,ranks:g},f,o)=>{let u=p[o.value];if(!(!u||!Object.values(p).some(i=>i.includes(f)))){for(let i of Object.values(p)){let b=i.indexOf(f);b>=0&&i.splice(b,1)}u.push(f),g[f]=o.rank}};for(let p of[...t.desired.values()].sort(Oe)){let g=r.get(p.e.widget);if(!g)continue;let{spec:f,e:o,unit:u}=p,i=f.record,b=i?structuredClone(o.detail.value):o.action,h={action:o.action,value:b,detail:structuredClone(o.detail)};if(g.entries.push(p),f.unit==="widget")g.state[o.action]=h;else{let T=g.state[o.action];T.units[u]=h,i?.kind==="position"&&!p.absorbed&&a(T,u,o.detail)}}for(let{state:p,specs:g}of r.values())for(let[f,o]of g)if(o.record?.kind==="position")for(let u of Object.values(p[f].value))u.sort(Ye(p[f].ranks));return r}var z="pending:";var ue=e=>!!e.token;var Ze=e=>e.msgs.filter(t=>!ue(t));var Xe=e=>e.root.attempt??e.id;function he(e){let t=new Map;for(let r of e){t.set(r.id,r);for(let a of r.msgs)t.set(a.id,r),a.attempt&&t.set(z+a.attempt,r)}return t}var et=e=>e.bare_reaction,We=e=>!et(e),tt=e=>e.about||!e.anchor||Object.keys(e.anchor).length!==1?null:e.anchor.section??null,De=e=>({kind:"waiting",reason:"workflow",workflow:e.id});function Ve(e,t,r,a,p){if(!t.length&&!r.length&&!a.length&&!p.size)return e;let g=e.filter(u=>!p.has(u.root.id)).map(u=>({...u,msgs:u.msgs.filter(i=>!p.has(i.id))})),f=he(g),o=[];for(let u of[...t,...r]){if(u.kind==="reply")continue;let i=ue(u),b={id:u.id,root:u,title:null,anchor:u.anchor??null,detached_from:null,rewritten_from:null,msgs:[u],resolved:null,user_prompt:null,bare_reaction:i,seat:tt(u),summaries:[],unread:[]};o.push(b),f.set(u.id,b)}for(let u of[...t,...r]){if(u.kind!=="reply")continue;let i=f.get(u.parent);i&&(i.msgs.push(u),ue(u)||(i.resolved=null,i.attention=De(u)))}for(let u of o){let i=Ze(u);u.bare_reaction=ue(u.root)&&!i.length,u.attention=i.length?De(i.at(-1)):null}for(let u of a){let i=f.get(u.parent)??f.get(u.localParent);i&&(i.resolved=u.kind==="resolve"?{author:"user",pending:!0}:null,i.settling=u.kind)}return[...g,...o]}var Me=e=>!e.resolved&&e.attention?.kind==="needs_user";var _e=({message:e,version:t})=>`${e}\0${t}`;function Ie(e,t,r,a,p=[]){let g=new Set(p.map(_e)),f=new Map;for(let o of t.descriptors.values()){if(o.document.kind!=="thread")continue;let u=f.get(o.document.message)??[];u.push({id:o.id,tag:o.tag,state:r.get(o.id)?.state??{}}),f.set(o.document.message,u)}return e.map(o=>{let u=o.unread.filter(h=>!g.has(_e(h))),i=new Set(u.map(h=>h.message)),b=o.msgs.map(h=>{let T={};for(let n of["id","attempt","kind","author","agent","ts","seq","parent","pending","anchor","about","drawing","holds","token","text","edited","failure","addressable","revision","awaits","ephemeral","suggestion"])h[n]!==void 0&&(T[n]=h[n]);let R=f.get(h.id)??[],j=t.messageBodies?.get(h.id),m=h.markup?{kind:"authored",...j,units:R}:{kind:h.token?"reaction":h.suggestion?"suggestion":"prose",text:j?.text??h.plainText??h.text??h.token??""};if(h.markup&&!j)throw new Error(`Authored message ${h.id} has no captured body`);let k=new Set(R.map(n=>n.id));return{...T,unread:i.has(h.id),key:h.attempt??h.id,body:m,workflows:a.filter(n=>n.input===h.id||n.subject.kind==="widget"&&k.has(n.subject.id))}});return{id:o.id,key:Xe(o),title:o.title,root:b.find(h=>h.id===o.root.id),msgs:b,unread:Object.freeze(u),anchor:o.anchor,detached_from:o.detached_from,rewritten_from:o.rewritten_from,resolved:o.resolved,settling:o.settling??null,user_prompt:o.user_prompt,attention:o.attention,workflows:a.filter(h=>h.thread===o.id),bare_reaction:o.bare_reaction,seat:o.seat,summaries:o.summaries}})}var ve=e=>e.kind==="comment"||e.kind==="reply",Ne=e=>ve(e)&&!e.token,Ce=(e,t)=>({...e,id:`${z}${e.attempt}`,author:"user",ts:t,pending:!0});var Et=Object.freeze({sending:"Sending",sent:"Sent",queued:"Queued",picked_up:"Picked up",working:"Working",replying:"Replying",answered:"Answered"}),At=Object.freeze({ended:"Turn ended",interrupted:"Interrupted",stale:"Update stale",failed:"Failed"});var Le=e=>["working","replying"].includes(e.stage);var Wt=Object.freeze({widget:"ask",reply:"question"});var qe=e=>({kind:"task",id:e.id,owner:e.owner,subject:e.subject,thread:e.thread,title:e.title,running:e.running,agent:e.agent,session:e.session,ends:e.ends,ask:e.ask});function Ge({threads:e,workflows:t,tasks:r}){let a=new Map(e.map(i=>[i.id,i.attention])),p=i=>i.ends==="widget"?!i.ask.held_by_seat:i.ends==="reply"?a.get(i.subject.id)?.kind!=="waiting":!0,g=r.filter(i=>i.owner==="user"&&p(i)).map(qe);for(let i of e)Me(i)&&i.attention.reason==="recovery"&&g.push({kind:"recovery",id:i.id,subject:{kind:"thread",id:i.id},thread:i.id});let f=[],o=i=>i.stage==="sending"&&i.subject.kind==="thread",u=new Set(t.filter(o).map(({thread:i})=>i));for(let i of t){let b={id:i.id,subject:i.subject,thread:i.thread};i.next_actor==="user"?i.thread===null&&g.push({kind:"recovery",...b}):o(i)||i.answer!==null&&!u.has(i.thread)?f.push({kind:"answer",...b,answer:i.answer,stage:i.stage}):Le(i)&&f.push({kind:"work",...b,detail:i.detail})}return f.push(...r.filter(i=>i.owner==="agent").map(qe)),{onYou:g,onAgent:f}}function Be({tasks:e}){return e.map(t=>({kind:"task",id:t.id,owner:t.owner,subject:t.subject,thread:t.thread,title:t.title,state:t.state,ended:t.outcome?.ts??null,detail:t.outcome?.detail??null,ends:t.ends,ask:t.ask}))}var nt={sending:{accept:"accepted",refuse:"refused",log:"sending:logged",present:"sending:presented"},"sending:logged":{accept:"accepted:logged",refuse:"refused",present:"sending:presented"},"sending:presented":{accept:"accepted:presented",refuse:"refused"},accepted:{log:"accepted:logged",present:"accepted:presented"},"accepted:logged":{present:"accepted:presented"},"accepted:presented":{},refused:{}},rt=new Set(["sending","sending:logged","sending:presented"]),ot=new Set(["sending","accepted"]),ze=new Set(["accepted:presented","refused"]),it=new Set(["sending:logged","accepted:logged"]);function st(e,t,r=null){let a=nt[e.state][t];return a?a==="accepted:presented"&&e.event.kind!=="action"?null:{...e,state:a,admitted:e.admitted??r}:e}function Ue(e,t){let r=[],a=[],p=[],g=[];for(let f of[e?.document.projection,t?.projection])if(f){for(let o of f.entries??[]){let u=o.event,i=JSON.stringify(o.coordinate);r.push({coordinate:i,e:u,restated:o.restated,absorbed:o.absorbed,stands:o.stands,scope:o.scope,spec:o.spec,unit:o.coordinate[1],value:o.spec.record?.kind==="attribute"?o.value.join(" "):o.value})}a.push(...f.actions??[]),p.push(...f.reports??[]),g.push(...f.desired??[])}return{entries:r,actionIds:a,reportIds:p,desiredIds:g,coverage:e?.coverage??[]}}var be=(e,t)=>t.widget===e.id,at={all:[],user:[],unanswered:[]},$e=e=>({id:e.id,tag:e.tag,sourceId:e.source,sourceTag:e.source_tag,thread:e.thread});function dt(e,t){let r=e?.document.asks,a=t?.asks,p=g=>[...(r?.[g]??[]).map($e),...(a?.[g]??[]).map($e)];return{all:p("all"),user:p("user"),unanswered:p("unanswered")}}function ct(e,t,r){let a=new Set(r.filter(({event:i})=>i.kind==="task_end").map(({event:i})=>i.task)),p=new Set(r.filter(({event:i})=>i.kind==="undo").map(({event:i})=>i.undoes)),g=[...e?.document.tasks??[],...t?.browser.tasks??[]],f=[...e?.document.ended_tasks??[],...t?.browser.ended_tasks??[]],o=i=>i.outcome!==null&&p.has(i.outcome.id??""),u=[...g,...f.filter(o).map(i=>({...i,state:"open",outcome:null}))];return{open:u.filter(i=>!a.has(i.id)),ended:[...f.filter(i=>!o(i)),...u.filter(i=>a.has(i.id)).map(i=>({...i,state:"done",running:null,outcome:{ts:null,detail:null}}))]}}function ut(e,t){let r=e.document.descriptors.get(t.id),a=JSON.stringify(r)===JSON.stringify(t),p=a?e.effective.widgets.get(t.id):void 0,g=a?e.document.authored.get(t.id)?.state:void 0,o=t.declaration["x-state"]??{},u=e.effective.projection,i=[...u.classified.values()].filter(({e:n,terminal:s})=>!s&&n.kind==="action"&&be(t,n)).sort((n,s)=>(n.e.seq??0)-(s.e.seq??0)),b=[...u.actions.values()].filter(({e:n})=>be(t,n)),h=(e.effective.view?.undo??[]).map(n=>n.event).filter(n=>n.kind==="action"&&be(t,n)&&!u.pendingWithdrawals.has(n.id)),T=b.map(({e:n})=>n).filter(n=>String(n.id).startsWith(z)),R=Object.fromEntries(Object.entries(o).filter(([,n])=>n.writer==="user").map(([n])=>[n,{available:a&&e.effective.hostAvailable&&e.phase!=="waiting"&&!t.quoted,unavailable:e.effective.hostAvailable?null:"no agent or server is available",history:i.filter(({e:s})=>s.action===n).map(({e:s})=>s),standing:b.filter(({e:s})=>s.action===n).map(({e:s,unit:d,value:w})=>({event:s,unit:d,value:w})),undo:e.effective.hostAvailable?[...T,...h].filter(s=>s.action===n):[]}])),j=p?.entries??[],m=Object.fromEntries(j.map(({e:n,unit:s,value:d})=>[`${n.action}:${s}`,{event:n,unit:s,value:d}])),k=e.effective.thread.all.find(n=>!n.resolved&&!n.root.pending&&n.root.holds===t.id);return{authored:g??{},state:p?.state??{},thread:{heldBy:k?.id??null},provenance:m,actions:R}}function lt({presentation:e}={}){let t={document:{revision:null,registry:{},authored:new Map,descriptors:new Map},authoritative:null,unresolved:[],markingRead:[],phase:"waiting",hostAvailable:!0,data:{version:null,sources:{}},effective:u({revision:null,registry:{},authored:new Map,descriptors:new Map},null,[],[],"waiting",!0),semanticEpoch:0},r=xe(t),a=-1/0,p=0,g=i([t.effective,t.data,t.phase]),f=0,o=null;e&&e.seal(e.begin(t.semanticEpoch));function u(n,s,d,w,y,S){let A=s?.browser.receipts??[],O=d.filter(c=>ot.has(c.state)),L=d.filter(c=>c.state==="refused"),I=c=>{let W=d.find(B=>B.event.attempt===c);return W?W.admitted?.id??null:A.find(B=>B.attempt===c)?.id??null},q=O.filter(c=>c.projection).map(c=>c.projection.kind==="undo"?{...c.projection,targetId:I(c.undoTarget)}:c.projection),N=s?.browser.views[String(n.revision)],l=N?(({basis:c,...W})=>W)(N):null,v=Ue(l,s?.browser.thread),P=ge({...v,pendingEntries:q}),x=y==="ready",C=O.filter(c=>c.message),D=x?Ve(s?.browser.thread.threads??[],C.map(c=>c.message),O.filter(c=>c.thread?.token).map(c=>c.thread),O.filter(({event:c})=>c.kind==="resolve"||c.kind==="unresolve").map(c=>({...c.event,localParent:c.namedParent})),new Set(O.filter(({event:c})=>c.kind==="undo").map(({event:c})=>c.undoes))):[],_=me(n.authored,P),M=x?dt(l,s?.browser.thread):at,U=x?ct(l,s,O):{open:[],ended:[]},$=new Set(M.user.map(c=>c.thread)),ee=he(D),K=c=>c.kind==="reply"?ee.get(c.parent)?.id??c.parent:c.id,G=c=>{if(c.message)return K(c.message);let W=n.descriptors.get(c.event.widget)?.document;return W?.kind==="thread"?W.thread??null:null},te=new Map;for(let c of L){let W=G(c);W&&te.set(W,`rejected:${c.event.attempt}`)}let oe=D.map(c=>{if($.has(c.id))return c.attention?.reason==="ask"?c:{...c,attention:{kind:"needs_user",reason:"ask",workflow:null}};let W=te.get(c.id);return W&&c.attention?.kind!=="needs_user"?{...c,attention:{kind:"needs_user",reason:"recovery",workflow:W}}:c}),Q=(c,W)=>{let B=c.message,le=G(c);return{id:`${W?"rejected":"pending"}:${c.event.attempt}`,revision:c.event.revision??n.revision,seq:c.order,input:B?.id??c.localId,subject:B?{kind:"thread",id:le}:{kind:"widget",id:c.event.widget},thread:le,holds_thread:!!B,coordinate:B?["thread",le]:c.projection?JSON.parse(c.projection.coordinate):null,answer:null,stage:"sending",ts:B?.ts??null,detail:null,agent:null,session:null,delivery_seq:null,delivery_session:null,delivery_turn:null,response:null,activity:[],condition:W?{kind:"failed",operation:"delivery"}:null,next_actor:W?"user":"agent",started_by:[]}},Y=[...s?s.workflows:[],...C.map(c=>Q(c,!1)),...L.map(c=>Q(c,!0))],Z=Ie(oe,n,_,Y,w);return{hostAvailable:S,projection:P,widgets:_,thread:{all:Z,collection:{phase:y,threads:Z.filter(We)}},asks:M,queues:Ge({threads:Z,workflows:Y,tasks:U.open}),done:Be({tasks:U.ended}),view:l,acceptedApprovals:s?.browser.thread.done??[],pendingApprovals:O.filter(c=>c.event.kind==="done").map(c=>c.event),sending:d.filter(c=>rt.has(c.state)).map(c=>c.event.attempt),workflows:Y,activity:s?.activity??null}}function i(n){return JSON.stringify(n,(s,d)=>d instanceof Map?[...d]:d)}function b(n){let s=r.read(),d={...s,...n};d.effective=u(d.document,d.authoritative,d.unresolved,d.markingRead,d.phase,d.hostAvailable);let w=i([d.effective,d.data,d.phase]);d.semanticEpoch=s.semanticEpoch+ +(w!==g||d.document.revision!==s.document.revision),g=w,e&&(o=e.begin(d.semanticEpoch)),f+=1;try{return r.publish(d)}finally{if(f-=1,e&&f===0&&o){let y=o;o=null,e.seal(y)}}}let h=n=>{let s=r.read().authoritative;return!!(s&&(n.taken<s.taken||n.browser.basis.through_seq<s.browser.basis.through_seq||n.active.revision<s.active.revision))},T=(n,s)=>{let d=r.read();if(h(n))return!1;let w=typeof s=="number"?s:s?.revision??d.document.revision,y=n.browser.views[String(w)];return!!(y&&y.basis.revision===w&&y.basis.through_seq===n.browser.basis.through_seq)},R=n=>r.read().unresolved.find(s=>s.event.attempt===n),j=(n,s)=>b({unresolved:r.read().unresolved.map(d=>d.event.attempt===n?s(d):d)}),m=(n,s)=>{let d=[];return{unresolved:r.read().unresolved.flatMap(y=>{if(!s.has(y.event.attempt))return[y];let S=st(y,n,s.get(y.event.attempt)??null);return S||d.push(y.event.attempt),S?[S]:[]}),left:d}},k=n=>new Map(n.map(s=>[s.attempt,s]));return Object.freeze({read:r.read,select:r.select,publishing:()=>f>0,projectView(n,s){return ge({...Ue(n,s),pendingEntries:[]})},selectWidgets(n=null){if(n===null)return r.read().effective.widgets;let s=new Set(n);return r.select(d=>me(d.document.authored,{...d.effective.projection,desired:new Map([...d.effective.projection.desired].filter(([,w])=>s.has(w.e.id)))})).read()},selectWidget(n){let s,d;return r.select(w=>{let y=ut(w,n),S=i(y);return S===d&&s?s:(s=y,d=S,y)})},entry:R,identify(n,s=null,d=!1){return b({document:{...r.read().document,revision:n,stamp:s,live:d}})},setHostAvailable(n){return b({hostAvailable:n})},markRead(n){return b({markingRead:[...r.read().markingRead,...structuredClone(n)]})},settleMarkRead(n){let s=r.read().markingRead.filter(d=>!n.some(w=>w.message===d.message&&w.version===d.version));return b({markingRead:s})},captureDocument(n){if(r.read().authoritative)throw new Error("an admitted document changes only through adopt");return b({document:{...structuredClone(n),authored:new Map(structuredClone(n.authored)),descriptors:new Map(structuredClone(n.descriptors))}})},setPhase(n){return b({phase:n})},acceptData(n,s){return s<a||(a=s,n.version===r.read().data.version)?!1:(b({data:structuredClone(n)}),!0)},canAdopt(n,s=null){return T(n,s)},overtaken:h,adopt(n,s=null){let d=r.read();if(!T(n,s))return!1;let w=structuredClone(n),{unresolved:y}=m("log",k(w.browser.receipts)),S=(A,O)=>A===O?A:structuredClone(A);return b({document:s?{...s,registry:S(s.registry,d.document.registry),authored:S(s.authored,d.document.authored),descriptors:S(s.descriptors,d.document.descriptors),...s.messageBodies?{messageBodies:S(s.messageBodies,d.document.messageBodies)}:{}}:d.document,authoritative:w,unresolved:y,phase:"ready"}),!0},enqueue(n,s,d=n.text??n.token??""){if(R(n.attempt))return null;let w=r.read(),y=z+n.attempt,S=ve(n)?{...Ce(n,s),plainText:d}:null,A=n.kind==="undo"?w.unresolved.find(v=>v.localId===n.undoes):null,O=A?.projection??w.effective.projection.classified.get(n.undoes),L=w.document.authored.get(n.widget),I=L&&w.document.registry[L.tag]?.["x-state"]?.[n.action],q=I&&(I.unit==="widget"?n.widget:n.detail[I.unit]),N=++p,l=n.kind==="undo"&&O?.e.kind==="action"?{kind:"undo",target:O,coordinate:O.coordinate,localOrder:N}:n.kind==="action"&&I&&typeof q=="string"?{unit:q,spec:I,coordinate:JSON.stringify([n.widget,q,n.action]),localOrder:N,e:{...n,id:y},value:I.record?Ae(n,I.record):n.action}:null;return b({unresolved:[...w.unresolved,{event:structuredClone(n),localId:y,order:N,projection:l,thread:S,message:Ne(n)?S:null,undoTarget:A?.event.attempt??null,state:"sending",admitted:null}]}),R(n.attempt)},accept(n,s){if(!R(n))return;let{unresolved:d}=m("accept",new Map([[n,s]]));b({unresolved:d})},refuse(n){let s=R(n);if(!s)return[];let d=r.read().unresolved.filter(y=>y.undoTarget===n||s.message?.id&&y.event.parent===s.message.id).map(y=>y.event.attempt),{unresolved:w}=m("refuse",new Map([[n,null]]));return b({unresolved:w.filter(y=>!d.includes(y.event.attempt))}),d},present(n){let{unresolved:s,left:d}=m("present",k(n));return b({unresolved:s}),d},unpresented:()=>r.read().unresolved.filter(n=>it.has(n.state)),releasable:()=>r.read().unresolved.filter(n=>ze.has(n.state)),release(n){return b({unresolved:r.read().unresolved.filter(s=>!(n.has(s.event.attempt)&&ze.has(s.state)))})},nameParent(n,s){let w=R(n)?.event.parent;if(typeof w!="string"||!w.startsWith(z))return;let y=w.slice(z.length),S=R(y)?.admitted?.id??s.find(A=>A.attempt===y)?.id;S&&j(n,A=>({...A,namedParent:w,event:{...A.event,parent:S}}))},nameUndo(n,s){let d=R(n);if(d?.event.kind!=="undo"||!d.undoTarget)return!0;let w=R(d.undoTarget)?.admitted?.id??s.find(y=>y.attempt===d.undoTarget)?.id;return w?(j(n,y=>({...y,event:{...y.event,undoes:w}})),!0):!1}})}function Fe(e){let t=e instanceof Error?e.message:String(e);return!(e instanceof AggregateError)||e.errors.length===0?t:`${t}: ${e.errors.map(Fe).join("; ")}`}function ft({reportFailure:e}){let t=ce(0),r=()=>{t.value+=1},a=null,p=0,g=-1,f=-1,o=null,u=[],i=[],b=new Map,h=new Map,T=l=>{if(!Number.isSafeInteger(l)||l<0)throw new TypeError("presentation epoch must be a non-negative safe integer")};function R(){let l=[];for(let v of u)a===null||!Object.is(v.document,a)?v.resolve("superseded"):f>=v.semanticEpoch?v.resolve("presented"):l.push(v);u=l}function j(l){return l.cancelled?.()||a===null||!Object.is(l.document,a)||g>l.semanticEpoch?"superseded":g<l.semanticEpoch||!o?.sealed||[...l.regions].some(v=>o?.members.get(v)?.commit===null)?null:"presented"}function m(){let l=[];for(let v of i){let P=j(v);P?v.resolve(P):l.push(v)}i=l}function k(){!o||o.completed||!o.sealed||[...o.members.values()].some(l=>l.commit===null)||(o.completed=!0,f=o.publication.semanticEpoch,R())}function n(l,v){T(v);let P=a===null||!Object.is(a,l);if(!P&&v<g)throw new RangeError("presentation epochs cannot decrease within one document");if(!P&&v===g){if(!o)throw new Error("the active document has no presentation barrier");return o.publication}P?(a=l,p+=1,g=v,f=-1,h.clear(),b.clear(),R()):g=v;let x=Object.freeze({document:l,semanticEpoch:v}),C=new Map;for(let[D,_]of h){let M=_.commit;M!==null&&(M=Object.freeze({...M,semanticEpoch:v}),_.commit=M),C.set(D,{record:_,ticket:_.ticket,commit:M,retired:!1})}return o={publication:x,members:C,sealed:!1,completed:!1},m(),r(),x}function s(l){return!o||o.publication!==l?!1:(o.sealed=!0,k(),m(),r(),!0)}function d(l){let v=l.record;return l.documentGeneration===p&&h.get(v.region)===v&&v.ticket===l}function w(l,v,P){if(!d(l)||a===null)return;let x=l.record,C=Object.freeze({document:a,semanticEpoch:g,region:x.region,renderer:x.renderer,rendererGeneration:x.rendererGeneration,ticketGeneration:l.ticketGeneration,value:l.value,status:v,proof:P});x.ticket=null,x.commit=C;let D=o?.members.get(x.region);D?.record===x&&D.ticket===l&&(D.ticket=null,D.commit=C,k(),m()),r()}function y(l,v){if(a===null||o===null)throw new Error("begin a presentation publication before attaching a renderer");let P={region:l,renderer:v,rendererGeneration:(b.get(l)??0)+1,ticketGeneration:0,ticket:null,commit:null};return b.set(l,P.rendererGeneration),h.set(l,P),o.completed=!1,o.members.set(l,{record:P,ticket:null,commit:null,retired:!1}),r(),Object.freeze({present:(D,_,M)=>{let U=(async()=>{if(h.get(l)!==P){await Promise.resolve(_).catch(()=>{});return}let $={documentGeneration:p,record:P,ticketGeneration:++P.ticketGeneration,value:D};P.ticket=$,P.commit=null;let ee=o,K=ee?.members.get(l);ee&&K?.record===P&&(ee.completed=!1,K.ticket=$,K.commit=null,K.retired=!1),m(),r();try{let G=await _;w($,"committed",G)}catch(G){let te=!d($);if(te&&h.get(P.region)!==P)return;let oe,Q=G,Y=!1;if(M)try{oe=M(G),Y=!0}catch(Z){Z!==G&&(Q=new AggregateError([G,Z],"presentation and fail-soft failed"))}if(e(Q),te)return;if(Y)w($,"failed",oe);else throw Q}})();return U.catch(()=>{}),U},disconnect:()=>{if(h.get(l)!==P)return;h.delete(l);let D=o,_=D?.members.get(l);!D||_?.record!==P||D.completed||(_.ticket=null,_.commit=null,_.retired=!0,queueMicrotask(()=>{o!==D||D.completed||D.members.get(l)!==_||!_.retired||(D.members.delete(l),k(),m(),r())}))}})}function S(l,v,P){let x=h.get(l);return x&&x.renderer===v&&x.commit!==null&&Object.is(x.commit.value,P)?x.commit:null}function A(l,v){if(T(v),a===null||!Object.is(l,a))return Promise.resolve("superseded");let P=v===g&&o!==null&&!o.completed;return f>=v&&!P?Promise.resolve("presented"):new Promise(x=>{u.push({document:l,semanticEpoch:v,resolve:x})})}async function O(l){for(;;){let v=l();if(await A(v.document,v.semanticEpoch),L(l))return"presented"}}function L(l){let v=l(),P=N();return Object.is(P.document,v.document)&&P.semanticEpoch===v.semanticEpoch&&P.presentedEpoch>=v.semanticEpoch&&P.sealed&&P.pending.length===0}function I(l,v){let P=l();return P!==null&&j({...P,regions:new Set(v),resolve:()=>{}})==="presented"}async function q(l,v){let P=[...new Set(v)];for(;;){let x=l();if(x===null)return"superseded";await new Promise(_=>{let M={...x,regions:new Set(P),cancelled:()=>l()===null,resolve:_},U=j(M);U?_(U):i.push(M)});let C=l();if(C===null)return"superseded";let D=j({...C,regions:new Set(P),resolve:()=>{}});if(D==="presented")return D}}function N(){return Object.freeze({document:a,semanticEpoch:g,presentedEpoch:f,sealed:o?.sealed??!1,pending:Object.freeze(o?[...o.members].filter(([,l])=>l.commit===null).map(([l])=>l):[])})}return Object.freeze({begin:n,seal:s,attach:y,committed:S,whenPresented:A,whenCurrentPresented:O,currentPresented:L,whenCurrentRegionsPresented:q,currentRegionsPresented:I,subscribe:l=>t.subscribe(()=>{try{l()}catch(v){e(v)}}),read:N})}var He=Symbol("presentation held");function pt(e){let t=[],r=[],a=!1,p=!1,g=null;function f(){g??=(()=>{let h,T,R=new Promise((j,m)=>{h=j,T=m});return R.catch(()=>{}),{promise:R,settle:h,refuse:T}})()}function o(h,T){f(),t.push({order:h,run:e(T)}),!a&&(a=!0,queueMicrotask(()=>{a=!1;let R=t;t=[],R.sort((j,m)=>j.order-m.order);for(let{run:j}of R){let m=j();m.catch(()=>{}),r.push(m)}u()}))}async function u(){if(p)return;p=!0;let h=null,T=!1;for(;r.length||t.length||a;){let j=r;r=[];for(let m of await Promise.allSettled(j))m.status==="rejected"&&!T&&(T=!0,h=m.reason)}p=!1;let R=g;g=null,T?R.refuse(h):R.settle()}let i=()=>g?.promise??Promise.resolve();function b({attach:h,paint:T,failSoft:R,order:j=0}){let m=null,k=null,n=0;function s(S){let A=++n,O,L,I=new Promise((l,v)=>{O=l,L=v}),q=k;k=null,m??=h();let N=m?.present(S,I,R)??Promise.resolve();return N.catch(()=>{}),q?.(void 0),{claimed:A,value:S,resolve:O,reject:L,ready:N}}async function d(S){if(S.claimed!==n){S.resolve(void 0);return}let A=!1;try{let O=T(S.value,()=>S.claimed===n);O===He?(A=!0,S.claimed===n&&(k=S.resolve)):S.resolve(await O)}catch(O){S.reject(O)}A||await S.ready}function w(S){let A=s(S);return o(j,()=>d(A)),i()}function y(){n+=1;let S=k;k=null,S?.(void 0),m?.disconnect(),m=null}return Object.freeze({sync:w,disconnect:y})}return Object.freeze({presenter:b,passed:i})}export{Ft as LitElement,He as PRESENTATION_HELD,ft as createPresentationCoordinator,pt as createPresentationSchedule,lt as createSemanticApplication,Fe as describeFailure,Ht as html,Jt as noChange,Kt as nothing,Qt as render,Zt as repeat};
+// build/browser/index.ts
+import { LitElement, html, noChange, nothing, render } from "./lit.js";
+import { repeat } from "./lit.js";
+
+// node_modules/@preact/signals-core/dist/signals-core.module.js
+var i = /* @__PURE__ */ Symbol.for("preact-signals");
+function t() {
+  if (!(v > 1)) {
+    var i2, t2 = false;
+    !(function() {
+      var i3 = c;
+      c = void 0;
+      while (void 0 !== i3) {
+        var t3 = i3.S;
+        if (t3.v === i3.v) {
+          for (var n2 = t3.t; void 0 !== n2; n2 = n2.x) if (n2.i === i3.i) n2.i = t3.i;
+        }
+        i3 = i3.o;
+      }
+    })();
+    while (void 0 !== h) {
+      var n = h;
+      h = void 0;
+      s++;
+      while (void 0 !== n) {
+        var r2 = n.u;
+        n.u = void 0;
+        n.f &= -3;
+        if (!(8 & n.f) && w(n)) try {
+          n.c();
+        } catch (n2) {
+          if (!t2) {
+            i2 = n2;
+            t2 = true;
+          }
+        }
+        n = r2;
+      }
+    }
+    s = 0;
+    v--;
+    if (t2) throw i2;
+  } else v--;
+}
+var r;
+var o = void 0;
+function f(i2) {
+  var t2 = o, n = r;
+  o = void 0;
+  r = void 0;
+  try {
+    return i2();
+  } finally {
+    o = t2;
+    r = n;
+  }
+}
+var h = void 0;
+var v = 0;
+var s = 0;
+var e = 0;
+var c = void 0;
+var d = 0;
+function a(i2) {
+  if (void 0 !== o) {
+    var t2 = i2.n;
+    if (void 0 === t2 || t2.t !== o) {
+      t2 = { i: 0, S: i2, p: o.s, n: void 0, t: o, e: void 0, x: void 0, r: t2 };
+      if (void 0 !== o.s) o.s.n = t2;
+      o.s = t2;
+      i2.n = t2;
+      if (32 & o.f) i2.S(t2);
+      return t2;
+    } else if (-1 === t2.i) {
+      t2.i = 0;
+      if (void 0 !== t2.n) {
+        t2.n.p = t2.p;
+        if (void 0 !== t2.p) t2.p.n = t2.n;
+        t2.p = o.s;
+        t2.n = void 0;
+        o.s.n = t2;
+        o.s = t2;
+      }
+      return t2;
+    }
+  }
+}
+function l(i2, t2) {
+  this.v = i2;
+  this.i = 0;
+  this.n = void 0;
+  this.t = void 0;
+  this.l = 0;
+  this.W = null == t2 ? void 0 : t2.watched;
+  this.Z = null == t2 ? void 0 : t2.unwatched;
+  this.name = null == t2 ? void 0 : t2.name;
+}
+l.prototype.brand = i;
+l.prototype.h = function() {
+  return true;
+};
+l.prototype.S = function(i2) {
+  var t2 = this, n = this.t;
+  if (n !== i2 && void 0 === i2.e) {
+    i2.x = n;
+    this.t = i2;
+    if (void 0 !== n) n.e = i2;
+    else f(function() {
+      var i3;
+      null == (i3 = t2.W) || i3.call(t2);
+    });
+  }
+};
+l.prototype.U = function(i2) {
+  var t2 = this;
+  if (void 0 !== this.t) {
+    var n = i2.e, r2 = i2.x;
+    if (void 0 !== n) {
+      n.x = r2;
+      i2.e = void 0;
+    }
+    if (void 0 !== r2) {
+      r2.e = n;
+      i2.x = void 0;
+    }
+    if (i2 === this.t) {
+      this.t = r2;
+      if (void 0 === r2) f(function() {
+        var i3;
+        null == (i3 = t2.Z) || i3.call(t2);
+      });
+    }
+  }
+};
+l.prototype.subscribe = function(i2) {
+  var t2 = this;
+  return j(function() {
+    var n = t2.value;
+    f(function() {
+      return i2(n);
+    });
+  }, { name: "sub" });
+};
+l.prototype.valueOf = function() {
+  return this.value;
+};
+l.prototype.toString = function() {
+  return this.value + "";
+};
+l.prototype.toJSON = function() {
+  return this.value;
+};
+l.prototype.peek = function() {
+  var i2 = this;
+  return f(function() {
+    return i2.value;
+  });
+};
+Object.defineProperty(l.prototype, "value", { get: function() {
+  var i2 = a(this);
+  if (void 0 !== i2) i2.i = this.i;
+  return this.v;
+}, set: function(i2) {
+  if (i2 !== this.v) {
+    if (s > 100) throw new Error("Cycle detected");
+    !(function(i3) {
+      if (0 !== v && 0 === s) {
+        if (i3.l !== e) {
+          i3.l = e;
+          c = { S: i3, v: i3.v, i: i3.i, o: c };
+        }
+      }
+    })(this);
+    this.v = i2;
+    this.i++;
+    d++;
+    v++;
+    try {
+      for (var n = this.t; void 0 !== n; n = n.x) n.t.N();
+    } finally {
+      t();
+    }
+  }
+} });
+function y(i2, t2) {
+  return new l(i2, t2);
+}
+function w(i2) {
+  for (var t2 = i2.s; void 0 !== t2; t2 = t2.n) if (t2.S.i !== t2.i || !t2.S.h() || t2.S.i !== t2.i) return true;
+  return false;
+}
+function _(i2) {
+  for (var t2 = i2.s; void 0 !== t2; t2 = t2.n) {
+    var n = t2.S.n;
+    if (void 0 !== n) t2.r = n;
+    t2.S.n = t2;
+    t2.i = -1;
+    if (void 0 === t2.n) {
+      i2.s = t2;
+      break;
+    }
+  }
+}
+function b(i2) {
+  var t2 = i2.s, n = void 0;
+  while (void 0 !== t2) {
+    var r2 = t2.p;
+    if (-1 === t2.i) {
+      t2.S.U(t2);
+      if (void 0 !== r2) r2.n = t2.n;
+      if (void 0 !== t2.n) t2.n.p = r2;
+    } else n = t2;
+    t2.S.n = t2.r;
+    if (void 0 !== t2.r) t2.r = void 0;
+    t2 = r2;
+  }
+  i2.s = n;
+}
+function p(i2, t2) {
+  l.call(this, void 0, t2);
+  this.x = i2;
+  this.s = void 0;
+  this.g = d - 1;
+  this.f = 4;
+}
+p.prototype = new l();
+p.prototype.h = function() {
+  this.f &= -3;
+  if (1 & this.f) return false;
+  if (32 == (36 & this.f)) return true;
+  this.f &= -5;
+  if (this.g === d) return true;
+  this.g = d;
+  this.f |= 1;
+  if (this.i > 0 && !w(this)) {
+    this.f &= -2;
+    return true;
+  }
+  var i2 = o;
+  try {
+    _(this);
+    o = this;
+    var t2 = this.x();
+    if (16 & this.f || this.v !== t2 || 0 === this.i) {
+      this.v = t2;
+      this.f &= -17;
+      this.i++;
+    }
+  } catch (i3) {
+    this.v = i3;
+    this.f |= 16;
+    this.i++;
+  }
+  o = i2;
+  b(this);
+  this.f &= -2;
+  return true;
+};
+p.prototype.S = function(i2) {
+  if (void 0 === this.t) {
+    this.f |= 36;
+    for (var t2 = this.s; void 0 !== t2; t2 = t2.n) t2.S.S(t2);
+  }
+  l.prototype.S.call(this, i2);
+};
+p.prototype.U = function(i2) {
+  if (void 0 !== this.t) {
+    l.prototype.U.call(this, i2);
+    if (void 0 === this.t) {
+      this.f &= -33;
+      for (var t2 = this.s; void 0 !== t2; t2 = t2.n) t2.S.U(t2);
+    }
+  }
+};
+p.prototype.N = function() {
+  if (!(2 & this.f)) {
+    this.f |= 6;
+    for (var i2 = this.t; void 0 !== i2; i2 = i2.x) i2.t.N();
+  }
+};
+Object.defineProperty(p.prototype, "value", { get: function() {
+  if (1 & this.f) throw new Error("Cycle detected");
+  var i2 = a(this);
+  this.h();
+  if (void 0 !== i2) i2.i = this.i;
+  if (16 & this.f) throw this.v;
+  return this.v;
+} });
+function g(i2, t2) {
+  return new p(i2, t2);
+}
+function S(i2) {
+  var n = i2.m;
+  i2.m = void 0;
+  if ("function" == typeof n) {
+    v++;
+    var r2 = o;
+    o = void 0;
+    try {
+      n();
+    } catch (t2) {
+      i2.f &= -2;
+      i2.f |= 8;
+      m(i2);
+      throw t2;
+    } finally {
+      o = r2;
+      t();
+    }
+  }
+}
+function m(i2) {
+  for (var t2 = i2.s; void 0 !== t2; t2 = t2.n) t2.S.U(t2);
+  i2.x = void 0;
+  i2.s = void 0;
+  S(i2);
+}
+function x(i2) {
+  if (o !== this) throw new Error("Out-of-order effect");
+  b(this);
+  o = i2;
+  this.f &= -2;
+  if (8 & this.f) m(this);
+  t();
+}
+function E(i2, t2) {
+  this.x = i2;
+  this.m = void 0;
+  this.s = void 0;
+  this.u = void 0;
+  this.f = 32;
+  this.name = null == t2 ? void 0 : t2.name;
+  if (r) r.push(this);
+}
+E.prototype.c = function() {
+  var i2 = this.S();
+  try {
+    if (8 & this.f) return;
+    if (void 0 === this.x) return;
+    var t2 = this.x();
+    if ("function" == typeof t2) this.m = t2;
+  } finally {
+    i2();
+  }
+};
+E.prototype.S = function() {
+  if (1 & this.f) throw new Error("Cycle detected");
+  this.f |= 1;
+  this.f &= -9;
+  S(this);
+  _(this);
+  v++;
+  var i2 = o;
+  o = this;
+  return x.bind(this, i2);
+};
+E.prototype.N = function() {
+  if (!(2 & this.f)) {
+    this.f |= 2;
+    this.u = h;
+    h = this;
+  }
+};
+E.prototype.d = function() {
+  this.f |= 8;
+  if (!(1 & this.f)) m(this);
+};
+E.prototype.dispose = function() {
+  this.d();
+};
+function j(i2, t2) {
+  var n = new E(i2, t2);
+  try {
+    n.c();
+  } catch (i3) {
+    n.d();
+    throw i3;
+  }
+  var r2 = n.d.bind(n);
+  r2[Symbol.dispose] = r2;
+  return r2;
+}
+
+// build/browser/snapshot.ts
+var secured = /* @__PURE__ */ new WeakSet();
+function immutable(value, normalized = /* @__PURE__ */ new WeakMap()) {
+  if (value !== null && typeof value === "object" && !secured.has(value)) {
+    const known = normalized.get(value);
+    if (known) return known;
+    let result = value;
+    const refuse = () => {
+      throw new TypeError("Application snapshots are read-only");
+    };
+    if (value instanceof Map) {
+      const entries = [...value].map(([key, child]) => [
+        immutable(key, normalized),
+        immutable(child, normalized)
+      ]);
+      const map = Object.isExtensible(value) ? value : /* @__PURE__ */ new Map();
+      map.clear();
+      for (const [key, child] of entries) map.set(key, child);
+      for (const name of ["set", "delete", "clear"])
+        Object.defineProperty(map, name, { value: refuse });
+      result = map;
+    } else if (value instanceof Set) {
+      const members = [...value].map((child) => immutable(child, normalized));
+      const set = Object.isExtensible(value) ? value : /* @__PURE__ */ new Set();
+      set.clear();
+      for (const child of members) set.add(child);
+      for (const name of ["add", "delete", "clear"])
+        Object.defineProperty(set, name, { value: refuse });
+      result = set;
+    } else {
+      const children = Object.entries(value).map(([key, child]) => [
+        key,
+        child,
+        immutable(child, normalized)
+      ]);
+      if (children.some(([, child, next]) => child !== next)) {
+        const target = Object.isFrozen(value) ? Array.isArray(value) ? [...value] : { ...value } : value;
+        for (const [key, child, next] of children)
+          if (child !== next) target[key] = next;
+        result = target;
+      }
+    }
+    Object.freeze(result);
+    secured.add(result);
+    normalized.set(value, result);
+    return result;
+  }
+  return value;
+}
+function createApplicationPublisher(initial) {
+  const root = y(immutable(initial));
+  return Object.freeze({
+    read: () => root.value,
+    publish(candidate) {
+      root.value = immutable(candidate);
+      return root.peek();
+    },
+    select(derive) {
+      const selected = g(() => immutable(derive(root.value)));
+      return Object.freeze({
+        read: () => selected.value,
+        subscribe: (listener) => selected.subscribe(listener)
+      });
+    }
+  });
+}
+
+// skills/leaf/assets/runtime/projection/model.js
+function foldedValue(event, record) {
+  const value = event.detail.value;
+  if (record.kind === "attribute") return [...value].sort().join(" ");
+  return value ?? null;
+}
+var compareProjected = (a2, b2) => {
+  const aLogged = Number.isInteger(a2.e.seq);
+  const bLogged = Number.isInteger(b2.e.seq);
+  if (aLogged && bLogged) return a2.e.seq - b2.e.seq;
+  if (aLogged) return -1;
+  if (bLogged) return 1;
+  return a2.localOrder - b2.localOrder;
+};
+function foldProjection({
+  entries = [],
+  actionIds = [],
+  reportIds = [],
+  desiredIds = [],
+  coverage = [],
+  pendingEntries = []
+} = {}) {
+  const actions = /* @__PURE__ */ new Map();
+  const reports = /* @__PURE__ */ new Map();
+  const classified = /* @__PURE__ */ new Map();
+  const desired = /* @__PURE__ */ new Map();
+  const byId = /* @__PURE__ */ new Map();
+  const pendingWithdrawals = /* @__PURE__ */ new Map();
+  for (const entry of entries) {
+    classified.set(entry.e.id, entry);
+    byId.set(entry.e.id, entry);
+  }
+  for (const id of actionIds) {
+    const entry = byId.get(id);
+    if (entry && !entry.terminal) actions.set(entry.coordinate, entry);
+  }
+  for (const id of reportIds) {
+    const entry = byId.get(id);
+    if (!entry || entry.terminal) continue;
+    const standing = reports.get(entry.coordinate) ?? [];
+    standing.push(entry);
+    reports.set(entry.coordinate, standing);
+  }
+  for (const id of desiredIds) {
+    const entry = byId.get(id);
+    if (entry && !entry.terminal) desired.set(entry.coordinate, entry);
+  }
+  for (const record of coverage) {
+    const e2 = record.event;
+    if (e2.kind === "undo" || classified.has(e2.id)) continue;
+    classified.set(e2.id, { e: e2, terminal: record.coordinate === null });
+  }
+  const pendingActions = [];
+  const withdrawn = /* @__PURE__ */ new Set();
+  const recompute = (coordinate) => {
+    const local = pendingActions.filter((entry) => entry.coordinate === coordinate && !withdrawn.has(entry.e.id)).at(-1);
+    const durable = [...classified.values()].filter(
+      (entry) => entry.stands && entry.coordinate === coordinate && !withdrawn.has(entry.e.id)
+    ).sort(compareProjected).at(-1);
+    const action = local ?? durable;
+    for (const view of [actions, desired])
+      if (action) view.set(coordinate, action);
+      else view.delete(coordinate);
+  };
+  for (const entry of pendingEntries) {
+    if (entry.kind === "undo") {
+      const targetId = entry.targetId ?? entry.target.e.id;
+      const target = classified.get(targetId) ?? entry.target;
+      withdrawn.add(targetId);
+      pendingWithdrawals.set(targetId, target);
+      recompute(entry.coordinate);
+      continue;
+    }
+    pendingActions.push(entry);
+    recompute(entry.coordinate);
+  }
+  return { actions, reports, classified, desired, pendingWithdrawals };
+}
+var byRank = (ranks) => (a2, b2) => ranks[a2] < ranks[b2] ? -1 : ranks[a2] > ranks[b2] ? 1 : a2 < b2 ? -1 : a2 > b2 ? 1 : 0;
+function foldWidgetStates(authoredSnapshots, projection) {
+  const states = new Map(
+    [...authoredSnapshots].map(([id, authored]) => [
+      id,
+      {
+        state: structuredClone(authored.state),
+        entries: [],
+        specs: authored.specs
+      }
+    ])
+  );
+  const place = ({ value: containers, ranks }, unit, detail) => {
+    const destination = containers[detail.value];
+    if (!destination || !Object.values(containers).some((ids) => ids.includes(unit)))
+      return;
+    for (const ids of Object.values(containers)) {
+      const index = ids.indexOf(unit);
+      if (index >= 0) ids.splice(index, 1);
+    }
+    destination.push(unit);
+    ranks[unit] = detail.rank;
+  };
+  for (const entry of [...projection.desired.values()].sort(compareProjected)) {
+    const owner = states.get(entry.e.widget);
+    if (!owner) continue;
+    const { spec, e: e2, unit } = entry;
+    const record = spec.record;
+    const value = record ? structuredClone(e2.detail.value) : e2.action;
+    const standing = { action: e2.action, value, detail: structuredClone(e2.detail) };
+    owner.entries.push(entry);
+    if (spec.unit === "widget") owner.state[e2.action] = standing;
+    else {
+      const target = owner.state[e2.action];
+      target.units[unit] = standing;
+      if (record?.kind === "position" && !entry.absorbed) place(target, unit, e2.detail);
+    }
+  }
+  for (const { state, specs } of states.values())
+    for (const [verb, spec] of specs)
+      if (spec.record?.kind === "position")
+        for (const ids of Object.values(state[verb].value))
+          ids.sort(byRank(state[verb].ranks));
+  return states;
+}
+
+// skills/leaf/assets/runtime/registry-contract.js
+function semanticSchema(schema) {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) return schema;
+  const annotations = /* @__PURE__ */ new Set([
+    "title",
+    "description",
+    "$comment",
+    "default",
+    "examples",
+    "deprecated",
+    "readOnly",
+    "writeOnly"
+  ]);
+  const maps = /* @__PURE__ */ new Set([
+    "properties",
+    "patternProperties",
+    "$defs",
+    "definitions",
+    "dependentSchemas"
+  ]);
+  const single = /* @__PURE__ */ new Set([
+    "additionalProperties",
+    "unevaluatedProperties",
+    "propertyNames",
+    "items",
+    "additionalItems",
+    "unevaluatedItems",
+    "contains",
+    "not",
+    "if",
+    "then",
+    "else",
+    "contentSchema"
+  ]);
+  const sequences = /* @__PURE__ */ new Set(["allOf", "anyOf", "oneOf", "prefixItems"]);
+  return Object.fromEntries(
+    Object.entries(schema).filter(([key]) => !annotations.has(key)).map(([key, value]) => [
+      key,
+      key === "enum" || key === "const" ? value : maps.has(key) ? Object.fromEntries(
+        Object.entries(value).map(([name, child]) => [
+          name,
+          semanticSchema(child)
+        ])
+      ) : sequences.has(key) ? value.map(semanticSchema) : single.has(key) ? semanticSchema(value) : value
+    ])
+  );
+}
+function detailSchema(entry, spec) {
+  const record = spec.record;
+  if (!record) return spec.detail;
+  const value = record.kind === "value" ? entry.properties[record.attr] : record.kind === "attribute" ? { type: "array", items: { type: "string" }, uniqueItems: true } : { type: "string" };
+  const properties = { value };
+  if (record.kind === "position")
+    Object.assign(properties, { unit: { type: "string" }, rank: { type: "string" } });
+  if (spec.update) properties.text = { type: "string", minLength: 1 };
+  return {
+    type: "object",
+    properties,
+    required: Object.keys(properties),
+    additionalProperties: false
+  };
+}
+function stateDefinition(origin, entry, spec) {
+  return {
+    origin,
+    unit: spec.unit,
+    record: spec.record ?? null,
+    creates: spec.creates ?? null,
+    update: spec.update ?? false,
+    detail: semanticSchema(detailSchema(entry, spec))
+  };
+}
+function sameStateDefinition(recorded, current) {
+  if (recorded === current) return true;
+  if (!recorded || !current || typeof recorded !== "object" || typeof current !== "object" || Array.isArray(recorded) !== Array.isArray(current))
+    return false;
+  const keys = Object.keys(recorded);
+  return keys.length === Object.keys(current).length && keys.every(
+    (key) => Object.hasOwn(current, key) && (typeof recorded[key] === "object" ? sameStateDefinition(recorded[key], current[key]) : recorded[key] === current[key])
+  );
+}
+function sameStateOperation(recorded, current) {
+  if (!recorded || !current) return false;
+  const { detail: _recordedDetail, ...recordedOperation } = recorded;
+  const { detail: _currentDetail, ...currentOperation } = current;
+  return sameStateDefinition(recordedOperation, currentOperation);
+}
+function eventSpec(entry, event) {
+  const spec = entry["x-state"]?.[event.action];
+  const writer = { action: "user", report: "agent" }[event.kind];
+  return spec && (spec.writer ?? "user") === writer ? spec : null;
+}
+
+// skills/leaf/assets/runtime/thread/identity.js
+var PENDING = "pending:";
+
+// skills/leaf/assets/runtime/thread/model.js
+var isReaction = (message) => Boolean(message.token);
+var spoken = (thread) => thread.msgs.filter((message) => !isReaction(message));
+var threadKey = (thread) => thread.root.attempt ?? thread.id;
+function threadNames(threads) {
+  const byName = /* @__PURE__ */ new Map();
+  for (const thread of threads) {
+    byName.set(thread.id, thread);
+    for (const message of thread.msgs) {
+      byName.set(message.id, thread);
+      if (message.attempt) byName.set(PENDING + message.attempt, thread);
+    }
+  }
+  return byName;
+}
+var bareReaction = (thread) => thread.bare_reaction;
+var discussed = (thread) => !bareReaction(thread);
+var pendingSeat = (message) => message.about || !message.anchor || Object.keys(message.anchor).length !== 1 ? null : message.anchor.section ?? null;
+var sending = (message) => ({
+  kind: "waiting",
+  reason: "workflow",
+  workflow: message.id
+});
+function foldThreads(threads, messages, reactions, settlements, withdrawn) {
+  if (!messages.length && !reactions.length && !settlements.length && !withdrawn.size)
+    return threads;
+  const copies = threads.filter((thread) => !withdrawn.has(thread.root.id)).map((thread) => ({
+    ...thread,
+    msgs: thread.msgs.filter((message) => !withdrawn.has(message.id))
+  }));
+  const byName = threadNames(copies);
+  const opened = [];
+  for (const root of [...messages, ...reactions]) {
+    if (root.kind === "reply") continue;
+    const reaction = isReaction(root);
+    const thread = {
+      id: root.id,
+      root,
+      title: null,
+      anchor: root.anchor ?? null,
+      detached_from: null,
+      rewritten_from: null,
+      msgs: [root],
+      resolved: null,
+      user_prompt: null,
+      bare_reaction: reaction,
+      seat: pendingSeat(root),
+      summaries: [],
+      unread: []
+    };
+    opened.push(thread);
+    byName.set(root.id, thread);
+  }
+  for (const reply of [...messages, ...reactions]) {
+    if (reply.kind !== "reply") continue;
+    const thread = byName.get(reply.parent);
+    if (!thread) continue;
+    thread.msgs.push(reply);
+    if (!isReaction(reply)) {
+      thread.resolved = null;
+      thread.attention = sending(reply);
+    }
+  }
+  for (const thread of opened) {
+    const said = spoken(thread);
+    thread.bare_reaction = isReaction(thread.root) && !said.length;
+    thread.attention = said.length ? sending(said.at(-1)) : null;
+  }
+  for (const settlement of settlements) {
+    const thread = byName.get(settlement.parent) ?? byName.get(settlement.localParent);
+    if (!thread) continue;
+    thread.resolved = settlement.kind === "resolve" ? { author: "user", pending: true } : null;
+    thread.settling = settlement.kind;
+  }
+  return [...copies, ...opened];
+}
+var awaitsUser = (thread) => !thread.resolved && thread.attention?.kind === "needs_user";
+var versionKey = ({ message, version }) => `${message}\0${version}`;
+function readThreadRecords(threads, document, widgets, workflows, markingRead = []) {
+  const locallyRead = new Set(markingRead.map(versionKey));
+  const unitsByMessage = /* @__PURE__ */ new Map();
+  for (const descriptor of document.descriptors.values()) {
+    if (descriptor.document.kind !== "thread") continue;
+    const units = unitsByMessage.get(descriptor.document.message) ?? [];
+    units.push({
+      id: descriptor.id,
+      tag: descriptor.tag,
+      state: widgets.get(descriptor.id)?.state ?? {}
+    });
+    unitsByMessage.set(descriptor.document.message, units);
+  }
+  return threads.map((thread) => {
+    const unread = thread.unread.filter((item) => !locallyRead.has(versionKey(item)));
+    const unreadMessages = new Set(unread.map((item) => item.message));
+    const msgs = thread.msgs.map((message) => {
+      const record = {};
+      for (const field of [
+        "id",
+        "attempt",
+        "kind",
+        "author",
+        "agent",
+        "ts",
+        "seq",
+        "parent",
+        "pending",
+        "anchor",
+        "about",
+        "drawing",
+        "holds",
+        "token",
+        "text",
+        "edited",
+        "failure",
+        "addressable",
+        "revision",
+        "awaits",
+        "ephemeral",
+        "suggestion"
+      ])
+        if (message[field] !== void 0) record[field] = message[field];
+      const units = unitsByMessage.get(message.id) ?? [];
+      const authored = document.messageBodies?.get(message.id);
+      const body = message.markup ? { kind: "authored", ...authored, units } : {
+        kind: message.token ? "reaction" : message.suggestion ? "suggestion" : "prose",
+        text: authored?.text ?? message.plainText ?? message.text ?? message.token ?? ""
+      };
+      if (message.markup && !authored)
+        throw new Error(`Authored message ${message.id} has no captured body`);
+      const unitIds = new Set(units.map((unit) => unit.id));
+      return {
+        ...record,
+        unread: unreadMessages.has(message.id),
+        key: message.attempt ?? message.id,
+        body,
+        // The message's own input and the moves on widgets frozen into it, in the
+        // published order `strongestWorkflow` reads.
+        workflows: workflows.filter(
+          (workflow) => workflow.input === message.id || workflow.subject.kind === "widget" && unitIds.has(workflow.subject.id)
+        )
+      };
+    });
+    return {
+      id: thread.id,
+      key: threadKey(thread),
+      title: thread.title,
+      root: msgs.find((message) => message.id === thread.root.id),
+      msgs,
+      unread: Object.freeze(unread),
+      anchor: thread.anchor,
+      detached_from: thread.detached_from,
+      rewritten_from: thread.rewritten_from,
+      resolved: thread.resolved,
+      settling: thread.settling ?? null,
+      user_prompt: thread.user_prompt,
+      attention: thread.attention,
+      workflows: workflows.filter((workflow) => workflow.thread === thread.id),
+      bare_reaction: thread.bare_reaction,
+      seat: thread.seat,
+      summaries: thread.summaries
+    };
+  });
+}
+
+// skills/leaf/assets/runtime/pending/model.js
+var isThreadEvent = (event) => event.kind === "comment" || event.kind === "reply";
+var isMessageEvent = (event) => isThreadEvent(event) && !event.token;
+var threadForAttempt = (event, timestamp) => ({
+  ...event,
+  id: `${PENDING}${event.attempt}`,
+  author: "user",
+  ts: timestamp,
+  pending: true
+});
+
+// skills/leaf/assets/runtime/thread/workflow.js
+var STAGE_LABELS = Object.freeze({
+  sending: "Sending",
+  sent: "Sent",
+  queued: "Queued",
+  picked_up: "Picked up",
+  working: "Working",
+  replying: "Replying",
+  answered: "Answered"
+});
+var CONDITION_LABELS = Object.freeze({
+  ended: "Turn ended",
+  interrupted: "Interrupted",
+  stale: "Update stale",
+  failed: "Failed"
+});
+var atWork = (workflow) => ["working", "replying"].includes(workflow.stage);
+
+// skills/leaf/assets/runtime/queues.js
+var NOUNS = Object.freeze({ widget: "ask", reply: "question" });
+var taskItem = (task) => ({
+  kind: "task",
+  id: task.id,
+  owner: task.owner,
+  subject: task.subject,
+  thread: task.thread,
+  title: task.title,
+  running: task.running,
+  agent: task.agent,
+  session: task.session,
+  ends: task.ends,
+  ask: task.ask
+});
+function selectQueues({ threads, workflows, tasks }) {
+  const attention = new Map(threads.map((thread) => [thread.id, thread.attention]));
+  const onUser = (task) => {
+    if (task.ends === "widget") return !task.ask.held_by_seat;
+    if (task.ends === "reply")
+      return attention.get(task.subject.id)?.kind !== "waiting";
+    return true;
+  };
+  const onYou = tasks.filter((task) => task.owner === "user" && onUser(task)).map(taskItem);
+  for (const thread of threads)
+    if (awaitsUser(thread) && thread.attention.reason === "recovery")
+      onYou.push({
+        kind: "recovery",
+        id: thread.id,
+        subject: { kind: "thread", id: thread.id },
+        thread: thread.id
+      });
+  const onAgent = [];
+  const sending2 = (workflow) => workflow.stage === "sending" && workflow.subject.kind === "thread";
+  const resent = new Set(workflows.filter(sending2).map(({ thread }) => thread));
+  for (const workflow of workflows) {
+    const item = {
+      id: workflow.id,
+      subject: workflow.subject,
+      thread: workflow.thread
+    };
+    if (workflow.next_actor === "user") {
+      if (workflow.thread === null) onYou.push({ kind: "recovery", ...item });
+    } else if (sending2(workflow) || workflow.answer !== null && !resent.has(workflow.thread))
+      onAgent.push({
+        kind: "answer",
+        ...item,
+        answer: workflow.answer,
+        stage: workflow.stage
+      });
+    else if (atWork(workflow))
+      onAgent.push({ kind: "work", ...item, detail: workflow.detail });
+  }
+  onAgent.push(...tasks.filter((task) => task.owner === "agent").map(taskItem));
+  return { onYou, onAgent };
+}
+function selectDone({ tasks }) {
+  return tasks.map((task) => ({
+    kind: "task",
+    id: task.id,
+    owner: task.owner,
+    subject: task.subject,
+    thread: task.thread,
+    title: task.title,
+    state: task.state,
+    ended: task.outcome?.ts ?? null,
+    detail: task.outcome?.detail ?? null,
+    ends: task.ends,
+    ask: task.ask
+  }));
+}
+
+// build/browser/application.ts
+var LIFECYCLE = {
+  sending: {
+    accept: "accepted",
+    refuse: "refused",
+    log: "sending:logged",
+    present: "sending:presented"
+  },
+  "sending:logged": {
+    accept: "accepted:logged",
+    refuse: "refused",
+    present: "sending:presented"
+  },
+  "sending:presented": { accept: "accepted:presented", refuse: "refused" },
+  accepted: { log: "accepted:logged", present: "accepted:presented" },
+  "accepted:logged": { present: "accepted:presented" },
+  "accepted:presented": {},
+  refused: {}
+};
+var SENDING = /* @__PURE__ */ new Set([
+  "sending",
+  "sending:logged",
+  "sending:presented"
+]);
+var DRAWN_LOCALLY = /* @__PURE__ */ new Set(["sending", "accepted"]);
+var RELEASABLE = /* @__PURE__ */ new Set(["accepted:presented", "refused"]);
+var UNPRESENTED = /* @__PURE__ */ new Set(["sending:logged", "accepted:logged"]);
+function advance(entry, signal, admitted = null) {
+  const state = LIFECYCLE[entry.state][signal];
+  if (!state) return entry;
+  if (state === "accepted:presented" && entry.event.kind !== "action") return null;
+  return { ...entry, state, admitted: entry.admitted ?? admitted };
+}
+function normalizedProjection(view, thread, descriptors) {
+  const entries = [];
+  const actionIds = [];
+  const reportIds = [];
+  const desiredIds = [];
+  for (const projection of [view?.document.projection, thread?.projection]) {
+    if (!projection) continue;
+    for (const wire of projection.entries ?? []) {
+      const e2 = wire.event;
+      const descriptor = descriptors?.get(e2.widget);
+      const currentSpec = descriptor && eventSpec(descriptor.declaration, e2);
+      if (descriptor && (!currentSpec || !sameStateOperation(
+        e2.meaning?.state,
+        stateDefinition(descriptor.tag, descriptor.declaration, currentSpec)
+      )))
+        continue;
+      const coordinate = JSON.stringify(wire.coordinate);
+      entries.push({
+        coordinate,
+        e: e2,
+        restated: wire.restated,
+        absorbed: wire.absorbed,
+        stands: wire.stands,
+        scope: wire.scope,
+        spec: wire.spec,
+        unit: wire.coordinate[1],
+        value: wire.spec.record?.kind === "attribute" ? wire.value.join(" ") : wire.value
+      });
+    }
+    actionIds.push(...projection.actions ?? []);
+    reportIds.push(...projection.reports ?? []);
+    desiredIds.push(...projection.desired ?? []);
+  }
+  return { entries, actionIds, reportIds, desiredIds, coverage: view?.coverage ?? [] };
+}
+var appliesTo = (descriptor, event) => event.widget === descriptor.id;
+var NO_ASKS = {
+  all: [],
+  user: [],
+  unanswered: []
+};
+var askRecord = (ask) => ({
+  id: ask.id,
+  tag: ask.tag,
+  sourceId: ask.source,
+  sourceTag: ask.source_tag,
+  thread: ask.thread
+});
+function normalizedAsks(view, threadView) {
+  const page = view?.document.asks;
+  const thread = threadView?.asks;
+  const records = (kind) => [
+    ...(page?.[kind] ?? []).map(askRecord),
+    ...(thread?.[kind] ?? []).map(askRecord)
+  ];
+  return {
+    all: records("all"),
+    user: records("user"),
+    unanswered: records("unanswered")
+  };
+}
+function localTasks(view, state, local) {
+  const ending = new Set(
+    local.filter(({ event }) => event.kind === "task_end").map(({ event }) => event.task)
+  );
+  const undoing = new Set(
+    local.filter(({ event }) => event.kind === "undo").map(({ event }) => event.undoes)
+  );
+  const served = [...view?.document.tasks ?? [], ...state?.browser.tasks ?? []];
+  const ended = [
+    ...view?.document.ended_tasks ?? [],
+    ...state?.browser.ended_tasks ?? []
+  ];
+  const reopened = (task) => task.outcome !== null && undoing.has(task.outcome.id ?? "");
+  const open = [
+    ...served,
+    ...ended.filter(reopened).map((task) => ({ ...task, state: "open", outcome: null }))
+  ];
+  return {
+    open: open.filter((task) => !ending.has(task.id)),
+    ended: [
+      ...ended.filter((task) => !reopened(task)),
+      ...open.filter((task) => ending.has(task.id)).map((task) => ({
+        ...task,
+        state: "done",
+        running: null,
+        outcome: { ts: null, detail: null }
+      }))
+    ]
+  };
+}
+function widgetReading(root, descriptor) {
+  const registered = root.document.descriptors.get(descriptor.id);
+  const currentDescriptor = JSON.stringify(registered) === JSON.stringify(descriptor);
+  const current = currentDescriptor ? root.effective.widgets.get(descriptor.id) : void 0;
+  const authored = currentDescriptor ? root.document.authored.get(descriptor.id)?.state : void 0;
+  const declaration = descriptor.declaration;
+  const actionSpecs = declaration["x-state"] ?? {};
+  const projection = root.effective.projection;
+  const classified = [...projection.classified.values()].filter(
+    ({ e: e2, terminal }) => !terminal && e2.kind === "action" && appliesTo(descriptor, e2)
+  ).sort((left, right) => (left.e.seq ?? 0) - (right.e.seq ?? 0));
+  const desired = [...projection.actions.values()].filter(
+    ({ e: e2 }) => appliesTo(descriptor, e2)
+  );
+  const durableUndo = (root.effective.view?.undo ?? []).map((candidate) => candidate.event).filter(
+    (event) => event.kind === "action" && appliesTo(descriptor, event) && !projection.pendingWithdrawals.has(event.id)
+  );
+  const localUndo = desired.map(({ e: e2 }) => e2).filter((event) => String(event.id).startsWith(PENDING));
+  const actions = Object.fromEntries(
+    Object.entries(actionSpecs).filter(([, spec]) => spec.writer === "user").map(([verb]) => [
+      verb,
+      {
+        available: currentDescriptor && root.effective.hostAvailable && root.phase !== "waiting" && !descriptor.quoted,
+        unavailable: root.effective.hostAvailable ? null : "no agent or server is available",
+        history: classified.filter(({ e: e2 }) => e2.action === verb).map(({ e: e2 }) => e2),
+        standing: desired.filter(({ e: e2 }) => e2.action === verb).map(({ e: e2, unit, value }) => ({ event: e2, unit, value })),
+        undo: root.effective.hostAvailable ? [...localUndo, ...durableUndo].filter((event) => event.action === verb) : []
+      }
+    ])
+  );
+  const provenanceEntries = current?.entries ?? [];
+  const provenance = Object.fromEntries(
+    provenanceEntries.map(({ e: e2, unit, value }) => [
+      `${e2.action}:${unit}`,
+      { event: e2, unit, value }
+    ])
+  );
+  const holdingThread = root.effective.thread.all.find(
+    (thread) => !thread.resolved && !thread.root.pending && thread.root.holds === descriptor.id
+  );
+  return {
+    authored: authored ?? {},
+    state: current?.state ?? {},
+    thread: { heldBy: holdingThread?.id ?? null },
+    provenance,
+    actions
+  };
+}
+function createSemanticApplication({
+  presentation
+} = {}) {
+  const initial = {
+    document: {
+      revision: null,
+      registry: {},
+      authored: /* @__PURE__ */ new Map(),
+      descriptors: /* @__PURE__ */ new Map()
+    },
+    authoritative: null,
+    unresolved: [],
+    // Content versions this tab has marked read and the log has not yet answered for.
+    // Marking read is bookkeeping, not a gesture, so it has no place in the ordered
+    // `unresolved` ledger; each leaves once the answer carrying it is applied.
+    markingRead: [],
+    phase: "waiting",
+    hostAvailable: true,
+    data: { version: null, sources: {} },
+    effective: derive(
+      {
+        revision: null,
+        registry: {},
+        authored: /* @__PURE__ */ new Map(),
+        descriptors: /* @__PURE__ */ new Map()
+      },
+      null,
+      [],
+      [],
+      "waiting",
+      true
+    ),
+    semanticEpoch: 0
+  };
+  const publisher = createApplicationPublisher(initial);
+  let dataTaken = -Infinity;
+  let order = 0;
+  let signature = semanticSignature([initial.effective, initial.data, initial.phase]);
+  let publicationDepth = 0;
+  let activePresentation = null;
+  if (presentation) presentation.seal(presentation.begin(initial.semanticEpoch));
+  function derive(document, state, unresolved, markingRead, phase, hostAvailable) {
+    const receipts = state?.browser.receipts ?? [];
+    const local = unresolved.filter((entry2) => DRAWN_LOCALLY.has(entry2.state));
+    const refused = unresolved.filter((entry2) => entry2.state === "refused");
+    const namedTarget = (attempt) => {
+      const target = unresolved.find((entry2) => entry2.event.attempt === attempt);
+      return target ? target.admitted?.id ?? null : receipts.find((receipt) => receipt.attempt === attempt)?.id ?? null;
+    };
+    const compatiblePending = (projection2) => {
+      const operation = projection2.kind === "undo" ? projection2.target : projection2;
+      const descriptor = document.descriptors.get(operation.e.widget);
+      if (!descriptor) return false;
+      const currentSpec = eventSpec(descriptor.declaration, operation.e);
+      return currentSpec && sameStateDefinition(
+        operation.e.meaning?.state,
+        stateDefinition(descriptor.tag, descriptor.declaration, currentSpec)
+      );
+    };
+    const localProjections = local.filter((entry2) => entry2.projection && compatiblePending(entry2.projection)).map(
+      (entry2) => entry2.projection.kind === "undo" ? { ...entry2.projection, targetId: namedTarget(entry2.undoTarget) } : entry2.projection
+    );
+    const served = state?.browser.views[String(document.revision)];
+    const view = served ? (({ basis: _basis, ...rest }) => rest)(served) : null;
+    const admitted = normalizedProjection(
+      view,
+      state?.browser.thread,
+      document.descriptors
+    );
+    const projection = foldProjection({
+      ...admitted,
+      pendingEntries: localProjections
+    });
+    const ready = phase === "ready";
+    const messages = local.filter((entry2) => entry2.message);
+    const folded = ready ? foldThreads(
+      state?.browser.thread.threads ?? [],
+      messages.map((entry2) => entry2.message),
+      local.filter((entry2) => entry2.thread?.token).map((entry2) => entry2.thread),
+      local.filter(
+        ({ event }) => event.kind === "resolve" || event.kind === "unresolve"
+      ).map((entry2) => ({ ...entry2.event, localParent: entry2.namedParent })),
+      new Set(
+        local.filter(({ event }) => event.kind === "undo").map(({ event }) => event.undoes)
+      )
+    ) : [];
+    const widgets = foldWidgetStates(document.authored, projection);
+    const asks = ready ? normalizedAsks(view, state?.browser.thread) : NO_ASKS;
+    const tasks = ready ? localTasks(view, state, local) : { open: [], ended: [] };
+    const owed = new Set(asks.user.map((ask) => ask.thread));
+    const named = threadNames(folded);
+    const threadOf = (message) => message.kind === "reply" ? named.get(message.parent)?.id ?? message.parent : message.id;
+    const threadOfEntry = (entry2) => {
+      if (entry2.message) return threadOf(entry2.message);
+      const held = document.descriptors.get(entry2.event.widget)?.document;
+      return held?.kind === "thread" ? held.thread ?? null : null;
+    };
+    const recovery = /* @__PURE__ */ new Map();
+    for (const entry2 of refused) {
+      const thread = threadOfEntry(entry2);
+      if (thread) recovery.set(thread, `rejected:${entry2.event.attempt}`);
+    }
+    const obligated = folded.map((thread) => {
+      if (owed.has(thread.id))
+        return thread.attention?.reason === "ask" ? thread : {
+          ...thread,
+          attention: { kind: "needs_user", reason: "ask", workflow: null }
+        };
+      const retry = recovery.get(thread.id);
+      return retry && thread.attention?.kind !== "needs_user" ? {
+        ...thread,
+        attention: { kind: "needs_user", reason: "recovery", workflow: retry }
+      } : thread;
+    });
+    const localWorkflow = (entry2, rejected) => {
+      const message = entry2.message;
+      const thread = threadOfEntry(entry2);
+      return {
+        id: `${rejected ? "rejected" : "pending"}:${entry2.event.attempt}`,
+        revision: entry2.event.revision ?? document.revision,
+        seq: entry2.order,
+        input: message?.id ?? entry2.localId,
+        subject: message ? { kind: "thread", id: thread } : { kind: "widget", id: entry2.event.widget },
+        thread,
+        holds_thread: Boolean(message),
+        // The server's list, where the local fold keys a coordinate by its JSON.
+        coordinate: message ? ["thread", thread] : entry2.projection ? JSON.parse(entry2.projection.coordinate) : null,
+        answer: null,
+        stage: "sending",
+        ts: message?.ts ?? null,
+        detail: null,
+        agent: null,
+        session: null,
+        delivery_seq: null,
+        delivery_session: null,
+        delivery_turn: null,
+        response: null,
+        activity: [],
+        condition: rejected ? { kind: "failed", operation: "delivery" } : null,
+        next_actor: rejected ? "user" : "agent",
+        started_by: []
+      };
+    };
+    const workflows = [
+      ...state ? state.workflows : [],
+      ...messages.map((entry2) => localWorkflow(entry2, false)),
+      ...refused.map((entry2) => localWorkflow(entry2, true))
+    ];
+    const threads = readThreadRecords(
+      obligated,
+      document,
+      widgets,
+      workflows,
+      markingRead
+    );
+    return {
+      hostAvailable,
+      projection,
+      widgets,
+      thread: {
+        all: threads,
+        collection: {
+          phase,
+          threads: threads.filter(discussed)
+        }
+      },
+      asks,
+      // What is on the user and what is on the agent, selected from the readings
+      // above once this tab's sends are folded into them (`runtime/queues.js`).
+      queues: selectQueues({ threads, workflows, tasks: tasks.open }),
+      // What is finished, selected beside them from the ended tasks.
+      done: selectDone({ tasks: tasks.ended }),
+      // Inside the publication signature, so a read that changes only the view's
+      // updates, publication time, or undo list still reaches its watchers.
+      view,
+      acceptedApprovals: state?.browser.thread.done ?? [],
+      pendingApprovals: local.filter((entry2) => entry2.event.kind === "done").map((entry2) => entry2.event),
+      // The attempts still waiting for their POST's answer, in ledger order.
+      sending: unresolved.filter((entry2) => SENDING.has(entry2.state)).map((entry2) => entry2.event.attempt),
+      workflows,
+      activity: state?.activity ?? null
+    };
+  }
+  function semanticSignature(value) {
+    return JSON.stringify(
+      value,
+      (_key, child) => child instanceof Map ? [...child] : child
+    );
+  }
+  function publish(changes) {
+    const prior = publisher.read();
+    const next = { ...prior, ...changes };
+    next.effective = derive(
+      next.document,
+      next.authoritative,
+      next.unresolved,
+      next.markingRead,
+      next.phase,
+      next.hostAvailable
+    );
+    const nextSignature = semanticSignature([next.effective, next.data, next.phase]);
+    next.semanticEpoch = prior.semanticEpoch + Number(
+      nextSignature !== signature || next.document.revision !== prior.document.revision
+    );
+    signature = nextSignature;
+    if (presentation) activePresentation = presentation.begin(next.semanticEpoch);
+    publicationDepth += 1;
+    try {
+      return publisher.publish(next);
+    } finally {
+      publicationDepth -= 1;
+      if (presentation && publicationDepth === 0 && activePresentation) {
+        const current = activePresentation;
+        activePresentation = null;
+        presentation.seal(current);
+      }
+    }
+  }
+  const overtaken = (state) => {
+    const prior = publisher.read().authoritative;
+    return Boolean(
+      prior && (state.taken < prior.taken || state.browser.basis.through_seq < prior.browser.basis.through_seq || state.active.revision < prior.active.revision)
+    );
+  };
+  const adoptable = (state, candidate) => {
+    const prior = publisher.read();
+    if (overtaken(state)) return false;
+    const revision = typeof candidate === "number" ? candidate : candidate?.revision ?? prior.document.revision;
+    const view = state.browser.views[String(revision)];
+    return Boolean(
+      view && view.basis.revision === revision && view.basis.through_seq === state.browser.basis.through_seq
+    );
+  };
+  const entry = (attempt) => publisher.read().unresolved.find((item) => item.event.attempt === attempt);
+  const update = (attempt, change) => publish({
+    unresolved: publisher.read().unresolved.map(
+      (item) => item.event.attempt === attempt ? change(item) : item
+    )
+  });
+  const transition = (signal, admitted) => {
+    const left = [];
+    const unresolved = publisher.read().unresolved.flatMap((item) => {
+      if (!admitted.has(item.event.attempt)) return [item];
+      const next = advance(item, signal, admitted.get(item.event.attempt) ?? null);
+      if (!next) left.push(item.event.attempt);
+      return next ? [next] : [];
+    });
+    return { unresolved, left };
+  };
+  const byAttempt = (receipts) => new Map(
+    receipts.map((receipt) => [receipt.attempt, receipt])
+  );
+  return Object.freeze({
+    read: publisher.read,
+    select: publisher.select,
+    // Whether a publication is still running its synchronous subscribers. A renderer
+    // driven by one paints after it, so every region has claimed this epoch before any
+    // of them touches the document.
+    publishing: () => publicationDepth > 0,
+    // Version comparison receives a server projection already interpreted through the
+    // requested revision's registry. Keep that admitted spec on the wire; the current
+    // document contract must not reinterpret historical events.
+    projectView(view, thread) {
+      return foldProjection({
+        ...normalizedProjection(view, thread),
+        pendingEntries: []
+      });
+    },
+    // Render checks compare authored, carried, and current states. The event filter is
+    // a semantic selection of the same root, not a presentation-owned partial fold.
+    selectWidgets(eventIds = null) {
+      if (eventIds === null) return publisher.read().effective.widgets;
+      const wanted = new Set(eventIds);
+      return publisher.select(
+        (root) => foldWidgetStates(root.document.authored, {
+          ...root.effective.projection,
+          desired: new Map(
+            [...root.effective.projection.desired].filter(
+              ([, entry2]) => wanted.has(entry2.e.id)
+            )
+          )
+        })
+      ).read();
+    },
+    selectWidget(descriptor) {
+      let prior;
+      let priorSignature;
+      return publisher.select((root) => {
+        const reading = widgetReading(root, descriptor);
+        const readingSignature = semanticSignature(reading);
+        if (readingSignature === priorSignature && prior) return prior;
+        prior = reading;
+        priorSignature = readingSignature;
+        return reading;
+      });
+    },
+    entry,
+    identify(revision, stamp = null, live = false) {
+      return publish({
+        document: { ...publisher.read().document, revision, stamp, live }
+      });
+    },
+    setHostAvailable(hostAvailable) {
+      return publish({ hostAvailable });
+    },
+    markRead(items) {
+      return publish({
+        markingRead: [...publisher.read().markingRead, ...structuredClone(items)]
+      });
+    },
+    settleMarkRead(items) {
+      const remaining = publisher.read().markingRead.filter(
+        (item) => !items.some(
+          (done) => done.message === item.message && done.version === item.version
+        )
+      );
+      return publish({ markingRead: remaining });
+    },
+    captureDocument(document) {
+      if (publisher.read().authoritative)
+        throw new Error("an admitted document changes only through adopt");
+      return publish({
+        document: {
+          ...structuredClone(document),
+          authored: new Map(structuredClone(document.authored)),
+          descriptors: new Map(structuredClone(document.descriptors))
+        }
+      });
+    },
+    setPhase(phase) {
+      return publish({ phase });
+    },
+    // Source revisions are digests with no order, so a reading's data is ordered by
+    // the moment the server took it: an answer taken before the one already accepted
+    // is older, whichever order the two arrive in.
+    acceptData(data, taken) {
+      if (taken < dataTaken) return false;
+      dataTaken = taken;
+      if (data.version === publisher.read().data.version) return false;
+      publish({ data: structuredClone(data) });
+      return true;
+    },
+    // Whether this answer could be adopted with `revision` showing, asked without
+    // adopting it. A live activation patches the document before it adopts, and a patch
+    // is not something to undo, so the candidate is judged before the user's page is
+    // touched. One definition read from two places, because two would be one edit away
+    // from a document patched to a revision the answer it was patched for declines to
+    // speak for.
+    canAdopt(state, document = null) {
+      return adoptable(state, document);
+    },
+    // Whether an answer is older than the one adopted, whichever revision it would
+    // show. Transport drops such an answer before preparing anything for it.
+    overtaken,
+    // `revision` is the revision a live activation has just installed into this
+    // document, and adopting the answer that named it is where its revision and stamp
+    // become current.
+    // The two are one reading: published apart, every widget renders once against a
+    // state holding no view of the revision the document now shows — an empty
+    // projection, indistinguishable for many widgets from their authored condition,
+    // so the second publication changes nothing and never reaches them.
+    adopt(state, document = null) {
+      const prior = publisher.read();
+      if (!adoptable(state, document)) return false;
+      const authoritative = structuredClone(state);
+      const { unresolved } = transition(
+        "log",
+        byAttempt(authoritative.browser.receipts)
+      );
+      const capture = (value, standing) => value === standing ? value : structuredClone(value);
+      publish({
+        document: document ? {
+          ...document,
+          registry: capture(document.registry, prior.document.registry),
+          authored: capture(document.authored, prior.document.authored),
+          descriptors: capture(document.descriptors, prior.document.descriptors),
+          ...document.messageBodies ? {
+            messageBodies: capture(
+              document.messageBodies,
+              prior.document.messageBodies
+            )
+          } : {}
+        } : prior.document,
+        authoritative,
+        unresolved,
+        phase: "ready"
+      });
+      return true;
+    },
+    enqueue(event, timestamp, plainText = event.text ?? event.token ?? "") {
+      if (entry(event.attempt)) return null;
+      const before = publisher.read();
+      const localId = PENDING + event.attempt;
+      const thread = isThreadEvent(event) ? { ...threadForAttempt(event, timestamp), plainText } : null;
+      const undoTarget = event.kind === "undo" ? before.unresolved.find((item) => item.localId === event.undoes) : null;
+      const target = undoTarget?.projection ?? before.effective.projection.classified.get(event.undoes);
+      const widget = before.document.authored.get(event.widget);
+      const spec = widget && before.document.registry[widget.tag]?.["x-state"]?.[event.action];
+      const unit = spec && (spec.unit === "widget" ? event.widget : event.detail[spec.unit]);
+      const localOrder = ++order;
+      const projection = event.kind === "undo" && target?.e.kind === "action" ? {
+        kind: "undo",
+        target,
+        coordinate: target.coordinate,
+        localOrder
+      } : event.kind === "action" && spec && typeof unit === "string" ? {
+        unit,
+        spec,
+        coordinate: JSON.stringify([event.widget, unit, event.action]),
+        localOrder,
+        e: {
+          ...event,
+          id: localId,
+          meaning: {
+            ...event.meaning,
+            state: stateDefinition(
+              widget.tag,
+              before.document.registry[widget.tag],
+              spec
+            )
+          }
+        },
+        value: spec.record ? foldedValue(event, spec.record) : event.action
+      } : null;
+      publish({
+        unresolved: [
+          ...before.unresolved,
+          {
+            event: structuredClone(event),
+            localId,
+            order: localOrder,
+            projection,
+            thread,
+            message: isMessageEvent(event) ? thread : null,
+            undoTarget: undoTarget?.event.attempt ?? null,
+            state: "sending",
+            admitted: null
+          }
+        ]
+      });
+      return entry(event.attempt);
+    },
+    // The POST accepted `attempt` as the log's `accepted`.
+    accept(attempt, accepted) {
+      if (!entry(attempt)) return;
+      const { unresolved } = transition("accept", /* @__PURE__ */ new Map([[attempt, accepted]]));
+      publish({ unresolved });
+    },
+    // The POST refused `attempt`, or it can no longer be sent. What depends on it goes
+    // with it: an undo of it, and a reply to its message. Returns those attempts.
+    refuse(attempt) {
+      const refused = entry(attempt);
+      if (!refused) return [];
+      const dependents = publisher.read().unresolved.filter(
+        (item) => item.undoTarget === attempt || refused.message?.id && item.event.parent === refused.message.id
+      ).map((item) => item.event.attempt);
+      const { unresolved } = transition("refuse", /* @__PURE__ */ new Map([[attempt, null]]));
+      publish({
+        unresolved: unresolved.filter(
+          (item) => !dependents.includes(item.event.attempt)
+        )
+      });
+      return dependents;
+    },
+    // A document pass carrying these receipts has run. Returns the attempts that left.
+    present(receipts) {
+      const { unresolved, left } = transition("present", byAttempt(receipts));
+      publish({ unresolved });
+      return left;
+    },
+    // The entries an adopted reading logs that the page has not yet presented.
+    unpresented: () => publisher.read().unresolved.filter((item) => UNPRESENTED.has(item.state)),
+    // The entries `release` would retire now, in ledger order.
+    releasable: () => publisher.read().unresolved.filter((item) => RELEASABLE.has(item.state)),
+    // Retire those of `attempts` still in a releasable state.
+    release(attempts) {
+      return publish({
+        unresolved: publisher.read().unresolved.filter(
+          (item) => !(attempts.has(item.event.attempt) && RELEASABLE.has(item.state))
+        )
+      });
+    },
+    nameParent(attempt, receipts) {
+      const item = entry(attempt);
+      const parent = item?.event.parent;
+      if (typeof parent !== "string" || !parent.startsWith(PENDING)) return;
+      const parentAttempt = parent.slice(PENDING.length);
+      const named = entry(parentAttempt)?.admitted?.id ?? receipts.find((receipt) => receipt.attempt === parentAttempt)?.id;
+      if (named)
+        update(attempt, (item2) => ({
+          ...item2,
+          namedParent: parent,
+          event: { ...item2.event, parent: named }
+        }));
+    },
+    nameUndo(attempt, receipts) {
+      const item = entry(attempt);
+      if (item?.event.kind !== "undo" || !item.undoTarget) return true;
+      const named = entry(item.undoTarget)?.admitted?.id ?? receipts.find((receipt) => receipt.attempt === item.undoTarget)?.id;
+      if (!named) return false;
+      update(attempt, (item2) => ({ ...item2, event: { ...item2.event, undoes: named } }));
+      return true;
+    }
+  });
+}
+
+// build/browser/presentation.ts
+function describeFailure(reason) {
+  const message = reason instanceof Error ? reason.message : String(reason);
+  if (!(reason instanceof AggregateError) || reason.errors.length === 0) return message;
+  return `${message}: ${reason.errors.map(describeFailure).join("; ")}`;
+}
+function createPresentationCoordinator({ reportFailure }) {
+  const changes = y(0);
+  const changed = () => {
+    changes.value += 1;
+  };
+  let document = null;
+  let documentGeneration = 0;
+  let semanticEpoch = -1;
+  let presentedEpoch = -1;
+  let barrier = null;
+  let waiters = [];
+  let regionWaiters = [];
+  const rendererGenerations = /* @__PURE__ */ new Map();
+  const regions = /* @__PURE__ */ new Map();
+  const validEpoch = (epoch) => {
+    if (!Number.isSafeInteger(epoch) || epoch < 0)
+      throw new TypeError("presentation epoch must be a non-negative safe integer");
+  };
+  function resolveWaiters() {
+    const remaining = [];
+    for (const waiter of waiters) {
+      if (document === null || !Object.is(waiter.document, document))
+        waiter.resolve("superseded");
+      else if (presentedEpoch >= waiter.semanticEpoch) waiter.resolve("presented");
+      else remaining.push(waiter);
+    }
+    waiters = remaining;
+  }
+  function regionOutcome(waiter) {
+    if (waiter.cancelled?.()) return "superseded";
+    if (document === null || !Object.is(waiter.document, document)) return "superseded";
+    if (semanticEpoch > waiter.semanticEpoch) return "superseded";
+    if (semanticEpoch < waiter.semanticEpoch || !barrier?.sealed) return null;
+    return [...waiter.regions].some(
+      (region) => barrier?.members.get(region)?.commit === null
+    ) ? null : "presented";
+  }
+  function resolveRegionWaiters() {
+    const remaining = [];
+    for (const waiter of regionWaiters) {
+      const outcome = regionOutcome(waiter);
+      if (outcome) waiter.resolve(outcome);
+      else remaining.push(waiter);
+    }
+    regionWaiters = remaining;
+  }
+  function completeBarrier() {
+    if (!barrier || barrier.completed || !barrier.sealed) return;
+    if ([...barrier.members.values()].some((member) => member.commit === null)) return;
+    barrier.completed = true;
+    presentedEpoch = barrier.publication.semanticEpoch;
+    resolveWaiters();
+  }
+  function begin(nextDocument, nextSemanticEpoch) {
+    validEpoch(nextSemanticEpoch);
+    const replacingDocument = document === null || !Object.is(document, nextDocument);
+    if (!replacingDocument && nextSemanticEpoch < semanticEpoch)
+      throw new RangeError("presentation epochs cannot decrease within one document");
+    if (!replacingDocument && nextSemanticEpoch === semanticEpoch) {
+      if (!barrier) throw new Error("the active document has no presentation barrier");
+      return barrier.publication;
+    }
+    if (replacingDocument) {
+      document = nextDocument;
+      documentGeneration += 1;
+      semanticEpoch = nextSemanticEpoch;
+      presentedEpoch = -1;
+      regions.clear();
+      rendererGenerations.clear();
+      resolveWaiters();
+    } else semanticEpoch = nextSemanticEpoch;
+    const publication = Object.freeze({
+      document: nextDocument,
+      semanticEpoch: nextSemanticEpoch
+    });
+    const members = /* @__PURE__ */ new Map();
+    for (const [region, record] of regions) {
+      let commit = record.commit;
+      if (commit !== null) {
+        commit = Object.freeze({ ...commit, semanticEpoch: nextSemanticEpoch });
+        record.commit = commit;
+      }
+      members.set(region, {
+        record,
+        ticket: record.ticket,
+        commit,
+        retired: false
+      });
+    }
+    barrier = {
+      publication,
+      members,
+      sealed: false,
+      completed: false
+    };
+    resolveRegionWaiters();
+    changed();
+    return publication;
+  }
+  function seal(publication) {
+    if (!barrier || barrier.publication !== publication) return false;
+    barrier.sealed = true;
+    completeBarrier();
+    resolveRegionWaiters();
+    changed();
+    return true;
+  }
+  function currentTicket(ticket) {
+    const record = ticket.record;
+    return ticket.documentGeneration === documentGeneration && regions.get(record.region) === record && record.ticket === ticket;
+  }
+  function finish(ticket, status, proof) {
+    if (!currentTicket(ticket) || document === null) return;
+    const record = ticket.record;
+    const commit = Object.freeze({
+      document,
+      semanticEpoch,
+      region: record.region,
+      renderer: record.renderer,
+      rendererGeneration: record.rendererGeneration,
+      ticketGeneration: ticket.ticketGeneration,
+      value: ticket.value,
+      status,
+      proof
+    });
+    record.ticket = null;
+    record.commit = commit;
+    const member = barrier?.members.get(record.region);
+    if (member?.record === record && member.ticket === ticket) {
+      member.ticket = null;
+      member.commit = commit;
+      completeBarrier();
+      resolveRegionWaiters();
+    }
+    changed();
+  }
+  function attach(region, renderer) {
+    if (document === null || barrier === null)
+      throw new Error("begin a presentation publication before attaching a renderer");
+    const record = {
+      region,
+      renderer,
+      rendererGeneration: (rendererGenerations.get(region) ?? 0) + 1,
+      ticketGeneration: 0,
+      ticket: null,
+      commit: null
+    };
+    rendererGenerations.set(region, record.rendererGeneration);
+    regions.set(region, record);
+    barrier.completed = false;
+    barrier.members.set(region, {
+      record,
+      ticket: null,
+      commit: null,
+      retired: false
+    });
+    changed();
+    const present = (value, completion, failSoft) => {
+      const ready = (async () => {
+        if (regions.get(region) !== record) {
+          await Promise.resolve(completion).catch(() => void 0);
+          return;
+        }
+        const ticket = {
+          documentGeneration,
+          record,
+          ticketGeneration: ++record.ticketGeneration,
+          value
+        };
+        record.ticket = ticket;
+        record.commit = null;
+        const presentingBarrier = barrier;
+        const member = presentingBarrier?.members.get(region);
+        if (presentingBarrier && member?.record === record) {
+          presentingBarrier.completed = false;
+          member.ticket = ticket;
+          member.commit = null;
+          member.retired = false;
+        }
+        resolveRegionWaiters();
+        changed();
+        try {
+          const proof = await completion;
+          finish(ticket, "committed", proof);
+        } catch (reason) {
+          const superseded = !currentTicket(ticket);
+          if (superseded && regions.get(record.region) !== record) return;
+          let proof;
+          let reported = reason;
+          let recovered = false;
+          if (failSoft) {
+            try {
+              proof = failSoft(reason);
+              recovered = true;
+            } catch (fallbackError) {
+              if (fallbackError !== reason)
+                reported = new AggregateError(
+                  [reason, fallbackError],
+                  "presentation and fail-soft failed"
+                );
+            }
+          }
+          reportFailure(reported);
+          if (superseded) return;
+          if (recovered) finish(ticket, "failed", proof);
+          else throw reported;
+        }
+      })();
+      void ready.catch(() => void 0);
+      return ready;
+    };
+    const disconnect = () => {
+      if (regions.get(region) !== record) return;
+      regions.delete(region);
+      const retiringBarrier = barrier;
+      const member = retiringBarrier?.members.get(region);
+      if (!retiringBarrier || member?.record !== record || retiringBarrier.completed)
+        return;
+      member.ticket = null;
+      member.commit = null;
+      member.retired = true;
+      queueMicrotask(() => {
+        if (barrier !== retiringBarrier || retiringBarrier.completed || retiringBarrier.members.get(region) !== member || !member.retired)
+          return;
+        retiringBarrier.members.delete(region);
+        completeBarrier();
+        resolveRegionWaiters();
+        changed();
+      });
+    };
+    return Object.freeze({ present, disconnect });
+  }
+  function committed(region, renderer, value) {
+    const record = regions.get(region);
+    return record && record.renderer === renderer && record.commit !== null && Object.is(record.commit.value, value) ? record.commit : null;
+  }
+  function whenPresented(targetDocument, targetSemanticEpoch) {
+    validEpoch(targetSemanticEpoch);
+    if (document === null || !Object.is(targetDocument, document))
+      return Promise.resolve("superseded");
+    const repairingCurrentEpoch = targetSemanticEpoch === semanticEpoch && barrier !== null && !barrier.completed;
+    if (presentedEpoch >= targetSemanticEpoch && !repairingCurrentEpoch)
+      return Promise.resolve("presented");
+    return new Promise((resolve) => {
+      waiters.push({
+        document: targetDocument,
+        semanticEpoch: targetSemanticEpoch,
+        resolve
+      });
+    });
+  }
+  async function whenCurrentPresented(current) {
+    for (; ; ) {
+      const target = current();
+      await whenPresented(target.document, target.semanticEpoch);
+      if (currentPresented(current)) return "presented";
+    }
+  }
+  function currentPresented(current) {
+    const latest = current();
+    const reading = read();
+    return Object.is(reading.document, latest.document) && reading.semanticEpoch === latest.semanticEpoch && reading.presentedEpoch >= latest.semanticEpoch && reading.sealed && reading.pending.length === 0;
+  }
+  function currentRegionsPresented(current, wanted) {
+    const target = current();
+    return target !== null && regionOutcome({
+      ...target,
+      regions: new Set(wanted),
+      resolve: () => {
+      }
+    }) === "presented";
+  }
+  async function whenCurrentRegionsPresented(current, regions2) {
+    const wanted = [...new Set(regions2)];
+    for (; ; ) {
+      const target = current();
+      if (target === null) return "superseded";
+      await new Promise((resolve) => {
+        const waiter = {
+          ...target,
+          regions: new Set(wanted),
+          cancelled: () => current() === null,
+          resolve
+        };
+        const outcome2 = regionOutcome(waiter);
+        if (outcome2) resolve(outcome2);
+        else regionWaiters.push(waiter);
+      });
+      const latest = current();
+      if (latest === null) return "superseded";
+      const outcome = regionOutcome({
+        ...latest,
+        regions: new Set(wanted),
+        resolve: () => {
+        }
+      });
+      if (outcome === "presented") return outcome;
+    }
+  }
+  function read() {
+    return Object.freeze({
+      document,
+      semanticEpoch,
+      presentedEpoch,
+      sealed: barrier?.sealed ?? false,
+      pending: Object.freeze(
+        barrier ? [...barrier.members].filter(([, member]) => member.commit === null).map(([region]) => region) : []
+      )
+    });
+  }
+  return Object.freeze({
+    begin,
+    seal,
+    attach,
+    committed,
+    whenPresented,
+    whenCurrentPresented,
+    currentPresented,
+    whenCurrentRegionsPresented,
+    currentRegionsPresented,
+    subscribe: (callback) => changes.subscribe(() => {
+      try {
+        callback();
+      } catch (reason) {
+        reportFailure(reason);
+      }
+    }),
+    read
+  });
+}
+var PRESENTATION_HELD = /* @__PURE__ */ Symbol("presentation held");
+function createPresentationSchedule(bindJob) {
+  let queued = [];
+  let running = [];
+  let scheduled = false;
+  let settling = false;
+  let pass = null;
+  function open() {
+    pass ??= (() => {
+      let settle;
+      let refuse;
+      const promise = new Promise((resolve, reject) => {
+        settle = resolve;
+        refuse = reject;
+      });
+      void promise.catch(() => void 0);
+      return { promise, settle, refuse };
+    })();
+  }
+  function collect(order, run) {
+    open();
+    queued.push({ order, run: bindJob(run) });
+    if (scheduled) return;
+    scheduled = true;
+    queueMicrotask(() => {
+      scheduled = false;
+      const round = queued;
+      queued = [];
+      round.sort((left, right) => left.order - right.order);
+      for (const { run: run2 } of round) {
+        const started = run2();
+        void started.catch(() => void 0);
+        running.push(started);
+      }
+      void drain();
+    });
+  }
+  async function drain() {
+    if (settling) return;
+    settling = true;
+    let failure = null;
+    let failed = false;
+    while (running.length || queued.length || scheduled) {
+      const started = running;
+      running = [];
+      for (const outcome of await Promise.allSettled(started))
+        if (outcome.status === "rejected" && !failed) {
+          failed = true;
+          failure = outcome.reason;
+        }
+    }
+    settling = false;
+    const finished = pass;
+    pass = null;
+    if (failed) finished.refuse(failure);
+    else finished.settle();
+  }
+  const passed = () => pass?.promise ?? Promise.resolve();
+  function presenter({
+    attach,
+    paint,
+    failSoft,
+    order = 0
+  }) {
+    let handle = null;
+    let held = null;
+    let generation = 0;
+    function claim(value) {
+      const claimed = ++generation;
+      let resolve;
+      let reject;
+      const completion = new Promise((done, fail) => {
+        resolve = done;
+        reject = fail;
+      });
+      const inherited = held;
+      held = null;
+      handle ??= attach();
+      const ready = handle?.present(value, completion, failSoft) ?? Promise.resolve();
+      void ready.catch(() => void 0);
+      inherited?.(void 0);
+      return { claimed, value, resolve, reject, ready };
+    }
+    async function run(ticket) {
+      if (ticket.claimed !== generation) {
+        ticket.resolve(void 0);
+        return;
+      }
+      let withheld = false;
+      try {
+        const painted = paint(ticket.value, () => ticket.claimed === generation);
+        if (painted === PRESENTATION_HELD) {
+          withheld = true;
+          if (ticket.claimed === generation) held = ticket.resolve;
+        } else ticket.resolve(await painted);
+      } catch (error) {
+        ticket.reject(error);
+      }
+      if (!withheld) await ticket.ready;
+    }
+    function sync(value) {
+      const ticket = claim(value);
+      collect(order, () => run(ticket));
+      return passed();
+    }
+    function disconnect() {
+      generation += 1;
+      const inherited = held;
+      held = null;
+      inherited?.(void 0);
+      handle?.disconnect();
+      handle = null;
+    }
+    return Object.freeze({ sync, disconnect });
+  }
+  return Object.freeze({ presenter, passed });
+}
+export {
+  LitElement,
+  PRESENTATION_HELD,
+  createPresentationCoordinator,
+  createPresentationSchedule,
+  createSemanticApplication,
+  describeFailure,
+  html,
+  noChange,
+  nothing,
+  render,
+  repeat
+};

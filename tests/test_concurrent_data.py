@@ -1,5 +1,6 @@
 """External data replacement and shared validation caching keep complete readings."""
 
+import json
 import os
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -11,6 +12,43 @@ from interact_support import STATED_TIMEOUT
 from leaf import data as data_model
 
 REGISTRY = {"$data": {"contracts": {"integer": {"schema": {"type": "integer"}}}}}
+
+
+def test_data_delivery_tracks_contract_and_validity_without_revising_the_bytes(
+    tmp_path,
+):
+    source = data_model.source_file(tmp_path, "numbers")
+    source.parent.mkdir()
+    source.write_text("1")
+    index = tmp_path / "data.json"
+    index.write_text(json.dumps({"sources": {"numbers": {"contract": "integer"}}}))
+    original = data_model.read_data(tmp_path, REGISTRY)
+    revision = original["sources"]["numbers"]["revision"]
+
+    os.utime(source, (2000, 2000))
+    assert data_model.read_data(tmp_path, REGISTRY)["version"] == original["version"]
+
+    index.write_text(json.dumps({"sources": {"numbers": {"contract": "count"}}}))
+    registry = {"$data": {"contracts": {"count": {"schema": {"type": "integer"}}}}}
+    rebound = data_model.read_data(tmp_path, registry)
+    assert rebound["sources"]["numbers"] == {
+        **original["sources"]["numbers"],
+        "contract": "count",
+        "updated": datetime.fromtimestamp(2000)
+        .astimezone()
+        .isoformat(timespec="seconds"),
+    }
+    assert rebound["version"] != original["version"]
+
+    registry["$data"]["contracts"]["count"]["schema"] = {"type": "string"}
+    invalid = data_model.read_data(tmp_path, registry)
+    assert invalid["sources"]["numbers"]["revision"] == revision
+    assert "error" in invalid["sources"]["numbers"]
+    assert "value" not in invalid["sources"]["numbers"]
+    assert invalid["version"] != rebound["version"]
+
+    registry["$data"]["contracts"]["count"]["schema"] = {"type": "integer"}
+    assert data_model.read_data(tmp_path, registry) == rebound
 
 
 def test_a_source_read_keeps_the_metadata_of_the_file_it_read(tmp_path, monkeypatch):

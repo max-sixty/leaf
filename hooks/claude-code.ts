@@ -11,8 +11,8 @@
  *   hook --harness claude-code --watch`), which prints a line and exits once one
  *   of the session's pages has input;
  * - a turn the user interrupts ends with no Stop hook, so the module starts the
- *   watch with the Interrupt payload, which closes the turn and wakes only for
- *   input that arrives after it;
+ *   watch with the Interrupt payload, which closes the turn. Receipt distinguishes
+ *   input that entered that turn from input held outside its context;
  * - a watch that wakes an idle session submits its line as a prompt, whose
  *   prompt hook hands the input over; one that wakes during a turn calls the
  *   prompt hook itself and appends what it returns to that turn, which reads it
@@ -103,9 +103,9 @@ async function stopWatch() {
 
 /** Keep one watch running for this ending. A watch at a Stop ending goes on past
  * another Stop ending; any other ending replaces it, and an interrupted one
- * always starts afresh, since its watch closes the turn and looks at the logs
- * anew. A watch is replaced only once the one before it has exited, since the
- * session's wait lease admits one, and one from before would read the closed
+ * always starts afresh, since its watch closes the turn and reads receipt
+ * evidence anew. A watch is replaced only once the one before it has exited,
+ * since the session's wait lease admits one, and one from before would read the closed
  * turn as the Stop hook's ending. Without Claude Code's process the module keeps
  * no watch, and leaves the turn's ending to the registrations beneath it. */
 async function ensureWatch($: EngineInterface, session: string, interrupted: boolean) {
@@ -130,6 +130,11 @@ async function ensureWatch($: EngineInterface, session: string, interrupted: boo
     let out = ''
     try {
       for await (const chunk of stream) if (chunk.stream === 'stdout') out += chunk.text
+    } catch {
+      // Cancellation can abort the output iterator before the process exits.
+      // Its result still owns completion and release of the watch's lease.
+    }
+    try {
       return (await stream.result).code === 0 ? out.trim() : ''
     } catch {
       return ''

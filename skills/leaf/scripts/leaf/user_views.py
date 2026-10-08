@@ -15,7 +15,7 @@ and ignored when its format does not belong to this implementation.
 """
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from leaf.files import read_json
@@ -106,7 +106,7 @@ _RECORD = _object(
 
 
 def _now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _records(page_dir: Path) -> dict:

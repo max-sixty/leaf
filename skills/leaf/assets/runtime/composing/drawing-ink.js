@@ -6,8 +6,8 @@
  * unsent drafts. Optional saved ink joins the same reading without another layer,
  * cache or observer; a page without that producer still draws its live gestures.
  *
- * Fixed, CSS-anchored marks follow their source through scroll without extending the
- * document's overflow. Equal complete descriptions retain the actual SVG node.
+ * Paint stands follow each source through scroll and its ancestors' clipping bands
+ * without extending document overflow. Equal descriptions retain the actual SVG node.
  *
  * A mark is drawn at its target's current size (`strokesIn`), so it stays on its element
  * in a narrower window. It scales with the element's box only, so text that reflows
@@ -17,9 +17,16 @@
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
 import { setChildren } from "../dom-children.js";
 import { shownBox } from "../geometry.js";
-import { atLayoutPrecision } from "../keeps.js";
 import { el } from "../widget-elements.js";
 import { anchorElement, anchorName } from "../anchor-names.js";
+import {
+  anchoredBy,
+  dropStand,
+  paintStand,
+  placement,
+  standBox,
+  standIn,
+} from "../target-paint-geometry.js";
 import { strokesIn, validDrawing } from "./drawing-record.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -84,7 +91,7 @@ export function createDrawingInk({ drawings }) {
 
   // The complete description is the retained-node key. Two equal marks in one pass
   // still consume distinct prior nodes in order.
-  function mark(drawing, target, className, id = "") {
+  function mark(drawing, target, className, id, clips) {
     if (!validDrawing(drawing)) return null;
     const box = shownBox(target);
     if (!box?.width || !box?.height) return null;
@@ -92,57 +99,46 @@ export function createDrawingInk({ drawings }) {
     const frame = drawingFrame(strokes);
     const { width, height } = frame;
     if (!width || !height) return null;
-    const holder = anchorElement(target);
-    const at = holder.getBoundingClientRect();
-    const anchor = anchorName(holder);
-    const left = atLayoutPrecision(box.left + frame.x - at.left);
-    const top = atLayoutPrecision(box.top + frame.y - at.top);
+    const anchor = anchorName(anchorElement(target));
     const data = pathData(strokes);
     const described = JSON.stringify([
       className,
       id,
       anchor,
-      left,
-      top,
       width,
       height,
       frame.x,
       frame.y,
       data,
     ]);
-    const standing = mounted.get(described)?.shift();
-    if (standing) {
-      const next = mounting.get(described) ?? [];
-      next.push(standing);
-      mounting.set(described, next);
-      return standing;
+    let standing = mounted.get(described)?.shift();
+    if (!standing) {
+      const svg = document.createElementNS(SVG_NS, "svg");
+      svg.classList.add("lf-drawing-mark", className);
+      if (id) svg.dataset.thread = id;
+      svg.setAttribute(
+        "viewBox",
+        `${frame.x} ${frame.y} ${frame.width} ${frame.height}`,
+      );
+      svg.setAttribute("preserveAspectRatio", "none");
+      svg.setAttribute("aria-hidden", "true");
+      svg.append(pathFor(data));
+      standing = paintStand(svg);
     }
-    const svg = document.createElementNS(SVG_NS, "svg");
-    svg.classList.add("lf-drawing-mark", className);
-    if (id) svg.dataset.thread = id;
-    svg.setAttribute("viewBox", `${frame.x} ${frame.y} ${frame.width} ${frame.height}`);
-    svg.setAttribute("preserveAspectRatio", "none");
-    svg.setAttribute("aria-hidden", "true");
-    Object.assign(svg.style, {
-      positionAnchor: anchor,
-      left: `calc(anchor(left) + ${left}px)`,
-      top: `calc(anchor(top) + ${top}px)`,
-      width: `${width}px`,
-      height: `${height}px`,
-    });
-    svg.append(pathFor(data));
     const next = mounting.get(described) ?? [];
-    next.push(svg);
+    next.push(standing);
     mounting.set(described, next);
-    return svg;
+    const placed = placement(target, false, false, clips);
+    return { standing, placed, frame, box };
   }
 
   function paint() {
     const nextObserved = new Set();
     const marks = [];
+    const clips = new Map();
     mounting = new Map();
     for (const { drawing, target, className, id } of drawings()) {
-      const painted = mark(drawing, target, className, id);
+      const painted = mark(drawing, target, className, id, clips);
       if (painted) {
         marks.push(painted);
         nextObserved.add(target);
@@ -150,7 +146,28 @@ export function createDrawingInk({ drawings }) {
     }
 
     // Reconciliation leaves unchanged ink and anything holding it in the document.
-    setChildren(layer, marks);
+    // Mount before resolving CSS anchors: a stand must follow its target in
+    // document order for the browser's anchoring plane to reach it.
+    setChildren(
+      layer,
+      marks.map(({ standing }) => standing.root),
+    );
+    for (const { standing, placed, frame, box } of marks) {
+      const anchor = anchoredBy(placed.surface, standing.root);
+      const stood = standIn(standing, placed, Boolean(anchor));
+      standBox(
+        standing.box,
+        {
+          left: box.left + frame.x,
+          top: box.top + frame.y,
+          right: box.left + frame.x + frame.width,
+          bottom: box.top + frame.y + frame.height,
+        },
+        stood,
+        anchor,
+      );
+    }
+    for (const stands of mounted.values()) for (const stand of stands) dropStand(stand);
     mounted = mounting;
     for (const target of observed)
       if (!nextObserved.has(target)) {
@@ -177,6 +194,7 @@ export function createDrawingInk({ drawings }) {
     paintFrame = 0;
     sizes.disconnect();
     observed.clear();
+    for (const stands of mounted.values()) for (const stand of stands) dropStand(stand);
     mounted.clear();
     mounting.clear();
     layer.replaceChildren();

@@ -83,6 +83,8 @@ export { repaint } from "./repaint.js";
 export {
   afterScript,
   cancelRender,
+  cancelAnimation,
+  nextAnimation,
   nextFrame,
   nextRender,
   sizeObserver,

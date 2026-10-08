@@ -7,6 +7,7 @@
   wa-radio-group,
   wa-radio,
   wa-slider,
+  wa-tooltip,
   wa-select,
   wa-option,
   wa-input,
@@ -89,3 +90,7 @@ wa-select::part(combobox) {
 wa-slider::part(track) {
   background: var(--border-2);
 }
+
+/* Tooltip text has its own contrast pair; Leaf's shared shadow text floor
+   otherwise replaces the component's inverse foreground with page ink. */
+wa-tooltip { color: var(--wa-tooltip-content-color); }

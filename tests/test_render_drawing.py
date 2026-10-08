@@ -2,6 +2,7 @@
 
 import json
 import re
+from io import BytesIO
 
 import pytest
 from click.testing import CliRunner
@@ -1376,3 +1377,41 @@ def test_page_mode_keeps_visible_native_ink_and_exact_drawing_comment(browser, s
         "() => performance.getEntriesByType('resource').some(e=>new URL(e.name).pathname.includes('/annotation-overlay/'))"
     )
     assert not physical
+
+
+CLIPPED_DRAWING_PAGE = leaf_page(
+    "drawing clips",
+    '<h1 id="title">Inspect a captured detail</h1>'
+    '<div id="viewport"><div id="pixels">Captured pixels</div></div>',
+    head="<style>#viewport { width: 360px; height: 200px; overflow: hidden; }"
+    "#pixels { width: 360px; height: 200px; background: var(--paper); }</style>",
+)
+
+
+def test_drawing_ink_follows_pixels_inside_their_ancestor_viewport(browser, serve):
+    """Panning a marked surface moves its ink, while its viewport cuts the paint.
+
+    The complete surface remains the drawing's coordinate frame: clipping must
+    not renormalize the mark to only the pixels currently visible.
+    """
+    page = open_page(browser, serve(CLIPPED_DRAWING_PAGE))
+    target = page.locator("#pixels")
+    draw_over(page, target, points=((0.2, 0.4), (0.4, 0.4), (0.7, 0.4)))
+    with sending(page, "the captured detail"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    page.keyboard.press("Escape")
+    mark = page.locator(".lf-drawing-posted")
+    expect(mark).to_have_count(1)
+    target.evaluate("el => { el.style.transform = 'translateX(-100px)'; }")
+    rendered(page)
+    viewport = page.locator("#viewport").bounding_box()
+    # Read the pixels the mark paints, rather than merely its uncut SVG box.
+    shown = Image.open(BytesIO(page.screenshot(animations="disabled"))).convert("RGB")
+    mark.evaluate("el => { el.style.visibility = 'hidden'; }")
+    bare = Image.open(BytesIO(page.screenshot(animations="disabled"))).convert("RGB")
+    difference = ImageChops.difference(shown, bare).getbbox()
+    assert difference is not None, "the visible part of the stroke must remain"
+    assert difference[0] >= viewport["x"] - 1
+    assert difference[2] <= viewport["x"] + viewport["width"] + 1
+    assert difference[1] >= viewport["y"] - 1
+    assert difference[3] <= viewport["y"] + viewport["height"] + 1

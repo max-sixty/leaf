@@ -5,29 +5,21 @@
  * whose absolute URLs resolve through the revision's import map. The generation
  * module stays native so page init can stamp it without rebuilding any chunk.
  * Website captures already carry their generation and preserve authored module
- * locations while bundling widgets. Both minify the framework modules
- * `build/browser/build.mjs` commits readable; the rest of the vendor directory ships
- * as upstream published it. Neither path runs on a user's machine.
+ * locations while bundling widgets. Both compile the framework `build/browser/build.mjs`
+ * commits as native modules into the kernel and drop its files, since only runtime
+ * modules import it; the rest of the vendor directory ships as committed. Neither
+ * path runs on a user's machine.
  */
 
-import {
-  cp,
-  mkdir,
-  mkdtemp,
-  readFile,
-  readdir,
-  realpath,
-  rm,
-  writeFile,
-} from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-import { build, transform } from "esbuild";
+import { build } from "esbuild";
 import { parse } from "acorn";
 
-import { frameworkModules } from "./browser/build.mjs";
+import { frameworkPaths, inFramework } from "./browser/build.mjs";
 
 export const runtimeEntries = [
   "leaf.js",
@@ -50,13 +42,17 @@ function layerPath(path, assetRoot) {
   return /^\/(?:runtime|vendor|widgets)\//.test(path) ? path.slice(1) : null;
 }
 
-/** Native modules' kernel imports are graph boundaries, not extra implementations. */
+/** Native modules' kernel imports are graph boundaries, not extra implementations.
+ *
+ * The framework is not native: the kernel absorbs it with the runtime it imports.
+ */
 async function nativeRuntimeEntries(layerRoot) {
   const entries = new Set();
   for (const directory of ["vendor", "widgets"]) {
     const root = join(layerRoot, directory);
     for (const name of await readdir(root, { recursive: true })) {
-      if (!name.endsWith(".js")) continue;
+      if (!name.endsWith(".js") || inFramework(browserPath(join(directory, name))))
+        continue;
       const path = join(root, name);
       // Shipped vendor modules permit only static local imports (shipped.mjs).
       // Package modules' static declarations carry the same public API edge.
@@ -95,7 +91,7 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot = 
         // Authored and package modules must share the runtime's existing instance.
         // Their page dependencies and vendor imports retain their public URL.
         return local &&
-          !local.startsWith("vendor/") &&
+          (!local.startsWith("vendor/") || inFramework(local)) &&
           !local.startsWith("page/") &&
           (assetRoot || (local !== GENERATION && !local.startsWith("widgets/")))
           ? { path: join(layerRoot, local) }
@@ -120,7 +116,7 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot = 
           );
           if (
             local === GENERATION ||
-            local.startsWith("vendor/") ||
+            (local.startsWith("vendor/") && !inFramework(local)) ||
             local.startsWith("widgets/")
           )
             return { external: true, path: `/${local}` };
@@ -154,18 +150,8 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot = 
       );
     }
     await cp(staging, outputRoot, { force: true, recursive: true });
-    for (const path of frameworkModules) {
-      const { code } = await transform(await readFile(join(layerRoot, path), "utf8"), {
-        format: "esm",
-        legalComments: "eof",
-        minify: true,
-      });
-      const target = join(outputRoot, path);
-      // A captured file may be a hard link another revision shares.
-      await rm(target, { force: true });
-      await mkdir(dirname(target), { recursive: true });
-      await writeFile(target, code);
-    }
+    for (const path of frameworkPaths)
+      await rm(join(outputRoot, path), { force: true, recursive: true });
   } finally {
     await rm(staging, { force: true, recursive: true });
   }

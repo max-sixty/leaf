@@ -1,9 +1,7 @@
 /* A visual run is one active-case review: a heading, then one evidence pane whose
  * header is the case navigation. Disposition stays above the evidence and supporting
- * capture facts follow it. The pane is the layer's own grammar (data-lf-reading-role,
- * in the kernel's theme), so in a workspace Layout its body fills the review's row and
- * the stage takes what the case leaves; everywhere else the same order flows with the
- * document and the stage takes a height from the review's width. */
+ * capture facts follow it. The stage is as tall as its captures, so the page scrolls
+ * through the evidence rather than a smaller box inside the review. */
 :scope:is(lf-visual-review) {
   --lf-block-frame: 1;
   display: grid;
@@ -178,14 +176,9 @@
   padding: 0;
 }
 
-/* The case takes the pane body's height where the body has one, which gives the stage
-   row what the case's furniture leaves; in flow the percentage has nothing to resolve
-   against and the case takes its content's height. */
 .lf-vr-case {
   box-sizing: border-box;
-  height: 100%;
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
   gap: var(--sp-1);
   min-width: 0;
   padding: var(--sp-2) var(--sp-3);
@@ -346,9 +339,8 @@
   font: inherit;
 }
 
-/* The stage never sizes to its captures. Its intrinsic height comes from the review's
-   width (half of it, within a laptop-readable range), which is the stage's height in
-   flow; a bounded case's minmax(0, 1fr) row overrides it with the height left. */
+/* The stage scrolls only sideways, for captures shown wider than the review; `hidden`
+   rather than `visible` down, which would compute to `auto` beside it. */
 .lf-vr-shot-host {
   box-sizing: border-box;
   display: grid;
@@ -356,10 +348,7 @@
   justify-items: center;
   min-width: 0;
   width: 100%;
-  min-height: 0;
-  contain: size;
-  contain-intrinsic-block-size: clamp(14rem, 50cqi, 35rem);
-  overflow: auto;
+  overflow: auto hidden;
   border: 1px solid var(--rule);
   border-radius: var(--r);
   background: color-mix(in srgb, var(--field) 42%, var(--paper));
@@ -617,10 +606,6 @@
     display: none !important;
   }
 
-  .lf-vr-case {
-    height: auto;
-  }
-
   .lf-vr-case[hidden] {
     display: grid !important;
   }
@@ -631,7 +616,6 @@
   }
 
   .lf-vr-shot-host {
-    contain: none;
     overflow: visible;
   }
 

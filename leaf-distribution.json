@@ -1,7 +1,7 @@
 {
   "producer": {
-    "commit": "4039280610d7",
-    "committed": "2026-10-07T10:37:53-07:00",
+    "commit": "fdc42dcf358f",
+    "committed": "2026-10-07T17:42:06-07:00",
     "dirty": false
   },
   "runtime_paths": [
@@ -148,6 +148,7 @@
     "reach.js",
     "reaction-standing.js",
     "reactions.js",
+    "reading-continuity.js",
     "reading-place.js",
     "reading-regions.js",
     "rect.js",

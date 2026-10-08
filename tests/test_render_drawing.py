@@ -1088,9 +1088,8 @@ def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
 
 
-def test_draw_mode_cursor_matches_the_widget_controls_it_captures(browser, serve):
-    """Generated controls remain part of the drawable page plane. Their cursor must
-    promise the stroke that takes their pointer press instead of promising activation."""
+def test_draw_mode_leaves_widget_controls_usable(browser, serve):
+    """An offered widget control keeps its pointer action and cursor in Draw mode."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     option = page.locator("#bg-choice-trail")
     control = option.locator(".lf-pick")
@@ -1100,20 +1099,12 @@ def test_draw_mode_cursor_matches_the_widget_controls_it_captures(browser, serve
     page.mouse.move(*point)
     page.keyboard.press("w")
 
-    assert control.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
+    assert control.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
     page.mouse.click(*point)
 
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    assert option.get_attribute("chosen") is None
+    expect(option).to_have_attribute("chosen", "")
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
-
-    assert control.evaluate("el => getComputedStyle(el).cursor") == "crosshair"
-    page.evaluate(
-        """() => document.querySelector('.lf-thread-panel').append(
-          document.querySelector('#bg-choice-trail')
-        )"""
-    )
-    assert control.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
 
 
 def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):

@@ -1015,11 +1015,13 @@ button.lf-media-open { cursor: zoom-in; }
   .lf-fab-bar[data-lf-presentation="inline"] { display: none !important; }
 }
 :is(.lf-btn, .button):is(.on, [aria-pressed="true"]) { border-color: var(--accent); color: var(--accent); background: var(--chip); }
-/* Draw mode takes page-widget presses before their controls can act. This rule is in
-   this file because document selectors do not cross a declared shadow root. */
+/* Draw mode takes page-word presses while offered controls keep their gestures.
+   Document selectors do not cross a declared shadow root. */
 :host-context(html[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
 :host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
-:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat * {
+:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat *,
+:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer],
+:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer] * {
   cursor: auto !important; }
 /* Copy floats over the code's corner without changing its box or scrolling text.
    Pointer and keyboard intent reveal it; touch keeps the control available. */

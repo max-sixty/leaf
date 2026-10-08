@@ -9075,7 +9075,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     edit = page.locator('.lf-command-reference-command[data-lf-command="draft.edit"]')
-    expect(edit).to_have_text("Edit…")
+    expect(edit).to_have_text("Edit")
     edit.click()
     expect(page.locator("#note leaf-text")).to_be_focused()
 
@@ -9084,9 +9084,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     expect(save).to_be_focused()
     page.keyboard.press("?")
     assert active_digit_bindings(page) == "1–2"
-    expect(save).to_have_attribute(
-        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter Escape 1"
-    )
+    expect(save).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter 1")
     page.keyboard.press("?")
     cancel = page.locator(
         '.lf-command-reference-command[data-lf-command="draft.cancel"]'

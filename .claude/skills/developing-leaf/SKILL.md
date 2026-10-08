@@ -374,7 +374,7 @@ base and the working tree:
 
 ```bash
 npm ci --prefix evals
-uv run leaf-dev eval [CASE]... --base [--harness claude-code|codex] [--repeat N]
+uv run leaf-dev eval [CASE]... --base --harness claude-code|codex [--repeat N]
 npm run view --prefix evals
 ```
 

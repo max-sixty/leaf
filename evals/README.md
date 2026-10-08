@@ -87,18 +87,18 @@ this path. These scores measure the judge, not the agent's behavior.
 
 A complete task instead names `metadata.executor`, a `leaf_dev` module, and
 `metadata.scenario`, a key of that module's `CASES`. The executor builds fixtures, runs the agent
-through resumed phases or live user rounds, and returns a boolean per check; its
+through resumed phases or live user rounds, and returns a boolean per deterministic check; its
 `expected_checks` declares the check names, which become one assertion each, so a
-check that never ran fails rather than disappearing. An executor whose output lists
-screenshots, beside the request they answer, also declares `rubrics`: `agent-rubric`
-assertions a screenshot judge grades by opening them. It writes them to the `shots`
-directory it is given, the only place the judge may read. `metadata.conditions` and
-`metadata.harnesses` restrict where it runs.
+check that never ran fails rather than disappearing. An executor may also declare
+`rubrics`: text `llm-rubric` or screenshot `agent-rubric` assertions. Reading
+answers use the text judge. A screenshot executor lists captures beside the request
+they answer and writes them to the supplied `shots` directory, the only place its
+judge may read. `metadata.conditions` and `metadata.harnesses` restrict where it runs.
 
 | Executor | Runs |
 | --- | --- |
 | `arrangement_eval` | Authors, checks and revises a page from `request.md`; screenshots each version on a laptop, at 900px with tall and short windows, and on a phone. For tasks that request a decision, Leaf also seeds a user choice, has a fresh reader report it, and checks a further revision keeps it. |
-| `usability_eval` | Seeded pages read, resumed and revised, and live handoffs where the harness posts user moves through the served page. Fixtures are in `usability/fixtures/`. |
+| `usability_eval` | Seeded pages read, resumed and revised, and live handoffs where the harness posts user moves through the served page. Reading answers use semantic rubrics; script repairs exercise the affected control. Fixtures are in `usability/fixtures/`. |
 | `delivery_eval` | Comments posted between turns and mid-turn, each of which must be picked up, started and answered. |
 | `reader_eval` | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards. |
 

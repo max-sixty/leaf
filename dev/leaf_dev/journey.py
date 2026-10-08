@@ -48,6 +48,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -708,63 +709,73 @@ def harness_session(browser, harness: str) -> Iterator[tuple[Session, str, dict]
     of the login, is removed. The first comment goes out once the setup turn has
     ended and the page reports a watcher listening."""
     run = run_directory(ROOT / ".tmp" / "journey")
-    arm, state, work = run / "arm", run / "state", scratch()
-    page_dir = work / "page"
-    version = working_version(build_arm(None, arm))
-    prepare(arm, state, page_dir)
-    setup_ended = threading.Event()
-    with (
-        LiveChild(
-            work,
-            REQUEST,
-            "--plugin-dir",
-            str(arm),
-            stderr=run / "stderr.txt",
-            limit=SETUP_LIMIT + TURN_LIMIT,
-            timed_out=run / "timed-out",
-            dirs=[arm],
-            env={"XDG_STATE_HOME": str(state)},
-            harness=harness,
-        ) as child,
-        (run / "stream.jsonl").open("w") as stream,
-    ):
-
-        def record() -> None:
-            for line in child.records():
-                stream.write(json.dumps(line) + "\n")
-                stream.flush()
-                if line.get("type") == "result":
-                    setup_ended.set()
-
-        reader = threading.Thread(target=record, daemon=True)
-        reader.start()
-        deadline = time.monotonic() + SETUP_LIMIT
+    arm, state = run / "arm", run / "state"
+    with scratch() as work:
+        page_dir = work / "page"
+        version = working_version(build_arm(None, arm))
+        prepare(arm, state, page_dir)
+        setup_ended = threading.Event()
         try:
-            while True:
-                current = read_page_state(arm, state, page_dir)
-                if setup_ended.is_set() and current["server"] and current["listening"]:
-                    break
-                check(
-                    reader.is_alive() and time.monotonic() < deadline,
-                    f"the {harness} session stopped or ran past {SETUP_LIMIT} s "
-                    "before its page had a watcher listening; its stream is "
-                    f"{run / 'stream.jsonl'}",
-                )
-                time.sleep(1)
-            session = local_session(browser, current["server"]["url"])
-            named = {"target": harness, "harness": harness}
-            if child.transport is not None:
-                named["transport"] = child.transport
-            yield session._replace(stream=run / "stream.jsonl"), version, named
+            with (
+                (run / "stream.jsonl").open("w") as stream,
+                LiveChild(
+                    work,
+                    REQUEST,
+                    "--plugin-dir",
+                    str(arm),
+                    stderr=run / "stderr.txt",
+                    limit=SETUP_LIMIT + TURN_LIMIT,
+                    timed_out=run / "timed-out",
+                    dirs=[arm],
+                    env={"XDG_STATE_HOME": str(state)},
+                    harness=harness,
+                ) as child,
+                ThreadPoolExecutor(max_workers=1) as observer,
+            ):
+
+                def record() -> None:
+                    for line in child.records():
+                        stream.write(json.dumps(line) + "\n")
+                        stream.flush()
+                        if line.get("type") == "result":
+                            setup_ended.set()
+
+                reader = observer.submit(record)
+                deadline = time.monotonic() + SETUP_LIMIT
+                try:
+                    while True:
+                        current = read_page_state(arm, state, page_dir)
+                        if (
+                            setup_ended.is_set()
+                            and current["server"]
+                            and current["listening"]
+                        ):
+                            break
+                        if reader.done():
+                            reader.result()
+                        check(
+                            not reader.done() and time.monotonic() < deadline,
+                            f"the {harness} session stopped or ran past {SETUP_LIMIT} s "
+                            "before its page had a watcher listening; its stream is "
+                            f"{run / 'stream.jsonl'}",
+                        )
+                        time.sleep(1)
+                    session = local_session(browser, current["server"]["url"])
+                    named = {"target": harness, "harness": harness}
+                    if child.transport is not None:
+                        named["transport"] = child.transport
+                    yield session._replace(stream=run / "stream.jsonl"), version, named
+                except BaseException:
+                    child.abort()
+                    raise
+                else:
+                    # Failed work is joined by the executor as its error escapes.
+                    # Successful work also surfaces an observation failure.
+                    child.close()
+                    reader.result()
         finally:
-            child.close()
-            # A turn in progress ends on its own once stdin closes; the context's
-            # exit kills whatever outlasts this.
-            reader.join(60)
             run_leaf(arm, state, "server", "stop", str(page_dir))
             shutil.copy(page_dir / "events.jsonl", run / "events.jsonl")
-            for scratch_dir in (work, work.with_name(f"{work.name}-home")):
-                shutil.rmtree(scratch_dir, ignore_errors=True)
 
 
 def working_version(commit: str) -> str:

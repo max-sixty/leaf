@@ -50,8 +50,13 @@ nothing to weigh: write the true thing straight and name the change in the versi
 note.
 
 Use `lf-draft` for a passage whose wording belongs to the user. Their submitted
-words remain effective across revisions. Editing uses the same Markdown text field
-as a message; Save records the exact source as the passage's replacement text.
+words remain effective across revisions. The passage renders Markdown for reading;
+Edit opens the exact source in the shared Markdown text field. Save records that
+source as the replacement, Cancel discards the unsaved edit, and Close keeps it.
+The editing controls stay inside the box; comments and receipts use annotations.
+The `<pre>` holds exact Markdown: indentation and trailing whitespace are content,
+so keep HTML layout indentation outside it. Enter writes a new line; ⌘/Ctrl+Enter
+saves the edit.
 
 ## Honor user state
 

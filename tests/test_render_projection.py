@@ -107,7 +107,6 @@ from render_harness import (
     example_media,
     expect_asks_answered,
     expect_banner_control_offered,
-    fills_the_window,
     holding,
     leaf_page,
     open_page,
@@ -1036,21 +1035,26 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     assert after_box["top"] >= before_box["bottom"]
     resized(page, 1200, 900)
     expect(widget).to_have_attribute("data-compare-layout", "stack")
-    flow_height = shot_host.evaluate("node => node.getBoundingClientRect().height")
-    page.evaluate(
-        "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
-    )
+
+    # In flow the stage is as tall as the view it shows, whatever part of the page
+    # the window shows.
+    def stage_height():
+        return shot_host.evaluate("node => node.getBoundingClientRect().height")
+
+    def scrolled(top):
+        page.evaluate(f"() => document.scrollingElement.scrollTo(0, {top})")
+
+    compare_height = stage_height()
+    scrolled("document.scrollingElement.scrollHeight")
+    assert stage_height() == pytest.approx(compare_height, abs=1)
     widget.get_by_role("radio", name="Flip").evaluate("node => node.click()")
     expect(widget).to_have_attribute("data-inspection-mode", "flip")
-    assert shot_host.evaluate(
-        "node => node.getBoundingClientRect().height"
-    ) == pytest.approx(flow_height, abs=1), (
-        "ordinary-flow evidence height must not depend on its viewport offset"
-    )
+    flip_height = stage_height()
+    assert flip_height < compare_height
+    scrolled(0)
+    assert stage_height() == pytest.approx(flip_height, abs=1)
     widget.get_by_role("radio", name="Compare").evaluate("node => node.click()")
-    assert shot_host.evaluate(
-        "node => node.getBoundingClientRect().height"
-    ) == pytest.approx(flow_height, abs=1)
+    assert stage_height() == pytest.approx(compare_height, abs=1)
 
     widget.get_by_role("radio", name="Full frame").click()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
@@ -1062,9 +1066,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
 
     widget.get_by_role("radio", name="100%").click()
     expect(widget).to_have_attribute("data-inspection-scale", "actual")
-    assert shot_host.evaluate(
-        "node => node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight"
-    )
+    assert shot_host.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
     captured_width = first.locator("lf-shot img").first.evaluate(
         "image => image.getBoundingClientRect().width"
     )
@@ -1457,16 +1459,16 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
 
 
 def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
-    """A focused review is a root workspace, not prose followed by a narrow widget.
+    """A focused review is a wide page, not prose followed by a narrow widget.
 
     The case picker never taxes the evidence width, the disposition is available before
-    the pixels, and a tall mobile pair keeps its authored focus width side by side inside
-    the scrolling evidence stage. Capture facts follow the comparison rather than delaying it.
+    the pixels, and a tall mobile pair keeps its authored focus width side by side in an
+    evidence stage as tall as the pair, which the page scrolls through. Capture facts
+    follow the comparison rather than delaying it.
     """
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1366, 768)
     widget = page.locator("#visual-review-run")
-    fills_the_window(page, widget, True)
     gallery_scope = widget.get_by_role("radiogroup", name="Scope")
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
@@ -1483,12 +1485,8 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         }"""
     )
     assert geometry["widget"]["width"] > 1000
-    assert geometry["widget"]["bottom"] <= 768
     assert geometry["decision"]["bottom"] <= geometry["evidence"]["top"]
-    # 340 rather than 360 since a root workspace keeps its title clear of the banner
-    # (the sp-4 it pads its own top by comes out of the stage at a 768px laptop).
-    assert geometry["evidence"]["height"] >= 340, geometry
-    assert geometry["evidence"]["bottom"] <= 768, geometry
+    assert geometry["capture"]["bottom"] <= geometry["evidence"]["bottom"] + 1, geometry
     # The capture opens at the stage's top edge, inside its border: the stage sets the
     # box of the lf-shot it holds over that widget's own block margin.
     assert geometry["capture"]["top"] - geometry["evidence"]["top"] <= 1.5, geometry
@@ -1499,7 +1497,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     ).first.evaluate("node => node.getBoundingClientRect().width")
     assert case_image_width == pytest.approx(350, abs=1), geometry
     assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
-        "node => node.scrollHeight > node.clientHeight"
+        "node => node.scrollHeight <= node.clientHeight + 1"
     )
     assert geometry["support"]["top"] >= geometry["evidence"]["bottom"]
     case = widget.locator(".lf-vr-case:not([hidden])")
@@ -1566,15 +1564,8 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     resized(page, 390, 900)
     assert root_overflow(page) == 0
     resized(page, 1366, 768)
-    fills_the_window(page, widget, True)
     shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
     assert shot_host.evaluate("node => node.scrollWidth == node.clientWidth")
-    shot_host.evaluate("node => node.style.height = '120px'")
-    expect(widget).to_have_attribute("data-compare-layout", "side")
-    assert widget.locator(".lf-vr-case:not([hidden]) .lf-shotframe img").first.evaluate(
-        "node => node.getBoundingClientRect().width"
-    ) == pytest.approx(350, abs=1)
-    shot_host.evaluate("node => node.style.removeProperty('height')")
     expect(widget).to_have_attribute("data-compare-layout", "side")
     widget.locator(".lf-vr-shot-host").evaluate_all(
         "nodes => nodes.forEach(node => node.style.setProperty('--lf-vr-capture-width', '300px'))"
@@ -1607,8 +1598,33 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     expect(gallery_scope).to_be_hidden()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
     assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
-        "node => node.scrollHeight > node.clientHeight"
+        "node => node.scrollHeight <= node.clientHeight + 1"
     )
+
+
+def test_visual_review_fits_frames_using_the_authored_spacing(browser, serve):
+    """Fitting and the painted frame tracks agree when spacing is authored in rem."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    widget = page.locator("#visual-review-run")
+    widget.locator(".lf-vr-shot-host").evaluate_all(
+        "nodes => nodes.forEach(node => node.style.setProperty('--sp-2', '1rem'))"
+    )
+    resized(page, 760, 800)
+    expect(widget).to_have_attribute("data-compare-layout", "side")
+    geometry = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
+        """host => {
+          const shot = host.querySelector('lf-shot');
+          const frames = [...shot.querySelectorAll('.lf-shotframe')]
+            .map(frame => frame.getBoundingClientRect());
+          return {available: host.clientWidth, width: shot.getBoundingClientRect().width,
+                  gap: frames[1].left - frames[0].right,
+                  rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
+                  overflow: host.scrollWidth - host.clientWidth};
+        }"""
+    )
+    assert geometry["gap"] == pytest.approx(geometry["rem"], abs=0.1), geometry
+    assert geometry["width"] == pytest.approx(geometry["available"], abs=0.1), geometry
+    assert geometry["overflow"] == 0, geometry
 
 
 def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(

@@ -132,7 +132,12 @@ a comment or navigation target still opens the file that owns its line.
 Run `leaf page media <page> <file>…` and use each printed `/media/…` `path` for
 images, video, and audio. Never inline media bytes. Use a recording for a fixed
 demo or screen capture; keep a live widget where the user should manipulate the
-subject. Give native `<video>` and `<audio>` elements `controls`, label their
+subject. Show a browser journey recorded with Playwright as its trace in `lf-trace`
+rather than as its video, so the user can step through each recorded action and
+comment on its screenshots and saved page elements. `lf-trace` travels in the `playwright` package; after
+`leaf page init --package playwright <page>`,
+`leaf page instructions <page> producer --contract playwright-trace` gives the
+import command. Give native `<video>` and `<audio>` elements `controls`, label their
 content, and give a video a `poster` image. MP4 and WebM video, and MP3, M4A,
 Ogg, and WAV audio are admitted; codec playback is the browser's. Export embeds
 the complete recording for offline playback with no size cap or omissions: base64

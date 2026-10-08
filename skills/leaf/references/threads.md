@@ -207,9 +207,15 @@ not read yet needs no follow-up from you, and a read one is not an answer.
 
 ## Summarize a long discussion
 
-New input in a long thread may carry a suggested range to summarize. Choose whether
-and when a summary would help the user navigate the discussion; the suggestion adds
-no response obligation. Read the original messages with
+Keep the current topic easy to find as a thread grows. Summarize earlier discussion
+when the topic has moved on or settled detail obscures the current exchange. Do this
+as part of answering new input, without waiting for the user to ask. Keep messages
+whose individual wording or reasoning still matters to the current exchange directly
+readable.
+
+New input in a long thread may carry `summary_hint`, a suggested range. Use it to
+review the earlier discussion, choosing endpoints that fit the topic. Read the
+original messages with
 `leaf page state <page> <thread-id>` and select a contiguous range whose endpoints are spoken
 messages rather than reactions. Summarize its decisions,
 reasoning, and remaining questions. Keep the current exchange outside the range

@@ -26,6 +26,10 @@ has tried; settle that before building it.
 
 ### User experience
 
+- **#25 — Answer one decision beside its evidence and on a board.** A section's
+  picker and its board card currently record independent facts. Choose the owner
+  and test both views against one decision, including ordering, write-ins and
+  revision retraction ([design](notes/shared-decisions.md)).
 - **Make complete reading journeys feel coherent.** Audit a document, workspace,
   board or table, and populated thread in light and dark at wide and narrow
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
@@ -74,6 +78,11 @@ has tried; settle that before building it.
   acknowledgment could make an agent pause over an existing decision. Revisions
   currently remain unrestricted; decide whether such a reminder helps before
   adding one.
+
+- **#3 — Prevent an obsolete execution from closing continued work.** A later
+  `task start` records a new execution, but admission still accepts an older
+  session's `task_end`. Test competing continuations and keep the delayed result
+  from closing the newer work ([comparison proposal](notes/comparisons.md#concrete-follow-up-proposals-2026-10-04-revised-2026-10-05)).
 
 - **Compare Leaf authoring with plain HTML (#19).** The
   [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
@@ -521,8 +530,9 @@ Revisit these when their stated trigger becomes real; they are not an active que
   state before answering. Measure that cost before expanding tool observation;
   a compiled hook path is a further step if import cleanup is insufficient.
 - **Invoker commands:** revisit when the browser support Leaf needs can replace
-  the current dialog and popover handlers. See the
-  [dependency survey](notes/dependency-survey.md).
+  the current dialog and popover handlers. At a Chromium floor of at least 135,
+  test `command` and `commandfor`; Leaf still owns layer ordering, semantic state
+  and focus restoration.
 - **MCP Apps:** rebuild inline hosting as the direct-resource design when a host
   the user runs renders MCP Apps. See [notes/mcp-apps/PROJECT.md](notes/mcp-apps/PROJECT.md).
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.

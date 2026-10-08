@@ -1206,6 +1206,8 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
     """The preview holds replacement back; its writer finishes before the test
     releases the page, including when a preview assertion fails."""
     before = registry_storage.layer_generation(page_dir)
+    theme = page_dir / "theme.css"
+    theme.write_text(theme.read_text() + "\n/* repair this installed edit */\n")
     init_waiting = threading.Event()
     real_page_locked = vendoring_model.page_locked
 

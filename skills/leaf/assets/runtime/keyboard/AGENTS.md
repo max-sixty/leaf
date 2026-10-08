@@ -141,8 +141,8 @@ scopes), `register.js` (scope order, page commands, the Escape ladder),
 (the `g` grammar), `control-keys.js`,
 `presentation.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,
 `command-hints.js` (inline hints from reachable command bindings),
-`key-badge-placement.js`, `disclosure.js`, and `touch-controls.js` (a finger's stand-ins
-for the keys).
+`key-badge-placement.js`, `chip-seats.js` (where key chips stand), `disclosure.js`,
+and `touch-controls.js` (a finger's stand-ins for the keys).
 
 Test a changed binding inside and outside its scope and inside any native editor
 the scope contains, and check entry and exit symmetry against the whole register.

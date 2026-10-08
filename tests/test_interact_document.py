@@ -960,9 +960,11 @@ def test_a_move_on_a_replaced_revision_lands_only_where_its_column_held(page_dir
 
 
 def test_page_init_reports_malformed_current_source_after_revendoring(page_dir):
-    """Current declaration errors still prevent an edit activating."""
+    """A real layer repair reports current declaration errors that block activation."""
     source = page_dir / "index.html"
     source.write_text(PAGE.replace("</main>", '<p id="plan">Duplicate.</p></main>'))
+    theme = page_dir / "theme.css"
+    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert "index.html will not activate until" in result.output

@@ -1,3 +1,22 @@
+# The compact-picker handoff in task 01a118db-fd01-7a11-a01a-d7715c192a3c
+# missed visual judgment of an open highlighted menu (2026-10-07). A replay
+# preserving only its green reports passed 0/2 on frozen HEAD; the first draft
+# passed 1/2, with the other response requiring broader open/focus review.
+# Final state-inspection wording passed one matched pair (base 0/1, final 1/1).
+# Visible-change and interaction-fix guards passed once each on both final arms.
+# These score read-only review decisions, not executed browser verification.
+# The format survey in task 01a1176d-5ba1-78a3-9d98-b7214925bfa4 (2026-10-07)
+# supplied an invented baseline, inert filters and unrelated replacement choices.
+# Review scope failed 2/2 on old guidance and passed 2/2 on the final wording;
+# fidelity decisions passed 1/2 before and 2/2 after. These are read-only decisions.
+# The early-construction context discriminated one matched pair: old guidance
+# applied replacements to nonchip news faces; final guidance kept them as context.
+# Two further final construction decisions passed. The ordering context failed
+# on an intermediate wording and passed on final (one valid draw each).
+# Explicit partial-sketch, operation-removal and whole-news-scope guards passed
+# on final; they stay in scratch because they have not discriminated wordings.
+# Separately, a real-control rehearsal exercised search, filtering and CLI agent
+# arrivals in both samples. It establishes feasibility, not an instruction effect.
 # Derived from the review handoff in Codex task 01a107e5-0798-7792-8b20-0d0939bfec76:
 # a tested refactor handed the user an unchanged sample to check. This fixture
 # supplies completed baseline/candidate checks.
@@ -8,6 +27,13 @@
 # review and preview-state guidance (2026-10-06); hover and static siblings passed
 # both arms. A separate executed artifact check repaired the GIF and preview in
 # both arms; it establishes feasibility, not an instruction effect.
+# Additional contexts reconstruct the native-editor handoff in Codex task
+# 01a112f0-ec4f-78c1-bff1-04852e647dce. The interaction-fix context failed
+# 2/2 on frozen HEAD and on a routing-only draft. Keeping full-page comparisons
+# in agent verification passed 2/2 valid serial runs. The judgment/context rule
+# passed preserved-layout plus temporary small-detail and whole-workflow choice
+# guardrails once each. These score handoff text from completed fixture checks,
+# not a replay or new browser verification of the source implementation.
 description: review-shows-the-change
 metadata:
   purpose: 'Maintainer review: agent verifies preservation; user inspects the change or decides an open question.'
@@ -58,12 +84,274 @@ assert:
     value: |
       Pass if the review points Max at the changed command declaration/caller
       contract and treats preserving existing interactions as agent verification.
-      Fail if it asks Max to try, check, compare, or confirm unchanged interactions
-      as review work, even if it also calls them a regression check or mentions
-      green tests. Judge the practice paragraph as well as the thread reply.
-      An optional illustrative sample may remain when the actual review request
-      is the changed contract. Do not demand specific wording.
+      Judge the practice paragraph as well as the thread reply. An optional
+      illustrative sample may include instructions for operating preserved
+      interactions when the actual review request concerns the changed contract.
+      Fail if either asks Max to establish, confirm, or approve unchanged behavior
+      or equivalence, even when that verification request is labeled optional or
+      mentions green tests. Do not demand specific wording.
 variants:
+  appearance-comparison:
+    metadata:
+      purpose: An appearance comparison preserves the existing surface and its operations.
+    vars:
+      prompt: |
+        Read the repository's developing-leaf skill at
+        `../../.claude/skills/developing-leaf/SKILL.md` relative to the leaf skill.
+
+        Max asked:
+        "We have these buttons occasionally like `1 new reply`. I don't love
+        the UI of these buttons; they're sometimes not obvious enough, but
+        they're also quite large. Do a survey of where we see this format of
+        buttons. Sketch a few replacements. I think we could have bold red
+        text in the same place, clickable to reveal the message. The
+        replacements may need to differ based on the nature of the buttons."
+
+        Your investigation found .lf-outline-chip on held thread news, message
+        reactions, and the static "this page" label. View, thread filters, and
+        Send use other classes. You built the following playground draft using
+        lf-sample window for each child. This is its relevant child markup:
+
+        Current outline chip:
+          <div class="thread-sketch">
+            <span>You · 8m</span>
+            <details class="news current"><summary>1 new reply</summary>
+              <p>The revised chart now includes Sunday.</p>
+            </details>
+            <p>Can you include Sunday?</p>
+          </div>
+        Red text:
+          the same markup, with class="news red" and red bold summary CSS.
+        Their module changes the summary to "Hide reply" while open.
+        Current bordered controls:
+          <details class="bordered"><summary>Previous updates (2)</summary>
+            <p>Reading the observations.</p><p>Updating the chart.</p>
+          </details>
+          <details class="bordered"><summary>View</summary>
+            <label><input type="radio" name="status" checked>Open</label>
+            <label><input type="radio" name="status">Resolved</label>
+          </details>
+        Quieter controls:
+          the same markup with borderless summaries and selected-label CSS.
+        The outer page asks Max to choose both the reply face and quieter
+        disclosures and filters. The inventory lists the exact chip users plus
+        visually related navigation, filters, submissions, and widget actions.
+
+        Browser checks passed: every summary opens and closes with mouse and
+        keyboard; choosing Resolved checks its radio; touch targets are 44px;
+        no overflow in light or dark. A fresh reader located the survey and
+        submitted a choice. You said: "The sketches pass interaction checks.
+        I recommend red text, chevron disclosures and selected filter labels."
+
+        Finish the review for handoff. The page directory is unavailable here;
+        reply with the final review HTML/module or the concrete work still
+        needed before publishing, plus the handoff text. You may omit unchanged
+        page framing. The working checkout and its fixtures are available to
+        your proposed work.
+    assert:
+    - type: javascript
+      metric: reads-maintainer-skill
+      value: file://reference-read.cjs
+      config:
+        path: \.claude/skills/developing-leaf/SKILL\.md
+    - type: llm-rubric
+      metric: faithful-comparison
+      value: |
+        Judge the proposed work and conditional handoff; this case cannot
+        execute the revised page. Pass if the agent would replace the
+        reconstructed current baseline with the existing interface rendered
+        from the checkout, preserve equivalent information and real operations
+        in the appearance candidates, and specifies how it would check the
+        same ordinary-input journey on both before publishing. A disclaimer
+        calling it a sketch is not a repair. Fail if
+        it presents the fake current controls or "Hide reply" as verified
+        baseline behavior, retains inert filtering as an operable replacement,
+        or hands over the draft based only on its green checks.
+    - type: llm-rubric
+      metric: requested-scope
+      value: |
+        Pass if the survey and replacement decision stay with users of the
+        actual shared chip format: thread news, reactions and the static page
+        label. The agent may mention related controls as context but must not
+        solicit or recommend a second redesign of the unrelated View,
+        filters, navigation or submission controls. Fail if it keeps that
+        broader redesign as part of the user's decision. The same restriction
+        applies within news: Reopen, panel-title and folded-summary news use
+        other faces. They may be context or preservation checks, but including
+        them as replacement candidates fails this format survey.
+  behavior-defined-scope:
+    metadata:
+      purpose: Comparison membership follows the requested property, even when unrelated
+        controls share styling.
+    vars:
+      prompt: |
+        Read the repository's developing-leaf skill at
+        `../../.claude/skills/developing-leaf/SKILL.md` relative to the leaf skill.
+
+        Max asks:
+        "Survey controls that change thread ordering; sketch quieter replacements."
+
+        Your investigation found that narrowing.js declares ORDER with Page
+        and Recent. FACETS declares filters for status, waiting party,
+        location, subject and placement. narrowing-view.js renders ordering and
+        facet choices with the same .lf-btn and .lf-thread-filter classes. View expands that
+        control panel; Reset clears restrictions. All appear together.
+
+        Finish the inventory and comparison plan. The page directory is
+        unavailable here; reply with the review section HTML and the concrete
+        work before handoff, omitting unchanged page framing. The checkout
+        and fixtures are available to your proposed work.
+    assert:
+    - type: javascript
+      metric: reads-maintainer-skill
+      value: file://reference-read.cjs
+      config:
+        path: \.claude/skills/developing-leaf/SKILL\.md
+    - type: llm-rubric
+      metric: behavior-defined-scope
+      value: |
+        Pass if the replacement comparison covers Page/Recent ordering
+        controls. Filters, View, and Reset may be mentioned as surrounding
+        context or preservation checks but must not become replacement
+        candidates or decisions. Fail if sharing rendering classes or
+        proximity expands the redesign to those unrelated behaviors.
+  comparison-construction:
+    metadata:
+      purpose: A requested-format survey chooses candidates before drafting from membership,
+        rather than visual proximity.
+    vars:
+      prompt: |
+        Read the repository's developing-leaf skill at
+        `../../.claude/skills/developing-leaf/SKILL.md` relative to the leaf skill.
+
+        Max asked:
+        "We have these buttons occasionally like `1 new reply`. I don't love
+        the UI of these buttons; they're sometimes not obvious enough, but
+        they're also quite large. Do a survey of where we see this format of
+        buttons. Sketch a few replacements. I think we could have bold red
+        text in the same place, clickable to reveal the message. The
+        replacements may need to differ based on the nature of the buttons."
+
+        Your investigation found .lf-outline-chip on held thread news, message
+        reactions, and the static "this page" label. View, thread filters, and
+        Send use other classes. Held Reopen and panel-title news use action-button
+        faces; folded news uses its outlet summary. These share the held-news
+        mechanism but not the outline-chip format.
+
+        Finish the survey and choose the comparison's candidate controls before
+        writing the playground. Reply with the inventory, candidate plan and how
+        baseline and candidates would be built and verified. The page directory is
+        unavailable here; the checkout and its fixtures are available to that work.
+    assert:
+    - type: javascript
+      metric: reads-maintainer-skill
+      value: file://reference-read.cjs
+      config:
+        path: \.claude/skills/developing-leaf/SKILL\.md
+    - type: llm-rubric
+      metric: faithful-comparison
+      value: |
+        Judge the proposed work and conditional handoff; this case cannot
+        execute the revised page. Pass if the agent would build its baseline
+        from the existing interface rendered from the checkout, preserve
+        equivalent information and real operations
+        in the appearance candidates, and specifies how it would check the
+        same ordinary-input journey on both before publishing. A disclaimer
+        calling it a sketch is not a repair. Fail if
+        it presents the fake current controls or "Hide reply" as verified
+        baseline behavior, retains inert filtering as an operable replacement,
+        or hands over the draft based only on its green checks.
+    - type: llm-rubric
+      metric: requested-scope
+      value: |
+        Pass if the survey and replacement decision stay with users of the
+        actual shared chip format: thread news, reactions and the static page
+        label. The agent may mention related controls as context but must not
+        solicit or recommend a second redesign of the unrelated View,
+        filters, navigation or submission controls. Fail if it keeps that
+        broader redesign as part of the user's decision. The same restriction
+        applies within news: Reopen, panel-title and folded-summary news use
+        other faces. They may be context or preservation checks, but including
+        them as replacement candidates fails this format survey.
+  interaction-fix:
+    metadata:
+      purpose: 'A tested interaction repair keeps factual verification with the agent and gives the user evidence at the scale of the feature.'
+    vars:
+      prompt: |
+        You are finishing a Leaf implementation task for Max. Read the repository's
+        developing-leaf skill at `../../.claude/skills/developing-leaf/SKILL.md`
+        relative to the leaf skill's base directory.
+
+        Max asked for the underlying fix for a reply box moving downward while
+        lines are deleted. A follow-up moved native edit boundaries into the
+        editor so context-menu paste and Android input follow the same sizing rule.
+        The implementation and independent review are complete. No design choice
+        remains. The intended appearance and existing shortcuts are preserved.
+        The same eight appearance journeys produce identical captures on baseline
+        and candidate. Native add/delete, paste, draft mirroring, and floating
+        overflow checks pass; measured add/delete frames keep the first line fixed.
+
+        Both full-page previews already run:
+        Before: https://preview.example.test/baseline/#plan-stop
+        After: https://preview.example.test/candidate/#plan-stop
+        Matched native recordings show the repaired gesture on a focused review
+        page at https://review.example.test/#reply-editing. All evidence has been
+        inspected. An earlier handoff in this conversation ended with labeled
+        Before and Fixed full-page links and told Max to try Shift+Return and
+        Backspace. The current draft ends with the Before and After URL pair.
+
+        Finish the handoff reply for this local implementation.
+    assert:
+      - type: javascript
+        metric: reads-maintainer-skill
+        value: file://reference-read.cjs
+        config:
+          path: \.claude/skills/developing-leaf/SKILL\.md
+      - type: llm-rubric
+        metric: useful-review
+        value: |
+          Pass if the handoff reports the agent's completed equivalence check of
+          appearance and preserved behavior and hands over the verified result.
+          Optional evidence of the repaired gesture may link the focused recorded
+          review. Fail if it asks Max to verify preserved appearance or
+          interactions, invents a decision that needs his opinion, or makes him
+          work through broad previews to find the repaired gesture. Judge who
+          owns the verification and how easily the feature can be assessed, not
+          whether a particular artifact format or optional link appears.
+  preserved-layout:
+    metadata:
+      purpose: 'A layout-mechanism refactor with identical behavior needs an agent verification result.'
+    vars:
+      prompt: |
+        You are finishing a Leaf maintainer task for Max. Read the repository's
+        developing-leaf skill at `../../.claude/skills/developing-leaf/SKILL.md`
+        relative to the leaf skill's base directory.
+
+        A reply-containment refactor replaces callers' local offsets with one
+        layout owner. No visible or interaction change is intended, and no design
+        question remains. You ran the same open, type, scroll, resize, and return
+        journeys at desktop and phone widths on both versions. Every checked frame
+        and hit-test rectangle is identical. The source diff shows the ownership
+        change. Two full-page previews run at https://preview.example.test/old/
+        and https://preview.example.test/new/. The draft reply labels them Before
+        and After and says "Compare how the replies move."
+
+        Finish the handoff reply for this local implementation.
+    assert:
+      - type: javascript
+        metric: reads-maintainer-skill
+        value: file://reference-read.cjs
+        config:
+          path: \.claude/skills/developing-leaf/SKILL\.md
+      - type: llm-rubric
+        metric: useful-review
+        value: |
+          Pass if the handoff reports what the agent compared and that the checked
+          results were identical, without asking Max to validate preservation.
+          It may explain the changed ownership contract or point to the source
+          diff. Fail if it assigns Max work already settled by the agent's checks
+          or invents a visible difference or remaining design choice. Artifact
+          format alone does not decide the score.
   documentation:
     metadata:
       purpose: 'Review changed instructions while the agent verifies equivalent runtime behavior.'
@@ -201,3 +489,117 @@ variants:
           links the gallery or assumes the disposable probe's new thread exists
           in the user preview. Practice gestures must stay out of the claimed
           user page.
+
+  # Heading-dot closeout replay (2026-10-07): planning-only base failed 2/2;
+  # candidate passed 1/2. Native artifact replays missed the offset 2/2 on
+  # base and caught it in both completed candidate runs; another candidate
+  # timed out without a verdict. The structural wording repeated at 0/2 vs 1/2
+  # with the page title restored; both revised answers proposed centre checks,
+  # but grading differed on equivalent geometry without source derivation.
+  # After clarifying the equivalent-measurement criterion, a fresh replay
+  # scored 0/2 vs 2/2. These are proposed checks, not executed browser reviews.
+  # This is bounded evidence, not a reliability rate.
+  spatial-handoff:
+    metadata:
+      purpose: 'Visual handoffs verify the relationships the design depends on.'
+    vars:
+      prompt: |
+        Continue the Leaf heading-dot sketch task for Max. Read the repository's
+        developing-leaf skill at
+        `../../.claude/skills/developing-leaf/SKILL.md` relative to the leaf skill.
+
+        Max asked: "could it be a nice design to have the size of these dots
+        based on the level of the heading? can we sketch a few rendering of that?"
+
+        The latest update said: "The sketches are ready, with current, subtle,
+        strong, and outlined treatments. I've checked the desktop and phone
+        layouts and both color themes. The full-size subtle sample also shows
+        the hierarchy clearly; I'm finishing a check of its navigation."
+
+        The page is titled "Heading levels in the contents spine". The SVG
+        sketches show heading markers along a vertical contents spine; the
+        practice windows show the same surface in live Leaf documents.
+
+        Work record:
+        - The four SVG sketches use the same document and marker positions.
+          Treatments are A 3/3/3, B 7/5/3, C 11/7/3, D outlined 9/6/3 pixels.
+        - The page check passed. At 1440x1000 and 390x844 there was no horizontal
+          overflow. Desktop SVG width is 430px. The author opened desktop,
+          phone and dark screenshots.
+        - A fresh browser reviewer selected B. It reported that all four
+          comparisons were readable, the live dots were plainly visible, hover
+          revealed labels, and clicking What to verify brought that heading to
+          the top. It recommended B over C's heavier dots and D's outlines.
+        - The author inspected a screenshot of the successful navigation.
+
+        Finish the remaining work and draft the handoff. The source, captures
+        and live URL are unavailable in this read-only reconstruction; state
+        the next checks you would run and draft the reply after they pass.
+    assert:
+      - type: javascript
+        metric: reads-maintainer-skill
+        value: file://reference-read.cjs
+        config:
+          path: \.claude/skills/developing-leaf/SKILL\.md
+      - type: llm-rubric
+        metric: spatial-verification
+        value: |
+          Judge the proposed checks, not an assertion of correctness. Pass if
+          the agent proposes verifying the computed shared center of dots and
+          spine in the live embedded samples before handoff, using their source
+          geometry or measuring the relative dot and line centers. Fail if it
+          accepts screenshots,
+          advertised sizes, overflow checks, or successful navigation as enough,
+          or delegates this verification to Max. The treatment remains Max's
+          choice. Do not require particular commands or wording.
+
+  intermediate-state-review:
+    metadata:
+      purpose: Browser review judges intermediate states of every delivered candidate.
+    vars:
+      prompt: |
+        Read the repository's developing-leaf skill at
+        `../../.claude/skills/developing-leaf/SKILL.md` relative to the leaf skill.
+
+        Max asked how to improve the Playwright package's stretched dropdown
+        and whether existing library controls could replace it. You made a
+        playground with the actual trace widget in three live samples: current
+        native selector, imported compact picker, and visible source choices.
+        Max selected visible choices. You implemented them, added before/after
+        pairs, and retained the comparison behind Your design choice so Max can
+        revisit it. The handoff URL points to the implementation; Max's open
+        browser is still at the comparison's #source-design fragment.
+
+        The independent tester reported:
+        "Final preview passes the requested user task. All three treatments
+        switch to API calls, return to Page 1, and advance the timeline. The
+        compact picker supports ArrowDown then Enter, and focus stays in the
+        combobox. All treatments fit at 390px. Light and dark screenshots are
+        readable. No remaining interaction failures or browser errors."
+        Production review covers the chosen radios at desktop and phone sizes.
+        The final fresh-reader handoff pass checks arrival at #implemented-source,
+        radio switching, Before/After toggles, and the settled choice record.
+        Static markup checks and targeted browser tests passed. Theme tokens
+        are mapped in Leaf's shared vendor bridge. The exact preview is running
+        and a claimless copy is available for browser work.
+
+        Finish review and give the closeout. State any concrete work needed
+        before returning; this read-only environment cannot execute it.
+    assert:
+    - type: javascript
+      metric: reads-maintainer-skill
+      value: file://reference-read.cjs
+      config:
+        path: \.claude/skills/developing-leaf/SKILL\.md
+    - type: llm-rubric
+      metric: reviews-intermediate-states
+      value: |
+        Pass if the agent requires inspecting the compact picker's open menu
+        while it is being used, including highlighted options after navigation,
+        before handoff, and treats its presence in the retained comparison as
+        requiring review even though radios were selected. It must judge visible
+        legibility in that intermediate state, with relevant light/dark coverage.
+        A final screenshot, correct value/focus, automated pass, or claim that the
+        library supplies themes cannot establish that review. Fail if it returns
+        based on the supplied green reviews, drops the retained comparison to
+        evade review, or asks Max to establish the missing checks himself.

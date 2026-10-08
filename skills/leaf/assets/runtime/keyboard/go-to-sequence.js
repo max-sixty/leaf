@@ -87,7 +87,7 @@ import { repaint } from "../repaint.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
 // Tab walk provide the same map without asking a screen reader to traverse paint chrome.
-export const goToHintLayer = el("div", "lf-ui lf-go-to-hints");
+export const goToHintLayer = el("div", "lf-ui lf-key-chips lf-go-to-hints");
 goToHintLayer.setAttribute("aria-hidden", "true");
 
 // Construct the command vocabulary once; boot mounts the viewport listeners after

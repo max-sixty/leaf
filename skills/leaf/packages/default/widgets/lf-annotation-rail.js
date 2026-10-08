@@ -1,6 +1,8 @@
 /* Authored-flow presentation of the complete page Thread collection.
 
-   The author allocates this rail's box. Native disclosures own expansion; the
+   The author allocates this rail's box. It registers that box as a reading region,
+   so reading keys, travel and continuity follow whichever box the theme scrolls.
+   Native disclosures own expansion; the
    shared Thread coordinator owns cards, source standing and the one composer.
    Other rows consume the same annotation inventory as core navigation and use
    canonical item activation and retained native contribution controls.
@@ -26,6 +28,7 @@ import {
   once,
   offer,
   openThread,
+  registerReadingRegion,
   setChildren,
 } from "/runtime/widget-api.js";
 
@@ -38,6 +41,7 @@ customElements.define(
   class extends HTMLElement {
     #surface = null;
     #annotations = null;
+    #stopReading = null;
     #actionRows = new Map();
     #nextSlot = 0;
     #actionOrder;
@@ -68,6 +72,11 @@ customElements.define(
     connectedCallback() {
       if (once(this)) this.#build();
       if (annotationMode !== "page") return;
+      this.#stopReading ??= registerReadingRegion({
+        id: this.id,
+        host: this,
+        body: this,
+      });
       this.#surface ??= placePageThreads(this, (targets, { collection }) =>
         this.#present(targets, collection),
       );
@@ -77,6 +86,8 @@ customElements.define(
     }
 
     disconnectedCallback() {
+      this.#stopReading?.();
+      this.#stopReading = null;
       this.#surface?.unregister();
       this.#surface = null;
       this.#annotations?.unregister();

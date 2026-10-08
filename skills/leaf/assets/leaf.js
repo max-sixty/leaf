@@ -369,6 +369,7 @@ pageGeometry = createPageGeometry({
   visualMarkPaint,
   shiftDrawings: drawingPaint.shifted,
   queueLegend: designMode.queueLegend,
+  legendScrolled: designMode.legendScrolled,
   activeActionAnchor: () => responseSurface.fabAnchorAt(),
   refreshActionBar: () => responseSurface.refreshFab(),
 });
@@ -872,9 +873,6 @@ if (!offlineInteractive) {
     queuePanel,
     panel,
     legendRoot,
-    goToHintLayer,
-    commandHintLayer,
-    targetPickerHintLayer,
     pageSearchSurface,
     ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
     drawingPaint.layer,
@@ -922,6 +920,9 @@ if (!offlineInteractive) {
   commandHints.mount();
   app.mountAnnotations();
   app.overlay?.mount();
+  // Key chips stand anchored to what they name, a margin row among them, so they come
+  // after the margin, since an anchor positions only a box laid out after it.
+  chromeRoot.append(goToHintLayer, commandHintLayer, targetPickerHintLayer);
   app.mountThread();
   app.mountRead();
   wireThreadLanding(threadsBox);

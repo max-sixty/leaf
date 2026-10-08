@@ -8624,8 +8624,9 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
         assert starts == []
 
 
+@pytest.mark.parametrize("changed", [False, True])
 def test_page_init_restarts_a_served_page_under_the_sessions_wait(
-    page_dir, tmp_path, spawn
+    page_dir, tmp_path, spawn, changed
 ):
     """`page init` on a served page restarts its server itself, so the session's
     `leaf wait` carries on watching it.
@@ -8640,6 +8641,13 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
     started = start_server_command(page_dir, session_id=session)
     assert started.returncode == 0, started.stderr
     url = json.loads(started.stdout)["url"]
+    state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
+
+    def incarnation():
+        with urllib.request.urlopen(state) as response:
+            return response.headers["Leaf-Server"]
+
+    before = incarnation()
     claim = service_model.page_claim(page_dir)
     generation = files_model.read_json(page_dir / "registry.json")["$layer"][
         "generation"
@@ -8659,6 +8667,9 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
         failure="the wait did not start watching the page",
     )
 
+    if changed:
+        theme = page_dir / "theme.css"
+        theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
     revendored = subprocess.run(
         [*LEAF_COMMAND, "page", "init", str(page_dir)],
         capture_output=True,
@@ -8670,7 +8681,8 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
     assert (
         files_model.read_json(page_dir / "registry.json")["$layer"]["generation"]
         != generation
-    )
+    ) == changed
+    assert (incarnation() != before) == changed
     assert server_model.running_server(page_dir)["url"] == url
     # The restart claims nothing, so the turn the claim records is left as it was.
     assert service_model.page_claim(page_dir) == claim
@@ -8774,6 +8786,8 @@ def test_page_init_leaves_a_service_it_cannot_restart_for_this_session(
         with service_model.PageTransaction(page_dir) as page:
             page.release_claim()
 
+    theme = page_dir / "theme.css"
+    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     revendored = (

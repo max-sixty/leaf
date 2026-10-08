@@ -1,0 +1,59 @@
+# Contrasts settled earlier topics with the compact exchange above.
+# Scores proposed commands and summary meaning, not actual page writes.
+# Initial A/B: each harness summarized the settled range under both wordings.
+# This guards range selection and summary meaning; it did not separate the arms.
+description: thread-summary-after-topic-drift
+metadata:
+  purpose: Summarize settled earlier topics while answering the current exchange and preserving its visibility.
+  tags:
+  - threads
+vars:
+  prompt: |
+    You own a live Leaf page at ~/.local/state/leaf/pages/cache-plan.
+    The document already records a five-minute TTL and the cache-status labels.
+    Thread cache-thread contains these messages, in order; this is its complete
+    history:
+
+    cache-one (user): "Why does the first draft use a ten-minute TTL? I worry about stale quotes."
+    cache-two (agent): "That was a guess from the feed cadence. I will measure the stale interval."
+    cache-three (user): "Measure from the quote timestamp, not from the request."
+    cache-four (agent): "The measured worst case was fourteen minutes. A five-minute TTL brings it below ten."
+    cache-five (user): "Use five minutes. Put that measurement and its origin in the document."
+    cache-six (agent): "The document now says five minutes, measured from the quote timestamp."
+    cache-seven (user): "The status labels also need changing: warm sounds like a temperature."
+    cache-eight (agent): "Changed them to Fresh and Expired, and updated the document."
+    cache-nine (user): "Those labels work. Now let's discuss overnight recovery: I want retries to continue until morning, without paging anyone."
+    cache-ten (agent): "I will separate retries from paging. Morning recovery should not require a person to restart it."
+    cache-eleven (user, just delivered): "What happens if the feed is still down when the morning run starts?"
+
+    The delivery carries summary_hint: {from: cache-one, through: cache-nine}.
+    Its answer is {kind: reply, to: cache-thread, for: cache-eleven}.
+    You have confirmed the proposed morning run keeps retrying and marks quotes
+    unavailable until a fresh feed arrives; it does not serve expired quotes.
+
+    Work out the next turn. Nothing here can execute writes: read the relevant
+    Leaf instructions, then give the CLI commands you would run, in order,
+    with the full text of any replies or other content you would write.
+assert:
+- type: javascript
+  metric: loads-leaf
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/SKILL\.md
+- type: javascript
+  metric: reads-threads
+  value: file://reference-read.cjs
+  config:
+    path: skills/leaf/references/threads\.md
+- type: llm-rubric
+  metric: useful-summary-keeps-current-exchange
+  value: |
+    Pass only if the proposed commands create a thread summary with nonempty
+    prose, covering a contiguous earlier range starting at cache-one and ending
+    at cache-eight, while leaving cache-nine through cache-eleven outside it.
+    The prose must preserve five minutes as the chosen TTL, the measurement
+    from quote timestamps as its reason, and Fresh/Expired as the chosen labels.
+    The current user question must receive a separate thread reply explaining
+    continued retries and unavailable quotes
+    until the feed recovers. A promise to summarize later, empty folding text,
+    or an ordinary reply that merely recaps the history does not pass.

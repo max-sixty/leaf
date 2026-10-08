@@ -3682,7 +3682,9 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
     assert abs(after - before) <= 4, (before, after)
 
 
-def test_revision_keeps_a_focused_control_visible_without_a_text_landmark(browser, serve):
+def test_revision_keeps_a_focused_control_visible_without_a_text_landmark(
+    browser, serve
+):
     """A focused control remains the place when its pane has no quotable text."""
     content = """
 <header><h1>Control workspace</h1></header>
@@ -3698,7 +3700,9 @@ def test_revision_keeps_a_focused_control_visible_without_a_text_landmark(browse
 </div>
 """
     split = regions_side_by_side("reading-split")
-    first = leaf_page("Focused control continuity", content, head=split, layout="workspace")
+    first = leaf_page(
+        "Focused control continuity", content, head=split, layout="workspace"
+    )
     page = open_page(browser, live_url(serve(first)))
     resized(page, 900, 760)
     pane_posture(page, page.locator("#right-reading"), "bounded")

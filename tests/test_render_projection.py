@@ -5061,7 +5061,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     # exact record still says the third Ask.
     page.evaluate("""() => {
         const earlier = document.getElementById('refill-now').getBoundingClientRect();
-        document.scrollingElement.scrollBy({top: earlier.bottom - 80, behavior: 'instant'});
+        document.scrollingElement.scrollBy({top: earlier.bottom - 220, behavior: 'instant'});
     }""")
 
     stamp_page(d, ASKS_PAGE, "two")
@@ -5072,11 +5072,13 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     # The condition the restore is for, stated rather than assumed: an earlier Ask's own
     # prose is on screen above the one the user was standing on, so a walk reading the
     # page alone starts behind them and steps forward onto the Ask they just left.
-    assert page.evaluate("""() => {
+    position = page.evaluate("""() => {
             const decision = document.getElementById('t-baffles-decision').getBoundingClientRect();
         const earlier = document.getElementById('refill-now').getBoundingClientRect();
-        return earlier.bottom > 42 && earlier.bottom <= decision.top;
-    }"""), "the user is at the top of the window, where either reading would do"
+        return {earlierBottom: earlier.bottom, decisionTop: decision.top,
+                scrollTop: document.scrollingElement.scrollTop};
+    }""")
+    assert 42 < position["earlierBottom"] <= position["decisionTop"], position
     page.keyboard.press("q")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 

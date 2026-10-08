@@ -55,6 +55,8 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     )
     capture.get_by_role("button", name="Review").nth(0).click()
     capture.get_by_role("button", name="Review").nth(1).click()
+    second_capture = context.new_page()
+    second_capture.set_content("<h1>Another recorded page</h1>")
     archive = tmp_path / "trace.zip"
     context.tracing.stop(path=archive)
     context.close()
@@ -88,11 +90,14 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     sources = widget.get_by_role("radiogroup", name="Recorded page or API stream")
     expect(sources).to_be_visible()
     page_source = widget.get_by_role("radio", name="Page 1", exact=True)
+    second_page_source = widget.get_by_role("radio", name="Page 2", exact=True)
     api_source = widget.get_by_role("radio", name="API calls", exact=True)
     expect(page_source).to_have_attribute("aria-checked", "true")
     user.keyboard.press("Tab")
     page_source.focus()
     page_source.press("ArrowRight")
+    expect(second_page_source).to_be_focused()
+    second_page_source.press("ArrowRight")
     expect(api_source).to_be_focused()
     expect(api_source).to_have_attribute("aria-checked", "true")
     expect(widget.locator(".lf-trace-action")).to_have_text("BrowserContext.newPage")
@@ -132,9 +137,12 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     # Each gesture must advance exactly once, including at the keyboard.
     next_button = widget.get_by_role("button", name="Next", exact=True)
     previous_button = widget.get_by_role("button", name="Previous", exact=True)
-    for activation in ("click", "Enter", "Space"):
+    for activation in ("click", "Enter", "Space", "ArrowRight"):
         if activation == "click":
             next_button.click()
+        elif activation == "ArrowRight":
+            timeline.focus()
+            user.keyboard.press(activation)
         else:
             next_button.focus()
             user.keyboard.press(activation)
@@ -145,6 +153,13 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         expect(widget.locator(".lf-trace-position")).to_have_text(
             f"{((checkpoints[after_index][0]) - record['streams'][0]['monotonicTime']) / 1000:.3f} s"
         )
+    # Each source retains its own checkpoint in the composed viewer.
+    second_page_source.click()
+    expect(second_page_source).to_have_attribute("aria-checked", "true")
+    page_source.click()
+    expect(widget.locator(".lf-trace-position")).to_have_text(
+        f"{((checkpoints[after_index][0]) - record['streams'][0]['monotonicTime']) / 1000:.3f} s"
+    )
     phase = action["phases"]["after"]
     image = next(image for image in record["images"] if image["id"] == phase["imageId"])
     stream = next(
@@ -858,6 +873,7 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         user.evaluate("""() => {
           window.inspectionFrames = [];
           window.inspectionWindows = [];
+          window.inspectionDisclosures = [];
           window.watchInspection = true;
           window.inspectionWindow = () => {
             const w = document.querySelector('lf-trace');
@@ -882,6 +898,13 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
           const sample = () => {
             inspectionFrames.push(inspectionView());
             inspectionWindows.push(inspectionWindow());
+            const summary = document.querySelector('lf-trace .lf-trace-tree summary');
+            const inspector = summary.closest('.lf-trace-metadata');
+            inspectionDisclosures.push({
+              visible: summary.checkVisibility(),
+              top: summary.getBoundingClientRect().top - inspector.getBoundingClientRect().top
+                + inspector.scrollTop,
+            });
             if (watchInspection) requestAnimationFrame(sample);
           };
           sample();
@@ -908,6 +931,12 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
             window == pytest.approx(before_window, abs=0.005)
             for window in user.evaluate("inspectionWindows")
         )
+        disclosures = user.evaluate("inspectionDisclosures")
+        assert all(sample["visible"] for sample in disclosures)
+        assert all(
+            sample["top"] == pytest.approx(disclosures[0]["top"], abs=1)
+            for sample in disclosures
+        ), "Saved elements must keep its place through frame and checkpoint stops"
 
         # Rendering empty time, returning from API calls and resizing the page
         # cannot redefine the inspection. Fit is an explicit user action.

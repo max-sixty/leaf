@@ -473,19 +473,20 @@ customElements.define(
       this.body = el("div", "lf-trace-body");
       // Review gestures belong to evidence, independently of navigation layout.
       // A bounded point inspector keeps changing metadata and disclosure inside
-      // the recording, without moving the page as playback crosses frame stops.
+      // the recording. Its retained disclosure precedes variable rows, so replay
+      // cannot move that control as frames and checkpoints replace each other.
       this.evidence = el("div", "lf-trace-evidence");
       const metadata = el("div", "lf-trace-metadata");
       metadata.tabIndex = 0;
       metadata.setAttribute("role", "group");
       metadata.setAttribute("aria-label", "Selected point details");
       metadata.append(
+        this.treeDetails,
         this.clock,
         this.readout,
         this.actionDetails,
         this.phaseHeading,
         this.error,
-        this.treeDetails,
       );
       this.evidence.append(this.imageHost, this.imageTools, metadata);
       this.body.append(toolbar, stepper, this.evidence);
@@ -1539,7 +1540,6 @@ customElements.define(
         );
       }
       keepsHidden(this.error, !action?.error);
-      keepsHidden(this.treeDetails, !action);
       let reading = !this.#trace
         ? "Waiting for a Playwright recording."
         : !items.length
@@ -1668,17 +1668,19 @@ customElements.define(
       for (const button of this.imageTools.querySelectorAll("button"))
         keeps(button, "disabled", !this.#picture?.viewed || quoted(this) ? "" : null);
       const rows = [];
+      keepsText(
+        this.treeSummary,
+        tree ? `Saved elements (${tree.nodes.length})` : "Saved elements unavailable",
+      );
+      keepsText(
+        this.treeClock,
+        tree
+          ? `Tree captured ${this.#time(tree.timestamp, action.stream)}. Element boxes describe this tree, not exact positions in the image.`
+          : action
+            ? "No accessibility tree was saved for this phase. Full DOM inspection is available in Playwright."
+            : "No saved elements at this frame. Choose an action checkpoint to inspect its saved tree.",
+      );
       if (action) {
-        keepsText(
-          this.treeSummary,
-          tree ? `Saved elements (${tree.nodes.length})` : "Saved elements unavailable",
-        );
-        keepsText(
-          this.treeClock,
-          tree
-            ? `Tree captured ${this.#time(tree.timestamp, action.stream)}. Element boxes describe this tree, not exact positions in the image.`
-            : "No accessibility tree was saved for this phase. Full DOM inspection is available in Playwright.",
-        );
         for (const [index, node] of (tree?.nodes ?? []).entries()) {
           const id = this.#nodeId(action, point.phase, node);
           let row = this.#nodes.get(id);

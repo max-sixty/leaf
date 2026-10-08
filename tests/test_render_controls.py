@@ -63,6 +63,7 @@ from render_cases_navigation import (
     DIFF_PAGE,
     _publish,
     actions,
+    go_to_address,
 )
 from render_cases_widgets import (
     SCROLLED,
@@ -110,6 +111,74 @@ from render_harness import (
 )
 
 pytestmark = pytest.mark.nightly
+
+
+@pytest.mark.parametrize("touch", [False, True])
+def test_native_disclosure_inherits_the_offered_control_target(browser, serve, touch):
+    """A native disclosure gets the same press target without a widget-specific rule."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=touch
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Native disclosure",
+                """<h1>Comparison</h1>
+<details id="comparison"><p>Inspection controls.</p></details>
+<script type="module">
+import {offer} from '/runtime/widget-api.js';
+const summary = offer('summary', '', 'Inspect comparison');
+summary.id = 'inspect';
+document.querySelector('#comparison').prepend(summary);
+</script>""",
+            )
+        ),
+        context=context,
+    )
+    control = page.locator("#inspect")
+    before = control.bounding_box()
+    floor = 44 if touch else 24
+    assert min(before["width"], before["height"]) >= floor - 0.5, before
+    control.click()
+    expect(page.locator("#comparison")).to_have_attribute("open", "")
+    assert control.bounding_box() == before
+    control.press("Space")
+    expect(page.locator("#comparison")).not_to_have_attribute("open", "")
+    assert control.bounding_box() == before
+
+
+def test_offered_native_targets_keep_their_navigation_meaning(browser, serve):
+    """An offered disclosure or link keeps its native Go-to arrival, not a generic press."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Native routes",
+                """<h1>Comparison</h1>
+<details id="comparison"><p>Inspection controls.</p></details>
+<p id="destination">Destination evidence.</p>
+<script type="module">
+import {offer} from '/runtime/widget-api.js';
+const summary = offer('summary', '', 'Inspect comparison');
+summary.id = 'inspect';
+document.querySelector('#comparison').prepend(summary);
+const link = offer('a', '', 'Evidence');
+link.id = 'evidence';
+link.href = '#destination';
+document.querySelector('main').append(link);
+</script>""",
+            )
+        ),
+    )
+    summary = page.locator("#inspect")
+    go_to_address(page, "Fold", "inspect")
+    expect(summary).to_be_focused()
+    expect(page.locator("#comparison")).to_have_attribute("open", "")
+    page.keyboard.press("Enter")
+    expect(page.locator("#comparison")).not_to_have_attribute("open", "")
+    go_to_address(page, "Link", "evidence")
+    expect(page).to_have_url(re.compile(r"#destination$"))
 
 
 @pytest.mark.parametrize("width", [390, 1440])

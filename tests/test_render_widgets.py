@@ -2943,7 +2943,9 @@ def test_live_widget_subscription_releases_and_reconnects(browser, serve):
 """,
     )
     page = open_page(browser, serve(source))
-    before = page.locator("#watched").evaluate("section => section.innerHTML")
+    before = page.locator("#watched-draft .lf-draft-body").get_attribute(
+        "data-lf-source-words"
+    )
     page.evaluate(
         """() => {
           window.__lfWatchedSection = document.querySelector('#watched');
@@ -2962,7 +2964,17 @@ def test_live_widget_subscription_releases_and_reconnects(browser, serve):
         },
     )
     told(page)
-    assert page.evaluate("window.__lfWatchedSection.innerHTML") == before
+    assert (
+        page.evaluate("""() => window.__lfWatchedSection
+      .querySelector('#watched-draft .lf-draft-body')
+      .getAttribute('data-lf-source-words')""")
+        == before
+    )
+    assert (
+        page.evaluate("""() => window.__lfWatchedSection
+      .querySelector('.lf-draft-history > summary')""")
+        is None
+    )
 
     page.evaluate("document.querySelector('main').append(window.__lfWatchedSection)")
     expect(page.locator("#watched-draft .lf-draft-history > summary")).to_have_text(

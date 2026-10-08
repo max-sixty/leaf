@@ -36,7 +36,7 @@ writes with `--on user` on a widget, an element or the page, never a thread, whe
 the question is the task. Nothing else answers it, so it ends at the user's Done,
 their own `task_end`, which `undo` takes back. The agent can end any task on the
 user but an Ask's, which the markup holds and a version retires: ending a question's
-settles it, since the prompt reading takes an ended one off the user (`task_ends`).
+settles it, since the prompt reading takes an ended one off the user (`TaskReading.ends`).
 
 A start lasts until its item ends: a task's end, or for a move the reply or stamped
 version that answers it (`workflows.canonical_workflows`), and it holds its item
@@ -56,9 +56,9 @@ declares `x-work` or holds an unsettled move (`work.widget_seat_error`), on any
 element of the page, or on the page, and a task on the user on any of those but a
 thread, a widget needing no seat; a start on an open task of the agent's or a move
 the agent owes; and an end of an open task, the user's only of one the agent opened
-on them (`task_error`). Every reader takes the log's tasks from `canonical_tasks`,
-every task on the page from `page_tasks` and `ask_tasks`, and starts from
-`item_starts`.
+on them (`task_error`). `TaskReading` holds the log's tasks, starts and endings
+for one event basis; `canonical_tasks` supplies the same fold to standalone callers.
+`page_tasks` and `ask_tasks` derive the tasks held by threads and documents.
 
 Not yet: a task whose session has ended reads open until another session ends it.
 
@@ -68,10 +68,13 @@ repository depends on them.
 """
 
 import sys
+from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 
 from .asks import settles
 from .events import conversation_turns, is_reaction, note_settlements, taken_back
+from .schema import agent_name
 
 OUTCOMES = ("done", "failed", "dropped")
 
@@ -80,13 +83,26 @@ OUTCOMES = ("done", "failed", "dropped")
 PAGE_SUBJECT = "page"
 
 
+def start_reading(event: dict) -> dict | None:
+    """One work-start reading, from an explicit start or addressed progress reply.
+
+    A progress reply retains its message identity and history while atomically
+    taking the declared input in hand. Its text is the same visible Working line.
+    """
+    if event["kind"] == "start":
+        return event
+    if event["kind"] == "reply" and "start" in event:
+        return {**event, "kind": "start", **event["start"]}
+    return None
+
+
 def item_starts(events: list) -> dict[str, dict]:
     """The start standing on each item, by the item's id: the newest naming it, unless
     a `put_down` came after it."""
     starts: dict[str, dict] = {}
     for event in events:
-        if event["kind"] == "start":
-            starts[event["item"]] = event
+        if start := start_reading(event):
+            starts[start["item"]] = start
         elif event["kind"] == "put_down":
             starts.clear()
     return starts
@@ -95,7 +111,7 @@ def item_starts(events: list) -> dict[str, dict]:
 def last_start(events: list) -> str | None:
     """When the agent last took an item in hand, which renews the turn that did."""
     return next(
-        (event["ts"] for event in reversed(events) if event["kind"] == "start"), None
+        (event["ts"] for event in reversed(events) if start_reading(event)), None
     )
 
 
@@ -128,13 +144,40 @@ def _outcome(event: dict, detail: str | None) -> dict:
     }
 
 
-def canonical_tasks(events: list) -> list[dict]:
-    """Every task the log holds, oldest first, with its current state and the start
-    running on it while it is open. An ending naming no task the log holds is skipped,
-    as other folds skip a lost line, and so is a task with no `owner`, which an earlier
-    Leaf wrote."""
+@dataclass(frozen=True)
+class TaskReading:
+    """Task facts for one admitted log. Consumers share this in-memory reading;
+    no derived state survives the transaction or chooses a different event basis."""
+
+    events: list
+
+    @cached_property
+    def withdrawn(self) -> set:
+        return taken_back(self.events)
+
+    @cached_property
+    def starts(self) -> dict:
+        return item_starts(self.events)
+
+    @cached_property
+    def tasks(self) -> list[dict]:
+        return _tasks(self.events, self.withdrawn, self.starts)
+
+    @cached_property
+    def ends(self) -> dict:
+        return _ends(self.events, self.withdrawn)
+
+    @property
+    def owed(self) -> list[dict]:
+        return [
+            task
+            for task in self.tasks
+            if task["state"] == "open" and task["owner"] == "agent"
+        ]
+
+
+def _tasks(events: list, withdrawn: set, standing: dict) -> list[dict]:
     tasks: dict[str, dict] = {}
-    withdrawn = taken_back(events)
 
     def end(task: dict, state: str, event: dict, detail: str | None) -> None:
         task["state"] = state
@@ -169,19 +212,13 @@ def canonical_tasks(events: list) -> list[dict]:
                 task = tasks.get(identity)
                 if task is not None and task["state"] == "open":
                     end(task, "done", event, f"v{event['version']}")
-    standing = item_starts(events)
     for task in tasks.values():
         if task["state"] == "open" and task["id"] in standing:
             task["running"] = running(standing[task["id"]])
     return list(tasks.values())
 
 
-def task_ends(events: list) -> dict[str, dict]:
-    """Each task id a `task_end` names, to how it ended. The user's tasks that an Ask
-    or a thread's question holds have no `task` event, so their ending is read here,
-    and the readings of those Asks and questions take an ended one off the user. The
-    user's Done taken back with `undo` ends nothing."""
-    withdrawn = taken_back(events)
+def _ends(events: list, withdrawn: set) -> dict:
     return {
         event["task"]: {
             "state": event["outcome"],
@@ -192,18 +229,19 @@ def task_ends(events: list) -> dict[str, dict]:
     }
 
 
+def canonical_tasks(events: list) -> list[dict]:
+    """Every logged task, including ended ones and the standing start on open ones.
+    A task without an owner from an earlier runtime is absent."""
+    return TaskReading(events).tasks
+
+
 def owed_tasks(events: list) -> list[dict]:
     """The agent's tasks nothing has ended: the work it still owes."""
-    return [
-        task
-        for task in canonical_tasks(events)
-        if task["state"] == "open" and task["owner"] == "agent"
-    ]
+    return TaskReading(events).owed
 
 
 def log_tasks_open(events: list) -> list[dict]:
-    """The log's tasks nothing has ended, on either side: what a version or a layer
-    must leave a target for (`work.tasks_without_targets`)."""
+    """The log's open tasks on either side, even when their targets are gone."""
     return [task for task in canonical_tasks(events) if task["state"] == "open"]
 
 
@@ -239,7 +277,7 @@ def _derived(
 ) -> dict:
     """A task on the user that the page's markup or a thread's question holds rather
     than a `task` event, in the shape of the log's: it has no title of its own, and
-    nobody opened it. `ended` is the `task_end` that ended it (`task_ends`), if one
+    nobody opened it. `ended` is the `task_end` that ended it (`TaskReading.ends`), if one
     did."""
     return {
         "id": identity,
@@ -250,7 +288,7 @@ def _derived(
         "state": ended["state"] if ended else state,
         "seq": message["seq"] if message else None,
         "ts": message["ts"] if message else None,
-        "agent": message.get("agent") if message else None,
+        "agent": agent_name(message) if message else None,
         "session": message.get("session") if message else None,
         "revision": None,
         "running": None,
@@ -300,7 +338,8 @@ def ask_tasks(asks: dict) -> tuple[list[dict], list[dict]]:
 def page_tasks(
     log: list[dict],
     thread_asks: dict,
-    threads: list[dict],
+    threads: dict,
+    prompts: dict,
     ends: dict[str, dict],
     tokens: dict,
 ) -> tuple[list[dict], list[dict]]:
@@ -308,10 +347,10 @@ def page_tasks(
     (`ask_tasks`), as the open ones and the ended ones, each with its `owner`, how it
     `ends`, and the `thread` it stands in.
 
-    `log` is the log's tasks (`canonical_tasks`), each stamped with its thread, the
+    `log` is the log's tasks (`TaskReading.tasks`), each stamped with its thread, the
     agent's open ones as the activity fold aged them. `thread_asks` is the frozen
-    threads' Ask reading, and `threads` the served threads, whose `user_prompt` names
-    the agent turn a thread's question stands on: a thread whose agent turn asks the
+    threads' Ask reading, and `threads` the durable threads; `prompts` names
+    the agent turn each thread's question stands on: a thread whose agent turn asks the
     user in prose is a task on the user under that turn's id, open until the user
     answers it in the thread, settles it with a reaction, or the agent ends it with a
     `task_end` in `ends`. An answered question is done, its outcome the user's move
@@ -319,8 +358,8 @@ def page_tasks(
     `$reactions.tokens`), so the Queue panel lists it with the other ended tasks."""
     standing, ended = ask_tasks(thread_asks)
     held = {task["id"] for task in log}
-    for thread in threads:
-        prompt = thread["user_prompt"]
+    for identity, thread in threads.items():
+        prompt = prompts.get(identity)
         for message in thread["msgs"]:
             if prompt is not None and message["id"] == prompt["message"]:
                 outcome = None
@@ -332,8 +371,8 @@ def page_tasks(
                 continue
             task = _derived(
                 message["id"],
-                {"kind": "thread", "id": thread["id"]},
-                thread["id"],
+                {"kind": "thread", "id": identity},
+                identity,
                 "open",
                 ENDS_BY_REPLY,
                 ended=outcome,
@@ -370,7 +409,7 @@ def _answer(thread: dict, question: dict, tokens: dict) -> dict | None:
 
 def task_error(
     event: dict,
-    events: list,
+    log: TaskReading,
     threads: dict,
     *,
     seat_error,
@@ -418,19 +457,21 @@ def task_error(
             return f"thread {subject['id']!r} is resolved; reopen it before a task"
         return None
     if kind == "start":
+        if error := start_line_error(event["text"]):
+            return error
         item = event["item"]
-        if item in owed or any(task["id"] == item for task in owed_tasks(events)):
+        if item in owed or any(task["id"] == item for task in log.owed):
             return None
         return (
-            f"{item!r} is neither an open task of yours nor a move you owe; start the "
-            "id a delivered move or `leaf task open` gave you"
+            f"{item!r} is neither an open task of yours nor an update you owe an answer to; start the "
+            "id a delivered update or `leaf task open` gave you"
         )
     if kind != "task_end":
         return None
     identity = event["task"]
     task = next((task for task in tasks() if task["id"] == identity), None)
     if task is None:
-        if ended := task_ends(events).get(identity):
+        if ended := log.ends.get(identity):
             return f"task {identity!r} has already ended ({ended['state']})"
         return f"unknown task {identity!r}"
     if task["ends"] == ENDS_BY_WIDGET:
@@ -513,9 +554,9 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
     is what lets that turn end over the move it started (`activity.started_in_turn`)
     and what ends the start's hold with the turn. Another session's start names none: a
     Claude Code subagent runs as its parent's session, so workers leave starts to the
-    session driving the page. `leaf task start` writes one, and so does an ephemeral
-    reply to a move the agent owes (`thread.post_reply`): the progress it posts is
-    what the agent has in hand."""
+    session driving the page. `leaf task start` writes this explicit event. Addressed ephemeral replies
+    carry their start on the message itself (`thread.post_reply`), and every
+    start consumer reads either form through `start_reading`."""
     from .event_contracts import append_admitted
 
     claim = page.claim

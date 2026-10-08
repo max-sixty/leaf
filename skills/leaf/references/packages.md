@@ -48,8 +48,8 @@ dedicated to one package. Absolute paths are refused because the vendored regist
 is public.
 
 `leaf package install SOURCE` checks that directory and copies it into
-`~/.local/state/leaf/packages/`, where `--package NAME` reaches it by its directory
-name from any project on this machine:
+`~/.local/state/leaf/packages/`, where `--package NAME` reaches a checked snapshot
+by the source directory's name from any project on this machine:
 
 ```bash
 leaf package install packages/callout
@@ -57,10 +57,12 @@ leaf page init --package callout PAGE
 ```
 
 The copy holds the package contract below, `scripts/` included, and nothing else in
-the source directory, so a README and the author's own tests stay behind. A name that
-a bundled or already installed package answers to is refused rather than replaced;
-remove the installed directory to replace one. A page records the bare name, so
-re-vendoring it on another machine needs the same package installed there.
+the source directory, so a README and the author's own tests stay behind. Installing
+again atomically replaces the name's snapshot after validation; a failed replacement
+keeps the previous installation. An installed package overrides a bundled package of
+the same name. Readers already using a snapshot retain its complete contents. A page
+records the bare name, so re-vendoring it on another machine needs the same package
+installed there.
 
 The optional bundled packages are:
 
@@ -332,9 +334,9 @@ coordinates stand side by side. Swiping a card again therefore replaces that car
 earlier verdict, while verdicts on different cards coexist. Recorded body, attribute,
 and value verbs use `unit: "widget"`; position verbs use `unit: "unit"`, naming the
 canonical detail field for the moved element. `record` says how the standing state reads in markup: here, the
-card's position inside a pile. `page check` refuses a version that contradicts
-it without `restated`, and `authoring-revisions.md`, "Honor user state", says which
-record forms the agent's next version writes back. The `$keys`
+card's position inside a pile. Standing decisions supply the current state;
+`restated` explicitly retracts a decision, and revisions may change their authored
+baseline without a historical-state veto. The `$keys`
 entries in `assets/registry.json` define each key exactly.
 
 Recorded payloads are closed objects: all listed fields are required and extra fields
@@ -497,7 +499,7 @@ leaf data clear PAGE release-ci
 ```
 
 Each source's value is an ordinary JSON file at `data/<source>.json` in the page
-directory, and `data.json` records the contract each source id was first set under.
+directory, and `data.json` records the current contract each source id was set under.
 `data set` checks the binding and validates the value before replacing that file
 atomically; a rejected value leaves the file untouched. Once a source has been set,
 any process may rewrite its file with plain JSON. Every reading validates the file
@@ -545,11 +547,12 @@ not checked or run. A page never vendors `scripts/`. When a producer upstream of
 writes nothing, `data set` refuses the empty input and points back at that producer's
 own error.
 
-A source id keeps one contract for the lifetime of the page. `data clear` removes the
-current value and keeps the recorded contract, so the id is never released for a new
-meaning. Use a new contract and a new source id for a new meaning. Re-vendoring
-preserves each binding and refuses an incoming registry that would change a bound
-contract's schema, record declaration, or resource selectors.
+A revision may replace a source's contract, including its schema, record declaration,
+and resource selectors. `data set` validates against the current binding and replaces
+its stored contract and value together. `data clear` removes the value; retaining
+its last stored contract does not reserve the source id. Archived documents retain
+their captured vocabulary and validate incoming values against that contract; an
+incompatible value is shown as a source error rather than passed to its renderer.
 `leaf page state PAGE` exposes the complete `data_bindings` inventory so a producer can
 discover the ids, contracts, widgets, and documents it needs without parsing markup.
 Every source value goes to every user of the page, including fields a module does not

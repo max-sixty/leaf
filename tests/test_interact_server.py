@@ -50,6 +50,7 @@ from interact_support import (
     read_page_data,
     record_claim,
     release_codex_command,
+    response_reference,
     retire_test_services,
     running_http_server,
     spawn_probe,
@@ -845,7 +846,7 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(invalid).encode())
     assert status == 400
-    assert b"known: ['node:A', 'node:B']" in body
+    assert 'known: ["node:A", "node:B"]' in json.loads(body)["error"]
 
 
 def test_a_datum_comment_names_the_source_revision_its_section_displayed(
@@ -1043,17 +1044,20 @@ def test_deferred_data_sends_a_manifest_then_serves_one_exact_payload(server, pa
     )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None
-    with pytest.raises(data_model.DataError, match="record keys must be unique"):
+    with pytest.raises(
+        data_model.DataError, match="record keys must be unique"
+    ) as repeated:
         data_model.cmd_data_set(
             page_dir,
             "review-patch",
             {
                 "files": [
-                    {"key": "src/a.py", "path": "first", "patch": "one"},
-                    {"key": "src/a.py", "path": "second", "patch": "two"},
+                    {"key": key, "path": "file", "patch": "diff"}
+                    for key in ["a,b", "a", "b", "a,b", "a", "b"]
                 ]
             },
         )
+    assert 'repeated ["a", "a,b", "b"]' in str(repeated.value)
     data_model.cmd_data_set(
         page_dir,
         "review-patch",
@@ -1972,11 +1976,9 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "approval-question",
+            response_reference(page_dir, "approval-question"),
             "--text",
             "Choose the follow-up:",
             "--markup",
@@ -2548,7 +2550,7 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     publish(page_dir, 1)
 
     def choose(widget, option):
-        return append_carried_log_record(
+        return append_command(
             page_dir,
             {
                 "kind": "action",
@@ -2557,7 +2559,6 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
                 "widget": widget,
                 "action": "choose",
                 "detail": {"value": [option]},
-                "meaning": {"scope": "page", "unit": widget, "depends": [widget]},
             },
         )
 
@@ -2567,8 +2568,8 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     approval = append_carried_log_record(
         page_dir, {"kind": "done", "author": "user", "version": 1}
     )
-    # The fold reads revision 2 from `documents`; it is never written to disk, since
-    # the door refuses to activate a revision that drops a standing decision.
+    # The fold reads both documents directly; admission above captures the sending
+    # revision's operation before the later document drops and restates widgets.
     append_carried_log_record(
         page_dir,
         {
@@ -2986,11 +2987,9 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--text",
             "Pick one:",
             "--markup",
@@ -3157,7 +3156,7 @@ def test_concurrent_posts_never_tear_the_log(server, page_dir):
 
 def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
     """An id is something the agent reads back and retypes. One user comment
-    shows the agent its id five times over and is answered with `leaf thread reply --for
+    shows the agent its id five times over and is answered with `leaf response reply <answer.ref>
     <id>`, so an id is eight hex characters. No kind is carved out of that: an
     id a harness keys an operation on is unique within this page either way, so the
     harness pairs it with the page rather than being handed a wider id and left to
@@ -4216,7 +4215,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
                 if select.select([door], [], [], 0)[0]:
                     break
                 door.sendall(b"%x\r\n" % len(chunk) + chunk + b"\r\n")
-        except (BrokenPipeError, ConnectionResetError, TimeoutError):
+        except BrokenPipeError, ConnectionResetError, TimeoutError:
             # The door has stopped reading, so the rest of the body has nowhere to go.
             pass
         try:
@@ -4225,7 +4224,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
                 if not heard:
                     break
                 spoken += heard
-        except (ConnectionResetError, TimeoutError):
+        except ConnectionResetError, TimeoutError:
             pass
     finally:
         door.close()
@@ -4550,11 +4549,27 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     reordered = revisioning_model.activate_source(page_dir)
     assert reordered.error is None and reordered.created
 
-    # A selector change cannot silently discard media from an already bound source.
+    # Revised selectors govern the current snapshot, while an earlier capture keeps
+    # its selected bytes. A producer can supply media for the revised declaration.
     registry["$data"]["contracts"]["test-data"]["resources"] = ["other[].url"]
     registry_path.write_text(json.dumps(registry))
-    refused = revisioning_model.activate_source(page_dir)
-    assert "record declaration, or resources change" in refused.error
+    changed = revisioning_model.activate_source(page_dir)
+    assert changed.error is None and changed.created
+    current = page_snapshot_model.capture_page_snapshot(
+        page_dir,
+        artifact_model.read_revision(page_dir, changed.revision).document,
+        {"revision": changed.revision, "version": None, "url": "/"},
+    )
+    assert current.data_resources == {}
+    assert snapshot.data_resources[urls[1]].data == second.read_bytes()
+    data_model.cmd_data_set(page_dir, "images", {"other": [{"url": urls[0]}]})
+    revised = page_snapshot_model.capture_page_snapshot(
+        page_dir,
+        artifact_model.read_revision(page_dir, changed.revision).document,
+        {"revision": changed.revision, "version": None, "url": "/"},
+    )
+    assert set(revised.data_resources) == {urls[0]}
+    assert revised.data_resources[urls[0]].data == first.read_bytes()
 
 
 def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):

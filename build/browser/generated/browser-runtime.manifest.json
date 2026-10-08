@@ -13,6 +13,7 @@
     "skills/leaf/assets/runtime/pending/model.js",
     "skills/leaf/assets/runtime/projection/model.js",
     "skills/leaf/assets/runtime/queues.js",
+    "skills/leaf/assets/runtime/registry-contract.js",
     "skills/leaf/assets/runtime/thread/identity.js",
     "skills/leaf/assets/runtime/thread/model.js",
     "skills/leaf/assets/runtime/thread/workflow.js"
@@ -23,7 +24,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "5cc058420ee32fc5e60bca5998f45b9f7a8f3826f1a63292a246450fc2866807",
+  "lockfileSha256": "5b5e0964b386e1cdc96a788da3f8f438454cf3564048d0eac5b918229eab29c0",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -55,6 +56,7 @@
     "lit": "3.3.3",
     "lit-html": "3.3.0",
     "marked": "18.0.14",
+    "photoswipe": "5.4.4",
     "sortablejs": "1.15.7",
     "typescript": "7.0.2"
   },
@@ -162,12 +164,12 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 30612,
-      "sha256": "748aeccf706e19df94f8631a4f57b14addc1805ed39e905c7aa33e597b0ce33a"
+      "bytes": 32753,
+      "sha256": "b4e29f35696eb64e39e9811a5085e32743c93f8a674ed4fbd2267aaafa8ea53a"
     },
     "build/browser/generated/browser-runtime.js.map": {
-      "bytes": 200523,
-      "sha256": "2c8585d052ecb611728426582784bc42f1670dc83244d343352bcf5a0f288bea"
+      "bytes": 209820,
+      "sha256": "decfad9aef169d6895d309cd75e5e7fa2a277b916ca6c6b0b7868f524d71f27f"
     },
     "skills/leaf/assets/vendor/lit.js": {
       "bytes": 32081,

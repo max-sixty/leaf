@@ -9,6 +9,7 @@ import json
 import sys
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
@@ -59,14 +60,14 @@ def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
     (`tasks.put_down`), and return the declaration, with the user moves still owed an
     answer, which the page goes on showing over it."""
     from .revisioning import activate_source
-    from .served_state.page import full_state
+    from .served_state.work import live_work
     from .tasks import put_down
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
         put_down(page)
         status = page.set_status("waiting", detail)
-        return status, full_state(page_dir, page.events)["activity"]["obligations"]
+        return status, live_work(page_dir, page.events).obligations
 
 
 def cmd_idle(page_dir: Path, detail: str) -> dict:
@@ -83,12 +84,13 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
     from .activity import blocking_obligations, unanswered
-    from .served_state.page import full_state
-    from .tasks import owed_tasks, put_down
+    from .served_state.work import live_work
+    from .tasks import put_down
 
     with PageTransaction(page_dir) as page:
         events = page.events
-        state = full_state(page_dir, events)
+        work = live_work(page_dir, events)
+        state = {**work.presence, "activity": work.activity}
         claim = page.active_claim
         harness = claim_harness(claim) if claim is not None else None
         pending = len(unacknowledged(events, page.cursor))
@@ -114,7 +116,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
             )
         # A task is work the agent still owes, which closing the page would leave
         # standing on a page nobody holds.
-        if tasks := owed_tasks(events):
+        if tasks := work.durable.log.owed:
             named = "; ".join(f"{task['id']} ({task['title']})" for task in tasks)
             sys.exit(
                 f"{len(tasks)} open task{'s' if len(tasks) != 1 else ''}: {named}. "
@@ -398,16 +400,18 @@ def _page_reading_or_none(page_dir: Path) -> str | None:
     """A page's reading, or None once its directory is gone."""
     try:
         return page_reading(page_dir)
-    except (FileNotFoundError, NotADirectoryError):
+    except FileNotFoundError, NotADirectoryError:
         return None
 
 
-class _WatchPass(NamedTuple):
+@dataclass(frozen=True)
+class _WatchPass[DeliveryResult]:
     """What one complete pass observed, or the outcome that ended it early."""
 
     readings: list[PageTick]
     live: list[PageTick]
     outcome: int | None
+    delivered: DeliveryResult | None = None
 
 
 def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
@@ -443,12 +447,12 @@ def delivery_json(reading: PageTick, harness: Harness | None) -> str:
     return json.dumps(payload, ensure_ascii=False)
 
 
-def read_watch_pass(
+def read_watch_pass[DeliveryResult](
     watch: Watch,
     named: Path | None,
-    deliver: Callable[[PageTick], None],
+    deliver: Callable[[PageTick], DeliveryResult],
     ready: Callable[[PageTick], bool] = lambda reading: True,
-) -> _WatchPass:
+) -> _WatchPass[DeliveryResult]:
     """Read pages until this pass completes or one page ends the wait. A batch
     the watch is not `ready` to hand over waits for a later pass."""
     readings = []
@@ -476,8 +480,7 @@ def read_watch_pass(
         # them to the agent whatever became of the leaf, so an idled page still
         # delivers here — it just no longer holds the wait open below.
         if reading.batch and ready(reading):
-            deliver(reading)
-            return _WatchPass(readings, live, 0)
+            return _WatchPass(readings, live, 0, deliver(reading))
         if reading.lost:
             # A session-wide watcher still serves its other leaves. Treat the
             # unavailable page as fatal only when it is the named watch, or when
@@ -530,7 +533,7 @@ def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
     one = len(held) == 1
     names = ", ".join(str(reading.page_dir) for reading in held)
     print(
-        f"the {'leaf' if one else 'leaves'} ended; {names} "
+        f"the {'page' if one else 'pages'} closed; {names} "
         f"{'is' if one else 'are'} idle",
         file=sys.stderr,
     )
@@ -640,7 +643,6 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
         first_sight(page_dir, _log_end(page_dir))
     if not watch.acquire():
         return None
-    woke = []
 
     def ready(reading: PageTick) -> bool:
         claim = reading.transaction.active_claim
@@ -665,14 +667,12 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     try:
         while harness.process_runs():
             mark = watch.mark()
-            reading = read_watch_pass(
-                watch, None, lambda tick: woke.append(tick.page_dir), ready
-            )
+            reading = read_watch_pass(watch, None, lambda tick: tick.page_dir, ready)
             for tick in reading.readings:
                 if tick.page_dir not in began:
                     first_sight(tick.page_dir, _log_end(tick.page_dir))
-            if woke:
-                return new_input_line(woke[0])
+            if reading.delivered is not None:
+                return new_input_line(reading.delivered)
             if reading.outcome is not None:
                 return "\n".join(
                     f"{tick.page_dir}: server is not running; restart it with "

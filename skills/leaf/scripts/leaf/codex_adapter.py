@@ -35,7 +35,7 @@ import sys
 import threading
 import time
 from concurrent.futures import Future
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 # The stream-activity writers are called as `codex.<name>`, so `leaf.codex` holds their
@@ -63,7 +63,6 @@ from .codex import (
     retire_gone_task_records,
     retry_delay,
     start_app_server_delivery,
-    stream_reply_target,
     write_record,
 )
 from .codex_state import (
@@ -72,6 +71,7 @@ from .codex_state import (
     step_delivery_turn,
     sync_transcript_turn,
 )
+from .delivery import stream_reply_target
 from .detached import Handshake, starting_detached
 from .event_log import read_cursor
 from .harness import CodexHarness, Harness, session_harness
@@ -194,7 +194,8 @@ class TaskConnection:
             self.stop_event.set()
         if self.socket is not None:
             self.socket.close()
-        self.thread.join()
+        if self.thread.ident is not None:
+            self.thread.join()
 
     def start_delivery(self, payload: dict) -> bool:
         """Request a fresh idle check and start; wait without owning shared locks."""
@@ -765,7 +766,7 @@ def _recover_receipt(session_id: str) -> bool:
 def _offer_queued_delivery(
     codex_path: str,
     session_id: str,
-    connection: "TaskConnection | None",
+    connection: TaskConnection | None,
 ) -> bool:
     """Offer one collecting delivery through the selected Codex transport.
 
@@ -850,43 +851,39 @@ def run_adapter(
     harness = session_harness()
     if harness is None or harness.name != CodexHarness.name:
         raise RuntimeError("the Codex adapter needs a Codex task identity")
-    lease = take_lease(adapter_lease_path(harness.session))
-    if lease is None:
-        raise RuntimeError("a Codex delivery adapter is already active")
-    # The lease record names this adapter's transport, so a later `leaf codex start`
-    # in the task reports the one it joins.
-    lease.truncate(0)
-    lease.write(json.dumps({"app_server": app_server}).encode())
-    lease.flush()
-    watch = Watch(harness)
-    if not watch.acquire():
-        release_lease(lease)
-        raise RuntimeError(
-            "another `leaf wait` is already active; stop it before starting delivery"
-        )
-    leases_released = False
-    connection = None
-    start_lock = adapter_start_lock_path(harness.session)
+    with ExitStack() as resources:
+        lease = take_lease(adapter_lease_path(harness.session))
+        if lease is None:
+            raise RuntimeError("a Codex delivery adapter is already active")
+        # The lease record names this adapter's transport, so a later `leaf codex start`
+        # in the task reports the one it joins.
+        resources.callback(release_lease, lease)
+        lease.truncate(0)
+        lease.write(json.dumps({"app_server": app_server}).encode())
+        lease.flush()
+        watch = Watch(harness)
+        if not watch.acquire():
+            raise RuntimeError(
+                "another `leaf wait` is already active; stop it before starting delivery"
+            )
+        resources.callback(watch.release)
+        connection = None
+        start_lock = adapter_start_lock_path(harness.session)
 
-    def retire() -> None:
-        """Let this adapter's leases go, and with them, once the task owns no page,
-        the log this run wrote. Taken under the start lock, so no successor starts
-        until it is done; a task that still owns a page keeps the log for the next
-        adapter it starts. On the way out it retires every task's delivery records
-        whose pages are gone (`retire_gone_task_records`)."""
-        nonlocal leases_released
-        if connection is not None:
-            connection.stop()
-        if not owned_pages(harness.session):
-            adapter_log_path(harness.session).unlink(missing_ok=True)
-        retire_gone_task_records()
-        watch.release()
-        release_lease(lease)
-        leases_released = True
+        def retire() -> None:
+            """Let this adapter's leases go, and with them, once the task owns no page,
+            the log this run wrote. Taken under the start lock, so no successor starts
+            until it is done; a task that still owns a page keeps the log for the next
+            adapter it starts. On the way out it retires every task's delivery records
+            whose pages are gone (`retire_gone_task_records`)."""
+            resources.close()
+            if not owned_pages(harness.session):
+                adapter_log_path(harness.session).unlink(missing_ok=True)
+            retire_gone_task_records()
 
-    try:
         if app_server is not None:
             connection = TaskConnection(app_server, harness.session)
+            resources.callback(connection.stop)
             connection.start()
         else:
             check_queue_command(codex_path)
@@ -922,22 +919,20 @@ def run_adapter(
                 failures = 0
                 continue
 
-            captured = False
-
-            def capture(reading) -> None:
-                """Persist the batch without claiming that a turn opened."""
-                nonlocal captured
-                captured = capture_batch(harness.session, reading)
-
             mark = watch.mark()
-            reading = read_watch_pass(watch, None, deliver=capture)
-            if captured:
+            reading = read_watch_pass(
+                watch, None, deliver=lambda tick: capture_batch(harness.session, tick)
+            )
+            if reading.delivered:
                 continue
             if reading.outcome is not None or not reading.live:
                 with flocked(start_lock):
-                    captured = False
-                    reading = read_watch_pass(watch, None, deliver=capture)
-                    if captured or (reading.outcome is None and reading.live):
+                    reading = read_watch_pass(
+                        watch,
+                        None,
+                        deliver=lambda tick: capture_batch(harness.session, tick),
+                    )
+                    if reading.delivered or (reading.outcome is None and reading.live):
                         continue
                     if not owned_pages(harness.session):
                         retire()
@@ -950,14 +945,6 @@ def run_adapter(
             # A second a pass, as well as each time a page moves: the queued offer
             # and receipt recovery above answer to Codex, not to the page's files.
             watch.await_news(mark, timeout=1)
-    finally:
-        # Provider turns outlive the adapter. Disconnect every fold, preserving
-        # its reserved reply and transcript recovery for the next owner.
-        if connection is not None:
-            connection.stop()
-        if not leases_released:
-            watch.release()
-            release_lease(lease)
 
 
 def cmd_codex_start(

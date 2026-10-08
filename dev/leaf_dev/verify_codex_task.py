@@ -54,7 +54,9 @@ import click
 import psutil
 from leaf.codex import private_app_server
 from leaf.event_log import read_events
+from leaf.events import build_threads
 from leaf.leases import adapter_is_live, lock_is_held, titles_log
+from leaf.revision_artifact import active_enclosing
 from leaf.server import running_server
 from leaf.service import page_claim
 from leaf.thread_titles import TIMEOUT
@@ -240,6 +242,76 @@ def journey(
     check_step(["idle"])
     step("idle", started)
 
+    # Real author intent exercises the rich interface without naming its commands.
+    for rich, request in (
+        (
+            "choice",
+            (
+                "I need to decide whether to ship or wait. Give me two clickable choices "
+                "inside this thread, not on the page. Explain the decision in a short "
+                "question, and move this thread to the release rationale section."
+            ),
+        ),
+        (
+            "question",
+            (
+                "Ask me whether I can own the release check, as a prose question in this "
+                "thread. Keep it waiting for my answer and move the thread to the release "
+                "rationale section."
+            ),
+        ),
+    ):
+        started = time.monotonic()
+        client = PageClient(url)
+        client.post(
+            {
+                "kind": "comment",
+                "revision": client.state()["active"]["revision"],
+                "attempt": f"verify-rich-{rich}",
+                "text": request,
+                "anchor": {"section": "triage-lede"},
+            }
+        )
+        # The browser response carries state; the admitted event is the log fact.
+        posted = next(
+            event["id"]
+            for event in read_events(page)
+            if event.get("attempt") == f"verify-rich-{rich}"
+        )
+
+        def rich_answers(responds=posted):
+            return [
+                event
+                for event in read_events(page)
+                if event["kind"] == "reply"
+                and event.get("responds") == responds
+                and "failure" not in event
+            ]
+
+        task.settle(
+            lambda: bool(rich_answers()), f"rich {rich} comment was not answered"
+        )
+        [reply] = rich_answers()
+        require(bool(reply.get("text")), "the rich reply has no prose")
+        require(
+            reply.get("anchor", {}).get("section") == "triage-why",
+            "rich reply did not relocate to the rationale",
+        )
+        if rich == "choice":
+            require(
+                bool(reply.get("markup")),
+                "the real author did not send clickable thread markup",
+            )
+        else:
+            require(
+                reply.get("awaits") is True,
+                "the prose question does not await the user's answer",
+            )
+        thread = build_threads(read_events(page), active_enclosing(page))[posted]
+        require(bool(thread["title"]), "the rich thread was not titled")
+        check_step(["idle"])
+        step(f"rich-{rich}", started)
+
     started = time.monotonic()
     previous_turns = len(task.started)
     user_turn = task.say(USER_TURN)
@@ -251,13 +323,10 @@ def journey(
             "the user turn did not start its sleep command",
         )
     post(page, "mid-turn")
-    final_seen = False
     if transport == "queue":
 
         def before_final(turn: str) -> None:
-            nonlocal final_seen
             if turn == user_turn:
-                final_seen = True
                 require(
                     bool(answers(page, "mid-turn")),
                     "the agent sent its final response before answering the active comment",
@@ -273,7 +342,10 @@ def journey(
     require(named, f"the claim never named the user's turn {user_turn} while it ran")
     task.on_final = None
     if transport == "queue":
-        require(final_seen, "the active turn emitted no final response to check")
+        require(
+            user_turn in task.final_answers,
+            "the active turn emitted no final response to check",
+        )
         require(
             bool(answers(page, "mid-turn")), "the active turn ended without answering"
         )

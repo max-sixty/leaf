@@ -6,10 +6,10 @@ config, and runs `promptfoo eval`; Promptfoo does the rest.
 
 ```sh
 npm ci --prefix evals
-uv run leaf-dev eval brief-document-needs-no-outline
-uv run leaf-dev eval reading document/resume --harness claude-code
-uv run leaf-dev eval task-outlasts-the-turn --base
-uv run leaf-dev eval document --condition both --repeat 3
+uv run leaf-dev eval brief-document-needs-no-outline --harness claude-code
+uv run leaf-dev eval reading document/resume --harness codex
+uv run leaf-dev eval task-outlasts-the-turn --harness claude-code --base
+uv run leaf-dev eval document --harness both --condition both --repeat 3
 npm run view --prefix evals
 ```
 
@@ -22,7 +22,10 @@ npm run view --prefix evals
   as a second arm, and `--base REF` adds that ref; put cases before it. An arm
   holds only the plugin payload, with no git history, so an agent can't look up
   another version of Leaf through it.
-- **Harnesses.** `--harness claude-code`, `codex` or `both` (the default).
+- **Harnesses.** `--harness claude-code`, `codex` or `both`, with no default. Run
+  the harness the motivating failure came from, or the one you are working in when
+  no session failed. Run `both` when the change is about how the harnesses differ,
+  such as a harness contract.
 - **Conditions.** `--condition html` runs the plain HTML control on the tasks that
   declare one (document, dashboard and queue); `both` runs it beside Leaf. The
   control gets the same request and judge with no Leaf skill, runtime or widgets.
@@ -70,11 +73,17 @@ where the case came from and what it measured, `metadata.purpose` the behavior i
 pins, and `metadata.tags` its area.
 
 Internal instruction cases declare `metadata.instructions`, a source path in
-that arm. The native provider receives its contents as system/developer context;
+that arm. The native provider receives its contents and source file location as
+system/developer context, retaining the origin of its linked references;
 the case grades the resulting behavior. These columns end in `/instructions`.
 Shipped-skill cases instead let the agent load its skill and references. Both kinds
 score the resulting answer against the task. Reading a named file is not a scored
 requirement; native traces retain tool calls for diagnosing instruction loading.
+
+Grader controls set `providerOutput` to a fixed answer and reuse the case's rubric,
+with `not-llm-rubric` for an answer the judge should reject. Promptfoo skips agent
+generation and grades that answer; `review-shows-the-change/grader-*` exercises
+this path. These scores measure the judge, not the agent's behavior.
 
 A complete task instead names `metadata.executor`, a `leaf_dev` module, and
 `metadata.scenario`, a key of that module's `CASES`. The executor builds fixtures, runs the agent

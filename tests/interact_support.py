@@ -119,6 +119,17 @@ def append_command(page_dir, command):
         return event_contracts_model.append_admitted(page, command)
 
 
+def response_reference(page_dir, event):
+    """Read the exact address emitted by the real delivery producer for an input."""
+    from leaf.delivery import batch_data, freeze_delivery
+
+    event_id = event["id"] if isinstance(event, dict) else event
+    with service_model.PageTransaction(page_dir) as page:
+        captured = next(item for item in page.events if item["id"] == event_id)
+        batch = batch_data(page_dir, page, [captured])
+    return freeze_delivery([batch])["batches"][0]["events"][0]["answer"]["ref"]
+
+
 def append_carried_log_record(page_dir, event):
     """Seed already-interpreted input for a storage or transport test.
 
@@ -578,7 +589,7 @@ def stamp_activation(d):
     from leaf.validation.source import check_source
 
     with service_model.PageTransaction(d) as page:
-        checked = check_source(d, page.events, allow_transition=True)
+        checked = check_source(d, page.events)
         return revisioning_model.activate_checked_source(page, checked)
 
 
@@ -926,8 +937,8 @@ ACCEPT = {
 def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     """Hold one admitted writer at append and prove re-vendor cannot pass it.
 
-    Re-vendoring waits for the admitted writer, then refuses the incoming
-    vocabulary when it cannot replay that event. Release the writer before
+    Re-vendoring waits for the admitted writer, then commits the incoming
+    vocabulary while retaining that event. Release the writer before
     joining either worker, including when an assertion fails."""
     entering = threading.Event()
     resume = threading.Event()
@@ -982,7 +993,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
         refusal = vendoring.result(timeout=STATED_TIMEOUT)
 
     assert not passed_writer, f"re-vendor passed a validated {kind} writer"
-    assert refusal is not None
+    assert refusal is None
     return written, refusal
 
 

@@ -30,6 +30,25 @@ jq 'select(has("lf-shot"))."lf-shot"' \
   skills/leaf/assets/registry.json skills/leaf/packages/*/registry.json
 ```
 
+## Review a UI change
+
+Before handing over a change to browser controls, navigation, focus, motion,
+forms or layout, read and follow `/ui-sweep` at `../ui-sweep/SKILL.md` on
+the changed surface and its dependent interactions. Its "External review"
+section owns selection and use of the tools below.
+
+### External UI skills
+
+These are optional external installs, separate from Leaf's plugin. Check the
+harness's available skills before invoking one; each upstream link supplies its
+installation instructions and complete references.
+
+| Install | Use in a UI review |
+| --- | --- |
+| [Impeccable](https://github.com/pbakaus/impeccable#installation) | `/impeccable critique` for hierarchy, grouping and clarity; `audit` for technical UI quality. Its focused workflows include `layout`, `typeset`, `clarify`, `adapt`, `harden` and `distill`. |
+| [Web Design Guidelines](https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines) | `/web-design-guidelines` for interface conventions, accessibility, navigation, forms and motion. |
+| [Frontend Design](https://github.com/anthropics/skills/tree/main/skills/frontend-design) | `/frontend-design` for new compositions or an intentional redesign. |
+
 ## Leave taste to the authoring agent
 
 Code enforces only what Leaf needs to work: a contract between modules, or a guarantee
@@ -104,9 +123,11 @@ Open the exact preview URL in a fresh browser context and verify those outcomes
 on arrival and through ordinary input. Setup from a private probe that the user
 cannot repeat belongs in the fixture or a replay control.
 
-Judge legibility and layout in every visible state reached by ordinary input,
-in the affected color schemes. Pause after state changes to inspect them before
-continuing the journey.
+Judge legibility and layout in the visible states ordinary input produces, in
+the affected color schemes. Within an open surface, inspect the item under the
+pointer or targeted by keyboard navigation against its current background;
+focus can remain on the trigger.
+Pause before the next input replaces or dismisses that state.
 Every candidate and optional surface retained in the page belongs to that review.
 
 Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
@@ -353,7 +374,7 @@ base and the working tree:
 
 ```bash
 npm ci --prefix evals
-uv run leaf-dev eval [CASE]... --base [--harness claude-code|codex] [--repeat N]
+uv run leaf-dev eval [CASE]... --base --harness claude-code|codex [--repeat N]
 npm run view --prefix evals
 ```
 

@@ -22,7 +22,7 @@ from .contract import (
     state_specs,
     visual_part_attribute,
 )
-from .schema import json_validator
+from .schema import json_validator, json_value, schema_error_message
 from .state import (
     validate_deciding_verb,
     validate_widget_record_contracts,
@@ -39,7 +39,7 @@ def element_declarations(registry: dict, path) -> dict:
     ]
     if invalid_names:
         raise RegistryError(
-            f"{path}: invalid element declaration names {invalid_names}: "
+            f"{path}: invalid element declaration names {json_value(invalid_names)}: "
             f"{WIDGET_NAME_RULE}"
         )
     return {tag: entry for tag, entry in registry.items() if not tag.startswith("$")}
@@ -53,7 +53,7 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
             Draft202012Validator.check_schema(entry)
         except SchemaError as error:
             raise RegistryError(
-                f"{path}: <{tag}> is not a valid JSON Schema: {error.message}"
+                f"{path}: <{tag}> is not a valid JSON Schema: {schema_error_message(error)}"
             ) from error
         description = entry.get("description")
         if not isinstance(description, str) or not description.strip():
@@ -66,7 +66,7 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
         )
         if errors:
             raise RegistryError(
-                f"{path}: <{tag}> registry extensions are invalid: {errors[0].message}"
+                f"{path}: <{tag}> registry extensions are invalid: {schema_error_message(errors[0])}"
             )
         for verb, spec in state_specs(entry):
             if spec.get("record"):
@@ -76,7 +76,7 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
             except SchemaError as error:
                 raise RegistryError(
                     f"{path}: <{tag}> x-state verb `{verb}` has an invalid "
-                    f"detail schema: {error.message}"
+                    f"detail schema: {schema_error_message(error)}"
                 ) from error
             if spec["detail"].get("type") != "object":
                 raise RegistryError(
@@ -106,14 +106,14 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
             if beyond := sorted(set(spec["detail"]) - spelled):
                 raise RegistryError(
                     f"{path}: <{tag}> x-state verb `{verb}` detail schema "
-                    f"declares {beyond}; a detail states its type, properties, "
+                    f"declares {json_value(beyond)}; a detail states its type, properties, "
                     "required and additionalProperties and nothing else, so the "
                     "keys a verb can carry are the ones it names"
                 )
 
 
 def validate_widget_relations(
-    registry: dict, declarations: dict, data: dict, slots: dict, path
+    registry: dict, declarations: dict, data: dict, path
 ) -> None:
     for tag, entry in declarations.items():
         properties, said = _validate_widget_structure(
@@ -126,7 +126,7 @@ def validate_widget_relations(
             tag, entry, properties, said, registry, declarations, path
         )
         validate_deciding_verb(tag, entry, path)
-        validate_widget_retirement(tag, entry, slots, declarations, path)
+        validate_widget_retirement(tag, entry, declarations, path)
 
 
 def _validate_widget_structure(
@@ -134,7 +134,7 @@ def _validate_widget_structure(
 ) -> tuple[dict, set]:
     if unknown := sorted(set(entry.get("x-owners", [])) - set(declarations)):
         raise RegistryError(
-            f"{path}: <{tag}> x-owners names unknown element declarations {unknown}"
+            f"{path}: <{tag}> x-owners names unknown element declarations {json_value(unknown)}"
         )
     properties = entry.get("properties", {})
     if entry.get("x-initial"):
@@ -262,7 +262,7 @@ def _validate_widget_structure(
         named = {declared} if isinstance(declared, str) else set(declared)
         if unknown := sorted(named - set(properties)):
             raise RegistryError(
-                f"{path}: <{tag}> {key} names undeclared attributes {unknown}"
+                f"{path}: <{tag}> {key} names undeclared attributes {json_value(unknown)}"
             )
     for attribute, reference in entry.get("x-refers", {}).items():
         if error := reference_relation_error(reference, registry, declarations):
@@ -377,25 +377,25 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
                     ) or declared.get("enum"):
                         raise RegistryError(
                             f"{path}: <{tag}> {declaration} tests `{attr}` as "
-                            f"{str(value).lower()}, but that attribute is not a flag"
+                            f"{json_value(value)}, but that attribute is not a flag"
                         )
                 elif declared.get("type") == "boolean":
                     raise RegistryError(
                         f"{path}: <{tag}> {declaration} tests flag `{attr}` as "
-                        f"{value!r}; a flag is there or it isn't"
+                        f"{json_value(value)}; a flag is there or it isn't"
                     )
                 if (
                     allowed := declared.get("enum")
                 ) is not None and value not in allowed:
                     raise RegistryError(
                         f"{path}: <{tag}> {declaration} tests `{attr}` at "
-                        f"{value!r}, which its own enum does not admit"
+                        f"{json_value(value)}, which its own enum does not admit"
                     )
                 if errors := sorted(json_validator(schema).iter_errors(value), key=str):
                     raise RegistryError(
                         f"{path}: <{tag}> {declaration} tests `{attr}` at "
-                        f"{value!r}, which its own schema does not admit: "
-                        f"{errors[0].message}"
+                        f"{json_value(value)}, which its own schema does not admit: "
+                        f"{schema_error_message(errors[0])}"
                     )
     thread = entry.get("x-thread-seat", {})
     mutable_values = {
@@ -406,13 +406,13 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     if dynamic := sorted(set(thread.get("when", {})) & mutable_values):
         raise RegistryError(
             f"{path}: <{tag}> x-thread-seat predicate attributes are authored "
-            f"and static, but {dynamic} are written by value records"
+            f"and static, but {json_value(dynamic)} are written by value records"
         )
     data_bindings = {spec["source"] for spec in entry.get("x-data", {}).values()}
     if dynamic := sorted(data_bindings & mutable_values):
         raise RegistryError(
             f"{path}: <{tag}> x-data binding attributes are authored, "
-            f"but {dynamic} are written by value records"
+            f"but {json_value(dynamic)} are written by value records"
         )
     if (measured := entry.get("x-measured")) and measured["at"] in mutable_values:
         raise RegistryError(
@@ -451,7 +451,7 @@ def _validate_widget_interactions(
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
     if unknown := sorted(set(answered) - user_verbs):
         raise RegistryError(
-            f"{path}: <{tag}> x-awaits answers with verbs {unknown}, which are not "
+            f"{path}: <{tag}> x-awaits answers with verbs {json_value(unknown)}, which are not "
             "x-state verbs the user writes"
         )
     # A blanket answer is one decision per Ask, taken through the widget's deciding
@@ -490,17 +490,13 @@ def _validate_widget_interactions(
         and properties["overruled"].get("type") == "boolean"
     ):
         raise RegistryError(
-            f"{path}: <{tag}> declares agent-written x-state verbs {agent_verbs} but "
+            f"{path}: <{tag}> declares agent-written x-state verbs {json_value(agent_verbs)} but "
             "not the boolean `overruled` "
             "attribute a version overrules a standing report with"
         )
-    # The same rule for the user's verbs: a version that rewrites what a
-    # decision rested on must say `restated` on the element ($restated),
-    # and a closed schema without the attribute is a widget whose every
-    # rewrite is unpublishable — the words gate demands an attribute the
-    # widget's own schema refuses. Held only where a verb folds on the
-    # widget itself: a verb folding per child (move's "card") rests its
-    # decisions on elements this declaration doesn't name.
+    # A user decision folded on the widget needs an explicit withdrawal route:
+    # `restated` names that intent; ordinary source edits leave the decision in
+    # force. Child-folding verbs place it on elements this declaration does not name.
     folds_whole = any(
         spec["unit"] == "widget" for _verb, spec in state_specs(entry, writer="user")
     )

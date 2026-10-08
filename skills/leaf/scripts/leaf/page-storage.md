@@ -93,7 +93,7 @@ other page files and the external state listed below.
 - `user-views.lock` — the independent lock serializing observation writes;
   excluded from page freshness and activation.
 
-- `data.json` — the contract each external-data source id was first set under.
+- `data.json` — the current contract each external-data source id was set under.
   `data.py` owns storage and updates.
 
 - `data/` — one JSON file per source, `<source>.json`, holding its current value.

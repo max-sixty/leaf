@@ -8,9 +8,9 @@ import { repaintPage } from "./repaint.js";
 import { layoutChanged } from "./widget-elements.js";
 // One computed reading seats the rail first without moving the column, then each
 // authored resident on its preferred side, or in flow when there is no room. The
-// column's actual CSS offset is removed before measuring, including RTL, so its
-// last written shift cannot feed the next decision. --lf-resident (layouts.css) declares
-// posture preferences; data-lf-margin and --lf-shift publish their geometry.
+// column's runtime grid offset is removed before measuring, including RTL, while an
+// authored offset remains part of its room. --lf-resident (layouts.css) declares posture
+// preferences; data-lf-margin and the shell's --lf-column-shift publish their geometry.
 // Read at most once per frame after widgets upgrade. Every completed read notifies
 // the selected annotation owner, including an unchanged or missing column; only a
 // changed reading repaints page geometry. Imports never start this document owner.

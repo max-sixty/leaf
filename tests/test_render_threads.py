@@ -11710,6 +11710,11 @@ def test_a_refused_rewrite_puts_the_resolved_filter_back(browser, serve):
     expect(resolved_filter).to_have_attribute("aria-pressed", "true")
     expect(thread.locator(":scope > .lf-thread-summary")).to_be_focused()
     expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
+    # The reply box still holds the card open, so Reopen stands in Resolve's place in
+    # the head, in the room the head keeps for it: the word ran over the pencil.
+    pencil = message.locator(".lf-msg-edit").bounding_box()
+    reopen = thread.locator(".lf-thread-meta-actions .lf-reopen").bounding_box()
+    assert pencil["x"] + pencil["width"] <= reopen["x"], (pencil, reopen)
     page.unroute_all(behavior="wait")
 
 

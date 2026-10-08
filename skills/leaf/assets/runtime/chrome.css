@@ -832,7 +832,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
        left, and both take the bottom. */
     padding: 0 var(--lf-safe-right) var(--lf-safe-bottom) 0; }
   .lf-thread-panel[open] { display: flex; }
-  .lf-thread-panel-body { display: flex; flex-direction: column; flex: 1;
+  /* The body's scrolling regions share a local paint order below the outer grip. */
+  .lf-thread-panel-body { isolation: isolate; display: flex; flex-direction: column; flex: 1;
     min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   /* The panel stands over the page and takes no room from it (theme.css, at
      `--lf-auxiliary-beside`). It shares the auxiliary scrim only where it leaves less than
@@ -958,7 +959,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      turn readable even when the panel is short. */
   /* Even the fallback keeps one complete reply control and its focus band readable;
      the surrounding body scrolls instead of compressing this reading box to zero. */
-  .lf-threads-frame { flex: 1;
+  /* The reading frame owns its pinned edges above the sibling composer scrollport.
+     Making that foot a positioned containing block must not put its border over the
+     reply's ground at their shared edge. */
+  .lf-threads-frame { flex: 1; z-index: 1;
     min-height: calc(var(--lf-compose-h) + 2 * var(--focus-ring-room));
     display: grid; container-type: size; }
   .lf-threads-frame::after, .lf-threads { grid-area: 1 / 1; min-height: 0; }

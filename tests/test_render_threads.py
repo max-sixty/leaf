@@ -10543,7 +10543,6 @@ def test_a_short_thread_panel_keeps_its_draft_and_send_reachable(browser, serve,
     with sending(page, "the general draft and its attachment"):
         send.click()
     expect(field).to_have_js_property("value", "")
-    context.close()
 
 
 def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(

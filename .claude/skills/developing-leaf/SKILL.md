@@ -53,10 +53,11 @@ needs re-vendoring, and doesn't list reviving it as follow-up work.
 Whenever the user is to choose among designs for a visual or interaction
 question, whether options for a new interface, alternatives to a shipped one, or
 sketches they asked for, put the candidates in one playground, where the user
-operates each, comments on it, and submits a choice. The submitted configuration
-or feedback chooses the one implementation the change keeps. First look in the
-shipped examples and `notes/` for an exploration of the same surface, and extend
-its playground when it owns the same decision.
+compares them, tries the interactions needed to decide, comments, and submits a
+choice. The submitted configuration or feedback chooses the one implementation
+the change keeps. First look in the shipped examples and `notes/` for an
+exploration of the same surface, and extend its playground when it owns the same
+decision.
 
 A playground is one HTML file, like a standalone sketch. Write it under `.tmp/`
 and serve it with `uv run leaf-dev preview --source <file> --user` ("Preview a
@@ -72,10 +73,13 @@ cross owners or select part of one owner's interface. Candidates share the
 current interface except for the requested change. Use this checkout's rendered
 interface as the baseline in the review state. Implement runtime candidates in
 the runtime and theme that own the surface; an appearance sketch can restyle
-the live surface. A separate sketch keeps the same contract unless the user
-requested a partial demonstration. Verify the comparison by operating the
-baseline and candidates through the same journey before handoff. For a live
-Leaf interface, embed them as `lf-sample window` children.
+the live surface. A separate sketch follows "Decision fidelity" in the
+playground author instructions. When a reviewer checks the comparison, give them
+the user's question and the baseline and candidate views, and ask first whether
+those views are enough to make that choice; ask for a preference only once they
+are. Operate an interactive comparison's baseline and candidates through the
+same journey before handoff. For a live Leaf interface, embed them as
+`lf-sample window` children.
 The outer page carries the configuration and feedback; the children carry practice
 interactions. Start their fictional histories with `data-sample-events`, sharing
 one parent-local JSON fixture when the candidates need the same conversation

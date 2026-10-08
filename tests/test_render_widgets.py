@@ -12863,7 +12863,10 @@ def test_an_exported_markdown_document_keeps_its_preview_and_source_switch(
     page.keyboard.press("?")
     rendered(page)
     expect(page.get_by_role("dialog")).to_have_count(0)
-    expect(page.locator(".lf-chrome")).to_have_count(0)
+    expect(page.locator(".lf-chrome > #lf-media-viewer:not([open])")).to_have_count(1)
+    expect(page.locator("#lf-banner, .lf-thread-panel, .lf-queue-panel")).to_have_count(
+        0
+    )
     document.get_by_role("tab", name="Preview", exact=True).press("ArrowRight")
     expect(source).to_have_attribute("aria-selected", "true")
 

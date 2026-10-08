@@ -9,6 +9,7 @@ import json
 import sys
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
@@ -379,16 +380,18 @@ def _page_reading_or_none(page_dir: Path) -> str | None:
     """A page's reading, or None once its directory is gone."""
     try:
         return page_reading(page_dir)
-    except (FileNotFoundError, NotADirectoryError):
+    except FileNotFoundError, NotADirectoryError:
         return None
 
 
-class _WatchPass(NamedTuple):
+@dataclass(frozen=True)
+class _WatchPass[DeliveryResult]:
     """What one complete pass observed, or the outcome that ended it early."""
 
     readings: list[PageTick]
     live: list[PageTick]
     outcome: int | None
+    delivered: DeliveryResult | None = None
 
 
 def wait_acknowledgement(harness: Harness | None) -> Callable[[str], str]:
@@ -424,12 +427,12 @@ def delivery_json(reading: PageTick, harness: Harness | None) -> str:
     return json.dumps(payload, ensure_ascii=False)
 
 
-def read_watch_pass(
+def read_watch_pass[DeliveryResult](
     watch: Watch,
     named: Path | None,
-    deliver: Callable[[PageTick], None],
+    deliver: Callable[[PageTick], DeliveryResult],
     ready: Callable[[PageTick], bool] = lambda reading: True,
-) -> _WatchPass:
+) -> _WatchPass[DeliveryResult]:
     """Read pages until this pass completes or one page ends the wait. A batch
     the watch is not `ready` to hand over waits for a later pass."""
     readings = []
@@ -457,8 +460,7 @@ def read_watch_pass(
         # them to the agent whatever became of the leaf, so an idled page still
         # delivers here — it just no longer holds the wait open below.
         if reading.batch and ready(reading):
-            deliver(reading)
-            return _WatchPass(readings, live, 0)
+            return _WatchPass(readings, live, 0, deliver(reading))
         if reading.lost:
             # A session-wide watcher still serves its other leaves. Treat the
             # unavailable page as fatal only when it is the named watch, or when
@@ -621,7 +623,6 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
         first_sight(page_dir, _log_end(page_dir))
     if not watch.acquire():
         return None
-    woke = []
 
     def ready(reading: PageTick) -> bool:
         claim = reading.transaction.active_claim
@@ -646,14 +647,12 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     try:
         while harness.process_runs():
             mark = watch.mark()
-            reading = read_watch_pass(
-                watch, None, lambda tick: woke.append(tick.page_dir), ready
-            )
+            reading = read_watch_pass(watch, None, lambda tick: tick.page_dir, ready)
             for tick in reading.readings:
                 if tick.page_dir not in began:
                     first_sight(tick.page_dir, _log_end(tick.page_dir))
-            if woke:
-                return new_input_line(woke[0])
+            if reading.delivered is not None:
+                return new_input_line(reading.delivered)
             if reading.outcome is not None:
                 return "\n".join(
                     f"{tick.page_dir}: server is not running; restart it with "

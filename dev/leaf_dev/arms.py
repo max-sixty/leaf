@@ -52,6 +52,7 @@ from leaf_dev.page_fixtures import prepare_page, read_fixture
 # `package.json` makes the payload a Pi package.
 PAYLOAD = (
     ".claude/skills/developing-leaf",
+    ".claude/skills/ui-sweep",
     ".agents/plugins",
     ".claude-plugin",
     ".codex-plugin",

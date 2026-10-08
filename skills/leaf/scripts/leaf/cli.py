@@ -73,7 +73,7 @@ class LeafGroup(click.Group):
             if isinstance(error.code, str):
                 raise click.ClickException(error.code) from error
             raise
-        except (click.exceptions.Exit, click.Abort):
+        except click.exceptions.Exit, click.Abort:
             raise
         except RuntimeError as error:
             from leaf.delivery import ReceiptRefused

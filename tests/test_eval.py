@@ -144,7 +144,9 @@ def test_internal_instruction_cases_receive_their_arms_source(
             if harness == "claude-code"
             else "developer_instructions"
         )
-        assert provider["config"][field] == f"{arm} maintainer instructions"
+        injected = provider["config"][field]
+        assert str(payloads[arm] / source) in injected
+        assert injected.endswith(f"{arm} maintainer instructions")
     assert [check["type"] for check in config["tests"][0]["assert"]] == ["llm-rubric"]
     assert config["tests"][0]["vars"]["prompt"] == catalog()[address]["vars"]["prompt"]
 

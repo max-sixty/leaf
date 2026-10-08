@@ -93,7 +93,7 @@ def required_layer_declarations(registry: dict, path):
         tones = registry["$tones"]["names"]
         data = registry["$data"]
         tokens = registry["$reactions"]["tokens"]
-    except (KeyError, TypeError):
+    except KeyError, TypeError:
         raise RegistryError(
             f"{path}: registry must declare $events.kinds, $languages.names/paths, "
             "$tones.names, $data, and $reactions.tokens"

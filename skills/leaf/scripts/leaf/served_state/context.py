@@ -60,7 +60,7 @@ class PageRead:
     def data(self) -> dict:
         return self.stored_data()
 
-    def through(self, sequence: int) -> "PageRead":
+    def through(self, sequence: int) -> PageRead:
         """The read as it stood once event `sequence` was appended: the log and the
         versions it had stamped by then, without a live streaming reply.
 

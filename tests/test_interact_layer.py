@@ -8,13 +8,13 @@ import shutil
 import subprocess
 import sys
 import threading
+import tomllib
 from datetime import datetime
 from pathlib import Path
 
 import playwright
 import pytest
 import tinycss2
-import tomllib
 import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool, _retire
@@ -736,8 +736,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
     # payload naming one — in the project file, or in a `uv.toml` beside it —
     # so that is what this forbids. Read off the lines rather than a parsed
     # table because a comment is free to discuss an index where a setting is
-    # not, and the project's own floor is 3.10, with no `tomllib` to parse
-    # with. The nightly test below drives the same claim through a real
+    # not. The nightly test below drives the same claim through a real
     # resolve against a closed port; this is the half every run sees.
     configured = [
         line
@@ -1600,7 +1599,7 @@ _LAYER_SHEET_ORDER = [
 
 
 def test_the_injected_control_face_is_a_default_only_the_document_reads():
-    """`.lf-ui` is a default. `offer()` writes it on every control a widget builds, and a
+    """`.lf-ui-face` is a native default. `offer()` writes it on native controls, and a
     component that states the same property overrides it, so the face stands first in
     the layer's page-side order and loses on position. It keeps a class's specificity,
     so the page's own element rules lose to it. And a declared tree copies shadow.css,
@@ -1624,12 +1623,18 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
     assert faces, "no face was read from the layer's sheets — the reading is broken"
     # Public controls and injected controls share this one default; its root boundary
     # and class weight still protect shadow content and win over page element rules.
-    control_face = ":where(:root) :is(.lf-ui, .button, .field)"
+    control_face = ":where(:root) :is(.lf-ui-face, .button, .field)"
     assert faces[0] == ("assets/shadow.css", control_face), faces[0]
     defaults = [
         face
         for face in faces
-        if face[1] in {".lf-ui", ":where(.lf-ui)", ":where(:root) .lf-ui", control_face}
+        if face[1]
+        in {
+            ".lf-ui-face",
+            ":where(.lf-ui-face)",
+            ":where(:root) .lf-ui-face",
+            control_face,
+        }
     ]
     assert defaults == [faces[0]], defaults
 

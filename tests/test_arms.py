@@ -295,6 +295,7 @@ def observed_codex():
     child.now = lambda: "2026-10-02T22:36:55-07:00"
     task = Task.__new__(Task)
     task.thread, task.started, task.running = "parent", [], set()
+    task.final_answers = set()
     task.commands, task.running_commands, task.hooks = [], {}, []
     task.on_final = None
     task.on_message = child._hear
@@ -372,6 +373,7 @@ def test_codex_parent_evidence_isolated_from_delegated_threads_and_usage_snapsho
         turn={"id": "child-turn", "status": "completed", "error": None},
     )
     assert task.running == {"parent-turn"}
+    assert task.final_answers == {"parent-turn"}
     assert [message["method"] for message in task.hooks] == ["hook/started"]
     assert task.started == ["parent-turn"]
     assert task.commands == [] and task.running_commands == {}

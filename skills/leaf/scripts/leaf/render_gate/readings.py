@@ -27,16 +27,10 @@ from leaf.structure import SourceDocument
 # A probe's arguments cross as JSON, so a node only CDP can name is handed to the
 # `issueNode` probe as the receiver of a call made on the node itself.
 _ISSUE_NODE = (
-    "function () { return globalThis.__leafRenderDriver"
-    ".call({name: 'issueNode', args: [this]}); }"
-)
-# A node in a child frame is that frame's to show, and the frame is the page's, so the
-# issue is placed at the frame element in the page's own document, where the probes
-# run. A cross-origin frame withholds that element, and the issue goes unplaced.
-_IN_PAGE = (
-    "function () { let node = this; const view = (n) => (n.ownerDocument ?? n)"
-    ".defaultView; while (node && view(node) !== top) node = view(node).frameElement;"
-    " return node; }"
+    "function () { const view = (this.ownerDocument ?? this).defaultView;"
+    " let driver; try { driver = view.top.__leafRenderDriver; }"
+    " catch (error) { if (error.name === 'SecurityError') return null; throw error; }"
+    " return driver.call({name: 'issueNode', args: [this]}); }"
 )
 
 
@@ -77,18 +71,9 @@ class DevtoolsIssues:
             node = self._cdp.send("DOM.resolveNode", {"backendNodeId": backend_id})
         except PlaywrightError:
             return None  # the node left the document after Chrome raised the issue
-        in_page = self._call(node["object"], _IN_PAGE, by_value=False)
-        if in_page.get("subtype") == "null":
-            return None
-        # The frame element came back as the child frame's object. Resolving it again
-        # by id answers in its own document's context, where the probes are loaded.
-        described = self._cdp.send(
-            "DOM.describeNode", {"objectId": in_page["objectId"]}
-        )
-        page_node = self._cdp.send(
-            "DOM.resolveNode", {"backendNodeId": described["node"]["backendNodeId"]}
-        )
-        return self._call(page_node["object"], _ISSUE_NODE, by_value=True)["value"]
+        # Preserve the actual node for the ownership reading. Lifting a shadow
+        # input to its iframe first would turn a control's issue into the page's.
+        return self._call(node["object"], _ISSUE_NODE, by_value=True)["value"]
 
     def _call(self, receiver: dict, function: str, *, by_value: bool) -> dict:
         answer = self._cdp.send(

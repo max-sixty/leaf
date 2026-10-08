@@ -28,15 +28,19 @@
   --wa-color-neutral-fill-normal: var(--chip);
   --wa-color-neutral-border-normal: var(--border-2);
   --wa-color-neutral-on-quiet: var(--ink-2);
+  --wa-color-neutral-on-normal: var(--ink);
   --wa-color-brand-fill-quiet: var(--accent-tint);
   --wa-color-brand-on-quiet: var(--accent);
   --wa-color-brand-border-quiet: var(--accent);
+  /* A solid/active surface and its ink move together in either page scheme.
+     Components own which state uses the pair, through their upstream tokens. */
+  --wa-color-brand-fill-loud: var(--accent);
+  --wa-color-brand-on-loud: light-dark(var(--card), var(--paper));
   --wa-color-focus: var(--accent);
   /* Leaf draws one focus band and theme.css keeps its thickness in one token, so a
      vendored control wears that band rather than the vendor's own wider one. */
   --wa-focus-ring-style: solid;
   --wa-focus-ring-width: var(--focus-ring-w);
-  --wa-form-control-activated-color: var(--accent);
   --wa-form-control-background-color: var(--field);
   --wa-form-control-border-color: var(--border-2);
   --wa-form-control-value-color: var(--ink);

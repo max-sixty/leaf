@@ -195,7 +195,7 @@ def claim_names_session(claim: dict | None, session_id: str) -> bool:
     return record is not None and record["ended"] is None
 
 
-def claimant_matches(claim: dict | None, harness: "Harness | None") -> bool:
+def claimant_matches(claim: dict | None, harness: Harness | None) -> bool:
     """Whether the record names this harness, or neither names a claimant.
 
     Harness identity is independent of liveness: readers pass the active claim
@@ -253,7 +253,7 @@ def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
                 newest = max(newest, entry.stat().st_mtime)
             except OSError:  # replaced under us; the next pass sees its successor
                 continue
-    except (FileNotFoundError, NotADirectoryError):
+    except FileNotFoundError, NotADirectoryError:
         return False  # the page is gone, and a claim on it owns nothing
     return time.time() - newest < ACTIVITY_GRACE_SECS
 
@@ -349,7 +349,7 @@ class PageTransaction:
         claim = self.claim
         return claim if claim_names_session(claim, session_id) else None
 
-    def take_claim(self, harness: "Harness") -> tuple[dict | None, dict]:
+    def take_claim(self, harness: Harness) -> tuple[dict | None, dict]:
         """Record this session as the page's watcher.
 
         The record carries the claimant's harness as well as its id, so every
@@ -401,7 +401,7 @@ class PageTransaction:
                 },
             )
 
-    def owned_by(self, harness: "Harness | None") -> bool:
+    def owned_by(self, harness: Harness | None) -> bool:
         """Whether this transaction may act for the given waiter."""
         return claimant_matches(self.active_claim, harness)
 
@@ -801,7 +801,7 @@ class PageTransaction:
     def cursor(self) -> int:
         return read_cursor(self.page_dir)
 
-    def watch_state(self, harness: "Harness | None") -> str:
+    def watch_state(self, harness: Harness | None) -> str:
         if not self.owned_by(harness):
             return "lost"
         return "ended" if self.status["state"] == "idle" else "watching"
@@ -816,7 +816,7 @@ def _held_by(binding: dict | None, session_id: str, attempt: str) -> bool:
     )
 
 
-def prepare_claim(harness: "Harness", page_dir: Path) -> dict:
+def prepare_claim(harness: Harness, page_dir: Path) -> dict:
     """Capture an unpublished acquisition in the claimant's process.
 
     Lifetime and cwd come from the launching harness, not a detached child. Preparing

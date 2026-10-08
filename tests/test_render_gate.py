@@ -1169,11 +1169,11 @@ customElements.define("field-host", class extends HTMLElement {{
 
     # Delivery serves media under the revision, so the issue names that URL.
     assert sorted(
-        re.sub(r"url=\S*(/media/)", r"url=\1", failure)
+        re.sub(r'url="[^"]*(/media/[^"]+)"', r'url="\1"', failure)
         for failure in failures
         if "DevTools issue" in failure
     ) == sorted(
-        f"[{scheme}] DevTools issue LazyLoadImageIssue at {where} (url={src})"
+        f'[{scheme}] DevTools issue LazyLoadImageIssue at {where} (url="{src}")'
         for scheme in ("light", "dark")
         for where in ("<img id=unsized>", "<img id=authored>", "<iframe id=frame>")
     )

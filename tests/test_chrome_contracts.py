@@ -1543,7 +1543,7 @@ def test_a_news_resolved_card_keeps_its_place_after_an_offscreen_draft_is_cleare
     a move within the thread, so the card holds the settlement behind its notice until
     the user presses it, and stays put.
     """
-    url = serve(LONG_PAGE, comments=16)
+    url = serve(LONG_PAGE, comments=24)
     first, second = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)

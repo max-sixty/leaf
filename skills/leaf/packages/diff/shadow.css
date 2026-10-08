@@ -38,15 +38,21 @@
 /* Source paths may change with new evidence; their region gives way while the
    statistics and adjacent actions keep their trailing columns. */
 .lf-diff-head > .lf-diff-path { display: flex; flex: 1; min-width: 0; white-space: nowrap; }
-/* Both names and their direction remain visible when a rename gives up folders. */
+/* Both names share one allocation: folders receive only the room left by the
+   basenames and arrow. Side wrappers retain their meaning without dividing width. */
 .lf-diff-head :is(.lf-diff-source-path, .lf-diff-destination-path) {
-                                     display: flex; flex: 0 1 auto; min-width: 0; }
-.lf-diff-head .lf-diff-arrow { flex: none; white-space: pre; }
+                                     display: contents; }
+.lf-diff-head .lf-diff-arrow { flex: none; white-space: normal; margin-inline: .4ch; }
 /* Chrome breaks at a <wbr> even where nothing may wrap. */
 .lf-diff-head wbr { display: none; }
-.lf-diff-head .lf-diff-dir { flex: 0 1 auto; min-width: 0; overflow: hidden;
+.lf-diff-head .lf-diff-dir { flex: 1 1 0; min-width: 0; max-width: max-content; overflow: hidden;
                              text-overflow: ellipsis; }
-.lf-diff-head .lf-diff-base { flex: none; max-width: 100%; overflow: hidden;
+/* The path observer reads this font's native ellipsis width without adding words
+   or allocating another column. It paints the folder only where that glyph fits. */
+.lf-diff-head .lf-diff-dir::before { content: "…" / ""; position: absolute;
+                                     visibility: hidden; inline-size: max-content; }
+.lf-diff-head .lf-diff-dir[data-folder-hidden] { opacity: 0; }
+.lf-diff-head .lf-diff-base { flex: 0 1 auto; min-width: 0; max-width: 100%; overflow: hidden;
                               text-overflow: ellipsis; }
 .lf-diff-head > .lf-diff-stat { flex: none; }
 /* The whole path, while the keyboard stands on the row or a press is held on it

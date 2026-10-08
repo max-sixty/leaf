@@ -224,7 +224,10 @@ function pathNode(className, path) {
 // of it, the folders or the name (at a new window width, face or press beside it), so
 // each part's size is watched rather than polled. A part is cut where its words run
 // past its box, measured by a Range to the layout unit: `scrollWidth` rounds to whole
-// pixels, and the ellipsis is drawn for a fraction of one.
+// pixels, and the ellipsis is drawn for a fraction of one. A folder region too small
+// for this font's ellipsis is left blank: the browser otherwise paints a glyph sliver.
+// Its CSS measurement box supplies the native width. Opacity elides only paint, leaving
+// flex allocation and the full path for accessibility, title and held-word intact.
 //
 // One observer watches every file's row, so a delivery reads every row it names before
 // writing any. A row is watched from when it becomes its file's row (`fileRow`,
@@ -247,13 +250,27 @@ const pathSizes = sizeObserver((entries) => {
       target.closest(".lf-diff-head").querySelector(".lf-diff-path"),
     ),
   );
-  const readings = [...paths].map((path) => [
-    path,
-    [...path.querySelectorAll(".lf-diff-dir, .lf-diff-base")].some(runsPast),
-  ]);
-  for (const [path, cut] of readings) {
+  const readings = [...paths].map((path) => {
+    const parts = [...path.querySelectorAll(".lf-diff-dir, .lf-diff-base")];
+    return {
+      path,
+      cut: parts.some(runsPast),
+      folders: parts
+        .filter((part) => part.matches(".lf-diff-dir"))
+        .map((part) => {
+          return [
+            part,
+            Number.parseFloat(getComputedStyle(part, "::before").width) >
+              part.getBoundingClientRect().width,
+          ];
+        }),
+    };
+  });
+  for (const { path, cut, folders } of readings) {
     path.parentElement.toggleAttribute("data-path-cut", cut);
     keeps(path, "title", cut ? path.textContent : null);
+    for (const [part, hidden] of folders)
+      part.toggleAttribute("data-folder-hidden", hidden);
   }
 });
 function watchPathCut(details) {

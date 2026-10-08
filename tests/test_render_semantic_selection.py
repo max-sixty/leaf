@@ -1204,10 +1204,10 @@ def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, ser
 
 
 def test_a_scroll_with_no_scrollend_still_refreshes_the_target_map(browser, serve):
-    """A page can move and never send `scrollend`: a programmatic scroll written a frame
-    at a time, and the scroll a replaced scene restores, both end without one. The map
-    freezes its membership for the length of a scroll, so with nothing to settle it the
-    chips go on naming the scene the first frame left behind.
+    """A page can move and never send `scrollend`: the scroll a replaced scene restores
+    ends without one. The map freezes its membership for the length of a scroll, so
+    with nothing to settle it the chips go on naming the scene the first frame left
+    behind.
 
     A hidden target is dropped from the paint either way; the codes are what say whether
     the map was read again, because a fresh reading gives the survivors the head of the
@@ -1223,7 +1223,7 @@ def test_a_scroll_with_no_scrollend_still_refreshes_the_target_map(browser, serv
     page.evaluate(
         """() => {
           document.querySelector('#t').style.display = 'none';
-          dispatchEvent(new Event('scroll'));
+          document.dispatchEvent(new Event('scroll'));
         }"""
     )
 

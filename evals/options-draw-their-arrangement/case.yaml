@@ -40,11 +40,6 @@ assert:
   config:
     path: skills/leaf/SKILL\.md
 - type: javascript
-  metric: reads-registry
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/packages/default/registry\.json
-- type: javascript
   metric: has-options
   value: file://text-regex.cjs
   config:

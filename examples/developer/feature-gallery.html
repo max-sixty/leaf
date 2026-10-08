@@ -211,8 +211,8 @@
 
       .interaction-frame {
         display: none;
-        width: var(--interaction-viewport-size, 200%);
-        height: var(--interaction-viewport-size, 200%);
+        width: calc(100% / var(--interaction-page-scale, 0.5));
+        height: calc(100% / var(--interaction-page-scale, 0.5));
         border: 0;
         opacity: 0;
         pointer-events: none;
@@ -221,17 +221,14 @@
       }
 
       .interaction-gallery[data-interaction-viewport="1"] {
-        --interaction-viewport-size: 100%;
         --interaction-page-scale: 1;
       }
 
       .interaction-gallery[data-interaction-viewport="2"] {
-        --interaction-viewport-size: 200%;
         --interaction-page-scale: 0.5;
       }
 
       .interaction-gallery[data-interaction-viewport="4"] {
-        --interaction-viewport-size: 400%;
         --interaction-page-scale: 0.25;
       }
 
@@ -380,9 +377,19 @@
       await customElements.whenDefined("lf-sample");
 
       const titleSample = document.querySelector("#bg-title-sheen-sample");
+      let titleRequested = false;
+      let shownTitleRevision = null;
       const showPendingTitle = () => {
+        const ready = titleSample.ready;
+        if (!titleRequested || !ready || shownTitleRevision === ready) return;
+        shownTitleRevision = ready;
         void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
       };
+      document.querySelector("#bg-title-sheen-show").addEventListener("click", () => {
+        titleRequested = true;
+        shownTitleRevision = null;
+        showPendingTitle();
+      });
       titleSample.addEventListener("lf-sample-ready", showPendingTitle);
       void titleSample.ready.then(showPendingTitle);
 
@@ -436,8 +443,9 @@
       <p id="bg-start">
         Choose a view below. Its contents spine and Page Map lead to each feature. The
         top link brings the eyebrow and heading together; the first dot sits at the
-        spine’s origin. Each sample’s eyebrow names the <code>lf-*</code> elements it
-        exercises.
+        spine’s origin. The title has the largest ring, section rings are smaller, and
+        deeper headings use small dots. The current destination fills its marker. Each
+        sample’s eyebrow names the <code>lf-*</code> elements it exercises.
       </p>
 
       <lf-tabs id="bg-gallery-tabs">
@@ -1051,10 +1059,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <h3>Thread title</h3>
               <section id="bg-title-sheen">
                 <p id="bg-title-sheen-guide">
-                  The pending title below uses a highlight that travels across the
-                  lettering and returns. Reset starts a fresh untitled thread. Reduced
-                  motion shows solid muted text.
+                  Open the sample thread to see a pending title highlighted across its
+                  lettering. Reset starts a fresh untitled thread. Reduced motion shows
+                  solid muted text.
                 </p>
+                <button id="bg-title-sheen-show" type="button">
+                  Open sample thread
+                </button>
                 <lf-sample
                   id="bg-title-sheen-sample"
                   label="Pending thread title"
@@ -1646,12 +1657,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   id="bg-gloss"
                   tip="A narrow end-to-end path through the real system."
                   >walking skeleton</lf-gloss
-                >. Code adds line numbers and Notes, and quotes an excerpt under its
-                file's own numbers with an elided row where it skips; Tree shows file
-                structure. Use “Copy code” on the right of either block below, or
-                <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard keeps the
-                code's whitespace and leaves out line numbers and Notes. Bash separates
-                commands, arguments, and flags with the same syntax colors as a diff.
+                >. Hover the term, then move into its explanation; the card stays open
+                while you read it. Code adds line numbers and Notes, and quotes an
+                excerpt under its file's own numbers with an elided row where it skips;
+                Tree shows file structure. Use “Copy code” on the right of either block
+                below, or <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard
+                keeps the code's whitespace and leaves out line numbers and Notes. Bash
+                separates commands, arguments, and flags with the same syntax colors as
+                a diff.
               </p>
               <pre
                 id="bg-plain-code"
@@ -1837,6 +1850,8 @@ gallery/
                 selected panel after reload. At page level, scroll a view and switch
                 away and back: each selection reaches the panel’s beginning below the
                 tab strip. Browser Back and Forward return to the corresponding views.
+                Narrow the window until the gallery’s own tab names overflow, then page
+                them with the edge arrows. Reduced motion makes that move immediate.
               </p>
               <lf-tabs id="bg-tabs">
                 <lf-tab id="bg-tab-current" label="Current">

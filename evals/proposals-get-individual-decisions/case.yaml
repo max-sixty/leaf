@@ -1,8 +1,18 @@
 # From Codex session 01a0f99f-caf4-7302-9fa7-bec4ca9f3050: a test-removal
 # review grouped independent proposals in checkbox sets, leaving rejection implicit
-# and each choice unfinished until the group's Done. At b47cb5e2f, both base and
-# candidate passed 3/3 even with the earlier checkbox-plan reply in context. This
-# case guards the requested preference; it has not measured an improvement.
+# and each choice unfinished until the group's Done. The checkbox-wording context
+# preserves that request, which also admits a single selected-set answer. The
+# primary supplies the partial-review need: keep and not-yet-reviewed differ.
+# With partial-review context, both arms exposed the three states (2/2 each) at
+# e9c98892c. The original checkbox context failed this granularity criterion in
+# both arms (0/2 each); its wording leaves the answer's granularity ambiguous.
+# Compact controls remain allowed; advice-marker checks are independent of the
+# card comparison treatment, which options-stay-words-for-wording covers.
+# At e9c98892c the final ordered card/advice instructions still omitted compact
+# recommendation markers in both arms (0/2 each). A compact worked example also
+# produced 0/2 and was not retained. This detection remains a known failure.
+# Matching the source's high effort instead of the catalog's medium still gave
+# 0/2 per arm; the Ask granularity criterion passed 2/2 per arm in both settings.
 description: proposals-get-individual-decisions
 metadata:
   purpose: 'Asks: independent proposals each have explicit acceptance and rejection, and either answer
@@ -15,6 +25,9 @@ vars:
     suboptimal behavior. Better no test than a test that teaches agents to keep
     the wrong behavior. Make a list, review it, and allow me to go through and
     check off everything we should remove.
+
+    I will review this over several sittings. I need to distinguish assertions
+    I want to keep from candidates I haven't reviewed yet when I return.
 
     In this ongoing audit, your last chat reply was:
     > The remaining policy choices will show both the reason to remove the
@@ -45,3 +58,39 @@ assert:
     that treats unchecked proposals as rejections, even if the copy explains that
     meaning, and fail a single choice that decides the proposals as a batch.
     Each proposal's evidence and removal scope must be available in its own Ask.
+- type: llm-rubric
+  metric: recommendation-markers
+  value: |
+    Each recommended removal needs a recommended lf-chip on its Remove option,
+    with a reason in prose. Advice must remain distinct from the user's choice:
+    neither option starts chosen. Fail recommendations expressed only in prose.
+    Compact Remove / Keep controls need not have comparison chips; this case
+    checks the advice marker rather than the card treatment.
+variants:
+  checkbox-wording:
+    metadata:
+      purpose: 'Diagnostic: the original checkbox request is ambiguous about partial-review outcomes.'
+    vars:
+      prompt: |
+        I asked you to search our tests deeply for assertions that preserve bad or
+        suboptimal behavior. Better no test than a test that teaches agents to keep
+        the wrong behavior. Make a list, review it, and allow me to go through and
+        check off everything we should remove.
+
+        In this ongoing audit, your last chat reply was:
+        > The remaining policy choices will show both the reason to remove the
+        > assertion and the guarantee it currently protects. I'm also building the
+        > checkbox page and checking its keyboard and touch routes.
+
+        Your audit and independent review are complete. These are the candidates:
+        - Remove the assertion that accessible question names must be truncated to
+          120 characters. It loses the clause distinguishing nearby questions; keep
+          the position announcements and full question in navigation.
+        - Remove the assertion that a report captures only the first 500 characters
+          of visible text. It loses evidence; keep Unicode and capture validation.
+        - Remove the assertion that an arrival animation lasts exactly 10 seconds.
+          It freezes a tuning choice; keep finite, once-only, reduced-motion behavior.
+        No tests changed.
+
+        Write the Leaf review page. The page directory is not reachable from here,
+        so reply with the complete `<main>` element's HTML rather than writing a file.

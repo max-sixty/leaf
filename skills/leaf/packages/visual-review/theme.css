@@ -341,7 +341,15 @@
 
 /* The stage scrolls only sideways, for captures shown wider than the review; `hidden`
    rather than `visible` down, which would compute to `auto` beside it. */
+/* Typed lengths make the layout reading consume resolved pixels, including when
+   an author's spacing uses rem or calc(). CSS owns both tracks and fitting. */
+@property --lf-vr-frame-border { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --lf-vr-label-height { syntax: "<length>"; inherits: true; initial-value: 0px; }
+@property --lf-vr-gap { syntax: "<length>"; inherits: true; initial-value: 0px; }
 .lf-vr-shot-host {
+  --lf-vr-frame-border: 1px;
+  --lf-vr-label-height: 24px;
+  --lf-vr-gap: var(--sp-2);
   box-sizing: border-box;
   display: grid;
   align-items: start;
@@ -359,8 +367,12 @@
    the nearer one, so the stage names its own root to set the capture's box. */
 :scope:is(lf-visual-review) .lf-vr-shot-host lf-shot {
   margin: 0;
-  width: calc(var(--lf-vr-frame-width, 100%) + 2px);
+  width: calc(var(--lf-vr-frame-width, 100%) + 2 * var(--lf-vr-frame-border));
   max-width: none;
+}
+
+:scope:is(lf-visual-review) .lf-vr-shot-host .lf-shotcomparison {
+  border-width: var(--lf-vr-frame-border);
 }
 
 @media screen {
@@ -372,15 +384,15 @@
 
     :scope:is(lf-visual-review)[data-inspection-mode="compare"][data-compare-layout="side"]
   .lf-vr-shot-host lf-shot {
-    grid-template-columns: repeat(2, calc(var(--lf-vr-frame-width) + 2px));
-    gap: var(--sp-2);
+    grid-template-columns: repeat(2, calc(var(--lf-vr-frame-width) + 2 * var(--lf-vr-frame-border)));
+    gap: var(--lf-vr-gap);
     width: max-content;
   }
 
     :scope:is(lf-visual-review)[data-inspection-mode="compare"][data-compare-layout="stack"]
       .lf-vr-shot-host lf-shot,
   :scope:is(lf-visual-review)[data-inspection-mode="overlay"] .lf-vr-shot-host lf-shot {
-    grid-template-columns: calc(var(--lf-vr-frame-width) + 2px);
+    grid-template-columns: calc(var(--lf-vr-frame-width) + 2 * var(--lf-vr-frame-border));
   }
 
     :scope:is(lf-visual-review)[data-inspection-mode]:not([data-inspection-mode="flip"])
@@ -392,6 +404,7 @@
 
     :scope:is(lf-visual-review)[data-inspection-mode]:not([data-inspection-mode="flip"])
   .lf-vr-shot-host .lf-shotframe {
+    border-width: var(--lf-vr-frame-border);
     display: grid;
     visibility: visible;
     border-radius: var(--r);
@@ -431,7 +444,7 @@
   .lf-vr-shot-host .lf-vr-frame-label {
     box-sizing: border-box;
     display: block;
-    height: 24px;
+    height: var(--lf-vr-label-height);
     padding: 5px 8px;
     border-bottom: 1px solid var(--rule);
     background: var(--card);
@@ -470,8 +483,8 @@
     :scope:is(lf-visual-review)[data-inspection-mode="compare"]
       .lf-vr-shot-host[data-focus-active="true"]
   .lf-shotframe {
-    height: calc(var(--lf-vr-focus-height) + 24px);
-    grid-template-rows: 24px var(--lf-vr-focus-height);
+    height: calc(var(--lf-vr-focus-height) + var(--lf-vr-label-height));
+    grid-template-rows: var(--lf-vr-label-height) var(--lf-vr-focus-height);
   }
 
   .lf-vr-shot-host[data-focus-active="true"] .lf-shotframe img {
@@ -484,7 +497,7 @@
        compare label, and nowhere on a focus crop, which shows another part of the
        frame. The case's position line states the reading in every view. */
   :scope:is(lf-visual-review)[data-inspection-mode="compare"] .lf-vr-shot-host .lf-shotdiff {
-    top: 24px;
+    top: var(--lf-vr-label-height);
   }
 
   .lf-vr-shot-host[data-focus-active="true"] .lf-shotdiff {
@@ -509,7 +522,7 @@
     :scope:is(lf-visual-review)[data-inspection-mode="compare"]
       .lf-vr-shot-host[data-focus-authored="true"][data-focus-active="false"]
   .lf-shotframe::after {
-    top: calc(var(--lf-vr-focus-y) + 24px);
+    top: calc(var(--lf-vr-focus-y) + var(--lf-vr-label-height));
   }
 
 }

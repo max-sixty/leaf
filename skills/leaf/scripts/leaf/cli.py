@@ -161,13 +161,19 @@ def page() -> None:
     is_flag=True,
     help="remove all explicit packages from an existing page",
 )
-def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="report whether re-vendoring would change an initialized page",
+)
+def init(dir: str, selected: tuple[str, ...], no_packages: bool, dry_run: bool) -> None:
     """Create or re-vendor a page directory.
 
     Creates PAGE/revisions/, then vendors the widget layer.
     The author writes PAGE/index.html. Re-running preserves the page's explicit packages unless --package or
     --no-packages replaces them, and refuses vocabulary the page log can no longer
-    read. A served page's server restarts around the re-vendor, at the same URL.
+    read. A changed layer restarts its server at the same URL; identical initialization
+    leaves it running. --dry-run reports the planned change without writing it.
     A package may contain any subset of the package layout, including zero, one,
     or many widgets.
     """
@@ -180,7 +186,7 @@ def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
     if len(set(selected)) != len(selected):
         raise click.UsageError("each --package selection may appear only once")
     selections = () if no_packages else selected or None
-    cmd_init(resolve_dir(dir, must_exist=False), selections)
+    cmd_init(resolve_dir(dir, must_exist=False), selections, dry_run=dry_run)
 
 
 @cli.group(short_help="Create, check, install, and run packages.")

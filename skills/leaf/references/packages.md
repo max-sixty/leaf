@@ -227,7 +227,9 @@ readable size, states it as `min-inline-size` capped by the box it stands in:
 `min(<its floor>, 100cqi, var(--lf-box-cap, 100vw))`. `100cqi` measures the nearest size
 container, which is the page's shell or a framed box around the widget (a pane's body, a
 card), and a sample, which cannot be one, states `--lf-box-cap`. So in a box
-narrower than the floor the widget scrolls inside itself rather than widening the page.
+narrower than the floor the widget scrolls sideways rather than widening the page.
+Choose vertical bounds by the task need in
+`page-authoring.md`, "Bounds and widths", including a widget's `x-bound` default.
 When a bounded widget's scroller should be a box inside it, such as a listing under a
 caption that stays in view, the package theme moves the bound there under
 `[data-lf-bound]` and declares `--lf-bound-box: 1` on that box, which is the one Leaf

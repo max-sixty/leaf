@@ -2,6 +2,11 @@
 # between two messages differs only in wording, so its options stay words. With the
 # child reading the registry entries, base 4c29f3003 and the drawn-option entry both
 # kept every option words (3 of 3).
+# The label/recommendation checks failed at e9c98892c (0/2) and passed with
+# comparison labels first and literal recommendation markup in lf-option (2/2).
+# Putting the marker obligation first instead lost comparison labels (0/2);
+# these bounded results do not establish general instruction reliability.
+# Matching the source's high effort reproduced base 0/2, candidate 2/2.
 description: options-stay-words-for-wording
 metadata:
   purpose: 'Asks: when the alternatives differ only in wording, each lf-option stays a title and a sentence,
@@ -38,3 +43,17 @@ assert:
   metric: options-draw-nothing
   value: <lf-option\b(?:(?!</lf-option>)[\s\S])*<(?:svg|img|lf-diagram)\b
   transform: output.toLowerCase()
+- type: regex
+  metric: marks-recommendation
+  value: <lf-option\b(?:(?!</lf-option>)[\s\S])*<lf-chip\b[^>]*>\s*recommended\s*</lf-chip>
+  transform: output.toLowerCase()
+- type: llm-rubric
+  metric: comparison-labels
+  value: |
+    Pass only if both wording options have lf-chip comparison labels before their
+    strong titles. The labels compare the same factual distinction in the same
+    order (for example actionable detail versus concise reporting), rather than
+    duplicating the titles or labeling every option identically. Only the detailed,
+    actionable wording has a recommended lf-chip; its reason remains available in
+    prose. Neither option has chosen, since the user has not picked. No drawing is
+    needed for this wording choice.

@@ -1346,7 +1346,13 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     def reply_for(event_id, text):
         result = CliRunner().invoke(
             cli_model.cli,
-            ["thread", "reply", str(page_dir), "--for", event_id, "--text", text],
+            [
+                "response",
+                "reply",
+                response_reference(page_dir, event_id),
+                "--text",
+                text,
+            ],
         )
         assert result.exit_code == 0, result.output
         return json.loads(result.output)
@@ -1421,11 +1427,9 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     asking = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            again["id"],
+            response_reference(page_dir, again["id"]),
             "--text",
             "Which year goes first?",
             "--awaits",
@@ -1482,7 +1486,13 @@ def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkey
     for n in (1, 2, 3):
         result = CliRunner().invoke(
             cli_model.cli,
-            ["thread", "reply", str(page_dir), "--for", said["id"], "--text", f"A{n}"],
+            [
+                "response",
+                "reply",
+                response_reference(page_dir, said["id"]),
+                "--text",
+                f"A{n}",
+            ],
         )
         assert result.exit_code == 0, result.output
         if n < 3:

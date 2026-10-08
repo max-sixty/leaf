@@ -298,15 +298,21 @@ lint refuses the browser's own.
 
 The browser moves what a scroll moves. A box that follows page content stands where
 CSS puts it, by an anchor, a sticky offset, or a scroll timeline, and no scroll handler
-writes its position, which would trail the scroll by a frame. Every write says only
+writes its position, which would trail the scroll by a frame. Paint over the page's
+targets, whether a box, a chip, a mark or ink, stands in a paint set
+(`target-paint-geometry.js`, `paintSet`); what a scroll changes about it, such as which
+chip the banner holds in, is read once the scroll settles (`arrivals.js`,
+`watchScrollEnds`). Every write says only
 what changed (`runtime/keeps.js`): while a highlight holds a range, Chrome repaints the
 whole document for any write, so a write per scroll event makes every page with a
 quoted comment judder. One place has one writer: two owners that each set it in turn
 rewrite it every time either paints. A paint that more than one step of a script asks
 for waits for the script to end (`rendering.js`, `afterScript`), rather than painting
 the step between. The browser fixture fails a write that changes
-nothing in any test (`tests/write_watch.js`), and `test_page_fixture_renders`
-fails a place a scroll writes on every step (`scroll_findings`).
+nothing in any test (`tests/write_watch.js`), `test_page_fixture_renders`
+fails a place a scroll writes on every step (`scroll_findings`), and
+`test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled` fails paint
+a mode writes on a scroll gesture's frames.
 
 What a page says follows from where it stands now, not from how it got there. The one
 history its arrangement keeps is the order its margin rows came in, since a row that

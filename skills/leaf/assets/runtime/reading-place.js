@@ -312,10 +312,11 @@ export function restorePlace(view, region = null, currentIntent = retainUserInte
   const box = region ? effectiveScroller(region) : pageScroller;
   const standing = focusedPlace(view);
   // A focus that remains visible after its region joins a different scroller can
-  // still be far from the passage's old reading band. Restore the landmark there.
+  // still be far from the passage's old reading band. Restore the landmark there;
+  // a focus with no saved landmark remains the only place to restore.
   if (
     standing &&
-    rawOffsetFits(view, box) &&
+    (rawOffsetFits(view, box) || (!view.quote && !view.section && !view.end)) &&
     under(standing, region?.body ?? document.querySelector("body > main"))
   ) {
     scrollIntoReadingBand(standing, standing, "nearest", "instant");

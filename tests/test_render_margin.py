@@ -7461,8 +7461,9 @@ def test_an_inline_thread_keeps_one_readable_card_across_page_claims(
         init_script=MARGIN_EDITOR_ROOTS,
     )
     resized(page, 1200, 900)
+    # The editor measures terminal spaces; sent Markdown does not paint them.
     text = (
-        "Check the January failure mode before accepting this design. " * 3
+        ("Check the January failure mode before accepting this design. " * 3).rstrip()
         if wrapping
         else "Check the January failure mode."
     )

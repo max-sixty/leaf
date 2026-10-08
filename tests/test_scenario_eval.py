@@ -199,7 +199,6 @@ def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
         "kind": "comment",
         "author": "user",
         "id": "input",
-        "attempt": review_scenario.attempt("first"),
     }
     answer = {
         "kind": "reply",
@@ -225,7 +224,7 @@ def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
         assert successful_replies(events, "input") == expected
         assert answered_by_reply(events, "input") is success
         assert usability_eval.answered(events, "input") == expected
-        assert review_scenario.answers(tmp_path, "first") == expected
+        assert review_scenario.answers(tmp_path, "input") == expected
         assert journey.deployment_answer(events, "input") == (
             reply if success else None
         )

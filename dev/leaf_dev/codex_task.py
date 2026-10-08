@@ -1,4 +1,4 @@
-"""The terminal side of a real Codex task, shared by verification and evals.
+"""The terminal side of a real Codex task, shared by the journey and evals.
 
 App Server owns thread and turn identity. This client hears notifications from
 all turns on the thread, including turns started by Leaf's adapter.
@@ -21,7 +21,7 @@ class Task:
     """The task's terminal: one App Server connection that opens the task, types the
     user's turns, and hears every turn the task runs, Leaf's included, since every
     client of a thread receives what it says. Final-answer identities are retained
-    separately from turn completion: verification checks delivery before the answer,
+    separately from turn completion: the journey checks delivery before the answer,
     while evals also wait for the turn to complete."""
 
     def __init__(
@@ -106,11 +106,12 @@ class Task:
         return started["turn"]["id"]
 
     def settle(self, done: Callable[[], bool], what: str) -> None:
-        """Hear the task until it is idle with `done` true through QUIET."""
+        """Hear the task until it is idle with `done` true through QUIET. `done` is
+        asked on every hearing, so what it reads is read as it happens."""
         deadline = time.monotonic() + STEP_LIMIT
         while time.monotonic() < deadline:
             self.listen(0.5)
-            if not self.running and done():
+            if done() and not self.running:
                 self.listen(QUIET)
                 if not self.running and done():
                     return

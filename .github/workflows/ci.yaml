@@ -149,7 +149,7 @@ jobs:
 
       - name: Measure the bundled release in Chrome
         if: github.event_name == 'pull_request'
-        run: uv run leaf-dev verify-site wrangler
+        run: uv run leaf-dev verify-site website-worker
 
       - name: Upload pytest results
         if: always()

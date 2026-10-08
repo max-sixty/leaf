@@ -308,8 +308,8 @@ debugging log. Live incidents use
 `wrangler tail`; historical incidents use the REST API or Cloudflare's Observability
 query builder.
 
-The local end-to-end journey (`leaf-dev journey local`) prints the same container
-records and leaves them at `.tmp/verify-site/run-*/website-agent-local.log` for a later
+The local end-to-end journey (`leaf-dev journey website-adapter`) prints the same
+container records and leaves them at `.tmp/verify-site/run-*/website-agent-local.log` for a later
 agent to inspect. Each run builds its own site, binds an OS-assigned HTTP port, and gives
 each website harness a private App Server socket. It gives the child App
 Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login and

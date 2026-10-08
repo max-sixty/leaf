@@ -1,7 +1,7 @@
-"""Run a real interactive Claude Code session with Leaf's plugin and check what it
-leaves.
+"""The `claude-code` journey: a real interactive Claude Code session with Leaf's
+plugin, and the steps a user takes at its terminal.
 
-    uv run leaf-dev verify-claude-code-task [--hooks-module]
+    uv run leaf-dev journey claude-code [--hooks-module]
 
 The suite stands in for Claude Code around Leaf's hooks (`hooks.json`, and
 `tests/claude_code_driver.mjs` for the hooks module); this runs Claude Code itself,
@@ -9,45 +9,46 @@ in its terminal interface, with this working tree's payload as its plugin
 (`--plugin-dir`) under a throwaway home (`arms.claude_home`) whose only content is
 the host's login. `--hooks-module` turns the plugin's `hooks_module` option on, so
 Leaf's hooks module keeps the watch in place of `hooks.json`'s background Stop hook.
-The command is then the user: it types into the session through a tmux pane,
-presses Escape, and posts comments to the served page as a tab would. It reads the
-page's log and claim in process, and stops at the first check that fails.
+The journey is then the user: it types into the session through a tmux pane,
+presses Escape, and sends comments through the page's Threads in Chrome. It reads
+the page's log and claim in process, and stops at the first check that fails.
 
-The journey, in order:
+The steps, in order:
 
 - `setup`: the user asks for a page to review; Claude Code serves it, and a watch
   holds the session's pages once its turn ends;
-- `idle`: a comment posted while the session is idle opens a turn that answers it;
-- `mid-turn`: a comment posted during a shell command is picked up in that turn;
-- `ending`: a comment posted during a shell command wakes the watch, and one
-  posted once that turn has picked the first up is pending as the turn ends, with
-  nothing watching; the Stop hook hands it to that turn, which it keeps going;
-- `escape`: Escape during a shell command ends the turn; a comment posted
-  afterwards opens a turn that answers it;
-- `woken`: a comment posted during a shell command wakes the watch, and Escape
-  ends that turn while the command still runs, before the turn reads the comment;
-  a comment posted afterwards is answered, and so is the first, carried by the
-  next prompt;
+- `release`: the journey's timed ask, sent while the session is idle, opens a turn
+  that answers it (`journey.run_journey`);
+- `mid-turn`: a comment sent during a shell command is picked up in that turn;
+- `ending`: a comment sent during a shell command wakes the watch, and one sent
+  once that turn has picked the first up is pending as the turn ends, with nothing
+  watching; the Stop hook hands it to that turn, which it keeps going;
+- `escape`: Escape during a shell command ends the turn; a comment sent afterwards
+  opens a turn that answers it;
+- `woken`: a comment sent during a shell command wakes the watch, and Escape ends
+  that turn while the command still runs, before the turn reads the comment; a
+  comment sent afterwards is answered, and so is the first, carried by the next
+  prompt;
 - `quit`: `/exit` ends the session, so its claim on the page is inactive and its
   watch has ended.
 
-Between steps every comment posted so far has exactly one reply and a pickup, and
-the page's claim names the session with its turn closed. With the hooks module,
-Escape closes the turn, a watch runs after each turn, an interrupted one
-included, and no delivery shows in the terminal. Without it, what follows an Escape is reported rather than required: the
-watch from before goes on only if it has not woken, and otherwise admission's nudge
-carries the next comment.
+Between steps every comment sent so far has exactly one reply and a pickup, and the
+page's claim names the session with its turn closed. With the hooks module, Escape
+closes the turn, a watch runs after each turn, an interrupted one included, and no
+delivery shows in the terminal. Without it, what follows an Escape is reported
+rather than required: the watch from before goes on only if it has not woken, and
+otherwise admission's nudge carries the next comment.
 
-Each step prints when the session picked its comments up and answered them,
-counted from the post, and whether the page nudged the session; a step with an
+Each step prints when the session picked its comments up and answered them, counted
+from their admission, and whether the page nudged the session; a step with an
 Escape also prints whether it left the turn open, a watch running, and what the
 page's banner read. That is the reading that compares the two watchers.
 
 It needs tmux, and spends a few model turns on the host's Claude Code login, so CI
 does not run it. The session's screen at the end of each step, Claude Code's debug
-log and the page's log stay in a run directory under `.tmp/verify-claude-code/`. The session's home, page and state
-home live in a temporary directory, removed when every check passes and kept, with
-its path printed, when one fails.
+log and the page's log stay in a run directory under `.tmp/journey/`. The session's
+home, page and state home live in a temporary directory, removed when every check
+passes and kept, with its path printed, when one fails.
 """
 
 import json
@@ -57,7 +58,8 @@ import shutil
 import subprocess
 import tempfile
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -80,15 +82,8 @@ from leaf_dev.arms import (
     run_leaf,
 )
 from leaf_dev.codex_task import STEP_LIMIT
-from leaf_dev.review_scenario import (
-    REQUEST,
-    answers,
-    comment_id,
-    post,
-    prepare,
-    require,
-    settled,
-)
+from leaf_dev.journey import User, checkout_version, local_session
+from leaf_dev.review_scenario import REQUEST, answers, prepare, require, settled
 
 # A command no other process on the host runs, so its process says the user's turn
 # is in its shell step.
@@ -106,7 +101,7 @@ class ClaudeCode:
     def __init__(
         self, root: Path, run: Path, cwd: Path, argv: list[str], env: dict
     ) -> None:
-        self.pane = f"leaf-verify-claude-code-{os.getpid()}"
+        self.pane = f"leaf-journey-claude-code-{os.getpid()}"
         self.exited, self.kept = root / "exited", run / "screen.txt"
         self.session: str | None = None
         # The environment's values reach the pane through tmux, so no file holds
@@ -196,8 +191,24 @@ class ClaudeCode:
             if done():
                 return
             require(not self.exited.exists(), f"Claude Code exited\n{self.screen()}")
+            self.approve()
             time.sleep(0.5)
         raise click.ClickException(f"{what} within {limit:.0f} s\n{self.screen()}")
+
+    def approve(self) -> None:
+        """Answer a permission prompt Yes, as the user at the pane does. Every tool
+        is allowed, but Claude Code still asks before a command it reads as touching
+        a sensitive file, such as one under the plugin. Bypassing permissions
+        instead would hold admission's nudge, which reaches the session as a
+        message from another session (`crossSessionInbound`)."""
+        if "Do you want to proceed?" in (screen := self.screen()):
+            asked = next(
+                (line.strip() for line in screen.splitlines() if "permission" in line),
+                "a permission prompt",
+            )
+            click.echo(f"  approved: {asked}", err=True)
+            self.tmux("send-keys", "-t", self.pane, "Enter")
+            time.sleep(1)
 
     def close(self) -> None:
         self.tmux("kill-session", "-t", self.pane)
@@ -207,34 +218,34 @@ def moment(stamp: str) -> datetime:
     return datetime.fromisoformat(stamp)
 
 
-def timings(page: Path, step: str) -> str:
-    """When the session picked a step's comment up and answered it, counted from
-    the post."""
+def timings(page: Path, comment: str, name: str) -> str:
+    """When the session picked a comment up and answered it, counted from its
+    admission."""
     events = read_events(page)
-    posted = comment_id(page, step)
-    sent = moment(next(e["ts"] for e in events if e["id"] == posted))
+    sent = moment(next(e["ts"] for e in events if e["id"] == comment))
     picked = next(
         moment(e["ts"])
         for e in events
-        if e["kind"] == "pickup" and posted in e["events"]
+        if e["kind"] == "pickup" and comment in e["events"]
     )
-    [reply] = answers(page, step)
+    [reply] = answers(page, comment)
     return (
-        f"`{step}` picked up after {(picked - sent).total_seconds():.1f} s, "
+        f"`{name}` picked up after {(picked - sent).total_seconds():.1f} s, "
         f"answered after {(moment(reply['ts']) - sent).total_seconds():.0f} s"
     )
 
 
-def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
-    posted: list[str] = []
+def steps(cc: ClaudeCode, user: User, page: Path, state: Path, module: bool) -> None:
+    """The steps after setup, as the module docstring lists them."""
+    sent: list[str] = []
 
     def activity() -> str:
         """What the page's banner reads: its canonical activity's kind."""
         served = run_leaf(ROOT, state, "page", "state", str(page), check=True)
         return json.loads(served.stdout)["activity"]["kind"]
 
-    def answered(*steps: str) -> Callable[[], bool]:
-        return lambda: all(answers(page, step) for step in steps) and cc.idle()
+    def answered(*names: str) -> Callable[[], bool]:
+        return lambda: all(user.answered(name) for name in names) and cc.idle()
 
     def watched() -> bool:
         return wait_is_live(None, cc.session)
@@ -245,12 +256,12 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
     def step(
         name: str,
         started: float,
-        *steps: str,
+        *names: str,
         before: object = None,
         escaped: str | None = None,
     ) -> None:
-        posted.extend(steps)
-        settled(page, cc.session, posted)
+        sent.extend(names)
+        settled(page, cc.session, {name: user.ids[name] for name in sent})
         # The hooks module keeps a delivery out of the user's sight; without it,
         # Claude Code prints the one the Stop hook hands over.
         require(
@@ -260,13 +271,12 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
         # The turn that answers ends with a watch running, under either watcher.
         cc.until(watched, f"{name}: no watch holds the session's pages", 60)
         details = [escaped] if escaped else []
-        details += [timings(page, posted_step) for posted_step in steps]
-        if steps:
+        details += [
+            timings(page, user.ids[sent_name], sent_name) for sent_name in names
+        ]
+        if names:
             details.append("nudged" if nudged() != before else "not nudged")
-        click.echo(
-            f"{name}: passed in {time.monotonic() - started:.0f} s"
-            + "".join(f"\n  {detail}" for detail in details)
-        )
+        user.passed(name, started, *details)
         cc.keep(name)
 
     def after_escape(name: str) -> str:
@@ -286,33 +296,23 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
         )
 
     started = time.monotonic()
-    cc.say(REQUEST)
-    cc.until(lambda: page_claim(page) is not None, "setup: the page was not claimed")
-    cc.session = page_claim(page)["id"]
-    cc.until(
-        lambda: running_server(page) is not None and cc.idle() and watched(),
-        "setup: the page was not served with the session idle and a watch running",
-    )
-    step("setup", started)
-
-    started = time.monotonic()
     before = nudged()
-    post(page, "idle")
-    cc.until(answered("idle"), "idle: the comment was not answered")
-    step("idle", started, "idle", before=before)
+    user.release()
+    cc.until(cc.idle, "release: the turn that answered did not end")
+    step("release", started, "release", before=before)
 
     started = time.monotonic()
     cc.say(USER_TURN)
     cc.until(cc.sleeping, "mid-turn: the user's turn did not start its command")
     turn = page_claim(page)["turn"]
     before = nudged()
-    post(page, "mid-turn")
+    user.comment("mid-turn")
     cc.until(answered("mid-turn"), "mid-turn: the comment was not answered")
     require(
         any(
             event["kind"] == "pickup"
             and event["turn"] == turn
-            and comment_id(page, "mid-turn") in event["events"]
+            and user.ids["mid-turn"] in event["events"]
             for event in read_events(page)
         ),
         f"mid-turn: the comment was not picked up in the user's turn {turn}",
@@ -324,22 +324,22 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
     cc.until(cc.sleeping, "ending: the user's turn did not start its command")
     turn = page_claim(page)["turn"]
     before = nudged()
-    post(page, "first")
+    first = user.comment("first")
     cc.until(
         lambda: any(
-            event["kind"] == "pickup" and comment_id(page, "first") in event["events"]
+            event["kind"] == "pickup" and first in event["events"]
             for event in read_events(page)
         ),
         "ending: `first` was not picked up",
     )
     # The watch woke for `first` and its handover is done, so nothing watches
     # until this turn ends, and this one is pending as it does.
-    post(page, "ending")
+    ending = user.comment("ending")
     cc.until(answered("first", "ending"), "ending: the comments were not answered")
     picked = [
         event["turn"]
         for event in read_events(page)
-        if event["kind"] == "pickup" and comment_id(page, "ending") in event["events"]
+        if event["kind"] == "pickup" and ending in event["events"]
     ]
     require(
         turn in picked,
@@ -353,7 +353,7 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
     cc.escape()
     escaped = after_escape("escape")
     before = nudged()
-    post(page, "escape")
+    user.comment("escape")
     cc.until(answered("escape"), "escape: the comment was not answered")
     step("escape", started, "escape", before=before, escaped=escaped)
 
@@ -361,14 +361,13 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
     cc.say(USER_TURN)
     cc.until(cc.sleeping, "woken: the user's turn did not start its command")
     turn = page_claim(page)["turn"]
-    post(page, "woken")
+    woken = user.comment("woken")
 
     def pickups() -> list[dict]:
-        posted_id = comment_id(page, "woken")
         return [
             event
             for event in read_events(page)
-            if event["kind"] == "pickup" and posted_id in event["events"]
+            if event["kind"] == "pickup" and woken in event["events"]
         ]
 
     # The watch has woken, and the hooks module has handed the comment to the turn,
@@ -389,15 +388,17 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
         "woken: a turn started after Escape with no new input",
     )
     before = nudged()
-    post(page, "after-wake")
+    user.comment("after-wake")
     cc.until(
-        lambda: answers(page, "after-wake") and cc.idle(),
+        lambda: user.answered("after-wake") and cc.idle(),
         "woken: the comment after Escape was not answered",
     )
-    if not answers(page, "woken"):
+    if not answers(page, woken):
         # The comment the stopped turn was handed waits for the user's next prompt.
         cc.say("Carry on with the review.")
         cc.until(answered("woken"), "woken: the next prompt did not answer it")
+    else:
+        user.answered("woken")
     step("woken", started, "woken", "after-wake", before=before, escaped=escaped)
 
     started = time.monotonic()
@@ -412,23 +413,41 @@ def journey(cc: ClaudeCode, page: Path, state: Path, module: bool) -> None:
         "quit: the ended session's claim on the page is still active",
     )
     require(not watched(), "quit: the ended session's watch still runs")
-    click.echo(f"quit: passed in {time.monotonic() - started:.0f} s")
+    user.passed("quit", started)
 
 
-@click.command()
-@click.option(
-    "--hooks-module",
-    is_flag=True,
-    help="Turn the plugin's `hooks_module` option on.",
-)
-def verify_claude_code_task(hooks_module: bool) -> None:
-    """Run an interactive Claude Code session with Leaf's plugin and check what it
-    carries."""
-    require(shutil.which("tmux") is not None, "verify-claude-code-task drives tmux")
-    run = run_directory(ROOT / ".tmp" / "verify-claude-code")
+def transcript(home: Path, session: str) -> list[dict]:
+    """The session's transcript so far, as tool and turn records stamped
+    `received_at` with when Claude Code wrote each."""
+    [path] = (home / ".claude" / "projects").glob(f"*/{session}.jsonl")
+    records = []
+    for line in path.read_text().splitlines():
+        record = json.loads(line)
+        if record.get("type") not in ("user", "assistant") or "message" not in record:
+            continue
+        content = record["message"]["content"]
+        if isinstance(content, str):
+            content = [{"type": "text", "text": content}]
+        records.append(
+            {
+                "type": record["type"],
+                "message": {"content": content},
+                "received_at": record["timestamp"],
+            }
+        )
+    return records
+
+
+@contextmanager
+def answering(browser, *, hooks_module: bool) -> Iterator[tuple[User, Callable]]:
+    """The user at the page an interactive Claude Code session serves, once it has,
+    and the steps that follow."""
+    require(shutil.which("tmux") is not None, "the claude-code journey drives tmux")
+    version = checkout_version()
+    run = run_directory(ROOT / ".tmp" / "journey")
     # Outside any repository, so the session loads no project instructions. Claude
     # Code records trust by the resolved path.
-    root = Path(tempfile.mkdtemp(prefix="leaf-verify-claude-code-")).resolve()
+    root = Path(tempfile.mkdtemp(prefix="leaf-journey-claude-code-")).resolve()
     state, work, payload = root / "state", root / "work", root / "plugin"
     work.mkdir()
     page = work / "page"
@@ -465,7 +484,36 @@ def verify_claude_code_task(hooks_module: bool) -> None:
         prepare(ROOT, state, page)
         cc = ClaudeCode(root, run, work, argv, isolated)
         try:
-            journey(cc, page, state, hooks_module)
+            started = time.monotonic()
+            cc.say(REQUEST)
+            cc.until(
+                lambda: page_claim(page) is not None,
+                "setup: the page was not claimed",
+            )
+            cc.session = page_claim(page)["id"]
+            cc.until(
+                lambda: (
+                    running_server(page) is not None
+                    and cc.idle()
+                    and wait_is_live(None, cc.session)
+                ),
+                "setup: the page was not served with the session idle and a watch "
+                "running",
+            )
+            session = local_session(browser, running_server(page)["url"])
+            user = User(
+                session._replace(records=lambda: transcript(home, cc.session)),
+                version,
+                lambda: read_events(page),
+            )
+            settled(page, cc.session, {})
+            require(
+                not hooks_module or INLINE_DELIVERY not in cc.shown(),
+                "setup: a delivery was printed in the terminal",
+            )
+            user.passed("setup", started)
+            cc.keep("setup")
+            yield user, lambda: steps(cc, user, page, state, hooks_module)
         finally:
             # A failed step's screen; once Claude Code exits there is none.
             cc.keep("end")
@@ -479,6 +527,9 @@ def verify_claude_code_task(hooks_module: bool) -> None:
         if passed:
             shutil.rmtree(root)
         else:
-            click.echo(f"Kept the session, its page and its state home in {root}")
-        click.echo(f"The session's screen, debug log and page log are in {run}")
-    click.echo("Every check passed.")
+            click.echo(
+                f"Kept the session, its page and its state home in {root}", err=True
+            )
+        click.echo(
+            f"The session's screen, debug log and page log are in {run}", err=True
+        )

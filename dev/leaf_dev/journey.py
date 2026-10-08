@@ -1,33 +1,50 @@
-"""One user's journey through a Leaf page, run on any harness and timed from the
-page's own record.
+"""One user's journey through a Leaf page, run on any harness, each step timed from
+the page's own record and checked.
 
-    uv run leaf-dev journey TARGET [--release RELEASE]
+    uv run leaf-dev journey TARGET [--release RELEASE] [--hooks-module] [--preview]
 
 The user opens the triage board in Chrome and tells the agent, through the Threads
 composer, that a release passed its deployment checks, asking it to record that on
 the board. How the page records it is the agent's call, as with a real user's
-request; the journey requires only a reply in Threads and a reload presenting a
-published revision that names the release. Every target gets the same ask and the
+request; this `release` step requires only a reply in Threads and a reload presenting
+a published revision that names the release. Every target gets the same ask and the
 same checks. TARGET names what answers:
 
-- `claude-code` or `codex`: an isolated Claude Code or Codex session running this
-  working tree's plugin, asked to serve the page and handle its comments (`REQUEST`);
-- `local`: the website's adapter on this machine, against the host's Codex login;
-- `wrangler`: the built site through the local Worker and its page container;
+- `claude-code`: an interactive Claude Code session in a tmux pane
+  (`journey_claude_code`);
+- `codex-app-server` or `codex-queue`: a Codex task reaching Leaf through that
+  transport (`journey_codex`): App Server's, as `leaf codex launch` and leaf.page run
+  Codex, or the queue, as the desktop app and IDE extension do;
+- `pi`: a Pi session in RPC mode (`journey_pi`);
+- `website-adapter`: the website's adapter on this machine, against the host's
+  Codex login, with no Worker, container limits, credential proxy or Docker;
+- `website-worker`: the built site through the local Worker and its page container;
 - an origin such as `https://leaf.page`: the deployed website, at `--release` or
   whichever release it serves.
 
+A harness target runs this working tree's plugin in a session of its own, under a
+throwaway home holding only the host's login, and the journey is also the terminal:
+it asks for the page to be served (`setup`), types the user's turns, presses Escape,
+and kills what a crash would. Around `release` each harness module runs the steps
+its harness can take, sending each step's comment through the same composer and
+checking, between steps, that every comment so far has one reply and a pickup and
+that the page's claim names the session with its turn closed. A website target runs
+`release` alone, since only a terminal can start a turn or interrupt one.
+`--hooks-module` turns on Claude Code's opt-in hooks module; `--preview` has Codex
+serve the page with the canonical `leaf-dev preview --user`. The journey stops at the
+first check that fails and keeps no sample.
+
 The timings come from where each step happened. The page server records when it
-admitted the comment, titled its thread, activated the published revision and
+admitted a comment, titled its thread, activated the published revision and
 admitted the reply; `sinceAdmissionMs` reads those from the comment's admission, so
 every target is timed on one clock, the page server's. The browser alone sees the
 POST's answer and the reply showing in Threads; `sinceSendMs` reads those from the
-first send. Where the journey runs the agent itself, `claude-code` or `codex`, its
-stream also splits the turn between those two moments into delivery, model and tool
-phases (`turn`), so a slow reply shows where it went. The JSON on stdout carries all of it,
-with the code version the journey ran and, for `codex`, the Leaf transport its
-session takes (`transport`: `app-server`; `leaf-dev verify-codex-task` alone runs
-the queue transport).
+send. Where the journey runs the agent itself, its record of the session (Claude
+Code's transcript, Codex's App Server notifications, Pi's RPC events) also splits
+the turn between those two moments into delivery, model and tool phases (`turn`), so
+a slow reply shows where it went. The JSON on stdout carries all of it: `comment`
+for the release ask, `steps` for each step's duration and its comments' timings,
+and the code version the journey ran.
 
 A `startup_failed` receipt gets one more ask; any other failure receipt fails on
 the first (`worker/README.md` owns that contract).
@@ -42,10 +59,8 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
-import threading
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -57,24 +72,14 @@ from urllib.parse import urljoin, urlsplit
 
 import click
 from leaf.events import build_threads
-from leaf.harness import ClaudeCodeHarness, CodexHarness
 from leaf.thread import successful_replies
 from playwright.sync_api import BrowserContext, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf_dev import ROOT
-from leaf_dev.arms import (
-    HARNESSES,
-    PAYLOAD,
-    LiveChild,
-    build_arm,
-    read_page_state,
-    run_directory,
-    run_leaf,
-    scratch,
-)
+from leaf_dev.arms import PAYLOAD
 from leaf_dev.browser import chrome
-from leaf_dev.review_scenario import REQUEST, prepare
+from leaf_dev.review_scenario import COMMENTS
 from leaf_dev.startup import startup_reading
 from leaf_dev.verify_site import (
     agent_session,
@@ -103,8 +108,14 @@ VISIBLE_REPLY_PATIENCE = 30_000
 # How long the page server gets to title the thread after the turn ends: its title
 # request's own limit (`TIMEOUT` in `thread_titles.py`).
 TITLE_PATIENCE = 60
-# How long a local harness gets to serve the page and start watching it.
-SETUP_LIMIT = 600
+# The harness targets, each named in a sample by its harness and, where the harness
+# has more than one, the Leaf transport its turns take.
+HARNESS_TARGETS = {
+    "claude-code": {"harness": "claude-code"},
+    "codex-app-server": {"harness": "codex", "transport": "app-server"},
+    "codex-queue": {"harness": "codex", "transport": "queue"},
+    "pi": {"harness": "pi"},
+}
 
 
 def samples_path() -> Path:
@@ -117,8 +128,10 @@ def samples_path() -> Path:
 
 class Session(NamedTuple):
     """One user's open page, with what reaching its state takes: `headers` go with
-    each state read, and `after_post` runs once a comment is admitted. `stream` is
-    the answering agent's stream where the journey runs that agent itself."""
+    each state read, and `after_post` runs once a comment is admitted. Where the
+    journey runs the answering agent itself, `records` reads its session's record so
+    far, as tool and turn records stamped `received_at`, and `pause` waits while
+    hearing it."""
 
     context: BrowserContext
     page: Page
@@ -128,7 +141,8 @@ class Session(NamedTuple):
     state: dict
     headers: dict[str, str]
     after_post: Callable[[dict], None] | None
-    stream: Path | None = None
+    records: Callable[[], list[dict]] | None = None
+    pause: Callable[[float], None] = time.sleep
 
 
 def still_answering(state: dict, event_id: str) -> bool:
@@ -192,11 +206,11 @@ def instant(ts: str) -> float:
     return datetime.fromisoformat(ts).timestamp()
 
 
-def recorded_steps(events: list[dict], comment: dict, published: dict) -> dict:
+def recorded_steps(events: list[dict], comment: dict, published: dict | None) -> dict:
     """Seconds after `comment`'s admission at which the page server titled its
     thread, admitted the agent's first progress update in it, activated the
     `published` revision and admitted the answer, or None for a step it never
-    reached."""
+    reached or a comment that asked for no revision."""
     admitted = instant(comment["ts"])
     thread = comment["id"]
     titled = next(
@@ -216,7 +230,7 @@ def recorded_steps(events: list[dict], comment: dict, published: dict) -> dict:
         for step, at in (
             ("titled", titled),
             ("progress", progress),
-            ("published", published["activated_at"]),
+            ("published", published and published["activated_at"]),
             ("replied", replied and replied["ts"]),
         )
     }
@@ -228,7 +242,8 @@ def turn_phases(records: list[dict], admitted: str, replied: str) -> list[dict]:
     `init`, or the user record carrying the delivery), then alternating `model`
     (from the last tool result to the next tool call) and `tool` (from that call
     until every call it started has returned), each tool phase naming its calls.
-    Times are when the journey received each stream record."""
+    Times are when the journey received each record. A comment no turn began on
+    after its admission, such as one a running turn took in, has no phases."""
     start, end = instant(admitted), instant(replied)
     timed = [
         (instant(record["received_at"]), record)
@@ -248,10 +263,15 @@ def turn_phases(records: list[dict], admitted: str, replied: str) -> list[dict]:
         )
 
     began = next(
-        at
-        for at, record in timed
-        if record["type"] == "user" or record.get("subtype") == "init"
+        (
+            at
+            for at, record in timed
+            if record["type"] == "user" or record.get("subtype") == "init"
+        ),
+        None,
     )
+    if began is None:
+        return []
     close("delivery", start, began)
     phase, since, pending, calls = "model", began, set(), []
     for at, record in timed:
@@ -365,19 +385,27 @@ def ask_to_record(
     The ask says what happened and leaves how the page shows it to the agent, as a
     user would, so the journey times the agent's own way of working rather than a
     scripted edit."""
-    page, url = session.page, session.url
     text = (
         f"Release {marker} passed its deployment checks. Record that on the board, "
         "and tell me when it's done."
     )
+    clock = "window.__leafVerifier.startVisibleReplyClock" if ask == 1 else None
+    return send_comment(session, text, profile, clock)
+
+
+def send_comment(
+    session: Session, text: str, profile: AgentProfile, clock: str | None
+) -> dict:
+    """Send `text` through the user's open Threads composer and return the admitted
+    comment. The send is timed from `clock`, a page expression returning the time,
+    where one is given; `profile` records it."""
+    page, url = session.page, session.url
     box = page.locator(".lf-general leaf-text")
     box.focus()
     page.keyboard.insert_text(text)
-    if ask == 1:
+    if clock is not None:
         profile.started = time.monotonic()
-        profile.visible_reply_started_ms = page.evaluate(
-            "window.__leafVerifier.startVisibleReplyClock"
-        )
+        profile.visible_reply_started_ms = page.evaluate(clock)
     with page.expect_response(
         lambda response: (
             response.url.split("?")[0].endswith("/api/event")
@@ -386,7 +414,7 @@ def ask_to_record(
     ) as response_info:
         box.press("ControlOrMeta+Enter")
     posted = response_info.value
-    check(posted.ok, f"{url} rejected its journey comment")
+    check(posted.ok, f"{url} rejected the comment ‘{text}’")
     profile.reference = posted.headers.get("leaf-session-reference")
     profile.acknowledge()
     # Read the admitted event from state rather than the intercepted response body,
@@ -402,7 +430,7 @@ def ask_to_record(
         ),
         None,
     )
-    check(comment is not None, f"{url} did not return its journey comment")
+    check(comment is not None, f"{url} did not return the comment ‘{text}’")
     profile.event_ids.append(comment["id"])
     if session.after_post is not None:
         session.after_post(comment)
@@ -452,7 +480,7 @@ def await_turn(
         waited = time.monotonic() - started
         if waited >= TURN_PATIENCE and not still_answering(current, comment["id"]):
             break
-        time.sleep(2)
+        session.pause(2)
     return TurnReading(current, published, replies, answer)
 
 
@@ -460,7 +488,7 @@ def titled(state: dict, thread: str) -> bool:
     """Read the thread's title from the canonical browser projection."""
     return any(
         item["id"] == thread and item["title"] is not None
-        for item in state["thread"]["threads"]
+        for item in state["browser"]["thread"]["threads"]
     )
 
 
@@ -470,7 +498,7 @@ def await_title(session: Session, thread: str, state: dict) -> dict:
     within it, so the title can land after the reply that ended the turn."""
     deadline = time.monotonic() + TITLE_PATIENCE
     while not titled(state, thread) and time.monotonic() < deadline:
-        time.sleep(1)
+        session.pause(1)
         state = read_state(session)
     return state
 
@@ -584,11 +612,9 @@ def run_journey(session: Session, version: str) -> dict:
             work_visible_at - profile.visible_reply_started_ms
         ) / 1000
     comment = agent_profile(profile, steps)
-    if session.stream is not None:
+    if session.records is not None:
         comment["turn"] = turn_phases(
-            [json.loads(line) for line in session.stream.read_text().splitlines()],
-            answered_comment["ts"],
-            answer["ts"],
+            session.records(), answered_comment["ts"], answer["ts"]
         )
     print(json.dumps(comment, indent=2), file=sys.stderr)
     if not reply_visible or visible_reply_at is None:
@@ -680,77 +706,130 @@ def website_session(
     return session, release
 
 
-@contextmanager
-def harness_session(browser, harness: str) -> Iterator[tuple[Session, str, dict]]:
-    """A user's session on a page an isolated `harness` session serves and watches,
-    running this working tree's plugin, the version that plugin is, and what names
-    the session in the journey's output: the harness, and the Leaf transport its
-    turns take where the harness has more than one.
+class User:
+    """The user at the page's tab across a journey's steps: the comment each step
+    sent through Threads, when the reply to it showed there, and how long each step
+    took. A harness module drives the steps and checks them; `events` reads the
+    page's log, where the journey runs the page."""
 
-    The page is the triage board under a state home of its own (`review_scenario`),
-    in a scratch directory outside the repository, so the session reads none of its
-    instructions. The harness's stream and stderr, and the page's event log, stay in
-    a run directory under `.tmp/journey/`; the scratch directory, which holds a copy
-    of the login, is removed. The first comment goes out once the setup turn has
-    ended and the page reports a watcher listening."""
-    run = run_directory(ROOT / ".tmp" / "journey")
-    arm, state, work = run / "arm", run / "state", scratch()
-    page_dir = work / "page"
-    version = working_version(build_arm(None, arm))
-    prepare(arm, state, page_dir)
-    setup_ended = threading.Event()
-    with (
-        LiveChild(
-            work,
-            REQUEST,
-            "--plugin-dir",
-            str(arm),
-            stderr=run / "stderr.txt",
-            limit=SETUP_LIMIT + TURN_LIMIT,
-            timed_out=run / "timed-out",
-            dirs=[arm],
-            env={"XDG_STATE_HOME": str(state)},
-            harness=harness,
-        ) as child,
-        (run / "stream.jsonl").open("w") as stream,
-    ):
+    def __init__(
+        self,
+        session: Session,
+        version: str,
+        events: Callable[[], list[dict]] | None = None,
+    ) -> None:
+        self.session, self.version, self.events = session, version, events
+        self.ids: dict[str, str] = {}
+        self.profiles: dict[str, AgentProfile] = {}
+        self.sent: list[str] = []
+        self.steps: list[dict] = []
+        self.release_reading: dict = {}
 
-        def record() -> None:
-            for line in child.records():
-                stream.write(json.dumps(line) + "\n")
-                stream.flush()
-                if line.get("type") == "result":
-                    setup_ended.set()
+    def release(self) -> None:
+        """The ask every target answers, timed (`run_journey`)."""
+        self.release_reading = run_journey(self.session, self.version)
+        self.ids["release"] = self.release_reading["comment"]["eventIds"][-1]
 
-        reader = threading.Thread(target=record, daemon=True)
-        reader.start()
-        deadline = time.monotonic() + SETUP_LIMIT
-        try:
-            while True:
-                current = read_page_state(arm, state, page_dir)
-                if setup_ended.is_set() and current["server"] and current["listening"]:
-                    break
-                check(
-                    reader.is_alive() and time.monotonic() < deadline,
-                    f"the {harness} session stopped or ran past {SETUP_LIMIT} s "
-                    "before its page had a watcher listening; its stream is "
-                    f"{run / 'stream.jsonl'}",
+    def release_alone(self) -> None:
+        """A website's steps: the release ask alone, since only a terminal can start
+        a turn or interrupt one."""
+        started = time.monotonic()
+        self.release()
+        self.passed("release", started)
+
+    def comment(self, name: str, text: str | None = None) -> str:
+        """Send step `name`'s comment, `text` or the scenario's, through Threads;
+        return its id."""
+        profile = AgentProfile()
+        profile.ask_count = 1
+        # The release step's reload may leave Threads shut.
+        if not self.session.page.locator(".lf-general leaf-text").is_visible():
+            self.session.page.locator(".lf-threads-toggle").click()
+        comment = send_comment(
+            self.session, text or COMMENTS[name], profile, "Date.now()"
+        )
+        self.ids[name], self.profiles[name] = comment["id"], profile
+        self.sent.append(name)
+        return comment["id"]
+
+    def answered(self, name: str) -> bool:
+        """Whether the agent has answered step `name`'s comment. The first time it
+        has, the reply must show in Threads, and the send is timed to it."""
+        profile = self.profiles[name]
+        answer = deployment_answer(self.events(), self.ids[name])
+        if answer is None:
+            return False
+        if profile.visible_reply_s is None:
+            page = self.session.page
+            # A later comment's thread closes this one in the panel, so the user
+            # opens it to read the reply.
+            thread = page.locator(
+                f'.lf-threads > .lf-thread[data-id="{answer["parent"]}"]'
+            )
+            if not thread.evaluate("node => node.open"):
+                thread.locator(":scope > .lf-thread-summary").click()
+            check(
+                wait_for_visible_reply(page, answer["parent"], answer["id"]),
+                f"the reply to `{name}` never became visible in Threads; the page "
+                f"reports {json.dumps(page.evaluate('window.__leafVerifier.visibleReplyDebug'))}",
+            )
+            for field, reading, subject in (
+                ("visible_reply_s", "visibleReplyAt", answer["id"]),
+                ("work_visible_s", "workVisibleAt", answer["parent"]),
+            ):
+                at = page.evaluate(
+                    f"id => window.__leafVerifier.{reading}(id)", subject
                 )
-                time.sleep(1)
-            session = local_session(browser, current["server"]["url"])
-            named = {"target": harness, "harness": harness}
-            if child.transport is not None:
-                named["transport"] = child.transport
-            yield session._replace(stream=run / "stream.jsonl"), version, named
-        finally:
-            child.close()
-            # A turn in progress ends on its own once stdin closes; the context's
-            # exit kills whatever outlasts this.
-            reader.join(60)
-            run_leaf(arm, state, "server", "stop", str(page_dir))
-            shutil.copy(page_dir / "events.jsonl", run / "events.jsonl")
-            for scratch_dir in (work, work.with_name(f"{work.name}-home")):
-                shutil.rmtree(scratch_dir, ignore_errors=True)
+                if at is not None:
+                    seconds = (at - profile.visible_reply_started_ms) / 1000
+                    setattr(profile, field, seconds)
+        return True
+
+    def passed(self, name: str, started: float, *details: str) -> None:
+        """Record step `name`, begun at `started`, with the comments sent during it,
+        and print it with `details`."""
+        seconds = time.monotonic() - started
+        self.steps.append(
+            {"step": name, "seconds": round(seconds, 1), "comments": self.sent}
+        )
+        self.sent = []
+        click.echo(
+            f"{name}: passed in {seconds:.0f} s"
+            + "".join(f"\n  {detail}" for detail in details),
+            err=True,
+        )
+
+    def sample(self) -> dict:
+        """The journey's reading: the release ask's, and each step's duration and
+        the timings of the comments it sent."""
+        events = self.events() if self.profiles else []
+        comments = {}
+        for name, profile in self.profiles.items():
+            comment = next(e for e in events if e["id"] == self.ids[name])
+            reading = agent_profile(profile, recorded_steps(events, comment, None))
+            answer = deployment_answer(events, comment["id"])
+            if self.session.records is not None and answer is not None:
+                reading["turn"] = turn_phases(
+                    self.session.records(), comment["ts"], answer["ts"]
+                )
+            comments[name] = reading
+        steps = [
+            {**step, "comments": {name: comments[name] for name in step["comments"]}}
+            for step in self.steps
+        ]
+        return {**self.release_reading, "steps": steps}
+
+
+def checkout_version() -> str:
+    """The commit this working tree's plugin is, marked where the working tree
+    differs from it."""
+    head = subprocess.run(
+        ["git", "-C", ROOT, "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    return working_version(head)
 
 
 def working_version(commit: str) -> str:
@@ -781,43 +860,58 @@ def local_session(browser, url: str) -> Session:
 
 @contextmanager
 def target_session(
-    browser, target: str, release: str | None
-) -> Iterator[tuple[Session, str, dict]]:
-    """A user's session on the page TARGET answers, the code version answering it,
-    and what names TARGET in the journey's output: `target` the same across runs, as
-    a local server's `origin` is not."""
-    if target in HARNESSES:
-        with harness_session(browser, target) as answering:
-            yield answering
-    elif target == "local":
-        with local_adapter() as (origin, built):
-            session, version = website_session(
-                browser, built, origin=origin, direct_agent=True
-            )
-            yield (
-                session,
-                version,
-                {"target": target, "harness": "website", "origin": origin},
-            )
-    elif target == "wrangler":
-        with local_worker() as (origin, built):
-            session, version = website_session(
-                browser, release or built, origin=origin, direct_agent=False
-            )
-            yield (
-                session,
-                version,
-                {"target": target, "harness": "website", "origin": origin},
-            )
+    browser, target: str, release: str | None, *, hooks_module: bool, preview: bool
+) -> Iterator[tuple[User, dict, Callable[[], None]]]:
+    """The user at the page TARGET answers, what names TARGET in the journey's
+    output (`target` the same across runs, as a local server's `origin` is not), and
+    the journey's steps."""
+    if target in HARNESS_TARGETS:
+        named = {"target": target, **HARNESS_TARGETS[target]}
+        if target == "claude-code":
+            from leaf_dev.journey_claude_code import answering
+
+            harness = answering(browser, hooks_module=hooks_module)
+            named |= {"hooksModule": True} if hooks_module else {}
+        elif target == "pi":
+            from leaf_dev.journey_pi import answering
+
+            harness = answering(browser)
+        else:
+            from leaf_dev.journey_codex import answering
+
+            harness = answering(browser, named["transport"], preview=preview)
+            named |= {"preview": True} if preview else {}
+        with harness as (user, run):
+            yield user, named, run
+        return
+    if target == "website-adapter":
+        serving = local_adapter()
+    elif target == "website-worker":
+        serving = local_worker()
     else:
         origin = target.rstrip("/")
         session, version = website_session(
             browser, release, origin=origin, direct_agent=False
         )
+        user = User(session, version)
         yield (
-            session,
-            version,
+            user,
             {"target": origin, "harness": "website", "origin": origin},
+            user.release_alone,
+        )
+        return
+    with serving as (origin, built):
+        session, version = website_session(
+            browser,
+            built if target == "website-adapter" else release or built,
+            origin=origin,
+            direct_agent=target == "website-adapter",
+        )
+        user = User(session, version)
+        yield (
+            user,
+            {"target": target, "harness": "website", "origin": origin},
+            user.release_alone,
         )
 
 
@@ -827,22 +921,42 @@ def target_session(
     "--release",
     help="At an origin, require this release (default: whichever it serves).",
 )
-def journey(target: str, release: str | None) -> None:
-    """Run the user's journey against TARGET and print its timed profile.
+@click.option(
+    "--hooks-module",
+    is_flag=True,
+    help="On claude-code, turn the plugin's hooks module on.",
+)
+@click.option(
+    "--preview",
+    is_flag=True,
+    help="On a codex target, serve the page with `leaf-dev preview --user`.",
+)
+def journey(
+    target: str, release: str | None, hooks_module: bool, preview: bool
+) -> None:
+    """Run the user's journey against TARGET, checking each step, and print its
+    timed sample.
 
-    TARGET is `claude-code` or `codex` for a session of that harness on this working
-    tree, `local` for the website's adapter on this machine, `wrangler` for the built
-    site through the local Worker, or a website origin.
+    TARGET is `claude-code`, `codex-app-server`, `codex-queue` or `pi` for a session
+    of that harness on this working tree, `website-adapter` for the website's adapter
+    on this machine, `website-worker` for the built site through the local Worker,
+    or a website origin.
     """
+    if hooks_module and target != "claude-code":
+        raise click.UsageError("--hooks-module is an option of claude-code")
+    if preview and HARNESS_TARGETS.get(target, {}).get("harness") != "codex":
+        raise click.UsageError("--preview is an option of the codex targets")
     with (
         chrome() as browser,
-        target_session(browser, target, release) as (session, version, named),
+        target_session(
+            browser, target, release, hooks_module=hooks_module, preview=preview
+        ) as (user, named, run),
     ):
         try:
-            result = run_journey(session, version)
+            run()
+            sample = {**named, **user.sample()}
         finally:
-            session.context.close()
-    sample = {**named, **result}
+            user.session.context.close()
     print(json.dumps(sample, indent=2))
     samples = samples_path()
     samples.parent.mkdir(parents=True, exist_ok=True)
@@ -862,28 +976,38 @@ SIGNS = (
     ("first words", "sinceAdmissionMs", "progress", "var(--series-4)"),
     ("reply", "sinceAdmissionMs", "replied", "var(--series-3)"),
 )
-HARNESS_NAMES = {
-    ClaudeCodeHarness.name: "Claude Code",
-    CodexHarness.name: "Codex App Server",
+TARGET_NAMES = {
+    "claude-code": "Claude Code",
+    "codex-app-server": "Codex App Server",
+    "codex-queue": "Codex queue",
+    "pi": "Pi",
 }
 TICKS = (0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500)
 # Plot sizes no margin to its labels: about this many px a character at its font.
 LABEL_PX = 5.5
 
 
+def chart_target(sample: dict) -> str:
+    """What a chart row names: the target, with the options it ran under."""
+    return (
+        TARGET_NAMES.get(sample["target"], sample["target"])
+        + (" with the hooks module" if sample.get("hooksModule") else "")
+        + (" through a preview" if sample.get("preview") else "")
+    )
+
+
 def chart_rows(samples: list[dict]) -> list[dict]:
-    """One dot per sign each sample saw, for the latest version each target ran.
-    Samples kept before they named their target name it by their harness."""
-    latest = {}
-    for sample in samples:
-        latest[sample.get("target", sample["harness"])] = sample["version"]
+    """One dot per sign each sample's release ask saw, for the latest version each
+    target ran. Samples kept before the journey ran its steps (`steps`) are left
+    out: their targets had other names, and their Claude Code ran headless."""
+    samples = [sample for sample in samples if "steps" in sample]
+    latest = {chart_target(sample): sample["version"] for sample in samples}
     rows = []
     for sample in samples:
-        target = sample.get("target", sample["harness"])
-        if sample["version"] != latest[target]:
+        name = chart_target(sample)
+        if sample["version"] != latest[name]:
             continue
-        name = HARNESS_NAMES.get(target, target)
-        version = re.sub(r"[0-9a-f]{40}", lambda sha: sha[0][:8], sample["version"])
+        version = re.sub(r"[0-9a-f]{32,}", lambda sha: sha[0][:8], sample["version"])
         row = f"{name} at {version}"
         for sign, clock, step, _ in SIGNS:
             if (ms := sample["comment"][clock].get(step)) is not None:

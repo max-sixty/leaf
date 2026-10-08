@@ -32,9 +32,6 @@ COMMANDS = {
     "test-select": "test_select.command",
     "thread-snapshots": "thread_snapshots",
     "trace-server": "trace_server",
-    "verify-claude-code-task": "verify_claude_code_task",
-    "verify-codex-task": "verify_codex_task",
-    "verify-pi-task": "verify_pi_task",
     "verify-site": "verify_site",
 }
 

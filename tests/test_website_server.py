@@ -1191,7 +1191,7 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
 
 def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     """The gate's agent journey is also the benchmark: stdout is only its JSON sample,
-    naming the harness and origin it ran on."""
+    naming the harness and origin it ran on and the one step a website takes."""
     calls = []
     lifecycle = []
 
@@ -1226,28 +1226,44 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     monkeypatch.setattr(journey, "local_worker", worker)
     monkeypatch.setattr(journey, "chrome", browser)
     monkeypatch.setattr(journey, "website_session", session)
-    monkeypatch.setattr(journey, "run_journey", lambda s, v: {"version": v})
+    monkeypatch.setattr(
+        journey,
+        "run_journey",
+        lambda s, v: {"version": v, "comment": {"eventIds": ["comment"]}},
+    )
     runner = CliRunner()
-    local_result = runner.invoke(journey.journey, ["local"])
+    local_result = runner.invoke(journey.journey, ["website-adapter"])
     assert local_result.exit_code == 0, local_result.output
-    assert json.loads(local_result.stdout) == {
-        "target": "local",
+    sample = json.loads(local_result.stdout)
+    [step] = sample.pop("steps")
+    assert sample == {
+        "target": "website-adapter",
         "harness": "website",
         "origin": "http://127.0.0.1:8080",
         "version": "a" * 40,
+        "comment": {"eventIds": ["comment"]},
     }
+    assert (step["step"], step["comments"]) == ("release", {})
+    # A harness's options belong to its harness alone.
+    refused = runner.invoke(journey.journey, ["website-adapter", "--hooks-module"])
+    assert refused.exit_code == 2
+    assert "--hooks-module is an option of claude-code" in refused.output
     # A remote journey needs no local build: the origin names its release.
     remote_result = runner.invoke(journey.journey, ["https://leaf-dev.example/"])
     assert remote_result.exit_code == 0, remote_result.output
-    assert json.loads(remote_result.stdout) == {
+    assert {
+        key: value
+        for key, value in json.loads(remote_result.stdout).items()
+        if key in ("target", "harness", "origin", "version")
+    } == {
         "target": "https://leaf-dev.example",
         "harness": "website",
         "origin": "https://leaf-dev.example",
         "version": "served",
     }
     # Through the local Worker the journey holds the container to the built release.
-    wrangler_result = runner.invoke(journey.journey, ["wrangler"])
-    assert wrangler_result.exit_code == 0, wrangler_result.output
+    worker_result = runner.invoke(journey.journey, ["website-worker"])
+    assert worker_result.exit_code == 0, worker_result.output
     assert lifecycle == ["start", "stop", "worker"]
     # Each journey closes the browser context its session opened.
     assert closed == [True, True, True]
@@ -1279,40 +1295,48 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
             },
             "sinceSendMs": {"workVisible": working, "responseVisible": replied + 1000},
         }
-        harness = target if target in ("claude-code", "codex") else "website"
         return {
             "target": target,
-            "harness": harness,
+            "harness": target.split("-")[0],
             **named,
             "version": version,
             "comment": comment,
+            "steps": [{"step": "release", "seconds": replied / 1000, "comments": {}}],
         }
 
     old, new = "a" * 40, "b" * 40 + "+working-tree"
+    adapter = "website-adapter"
     samples = [
         sample("claude-code", old, 1800, 7000, None, 17500),
-        sample("codex", old, 4700, 200, None, 69600),
+        sample("codex-app-server", old, 4700, 200, None, 69600),
         sample("claude-code", new, 1300, 7000, 6900, 18600),
-        sample("codex", old, 4600, 300, None, 102900),
+        sample("codex-app-server", old, 4600, 300, None, 102900),
+        # The hooks module is a row of its own, at its own latest version.
+        sample("claude-code", old, 1300, 7000, 6900, 15000, hooksModule=True),
         # Each local run serves on a port of its own, but is the same target.
-        sample("local", old, 900, 300, None, 30000, origin="http://127.0.0.1:8080"),
-        sample("local", new, 800, 300, None, 25000, origin="http://127.0.0.1:9090"),
+        sample(adapter, old, 900, 300, None, 30000, origin="http://127.0.0.1:8080"),
+        sample(adapter, new, 800, 300, None, 25000, origin="http://127.0.0.1:9090"),
     ]
+    # A sample kept before the journey ran its steps is left out.
+    unstepped = sample("codex", new, 900, 300, None, 9000)
+    del unstepped["steps"]
     path = journey.samples_path()
     path.parent.mkdir(parents=True)
-    path.write_text("".join(json.dumps(s) + "\n" for s in samples))
+    path.write_text("".join(json.dumps(s) + "\n" for s in [*samples, unstepped]))
     result = CliRunner().invoke(journey.journey_chart)
     assert result.exit_code == 0, result.output
     markup = result.stdout
     assert markup.startswith('<lf-chart id="journey-signs"')
-    rows = journey.chart_rows(samples)
+    rows = journey.chart_rows([*samples, unstepped])
     assert {r["row"] for r in rows} == {
         "Claude Code at bbbbbbbb+working-tree",
+        "Claude Code with the hooks module at aaaaaaaa",
         "Codex App Server at aaaaaaaa",
-        "local at bbbbbbbb+working-tree",
+        "website-adapter at bbbbbbbb+working-tree",
     }
     # Older versions are left out; Codex's two runs of one version stay.
     assert sorted(r["s"] for r in rows if r["sign"] == "reply") == [
+        15.0,
         18.6,
         25.0,
         69.6,
@@ -1320,7 +1344,8 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
     ]
     # A step the run never reached draws no dot.
     assert [r["row"] for r in rows if r["sign"] == "first words"] == [
-        "Claude Code at bbbbbbbb+working-tree"
+        "Claude Code at bbbbbbbb+working-tree",
+        "Claude Code with the hooks module at aaaaaaaa",
     ]
     assert json.dumps(rows) in markup
 
@@ -1373,11 +1398,11 @@ def test_the_website_app_server_inherits_the_ready_leaf_cli(tmp_path, monkeypatc
         harness.endpoint,
     ]
     # Measured 2026-09-17: adding a "declare each step" instruction here made the turn
-    # run a closing `resolve` and never reply, which `leaf-dev journey local` caught. The
-    # hosted page's sentence comes from the steps App Server watches instead, which the
-    # activity fold prefers over Leaf's own claim wording for exactly this reason. The
-    # shared contract describes `leaf status`, so what the agent receives has to hand
-    # the status to the harness.
+    # run a closing `resolve` and never reply, which `leaf-dev journey website-adapter`
+    # caught. The hosted page's sentence comes from the steps App Server watches
+    # instead, which the activity fold prefers over Leaf's own claim wording for
+    # exactly this reason. The shared contract describes `leaf status`, so what the
+    # agent receives has to hand the status to the harness.
     instructions = " ".join(website_server.CODEX_INSTRUCTIONS.split())
     assert "Leave the page's status to the harness" in instructions
 
@@ -1630,7 +1655,7 @@ def test_the_adapter_takes_its_app_server_with_it_when_it_is_told_to_stop(
     """The stop signal reaches the App Server, not only the adapter that started it.
 
     `close` covers the ordinary return, and inside a container nothing else is
-    needed. On a host it is: `leaf-dev journey local` runs this adapter and
+    needed. On a host it is: `leaf-dev journey website-adapter` runs this adapter and
     stops it with SIGTERM, and uvicorn answers that signal by stopping its loop and
     re-raising it, so the process dies before any `finally`. The App Server is in a
     session of its own, which is what makes it the one child that survives that —
@@ -4140,7 +4165,7 @@ def test_local_verification_settles_host_network(monkeypatch):
     monkeypatch.setattr(verify_site, "local_worker", worker)
     monkeypatch.setattr(verify_site, "run_verification", verify)
 
-    result = CliRunner().invoke(verify_site.verify_site, ["wrangler"])
+    result = CliRunner().invoke(verify_site.verify_site, ["website-worker"])
 
     assert isinstance(result.exception, RuntimeError)
     assert attempts == [verify_site.wait_for_host_network]
@@ -4808,14 +4833,18 @@ def test_a_title_written_after_the_reply_is_still_timed():
     answered = {
         "active": {"revision": 2},
         "events": [comment, reply],
-        "thread": {"threads": [{"id": comment["id"], "title": None}]},
+        "browser": {"thread": {"threads": [{"id": comment["id"], "title": None}]}},
     }
     context = _StateReads(
         [
             {
                 **answered,
                 "events": [comment, reply, title],
-                "thread": {"threads": [{"id": comment["id"], "title": title["title"]}]},
+                "browser": {
+                    "thread": {
+                        "threads": [{"id": comment["id"], "title": title["title"]}]
+                    }
+                },
             }
         ]
     )
@@ -5352,10 +5381,12 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                     "activity": {"kind": "away"},
                     "source_error": None,
                     "events": TURN_LOG,
-                    "thread": {
-                        "threads": [
-                            {"id": "test-comment", "title": "Deployment heading"}
-                        ]
+                    "browser": {
+                        "thread": {
+                            "threads": [
+                                {"id": "test-comment", "title": "Deployment heading"}
+                            ]
+                        }
                     },
                 },
                 published,
@@ -5520,10 +5551,12 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
                     "activity": {"kind": "away"},
                     "source_error": None,
                     "events": TURN_LOG,
-                    "thread": {
-                        "threads": [
-                            {"id": "test-comment", "title": "Deployment heading"}
-                        ]
+                    "browser": {
+                        "thread": {
+                            "threads": [
+                                {"id": "test-comment", "title": "Deployment heading"}
+                            ]
+                        }
                     },
                 },
                 published,
@@ -5672,7 +5705,7 @@ def test_journey_reads_and_times_inline_message_title():
     comment, _title, reply = TURN_LOG
     titled_reply = {**reply, "title": "Release recorded"}
     threads = list(journey.build_threads([comment, titled_reply], {}).values())
-    assert journey.titled({"thread": {"threads": threads}}, comment["id"])
+    assert journey.titled({"browser": {"thread": {"threads": threads}}}, comment["id"])
     assert (
         journey.recorded_steps(
             [comment, titled_reply], comment, {"activated_at": reply["ts"]}

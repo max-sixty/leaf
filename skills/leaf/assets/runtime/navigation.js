@@ -2,10 +2,11 @@
  * Alignment reads the browser's current selection/focus and the owning reading region;
  * it changes only vertical scroll, retaining focus, selection and browser history. */
 import { cancelRender, nextFrame } from "./rendering.js";
+import { scrollGlides } from "./arrivals.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
-import { pageScroller } from "./scrolling.js";
+import { atScrollEnd, pageScroller } from "./scrolling.js";
 import { landingBand } from "./geometry.js";
 import {
   effectiveScroller,
@@ -137,7 +138,9 @@ export function placeThreadEdge(thread, edge) {
 
 // j/k take small pixel steps; d/u move 60% of the visible reading page. Both follow
 // the active region and share one glide, so mixed or repeated presses add up from
-// the pending goal. Space, Home/End and PageUp/Down stay the browser's own keys.
+// the pending goal. At a region's edge they follow its CSS scroll chain, stopping at
+// the same task or modal boundary as native input. Space, Home/End and PageUp/Down
+// stay the browser's own keys.
 //
 // They move the region the user is reading. The thread list is that region when
 // focus stands on its frame; a nested region keeps its own scrollport. Scrolling a
@@ -167,6 +170,11 @@ export function placeThreadEdge(thread, edge) {
 // that landed them under the banner would be a step onto words they cannot read.
 const SCROLL_MS = 140;
 let glide = null; // {box, goal, wrote, raf}
+// A glide is one scroll however many frames write it (arrivals.js, `scrolling`).
+const setGlide = (next) => {
+  glide = next;
+  scrollGlides(Boolean(next));
+};
 // The glide's claim on the box: it holds only while the box is where the glide last
 // wrote it. The tick asks before every write, and a press asks the same question before
 // trusting the goal — the user can take the box between frames, and a press landing
@@ -190,13 +198,17 @@ const stepScroller = (coveringAuxiliaryScroller) => {
   return effectiveScroller(region);
 };
 function stepReading(amount, unit, coveringAuxiliaryScroller) {
-  const box = stepScroller(coveringAuxiliaryScroller);
-  if (unit === "page") {
-    const band = landingBand(box);
-    amount *= band.bottom - band.top;
+  for (const box of scrollersOf(stepScroller(coveringAuxiliaryScroller))) {
+    const canMove = amount > 0 ? !atScrollEnd(box) : box.scrollTop > 0;
+    if (canMove) {
+      const band = unit === "page" && landingBand(box);
+      const distance = band ? amount * (band.bottom - band.top) : amount;
+      const from = holding(box) ? glide.goal : box.scrollTop;
+      glideTo(box, from + distance);
+      return;
+    }
+    if (getComputedStyle(box).overscrollBehaviorY !== "auto") return;
   }
-  const from = holding(box) ? glide.goal : box.scrollTop;
-  glideTo(box, from + amount);
 }
 // One eased travel to a goal, shared by the reading-page step and the sequence's edges. The
 // goal is clamped here, so a step pressed on at the foot banks no debt for u to press
@@ -212,12 +224,12 @@ export function glideTo(box, goal) {
   const t0 = performance.now();
   const tick = (now) => {
     if (!holding(box)) {
-      glide = null; // the box moved under another hand; theirs wins
+      setGlide(null); // the box moved under another hand; theirs wins
       return;
     }
     if (reducedMotion()) {
       box.scrollTo({ top: goal, behavior: "instant" });
-      glide = null;
+      setGlide(null);
       return;
     }
     // Floored as well as capped: a rAF timestamp is its frame's start, which can precede
@@ -232,9 +244,9 @@ export function glideTo(box, goal) {
     // and snaps to pixels, and the claim the next tick tests is about the box.
     glide.wrote = box.scrollTop;
     if (t < 1) glide.raf = nextFrame(tick);
-    else glide = null;
+    else setGlide(null);
   };
-  glide = { box, goal, wrote: start, raf: nextFrame(tick) };
+  setGlide({ box, goal, wrote: start, raf: nextFrame(tick) });
 }
 
 // A spatial command takes the page where it is now. Stop only the travel this owner is
@@ -242,7 +254,7 @@ export function glideTo(box, goal) {
 export function stopGlide(box) {
   if (glide?.box !== box) return;
   cancelRender(glide.raf);
-  glide = null;
+  setGlide(null);
 }
 
 export function createNavigation({

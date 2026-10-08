@@ -382,6 +382,12 @@ def go_to(page: Page) -> None:
     page.wait_for_function("() => document.body.hasAttribute('data-lf-go-to-active')")
 
 
+def contents_by_keyboard(page: Page) -> None:
+    """Reveal the contents map with focus on its first section link."""
+    page.keyboard.press("Tab")
+    page.locator("lf-toc li a").first.focus()
+
+
 def widget_inline_hints(page: Page) -> None:
     """A standalone command scope with an active inline hint, outside an Ask."""
     page.locator("#bg-widget-shortcut-hints").scroll_into_view_if_needed()
@@ -438,6 +444,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         more_menu,
         versions_menu,
         go_to,
+        contents_by_keyboard,
         widget_inline_hints,
         draft_edit,
         hub_workers,
@@ -536,6 +543,14 @@ STATES = (
         trace_sources,
         viewport=(390, 844),
         touch=True,
+    ),
+    State("contents-spine", "developer/feature-gallery", at_rest),
+    State("contents-spine-keyboard", "developer/feature-gallery", contents_by_keyboard),
+    State(
+        "contents-spine-dark",
+        "developer/feature-gallery",
+        contents_by_keyboard,
+        scheme="dark",
     ),
     State("playground-controls", "notification-playground", playground_controls),
     State(

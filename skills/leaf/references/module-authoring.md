@@ -539,7 +539,12 @@ Set `decision: true` and provide `control` when a command starts, advances, answ
 revises the Ask containing `source`. This semantic role neither assigns a binding nor
 makes ordinary keys forwardable. A numeric command need not be a Decision. Forwarding
 retains the original source, scope, row, and route identity, rechecks their current
-availability, and invokes the original callback or native control. Replacing or removing
+availability, and invokes the original callback or native control. On a native button
+with `run`, the command owns availability: express every condition in the row, route or
+scope's `when` predicate. Leaf paints `aria-disabled` and guards activation, so a refused
+press keeps focus; the button's own `disabled` attributes are outputs. A disabled
+fieldset still constrains the button. Associated editors, non-button controls and
+run-less declarations retain their native and ARIA constraints. Replacing or removing
 the source attachment withdraws its old routes. A nearer widget owns its declared keys;
 an unavailable implemented binding reserves its key against a different outer meaning.
 
@@ -729,6 +734,9 @@ changed text, preserving native selections in text the source kept. Keep indepen
 stateful controls outside that subtree.
 
 After placing the nodes, annotate their words with `projectData(root, datums, {snapshot})`.
+Commit visible words and their snapshot labels in the same synchronous turn,
+before awaiting later resource settlement. Until replacement words are mounted,
+the previous words retain their previous snapshot's provenance.
 The root is an id-bearing seat. Each datum is `{node, key, label?, identity?, origin?}`;
 its node must already stand under that root, including inside a declared shadow stage.
 Leaf validates the coordinates and marks readable data rather than authored prose;

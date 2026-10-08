@@ -236,12 +236,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 
    .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
    chip as well as a press and a chip is not something to aim at. */
-.lf-btn, .button, .lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-react-trigger,
+.lf-btn, .button, .lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-react-trigger,
 .lf-margin-entry,
 .lf-thread-action, .lf-preview, .lf-layer-reference, .lf-version-diff, .lf-version-row,
 .lf-command-reference-command, .lf-quote {
   min-width: var(--aim-floor); }
-.lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-react-trigger,
+.lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-react-trigger,
 .lf-margin-entry, .lf-thread-action, .lf-command-reference-command, .lf-quote {
   min-height: var(--aim-floor); }
 /* --entry-floor under every field, beside --aim-floor under every aim. iOS Safari zooms
@@ -286,7 +286,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           gap: var(--sp-2); margin-top: var(--sp-3); }
 .lf-say leaf-text { flex: 1; min-width: 0; }
 .lf-page-thread-resolved { display: flex;
-          align-items: center; justify-content: space-between; gap: var(--sp-2); }
+          align-items: center; justify-content: space-between; gap: var(--sp-2);
+          /* Reopen inherits this row's line, 4px padding and a 1px border on each side.
+             Its compact news replacement retains that room under either pointer. */
+          min-height: max(calc(1lh + 10px), var(--aim-floor)); }
 .lf-thread-seat > .lf-say { margin-top: 0; }
 .lf-page-thread + .lf-page-thread { margin-top: calc(2 * var(--sp-3)); }
 .lf-page-thread + .lf-page-thread::before { content: "";
@@ -378,11 +381,25 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           min-height: var(--lf-thread-action-room);
           overflow: hidden; text-overflow: ellipsis;
           white-space: nowrap; text-align: start; }
+/* Unread and held news share one text face in chrome and declared widget trees.
+   Their color says whether the conversation can be opened normally or is waiting
+   behind a deliberate reveal. A notice button keeps its aim floor without a chip's
+   border, fill or padding; a label inside a disclosure keeps the disclosure's hit box.
+   Both use an underline on hover, declining the generic pressable's inset wash. */
+.lf-thread-notice { color: var(--accent); font: 700 10px/14px var(--sans);
+          white-space: nowrap; }
+.lf-thread-notice-news { color: var(--danger); }
+button.lf-thread-notice { appearance: none; margin: 0; padding: 0;
+          border: 0; background: none; cursor: pointer; }
+.lf-thread-notice:hover { box-shadow: none; text-decoration: underline;
+          text-underline-offset: 3px; }
+button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+          --lf-focus-ring: thread-notice; outline-offset: 1px; }
 /* What a seat holds while it would move the page under the reader (thread/held-news.js).
    The rows it appears in already stand at the height of a control beside it: the head
    controls row's Resolve, the resolved row's Reopen. Centred rather than on the row's baseline,
    it asks for none of the depth below the words; in the resolved row it stands at the
-   end, beside Reopen, or in Reopen's place and face where it holds the reopening. A seat
+   end, beside Reopen, or in Reopen's place where it holds the reopening. A seat
    that draws no thread shows it in its controls row's place, at the height the
    runtime measured that row at. */
 .lf-thread-news { flex: none; align-self: center; }

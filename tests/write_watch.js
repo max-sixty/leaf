@@ -19,6 +19,12 @@
 // While `window.lfWrites` is an array, every write is also appended to it, numbered by
 // `window.lfWriteStep`, for a test that reads what a gesture wrote (scroll_writes).
 (() => {
+  // An isolated preview is an external document, outside Leaf's DOM-write contract.
+  // Its opaque origin also hides its sandbox flags from this injected script; a
+  // scripting-disabled frame refuses MutationObserver callbacks with console errors.
+  // Keep watching the parent that owns the frame, and leave opaque child DOM alone.
+  if (window !== window.top && globalThis.origin === "null") return;
+
   // An element by its tag, id and classes, one with neither by where it stands, and one
   // in a shadow tree by the tree's host too.
   const place = (node) => {

@@ -34,9 +34,9 @@ import posixpath
 import re
 import tempfile
 import threading
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from functools import cached_property, lru_cache
+from functools import cached_property, lru_cache, partial
 from pathlib import Path
 from types import MappingProxyType
 from urllib.parse import unquote, urlsplit
@@ -550,14 +550,33 @@ def capture_artifact(
     *,
     declaration_sources: Mapping[str, str] | None = None,
     widget_sources: Mapping[str, str] | None = None,
+    read_resource: Callable[[str], Resource] | None = None,
 ) -> RevisionArtifact:
     """Capture the candidate's complete inputs without executing authored code.
 
     The page keeps its last capture while every input is the same: the document's
     bytes, the vocabulary and declarations, and the stamp of every mutable file a
     capture may read. A capture that must be built is built from the caller's own
-    document, which the check that asks has already parsed."""
+    document, which the check that asks has already parsed.
+
+    A fixture builder may supply a resource reader that materializes missing media
+    before reading it through `capture_local_resource`. That reader uses this same
+    dependency discovery, including samples and transitive CSS and script inputs.
+    Its inputs may live outside the page, so captures with a supplied reader are
+    not cached by page-local stamps.
+    """
     page_dir = page_dir.absolute()
+    build = partial(
+        _capture_artifact,
+        page_dir,
+        document,
+        registry,
+        declaration_sources=declaration_sources,
+        widget_sources=widget_sources,
+        read_resource=read_resource or partial(capture_local_resource, page_dir),
+    )
+    if read_resource is not None:
+        return build()
     key = (
         document.data,
         _json(registry),
@@ -565,16 +584,7 @@ def capture_artifact(
         _json(dict(widget_sources or {})) if widget_sources is not None else None,
         _capture_input_stamps(page_dir),
     )
-    return memo(page_dir, _Capture).get(
-        key,
-        lambda: _capture_artifact(
-            page_dir,
-            document,
-            registry,
-            declaration_sources=declaration_sources,
-            widget_sources=widget_sources,
-        ),
-    )
+    return memo(page_dir, _Capture).get(key, build)
 
 
 class _Capture(Slot):
@@ -620,6 +630,7 @@ def _capture_artifact(
     *,
     declaration_sources: Mapping[str, str] | None = None,
     widget_sources: Mapping[str, str] | None = None,
+    read_resource: Callable[[str], Resource],
 ) -> RevisionArtifact:
     """Build a capture after its public wrapper has identified every input."""
     resources = {}
@@ -627,7 +638,7 @@ def _capture_artifact(
     def capture(path: str):
         if path in resources:
             return
-        resource = capture_local_resource(page_dir, path)
+        resource = read_resource(path)
         data, mime = resource.data, resource.mime
         edges = []
         if mime == "application/javascript" and path.startswith("/page/"):

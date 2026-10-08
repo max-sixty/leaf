@@ -626,14 +626,17 @@ def _hold_startup(page, stage):
 
 
 @pytest.mark.parametrize("stage", ["module", "state"])
+@pytest.mark.parametrize("touch", [False, True])
 def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
-    browser, serve, stage
+    browser, serve, stage, touch
 ):
     """`t` walks threads the first state answer brings, so a press before presentation
     is held, shown as held, and replayed into the presented page — whether the runtime
     had not loaded or had loaded and not yet read the log."""
     url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page = browser.new_page(
+        viewport={"width": 390 if touch else 1200, "height": 900}, has_touch=touch
+    )
     watched(page)
     held, release = _hold_startup(page, stage)
     page.goto(url, wait_until="commit")
@@ -646,6 +649,9 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
     echo = page.locator(".lf-held-keys")
     expect(echo).to_contain_text("Page still loading")
     expect(echo.locator("kbd")).to_have_text("t")
+    bounds = echo.bounding_box()
+    assert bounds and bounds["y"] >= 0
+    assert bounds["y"] + bounds["height"] <= page.viewport_size["height"], bounds
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
 
     release()

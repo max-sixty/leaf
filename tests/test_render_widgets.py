@@ -10,6 +10,7 @@ from interact_support import _start, append_carried_log_record, append_command
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
+from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import thread as thread_model
@@ -187,6 +188,39 @@ def test_bounded_text_document_keeps_its_caption_above_the_scrolling_source(
     assert caption.evaluate(
         "el => Math.abs(el.getBoundingClientRect().width - "
         "el.parentElement.getBoundingClientRect().width) <= 2"
+    )
+
+
+@pytest.mark.parametrize("captured", [False, True], ids=["block", "text-document"])
+def test_a_bounded_document_reader_chains_wheel_at_its_edge(browser, serve, captured):
+    """A bound inside a document keeps its own reading position but lets the user
+    continue down the document once its last line is reached."""
+    content = (
+        '<lf-text-document id="reader" source="capture" label="Run log" '
+        'data-bound="start"></lf-text-document>'
+        if captured
+        else '<div id="reader" data-bound="start">'
+        + "<p>Run log line</p>" * 100
+        + "</div>"
+    )
+    url = serve(
+        leaf_page(
+            "Bounded reader in a document",
+            "<h1>Run log</h1>" + content + '<div style="height:1500px"></div>',
+        )
+    )
+    if captured:
+        data_model.cmd_data_set(serve.page_dir, "capture", "Run log line\n" * 100)
+    page = open_page(browser, url)
+    reader = page.locator("#reader pre" if captured else "#reader")
+    assert reader.evaluate("el => el.scrollHeight > el.clientHeight")
+    reader.evaluate("el => el.scrollTop = el.scrollHeight")
+    reader.hover()
+    before = page.evaluate("document.scrollingElement.scrollTop")
+    page.mouse.wheel(0, 400)
+    page.wait_for_function(
+        "before => document.scrollingElement.scrollTop > before",
+        arg=before,
     )
 
 
@@ -1400,6 +1434,22 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     page.keyboard.press("ArrowRight")
     expect(rtl.first).to_have_attribute("aria-selected", "true")
 
+    # Paging observes the live motion preference too, in both text directions.
+    page.emulate_media(reduced_motion="reduce")
+    for strip_id, sign in (("framed", 1), ("rtl", -1)):
+        paged = page.evaluate(
+            """([id, sign]) => {
+          const strip = document.querySelector(`#${id} > .lf-tabstrip`);
+          strip.scrollLeft = 0;
+          const expected = sign * Math.min(
+            0.8 * strip.clientWidth, strip.scrollWidth - strip.clientWidth);
+          strip.querySelector('.lf-tabstrip-scroll[data-to="end"] > span').click();
+          return {expected, actual: strip.scrollLeft};
+        }""",
+            [strip_id, sign],
+        )
+        assert paged["actual"] == pytest.approx(paged["expected"], abs=1), paged
+
 
 def test_tab_reaches_the_open_panel_and_no_closed_one(browser, serve):
     """Tab from the open tab lands on its panel, whose prose holds nothing focusable,
@@ -2550,7 +2600,11 @@ def test_a_milestone_marker_is_centred_on_its_title(browser, serve):
         "milestone marker alignment",
         """
 <h1>Release plan</h1>
-<style>#rail { width: 160px; }</style>
+<style>
+#rail { width: 160px; }
+#publish { --lf-timeline-rule: 4px; }
+#publish::before { width: 22px; height: 22px; border-width: 3px; }
+</style>
 <lf-milestones id="rail">
   <lf-milestone id="publish" status="active"><strong>Publish the release after validation</strong></lf-milestone>
 </lf-milestones>
@@ -2570,13 +2624,47 @@ def test_a_milestone_marker_is_centred_on_its_title(browser, serve):
           return {
             title: title.top + lineHeight / 2,
             titleLines: title.height / lineHeight,
+            spineX: box.left + parseFloat(getComputedStyle(item).borderLeftWidth) / 2,
+            markerX: box.left + parseFloat(getComputedStyle(item).borderLeftWidth)
+              + parseFloat(marker.left) + parseFloat(marker.width) / 2
+              + new DOMMatrix(marker.transform === 'none' ? undefined : marker.transform).m41,
             marker: box.top + parseFloat(marker.top)
-              + (parseFloat(marker.height) + border) / 2,
+              + (parseFloat(marker.height) + border) / 2
+              + new DOMMatrix(marker.transform === 'none' ? undefined : marker.transform).m42,
           };
         }"""
     )
     assert centres["titleLines"] >= 2, centres
+    assert centres["markerX"] == pytest.approx(centres["spineX"], abs=0.1), centres
     assert centres["marker"] == pytest.approx(centres["title"], abs=0.5), centres
+
+
+@pytest.mark.parametrize("timestamp", ['at="09:14"', 'at=""', ""])
+def test_a_chronology_marker_follows_its_first_visible_line(browser, serve, timestamp):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "chronology marker alignment",
+                f"""<h1>Observed events</h1><lf-chronology id="history">
+<lf-chronology-entry id="observed" {timestamp}><strong>Work started</strong>
+The team began validation.</lf-chronology-entry></lf-chronology>""",
+            )
+        ),
+    )
+    centres = page.locator("#observed").evaluate(
+        """item => {
+          const box = item.getBoundingClientRect(), marker = getComputedStyle(item, '::after');
+          const label = item.querySelector('[data-lf-said="at"]');
+          const first = label && label.getClientRects().length ? label : item;
+          const line = first.getBoundingClientRect().top
+            + parseFloat(getComputedStyle(first).lineHeight) / 2;
+          const matrix = new DOMMatrix(marker.transform === 'none' ? undefined : marker.transform);
+          return {line, marker: box.top + parseFloat(marker.top)
+            + parseFloat(marker.height) / 2 + matrix.m42};
+        }"""
+    )
+    assert centres["marker"] == pytest.approx(centres["line"], abs=0.1), centres
 
 
 def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):
@@ -3607,17 +3695,41 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
           const style = getComputedStyle(item, '::before');
           const box = item.getBoundingClientRect();
           return {content: style.content, width: style.width, height: style.height,
-                  color: style.backgroundColor, x: box.x + parseFloat(style.left),
+                  color: style.backgroundColor, border: style.borderTopColor,
+                  x: box.x + parseFloat(style.left) + parseFloat(style.width) / 2 +
+                    new DOMMatrixReadOnly(style.transform).m41,
                   y: box.y + parseFloat(style.top) +
-                    new DOMMatrixReadOnly(style.transform).m42, rowY: box.y,
-                  labelY: item.querySelector(':scope > a').getBoundingClientRect().y};
+                    new DOMMatrixReadOnly(style.transform).m42 + parseFloat(style.height) / 2,
+                  labelCenter: item.querySelector(':scope > a').getBoundingClientRect().y +
+                    parseFloat(getComputedStyle(item.querySelector(':scope > a')).lineHeight) / 2};
         })"""
     )
-    assert markers[0]["content"] == '""' and markers[0]["width"] == "3px"
+    assert markers[0]["content"] == '""'
+    assert [marker["width"] for marker in markers] == [
+        "9px",
+        "6px",
+        "3px",
+        "3px",
+        "6px",
+        "6px",
+        "6px",
+    ]
+    assert all(marker["height"] == marker["width"] for marker in markers)
     assert markers[0]["color"] != "rgba(0, 0, 0, 0)"
-    assert len({round(marker["x"]) for marker in markers}) == 1
+    spine_center = nav.locator(".lf-toc-rows").evaluate(
+        """rows => {
+          const line = getComputedStyle(rows, '::before');
+          return rows.getBoundingClientRect().x + parseFloat(line.left) +
+            parseFloat(line.width) / 2;
+        }"""
+    )
     assert all(
-        marker["y"] == pytest.approx(marker["labelY"] + 7, abs=1) for marker in markers
+        marker["x"] == pytest.approx(spine_center, abs=0.01) for marker in markers
+    )
+    assert markers[0]["color"] == markers[0]["border"]
+    assert markers[1]["color"] != markers[1]["border"]
+    assert all(
+        marker["y"] == pytest.approx(marker["labelCenter"], abs=1) for marker in markers
     )
     assert markers[-1]["y"] > nav_box["y"] + nav_box["height"] * 0.68
     assert markers[4]["y"] - markers[3]["y"] > markers[3]["y"] - markers[2]["y"]
@@ -3680,6 +3792,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     lens = nav.locator(".lf-toc-window")
     lens_before = lens.bounding_box()
     assert lens_before is not None
+    assert lens_before["x"] + lens_before["width"] / 2 == pytest.approx(
+        spine_center, abs=0.01
+    )
     assert 14 <= lens_before["height"] < nav_box["height"]
 
     # A Mermaid render, image load, disclosure, or other late block can change the
@@ -3717,7 +3832,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         expect(link).to_have_css("opacity", "1")
         expect(link).to_have_css("pointer-events", "auto")
     link_hints = page.locator(
-        '.lf-go-to-hints > .lf-go-to-hint[data-lf-go-to-kind="Link"]'
+        '.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-kind="Link"]'
     )
     expect(link_hints).to_have_count(nav.locator("a").count())
     assert (
@@ -3767,6 +3882,16 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     scroll_settled(page)
     assert page.evaluate("window.lfTocPressed") is True
     expect(prepare).to_have_attribute("aria-current", "location")
+    active_marker = prepare.evaluate(
+        "node => { const s = getComputedStyle(node.parentElement, '::before'); "
+        "return {fill: s.backgroundColor, border: s.borderTopColor}; }"
+    )
+    assert active_marker["fill"] == active_marker["border"]
+    title_marker = start.evaluate(
+        "node => { const s = getComputedStyle(node.parentElement, '::before'); "
+        "return {fill: s.backgroundColor, border: s.borderTopColor}; }"
+    )
+    assert title_marker["fill"] != title_marker["border"]
     assert prepare.evaluate("node => node.matches(':hover')")
     current_hover_color = prepare.evaluate("node => getComputedStyle(node).color")
     capacity_box = capacity.bounding_box()
@@ -3954,8 +4079,10 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         "return { spine: getComputedStyle(rows, '::before').backgroundColor, "
         "lens: getComputedStyle(lens).backgroundColor, "
         "current: getComputedStyle(current, '::before').backgroundColor, "
-        "inactive: items.filter(item => item !== current).map(item => "
-        "getComputedStyle(item, '::before').backgroundColor) }; }"
+        "inactive: items.filter(item => item !== current).map(item => { "
+        "const style = getComputedStyle(item, '::before'); return { "
+        "ring: item.matches('.lf-toc-start, [data-lf-depth=\"0\"]'), "
+        "background: style.backgroundColor, border: style.borderColor }; }) }; }"
     )
     canvas = page.locator("body").evaluate(
         "node => getComputedStyle(node).backgroundColor"
@@ -3963,7 +4090,12 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert forced_colors["spine"] != canvas
     assert forced_colors["lens"] == forced_colors["current"]
     assert forced_colors["lens"] != forced_colors["spine"]
-    assert all(color == forced_colors["spine"] for color in forced_colors["inactive"])
+    rings = [item for item in forced_colors["inactive"] if item["ring"]]
+    dots = [item for item in forced_colors["inactive"] if not item["ring"]]
+    assert rings and dots
+    assert all(item["background"] == canvas for item in rings)
+    assert all(item["border"] == forced_colors["spine"] for item in rings)
+    assert all(item["background"] == forced_colors["spine"] for item in dots)
 
     page.emulate_media(media="screen", forced_colors="none", reduced_motion="reduce")
     rendered(page)
@@ -4400,6 +4532,20 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     assert rect["left"] >= 0 and rect["right"] <= viewport["width"]
     assert rect["top"] >= 0 and rect["bottom"] <= viewport["height"]
     bubble.hover()
+    expect(bubble).to_be_visible()
+
+    # A real pointer crosses the space between the phrase and its card; a single
+    # hover jump skips that space and cannot establish the hover-content route.
+    page.mouse.move(0, 0)
+    expect(bubble).to_be_hidden()
+    gloss.hover()
+    expect(bubble).to_be_visible()
+    card = bubble.bounding_box()
+    page.mouse.move(
+        card["x"] + card["width"] / 2,
+        card["y"] + card["height"] / 2,
+        steps=20,
+    )
     expect(bubble).to_be_visible()
 
     # WCAG's hover-content route: Escape dismisses the card without requiring the
@@ -5982,17 +6128,22 @@ def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(
     held = []
     page.route("**/api/event", lambda route: held.append(route))
 
-    choose.evaluate("button => { button.click(); button.click(); }")
+    with page.expect_request("**/api/event"):
+        choose.press("Enter")
     holding(page, held, 1, "the playground choice")
     expect(choose).to_be_disabled()
     expect(choose).to_have_attribute("aria-busy", "true")
-    page.wait_for_timeout(100)
+    expect(choose).to_be_focused()
+    choose.press("Space")
+    choose.dispatch_event("click")
+    rendered(page)
     assert len(held) == 1
 
     held[0].continue_()
     round_trip(page)
     expect(choose).to_be_enabled()
     expect(choose).not_to_have_attribute("aria-busy", "true")
+    expect(choose).to_be_focused()
     assert len(actions(serve.page_dir)) == 1
 
 
@@ -6002,7 +6153,7 @@ def test_a_playground_switch_is_reachable_through_go_to(browser, serve):
 
     page.keyboard.press("g")
     page.wait_for_function(
-        "() => document.querySelectorAll('.lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]').length"
+        "() => document.querySelectorAll('.lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]').length"
     )
     switch_hint = page.locator(
         '.lf-go-to-hint[data-lf-go-to-target="card-playground-compact-input"]'
@@ -6025,7 +6176,7 @@ def test_a_playground_copy_is_reachable_through_go_to(browser, serve):
 
     page.keyboard.press("g")
     page.wait_for_function(
-        "() => document.querySelectorAll('.lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]').length"
+        "() => document.querySelectorAll('.lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]').length"
     )
     hint_targets = page.locator(".lf-go-to-hint").evaluate_all(
         "els => els.map(el => [el.dataset.lfGoToTarget, el.dataset.lfGoToKind])"
@@ -6534,7 +6685,7 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     first.locator("wa-select").first.click()
     page.keyboard.press("g")
     expect(
-        page.locator(".lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]")
+        page.locator(".lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]")
     ).to_have_count(0)
     page.keyboard.press("Escape")
     expect(first.locator("wa-select").first).to_have_js_property("open", False)
@@ -6945,7 +7096,7 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     expect(page.locator(".lf-swipe-pass")).to_have_attribute("aria-keyshortcuts", "1")
     expect_asks_answered(page, "0/1")
     expect(
-        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_text(["1", "2"])
     assert active_digit_bindings(page) == "1–2"
 
@@ -6981,7 +7132,7 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     round_trip(page)
     expect_asks_answered(page, "1/1")
     expect(
-        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_count(0)
     assert "Undo last swipe" not in shortcut_bar_text(page)
     assert [event["action"] for event in actions(serve.page_dir)] == [
@@ -7432,6 +7583,49 @@ def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
     ) == ["swipe-d", "swipe-b"]
     expect_asks_answered(page, "0/1")
     expect(final).to_be_focused()
+
+
+@pytest.mark.parametrize("accepted", [True, False], ids=["accepted", "refused"])
+def test_returning_a_swipe_card_moves_focus_before_delivery(browser, serve, accepted):
+    """Return hands focus to the card with its optimistic placement; a later
+    delivery or refusal cannot overwrite a newer Tab to another control."""
+    page = open_page(browser, serve(SWIPE_PAGE))
+    deck = page.locator("#session-triage")
+    deck.get_by_role("button", name="← Pass", exact=True).click()
+    round_trip(page)
+    returned = page.locator("#swipe-a").get_by_role(
+        "button", name="Return Buffer rolling expiry to queue", exact=True
+    )
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        returned.press("Enter")
+    holding(page, held, 1, "returning the classified card")
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    expect(page.locator("#swipe-a")).to_be_focused()
+    page.keyboard.press("Tab")
+    newer = deck.get_by_role("button", name="← Pass", exact=True)
+    expect(newer).to_be_focused()
+    if accepted:
+        held[0].continue_()
+    else:
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": held[0].request.post_data_json["attempt"],
+                "error": "return refused",
+                "final": True,
+            },
+        )
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(newer).to_be_focused()
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(
+        1 if accepted else 0
+    )
+    if not accepted:
+        consume_browser_errors(page, "400")
 
 
 def _kept(card_id: str) -> str:
@@ -9222,7 +9416,7 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
     rendered(page)
     assert sorted(
         page.locator(
-            ".lf-command-binding-badges > .lf-command-binding-badge"
+            ".lf-command-binding-badges .lf-command-binding-badge"
         ).all_text_contents()
     ) == ["1", "2", "3"]
 
@@ -9239,7 +9433,7 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
     rendered(page)
     assert sorted(
         page.locator(
-            ".lf-command-binding-badges > .lf-command-binding-badge"
+            ".lf-command-binding-badges .lf-command-binding-badge"
         ).all_text_contents()
     ) == ["1", "2", "3"]
     page.keyboard.press("y")
@@ -9315,7 +9509,7 @@ def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
     inspect.focus()
     expect(inspect).to_have_attribute("aria-keyshortcuts", "1 3")
     expect(
-        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_text(["2"])
     page.keyboard.press("1")
     expect(inspect).to_have_attribute("data-activated", "1")
@@ -9481,7 +9675,7 @@ def test_ask_action_binding_badges_use_the_available_card_action_seats(browser, 
     )
     assert gap == pytest.approx(expected_gap, abs=0.5)
     expect(
-        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_count(0)
 
 
@@ -9566,7 +9760,7 @@ def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve
     for binding in ("3", "4", "5", "6", "7"):
         expect(
             page.locator(
-                ".lf-command-binding-badges > .lf-command-binding-badge",
+                ".lf-command-binding-badges .lf-command-binding-badge",
                 has_text=binding,
             )
         ).to_have_count(1)
@@ -9622,7 +9816,7 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
           return {
             line: read(document.querySelector('.lf-shortcut-bar')),
             chips: [...document.querySelectorAll(
-              '.lf-command-binding-badges > .lf-command-binding-badge, [data-lf-binding-badge]'
+              '.lf-command-binding-badges .lf-command-binding-badge, [data-lf-binding-badge]'
             )].filter(node => node.checkVisibility({visibilityProperty: true})).map(read),
           };
         }"""
@@ -12009,6 +12203,493 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve, manifes
     head = page.locator("lf-diff .lf-diff-head").first
     expect(head).to_have_attribute("data-path-cut", "")
     expect(head.locator(".lf-diff-path")).to_have_attribute("title", path)
+
+
+def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
+    browser, serve
+):
+    """Preview and source are two readings of one feed, reachable by press and key."""
+    text = (
+        "# A rendered document\n\n"
+        "Read [the details](https://example.com/details).\n\n"
+        "- First item\n- Second item\n\n"
+        "| Name | Value |\n| --- | --- |\n| Outcome | **Ready** |\n"
+    )
+    url = serve(
+        leaf_page(
+            "Document readings",
+            '<h1>Document readings</h1><lf-text-document id="document" '
+            'source="document-text" preview="markdown" label="Notes">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    page = open_page(browser, url)
+    document = page.locator("#document")
+    preview = document.get_by_role("tab", name="Preview", exact=True)
+    source = document.get_by_role("tab", name="Source", exact=True)
+    expect(preview).to_have_attribute("aria-selected", "true")
+    expect(document.get_by_role("heading", name="A rendered document")).to_be_visible()
+    expect(document.get_by_role("link", name="the details")).to_have_attribute(
+        "href", "https://example.com/details"
+    )
+    expect(document.get_by_role("listitem")).to_have_text(["First item", "Second item"])
+    expect(document.get_by_role("cell")).to_have_text(["Outcome", "Ready"])
+
+    source.click()
+    expect(source).to_have_attribute("aria-selected", "true")
+    expect(document.locator("pre")).to_be_visible()
+    assert document.locator("code").text_content() == text
+    source.press("ArrowLeft")
+    expect(preview).to_be_focused()
+    expect(preview).to_have_attribute("aria-selected", "true")
+    expect(document.get_by_role("heading", name="A rendered document")).to_be_visible()
+    preview.press("End")
+    expect(source).to_be_focused()
+    expect(source).to_have_attribute("aria-selected", "true")
+
+
+@pytest.mark.parametrize("preview", ["markdown", "html"])
+@pytest.mark.parametrize(
+    "height", [None, 240], ids=["default-height", "authored-height"]
+)
+def test_document_readings_share_a_stable_viewport_and_keep_their_scroll(
+    browser, serve, preview, height
+):
+    """Changing readings or evidence length leaves the surrounding page in place."""
+    paragraphs = [f"Evidence paragraph {i}: a passage to inspect." for i in range(70)]
+    if preview == "markdown":
+        long = "# Document title\n\n" + "\n\n".join(paragraphs)
+        short = "# Short document\n\nOne paragraph.\n"
+    else:
+        long = (
+            "<h1>Document title</h1>\n"
+            + "\n".join(f"<p>{paragraph}</p>" for paragraph in paragraphs)
+            + "\n"
+        )
+        short = "<h1>Short document</h1>\n<p>One paragraph.</p>\n"
+    style = f"<style>#document {{ --lf-bound: {height}px; }}</style>" if height else ""
+    url = serve(
+        leaf_page(
+            "Stable document readings",
+            '<h1>Inspect evidence</h1><lf-text-document id="document" '
+            f'source="document-text" preview="{preview}" label="Evidence">'
+            '</lf-text-document><p id="following">The following passage.</p>',
+            head=style,
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "document-text", long)
+    page = open_page(browser, url)
+    resized(page, 1280, 1000)
+    document = page.locator("#document")
+    preview_tab = document.get_by_role("tab", name="Preview", exact=True)
+    source_tab = document.get_by_role("tab", name="Source", exact=True)
+    source_panel = document.get_by_role("tabpanel", name="Source", exact=True)
+    preview_panel = document.get_by_role("tabpanel", name="Preview", exact=True)
+    geometry = """() => {
+      const box = node => {
+        const rect = node.getBoundingClientRect();
+        return [rect.top + scrollY, rect.height];
+      };
+      const owner = document.querySelector('#document');
+      return [box(owner), box(owner.querySelector('figcaption')),
+              box(owner.querySelector('[role="tablist"]')),
+              box(document.querySelector('#following')), scrollY];
+    }"""
+    before = page.evaluate(geometry)
+    preview_height = preview_panel.bounding_box()["height"]
+    if height:
+        assert preview_height == pytest.approx(height, abs=1)
+
+    if preview == "markdown":
+        preview_tab.click()
+        page.keyboard.press("Tab")
+        expect(preview_panel).to_be_focused()
+        page.keyboard.press("PageDown")
+        page.wait_for_function(
+            "() => document.querySelector('#document [role=tabpanel]:not([hidden])').scrollTop > 0"
+        )
+        scroll_settled(page, "#document [role=tabpanel]:not([hidden])")
+        first_scroll = preview_panel.evaluate("el => el.scrollTop")
+        page.keyboard.press("PageDown")
+        page.wait_for_function(
+            "at => document.querySelector('#document [role=tabpanel]:not([hidden])').scrollTop > at",
+            arg=first_scroll,
+        )
+        scroll_settled(page, "#document [role=tabpanel]:not([hidden])")
+        preview_scroll = preview_panel.evaluate("el => el.scrollTop")
+    else:
+        frame = document.locator("iframe").element_handle().content_frame()
+        frame.get_by_role("heading", name="Document title").click()
+        page.keyboard.press("PageDown")
+        frame.wait_for_function("() => document.scrollingElement.scrollTop > 0")
+        scroll_settled(frame)
+        first_scroll = frame.evaluate("document.scrollingElement.scrollTop")
+        page.keyboard.press("PageDown")
+        frame.wait_for_function(
+            "at => document.scrollingElement.scrollTop > at", arg=first_scroll
+        )
+        scroll_settled(frame)
+        preview_scroll = frame.evaluate("document.scrollingElement.scrollTop")
+    assert page.evaluate(geometry) == before
+
+    source_tab.click()
+    expect(source_panel).to_be_visible()
+    assert source_panel.bounding_box()["height"] == pytest.approx(preview_height, abs=1)
+    assert page.evaluate(geometry) == before
+    page.keyboard.press("Tab")
+    expect(source_panel).to_be_focused()
+    page.keyboard.press("PageDown")
+    page.wait_for_function(
+        "() => document.querySelector('#document [role=tabpanel]:not([hidden])').scrollTop > 0"
+    )
+    scroll_settled(page, "#document [role=tabpanel]:not([hidden])")
+    source_scroll = source_panel.evaluate("el => el.scrollTop")
+    assert source_scroll != preview_scroll
+    assert page.evaluate(geometry) == before
+
+    preview_tab.click()
+    if preview == "markdown":
+        assert preview_panel.evaluate("el => el.scrollTop") == preview_scroll
+    else:
+        assert frame.evaluate("document.scrollingElement.scrollTop") == preview_scroll
+    source_tab.click()
+    assert source_panel.evaluate("el => el.scrollTop") == source_scroll
+    assert page.evaluate(geometry) == before
+
+    data_model.cmd_data_set(serve.page_dir, "document-text", short)
+    told(page)
+    rendered(page)
+    assert document.locator("code").text_content() == short
+    assert page.evaluate(geometry) == before
+    source_tab.press("Home")
+    expect(preview_tab).to_have_attribute("aria-selected", "true")
+    assert page.evaluate(geometry) == before
+    if preview == "markdown":
+        expect(document.get_by_role("heading", name="Short document")).to_be_visible()
+    else:
+        expect(frame.get_by_role("heading", name="Short document")).to_be_visible()
+    assert preview_panel.bounding_box()["height"] == pytest.approx(
+        preview_height, abs=1
+    )
+
+
+def test_a_document_source_follows_appends_only_while_its_reader_is_at_the_end(
+    browser, serve
+):
+    """A preview switch retains the source's declared end-following reading policy."""
+    url = serve(
+        leaf_page(
+            "Following source evidence",
+            '<h1>Evidence</h1><lf-text-document id="document" source="document-text" '
+            'preview="markdown" data-bound="end"></lf-text-document>',
+            head="<style>#document { --lf-bound: 240px; }</style>",
+        )
+    )
+    text = "\n".join(f"Evidence line {i}" for i in range(80)) + "\n"
+    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    page = open_page(browser, url)
+    document = page.locator("#document")
+    source_tab = document.get_by_role("tab", name="Source", exact=True)
+    source_tab.click()
+    source = document.get_by_role("tabpanel", name="Source", exact=True)
+    at_end = """el => el.scrollHeight > el.clientHeight &&
+      el.scrollHeight - el.scrollTop - el.clientHeight <= 2"""
+    page.wait_for_function(
+        f"({at_end})(document.querySelector('#document [role=tabpanel]:not([hidden])'))"
+    )
+    text += "A newly appended line\n"
+    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    told(page)
+    rendered(page)
+    assert source.evaluate(at_end)
+    page.keyboard.press("Tab")
+    expect(source).to_be_focused()
+    page.keyboard.press("PageUp")
+    page.wait_for_function(
+        """() => {
+          const el = document.querySelector('#document [role=tabpanel]:not([hidden])');
+          return el.scrollHeight - el.scrollTop - el.clientHeight > 20;
+        }"""
+    )
+    scroll_settled(page, "#document [role=tabpanel]:not([hidden])")
+    position = source.evaluate("el => el.scrollTop")
+    text += "Another newly appended line\n"
+    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    told(page)
+    rendered(page)
+    assert source.evaluate("el => el.scrollTop") == position
+    assert not source.evaluate(at_end)
+    document.get_by_role("tab", name="Preview", exact=True).click()
+    source_tab.click()
+    assert source.evaluate("el => el.scrollTop") == position
+
+
+def test_a_hidden_document_preview_opens_at_its_fragment_without_resizing(
+    browser, serve
+):
+    """A fragment naming a closed reading opens it without changing its fixed box."""
+    url = serve(
+        leaf_page(
+            "Reveal document evidence",
+            '<h1>Evidence</h1><p><a href="#document--preview">Read the preview</a></p>'
+            '<lf-text-document id="document" source="document-text" preview="markdown" '
+            '></lf-text-document><p id="following">Following.</p>',
+            head="<style>#document { --lf-bound: 240px; }</style>",
+        )
+    )
+    text = "# Document\n\n" + "A paragraph of evidence.\n\n" * 30
+    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    page = open_page(browser, url)
+    document = page.locator("#document")
+    document.get_by_role("tab", name="Source", exact=True).click()
+    following = page.locator("#following").evaluate(
+        "el => el.getBoundingClientRect().top + scrollY"
+    )
+    page.get_by_role("link", name="Read the preview").click()
+    expect(document.get_by_role("tab", name="Preview", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    panel = document.get_by_role("tabpanel", name="Preview", exact=True)
+    expect(panel).to_be_in_viewport()
+    assert panel.bounding_box()["height"] == pytest.approx(240, abs=1)
+    expect(document.get_by_role("heading", name="Document", exact=True)).to_be_visible()
+    assert (
+        page.locator("#following").evaluate(
+            "el => el.getBoundingClientRect().top + scrollY"
+        )
+        == following
+    )
+
+
+def test_document_views_remember_independently_and_follow_live_source_updates(
+    browser, serve
+):
+    """Reading choices survive reload and news without becoming decisions in the log."""
+    url = serve(
+        leaf_page(
+            "Independent document readings",
+            '<h1>Documents</h1><lf-text-document id="first" source="first-text" '
+            'preview="markdown"></lf-text-document>'
+            '<lf-text-document id="second" source="second-text" '
+            'preview="markdown"></lf-text-document>',
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "first-text", "# First original\n")
+    data_model.cmd_data_set(serve.page_dir, "second-text", "# Second original\n")
+    page = open_page(browser, url)
+    first = page.locator("#first")
+    second = page.locator("#second")
+
+    def decisions():
+        return [
+            event
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] in {"action", "report", "undo"}
+        ]
+
+    before = decisions()
+    first.get_by_role("tab", name="Source", exact=True).click()
+    expect(second.get_by_role("tab", name="Preview", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    page.reload()
+    wait_until_ready(page)
+    expect(first.get_by_role("tab", name="Source", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    expect(second.get_by_role("tab", name="Preview", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    updated = "# First updated\n\nFresh **evidence**.\n"
+    data_model.cmd_data_set(serve.page_dir, "first-text", updated)
+    told(page)
+    rendered(page)
+    assert first.locator("code").text_content() == updated
+    expect(first.get_by_role("tab", name="Source", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    first.get_by_role("tab", name="Preview", exact=True).click()
+    expect(first.get_by_role("heading", name="First updated")).to_be_visible()
+    expect(first.locator("strong")).to_have_text("evidence")
+    expect(second.get_by_role("heading", name="Second original")).to_be_visible()
+    round_trip(page)
+    assert decisions() == before
+
+
+def test_an_exported_markdown_document_keeps_its_preview_and_source_switch(
+    browser, serve, tmp_path
+):
+    """The offline artifact carries both the source value and its renderers."""
+    serve(
+        leaf_page(
+            "Offline document",
+            '<h1>Offline document</h1><lf-text-document id="document" '
+            'source="document-text" preview="markdown"></lf-text-document>',
+        )
+    )
+    text = "# Captured heading\n\nA **captured** paragraph.\n"
+    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    out = tmp_path / "document.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    page = open_page(browser, out.as_uri())
+    document = page.locator("#document")
+    expect(document.get_by_role("heading", name="Captured heading")).to_be_visible()
+    expect(document.locator("strong")).to_have_text("captured")
+    source = document.get_by_role("tab", name="Source", exact=True)
+    source.click()
+    expect(document.locator("pre")).to_be_visible()
+    assert document.locator("code").text_content() == text
+    source.press("Home")
+    expect(document.get_by_role("heading", name="Captured heading")).to_be_visible()
+    page.keyboard.press("g")
+    rendered(page)
+    assert (
+        page.evaluate("""async () => {
+      const {PAGE_PAINT_ATTRIBUTE} = await window.__lfRuntimeImport('/runtime/page-paint.js');
+      return document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.goto);
+    }""")
+        is False
+    )
+    page.keyboard.press("?")
+    rendered(page)
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    expect(page.locator(".lf-chrome")).to_have_count(0)
+    document.get_by_role("tab", name="Preview", exact=True).press("ArrowRight")
+    expect(source).to_have_attribute("aria-selected", "true")
+
+
+def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
+    browser, serve
+):
+    """HTML keeps its document styling inside the preview and retains literal source."""
+    text = (
+        "<!doctype html><html><head><style>"
+        "body { color: rgb(193, 2, 151); } h1 { font-size: 25px; }"
+        "</style></head><body><h1>Isolated document</h1>"
+        '<p id="execution"></p><p id="isolation"></p><script>'
+        "document.querySelector('#execution').textContent = 'Script executed';"
+        "try { parent.document.querySelector('#leaf-title').textContent = 'Changed';"
+        "document.querySelector('#isolation').textContent = 'Parent document accessible';"
+        "} catch { document.querySelector('#isolation').textContent = 'Parent document denied'; }"
+        "</script></body></html>"
+    )
+    url = serve(
+        leaf_page(
+            "HTML evidence",
+            '<h1 id="leaf-title">HTML evidence</h1><lf-text-document id="document" '
+            'source="html-text" preview="html" label="HTML capture">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "html-text", text)
+    page = open_page(browser, url)
+    document = page.locator("#document")
+    frame = document.frame_locator("iframe")
+    heading = frame.get_by_role("heading", name="Isolated document")
+    expect(heading).to_be_visible()
+    expect(heading).to_have_css("color", "rgb(193, 2, 151)")
+    expect(heading).to_have_css("font-size", "25px")
+    expect(frame.locator("#execution")).to_have_text("Script executed")
+    expect(frame.locator("#isolation")).to_have_text("Parent document denied")
+    expect(page.locator("#leaf-title")).to_have_text("HTML evidence")
+    assert (
+        page.locator("#leaf-title").evaluate("el => getComputedStyle(el).color")
+        != "rgb(193, 2, 151)"
+    )
+    source = document.get_by_role("tab", name="Source", exact=True)
+    source.click()
+    expect(document.locator("pre")).to_be_visible()
+    assert document.locator("code").text_content() == text
+    held = []
+    page.route("**/preview-style.css", lambda route: held.append(route))
+    updated = text.replace("Isolated document", "Updated document").replace(
+        "</head>", '<link rel="stylesheet" href="/preview-style.css"></head>'
+    )
+    data_model.cmd_data_set(serve.page_dir, "html-text", updated)
+    holding(page, held, 1, "the HTML preview's stylesheet")
+    assert (
+        page.evaluate(
+            "() => document.querySelector('script[data-lf-entry]').lfReadiness()"
+        )
+        is not None
+    )
+    # The file's bytes identify its revision; JSON whitespace changes that identity
+    # without changing the HTML value, so this delivery must join the frame's load.
+    data_file = data_model.source_file(serve.page_dir, "html-text")
+    with data_file.open("a") as value_file:
+        value_file.write("\n")
+    answer = page.request.get(f"{page.evaluate('location.origin')}/api/state")
+    assert answer.ok
+    revision = answer.json()["data"]["sources"]["html-text"]["revision"]
+    page.wait_for_function(
+        """async revision => {
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+          return runtime.data.sources['html-text'].revision === revision;
+        }""",
+        arg=revision,
+    )
+    assert (
+        page.evaluate(
+            "() => document.querySelector('script[data-lf-entry]').lfReadiness()"
+        )
+        is not None
+    )
+    # Acceptance precedes asynchronous syntax rendering. Wait for the displayed
+    # snapshot's commit while the preview's resource load remains held.
+    expect(document.locator("pre")).to_have_attribute(
+        "data-lf-source-revision", revision
+    )
+    code = document.locator("code")
+    ends = code.evaluate("""el => {
+      const words = 'Updated document';
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const start = node.textContent.indexOf(words);
+        if (start < 0) continue;
+        const range = document.createRange();
+        range.setStart(node, start); range.setEnd(node, start + words.length);
+        const box = range.getBoundingClientRect();
+        return [[box.left, box.top + box.height / 2], [box.right, box.top + box.height / 2]];
+      }
+    }""")
+    select(page, *ends)
+    assert "Updated document" in page.evaluate("getSelection().toString()")
+    captured = page.evaluate("""async () => {
+      const {selectionAnchor} = await window.__lfRuntimeImport('/runtime/composing/capture.js');
+      const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+      return {anchor: selectionAnchor(getSelection()),
+              revision: runtime.data.sources['html-text'].revision};
+    }""")
+    assert captured["anchor"]["source_revision"] == captured["revision"] == revision
+    assert captured["anchor"]["source"] == "html-text"
+    assert captured["anchor"]["datum"] == "source"
+    page.keyboard.press("c")
+    composer = page.locator(".lf-composer leaf-text")
+    expect(composer).to_be_focused()
+    write(composer, "Comment captured while the preview loads.")
+    held[0].fulfill(
+        status=200,
+        content_type="text/css",
+        body="h1 { color: rgb(12, 93, 47); }",
+    )
+    told(page)
+    rendered(page)
+    with sending(page, "the source comment captured during preview loading"):
+        composer.press("ControlOrMeta+Enter")
+    comment = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+        and event.get("text") == "Comment captured while the preview loads."
+    )
+    assert comment["anchor"] == captured["anchor"]
+    assert document.locator("code").text_content() == updated
+    source.press("Home")
+    expect(document.get_by_role("tab", name="Preview", exact=True)).to_be_focused()
+    updated_heading = frame.get_by_role("heading", name="Updated document")
+    expect(updated_heading).to_be_visible()
+    expect(updated_heading).to_have_css("color", "rgb(12, 93, 47)")
 
 
 @pytest.mark.parametrize("language", [None, "python"])

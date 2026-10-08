@@ -14,9 +14,12 @@ package authors continue to use native JavaScript without a build.
 - `browser/` is the TypeScript browser framework, its Node tests, and `build.mjs`,
   which compiles it and `lit.js`. `browser/shipped.mjs` refuses a module an
   export cannot load and writes each bundle's license notices; every build here passes its
-  output through it. `browser/generated/` holds the source maps and manifest.
+  output through it. Its output is committed readable and unminified, so branches
+  that change different parts of the framework merge it cleanly and
+  `check:browser` confirms the merge equals a rebuild; `runtime-bundle.mjs`
+  minifies it for delivery. `browser/generated/` holds the build's manifest.
 - `initial.mjs` builds each package's synchronous initial drawing from its
-  `runtime/initial.js` into the one bundle its registry declares with `x-initial`;
+  `initial.js` into the one bundle its registry declares with `x-initial`;
   `build:browser` and `check:browser` include these outputs.
 - `vendor.py` rebuilds every third-party bundle outside the framework, bundling what
   each consumer needs or adapting an upstream browser module. `pierre/` and

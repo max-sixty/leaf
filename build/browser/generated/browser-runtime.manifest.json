@@ -1,5 +1,5 @@
 {
-  "format": "leaf-browser-build-v1",
+  "format": "leaf-browser-build-v2",
   "sourceRoots": [
     "build/browser"
   ],
@@ -12,6 +12,7 @@
     "skills/leaf/assets/runtime/pending/model.js",
     "skills/leaf/assets/runtime/projection/model.js",
     "skills/leaf/assets/runtime/queues.js",
+    "skills/leaf/assets/runtime/registry-contract.js",
     "skills/leaf/assets/runtime/thread/identity.js",
     "skills/leaf/assets/runtime/thread/model.js",
     "skills/leaf/assets/runtime/thread/workflow.js"
@@ -22,7 +23,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "826a5111d246053dad018cfd45f0163f062217d436fd0b16be90ad6c75e6bba0",
+  "lockfileSha256": "b3386dd7d5fad99e90ed9f3216ea4b6f2b0ab842a19747a94c5dafa03a55c66e",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -55,6 +56,7 @@
     "lit-html": "3.3.0",
     "markdown-it": "14.3.2",
     "markdown-it-task-lists": "2.1.1",
+    "photoswipe": "5.4.4",
     "sortablejs": "1.15.7",
     "typescript": "7.0.2"
   },
@@ -160,26 +162,9 @@
     "withStatic"
   ],
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
-  "outputs": {
-    "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 30473,
-      "sha256": "2dc34b5c874fc05e1ca97f0c7b1abd40c40e2e5ed9a6710f50b39d6d5580aab8"
-    },
-    "build/browser/generated/browser-runtime.js.map": {
-      "bytes": 199331,
-      "sha256": "cab11893424cd351936c10c8185e941899f561b377b3b0e3c0fc334cab0c19ca"
-    },
-    "skills/leaf/assets/vendor/lit.js": {
-      "bytes": 32081,
-      "sha256": "8cb5658593f000150114b55a76dca639bff7d514095224cf8940f7aeeff948bd"
-    },
-    "build/browser/generated/lit.js.map": {
-      "bytes": 362839,
-      "sha256": "5f0b4fc2f8add5a0ef43c5600d56f949626bd0fc3c5ca5412d6da6647b368395"
-    },
-    "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt": {
-      "bytes": 5873,
-      "sha256": "a354a25f57b61684e0ac1e048bca6a115795b3ea02338fd131eb1b3e03161416"
-    }
-  }
+  "outputs": [
+    "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt",
+    "skills/leaf/assets/vendor/browser-runtime.js",
+    "skills/leaf/assets/vendor/lit.js"
+  ]
 }

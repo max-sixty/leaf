@@ -10,8 +10,8 @@ A child runs from a scratch cwd outside any repository, so no project instructio
 load, under a home of its own beside that cwd, so its bypassed permissions write to
 that home rather than the user's `~` (children given the user's home once appended to
 the user's `~/.claude/CLAUDE.md`). The home carries only the login. A trace is the
-child's normalized tool/turn evidence; it counts when its actual harness turn
-completed without error (`completed`). Codex raw notifications are retained too.
+child's normalized tool/turn evidence; it counts when its harness turn completed
+(`completed`). CC raw stdout and Codex notifications are retained too.
 A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would.
 """
@@ -22,6 +22,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import tempfile
 import threading
@@ -39,6 +40,8 @@ from typing import Self
 import click
 from leaf.codex import APP_SERVER_ENV
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
+from leaf.tasks import start_reading
+from leaf.thread import successful_replies
 
 from leaf_dev import ROOT
 from leaf_dev.page_fixtures import prepare_page, read_fixture
@@ -49,6 +52,7 @@ from leaf_dev.page_fixtures import prepare_page, read_fixture
 # `package.json` makes the payload a Pi package.
 PAYLOAD = (
     ".claude/skills/developing-leaf",
+    ".claude/skills/ui-sweep",
     ".agents/plugins",
     ".claude-plugin",
     ".codex-plugin",
@@ -337,9 +341,13 @@ def claude_environment(home: Path, **extra: str) -> dict[str, str]:
     return env
 
 
-def scratch() -> Path:
-    """A fresh directory for a child's cwd, outside any repository."""
-    return Path(tempfile.mkdtemp(prefix="leaf-eval-"))
+@contextmanager
+def scratch():
+    """Own a scenario's cwd and sibling credential home until scoring ends."""
+    with tempfile.TemporaryDirectory(prefix="leaf-eval-") as directory:
+        work = Path(directory) / "cwd"
+        work.mkdir()
+        yield work
 
 
 def claude_child(
@@ -361,7 +369,10 @@ def claude_child(
     return {"args": command, "cwd": cwd, "env": child_env}
 
 
-TURN_LIMIT = 1200
+# Duration is evidence to diagnose, not a task's correctness criterion. Allow
+# hours for a native turn and a day for workflows that contain several turns.
+TURN_LIMIT = 6 * 60 * 60
+WORKFLOW_LIMIT = 24 * 60 * 60
 
 
 def run_agent(
@@ -409,7 +420,7 @@ def run_agent(
                 stdin=subprocess.DEVNULL,
                 stdout=stdout,
                 stderr=stderr,
-                check=False,
+                check=True,
                 timeout=TURN_LIMIT,
             )
         except subprocess.TimeoutExpired:
@@ -417,24 +428,21 @@ def run_agent(
     return read_trace(out)
 
 
-class LiveChild:
-    """An isolated harness session kept open for delivery and later turns.
+def LiveChild(*args, harness=ClaudeCodeHarness.name, **kwargs):
+    """Open the harness's native live session for automatic Leaf delivery."""
+    return child_class(harness)(*args, **kwargs)
 
-    `prompt` is its first message. `records` yields actual tool, hook and turn
-    evidence stamped `received_at`; Codex retains its raw notifications too.
 
-    `claude -p` terminates its background shells, such as a `leaf wait`, once stdin
-    closes, so stdin stays open until the caller calls `close`. A session still
-    running `limit` seconds after it started is killed and `timed_out` touched.
+class ClaudeSession:
+    """Keep a native session open while the driver exercises Leaf feedback.
 
-    `transport` is how Leaf reaches the session where the harness has more than one
-    way; Claude Code has one."""
+    The driver closes the session after observing the required page outcome.
+    Close sends SIGTERM so Claude retires its watcher and runs SessionEnd; neither
+    a final model reply nor a zero exit status is required after intentional close.
+    One timer bounds the whole session. Native output is retained beside stderr.
+    """
 
     transport: str | None = None
-
-    def __new__(cls, *args, harness=ClaudeCodeHarness.name, **kwargs):
-        child = child_class(harness)
-        return super().__new__(cls) if child is cls else child(*args, **kwargs)
 
     def __init__(
         self,
@@ -446,7 +454,6 @@ class LiveChild:
         timed_out: Path,
         dirs: Iterable[Path] = (),
         env: dict | None = None,
-        harness: str = ClaudeCodeHarness.name,
     ) -> None:
         self.prompt, self.stderr, self.timed_out = prompt, stderr, timed_out
         self.popen = claude_child(
@@ -459,41 +466,89 @@ class LiveChild:
             env=env,
         )
         self.deadline = threading.Timer(limit, self._give_up)
+        self.closing = False
 
     def __enter__(self) -> Self:
-        self.proc = subprocess.Popen(
-            **self.popen,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=self.stderr.open("w"),
-            text=True,
-        )
-        message = {"type": "user", "message": {"role": "user", "content": self.prompt}}
-        self.proc.stdin.write(json.dumps(message) + "\n")
-        self.proc.stdin.flush()
+        self.raw = self.stderr.with_suffix(".cc.jsonl").open("w")
+        self.stderr_stream = self.stderr.open("w")
+        try:
+            self.proc = subprocess.Popen(
+                **self.popen,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=self.stderr_stream,
+                start_new_session=True,
+                text=True,
+            )
+        except BaseException:
+            self.raw.close()
+            self.stderr_stream.close()
+            raise
         self.deadline.start()
+        try:
+            message = {
+                "type": "user",
+                "message": {"role": "user", "content": self.prompt},
+            }
+            self.proc.stdin.write(json.dumps(message) + "\n")
+            self.proc.stdin.flush()
+        except BaseException:
+            self.__exit__()
+            raise
         return self
 
     def records(self):
-        """Each stream record until the child exits."""
+        """The native stream; malformed output and unexpected exits raise."""
         for line in self.proc.stdout:
+            self.raw.write(line)
+            self.raw.flush()
             yield {**json.loads(line), "received_at": now()}
-        self.proc.wait(timeout=60)
+        code = self.proc.wait()
+        if code and not self.closing:
+            raise subprocess.CalledProcessError(code, self.popen["args"])
 
     def close(self) -> None:
-        """End the session once the turn in progress, if any, has ended."""
-        if not self.proc.stdin.closed:
-            self.proc.stdin.close()
+        """Stop the native session once the driver has its required outcome."""
+        if self.closing:
+            return
+        self.closing = True
+        if self.proc.poll() is None:
+            self.proc.terminate()
+            try:
+                self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self._kill_group()
+                self.proc.wait()
+        self._kill_group()
+
+    abort = close
+
+    def _kill_group(self) -> None:
+        self.proc.poll()
+        try:
+            os.killpg(self.proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
 
     def _give_up(self) -> None:
         self.timed_out.touch()
-        self.proc.kill()
+        self._kill_group()
 
     def __exit__(self, *exc) -> None:
         self.deadline.cancel()
-        if self.proc.poll() is None:
-            self.proc.kill()
-            self.proc.wait()
+        self.deadline.join()
+        try:
+            self.close()
+            # The caller joins its sole observer before leaving this context.
+            shutil.copyfileobj(self.proc.stdout, self.raw)
+        finally:
+            try:
+                self.proc.stdin.close()
+            except BrokenPipeError:
+                pass
+            self.proc.stdout.close()
+            self.stderr_stream.close()
+            self.raw.close()
 
 
 def child_class(harness: str) -> type:
@@ -504,7 +559,7 @@ def child_class(harness: str) -> type:
         return CodexChild
     if harness != ClaudeCodeHarness.name:
         raise ValueError(f"unknown eval harness: {harness}")
-    return LiveChild
+    return ClaudeSession
 
 
 def now() -> str:
@@ -528,7 +583,9 @@ class PageClient:
         )
 
     def state(self) -> dict:
-        with self.opener.open(f"{self.origin}/api/state?t={self.token}") as response:
+        with self.opener.open(
+            f"{self.origin}/api/state?t={self.token}", timeout=20
+        ) as response:
             return json.loads(response.read())
 
     def post(self, event: dict) -> None:
@@ -540,11 +597,22 @@ class PageClient:
             headers={"Leaf-Layer": self.state()["layer"]["generation"]},
         )
         try:
-            self.opener.open(request).close()
+            self.opener.open(request, timeout=20).close()
         except urllib.error.HTTPError as error:
             raise click.ClickException(
                 f"posting {event}: HTTP {error.code} {error.read().decode()}"
             ) from error
+
+
+def read_page_state(arm: Path, state: Path, page: Path) -> dict:
+    """Read this arm's canonical page, including its keyed server address.
+
+    Live drivers choose their write destination here. Agent text and tool output
+    can name other pages and remain only evidence of what the agent handed over.
+    """
+    return json.loads(
+        run_leaf(arm, state, "page", "state", str(page), check=True).stdout
+    )
 
 
 def commands(record: dict) -> list[str]:
@@ -603,7 +671,12 @@ def opened_input_ids(events: list[dict]) -> set[str]:
 
 
 def read_trace(stream: Path) -> list[dict]:
-    return [json.loads(line) for line in stream.read_text().splitlines()]
+    """An unrun phase has no trace; malformed retained evidence still raises."""
+    return (
+        [json.loads(line) for line in stream.read_text().splitlines()]
+        if stream.exists()
+        else []
+    )
 
 
 def trace_result(trace: list[dict]) -> dict:
@@ -656,51 +729,37 @@ def token_counts(trace: list[dict]) -> dict[str, int | None]:
     }
 
 
-def accepted_starts(trace: list[dict], item: str) -> dict[str, int]:
-    """Bash call ids whose successful result takes ITEM in hand: a `leaf task start`,
-    or a `leaf thread reply --ephemeral` on a move owed, which writes the same start.
-
-    A start prints the record it appended as one JSON line. Compound Bash output may
-    contain other lines; only a `start` record naming ITEM counts, never an attempted
-    command, and only from a command that writes one, so a read of the log printing
-    an old start does not. Values are the result's trace index.
-    """
-    calls = {
-        block["id"]
-        for block in blocks(trace)
-        if block.get("type") == "tool_use"
-        and block["name"] == "Bash"
-        and re.search(
-            r"\btask\s+start\b|\bthread\s+reply\b(?:[^\n]|\\\n)*--ephemeral\b",
-            block["input"].get("command", ""),
-        )
+def trace_summary(trace: list[dict]) -> dict:
+    """Native completion and observed accounting, with unknown values left unknown."""
+    done = trace_result(trace)
+    ended = [r for r in trace if r.get("type") == "result"]
+    cost = done.get("total_cost_usd")
+    return {
+        "completed": completed(trace),
+        "turns": sum(r.get("num_turns", 0) for r in ended),
+        "cost_usd": round(cost, 3) if cost is not None else None,
+        "minutes": round(sum(r["duration_ms"] for r in ended) / 60000, 1)
+        if ended and all("duration_ms" in r for r in ended)
+        else None,
+        **token_counts(trace),
+        "reply": done.get("result") or "",
     }
-    accepted = {}
-    for index, record in enumerate(trace):
-        for block in blocks([record]):
-            if (
-                block.get("type") != "tool_result"
-                or block.get("is_error") is not False
-                or block["tool_use_id"] not in calls
-            ):
-                continue
-            content = block["content"]
-            text = (
-                content
-                if isinstance(content, str)
-                else "\n".join(
-                    part["text"] for part in content if part.get("type") == "text"
-                )
-            )
-            for line in text.splitlines():
-                try:
-                    written = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if (
-                    isinstance(written, dict)
-                    and written.get("kind") == "start"
-                    and written.get("item") == item
-                ):
-                    accepted[block["tool_use_id"]] = index
-    return accepted
+
+
+def progress_start(events: list[dict], for_event: str) -> dict | None:
+    """The admitted start on this exact input before its first successful answer.
+
+    Score the page log, independent of command spelling, stdout and when the
+    native stream was read. A later log reading cannot invent or reorder work.
+    """
+    final = next(iter(successful_replies(events, for_event)), None)
+    return next(
+        (
+            start
+            for event in events
+            if (start := start_reading(event)) is not None
+            and start["item"] == for_event
+            and (final is None or start["seq"] < final["seq"])
+        ),
+        None,
+    )

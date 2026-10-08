@@ -150,7 +150,7 @@ import { pageRung, pageScope } from "/runtime/keyboard/register.js";
 import { declareOffFlowSurface } from "/runtime/off-flow.js";
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { repaint } from "/runtime/repaint.js";
-import { chromeRoot } from "/runtime/chrome.js";
+import { chromeRoot, chromeForeground } from "/runtime/chrome.js";
 import { versionBtn } from "/runtime/version-picker.js";
 import { motion, scrollBehavior } from "/runtime/motion.js";
 import { askHolding, declareSide, placeOf } from "/runtime/standing-target.js";
@@ -1186,7 +1186,7 @@ export function createMarginProjection({
   // browser would otherwise put it on body. An explicit request still shows what it asks
   // for without bringing the layer back: `t`, a Threads row and a Page Map pick open the
   // card at their target, and an arrival that walks to a target or to one of its row's
-  // controls (`a`, `focusForNavigation`) shows that one row, so what decides the target
+  // controls (`q`, `focusForNavigation`) shows that one row, so what decides the target
   // is in reach, until the user stands somewhere else. Tabbing or pressing onto a target
   // reveals nothing: the layer stays as the user left it.
   let revealed = null;
@@ -1529,7 +1529,10 @@ export function createMarginProjection({
     transferThreadFocus = false;
     // Before the card, which anchors to its rows (`mount`).
     if (!nav.isConnected)
-      chromeRoot.insertBefore(nav, preview.parentNode === chromeRoot ? preview : null);
+      chromeRoot.insertBefore(
+        nav,
+        preview.parentNode === chromeRoot ? preview : chromeForeground,
+      );
     pageInventory = inventory;
     const liveHosts = new Set(
       pageInventory.filter(entryHasMarginHost).map((entry) => entry.key),
@@ -2280,7 +2283,7 @@ export function createMarginProjection({
     ].some((seat) => closestAcross(seat, ".lf-thread-seat[data-lf-thread-seat]"));
   // The innermost target holding the node whose threads the card would show. A thread is
   // about exactly its anchor's target (glossary, Standing target), reached from anywhere
-  // inside it and never from outside: after `a` the user stands on the Ask element, so
+  // inside it and never from outside: after `q` the user stands on the Ask element, so
   // the card shows a thread on the Ask but not one on its options or a phrase in its
   // heading. Treating an Ask as one target for its threads is a possible refinement. It
   // belongs where a thread's target is decided (anchor-placement), so every
@@ -2539,6 +2542,9 @@ export function createMarginProjection({
     document.addEventListener("pointerover", scheduleMarginEntryLabels, {
       capture: true,
     });
+    document.addEventListener("pointerout", scheduleMarginEntryLabels, {
+      capture: true,
+    });
     // A drop is the change's own to put right: the margin follows where the user stands.
     onStanding((node, cause) => {
       if (cause === "drop") return;
@@ -2572,7 +2578,8 @@ export function createMarginProjection({
     renderAnnotations();
     // The card anchors to its row (floating.js), which an anchor may do only to a box
     // laid out before it: the margin comes first.
-    chromeRoot.append(nav, preview);
+    chromeRoot.insertBefore(nav, chromeForeground);
+    chromeRoot.insertBefore(preview, chromeForeground);
     if (!previewRegionMounted) {
       previewRegionMounted = true;
       // The card may not yet hold a thread. Its region starts with the first transcript.

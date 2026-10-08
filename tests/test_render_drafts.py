@@ -1052,7 +1052,7 @@ def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
         )
         expect(question).to_be_focused()
 
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(question).to_be_focused()
     expect(draft_control(page, "edit", "note")).to_have_attribute(
         "aria-keyshortcuts", "1"
@@ -4063,7 +4063,7 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
           const present = list.present.bind(list);
           const held = Promise.withResolvers();
           list.present = model => {
-            if (!document.querySelector('.lf-thread-panel').open) return present(model);
+            if (!document.querySelector('.lf-thread-panel').classList.contains('open')) return present(model);
             window.replyContinuationHeld = true;
             return held.promise.then(() => present(model));
           };

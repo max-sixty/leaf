@@ -134,7 +134,7 @@ value and must be removed when that value returns.
 
 A widget that declares `x-awaits` says what its answered Ask was answered with: its class
 declares `static answerWords(state, element)`, returning concise words for its row
-under Done in the Queue panel and a queue's row. The Queue panel is experimental and
+under Done in the Questions panel and a queue's row. The Questions panel is experimental and
 expected to change a lot. `state` is the same complete state `renderState`
 receives, and `element` is the widget, for authored markup such as an option's name;
 read nothing the module renders. Leaf calls it only while the Ask is answered, with the
@@ -211,6 +211,10 @@ words the render gate pairs with the file.
 the body that scrolls it whenever the theme makes it scroll. The host makes focus in a
 pane's header or footer select that pane. Register from `connectedCallback` and call
 the returned cleanup from `disconnectedCallback`, so a reconnect can claim the same id.
+Separately scrolling apparatus adds `apparatusFor: ownerId`, naming an already live
+region: focus there still selects that owner for reading, while `scrollerFor(node)`
+names the apparatus's own physical scrollport. Dispose both registrations with their
+DOM owners.
 `readingPosture(node)` is `bounded` exactly while the region's body is its own
 scroller, and `watchReadingRegionTransitions(listener)` receives a `shift` when a
 shown region's scroller or width changes without a gesture; the continuity owner records the user's
@@ -510,8 +514,8 @@ Declare ordinary local bindings in `keys` and explicitly forwardable aliases in
 the enclosing Ask's opening and its associated margin controls and threads. A route can
 declare its own `contextKeys`; an ordinary key on another route is never forwarded.
 Numbers are widget choices, not an Ask allocation: options own their stable numeric
-assignments, and a swipe deck declares Pass as `1` and Keep as `2`. The page owns `a`
-and `Shift+a` navigation between Asks. Do not assign numbers based on currently available
+assignments, and a swipe deck declares Pass as `1` and Keep as `2`. The page owns `q`
+and `Shift+q` navigation between Asks. Do not assign numbers based on currently available
 actions: disabling `1` must not turn `2` into a different action.
 
 ```javascript
@@ -545,7 +549,12 @@ Set `decision: true` and provide `control` when a command starts, advances, answ
 revises the Ask containing `source`. This semantic role neither assigns a binding nor
 makes ordinary keys forwardable. A numeric command need not be a Decision. Forwarding
 retains the original source, scope, row, and route identity, rechecks their current
-availability, and invokes the original callback or native control. Replacing or removing
+availability, and invokes the original callback or native control. On a native button
+with `run`, the command owns availability: express every condition in the row, route or
+scope's `when` predicate. Leaf paints `aria-disabled` and guards activation, so a refused
+press keeps focus; the button's own `disabled` attributes are outputs. A disabled
+fieldset still constrains the button. Associated editors, non-button controls and
+run-less declarations retain their native and ARIA constraints. Replacing or removing
 the source attachment withdraws its old routes. A nearer widget owns its declared keys;
 an unavailable implemented binding reserves its key against a different outer meaning.
 
@@ -694,9 +703,11 @@ if (once(this)) watchData(this, "builds", (snapshot) => render(snapshot));
 The callback receives `null` while the source has no readable value, otherwise a clone
 of `{source, contract, revision, updated, value, origin}`. `revision` identifies the
 value itself, so a renderer can distinguish two writes even when their wall clock
-timestamps coincide. It runs immediately and again when that source revision changes.
-A value that fails its contract is delivered as `null`; `page state` and `page check`
-report why.
+timestamps coincide. The callback runs immediately and again when the source's
+contract, revision, or validity changes. An incompatible contract or unreadable
+value delivers `null`, clearing the previous rendering. The subscription stays
+active and recovers when a readable value returns. `page state` and `page check`
+report invalid values; an incompatible subscriber reports the contract it requires.
 Register once for the element. Leaf pauses the subscription when its owner leaves and
 delivers the newest snapshot when it returns, even if its revision is unchanged.
 Moving the owner within one DOM mutation batch retains the subscription. The returned
@@ -720,7 +731,12 @@ grace, the same bound the page's own activity reads. For another
 rounded time reading, use `clockValue((now) => reading)`, whose `now` argument is the
 calibrated server-now value in milliseconds. For a paint outside these
 subscriptions, wrap it with `clocked(element, paint)` and call the returned function
-where state changes; call its `.stop()` on disconnect. Time reads after an `await`
+where state changes; call its `.stop()` on disconnect. If painting is scheduled by a
+presenter, pass its synchronous claim as the third argument,
+`clocked(element, paint, invalidate)`. A clock change calls `invalidate`; the scheduled
+pass calls the function returned by `clocked`, capturing fresh time readings.
+The claim's return is ignored; the presenter owns its completion and failure. Until that paint runs,
+the previous readings remain subscribed. Time reads after an `await`
 belong in a separate synchronous `clocked` paint. The timer does not reapply state or
 redeliver unchanged data to keep a timestamp current.
 
@@ -739,6 +755,9 @@ changed text, preserving native selections in text the source kept. Keep indepen
 stateful controls outside that subtree.
 
 After placing the nodes, annotate their words with `projectData(root, datums, {snapshot})`.
+Commit visible words and their snapshot labels in the same synchronous turn,
+before awaiting later resource settlement. Until replacement words are mounted,
+the previous words retain their previous snapshot's provenance.
 The root is an id-bearing seat. Each datum is `{node, key, label?, identity?, origin?}`;
 its node must already stand under that root, including inside a declared shadow stage.
 Leaf validates the coordinates and marks readable data rather than authored prose;

@@ -25,6 +25,7 @@ import argparse
 import json
 import shutil
 import subprocess
+import sys
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -160,6 +161,28 @@ def build_jsdiff(work: Path) -> list[Path]:
     return [out]
 
 
+def build_photoswipe(work: Path) -> list[Path]:
+    """Load the viewer with its own styles in one optional, exportable module."""
+    out = ASSETS / "vendor/photoswipe.esm.js"
+    (work / "entry.mjs").write_text(
+        'export { default } from "photoswipe";\n'
+        'export { default as styles } from "photoswipe/style.css";\n',
+        encoding="utf-8",
+    )
+    esbuild(
+        "entry.mjs",
+        "--bundle",
+        "--format=esm",
+        "--loader:.css=text",
+        "--minify",
+        "--legal-comments=inline",
+        f"--banner:js=/*! PhotoSwipe {version('photoswipe')} — MIT — photoswipe.com */",
+        f"--outfile={out}",
+        cwd=work,
+    )
+    return [out]
+
+
 def build_codemirror(work: Path) -> list[Path]:
     """CodeMirror 6 is the editor inside every runtime composer (`leaf-text`).
 
@@ -280,13 +303,22 @@ def build_webawesome(work: Path) -> list[Path]:
             f"Web Awesome's declared Lit range excludes lit {version('lit')}"
         )
     source = ROOT / "build/webawesome"
-    for name in ("entry.mjs", "chrome.mjs", "build.mjs", "leaf-theme.css"):
+    for name in (
+        "entry.mjs",
+        "chrome.mjs",
+        "build.mjs",
+        "leaf-theme.css",
+        "theme.py",
+        "transitions.mjs",
+        "transition-patch.mjs",
+    ):
         shutil.copyfile(source / name, work / name)
     run(
         "node",
         "build.mjs",
         str(work / "bundle"),
         version("@awesome.me/webawesome"),
+        sys.executable,
         cwd=work,
     )
     shared = ASSETS / "vendor/webawesome"
@@ -411,6 +443,7 @@ def build_sortable(work: Path) -> list[Path]:
 
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
     "markdown": build_markdown,
+    "photoswipe": build_photoswipe,
     "sortable": build_sortable,
     "agentic-mermaid": build_agentic_mermaid,
     "codemirror": build_codemirror,

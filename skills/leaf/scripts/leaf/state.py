@@ -288,13 +288,20 @@ def renew_turn(record: dict) -> dict:
     return write_session({**record, "turn_opened": now_iso(), "turn_closed": None})
 
 
-def advance_turn(session_id: str, turn_id: str | None, *, running: bool) -> dict | None:
+def advance_turn(
+    session_id: str,
+    turn_id: str | None,
+    *,
+    running: bool,
+    observed_at: str | None = None,
+) -> dict | None:
     """Publish a turn observation under the caller's session lock.
 
     A closed provider identity never reopens. Unknown-id harnesses reuse their open
     turn and mint a new identity after its ending. Callback callers validate the
     existing identity before calling this; prompts and guarded provider starts
-    are the only boundaries that introduce a known replacement.
+    introduce a known replacement. A provider transcript observation supplies
+    its own timestamp so reading old evidence does not renew its lifetime.
     """
     record = session_record(session_id)
     if record is None:
@@ -311,14 +318,14 @@ def advance_turn(session_id: str, turn_id: str | None, *, running: bool) -> dict
         record = {
             **record,
             "turn": turn_id,
-            "turn_opened": now_iso(),
+            "turn_opened": observed_at or now_iso(),
             "turn_closed": None,
             "provider": provider,
         }
     else:
         if turn_id is not None and turn_id != record["turn"]:
             return None
-        record = {**record, "turn_closed": now_iso()}
+        record = {**record, "turn_closed": observed_at or now_iso()}
     return write_session(record)
 
 

@@ -23,13 +23,13 @@ MESSAGE_KINDS = {"comment", "reply"}
 # The kinds a widget owns, admitted against the page's registry before they append.
 WIDGET_KINDS = {"action", "report"}
 # The operations that settle a user move the agent owes, as `workflows` and
-# `activity` address them and `$events.answering` explains them. A `turn` answer is
-# a thread reply the claimant's turn writes with its own opening and final messages.
-ANSWER_KINDS = ("reply", "turn", "markup")
+# `activity` address them and `$events.answering` explains them. Reply writer custody
+# is separate: a provider turn may own its opening and final messages.
+ANSWER_KINDS = ("reply", "markup")
 # The answer kinds that post a message in a thread.
-THREAD_ANSWER_KINDS = frozenset({"reply", "turn"})
+THREAD_ANSWER_KINDS = frozenset({"reply"})
 ANSWER_ASK_INSTRUCTION = (
-    "Each move takes the answer named for it. Read current obligations with "
+    "Each update takes the answer named for it. Read current obligations with "
     "`leaf page state <page>` and thread history with `leaf page state <page> <id>`."
 )
 WAIT_BATCH_OUTPUT_INSTRUCTION = (

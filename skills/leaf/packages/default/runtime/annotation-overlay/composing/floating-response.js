@@ -53,7 +53,7 @@ export function createFloatingResponsePlacement({
   scrollToRange,
 }) {
   const floatBoundary = (region = null) =>
-    commentBoundary({ region, right: panel.open ? panel.offsetLeft : Infinity });
+    commentBoundary({ region, right: panelIsOpen() ? panel.offsetLeft : Infinity });
   // The side the bar holds and its inline start, by the rule the thread card it becomes
   // stands by too (comment-placement.js).
   const fabPlacement = commentPlacement();

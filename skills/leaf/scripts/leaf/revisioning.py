@@ -13,10 +13,9 @@ and the next read validates it and turns it into a revision, which is what makes
 edited `index.html` reach an open tab. An answer that found the source to be the
 active revision holds until the source moves: the log can grow under it without
 changing it, since the door judged every event against the revision it names. A
-refusal holds only until either reading moves, because an event can clear it, as
-resolving the thread on an id the save dropped does.
+refusal is reconsidered when its source or admitted reading changes.
 
-Every affected open quoted thread is preserved at its surviving section through
+Every affected open thread follows its surviving section, or detaches, through
 admitted `reanchor` bookkeeping, under the same log transaction as activation.
 An explicit replacement reply takes precedence. These transitions add no messages
 and answer no outstanding move. A reply or stamp is preflighted against the
@@ -31,7 +30,6 @@ from pathlib import Path
 from typing import NamedTuple
 
 from leaf.event_contracts import APPEND_STAMPED, admitted_event, append_admitted
-from leaf.event_log import EventRefused
 from leaf.files import list_revisions
 from leaf.page_memory import memo
 from leaf.page_view import CandidatePageView, PageView
@@ -49,7 +47,7 @@ from leaf.validation.source import SourceCheck, check_source
 from leaf.validation.source_history import (
     EMPTY_READING,
     PredecessorReading,
-    quote_reanchors,
+    revision_reanchors,
 )
 
 
@@ -98,7 +96,7 @@ def _activate_source(page_dir: Path, page) -> Activation:
         return answer.activation
     activation = activate_checked_source(
         page,
-        check_source(page_dir, page.events, allow_transition=False),
+        check_source(page_dir, page.events),
     )
     settled = activation._replace(created=False) if activation.created else activation
     held.answer = _Answer(source, history, settled)
@@ -150,11 +148,9 @@ def finish_publications(page: PageTransaction, publications: list[dict]) -> None
             previous,
             read_revision(page.page_dir, previous) if previous else EMPTY_READING,
         )
-        moves, errors, _advice = quote_reanchors(
+        moves, _advice = revision_reanchors(
             page.events, reading, predecessor, candidate_revision=revision
         )
-        if errors:
-            raise RuntimeError("incomplete publication: " + "; ".join(errors))
         _append_reanchors(
             page,
             revision,
@@ -202,14 +198,12 @@ def _publish_checked_source(page, checked, event=None):
             previous,
             read_revision(page.page_dir, previous) if previous else EMPTY_READING,
         )
-        moves, errors, _advice = quote_reanchors(
+        moves, _advice = revision_reanchors(
             [*page.events, prospective],
             checked.reading,
             predecessor,
             candidate_revision=revision,
         )
-        if errors:
-            raise EventRefused("; ".join(errors))
         event["id"] = prospective["id"]
     if activation.created and (event is not None or moves):
         stage_artifact(page.page_dir, revision, checked.artifact)

@@ -20,7 +20,11 @@ export function clockValue(read) {
   return value;
 }
 
-export function clocked(owner, paint) {
+// A deferred presenter supplies `invalidate` to claim its next pass synchronously.
+// Only calling the returned paint replaces its dependencies; invalidation retains
+// them while that pass is queued or awaiting preparation. The claim's return is
+// ignored: its presenter owns completion and failure; the clock owns direct paints.
+export function clocked(owner, paint, invalidate) {
   let args;
   let painted = false;
   let reads = [];
@@ -28,7 +32,11 @@ export function clocked(owner, paint) {
   const entry = {
     owner,
     changed: () => reads.some(({ read, value }) => read(serverNow()) !== value),
-    refresh: () => (painted ? render(...args) : undefined),
+    refresh: () => {
+      if (!painted) return;
+      if (invalidate) invalidate();
+      else return render(...args);
+    },
   };
   function render(...next) {
     const painting = ++generation;

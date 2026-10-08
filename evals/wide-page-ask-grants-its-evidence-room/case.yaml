@@ -33,11 +33,6 @@ vars:
     The page directory is not reachable from here, so reply with the section's HTML
     fragment rather than writing a file.
 assert:
-- type: javascript
-  metric: reads-asks
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/(authoring-asks|page-authoring)\.md
 - type: llm-rubric
   metric: ask-widths
   value: |

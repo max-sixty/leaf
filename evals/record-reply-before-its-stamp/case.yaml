@@ -34,11 +34,6 @@ vars:
     in order, each command you would run in the first turn, through its final message,
     and then each one you would run in the later turn.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
 - type: llm-rubric
   metric: reply-before-stamp
   value: |

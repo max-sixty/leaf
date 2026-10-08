@@ -18,17 +18,19 @@ import { availableCommandRoutes } from "./dispatch.js";
 import { buttonCommand, commandScope, projectCommandScope } from "./scopes.js";
 import { coveringAuxiliarySurface } from "./register.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
-import { documentPoint } from "../geometry.js";
+import { chipSeats } from "./chip-seats.js";
 import { under } from "../shadow.js";
 import { el } from "../widget-elements.js";
 import { keepsText } from "../keeps.js";
 import { repaint } from "../repaint.js";
-import { watchScrolls } from "../arrivals.js";
+import { scrolling, watchScrollEnds } from "../arrivals.js";
 
 export const commandHintLayer = Object.assign(document.createElement("div"), {
-  className: "lf-ui lf-key-badges lf-command-binding-badges",
+  className: "lf-ui lf-key-chips lf-command-binding-badges",
 });
 commandHintLayer.setAttribute("aria-hidden", "true");
+// A chip rides each scroll with its control and is seated again once the scroll settles.
+const seats = chipSeats(commandHintLayer);
 
 // Expand executable bindings, retaining the original command behind any contextual
 // alias. A control has one face even when local and contextual routes both reach it.
@@ -207,7 +209,7 @@ export function createCommandHints({ presentedControl }) {
     if (!visualRoutes.length) {
       restoreBindingBadges();
       bindingChips.clear();
-      keyBadgePlacement().paint(commandHintLayer, []);
+      seats.place([]);
       return;
     }
     // A covering auxiliary surface does not invalidate the commands or their accessible
@@ -286,12 +288,7 @@ export function createCommandHints({ presentedControl }) {
         bindingChips.set(control, chip);
       }
       keepsText(chip, spell(binding));
-      chips.push({
-        chip,
-        owner: presented,
-        corner: box,
-        at: documentPoint(box.left, box.top),
-      });
+      chips.push({ chip, owner: presented, corner: box });
     }
     // `chips` holds seats, so a chip is kept by the seat that names it; comparing a chip
     // with the seats themselves dropped every chip, and each pass made its chips again
@@ -299,23 +296,26 @@ export function createCommandHints({ presentedControl }) {
     const seated = new Set(chips.map(({ chip }) => chip));
     for (const control of [...bindingChips.keys()])
       if (!seated.has(bindingChips.get(control))) bindingChips.delete(control);
-    placement.paint(commandHintLayer, chips);
+    // A scroll holds the seats; each chip's digit is current in its own, and a chip whose
+    // command left reach is hidden.
+    if (scrolling()) seats.keepOnly(new Set(chips.map(({ owner }) => owner)));
+    else placement.paint(seats, chips);
   }
 
-  const pageScrolled = () => hasRoutes && repaint();
-  let stopScrolls = null;
+  const scrollEnded = () => hasRoutes && repaint();
+  let stopScrollEnds = null;
   function mount() {
     if (mounted) return;
     mounted = true;
-    stopScrolls = watchScrolls(pageScrolled);
+    stopScrollEnds = watchScrollEnds(scrollEnded);
   }
   function destroy() {
-    if (mounted) stopScrolls();
+    if (mounted) stopScrollEnds();
     mounted = false;
     hasRoutes = false;
     clearProjections();
     bindingChips.clear();
-    keyBadgePlacement().paint(commandHintLayer, []);
+    seats.clear();
   }
   return { mount, paint, destroy };
 }

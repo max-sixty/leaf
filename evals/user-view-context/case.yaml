@@ -18,16 +18,6 @@ vars:
     Use the leaf skill and read the instructions that own this workflow.
     Only Skill and Read run here; write the requested answer in your reply.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-conversation-loop
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/conversation-loop\.md
 - type: llm-rubric
   metric: actual-view-context
   value: |

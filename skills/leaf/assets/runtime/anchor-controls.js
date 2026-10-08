@@ -145,7 +145,7 @@ export function createAnchorControls({
 
   function activateVisualAction(event) {
     const control = event.currentTarget;
-    commentOnTarget({ anchor: control.lfAnchor }, { origin: control });
+    commentOnTarget({ anchor: control.lfAnchor });
   }
 
   const visualActionTemplate = ({ anchor, label }) => html`

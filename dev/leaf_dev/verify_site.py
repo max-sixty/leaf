@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import tomllib
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterator
@@ -40,11 +41,6 @@ from leaf_dev.browser import chrome
 from leaf_dev.site import asset_site
 from leaf_dev.startup import observe_startup as record_startup
 from leaf_dev.startup import startup_reading
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 MANIFEST = ROOT / ".tmp" / "site" / "_leaf" / "site.json"
 # The site build, run from ROOT, which writes ROOT/.tmp/site (`leaf_dev.site`).
@@ -510,7 +506,7 @@ def answers(url: str) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=1):
             return True
-    except (urllib.error.URLError, TimeoutError):
+    except urllib.error.URLError, TimeoutError:
         return False
 
 
@@ -542,40 +538,39 @@ def logged(log: Path) -> Iterator[IO[str]]:
 def serving(
     command: list[str],
     output: IO[str],
-    ready: Callable[[], bool],
+    ready: Callable[[], str | None],
     patience: float,
     **popen,
-) -> Iterator[None]:
-    """Run one local server until the block ends, once `ready` says it is serving."""
+) -> Iterator[str]:
+    """Run a local server and yield the origin its readiness probe confirms."""
     with subprocess.Popen(
         command, stdout=output, stderr=subprocess.STDOUT, **popen
     ) as server:
         try:
             deadline = time.monotonic() + patience
-            while not ready():
+            while (origin := ready()) is None:
                 check(server.poll() is None, f"{command[0]} exited before serving")
                 check(time.monotonic() < deadline, f"{command[0]} did not serve")
                 time.sleep(0.1)
-            yield
+            yield origin
         finally:
             if server.poll() is None:
                 server.terminate()
             server.wait()
 
 
+def ready_origin(log: Path, event: str, path: str) -> str | None:
+    """The child's announced origin once its HTTP endpoint answers."""
+    origin = announced_origin(log, event)
+    return origin if origin is not None and answers(f"{origin}{path}") else None
+
+
 @contextmanager
-def local_adapter():
+def local_adapter() -> Iterator[tuple[str, str]]:
     """Build the site and serve it with the website adapter under a temporary copy of
     the host's Codex login, removed with the adapter's pages and task history."""
     out = run_directory(ROOT / ".tmp" / "verify-site")
     log = out / "website-agent-local.log"
-    origin = None
-
-    def ready():
-        nonlocal origin
-        origin = announced_origin(log, "container_http_ready")
-        return origin is not None and answers(f"{origin}/health")
-
     with (
         tempfile.TemporaryDirectory(prefix="leaf-site-agent.") as temporary,
         logged(log) as output,
@@ -597,7 +592,7 @@ def local_adapter():
         with serving(
             [*SERVE_SITE, "--port", "0"],
             output,
-            ready,
+            lambda: ready_origin(log, "container_http_ready", "/health"),
             30,
             cwd=ROOT,
             env=environment(
@@ -605,7 +600,7 @@ def local_adapter():
                 LEAF_SITE_ROOT=str(site),
                 XDG_STATE_HOME=str(root / "state"),
             ),
-        ):
+        ) as origin:
             yield origin, release
 
 
@@ -620,13 +615,6 @@ def local_worker() -> Iterator[tuple[str, str]]:
     out = run_directory(ROOT / ".tmp" / "verify-site")
     name = f"lv-{out.name}"
     log = out / "wrangler-dev.log"
-    origin = None
-
-    def ready():
-        nonlocal origin
-        origin = announced_origin(log, "local_worker_ready")
-        return origin is not None and answers(f"{origin}/")
-
     try:
         with (
             tempfile.TemporaryDirectory(prefix="leaf-worker-") as temporary,
@@ -678,10 +666,10 @@ def local_worker() -> Iterator[tuple[str, str]]:
                     str(root / "state"),
                 ],
                 output,
-                ready,
+                lambda: ready_origin(log, "local_worker_ready", "/"),
                 180,
                 cwd=ROOT / "worker",
-            ):
+            ) as origin:
                 yield origin, release
     finally:
         listed = subprocess.run(

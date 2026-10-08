@@ -107,7 +107,7 @@ test("a runtime arrival uses the same producer and preserves the frozen source",
   const drawing = initialRender(host);
   assert.equal(drawing.control.type, "button");
   assert.equal(drawing.control.dataset.lfOffer, "button");
-  assert.equal(drawing.control.className, "later-button lf-ui");
+  assert.equal(drawing.control.className, "later-button lf-ui lf-ui-face");
   assert.equal(
     unmarkedCopy(host).outerHTML,
     '<lf-later id="later"><p>Later source</p></lf-later>',

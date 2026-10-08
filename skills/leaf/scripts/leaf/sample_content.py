@@ -185,7 +185,7 @@ def initial_sample_events(
                     registry,
                     child,
                     set(),
-                    data_document_errors(readings, contracts),
+                    data_document_errors(readings),
                 ):
                     raise ValueError(error)
                 if collision := fragment.ids & (

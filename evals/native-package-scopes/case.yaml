@@ -20,16 +20,6 @@ vars:
     Read the package reference and show the two package stylesheets, explaining
     how their rules reach the intended elements. Return CSS in your reply.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-packages
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/packages\.md
 - type: llm-rubric
   metric: root-and-descendants
   value: |

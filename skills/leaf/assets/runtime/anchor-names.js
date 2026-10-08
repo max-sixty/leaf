@@ -7,7 +7,7 @@
  * weakly retained binding restores that observation when the control returns. */
 import { pagePlaneRect, shownParts } from "./geometry.js";
 import { hostIn, renderedParent } from "./shadow.js";
-import { scrollsContent } from "./scroll-motion.js";
+import { scrollContainer, scrollsContent } from "./scroll-motion.js";
 import { watchArrivals } from "./arrivals.js";
 
 // Anchor names are global to their tree, so one per target element, merged with whatever
@@ -104,6 +104,19 @@ export function carriedAnchor(scroller, near = null) {
   )
     for (const node of [before, after]) if (carried(node)) return node;
   return contentStart(scroller);
+}
+
+// The box paint anchors to for `context`, an element or a node of words: its anchor box
+// (`anchorElement`). Words standing directly in a box that scrolls them move with that
+// scroll, which an anchor on the box itself does not follow, so they anchor to what the
+// scroll carries beside them (`carriedAnchor`), and to the box only where nothing does.
+export function anchorFor(context) {
+  const physical = context instanceof Element ? context : context?.parentElement;
+  if (!physical) return null;
+  const anchor = anchorElement(physical);
+  if (context === physical || anchor !== physical || !scrollContainer(physical))
+    return anchor;
+  return carriedAnchor(physical, context) ?? anchor;
 }
 
 // The start of what `scroller` holds, as a box an anchor names, for words standing in it

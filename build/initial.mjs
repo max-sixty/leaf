@@ -29,7 +29,7 @@ export async function initialOutputs() {
     if (!declared.length) continue;
     if (declared.length !== 1)
       throw new Error(`${name} needs a source entry for each initial bundle`);
-    const entry = path.join(directory, "runtime/initial.js");
+    const entry = path.join(directory, "initial.js");
     const result = await build({
       entryPoints: [entry],
       bundle: true,

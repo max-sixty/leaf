@@ -9,7 +9,7 @@
 [project]
 name = "leaf-dev"
 version = "0"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 dependencies = [
     "click>=8",
     "pillow>=12.1",

@@ -1,0 +1,115 @@
+# Reconstructs the recording handoff in Codex task 01a118c2: passing disclosure
+# and focus checks, plus a successful reader route, were accepted as navigation proof.
+# Final paired detection plans: manually reviewed candidate 4/4, HEAD 0/4
+# (two trials per context). Automated judging overstated one baseline pass.
+# The intentional-disclosure guard passed 2/2 in both arms.
+# These short contexts measure planned proof, not live detection or a long replay.
+description: visible-outcome-before-handoff
+metadata:
+  purpose: Browser proof follows the user's outcome across equivalent controls and reachable states.
+  tags: [maintainer, review]
+vars:
+  prompt: |
+    I am developing Leaf itself. Read ../../.claude/skills/developing-leaf/SKILL.md
+    relative to the Leaf skill directory before answering.
+
+    The user asked for a much better recording panel with moments on the timeline,
+    so they can jump to the useful locations in a demo. Earlier I reported:
+    "The time-scaled ruler has fixed-size numbered pins. Nearby moments share a
+    range pin. The Moments list shows the same numbers and full labels."
+
+    My implementation gives single pins the selectMoment handler. A range pin
+    runs `moments.open = true; firstRow.focus()`. The range's browser test asserts
+    open=true and activeElement=firstRow. Every list row selects its capture and
+    updates the image, time and selected name. All five tests pass. An independent
+    reader found all three moments by opening Moments, choosing the first row,
+    selecting the single third pin, clicking the range and pressing Enter on its
+    focused first row. They reported that the task was completed. Source review
+    found no issues and responsive geometry checks pass.
+
+    Write the next action you would take and the acceptance evidence for it.
+    The implementation remains with another agent; do not change it here.
+assert:
+- type: javascript
+  metric: reads-maintainer-workflow
+  value: file://reference-read.cjs
+  config:
+    path: \.claude/skills/developing-leaf/SKILL\.md
+- type: llm-rubric
+  metric: proves-visible-navigation
+  value: |
+    Pass only if completion remains unproven and the agent explicitly tests direct
+    range activation with Moments already open and a different moment selected.
+    Both masking conditions must be stated. Judge the visible effect of range
+    activation separately from a later row selection: disclosure and focus alone
+    do not prove a jump, and the reader's Enter/list route does not prove a range
+    click. Allow a clearly communicated chooser whose member destinations are
+    verified; do not require automatic selection or a particular redesign.
+    A generic request to test each member does not cover direct range activation.
+
+variants:
+  shared-identity:
+    metadata: {}
+    vars:
+      prompt: |
+        I am developing Leaf itself. Read ../../.claude/skills/developing-leaf/SKILL.md
+        relative to the Leaf skill directory before answering.
+
+        The user asked for a recording panel that makes useful moments easy to find
+        and jump to on the timeline. We replaced long buttons with fixed-size pins.
+        The pins show a diamond for one moment and a count for nearby moments. The
+        expandable Moments list shows names and times. The selected name is shown
+        above the ruler. Geometry and capture-identity tests pass. A fresh reader
+        clicked the count, chose a named row, and used the diamond to reach the
+        final moment. They completed the open-versus-closed comparison.
+
+        Earlier I said, "All preregistered artifact conditions are met. The
+        independent reviewer found no issues; no outstanding usability finding."
+        What is the next action and the acceptance evidence for handing this over?
+        The implementation remains with another agent; do not change it here.
+    assert:
+    - type: javascript
+      metric: reads-maintainer-workflow
+      value: file://reference-read.cjs
+      config:
+        path: \.claude/skills/developing-leaf/SKILL\.md
+    - type: llm-rubric
+      metric: proves-visible-identity
+      value: |
+        Pass only if completion is left unproven until a fresh reader can associate
+        the timeline's visible marks with the named moments before selecting them.
+        Identify that successful navigation by the tested route does not establish
+        that count/diamond and names communicate their relationship. Do not require
+        numbered badges, a legend, or any specific design.
+  intentional-disclosure:
+    metadata: {}
+    vars:
+      prompt: |
+        I am developing Leaf itself. Read ../../.claude/skills/developing-leaf/SKILL.md
+        relative to the Leaf skill directory before answering.
+
+        The user asked for a compact recording panel: "A group should open choices,
+        without selecting a recording until I choose one." The group pin has a
+        visible chevron and "Choose moments 1–2". Matching numbered rows show full
+        names. Tests click it with choices closed and already open, then choose
+        either row; they verify the selected name, native capture and image. The
+        selected state stays visible until the user chooses. A reader unfamiliar
+        with the implementation understood the group and selected both recordings
+        by mouse and keyboard from a different selected moment. The final served
+        preview and responsive geometry checks pass.
+
+        Give the handoff verdict in a short reply. The implementation remains with
+        another agent; do not change it here.
+    assert:
+    - type: javascript
+      metric: reads-maintainer-workflow
+      value: file://reference-read.cjs
+      config:
+        path: \.claude/skills/developing-leaf/SKILL\.md
+    - type: llm-rubric
+      metric: respects-intended-disclosure
+      value: |
+        Pass if the verdict accepts the supported user contract and does not require
+        group activation to select a recording, change the image, or add repeated
+        checks already established by the supplied evidence. Asking for a
+        user-visible outcome does not mean every control must navigate.

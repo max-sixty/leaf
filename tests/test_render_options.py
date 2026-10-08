@@ -2988,7 +2988,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     assert all(seat["worn"] and seat["seat"] for seat in seats), seats
     assert len({round(seat["top"]) for seat in seats}) == 1, seats
     expect(
-        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_count(0)
     page.keyboard.press("1")
     chosen = page.locator("#ar-canary-consecutive")
@@ -3010,7 +3010,7 @@ def test_an_ask_digit_hangs_off_a_corner_clear_of_its_neighbours(browser, serve)
     )
     resized(page, 1024, 768)
     page.keyboard.press("a")
-    chip = page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     expect(chip).to_have_count(1)
     reading = chip.evaluate(
         """chip => {

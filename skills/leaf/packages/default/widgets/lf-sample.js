@@ -5,11 +5,14 @@
  * sample is instead a whole Leaf window at the frame's own height, chrome included,
  * and scrolls inside itself. The child's
  * final Escape brings focus back to this element. Each presented child announces
- * lf-sample-ready with its Document, on first mount and Reset. Ordinary children remain static
+ * lf-sample-ready with its Document, on first mount and Reset. Reset stays focusable
+ * while loading but accepts no new press, preserving the parent's keyboard position.
+ * Ordinary children remain static
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
 import {
   cancelRender,
+  keeps,
   mountSample,
   nextRender,
   once,
@@ -92,6 +95,7 @@ customElements.define(
       const actions = document.createElement("div");
       this.#reset = offer("button", "lf-btn", "Reset");
       this.#reset.addEventListener("click", () => {
+        if (this.#reset.ariaDisabled === "true") return;
         this.reset().catch(() => {}); // #track paints the failed operation.
       });
       this.#status = offer("span", "lf-sample-status");
@@ -130,15 +134,15 @@ customElements.define(
     #failure(error) {
       if (error.name === "AbortError") return;
       this.#status.textContent = error.message;
-      this.#reset.disabled = false;
+      keeps(this.#reset, "aria-disabled", null);
     }
 
     #track(promise) {
-      this.#reset.disabled = true;
+      keeps(this.#reset, "aria-disabled", "true");
       this.#status.textContent = "Loading sample…";
       const ready = promise.then((doc) => {
         if (this.#ready !== ready) return doc;
-        this.#reset.disabled = false;
+        keeps(this.#reset, "aria-disabled", null);
         this.#status.textContent = "";
         if (doc.documentElement.hasAttribute("data-lf-sample-block")) this.#follow(doc);
         this.dispatchEvent(

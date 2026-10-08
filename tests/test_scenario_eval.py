@@ -5,6 +5,20 @@ import json
 from leaf_dev.delivery_eval import expected_checks, grade, score
 
 
+def test_partial_native_traces_do_not_report_zero_elapsed_minutes(tmp_path):
+    from leaf_dev import arrangement_eval, usability_eval
+
+    stream = tmp_path / "stream.jsonl"
+    for trace, minutes in (
+        ([], None),
+        ([{"type": "result", "is_error": False}], None),
+        ([{"type": "result", "is_error": False, "duration_ms": 2700000}], 45),
+    ):
+        stream.write_text("".join(json.dumps(record) + "\n" for record in trace))
+        assert arrangement_eval.trace_scores(stream)["minutes"] == minutes
+        assert usability_eval.trace_scores(trace)["minutes"] == minutes
+
+
 def test_delivery_requires_every_comment_and_a_completed_reply_turn():
     complete = {
         "comment": 1,

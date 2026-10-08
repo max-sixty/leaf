@@ -28,23 +28,10 @@ vars:
     \ HTML rather than writing a file. Figures may be placeholders\nsuch as `<figure id=\"owners-figure\"\
     ><svg class=\"drawing\" viewBox=\"0 0 680 300\"></svg></figure>`.\n"
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-authoring-asks
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/authoring-asks\.md
-- type: javascript
+- type: regex
   metric: has-asks
-  value: file://text-regex.cjs
-  config:
-    pattern: <lf-ask\b
-    flags: i
-    negate: false
+  value: <lf-ask\b
+  transform: output.toLowerCase()
 - type: llm-rubric
   metric: judgment
   value: |

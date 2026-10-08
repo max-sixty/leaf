@@ -129,7 +129,8 @@
   const offerElement = (node, cls, pressable = false) => {
     if (node instanceof HTMLButtonElement && !node.hasAttribute("type"))
       keepsAttribute(node, "type", "button");
-    keepsAttribute(node, "class", cls ? `${cls} lf-ui` : "lf-ui");
+    const face = node.localName.includes("-") ? "" : " lf-ui-face";
+    keepsAttribute(node, "class", `${cls ? `${cls} ` : ""}lf-ui${face}`);
     keepsAttribute(node, "data-lf-gen", "1");
     keepsAttribute(
       node,

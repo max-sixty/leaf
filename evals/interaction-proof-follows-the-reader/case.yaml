@@ -1,0 +1,114 @@
+# Reconstructed handoff decision: the passing target competes with the reader task.
+# Read-only proof selection; does not execute implementation or browser review.
+# Source: Codex chat 01a11909-99f9-7d00-ac47-a10407be0b0a, 2026-10-07.
+# Against b4c58d346, document proof selection was 0/2 before and 2/2 after the repair;
+# both arms passed map comparison and intentional disclosure in 2/2 runs each.
+description: interaction-proof-follows-the-reader
+metadata:
+  purpose: A maintainer derives interaction proof from the reader's task, beyond successful
+    dispatch and final state.
+  tags:
+  - maintainer
+  - interaction
+  - review
+vars:
+  prompt: |
+    You are maintaining Leaf itself. Read its developing-leaf skill at
+    ../../.claude/skills/developing-leaf/SKILL.md relative to the Leaf skill directory.
+
+    The user's request was: "Can we consider having a widget that displays markdown
+    (or html or anything that can display rendered or previewed), and allow for
+    switching? Consider good ways of allowing switching. Implement."
+
+    We extended the source document widget with Preview / Source tabs. Markdown is
+    rendered with Leaf's renderer; HTML is srcdoc in an isolated iframe. The
+    surrounding page contains other documents and discussion sections.
+
+    Our initial binary target is met: headings/links/tables render, HTML styles
+    render in a separate document, Source is exact text, pointer and keyboard switch
+    views without an action event, refresh updates both views, reload keeps the view,
+    and desktop/phone have no overflow or inaccessible controls. Seven browser
+    journeys, the runtime suite and lint pass. The probe reports zero startup layout
+    shifts. A fresh reader clicked Source, used Left Arrow to return to Preview,
+    opened the HTML checklist, and inspected its source; labels and focus were clear.
+
+    Continue from this checkpoint and prepare the user-facing closeout. You are in
+    a read-only run, so describe any actions still owed before that closeout. If the
+    work is ready, present the result with its Preview / Source review link.
+assert:
+- type: javascript
+  metric: reads-maintainer
+  value: file://reference-read.cjs
+  config:
+    path: \.claude/skills/developing-leaf/SKILL\.md
+- type: llm-rubric
+  metric: checks-the-reading-transition
+  value: |
+    Pass only if the answer identifies remaining verification that switches between
+    representations as part of reading or comparing the document, and observes or
+    measures whether the tab controls and surrounding reading position/content move
+    across those inputs. A generic
+    statement to test keyboard/focus/rendering, a startup CLS check, or declaring the
+    existing proof sufficient fails. It need not demand fixed heights as the solution.
+variants:
+  comparison:
+    metadata: {}
+    vars:
+      prompt: |
+        You are maintaining Leaf itself. Read its developing-leaf skill at
+        ../../.claude/skills/developing-leaf/SKILL.md relative to the Leaf skill directory.
+
+        A user asked us to implement a figure widget so they can compare two versions
+        of a map. We composed the existing switcher and image renderer. It starts with
+        the old map; a control selects the revised map. A findings paragraph and controls for the next comparison follow the maps on
+        the page.
+
+        Our target is met: the selected image is correct, click and keyboard work,
+        labels explain which version is visible, independent widgets retain their
+        selected version, reload and live source replacement work. Browser checks,
+        lint, a before/after still, and zero startup layout shifts are green. A blind
+        reader selected Revised and correctly named two changed roads.
+
+        Continue from this checkpoint and prepare the user-facing closeout. You are in
+        a read-only run, so describe any actions still owed before that closeout. If the
+        work is ready, present the result with its comparison review link.
+    assert:
+    - type: javascript
+      metric: reads-maintainer
+      value: file://reference-read.cjs
+      config:
+        path: \.claude/skills/developing-leaf/SKILL\.md
+    - type: llm-rubric
+      metric: checks-the-comparison-transition
+      value: |
+        Pass only if the answer identifies remaining verification that compares
+        through repeated switching and observes or measures whether differing image
+        sizes move the controls or surrounding reading position/content, including
+        whether the reader can keep
+        the compared features in view. Testing selected image, startup CLS, keyboard,
+        focus, or stills alone fails. No particular sizing mechanism is required.
+  disclosure:
+    metadata: {}
+    vars:
+      prompt: |
+        You are maintaining Leaf itself. Read its developing-leaf skill at
+        ../../.claude/skills/developing-leaf/SKILL.md relative to the Leaf skill directory.
+
+        A user asked for ordinary in-flow details in a long report, so they can expand
+        a methods section to read it with the result and conclusion that follow. The
+        summary stays in place; clicking it expands the methods beneath it, moving
+        the following conclusion down. Closing it removes that space. Native keyboard
+        operation, focus, narrow-screen readability and selection all work. We have
+        verified that the visible summary stays reachable and the expanded content
+        remains readable as the user proceeds to the conclusion.
+
+        Review the handoff. Does this behavior need a design change? Give the reason
+        and any additional proof you would require before calling it complete.
+    assert:
+    - type: llm-rubric
+      metric: accepts-intended-reflow
+      value: |
+        Pass if the answer accepts ordinary in-flow expansion as appropriate to the
+        stated reading task and does not demand fixed-height nested scrolling, an
+        overlay, or forbidding movement of following content. Additional proof is
+        allowed. Fail if all user-input reflow is treated as a defect.

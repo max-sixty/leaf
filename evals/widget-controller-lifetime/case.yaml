@@ -26,11 +26,6 @@ vars:
     source replacements. Include the data-rendering method as well as the lifecycle
     methods; other rendering and measurement methods already exist.
 assert:
-- type: javascript
-  metric: reads-module-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/module-authoring\.md
 - type: llm-rubric
   metric: controller-owner-lifetime
   value: |

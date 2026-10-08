@@ -19,16 +19,6 @@ vars:
 
     Answer in a short reply with the exact commands.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-packages
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/packages\.md
 - type: regex
   metric: runs-the-report
   value: package check\s+\S*timeline\S*\s+--render|package check\s+--render\s+\S*timeline

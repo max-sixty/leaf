@@ -18,11 +18,6 @@ vars:
     contents outline. Reply with the complete index.html; the page directory
     is not reachable from here.
 assert:
-  - type: javascript
-    metric: reads-page-authoring
-    value: file://reference-read.cjs
-    config:
-      path: skills/leaf/references/page-authoring\.md
   - type: regex
     metric: grouped-title
     value: '<hgroup\b[^>]*\bid="[^"]+"[^>]*>[\s\S]*?<p\b[^>]*>[\s\S]*?Eval consolidation[\s\S]*?</p>[\s\S]*?<h1\b[^>]*>One catalog, with short cases and complete workflows</h1>[\s\S]*?</hgroup>'

@@ -24,7 +24,9 @@
  * decides whether the user is already there. Only a successful arrival commits its
  * departure to history, so browser Back returns the user to where they
  * were reading; a journey, trips each leaving from the last one's landing, is one
- * entry. A fragment link's trip (`followFragment`) departs by the browser's own entry,
+ * entry. A press or Tab onto another authored passage ends the journey even while its
+ * landing remains visible. Controls, chrome and runtime focus handoffs are not reading
+ * choices. A fragment link's trip (`followFragment`) departs by the browser's own entry,
  * and Back or Forward to a place the page has hidden since (`returnToFragment`) is a
  * trip that departs by none.
  */
@@ -48,17 +50,20 @@ import {
   shownRect,
 } from "./geometry.js";
 import { scrollBehavior } from "./motion.js";
-import { scrollersOf } from "./reading-regions.js";
+import { onReadingInput, scrollersOf } from "./reading-regions.js";
 import { prepareEntry } from "./history.js";
 import { pageScroller } from "./scrolling.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { renderedParent } from "./shadow.js";
-import { reveal } from "./widget-elements.js";
+import { PRESSABLE, reveal } from "./widget-elements.js";
 import { threadNames } from "./thread/model.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { targetElement, targetPlace, targetSegments } from "./resolved-target.js";
-import { pageText, rangeOf, selectEnds } from "./passages.js";
+import { closestAcross, pageText, rangeOf, selectEnds } from "./passages.js";
 import { standingPoint } from "./pointed-place.js";
+import { PRESSES } from "./control-selectors.js";
+import { typesText } from "./focus.js";
+import { openingPassage, passageBlock } from "./reading-place.js";
 
 // The browser's rule for landing the element a fragment names: its start at its
 // scroller's landing edge, which a sticky header's stated height keeps clear. Travel
@@ -89,8 +94,9 @@ export function createAnchorTravel({
   // A destination already readable where the user stands is no departure. A trip that
   // names its `landing` while any of the last trip's landing still shows continues that
   // journey, whether it goes to threads or Asks: it replaces the journey's entry, which
-  // already holds where the journey began. Once the user has moved off that landing, the
-  // next trip pushes again. A journey is not a walk (the glossary's ordered movement
+  // already holds where the journey began. Choosing a different authored passage by
+  // pointer or Tab ends the journey, as does moving off its landing. The next successful
+  // trip then saves the newly chosen working place. A journey is not a walk (the glossary's ordered movement
   // among one category of destination): steps of the thread walk and of the queue
   // walk, or a press on a margin marker, can all be trips of one journey. The landing is a lookup
   // rather than a node because the thread pass repaints marks, and the entry
@@ -99,6 +105,14 @@ export function createAnchorTravel({
   const journeyPrefix = `${performance.timeOrigin}:`;
   let trips = 0;
   let journey = null;
+
+  onReadingInput((node) => {
+    if (!journey || closestAcross(node, `${PRESSES},${PRESSABLE}`) || typesText(node))
+      return;
+    const passage = passageBlock(node);
+    if (!passage) return;
+    if (passage !== journey.passage()) journey = null;
+  });
 
   function stillLanded() {
     const where =
@@ -254,6 +268,10 @@ export function createAnchorTravel({
   function prepareTrip({ landing = null, url, keep = false, intent }) {
     const write = prepareEntry();
     const continuing = landing && stillLanded();
+    const arrival = landing && {
+      landing,
+      passage: () => openingPassage(landing()),
+    };
     let moving;
     return {
       plan(where, { there = (readable) => readable(where) } = {}) {
@@ -264,10 +282,13 @@ export function createAnchorTravel({
       commit() {
         if (moving === undefined) return;
         if (!moving) {
-          if (continuing) journey.landing = landing;
+          if (continuing) Object.assign(journey, arrival);
           return;
         }
-        journey = landing && { token: journeyPrefix + ++trips, landing };
+        journey = arrival && {
+          token: journeyPrefix + ++trips,
+          ...arrival,
+        };
         write(
           url ?? window.location.href,
           journey && { lfJourney: journey.token },

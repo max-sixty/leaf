@@ -36,7 +36,7 @@ def path_location(path: Path) -> PathLocation:
     while True:
         try:
             identity = ancestor.stat()
-        except (FileNotFoundError, NotADirectoryError):
+        except FileNotFoundError, NotADirectoryError:
             tail.append(ancestor.name)
             ancestor = ancestor.parent
             continue

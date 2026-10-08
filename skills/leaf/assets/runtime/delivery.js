@@ -10,6 +10,7 @@ import { runtime } from "./context.js";
 import { postEvent } from "./layer-client.js";
 import { notice } from "./notifications.js";
 import { pendingTraffic } from "./traffic.js";
+import { afterScript } from "./rendering.js";
 
 const RETRY_MS = 2000;
 const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
@@ -92,8 +93,10 @@ export function createDelivery({
         (!("attempt" in answer) || answer.attempt === event.attempt) &&
         answer.ok === false
       ) {
-        notice(`Couldn't send — ${answer.error || "the server refused it"}`);
-        return { accepted: null };
+        return {
+          accepted: null,
+          refusal: `Couldn't send — ${answer.error || "the server refused it"}`,
+        };
       }
       if (!announced) notice("Server answer was incomplete — retrying your change…");
       announced = true;
@@ -108,7 +111,7 @@ export function createDelivery({
       for (;;) {
         const entry = ledger.nextSending();
         if (!entry) break;
-        const { accepted, application } = await deliver(entry);
+        const { accepted, application, refusal } = await deliver(entry);
         if (accepted) ledger.accept(entry, accepted);
         else ledger.refuse(entry);
         pendingTraffic(ledger.sending());
@@ -121,7 +124,13 @@ export function createDelivery({
           reportApplicationError(error);
         } finally {
           if (application) void application.finally(() => entry.resolve(accepted));
-          else entry.resolve(accepted);
+          else {
+            entry.resolve(accepted);
+            // Answer listeners restore their draft and other rejected mechanical state.
+            // Present feedback at this script's checkpoint, after those listeners,
+            // so its geometry reads the foreground the user will actually see.
+            if (refusal) afterScript(() => notice(refusal));
+          }
         }
       }
     } finally {

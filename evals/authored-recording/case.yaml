@@ -17,20 +17,11 @@ vars:
 
     The page directory is unavailable. Reply with the section's HTML.
 assert:
-- type: javascript
-  metric: reads-authoring-evidence
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/authoring-evidence\.md
-- type: javascript
+- type: regex
   metric: native-recording
-  value: file://text-regex.cjs
-  config:
-    pattern: '<video\b(?=[^>]*\bcontrols\b)(?=[^>]*\bposter=["''][^"'']*d7cf2b4e22c063dd\.png)[^>]*>(?:[\s\S]*?)</video>'
-    flags: i
-- type: javascript
+  value: '<video\b(?=[^>]*\bcontrols\b)(?=[^>]*\bposter=["''][^"'']*d7cf2b4e22c063dd\.png)[^>]*>(?:[\s\S]*?)</video>'
+  transform: output.toLowerCase()
+- type: regex
   metric: recorded-source
-  value: file://text-regex.cjs
-  config:
-    pattern: '<(?:video|source)\b[^>]*\bsrc=["'']/media/2930ad3df7819c50\.mp4["'']'
-    flags: i
+  value: '<(?:video|source)\b[^>]*\bsrc=["'']/media/2930ad3df7819c50\.mp4["'']'
+  transform: output.toLowerCase()

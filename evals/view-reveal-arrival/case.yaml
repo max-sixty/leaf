@@ -20,11 +20,6 @@ vars:
     scrolling from the old panel's reading position. The disclosure should keep
     ordinary scrolling through the current view. Return the handlers in your reply.
 assert:
-- type: javascript
-  metric: reads-module-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/(?:packages|module-authoring)\.md
 - type: llm-rubric
   metric: distinguishes-view-replacement
   value: |

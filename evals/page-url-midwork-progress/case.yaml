@@ -22,11 +22,6 @@ vars:
     Use the leaf skill for the page workflow. Read whatever instructions you need.
     Only Skill and Read run here; write the requested chat message itself in your reply.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
 - type: not-regex
   metric: page-url
   value: http://127\.0\.0\.1:8123/

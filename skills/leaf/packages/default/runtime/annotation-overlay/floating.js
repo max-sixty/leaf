@@ -60,15 +60,14 @@ import { afterPresentation } from "/runtime/presentation.js";
 import { keeps, layoutPx as px, atLayoutPrecision } from "/runtime/keeps.js";
 import {
   anchorElement,
+  anchorFor,
   anchorHolder,
   anchorName,
-  carriedAnchor,
 } from "/runtime/anchor-names.js";
 import { holdFocus } from "/runtime/focus.js";
 import { shownBand } from "/runtime/geometry.js";
 import {
   followScroll,
-  scrollContainer,
   scrollFollows,
   scrollMotions,
   scrollOrigins,
@@ -171,20 +170,10 @@ export const floatingSelections = () => [...stood.values()];
 const physicalContext = (context) =>
   context instanceof Element ? context : context?.parentElement;
 
-// The box a surface anchors to for `context`. Words standing directly in a box that
-// scrolls them move with that scroll, which an anchor on the box itself does not
-// follow, so they anchor to what the scroll carries beside them (`carriedAnchor`). A
+// A surface anchors to `context` where anchors reach (anchor-names.js, `anchorFor`). A
 // motion layer would carry the same scroll, but Chrome can paint it a frame before or
 // after the words it carries; it stays for a scroll no anchor reaches, as inside a
 // shadow tree.
-function anchorFor(context) {
-  const physical = physicalContext(context);
-  if (!physical) return null;
-  const anchor = anchorElement(physical);
-  if (context === physical || anchor !== physical || !scrollContainer(physical))
-    return anchor;
-  return carriedAnchor(physical, context) ?? anchor;
-}
 
 // A presenter can retain this reading beside its reference rectangle before a
 // module load. The anchor box and scroll origins must describe that same geometry.

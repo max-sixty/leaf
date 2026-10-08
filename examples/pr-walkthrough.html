@@ -282,6 +282,8 @@ max-sixty/worktrunk #3865
               >
                 <pre>
 flowchart TB
+  accTitle: Unified diff preparation
+  accDescr: A selected row chooses a preview mode. Unified diff uses PreparedDiff for committed changes and TempIndex for staged, unstaged and untracked work; working and committed tabs remain available.
   Row[Selected row] --> Mode[Preview mode]
   Mode -. old default .-> Working["− working-tree diff"]
   Mode --> Unified["+ unified diff"]

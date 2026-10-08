@@ -29,7 +29,7 @@ def pid_alive(pid: int) -> bool:
     # is the opposite reading: it takes EPERM as proof that a process is there.
     try:
         os.kill(pid, 0)
-    except (ProcessLookupError, PermissionError):
+    except ProcessLookupError, PermissionError:
         return False
     return True
 
@@ -49,7 +49,7 @@ def process_info(pid: int) -> tuple[int, str] | None:
     try:
         process = psutil.Process(pid)
         return process.ppid(), process.name()
-    except (psutil.NoSuchProcess, psutil.AccessDenied):
+    except psutil.NoSuchProcess, psutil.AccessDenied:
         return None
 
 
@@ -82,7 +82,7 @@ def process_argv(pid: int) -> list[str] | None:
 
     try:
         return psutil.Process(pid).cmdline()
-    except (psutil.NoSuchProcess, psutil.AccessDenied):
+    except psutil.NoSuchProcess, psutil.AccessDenied:
         return None
 
 

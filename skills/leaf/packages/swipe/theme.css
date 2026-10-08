@@ -264,13 +264,13 @@
   justify-self: end;
 }
 
-.lf-swipe-pass:hover:not(:disabled) {
+.lf-swipe-pass:hover:not(:disabled):not([aria-disabled="true"]) {
   border-color: var(--danger);
   color: var(--danger-ink);
 }
 
-.lf-swipe-keep:hover:not(:disabled),
-.lf-swipe-return:hover:not(:disabled) {
+.lf-swipe-keep:hover:not(:disabled):not([aria-disabled="true"]),
+.lf-swipe-return:hover:not(:disabled):not([aria-disabled="true"]) {
   border-color: var(--ok);
   color: var(--ok-ink);
 }
@@ -317,8 +317,8 @@
   }
 }
 
-.lf-swipe-pass:disabled,
-.lf-swipe-keep:disabled {
+.lf-swipe-pass:is(:disabled, [aria-disabled="true"]),
+.lf-swipe-keep:is(:disabled, [aria-disabled="true"]) {
   color: var(--muted);
   cursor: default;
   opacity: .55;

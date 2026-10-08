@@ -1,0 +1,98 @@
+[
+  {
+    "id": "schema annotations",
+    "before": {
+      "type": "string",
+      "description": "Before"
+    },
+    "after": {
+      "type": "string",
+      "description": "After"
+    },
+    "same": true
+  },
+  {
+    "id": "literal dependency property name",
+    "before": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "ack": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "dependentRequired": {
+        "description": ["ack"]
+      }
+    },
+    "after": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "ack": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false,
+      "dependentRequired": {
+        "description": []
+      }
+    },
+    "same": false
+  },
+  {
+    "id": "boolean is not numeric",
+    "before": {
+      "enum": [true]
+    },
+    "after": {
+      "enum": [1]
+    },
+    "same": false
+  },
+  {
+    "id": "literal enum object keys",
+    "before": {
+      "enum": [
+        {
+          "description": "Before"
+        }
+      ]
+    },
+    "after": {
+      "enum": [
+        {
+          "description": "After"
+        }
+      ]
+    },
+    "same": false
+  },
+  {
+    "id": "subschema annotations",
+    "before": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "Before"
+        }
+      }
+    },
+    "after": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string",
+          "description": "After"
+        }
+      }
+    },
+    "same": true
+  }
+]

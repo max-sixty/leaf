@@ -28,6 +28,7 @@ from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import session as session_model
 from leaf import state as cleanup_model
+from leaf import thread as thread_model
 from leaf import user_views as user_views_model
 from leaf.leases import release_lease, take_lease, waiter_lease_path
 from leaf.render_checks import rendered, wait_until_ready
@@ -210,7 +211,7 @@ def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
         "Which map should the sample team carry?"
     )
     frame.locator(".lf-threads-toggle").click()
-    expect(frame.locator(".lf-thread-panel")).to_have_attribute("open", "")
+    expect(frame.locator(".lf-thread-panel")).to_be_visible()
     frame.goto(frame.url)
     wait_until_ready(frame)
     assert urlparse(frame.url).path == "/versions/v2.html"
@@ -626,14 +627,17 @@ def _hold_startup(page, stage):
 
 
 @pytest.mark.parametrize("stage", ["module", "state"])
+@pytest.mark.parametrize("touch", [False, True])
 def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
-    browser, serve, stage
+    browser, serve, stage, touch
 ):
     """`t` walks threads the first state answer brings, so a press before presentation
     is held, shown as held, and replayed into the presented page — whether the runtime
     had not loaded or had loaded and not yet read the log."""
     url = serve(HELD_KEYS_PAGE, events=[HELD_KEYS_THREAD])
-    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    page = browser.new_page(
+        viewport={"width": 390 if touch else 1200, "height": 900}, has_touch=touch
+    )
     watched(page)
     held, release = _hold_startup(page, stage)
     page.goto(url, wait_until="commit")
@@ -646,6 +650,9 @@ def test_a_key_pressed_before_presentation_runs_once_the_page_presents(
     echo = page.locator(".lf-held-keys")
     expect(echo).to_contain_text("Page still loading")
     expect(echo.locator("kbd")).to_have_text("t")
+    bounds = echo.bounding_box()
+    assert bounds and bounds["y"] >= 0
+    assert bounds["y"] + bounds["height"] <= page.viewport_size["height"], bounds
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
 
     release()
@@ -5201,6 +5208,139 @@ def test_an_idle_page_keeps_its_dom_and_data_subscriptions_at_rest(browser, serv
           return {mutations: window.idleMutations, deliveries: window.idleDeliveries};
         }"""
     ) == {"mutations": 0, "deliveries": 1}
+
+
+def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
+    browser, serve
+):
+    """Active and frozen consumers keep their declarations as a source is rebound.
+
+    A changed contract must reach the browser even with identical value bytes, clear
+    the incompatible consumer, and leave its subscription able to recover.
+    """
+
+    def entry(tag, contract):
+        return {
+            "description": "An instrumented data reader.",
+            "type": "object",
+            "properties": {
+                "id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"},
+                "source": {"type": "string", "pattern": "^[a-z][a-z0-9-]*$"},
+            },
+            "required": ["id", "source"],
+            "additionalProperties": False,
+            "x-content": "empty",
+            "x-upgrade": True,
+            "x-data": {"data": {"contract": contract, "source": "source"}},
+            "x-example": f'<{tag} id="example-{contract}" source="shared"></{tag}>',
+        }
+
+    def module(tag):
+        return """import {watchData} from '/runtime/widget-api.js';
+customElements.define(TAG, class extends HTMLElement {
+  connectedCallback() {
+    if (this.started) return;
+    this.started = true;
+    window.dataDeliveries ??= [];
+    this.stop = watchData(this, 'data', snapshot => {
+      window.dataDeliveries.push({id: this.id, snapshot});
+      const text = JSON.stringify(snapshot?.value ?? null);
+      if (this.textContent !== text) this.textContent = text;
+    });
+  }
+  disconnectedCallback() { this.stop?.(); }
+});""".replace("TAG", json.dumps(tag))
+
+    authored = leaf_page(
+        "Different contracts",
+        '<h1 id="title">Feeds</h1>'
+        '<lf-array-feed id="page-feed" source="shared"></lf-array-feed>',
+    )
+    url = serve(
+        authored,
+        layer_registry={
+            "lf-array-feed": entry("lf-array-feed", "rows"),
+            "lf-object-feed": entry("lf-object-feed", "other-rows"),
+            "$data": {
+                "contracts": {
+                    "rows": {"description": "Rows.", "schema": {"type": "array"}},
+                    "other-rows": {
+                        "description": "Another contract.",
+                        "schema": {"type": ["array", "object"]},
+                    },
+                }
+            },
+        },
+        layer_widgets={
+            "lf-array-feed.js": module("lf-array-feed"),
+            "lf-object-feed.js": module("lf-object-feed"),
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "question",
+            "author": "user",
+            "revision": 1,
+            "text": "Another feed.",
+        },
+    )
+    thread_model.cmd_reply(
+        serve.page_dir,
+        "question",
+        "Frozen feed.",
+        '<lf-object-feed id="thread-feed" source="shared"></lf-object-feed>',
+        for_event="question",
+    )
+    data_model.cmd_data_set(serve.page_dir, "shared", ["same bytes"])
+    page = open_page(browser, url)
+    page.keyboard.press("c")
+    expect(page.locator("#page-feed")).to_have_text('["same bytes"]')
+    expect(page.locator("#thread-feed")).to_have_text("null")
+    consume_browser_errors(page, "watchData(lf-object-feed, data) requires other-rows")
+    read = """async () => {
+      const {readAndApply} = await window.__lfRuntimeImport('/runtime/application.js');
+      await readAndApply();
+    }"""
+    wire = "async () => (await (await fetch('/api/state')).json()).data"
+
+    def rebind(contract, value):
+        (serve.page_dir / "index.html").write_text(
+            authored
+            if contract == "rows"
+            else authored.replace("lf-array-feed", "lf-object-feed")
+        )
+        data_model.cmd_data_set(serve.page_dir, "shared", value)
+        page.evaluate(read)
+        return page.evaluate(wire)
+
+    original = page.evaluate(wire)
+    rebound = rebind("other-rows", ["same bytes"])
+    expect(page.locator("#page-feed")).to_have_text("null")
+    expect(page.locator("#thread-feed")).to_have_text('["same bytes"]')
+    assert (
+        original["sources"]["shared"]["revision"]
+        == rebound["sources"]["shared"]["revision"]
+    )
+    assert original["version"] != rebound["version"]
+    consume_browser_errors(page, "watchData(lf-array-feed, data) requires rows")
+
+    calls = page.evaluate("window.dataDeliveries.length")
+    page.evaluate(read)
+    page.evaluate(read)
+    assert page.evaluate("window.dataDeliveries.length") == calls
+    assert page.lf_errors == []
+
+    rebind("rows", ["same bytes"])
+    expect(page.locator("#page-feed")).to_have_text('["same bytes"]')
+    expect(page.locator("#thread-feed")).to_have_text("null")
+    consume_browser_errors(page, "watchData(lf-object-feed, data) requires other-rows")
+
+    rebind("other-rows", {"new": "object meaning"})
+    expect(page.locator("#page-feed")).to_have_text("null")
+    expect(page.locator("#thread-feed")).to_have_text('{"new":"object meaning"}')
+    consume_browser_errors(page, "watchData(lf-array-feed, data) requires rows")
 
 
 def test_data_subscriptions_use_own_keys_and_failed_mounts_leave_no_listener(

@@ -7,6 +7,8 @@ One timeline steps through recorded calls' available Before, Action and After
 checkpoints in timestamp order (or Start and Completion when no checkpoints
 were captured). The review opens at the first checkpoint with saved elements,
 or the first image when no elements were saved. Earlier stops remain reachable.
+The source choices stay visible above the timeline. Arrow keys on those choices
+switch the recorded page or API stream; arrow keys on the timeline step its stops.
 Show intermediate frames inserts the browser's original
 filmstrip images into that same timeline. A saved element is a node in the
 recorded accessibility tree; its path distinguishes controls with the same name.

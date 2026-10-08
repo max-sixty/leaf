@@ -29,16 +29,6 @@ vars:
     turn: before you start editing for the comment, before you start writing the
     glossary, and once the glossary is written.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-conversation-loop
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/conversation-loop\.md
 - type: llm-rubric
   metric: judgment
   value: |

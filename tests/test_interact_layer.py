@@ -8,13 +8,13 @@ import shutil
 import subprocess
 import sys
 import threading
+import tomllib
 from datetime import datetime
 from pathlib import Path
 
 import playwright
 import pytest
 import tinycss2
-import tomllib
 import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool, _retire
@@ -724,8 +724,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
     # payload naming one — in the project file, or in a `uv.toml` beside it —
     # so that is what this forbids. Read off the lines rather than a parsed
     # table because a comment is free to discuss an index where a setting is
-    # not, and the project's own floor is 3.10, with no `tomllib` to parse
-    # with. The nightly test below drives the same claim through a real
+    # not. The nightly test below drives the same claim through a real
     # resolve against a closed port; this is the half every run sees.
     configured = [
         line
@@ -997,7 +996,7 @@ def test_init_and_revendoring_preserve_the_page_owned_contribution(
     revendored = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert revendored.exit_code == 0, revendored.output
-    assert registry_storage.layer_generation(page) != generation
+    assert registry_storage.layer_generation(page) == generation
     assert {name: (authored / name).read_text() for name in files} == files
     assert "lf-local" not in registry_storage.load_registry(page)
     composed = registry_storage.read_page_registry(page)
@@ -1588,7 +1587,7 @@ _LAYER_SHEET_ORDER = [
 
 
 def test_the_injected_control_face_is_a_default_only_the_document_reads():
-    """`.lf-ui` is a default. `offer()` writes it on every control a widget builds, and a
+    """`.lf-ui-face` is a native default. `offer()` writes it on native controls, and a
     component that states the same property overrides it, so the face stands first in
     the layer's page-side order and loses on position. It keeps a class's specificity,
     so the page's own element rules lose to it. And a declared tree copies shadow.css,
@@ -1612,12 +1611,18 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
     assert faces, "no face was read from the layer's sheets — the reading is broken"
     # Public controls and injected controls share this one default; its root boundary
     # and class weight still protect shadow content and win over page element rules.
-    control_face = ":where(:root) :is(.lf-ui, .button, .field)"
+    control_face = ":where(:root) :is(.lf-ui-face, .button, .field)"
     assert faces[0] == ("assets/shadow.css", control_face), faces[0]
     defaults = [
         face
         for face in faces
-        if face[1] in {".lf-ui", ":where(.lf-ui)", ":where(:root) .lf-ui", control_face}
+        if face[1]
+        in {
+            ".lf-ui-face",
+            ":where(.lf-ui-face)",
+            ":where(:root) .lf-ui-face",
+            control_face,
+        }
     ]
     assert defaults == [faces[0]], defaults
 
@@ -1686,8 +1691,8 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
         assert literal in theme
 
 
-def test_layer_identity_distinguishes_content_from_a_vendoring_epoch(tmp_path):
-    """The stable identity follows bytes while generation still invalidates old tabs."""
+def test_identical_init_preserves_the_installed_layer(tmp_path):
+    """No contract transition means no writes or invalidation of an open tab."""
     runner = CliRunner()
     page = tmp_path / "page"
     first_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
@@ -1699,11 +1704,86 @@ def test_layer_identity_distinguishes_content_from_a_vendoring_epoch(tmp_path):
     assert state.exit_code == 0, state.output
     assert json.loads(state.output)["layer"] == first
 
+    files = {
+        path.relative_to(page): (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in page.rglob("*")
+        if path.is_file()
+    }
+    planned = runner.invoke(cli_model.cli, ["page", "init", "--dry-run", str(page)])
+    assert planned.exit_code == 0, planned.output
+    assert json.loads(planned.output) == {"page": str(page), "changed": False}
     second_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert second_init.exit_code == 0, second_init.output
     second = interact_files.read_json(page / "registry.json")["$layer"]
     assert second["fingerprint"] == first["fingerprint"]
+    assert second == first
+    assert {
+        path.relative_to(page): (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in page.rglob("*")
+        if path.is_file()
+    } == files
+
+
+@pytest.mark.parametrize("damage", ["modified", "missing", "stale", "metadata"])
+def test_init_repairs_installed_files_with_a_new_generation(tmp_path, damage):
+    runner = CliRunner()
+    page = tmp_path / "page"
+    assert runner.invoke(cli_model.cli, ["page", "init", str(page)]).exit_code == 0
+    original = interact_files.read_json(page / "registry.json")["$layer"]
+    theme = (page / "theme.css").read_bytes()
+    if damage == "modified":
+        (page / "theme.css").write_bytes(theme + b"\n/* edited installed bytes */\n")
+    elif damage == "missing":
+        (page / "theme.css").unlink()
+    elif damage == "stale":
+        (page / "runtime" / "obsolete.js").write_text("export {};\n")
+    else:
+        registry = interact_files.read_json(page / "registry.json")
+        del registry["$layer"]["generation"]
+        (page / "registry.json").write_text(json.dumps(registry))
+    planned = runner.invoke(cli_model.cli, ["page", "init", "--dry-run", str(page)])
+    assert planned.exit_code == 0, planned.output
+    assert json.loads(planned.output)["changed"]
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    repaired = interact_files.read_json(page / "registry.json")["$layer"]
+    assert repaired["generation"] != original["generation"]
+    assert repaired["fingerprint"] == original["fingerprint"]
+    assert (page / "theme.css").read_bytes() == theme
+    assert not (page / "runtime" / "obsolete.js").exists()
+
+
+@pytest.mark.parametrize(
+    "input_name", ["server.py", "pyproject.toml", "uv.lock", "python"]
+)
+def test_server_inputs_require_a_transition_without_browser_changes(
+    tmp_path, monkeypatch, input_name
+):
+    """The installed browser bytes cannot identify a changed serving process."""
+    payload = tmp_path / "payload"
+    script = payload / "skills/leaf/scripts/server.py"
+    script.parent.mkdir(parents=True)
+    script.write_text("# original\n")
+    for name in ("pyproject.toml", "uv.lock"):
+        (payload / name).write_text("# original\n")
+    monkeypatch.setattr(layer_model, "PLUGIN_ROOT", payload)
+    runner = CliRunner()
+    page = tmp_path / "page"
+    first_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert first_init.exit_code == 0, first_init.output
+    first = interact_files.read_json(page / "registry.json")["$layer"]
+    if input_name == "python":
+        monkeypatch.setattr(layer_model.sys, "version", "a different interpreter")
+    else:
+        target = script if input_name == "server.py" else payload / input_name
+        target.write_text("# changed\n")
+    second_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert second_init.exit_code == 0, second_init.output
+    second = interact_files.read_json(page / "registry.json")["$layer"]
     assert second["generation"] != first["generation"]
+    assert second["server"] != first["server"]
+    assert second["fingerprint"] == first["fingerprint"]
+    assert second["runtime"] == first["runtime"]
 
 
 PLAIN_PAGE = (
@@ -3794,9 +3874,9 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
 
     installed = runner.invoke(cli_model.cli, ["package", "install", str(source)])
 
-    stored = machine_model.package_store() / "callout"
     assert installed.exit_code == 0, installed.output
-    assert json.loads(installed.output) == {"package": str(stored)}
+    stored = Path(json.loads(installed.output)["package"])
+    assert layer_model.named_package("callout") == stored
     assert sorted(path.name for path in stored.iterdir()) == [
         "instructions",
         "registry.json",
@@ -3819,46 +3899,74 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
     assert (page / "widgets" / "lf-callout.js").is_file()
 
 
-def test_package_install_never_changes_which_directory_a_name_means(
-    tmp_path, monkeypatch
+@pytest.mark.parametrize("name", ["callout", "diagram", "default"])
+def test_package_install_replaces_a_name_without_changing_held_readers(
+    tmp_path, monkeypatch, name
 ):
-    """A taken name is refused, whichever root already answers to it.
+    """Installation publishes one complete snapshot; invalid replacements preserve it.
 
-    Installed and bundled are one refusal because they come from the one lookup
-    `--package` resolves through.
+    This holds for an existing installed name and an override of any bundled name,
+    including an explicitly selected default overlay.
     """
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
-    store = machine_model.package_store()
-    for name in ("callout", "diagram"):
-        created = runner.invoke(cli_model.cli, ["package", "init", f"src/{name}"])
-        assert created.exit_code == 0, created.output
-    first = runner.invoke(cli_model.cli, ["package", "install", "src/callout"])
+    source = tmp_path / "src" / name
+    created = runner.invoke(cli_model.cli, ["package", "init", str(source)])
+    assert created.exit_code == 0, created.output
+    add_test_widget(source, "lf-installed", upgrade=True)
+    (source / "theme.css").write_text("lf-installed { color: teal; }\n")
+    first = runner.invoke(cli_model.cli, ["package", "install", str(source)])
     assert first.exit_code == 0, first.output
-    (store / "callout" / "theme.css").write_text("lf-callout { color: teal; }\n")
-    before = {
-        path.relative_to(store): path.read_bytes()
-        for path in store.rglob("*")
-        if path.is_file()
-    }
+    held = layer_model.named_package(name)
+    assert held == Path(json.loads(first.output)["package"])
+    first_registry = (held / "registry.json").read_bytes()
+    (source / "theme.css").write_text("lf-installed { color: purple; }\n")
+    source_registry = source / "registry.json"
+    updated = json.loads(source_registry.read_text())
+    updated["lf-installed"]["description"] = "Replacement snapshot."
+    source_registry.write_text(json.dumps(updated))
+    replace = packages_model.os.replace
+    observations = []
 
-    standing = runner.invoke(cli_model.cli, ["package", "install", "src/callout"])
-    bundled = runner.invoke(cli_model.cli, ["package", "install", "src/diagram"])
+    def at_publication(staged, destination):
+        if Path(staged).name == "selection":
+            observations.append(layer_model.named_package(name))
+            assert (held / "theme.css").read_text() == "lf-installed { color: teal; }\n"
+        replace(staged, destination)
+        if Path(staged).name == "selection":
+            observations.append(layer_model.named_package(name))
 
-    assert standing.exit_code != 0
-    assert f"'callout' already resolves to {store / 'callout'}" in standing.output
-    assert "remove that directory to replace it" in standing.output
-    assert bundled.exit_code != 0
+    with monkeypatch.context() as publication:
+        publication.setattr(packages_model.os, "replace", at_publication)
+        second = runner.invoke(cli_model.cli, ["package", "install", str(source)])
+    assert second.exit_code == 0, second.output
+    current = layer_model.named_package(name)
+    assert observations == [held, current] and held != current
+    assert (held / "registry.json").read_bytes() == first_registry
+    assert (held / "theme.css").read_text() == "lf-installed { color: teal; }\n"
     assert (
-        f"'diagram' already resolves to {schema_model.BUNDLED_PACKAGES / 'diagram'}"
-        in bundled.output
+        json.loads((current / "registry.json").read_text())["lf-installed"][
+            "description"
+        ]
+        == "Replacement snapshot."
     )
-    assert "rename the source directory" in bundled.output
-    assert {
-        path.relative_to(store): path.read_bytes()
-        for path in store.rglob("*")
-        if path.is_file()
-    } == before
+    assert (current / "theme.css").read_text() == "lf-installed { color: purple; }\n"
+
+    page = tmp_path / "page"
+    vendored = runner.invoke(
+        cli_model.cli, ["page", "init", "--package", name, str(page)]
+    )
+    assert vendored.exit_code == 0, vendored.output
+    assert (
+        json.loads((page / "registry.json").read_text())["lf-installed"]["description"]
+        == "Replacement snapshot."
+    )
+    assert "lf-installed { color: purple; }" in (page / "theme.css").read_text()
+    (source / "theme.css").write_text(".bad { color red; }\n")
+    refused = runner.invoke(cli_model.cli, ["package", "install", str(source)])
+    assert refused.exit_code != 0 and "syntax error" in refused.output
+    assert layer_model.named_package(name) == current
+    assert (current / "theme.css").read_text() == "lf-installed { color: purple; }\n"
 
 
 def test_package_install_refuses_a_source_it_cannot_check_or_name(
@@ -4121,7 +4229,10 @@ cli.cli.main(args=sys.argv[1:], standalone_mode=False)
         f"lf-parallel-{index}" for index in range(len(routes))
     }
 
-    for held_package in (package, other_state / "leaf" / "packages" / package.name):
+    for held_package in (
+        package,
+        other_state / "leaf" / "packages" / "locks" / package.name,
+    ):
         with packages_model.package_write_lock(held_package):
             installing = spawn(
                 [sys.executable, "-c", observe, "package", "install", str(package)],
@@ -4134,11 +4245,7 @@ cli.cli.main(args=sys.argv[1:], standalone_mode=False)
                 installing.stdout.readline().strip() == "waiting on shared destination"
             )
         out, err = installing.communicate(timeout=STATED_TIMEOUT)
-        if held_package == package:
-            assert installing.returncode == 0, out + err
-        else:
-            assert installing.returncode != 0
-            assert "already resolves to" in err
+        assert installing.returncode == 0, out + err
 
 
 def test_package_install_checks_the_bytes_it_publishes(tmp_path, monkeypatch):
@@ -4157,7 +4264,7 @@ def test_package_install_checks_the_bytes_it_publishes(tmp_path, monkeypatch):
     result = CliRunner().invoke(cli_model.cli, ["package", "install", str(source)])
     assert result.exit_code != 0
     assert "syntax error" in result.output
-    assert not (machine_model.package_store() / source.name).exists()
+    assert layer_model.named_package(source.name) is None
 
 
 def test_package_init_widget_stages_only_the_package_contract(tmp_path, monkeypatch):
@@ -4594,20 +4701,13 @@ def test_page_init_does_not_treat_an_unknown_bare_name_as_a_path(tmp_path, monke
     assert not page.exists()
 
 
-def test_page_init_refuses_to_select_the_always_included_default_package(
-    tmp_path, monkeypatch
-):
-    monkeypatch.chdir(tmp_path)
+def test_selecting_the_bundled_default_package_is_redundant(tmp_path):
     page = tmp_path / "page"
-
     result = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "init", "--package", "default", str(page)],
+        cli_model.cli, ["page", "init", "--package", "default", str(page)]
     )
-
-    assert result.exit_code == 1
-    assert "package 'default' is already included in every page" in result.output
-    assert not page.exists()
+    assert result.exit_code == 0, result.output
+    assert "lf-options" in json.loads((page / "registry.json").read_text())
 
 
 def test_page_init_refuses_to_publish_an_absolute_package_path(tmp_path, monkeypatch):

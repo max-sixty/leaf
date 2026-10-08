@@ -86,7 +86,8 @@
    has less of than the window says. */
 :scope:is(lf-command) { container: lf-command / inline-size; }
 :scope:is(lf-task) { display: block; position: relative; padding-left: 26px; margin: 8px 0; }
-:scope:is(lf-task)::before { content: ""; position: absolute; left: 6px; top: 5px;
+:scope:is(lf-task)::before { content: ""; position: absolute; left: 6px; top: 0.5lh;
+                  transform: translateY(-50%);
                   width: 10px; height: 10px; border-radius: 50%;
                   background: var(--paper); border: 2px solid var(--muted); }
 :scope:is(lf-task)[status="done"]::before    { background: var(--ok); border-color: var(--ok); }

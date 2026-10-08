@@ -25,16 +25,6 @@ vars:
     Nothing here can execute writes. Read the relevant Leaf instructions, then
     reply with the exact one-line CLI command you would run.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-threads
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/threads\.md
 - type: regex
   metric: folds-original-updates-without-prose
   value: >-

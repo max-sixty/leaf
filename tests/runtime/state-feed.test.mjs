@@ -112,7 +112,13 @@ test("a return stays interrupted until its refreshed reading is actually present
       let news = "initial";
       let reads = 0;
       t.mock.method(globalThis, "fetch", async (url) => {
-        if (new URL(url).pathname === "/api/news") return new Response(news);
+        const path = new URL(url).pathname;
+        if (path === "/api/news") return new Response(news);
+        // The diagnostic stream may flush while this reading is held. Its POST,
+        // and a reported presentation fault, are not state reads.
+        if (path === "/api/interaction") return new Response(null, { status: 204 });
+        if (path === "/api/event") return Response.json({ ok: true });
+        assert.equal(path, "/api/state", `unexpected feed request: ${url}`);
         reads += 1;
         if (mode === "offline" && reads === 2) throw new Error("network absent");
         return Response.json(state(reads === 1 ? "first" : "second"));

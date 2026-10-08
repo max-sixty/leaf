@@ -49,7 +49,7 @@ class PageSnapshot:
     others: tuple[dict, ...]
     reading: str
 
-    def through(self, sequence: int) -> "PageSnapshot":
+    def through(self, sequence: int) -> PageSnapshot:
         """This snapshot served as the page stood once event `sequence` was appended
         (`PageRead.through`)."""
         return replace(self, context=self.context.through(sequence))

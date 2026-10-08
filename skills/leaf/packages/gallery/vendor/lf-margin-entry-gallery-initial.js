@@ -1,5 +1,5 @@
 (() => {
-  // skills/leaf/packages/gallery/runtime/initial.js
+  // skills/leaf/packages/gallery/initial.js
   var GROUPS = [
     {
       heading: "Rank and behavior",

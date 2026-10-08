@@ -4,7 +4,7 @@
     <title>How leaf works</title>
     <meta
       name="description"
-      content="The mechanism behind leaf, one part per tab: the loop that carries your feedback to the agent, what a page is made of, how it is laid out, how revisions keep your decisions, where its data lives and how its state is derived, and how it is served."
+      content="The mechanism behind leaf, one part per tab: feedback, pages, layout, navigation, revisions, data, and serving."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
@@ -146,6 +146,8 @@
             >
               <pre>
 sequenceDiagram
+  accTitle: Agent, Leaf server and browser exchange
+  accDescr: The agent sends authored files and commands to Leaf. Leaf sends the page and state to the browser, receives comments and decisions, and delivers the event batch back to the agent through its harness.
   participant Agent as agent session
   participant Leaf as leaf server
   participant Browser as your browser
@@ -1180,6 +1182,8 @@ python -m leaf server _serve &lt;page&gt; --handshake &lt;fd&gt;</code></pre>
             >
               <pre>
 flowchart TD
+  accTitle: Checks before an agent turn ends
+  accDescr: New input is handed into the turn. Otherwise Leaf checks whether it already extended the turn, whether a delivered move remains unanswered, and whether a watcher runs or the page is closed; it either lets the turn end or reminds the agent to continue.
   Stop(["the agent ends its turn"]) --&gt; New(["a move that needs an answer arrived?"])
   New -- yes --&gt; Hand["Leaf hands it into this turn"]
   New -- no --&gt; Again(["Leaf kept this turn going already?"])
@@ -1284,6 +1288,8 @@ flowchart TD
             >
               <pre>
 flowchart LR
+  accTitle: Agent commands and visible outcomes
+  accDescr: Replies appear in threads, tasks in the Queue panel, stamped versions on the page, reports on their widgets, and status in the banner and nearby labels.
   subgraph Sources["Who writes it"]
     Reply["agent: leaf thread reply · leaf thread open"]
     Awaits["agent: leaf thread reply --awaits · leaf task open --on user"]
@@ -1477,6 +1483,8 @@ flowchart LR
             >
               <pre>
 flowchart TD
+  accTitle: How Leaf describes agent activity
+  accDescr: Idle closes the page and a stopped session has no owner. An active session is classified by current work, input acceptance, stale starts and stalled input into working, waiting, stalled, nudge or away states.
   Idle(["status idle?"]) -- no --&gt; Alive(["session running?"])
   Idle -- yes --&gt; Closed["Leaf closed"]
   Alive -- no --&gt; Unheld["No session"]
@@ -1679,8 +1687,9 @@ flowchart TD
               An edit normally preserves recorded choices. If the edit invalidates a
               decision, the agent marks the affected element <code>restated</code> and
               explains the change in the version note. Without that declaration, the
-              recorded choice still applies. Leaf rejects a revision that contradicts
-              it.
+              recorded choice still applies. The agent may revise wording, labels,
+              placement, and vocabulary; historical choices do not veto the edit. Their
+              original meaning remains in the event log.
             </p>
             <p id="undo">
               The <kbd>z</kbd> shortcut withdraws the user's last undoable action.
@@ -3035,6 +3044,522 @@ flowchart TD
           </section>
         </lf-tab>
 
+        <lf-tab id="navigation" label="Navigation">
+          <section id="navigation-basics">
+            <h2>Navigation</h2>
+            <p id="navigation-lede">
+              Leaf's shortcuts act where focus is. A thread, its passage, and its margin
+              card refer to the same place. Moving through threads follows that current
+              place; browser Back returns to an earlier reading place. Escape leaves the
+              current interaction one step at a time.
+            </p>
+            <table id="navigation-keys">
+              <thead>
+                <tr>
+                  <th>Intent</th>
+                  <th>Route</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Reach a control</td>
+                  <td>
+                    <kbd>Tab</kbd> / <kbd>Shift</kbd> + <kbd>Tab</kbd>;
+                    <kbd>Enter</kbd> activates it. A tab strip uses arrow keys.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Move through threads</td>
+                  <td>
+                    <kbd>t</kbd> advances; <kbd>Shift</kbd> + <kbd>t</kbd> goes back.
+                    The walk stops at either end.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Reach work waiting on the user</td>
+                  <td>
+                    <kbd>a</kbd> advances through the user's queue; <kbd>Shift</kbd> +
+                    <kbd>a</kbd> goes back.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Choose a destination</td>
+                  <td>
+                    <kbd>g</kbd> shows hints and named routes to panels, page edges,
+                    writing, and selection. The
+                    <a href="#navigation-go-to">complete Go-to map</a> lists the routes
+                    and their contexts.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Find text</td>
+                  <td>
+                    <kbd>/</kbd> opens search. <kbd>Enter</kbd> chooses a match;
+                    <kbd>n</kbd> / <kbd>Shift</kbd> + <kbd>n</kbd> then walk matches.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Read further</td>
+                  <td>
+                    <kbd>j</kbd> / <kbd>k</kbd> scroll a little; <kbd>d</kbd> /
+                    <kbd>u</kbd> move 60% of the visible reading area, including
+                    Threads. <kbd>g</kbd> then <kbd>u</kbd> goes to the first unread
+                    message. <kbd>g</kbd> then <kbd>z</kbd> aligns the current item at
+                    the top.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Leave or return</td>
+                  <td>
+                    <kbd>Escape</kbd> leaves one interaction. Browser Back / Forward
+                    traverses reading history. <kbd>z</kbd>, or More's Undo, takes back
+                    a recorded action.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p id="navigation-context">
+              The bottom bar shows the shortcuts available in the current context;
+              <kbd>?</kbd> expands it, and a second <kbd>?</kbd> opens the command
+              reference. Text fields keep typing and caret movement. On a touch screen,
+              thread titles, markers, Page Map, and More provide routes to the same
+              actions.
+            </p>
+            <details id="navigation-go-to">
+              <summary>The complete Go-to map</summary>
+              <p id="navigation-go-to-reading">
+                Press g, release it, then type the route. Uppercase letters mean Shift
+                plus that letter. Named routes stay fixed; the lowercase hints on
+                visible controls are generated for the current view. Only routes
+                available in the current context are offered.
+              </p>
+              <table id="navigation-go-to-routes">
+                <thead>
+                  <tr>
+                    <th>After g</th>
+                    <th>Destination or action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><kbd>T</kbd></td>
+                    <td>
+                      Open Threads and focus its selected thread; close Threads when it
+                      is already open.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>Q</kbd></td>
+                    <td>Open or close the Queue panel, when offered.</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>L</kbd></td>
+                    <td>
+                      Open or close the Leaves drawer, when neighbouring pages are
+                      available.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>M</kbd></td>
+                    <td>Open the searchable Page Map.</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>V</kbd></td>
+                    <td>Open the versions menu, when version history is available.</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>p</kbd></td>
+                    <td>
+                      Return to page reading and release the held target or margin card.
+                      A covering surface must close before the page is accessible.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>g</kbd> / <kbd>G</kbd></td>
+                    <td>
+                      Go to the page's top / bottom, or the covering surface's edges.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>k</kbd> / <kbd>j</kbd></td>
+                    <td>
+                      With a thread card or title focused, place that thread at the top
+                      / bottom of its list.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>z</kbd></td>
+                    <td>
+                      Align the current reading item at the top, retaining focus and
+                      selection. Bare z is Undo.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>u</kbd></td>
+                    <td>
+                      Go to the first unread message, from the page or Threads. Bare u
+                      scrolls up.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>i</kbd></td>
+                    <td>Resume the last writing place, when one is remembered.</td>
+                  </tr>
+                  <tr>
+                    <td><kbd>v</kbd></td>
+                    <td>Restore the last selected passage, when one is remembered.</td>
+                  </tr>
+                  <tr>
+                    <td>Visible hint letters</td>
+                    <td>
+                      Activate the labelled margin entry, tab, control, or link; reveal
+                      a disclosure at its summary. The hint names the current visible
+                      target, not a permanent shortcut.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p id="navigation-go-to-filters">
+                Lowercase <kbd>m</kbd>, <kbd>t</kbd>, <kbd>a</kbd>, <kbd>h</kbd>, and
+                <kbd>f</kbd> narrow the hints to margin targets, thread controls, Ask
+                controls, hyperlinks, and folds respectively. The next hint letters
+                choose within that category. Thus g then t filters thread controls; g
+                then T opens Threads.
+              </p>
+              <p id="navigation-go-to-exit">
+                Tab / Shift+Tab browse hints and Enter takes the announced target.
+                Escape removes the last hint letter, then a category filter, then
+                cancels the sequence. There is no timeout. Typing in an editor keeps the
+                letters with the editor.
+              </p>
+            </details>
+          </section>
+
+          <section id="navigation-thread-origin">
+            <h2>Leaving a thread and pressing t</h2>
+            <p id="navigation-thread-rule">
+              While focus is on a thread or its accompanied passage, <kbd>t</kbd>
+              advances from that thread. After focus moves elsewhere, the next
+              destination depends on the new place. Leaf keeps no separate “last thread”
+              cursor.
+            </p>
+            <details id="navigation-thread-cases">
+              <summary>Focus, scrolling, order, and filters</summary>
+              <table id="navigation-thread-table">
+                <thead>
+                  <tr>
+                    <th>Sequence or state</th>
+                    <th>Current result</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <kbd>t</kbd>, <kbd>Escape</kbd>, <kbd>t</kbd> in a margin card
+                    </td>
+                    <td>
+                      Escape returns focus to the passage. While its card still
+                      accompanies it, the next t advances from that thread.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <kbd>t</kbd>, <kbd>Escape</kbd>, <kbd>Escape</kbd>, <kbd>t</kbd>
+                    </td>
+                    <td>
+                      The second Escape lets go of the passage and takes its card down.
+                      The next t starts from the current reading place and can reopen
+                      the same thread.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Click a different passage, then <kbd>t</kbd></td>
+                    <td>
+                      The new place supplies the origin. An accompanying conversation is
+                      current; otherwise t enters a thread at that target or seeks one
+                      after it in page order. Shift+t seeks one before it.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Scroll away while retaining focus</td>
+                    <td>
+                      A held thread or target still supplies the origin. With neither
+                      held, the selection's working end or the visible reading block
+                      supplies it.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Threads closed</td>
+                    <td>
+                      The walk follows open threads in page order, revealing hidden tabs
+                      and disclosures as needed. A general or detached thread opens in
+                      Threads.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Threads open</td>
+                    <td>
+                      The walk follows the panel's shown list, its order and filters. It
+                      selects the thread and reveals its passage beside the panel where
+                      possible.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Threads has a text search</td>
+                    <td>
+                      Enter leaves the query box on a result; n / Shift+n then walk
+                      results within the panel. The text search takes precedence over
+                      the t walk there. Closing Threads restores the page's open-thread
+                      walk.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Threads shows Resolved or All</td>
+                    <td>
+                      The list walk can visit resolved threads too. The command
+                      reference calls t “Next shown thread” while Threads is open, and
+                      “Next open thread” on the page.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>At the first or last thread</td>
+                    <td>
+                      The walk stays at that end rather than wrapping to the other end.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Arrive at a long thread</td>
+                    <td>
+                      The landing shows its latest message and reply area where they
+                      fit, starting on a content boundary. A latest message taller than
+                      the reading area starts at its head. Earlier messages remain
+                      available by scrolling back.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </details>
+          </section>
+
+          <section id="navigation-resolution">
+            <h2>Resolving and replying</h2>
+            <p id="navigation-resolve-rule">
+              <kbd>r</kbd> resolves the focused open thread. In Threads, resolving a row
+              that leaves the shown list selects the next remaining row, or the previous
+              one at the end. A margin card closes and returns focus to its passage. A
+              thread embedded in the page folds in place.
+            </p>
+            <details id="navigation-resolution-cases">
+              <summary>List filters, replies, and undo</summary>
+              <table id="navigation-resolution-table">
+                <thead>
+                  <tr>
+                    <th>Sequence or state</th>
+                    <th>Current result</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Resolve the only shown thread</td>
+                    <td>
+                      The panel remains open with focus on its empty list. Resolving
+                      does not close Threads.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Clear the Open status filter, then resolve</td>
+                    <td>
+                      Both open and resolved threads are shown. The resolved row
+                      remains, so focus stays on it. Resolving advances only when the
+                      row disappears.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Type r in a reply box</td>
+                    <td>
+                      The box receives the letter. Escape returns to the thread before
+                      its resolve shortcut applies.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><kbd>c</kbd>, compose, send</td>
+                    <td>
+                      A panel reply returns focus to its thread; a margin reply returns
+                      to its passage with the card still open. A first comment in the
+                      page comment card closes that card and returns to its banner
+                      control. A general box that supports repeated messages keeps
+                      focus.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Undo a resolution</td>
+                    <td>
+                      The thread reopens. The panel or margin route returns focus to
+                      that thread; an embedded thread retains its place.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </details>
+          </section>
+
+          <section id="navigation-history">
+            <h2>Back and Forward</h2>
+            <p id="navigation-history-rule">
+              A trip to a destination that is not fully readable adds a return stop
+              after it succeeds. Consecutive trips share that stop while any of the
+              preceding landing remains visible and you have not clicked or Tabbed onto
+              a different passage. Back returns to where that journey began. A
+              destination already fully readable needs no new stop.
+            </p>
+            <details id="navigation-history-cases">
+              <summary>Which actions create a history entry?</summary>
+              <table id="navigation-history-table">
+                <thead>
+                  <tr>
+                    <th>Action</th>
+                    <th>History behavior</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      t, a, a marker, or Page Map reaches a hidden or clipped
+                      destination
+                    </td>
+                    <td>
+                      A successful trip pushes an entry, or replaces the current
+                      journey's entry. Changing focus alone adds none.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      Click or Tab onto a different passage, then take another trip
+                    </td>
+                    <td>
+                      The reading choice ends the journey even if the old landing
+                      remains visible. The next successful offscreen trip saves the
+                      newly chosen passage. Controls and runtime focus handoffs do not
+                      end it.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      Scroll completely away from the last landing, then take another
+                      trip
+                    </td>
+                    <td>The new trip adds a separate return stop.</td>
+                  </tr>
+                  <tr>
+                    <td>Follow a #fragment link</td>
+                    <td>
+                      The browser supplies a history entry. Leaf reveals the
+                      destination's enclosing tab or disclosure and lands on the named
+                      element.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Select a root page tab</td>
+                    <td>
+                      Changing the view adds an entry and remembers the outgoing view's
+                      reading position. Back / Forward returns between views. Embedded
+                      tab switches add no entry themselves.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      Scroll, search page text, align with g then z, open a panel,
+                      Escape, or resolve
+                    </td>
+                    <td>
+                      These actions add no reading-history entry themselves. Back
+                      neither undoes a resolution nor unwinds a panel.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Back / Forward returns</td>
+                    <td>
+                      Leaf restores the view and working focus or selection when the
+                      saved nodes survive and remain visible. A destination hidden since
+                      departure is revealed again. A newer gesture cancels a delayed
+                      return.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <p id="navigation-browser-support">
+                Leaf's enhanced return handling uses the browser's Navigation API.
+                Browsers without it retain their native traversal and fragment landing.
+              </p>
+            </details>
+          </section>
+
+          <section id="navigation-other-contexts">
+            <h2>Panels, search, and hidden destinations</h2>
+            <details id="navigation-escape-cases">
+              <summary>Escape's next step depends on focus</summary>
+              <p id="navigation-escape-rule">
+                A comment composer returns to the element it comments on; a reply box
+                returns to its thread. In Threads, Escape clears a narrowing before
+                closing the panel. On the page, a selection, target, or margin card can
+                unwind while a desktop panel stays open. A covering panel makes the page
+                behind it inaccessible until it closes.
+              </p>
+              <p id="navigation-comment-return">
+                <kbd>a</kbd>, <kbd>c</kbd>, <kbd>Escape</kbd> returns focus to the Ask,
+                with its option keys available again. A second Escape lets go of the
+                Ask. Commenting from an option or by aiming at the same Ask follows the
+                same return route. A visual comment returns to its current response
+                proxy, by keyboard or pointer entry. A comment on the whole page returns
+                to its banner control; closing a comment on selected words clears the
+                selection.
+              </p>
+              <p id="navigation-panel-exchange">
+                Opening Leaves or Queue in place of another auxiliary surface exchanges
+                surfaces. Escape closes the resulting surface; it does not reopen the
+                previous one. Opening a surface by pointer and by its keyboard route
+                gives it the same Escape parent.
+              </p>
+            </details>
+            <details id="navigation-reading-cases">
+              <summary>Scrolling keys follow the focused reading region</summary>
+              <p id="navigation-scroller-rule">
+                j / k and d / u scroll the reading region holding focus: the page, a
+                pane, or the thread list. g then u goes to the first unread message. The
+                <a href="#navigation-go-to">Go-to map</a> lists the routes for page
+                edges and item alignment.
+              </p>
+            </details>
+            <details id="navigation-queue-cases">
+              <summary>The queue walk can leave the panel's filtered list</summary>
+              <p id="navigation-queue-rule">
+                a walks work waiting on the user, including open Asks, thread questions,
+                and moves to send again. It can clear a thread filter that hides its
+                destination, or open a closed tab or disclosure. A single-choice Ask
+                ends when answered; a multiple-choice Ask waits for Done. A later a
+                press walks the remaining work.
+              </p>
+              <p id="navigation-tab-rule">
+                A tab strip's arrows select neighbouring tabs and wrap at its ends; Tab
+                leaves the strip for its contents. Thread and queue walks stop at their
+                ends. These are different kinds of movement, with their available
+                commands shown in the bottom bar.
+              </p>
+            </details>
+            <details id="navigation-search-cases">
+              <summary>Searching text and returning to reading</summary>
+              <p id="navigation-search-rule">
+                / searches the page, or Threads when focus is there. In the page's
+                search box, Tab / Shift+Tab walk matches; Enter chooses one and enables
+                n / Shift+n to repeat the search while reading. Page text matches wrap;
+                thread search results stop at their ends. Escape cancels the box and
+                restores the earlier focus. Typing in a search or reply box keeps letter
+                shortcuts with the editor.
+              </p>
+            </details>
+          </section>
+        </lf-tab>
+
         <lf-tab id="data" label="Data">
           <section id="data-home">
             <h2>Page files and history</h2>
@@ -3051,6 +3576,8 @@ flowchart TD
             >
               <pre>
 flowchart TD
+  accTitle: Page files, event log and external data produce current state
+  accDescr: Authored edits create immutable revisions, browser and command actions append to the event log, and external processes replace source files. Their combined reading supplies the browser and agent; view state and drafts remain local to the browser.
   subgraph Writers["Who writes"]
     Agent["agent edits index.html"]
     You["you, in the browser"]
@@ -3149,10 +3676,10 @@ flowchart TD
             <p id="data-sources-lede">
               External values, such as benchmark results or build status, use one JSON
               file per data source. The page declares the format each source must
-              provide; its first write records that contract in
-              <code>data.json</code> for the page's lifetime. Any process can replace
-              the source file. Leaf validates its value on each read and displays a
-              source error if it does not meet the contract.
+              provide; <code>data set</code> records the current contract in
+              <code>data.json</code>. A later revision may replace that contract. Any
+              process can replace the source file. Leaf validates its value on each read
+              and displays a source error if it does not meet the contract.
             </p>
             <p id="data-sources-live">
               Replacing a source file updates the open page without creating a document

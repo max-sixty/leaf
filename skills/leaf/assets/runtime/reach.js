@@ -68,8 +68,11 @@ import { keeps } from "./keeps.js";
 // A box the user can scroll. `hidden` scrolls too, for a script, and is a sticky box's
 // scroller (`scrollsBy`, geometry.js), but no stop or edge mark reaches what it hides.
 const SCROLLS = /^(auto|scroll)$/;
+// until-found retains its own box, unlike its skipped descendants. That hidden
+// box cannot be inspected, so its apparent overflow earns no keyboard stop.
 const overflows = (el) =>
-  el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
+  !el.hasAttribute("hidden") &&
+  (el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight);
 const holdsOwnStop = (el) => el.querySelector(TAB_STOP) !== null;
 // Each candidate with the `tabindex` its author gave it, or null for none. The pass
 // writes only the stop it lends, `0`, and takes back only that, to the author's value:
@@ -164,13 +167,17 @@ export function reachReadingScroller(el) {
 }
 
 function paintReadingReach(el) {
-  if (!downwards.has(el) || unpainted(el)) return;
-  const style = getComputedStyle(el);
-  const scrolling = SCROLLS.test(style.overflowY);
-  el.toggleAttribute(
-    PAGE_PAINT_ATTRIBUTE.moreBelow,
-    scrolling && el.scrollTop + el.clientHeight < el.scrollHeight - 1,
-  );
+  // End-following owners finish their scroll after registering or resizing the
+  // region. Paint its remaining-content cue from that final place in this turn.
+  afterScript(() => {
+    if (!downwards.has(el) || unpainted(el)) return;
+    const style = getComputedStyle(el);
+    const scrolling = SCROLLS.test(style.overflowY);
+    el.toggleAttribute(
+      PAGE_PAINT_ATTRIBUTE.moreBelow,
+      scrolling && el.scrollTop + el.clientHeight < el.scrollHeight - 1,
+    );
+  });
 }
 
 // Every element in the scope is asked, except content the browser skips (`skipped`,
@@ -255,7 +262,10 @@ function classify(el) {
   paintSlot(el, style);
   // The rest is for a box the user can scroll. One that no longer is gives back the
   // stop this pass lent it.
-  if (!SCROLLS.test(style.overflowX) && !SCROLLS.test(style.overflowY)) {
+  if (
+    el.hasAttribute("hidden") ||
+    (!SCROLLS.test(style.overflowX) && !SCROLLS.test(style.overflowY))
+  ) {
     if (!mayScroll.has(el)) return;
     const authored = mayScroll.get(el);
     mayScroll.delete(el);

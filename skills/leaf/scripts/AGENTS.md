@@ -15,6 +15,8 @@ subpackage's initializer is only a marker, never a second API.
   files, immutable revisions, their captured inputs and held readings, and delivery
   URLs;
 - `locations`: filesystem path identity, containment, and overlap;
+- `file_changes`: native subscriptions shared by page, session, and preview
+  maintenance, with explicit ownership and canonical reads after notifications;
 - `page_memory`: how long a process keeps what it read of a page: while the page is
   among the eight it read most recently;
 - `page`: vendored page instructions;
@@ -100,8 +102,8 @@ author, `picture` owns the picture `page picture` draws of a drawing comment,
 Within `validation/`, `markup` owns shared document structure, `instances` owns
 registry-declared instance rules, `admission` owns what an agent's writer hands in,
 `compatibility` owns layer changes against the standing log, `source_history` owns
-predecessor readings, `transitions` compares revisions with standing actions,
-`source` composes those gates, and `command` owns the CLI and render handoff.
+predecessor readings and automatic anchor relocation,
+`source` composes current-document validation, and `command` owns the CLI and render handoff.
 
 ## Protocol references
 

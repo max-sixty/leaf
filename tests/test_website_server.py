@@ -363,24 +363,18 @@ def test_the_website_harness_delivers_into_the_existing_codex_thread(
     requests = []
     follows = []
 
-    def request(method, params, before_close=None):
+    def request(resources, method, params):
         requests.append((method, params))
-        if before_close is not None:
-            follows.append(
-                before_close(
-                    "socket",
-                    {
-                        "thread": {
-                            "id": "hosted-thread",
-                            "status": {"type": status},
-                        }
-                    },
-                    [],
-                )
-            )
-        return {"thread": {"id": "hosted-thread", "status": {"type": status}}}
+        return (
+            "socket",
+            {"thread": {"id": "hosted-thread", "status": {"type": status}}},
+            [],
+        )
 
     monkeypatch.setattr(harness, "_request", request)
+    monkeypatch.setattr(
+        harness, "_follow", lambda turn, resources: follows.append(turn)
+    )
     monkeypatch.setattr(harness, "_hold_waiter", lambda *_: None)
     started = []
     monkeypatch.setattr(
@@ -501,15 +495,15 @@ def test_an_active_thread_has_its_unwatched_turn_stopped_before_the_next_starts(
             return {"turn": {"id": "second-turn"}}
         return {}
 
-    def request(method, params, before_close=None):
-        before_close(
+    def request(resources, method, params):
+        return (
             Socket(),
             {"thread": {"id": "hosted-thread", "status": {"type": "active"}}},
             [],
         )
-        return {"thread": {"id": "hosted-thread"}}
 
     monkeypatch.setattr(harness, "_request", request)
+    monkeypatch.setattr(harness, "_follow", lambda *_: None)
     monkeypatch.setattr(harness, "_send", send)
     monkeypatch.setattr(harness, "_hold_waiter", lambda *_: None)
     assert harness._resume_and_start(
@@ -959,17 +953,17 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
     harness = website_server.WebsiteCodexHarness("codex")
     outgoing = {}
 
-    def request(method, params, before_close=None):
+    def request(resources, method, params):
         outgoing[method] = params
         result = {"thread": {"id": "hosted-thread"}}
-        before_close("socket", result, [])
-        return result
+        return "socket", result, []
 
     def send(socket, method, params, pending=None):
         outgoing[method] = params
         return {"turn": {"id": "initial-turn"}}
 
     monkeypatch.setattr(harness, "_request", request)
+    monkeypatch.setattr(harness, "_follow", lambda *_: None)
     monkeypatch.setattr(harness, "_send", send)
     assert (
         harness._start_thread(page_dir, SimpleNamespace(pid=os.getpid()), event["id"])
@@ -1011,14 +1005,13 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
     sent = []
     prepared = []
 
-    def request(method, params, before_close=None):
+    def request(resources, method, params):
         requests.append((method, params))
         result = {"thread": {"id": "hosted-thread"}}
-        if before_close is not None:
-            before_close("socket", result, [])
-        return result
+        return "socket", result, []
 
     monkeypatch.setattr(harness, "_request", request)
+    monkeypatch.setattr(harness, "_follow", lambda *_: None)
 
     def send(socket, method, params, pending=None):
         sent.append((socket, method, params, pending))
@@ -1073,6 +1066,47 @@ def test_the_website_task_is_a_scoped_leaf_codex_thread(page_dir, monkeypatch):
         )
     ]
     assert sent[0][-1] == []
+
+
+def test_a_follower_that_cannot_start_releases_its_delivery(page_dir, monkeypatch):
+    """A refused background thread must leave the Worker's failure receipt writable."""
+    event = append_event(
+        page_dir, {"kind": "comment", "author": "user", "text": "edit the page"}
+    )
+    harness = website_server.WebsiteCodexHarness("codex")
+    closed = []
+    interrupted = []
+    socket = SimpleNamespace(close=lambda: closed.append(True))
+
+    def request(resources, method, params):
+        resources.callback(socket.close)
+        return socket, {"thread": {"id": "hosted-thread"}}, []
+
+    def refuse_start(_thread):
+        raise OSError("no thread resources")
+
+    monkeypatch.setattr(harness, "_request", request)
+    monkeypatch.setattr(
+        harness, "_send", lambda *_: {"turn": {"id": "unfollowed-turn"}}
+    )
+    monkeypatch.setattr(
+        harness, "_interrupt", lambda *args, **_: interrupted.append(args)
+    )
+    monkeypatch.setattr(threading.Thread, "start", refuse_start)
+    try:
+        with pytest.raises(OSError, match="no thread resources"):
+            harness._start_thread(
+                page_dir, SimpleNamespace(pid=os.getpid()), event["id"]
+            )
+        assert harness.following_threads == set()
+        assert closed == [True]
+        assert interrupted == [("hosted-thread", "")]
+        assert session_record("hosted-thread")["turn_closed"] is not None
+        assert website_server.write_failure_receipt(
+            page_dir, event["id"], "startup_failed"
+        )
+    finally:
+        harness.close()
 
 
 def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
@@ -1634,7 +1668,8 @@ from pathlib import Path
 
 import leaf_website as module
 
-module._agent_harness = module.WebsiteCodexHarness(
+original_harness = module.WebsiteCodexHarness
+module.WebsiteCodexHarness = lambda: original_harness(
     {str(codex)!r}, Path({str(socket_dir / "app-server.sock")!r}),
     Path({str(tmp_path / "app-server.log")!r}),
 )

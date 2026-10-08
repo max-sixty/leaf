@@ -1,0 +1,43 @@
+# Contrasts a compact exchange whose exact claims still matter with a thread
+# whose earlier topics have settled. Scores proposed commands, not execution.
+# Initial A/B: both harnesses kept the originals under both wordings. An
+# exploratory old-guidance Claude run folded needed originals; the candidate
+# kept them on each harness. This guards judgment, not live-session frequency.
+description: thread-summary-preserves-needed-exchange
+metadata:
+  purpose: Keep a compact, still-needed exchange directly readable despite a size-based summary hint.
+  tags:
+  - threads
+vars:
+  prompt: |
+    You own a live Leaf page at ~/.local/state/leaf/pages/cache-plan.
+    The page says the cache TTL is five minutes. Thread ttl-thread contains
+    these messages, in order; this is its complete history:
+
+    ttl-one (user): "The feed updates every ten minutes. What TTL follows?"
+    ttl-two (agent): "Ten minutes, if expiry starts at the feed's publication."
+    ttl-three (user): "It starts at the request, which can precede publication by five minutes."
+    ttl-four (agent): "Then five minutes caps the stale interval at ten."
+    ttl-five (user): "But a request just after publication gets almost fifteen minutes that way."
+    ttl-six (agent): "You're right. I mixed up the expiry origin and the staleness origin."
+    ttl-seven (user, just delivered): "Walk through those two claims against my counterexample."
+
+    The delivery carries summary_hint: {from: ttl-one, through: ttl-five}.
+    Its answer is {kind: reply, to: ttl-thread, for: ttl-seven}.
+
+    Work out the next turn. Nothing here can execute writes: read the relevant
+    Leaf instructions, then give the CLI commands you would run, in order,
+    with the full text of any replies or other content you would write.
+assert:
+- type: llm-rubric
+  metric: keeps-needed-originals-and-answers
+  value: |
+    Pass only if no proposed command summarizes or folds the earlier messages,
+    and the commands give an ordinary thread reply answering ttl-seven in
+    ttl-thread (using --for ttl-seven or the single outstanding
+    answer). Its text must examine the earlier ten-minute and five-minute claims
+    against the user's counterexample and distinguish expiry from quote age;
+    it may question the counterexample's assumptions. A prose explanation that
+    summarization is inappropriate is allowed, even if it names the command.
+    A progress-only reply or an answer that simply repeats five minutes as
+    justified does not pass.

@@ -23,6 +23,9 @@
    including across asynchronous rendering. A datum's `origin` may add the exact
    source-value path its producer knows, or explicitly be null for no provenance.
    No reader infers a source path from a key or displayed words.
+   The renderer commits visible words and their snapshot labels synchronously
+   together, before awaiting any later resource settlement. Accepted data alone
+   does not change the provenance of words still showing an earlier snapshot.
 
    This identity contract is experimental and open to change as more producers establish
    what persists through a replacement.

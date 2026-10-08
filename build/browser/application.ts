@@ -11,6 +11,12 @@ import {
   foldWidgetStates,
 } from "../../skills/leaf/assets/runtime/projection/model.js";
 import {
+  stateDefinition,
+  eventSpec,
+  sameStateDefinition,
+  sameStateOperation,
+} from "../../skills/leaf/assets/runtime/registry-contract.js";
+import {
   discussed,
   foldThreads,
   readThreadRecords,
@@ -342,6 +348,7 @@ type PageView = Omit<ServerView, "basis">;
 function normalizedProjection(
   view: PageView | null | undefined,
   thread: AuthoritativeState["browser"]["thread"] | undefined,
+  descriptors?: SemanticDocument["descriptors"],
 ) {
   const entries = [];
   const actionIds = [];
@@ -351,6 +358,17 @@ function normalizedProjection(
     if (!projection) continue;
     for (const wire of projection.entries ?? []) {
       const e = wire.event;
+      const descriptor = descriptors?.get(e.widget);
+      const currentSpec = descriptor && eventSpec(descriptor.declaration, e);
+      if (
+        descriptor &&
+        (!currentSpec ||
+          !sameStateOperation(
+            e.meaning?.state,
+            stateDefinition(descriptor.tag, descriptor.declaration, currentSpec),
+          ))
+      )
+        continue;
       const coordinate = JSON.stringify(wire.coordinate);
       entries.push({
         coordinate,
@@ -626,8 +644,25 @@ export function createSemanticApplication({
         ? (target.admitted?.id ?? null)
         : (receipts.find((receipt) => receipt.attempt === attempt)?.id ?? null);
     };
+    // A revision may reuse a widget/verb with a different operation. Keep its
+    // pending delivery, but stop drawing it against that new declaration. The
+    // server validates durable payloads; speculative state waits for its receipt
+    // when a revised payload schema cannot be compared directly.
+    const compatiblePending = (projection: NonNullable<LedgerEntry["projection"]>) => {
+      const operation = projection.kind === "undo" ? projection.target : projection;
+      const descriptor = document.descriptors.get(operation.e.widget);
+      if (!descriptor) return false;
+      const currentSpec = eventSpec(descriptor.declaration, operation.e);
+      return (
+        currentSpec &&
+        sameStateDefinition(
+          operation.e.meaning?.state,
+          stateDefinition(descriptor.tag, descriptor.declaration, currentSpec),
+        )
+      );
+    };
     const localProjections = local
-      .filter((entry) => entry.projection)
+      .filter((entry) => entry.projection && compatiblePending(entry.projection))
       .map((entry) =>
         entry.projection.kind === "undo"
           ? { ...entry.projection, targetId: namedTarget(entry.undoTarget) }
@@ -641,7 +676,11 @@ export function createSemanticApplication({
     const view: PageView | null = served
       ? (({ basis: _basis, ...rest }) => rest)(served)
       : null;
-    const admitted = normalizedProjection(view, state?.browser.thread);
+    const admitted = normalizedProjection(
+      view,
+      state?.browser.thread,
+      document.descriptors,
+    );
     const projection = foldProjection({
       ...admitted,
       pendingEntries: localProjections,
@@ -1129,7 +1168,18 @@ export function createSemanticApplication({
                 spec,
                 coordinate: JSON.stringify([event.widget, unit, event.action]),
                 localOrder,
-                e: { ...event, id: localId },
+                e: {
+                  ...event,
+                  id: localId,
+                  meaning: {
+                    ...event.meaning,
+                    state: stateDefinition(
+                      widget.tag,
+                      before.document.registry[widget.tag],
+                      spec,
+                    ),
+                  },
+                },
                 value: spec.record ? foldedValue(event, spec.record) : event.action,
               }
             : null;

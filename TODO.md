@@ -74,10 +74,16 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
+- **Consider a reminder when revising decided content.** An optional `--force`
+  acknowledgment could make an agent pause over an existing decision. Revisions
+  currently remain unrestricted; decide whether such a reminder helps before
+  adding one.
+
 - **#3 — Prevent an obsolete execution from closing continued work.** A later
   `task start` records a new execution, but admission still accepts an older
   session's `task_end`. Test competing continuations and keep the delayed result
   from closing the newer work ([comparison proposal](notes/comparisons.md#concrete-follow-up-proposals-2026-10-04-revised-2026-10-05)).
+
 - **Compare Leaf authoring with plain HTML (#19).** The
   [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
   now covers the live loop, a mixed batch, an elided thread, an unfamiliar package and a

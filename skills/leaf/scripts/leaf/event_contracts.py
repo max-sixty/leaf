@@ -442,8 +442,8 @@ def admitting_registry(view, event: dict, events: list) -> dict:
     An event names the revision it was made against, and that revision's artifact
     holds the registry its page was rendered from — so a re-vendor, which replaces
     the layer without touching a standing revision, cannot reinterpret a command
-    the user made against the document in front of them. `admitted_contract_error`
-    reads the recorded side from that same capture. A sign-off names its version
+    the user made against the document in front of them. Admission records that
+    semantic definition in the event. A sign-off names its version
     instead, and admits under the revision that version stamped. An event naming
     neither takes the newest, which is the document any writer of one is looking
     at, and a page with no revision yet has the candidate's vocabulary.
@@ -569,7 +569,8 @@ def _parent_error(event: dict, events: list) -> str | None:
 
 def _edit_error(event: dict, events: list) -> str | None:
     """An edit revises the words of a message its own author wrote: the user's own,
-    or the posting agent session's. A reaction or a bare drawing has none to revise.
+    or an agent's, whichever session posted it, so a successor can correct what a
+    predecessor said. A reaction or a bare drawing has none to revise.
 
     An edit that names its `base`, the revision its words were written over (the
     message's own id, or the latest edit of it; a browser names an edit of its own
@@ -591,12 +592,6 @@ def _edit_error(event: dict, events: list) -> str | None:
         return f"unknown message {name!r}"
     if target["author"] != event["author"]:
         return f"message {name!r} is not {event['author']}-authored"
-    if event["author"] == "agent":
-        owner = target.get("session")
-        if not owner:
-            return f"message {name!r} has no agent session identity"
-        if owner != event.get("session"):
-            return f"message {name!r} belongs to agent session {owner!r}"
     if "text" not in target:
         return f"message {name!r} has no words to revise"
     revisions = [
@@ -748,17 +743,18 @@ def _publication_error(view, event: dict) -> str | None:
 
 
 def _reanchor_error(view, event: dict, events: list) -> str | None:
-    """A revision's automatic fallback changes a live quote to its own section."""
+    """A revision falls back to a thread's surviving section, or detaches it."""
     if event["kind"] != "reanchor":
         return None
     thread = build_threads(events, view.within).get(event["thread"])
     if thread is None or thread["resolved"] or not thread["anchor"]:
         return "reanchor needs an open anchored thread"
-    anchor = thread["anchor"]
-    if not anchor.get("quote") or event["anchor"] != {"section": anchor.get("section")}:
-        return "reanchor must retain the quoted thread's own section"
-    if anchor.get("section") not in view.document(event["revision"]).ids:
-        return "reanchor section must survive in its revision"
+    section = thread["anchor"].get("section")
+    if event["anchor"] is not None and (
+        event["anchor"] != {"section": section}
+        or section not in view.document(event["revision"]).ids
+    ):
+        return "reanchor must retain the thread's surviving section or detach it"
     return None
 
 

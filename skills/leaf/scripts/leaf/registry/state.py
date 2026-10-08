@@ -194,20 +194,13 @@ def validate_widget_record_contracts(
                 )
 
 
-def validate_widget_retirement(
-    tag: str, entry: dict, slots: dict, declarations: dict, path
-) -> None:
-    # Withdrawal is the author taking an unanswered question back, and the
-    # declaration says which of its own outcomes that leaves the page in
-    # (retirable_ids). A verb no slot of this widget retires under would
-    # license nothing but the wrapper, so the withdrawal it promises would
-    # fail as "ids dropped" on the version that tried it — the misdeclaration
-    # is invisible until then, and this is where its author is standing.
+def validate_widget_retirement(tag: str, entry: dict, declarations: dict, path) -> None:
+    # Withdrawal names a declared deciding outcome; it does not require slots
+    # whose historical ids a future revision must retain.
     withdrawn = entry.get("x-withdrawn-as")
-    if withdrawn is not None and withdrawn not in slots.get(tag, {}):
+    if withdrawn is not None and withdrawn not in deciding_outcomes(entry):
         raise RegistryError(
-            f"{path}: <{tag}> x-withdrawn-as `{withdrawn}` retires none of its "
-            "slots; withdrawing it would leave their ids on the page"
+            f"{path}: <{tag}> x-withdrawn-as `{withdrawn}` is not a deciding outcome"
         )
     retired = entry.get("x-retired-when")
     if retired is None:

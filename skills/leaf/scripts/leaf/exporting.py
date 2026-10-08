@@ -15,7 +15,8 @@ import hashlib
 import json
 import sys
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -51,6 +52,44 @@ def _data_url(resource: Resource) -> str:
     return f"data:{resource.mime};base64,{base64.b64encode(resource.data).decode()}"
 
 
+@dataclass
+class _CssFrame:
+    """One stylesheet's unfinished rewrite in the resource traversal."""
+
+    source: str
+    base: str
+    declarations: bool
+    references: Iterator[str]
+    addresses: dict[str, str | None]
+    parent_reference: str | None = None
+
+    @classmethod
+    def read(
+        cls,
+        source: str,
+        base: str,
+        declarations: bool = False,
+        parent_reference: str | None = None,
+    ) -> _CssFrame:
+        addresses: dict[str, str | None] = {}
+        rebase_css(
+            source,
+            base,
+            lambda path: addresses.setdefault(path, path),
+            declarations=declarations,
+        )
+        return cls(
+            source, base, declarations, iter(addresses), addresses, parent_reference
+        )
+
+
+def _fragment(address: str | None, reference: str) -> str | None:
+    fragment = urlsplit(reference).fragment
+    return (
+        address + (f"#{fragment}" if fragment else "") if address is not None else None
+    )
+
+
 class AssetInliner:
     """Give a resource graph one embedded body and one document-lifetime URL per resource.
 
@@ -66,7 +105,7 @@ class AssetInliner:
         self.embedded: dict[str, Resource] = {}
         self.prefix = f"urn:leaf-resource:{uuid.uuid4().hex}:"
 
-    def embed(self, resource: Resource) -> str:
+    def embed(self, resource: Resource) -> str | None:
         """One document-lifetime address for exact bytes and their MIME type."""
         data = resource.data
         token = (
@@ -84,45 +123,65 @@ class AssetInliner:
             )
         return self.resources[path]
 
-    def address(self, path: str, ancestors: tuple[str, ...] = ()) -> str | None:
-        located = urlsplit(path)
+    def address(self, reference: str) -> str | None:
+        located = urlsplit(reference)
         path = unquote(located.path)
         resource = self.resource(path)
         if resource.mime == "text/css":
-            css = (
-                ""
-                if path in ancestors
-                else self.css(resource.data.decode("utf-8"), path, (*ancestors, path))
-            )
-            resource = Resource(css.encode("utf-8"), "text/css")
-        embedded = self.embed(resource)
-        return (
-            embedded + ("#" + located.fragment if located.fragment else "")
-            if embedded is not None
-            else None
-        )
+            resource = Resource(self.stylesheet(path).encode("utf-8"), "text/css")
+        return _fragment(self.embed(resource), reference)
 
     def css(
         self,
         css: str,
         base: str,
-        ancestors: tuple[str, ...] = (),
         *,
         declarations: bool = False,
     ) -> str:
-        return rebase_css(
-            css,
-            base,
-            lambda path: self.address(path, ancestors),
-            declarations=declarations,
-        )
+        """Rewrite the CSS graph in depth-first order without recursive resource reads."""
+        stack = [_CssFrame.read(css, base, declarations)]
+        active = {base}
+        while True:
+            frame = stack[-1]
+            reference = next(frame.references, None)
+            if reference is not None:
+                path = unquote(urlsplit(reference).path)
+                resource = self.resource(path)
+                if resource.mime == "text/css":
+                    if path not in active:
+                        active.add(path)
+                        stack.append(
+                            _CssFrame.read(
+                                resource.data.decode("utf-8"),
+                                path,
+                                parent_reference=reference,
+                            )
+                        )
+                        continue
+                    resource = Resource(b"", "text/css")
+                frame.addresses[reference] = _fragment(self.embed(resource), reference)
+                continue
+            rewritten = rebase_css(
+                frame.source,
+                frame.base,
+                frame.addresses.__getitem__,
+                declarations=frame.declarations,
+            )
+            stack.pop()
+            active.remove(frame.base)
+            if not stack:
+                return rewritten
+            stack[-1].addresses[frame.parent_reference] = _fragment(
+                self.embed(Resource(rewritten.encode("utf-8"), "text/css")),
+                frame.parent_reference,
+            )
 
     def stylesheet(self, path: str) -> str:
         """A linked stylesheet's CSS, its own URLs embedded, to inline in its place."""
         resource = self.resource(path)
         if resource.mime != "text/css":
             raise ValueError(f"export stylesheet has MIME {resource.mime}: {path}")
-        return self.css(resource.data.decode("utf-8"), path, (path,))
+        return self.css(resource.data.decode("utf-8"), path)
 
 
 class ReadableAssets(AssetInliner):
@@ -131,6 +190,8 @@ class ReadableAssets(AssetInliner):
     Native authored text, alt text and CSS layout work without scripts. Captured
     images, fonts and recordings belong to the interactive allocator, so their
     attributes and CSS declarations have no fallback address and make no requests.
+    Imported sheets use nested base64 data URLs, whose output grows with every
+    import level even though traversal does not consume the Python call stack.
     """
 
     def embed(self, resource: Resource) -> str | None:

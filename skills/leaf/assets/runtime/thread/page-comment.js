@@ -2,7 +2,10 @@
 
    A comment on the page has two boxes: Threads' general box, and the page comment card
    the banner's Comment on the page control hangs from its own foot, its top edge on the
-   banner's and its right edge on the control's. They are one destination: while Threads
+   banner's and its right edge on the control's where that fits the window, moving
+   only far enough to remain inside the window otherwise. The editor takes the room
+   beneath the banner, and the card scrolls if its minimum controls exhaust it.
+   They are one destination: while Threads
    is open its box stands right there, so the control, `c` with nothing to comment on,
    and Resume writing go to that box; otherwise all three open the card. Both boxes are
    wired here, with one hint, one draft (`general`), and one send, so the two never
@@ -34,6 +37,7 @@ import { FLASH_MS, backgroundFlash } from "../motion.js";
 import { keys } from "../keyboard/scopes.js";
 import { commandShortcut } from "../keyboard/control-keys.js";
 import { keeps } from "../keeps.js";
+import { registerReadingRegion } from "../reading-regions.js";
 import {
   BANNER_CONTROL_RANK,
   bannerControlDoor,
@@ -162,6 +166,9 @@ export function createPageComment({
   const stops = [];
   function mount(chromeRoot) {
     chromeRoot.append(card);
+    stops.push(
+      registerReadingRegion({ id: "lf-region:page-comment", host: card, body: card }),
+    );
     // `c` reaches this control's press from wherever nothing else is commented on,
     // which is everywhere the control can be pressed, so its name carries the key.
     // Not a `control` on the `c` row: that row answers for every destination, and a

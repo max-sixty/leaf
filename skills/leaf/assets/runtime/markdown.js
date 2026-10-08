@@ -501,6 +501,7 @@ function makeMarkdown(module, breaks) {
     module.taskLists,
     { enabled: false },
   );
+  markdown.linkify.set({ fuzzyLink: true });
   // Parse unsafe destinations to retain their visible labels. This owner strips the
   // destinations before HTML exists; there is no active unsafe intermediate markup.
   markdown.validateLink = () => true;

@@ -190,6 +190,39 @@ def test_bounded_text_document_keeps_its_caption_above_the_scrolling_source(
     )
 
 
+@pytest.mark.parametrize("captured", [False, True], ids=["block", "text-document"])
+def test_a_bounded_document_reader_chains_wheel_at_its_edge(browser, serve, captured):
+    """A bound inside a document keeps its own reading position but lets the user
+    continue down the document once its last line is reached."""
+    content = (
+        '<lf-text-document id="reader" source="capture" label="Run log" '
+        'data-bound="start"></lf-text-document>'
+        if captured
+        else '<div id="reader" data-bound="start">'
+        + "<p>Run log line</p>" * 100
+        + "</div>"
+    )
+    url = serve(
+        leaf_page(
+            "Bounded reader in a document",
+            "<h1>Run log</h1>" + content + '<div style="height:1500px"></div>',
+        )
+    )
+    if captured:
+        data_model.cmd_data_set(serve.page_dir, "capture", "Run log line\n" * 100)
+    page = open_page(browser, url)
+    reader = page.locator("#reader pre" if captured else "#reader")
+    assert reader.evaluate("el => el.scrollHeight > el.clientHeight")
+    reader.evaluate("el => el.scrollTop = el.scrollHeight")
+    reader.hover()
+    before = page.evaluate("document.scrollingElement.scrollTop")
+    page.mouse.wheel(0, 400)
+    page.wait_for_function(
+        "before => document.scrollingElement.scrollTop > before",
+        arg=before,
+    )
+
+
 def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fit(
     browser, serve
 ):
@@ -3661,17 +3694,41 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
           const style = getComputedStyle(item, '::before');
           const box = item.getBoundingClientRect();
           return {content: style.content, width: style.width, height: style.height,
-                  color: style.backgroundColor, x: box.x + parseFloat(style.left),
+                  color: style.backgroundColor, border: style.borderTopColor,
+                  x: box.x + parseFloat(style.left) + parseFloat(style.width) / 2 +
+                    new DOMMatrixReadOnly(style.transform).m41,
                   y: box.y + parseFloat(style.top) +
-                    new DOMMatrixReadOnly(style.transform).m42, rowY: box.y,
-                  labelY: item.querySelector(':scope > a').getBoundingClientRect().y};
+                    new DOMMatrixReadOnly(style.transform).m42 + parseFloat(style.height) / 2,
+                  labelCenter: item.querySelector(':scope > a').getBoundingClientRect().y +
+                    parseFloat(getComputedStyle(item.querySelector(':scope > a')).lineHeight) / 2};
         })"""
     )
-    assert markers[0]["content"] == '""' and markers[0]["width"] == "3px"
+    assert markers[0]["content"] == '""'
+    assert [marker["width"] for marker in markers] == [
+        "9px",
+        "6px",
+        "3px",
+        "3px",
+        "6px",
+        "6px",
+        "6px",
+    ]
+    assert all(marker["height"] == marker["width"] for marker in markers)
     assert markers[0]["color"] != "rgba(0, 0, 0, 0)"
-    assert len({round(marker["x"]) for marker in markers}) == 1
+    spine_center = nav.locator(".lf-toc-rows").evaluate(
+        """rows => {
+          const line = getComputedStyle(rows, '::before');
+          return rows.getBoundingClientRect().x + parseFloat(line.left) +
+            parseFloat(line.width) / 2;
+        }"""
+    )
     assert all(
-        marker["y"] == pytest.approx(marker["labelY"] + 7, abs=1) for marker in markers
+        marker["x"] == pytest.approx(spine_center, abs=0.01) for marker in markers
+    )
+    assert markers[0]["color"] == markers[0]["border"]
+    assert markers[1]["color"] != markers[1]["border"]
+    assert all(
+        marker["y"] == pytest.approx(marker["labelCenter"], abs=1) for marker in markers
     )
     assert markers[-1]["y"] > nav_box["y"] + nav_box["height"] * 0.68
     assert markers[4]["y"] - markers[3]["y"] > markers[3]["y"] - markers[2]["y"]
@@ -3734,6 +3791,9 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     lens = nav.locator(".lf-toc-window")
     lens_before = lens.bounding_box()
     assert lens_before is not None
+    assert lens_before["x"] + lens_before["width"] / 2 == pytest.approx(
+        spine_center, abs=0.01
+    )
     assert 14 <= lens_before["height"] < nav_box["height"]
 
     # A Mermaid render, image load, disclosure, or other late block can change the
@@ -3821,6 +3881,16 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     scroll_settled(page)
     assert page.evaluate("window.lfTocPressed") is True
     expect(prepare).to_have_attribute("aria-current", "location")
+    active_marker = prepare.evaluate(
+        "node => { const s = getComputedStyle(node.parentElement, '::before'); "
+        "return {fill: s.backgroundColor, border: s.borderTopColor}; }"
+    )
+    assert active_marker["fill"] == active_marker["border"]
+    title_marker = start.evaluate(
+        "node => { const s = getComputedStyle(node.parentElement, '::before'); "
+        "return {fill: s.backgroundColor, border: s.borderTopColor}; }"
+    )
+    assert title_marker["fill"] != title_marker["border"]
     assert prepare.evaluate("node => node.matches(':hover')")
     current_hover_color = prepare.evaluate("node => getComputedStyle(node).color")
     capacity_box = capacity.bounding_box()
@@ -4008,8 +4078,10 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         "return { spine: getComputedStyle(rows, '::before').backgroundColor, "
         "lens: getComputedStyle(lens).backgroundColor, "
         "current: getComputedStyle(current, '::before').backgroundColor, "
-        "inactive: items.filter(item => item !== current).map(item => "
-        "getComputedStyle(item, '::before').backgroundColor) }; }"
+        "inactive: items.filter(item => item !== current).map(item => { "
+        "const style = getComputedStyle(item, '::before'); return { "
+        "ring: item.matches('.lf-toc-start, [data-lf-depth=\"0\"]'), "
+        "background: style.backgroundColor, border: style.borderColor }; }) }; }"
     )
     canvas = page.locator("body").evaluate(
         "node => getComputedStyle(node).backgroundColor"
@@ -4017,7 +4089,12 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert forced_colors["spine"] != canvas
     assert forced_colors["lens"] == forced_colors["current"]
     assert forced_colors["lens"] != forced_colors["spine"]
-    assert all(color == forced_colors["spine"] for color in forced_colors["inactive"])
+    rings = [item for item in forced_colors["inactive"] if item["ring"]]
+    dots = [item for item in forced_colors["inactive"] if not item["ring"]]
+    assert rings and dots
+    assert all(item["background"] == canvas for item in rings)
+    assert all(item["border"] == forced_colors["spine"] for item in rings)
+    assert all(item["background"] == forced_colors["spine"] for item in dots)
 
     page.emulate_media(media="screen", forced_colors="none", reduced_motion="reduce")
     rendered(page)
@@ -6050,17 +6127,22 @@ def test_a_playground_sends_one_choice_while_the_first_press_is_in_flight(
     held = []
     page.route("**/api/event", lambda route: held.append(route))
 
-    choose.evaluate("button => { button.click(); button.click(); }")
+    with page.expect_request("**/api/event"):
+        choose.press("Enter")
     holding(page, held, 1, "the playground choice")
     expect(choose).to_be_disabled()
     expect(choose).to_have_attribute("aria-busy", "true")
-    page.wait_for_timeout(100)
+    expect(choose).to_be_focused()
+    choose.press("Space")
+    choose.dispatch_event("click")
+    rendered(page)
     assert len(held) == 1
 
     held[0].continue_()
     round_trip(page)
     expect(choose).to_be_enabled()
     expect(choose).not_to_have_attribute("aria-busy", "true")
+    expect(choose).to_be_focused()
     assert len(actions(serve.page_dir)) == 1
 
 
@@ -7500,6 +7582,49 @@ def test_each_classified_swipe_card_can_return_to_the_queue(browser, serve):
     ) == ["swipe-d", "swipe-b"]
     expect_asks_answered(page, "0/1")
     expect(final).to_be_focused()
+
+
+@pytest.mark.parametrize("accepted", [True, False], ids=["accepted", "refused"])
+def test_returning_a_swipe_card_moves_focus_before_delivery(browser, serve, accepted):
+    """Return hands focus to the card with its optimistic placement; a later
+    delivery or refusal cannot overwrite a newer Tab to another control."""
+    page = open_page(browser, serve(SWIPE_PAGE))
+    deck = page.locator("#session-triage")
+    deck.get_by_role("button", name="← Pass", exact=True).click()
+    round_trip(page)
+    returned = page.locator("#swipe-a").get_by_role(
+        "button", name="Return Buffer rolling expiry to queue", exact=True
+    )
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    with page.expect_request("**/api/event"):
+        returned.press("Enter")
+    holding(page, held, 1, "returning the classified card")
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(1)
+    expect(page.locator("#swipe-a")).to_be_focused()
+    page.keyboard.press("Tab")
+    newer = deck.get_by_role("button", name="← Pass", exact=True)
+    expect(newer).to_be_focused()
+    if accepted:
+        held[0].continue_()
+    else:
+        held[0].fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": held[0].request.post_data_json["attempt"],
+                "error": "return refused",
+                "final": True,
+            },
+        )
+    page.unroute("**/api/event")
+    round_trip(page)
+    expect(newer).to_be_focused()
+    expect(page.locator("#session-queue > #swipe-a")).to_have_count(
+        1 if accepted else 0
+    )
+    if not accepted:
+        consume_browser_errors(page, "400")
 
 
 def _kept(card_id: str) -> str:
@@ -12508,6 +12633,11 @@ def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
             "() => document.querySelector('script[data-lf-entry]').lfReadiness()"
         )
         is not None
+    )
+    # Acceptance precedes asynchronous syntax rendering. Wait for the displayed
+    # snapshot's commit while the preview's resource load remains held.
+    expect(document.locator("pre")).to_have_attribute(
+        "data-lf-source-revision", revision
     )
     code = document.locator("code")
     ends = code.evaluate("""el => {

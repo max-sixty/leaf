@@ -135,7 +135,7 @@
   },
   "lf-annotation-rail": {
     "description": "An authored-flow rail for Threads, Asks, action and status contributions, updates, and the active comment editor.",
-    "x-instructions": "Select data-annotations=page on body and place one empty rail with a stable id where the document should show annotations. Allocate its width and height in page CSS; it scrolls within that box. Omit it to use the core Threads panel. Native disclosures retain their open state and the shared Thread renderer owns conversations and replies.",
+    "x-instructions": "Select data-annotations=page on body. When the task needs conversations and actions in an independent reading region, place one empty rail with a stable id; page-authoring.md, Bounds and widths, guides that choice. Allocate its width and height in page CSS; it scrolls within that box. Omit it to use the core Threads panel. Native disclosures retain their open state and the shared Thread renderer owns conversations and replies.",
     "type": "object",
     "properties": {
       "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" }

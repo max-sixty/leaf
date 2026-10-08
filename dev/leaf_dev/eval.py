@@ -1,8 +1,11 @@
 """Run the eval catalog through Promptfoo on Claude Code and Codex.
 
 This command does only what Promptfoo cannot: it builds each Leaf arm (the working
-tree, and with `--base` a ref), gives each provider a home of its own holding just the
+tree, and with `--base` a ref), gives each provider a home of its own seeded with the
 harness's login, and expands the catalog's task/context addresses into Promptfoo tests.
+Native probes install the complete arm as a plugin and read it in fresh sessions;
+Codex shares one server per provider home while starting fresh ephemeral, read-only
+threads for each test.
 Promptfoo owns the rest: repetition, concurrency, assertions, the console table, and
 the result database its viewer reads. Arguments after the cases go to `promptfoo eval`.
 
@@ -48,6 +51,13 @@ RUNS = ROOT / ".tmp/eval"
 SKILL_PREFIX = "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n"
 
 
+def codex_program() -> Path:
+    """Resolve the host CLI used by Codex providers and plugin installation."""
+    if (installed := shutil.which("codex")) is None:
+        raise click.ClickException("Codex evals require the Codex CLI; install it")
+    return Path(installed).resolve()
+
+
 def context_case(source: dict, address: str) -> dict:
     """A named diagnostic overrides the primary, inheriting its metadata."""
     primary = {key: value for key, value in source.items() if key != "variants"}
@@ -90,7 +100,7 @@ def select_cases(globs: tuple[str, ...]) -> list[str]:
 
 
 def native_provider(harness: str, payload: Path, work: Path) -> dict:
-    """A native agent provider that can read the arm's skill and nothing else of ours."""
+    """A read-only native agent with the arm installed as its complete plugin."""
     if harness == ClaudeCodeHarness.name:
         child = claude_child(work)
         return {
@@ -126,12 +136,35 @@ def native_provider(harness: str, payload: Path, work: Path) -> dict:
     home = work.with_name(f"{work.name}-home")
     home.mkdir(mode=0o700)
     config_home = codex_home(home / ".codex")
-    (config_home / "skills").mkdir()
-    (config_home / "skills" / "leaf").symlink_to(payload / "skills" / "leaf")
+    codex = codex_program()
+    cli_env = {
+        "HOME": str(home),
+        "CODEX_HOME": str(config_home),
+        "XDG_STATE_HOME": str(home / ".local/state"),
+    }
+    # The installer and provider use the same CLI. Installing the complete
+    # plugin preserves discovery and skill references relative to the plugin root.
+    for args in (
+        ("plugin", "marketplace", "add", str(payload), "--json"),
+        ("plugin", "add", "leaf@leaf", "--json"),
+    ):
+        installed = subprocess.run(
+            [str(codex), *args],
+            cwd=work,
+            env=environment(**cli_env),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if installed.returncode:
+            raise click.ClickException(
+                f"Codex plugin installation failed:\n{installed.stdout}{installed.stderr}"
+            )
     return {
         "id": "openai:codex-app-server",
         "config": {
             "model": MODELS["codex"],
+            "codex_path_override": str(codex),
             "model_reasoning_effort": "medium",
             "working_dir": str(work),
             "skip_git_repo_check": True,
@@ -140,11 +173,7 @@ def native_provider(harness: str, payload: Path, work: Path) -> dict:
             "persist_threads": False,
             "ephemeral": True,
             "turn_timeout_ms": 300000,
-            "cli_env": {
-                "HOME": str(home),
-                "CODEX_HOME": str(config_home),
-                "XDG_STATE_HOME": str(home / ".local/state"),
-            },
+            "cli_env": cli_env,
         },
     }
 
@@ -189,9 +218,7 @@ def screenshot_judge(screenshots: Path, home: Path) -> dict:
     itself, so the profile also grants the executable, run by its resolved path: a
     symlink's own location is refused. A profile replaces Codex's older sandbox
     settings, so the provider sets no `sandbox_mode`."""
-    if (installed := shutil.which("codex")) is None:
-        raise click.ClickException("The screenshot judge runs on Codex; install it")
-    codex = Path(installed).resolve()
+    codex = codex_program()
     home.mkdir(mode=0o700, parents=True)
     profile = "\n".join(
         [

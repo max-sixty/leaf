@@ -1,9 +1,9 @@
 """Page-bound external data: one plain JSON file per source.
 
-`data.json` records the contract each source id was first bound to, which it keeps
-for the page's lifetime; `data/<source>.json` holds that source's current value as
-ordinary JSON. `leaf data set` validates before it writes, but any
-process may replace a value file, so every reading validates the value against its
+`data.json` records the contract each source id was last set under;
+`data/<source>.json` holds that source's current value as ordinary JSON.
+`leaf data set` validates before it writes, but any process may replace a value
+file, so every reading validates the value against its
 contract and reports a failing one as that source's `error` rather than its value.
 
 A source's revision is a digest of its file's bytes and `updated` its modification
@@ -119,8 +119,9 @@ def read_source(page_dir: Path, source: str, contract: str, registry: dict) -> d
 def read_data(page_dir: Path, registry: dict | None) -> dict:
     """Every recorded source, read and judged against `registry`.
 
-    `version` digests the source revisions, so two readings of the same values
-    compare equal whatever else changed between them. A page whose layer cannot be
+    `version` digests each source's contract, byte revision and validity, so a
+    changed binding or validation result is news even when the file bytes match.
+    Modification time alone does not change a delivery. A page whose layer cannot be
     read has no contracts to judge its values by, and reads as holding none."""
     sources = (
         {
@@ -131,7 +132,15 @@ def read_data(page_dir: Path, registry: dict | None) -> dict:
         else {}
     )
     identity = json.dumps(
-        {source: reading.get("revision") for source, reading in sources.items()}
+        {
+            source: [
+                reading["contract"],
+                reading.get("revision"),
+                reading.get("error"),
+                "value" in reading,
+            ]
+            for source, reading in sources.items()
+        }
     )
     return {
         "version": hashlib.sha256(identity.encode()).hexdigest()[:16],
@@ -263,10 +272,7 @@ def _write_source(page_dir: Path, source: str, value) -> dict:
             page_dir, registry, page.events
         )
         if binding_errors:
-            raise DataError(
-                "the page history has conflicting data bindings: "
-                + "; ".join(binding_errors)
-            )
+            raise DataError("conflicting data bindings: " + "; ".join(binding_errors))
         contract = bindings.get(source)
         if contract is None:
             raise DataError(
@@ -275,16 +281,10 @@ def _write_source(page_dir: Path, source: str, value) -> dict:
             )
         contracts = read_contracts(page_dir)
         recorded = contracts.get(source)
-        if recorded is not None and recorded != contract:
-            raise DataError(
-                f"source {source!r} is now bound to contract {contract!r}, but it "
-                f"was recorded with {recorded!r}; use a new source id for the new "
-                "meaning"
-            )
         if error := payload_error(source, contract, value, registry):
             raise DataError(error)
         writes = [(source_file(page_dir, source), json_bytes(value), False)]
-        if recorded is None:
+        if recorded != contract:
             contracts[source] = contract
             index = {
                 "sources": {
@@ -308,7 +308,7 @@ def cmd_data_set(page_dir: Path, source: str, value) -> None:
 
 
 def cmd_data_clear(page_dir: Path, source: str) -> None:
-    """Remove one source's value; its id keeps the contract it was recorded with."""
+    """Remove one source's current value; its next write uses its current binding."""
     if re.fullmatch(DATA_SOURCE_NAME, source) is None:
         raise DataError(f"invalid source name {source!r}")
     with PageTransaction(page_dir):

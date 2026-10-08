@@ -1,7 +1,7 @@
 {
   "producer": {
-    "commit": "9b5b42a4cd5e",
-    "committed": "2026-10-08T04:49:56Z",
+    "commit": "b11e278288c2",
+    "committed": "2026-10-07T21:54:02-07:00",
     "dirty": false
   },
   "runtime_paths": [
@@ -153,6 +153,7 @@
     "reading-place.js",
     "reading-regions.js",
     "rect.js",
+    "registry-contract.js",
     "registry.js",
     "rendering.js",
     "repaint.js",

@@ -2232,7 +2232,9 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
         "Threads did not flash"
     )
     expect(toggle).to_have_attribute("data-lf-count", str(int(count) + 1))
-    assert not page.locator(".lf-thread-panel").evaluate("p => p.open")
+    assert not page.locator(".lf-thread-panel").evaluate(
+        "p => p.classList.contains('open')"
+    )
     expect(control).to_be_focused()
 
     page.locator("main").click(position={"x": 4, "y": 4})
@@ -2399,6 +2401,49 @@ def test_a_diff_outlet_keeps_the_shared_attachment_controls(browser, serve):
     expect(viewer).to_be_visible()
     page.keyboard.press("Escape")
     expect(viewer).to_be_hidden()
+
+
+def test_a_phone_editor_inside_a_marked_widget_keeps_pointer_entry(browser, serve):
+    """Inspecting an attachment and pressing its editor cannot activate the page mark."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(
+        browser,
+        serve(next(p for p in EXAMPLES if p.stem == "pr-walkthrough")),
+        context=context,
+    )
+    comment = page.locator("#pr-exact-patch .lf-diff-file-comment").first
+    comment.click()
+    field = page.get_by_role("textbox", name=re.compile(r"^Comment on .+ · file$"))
+    expect(field).to_be_focused()
+    page.keyboard.type("Earlier file comment.")
+    with sending(page, "the earlier file comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    first = events_model.read_events(serve.page_dir)[-1]
+
+    comment.click()
+    expect(field).to_be_focused()
+    pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
+    paste_image(field, pixels)
+    page.get_by_role("button", name="View pasted image 1", exact=True).click()
+    viewer = page.get_by_role("dialog", name="Image preview")
+    expect(viewer).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(viewer).to_be_hidden()
+    field.click()
+    expect(field).to_be_focused()
+    words = "Phone final review: image and greeting checked."
+    page.keyboard.type(words)
+    expect(field).to_have_js_property("value", words)
+    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    with sending(page, "the file comment after image inspection"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert sent["kind"] == "comment"
+    assert sent["anchor"] == first["anchor"]
+    assert sent["text"] == words + "\n\n![Pasted image](/media/051bee487bfb5d13.png)"
+    assert "about" not in sent
 
 
 def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
@@ -4303,14 +4348,17 @@ def test_the_thread_clock_reopens_its_same_epoch_ticket(browser, serve):
     before = page.evaluate(
         """async () => {
           const list = document.querySelector('leaf-thread-list');
-          const schedule = list.scheduleUpdate.bind(list);
+          const present = list.present.bind(list);
           let release;
           const held = new Promise(resolve => { release = resolve; });
           let armed = true;
-          list.scheduleUpdate = () => {
-            if (!armed) return schedule();
+          list.present = async model => {
+            if (!armed) return present(model);
             armed = false;
-            return held.then(schedule);
+            window.threadClockHeld = true;
+            await held;
+            window.threadClockStaleFailed = true;
+            throw new Error('superseded thread preparation failed');
           };
           window.releaseThreadClock = release;
           window.threadPresence = await window.__lfRuntimeImport(
@@ -4346,10 +4394,26 @@ def test_the_thread_clock_reopens_its_same_epoch_ticket(browser, serve):
     assert held["presentedEpoch"] == before["presentedEpoch"]
     assert held["ready"] is False
 
+    page.wait_for_function("threadClockHeld")
+    # A second age change while preparation is held claims another pass. Its proof
+    # cannot be acknowledged by the old reading, and it need not await that package.
+    second = page.evaluate(
+        """() => {
+          threadPresence.observeServerNow(
+            new Date(Date.now() + 120_000).toISOString()
+          );
+          window.threadClockTickAgain = threadPresence.tickClock(() => {});
+          return threadPresentation.readApplicationPresentation();
+        }"""
+    )
+    assert "thread" in second["pending"]
+    page.wait_for_function("threadClockReady")
+    expect(system).to_have_text("✓ Approved 2m ago")
     page.evaluate("releaseThreadClock()")
-    page.wait_for_function("threadClockReady", timeout=3000)
-    page.evaluate("threadClockTick")
-    expect(system).to_have_text("✓ Approved 1m ago")
+    page.wait_for_function("threadClockStaleFailed")
+    page.evaluate("Promise.all([threadClockTick, threadClockTickAgain])")
+    expect(system).to_have_text("✓ Approved 2m ago")
+    assert take_browser_errors(page) == []
     after = page.evaluate("threadPresentation.readApplicationPresentation()")
     assert after["semanticEpoch"] == before["semanticEpoch"]
     assert after["presentedEpoch"] == before["presentedEpoch"]

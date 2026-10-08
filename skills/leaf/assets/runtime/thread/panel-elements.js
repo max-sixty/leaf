@@ -15,7 +15,7 @@ let nextPanelId = 0;
 export function createThreadPanelElements({
   id = `lf-thread-panel-${++nextPanelId}`,
 } = {}) {
-  const panel = el("dialog", "lf-ui lf-thread-panel");
+  const panel = el("section", "lf-ui lf-thread-panel");
   panel.id = id;
   const panelHead = el("div", "lf-thread-panel-head");
   const closeBtn = closeControl({
@@ -23,7 +23,7 @@ export function createThreadPanelElements({
     title: "Close threads (Esc)",
   });
   const panelTitle = el("span", "lf-auxiliary-title", "Threads");
-  // The panel is a dialog, beside the page or covering it, and its title names it.
+  // The shared native auxiliary dialog takes this retained panel's name.
   panelTitle.id = `${id}-title`;
   panel.setAttribute("aria-labelledby", panelTitle.id);
   const firstUnreadBtn = el("button", "lf-btn lf-first-unread", "Next unread");

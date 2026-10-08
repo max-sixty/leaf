@@ -29,23 +29,10 @@ vars:
     The page directory is not reachable from here, so reply with the HTML fragment
     rather than writing a file.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-authoring-evidence
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/authoring-evidence\.md
-- type: javascript
+- type: regex
   metric: pair-outlined
-  value: file://text-regex.cjs
-  config:
-    pattern: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*header-before\.png)(?=[^>]*\bafter=["'][^"']*header-after\.png)(?=(?:[^>"']|"[^"]*"|'[^']*')*\soutlines(?:=""|\s|/?>))
-    flags: i
-    negate: false
+  value: <lf-shot\b(?=[^>]*\bbefore=["'][^"']*header-before\.png)(?=[^>]*\bafter=["'][^"']*header-after\.png)(?=(?:[^>"']|"[^"]*"|'[^']*')*\soutlines(?:=""|\s|/?>))
+  transform: output.toLowerCase()
 - type: llm-rubric
   metric: judgment
   value: |

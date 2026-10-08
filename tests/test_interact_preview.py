@@ -1,8 +1,8 @@
 """Preview input readings and the user handoff's harness connection.
 
 `leaf-dev preview` resolves three things from wherever its source sits: the
-package layer, the media directory, and the set of paths a watcher subscribes
-to. Input tests state a directory tree and ask for those pure readings. The user
+package layer, the companion media and pinned assets, and the paths a watcher
+subscribes to. Input tests exercise those readings and shared page preparation. The user
 handoff crosses the real claim, server and delivery adapter boundaries, without
 opening a browser.
 
@@ -21,10 +21,15 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
+from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import ROOT, STATED_TIMEOUT, declare_idle, fetch, stamp, wait_for
+from leaf import cli as cli_model
 from leaf import codex_adapter, hosting, leases, server, service, session, state
-from leaf_dev import preview
+from leaf.media import media_name
+from leaf.structure import SourceDocument
+from leaf_dev import page_fixtures, preview
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 
 def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
@@ -232,6 +237,101 @@ def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
     watched = preview.watch_paths(source, ROOT, [], {})
     assert str(examples / "layer.json") in watched.paths
     assert str(ROOT / "uv.lock") in watched.paths
+
+
+@pytest.mark.parametrize("name", ["how-it-works", "index", "examples"])
+def test_product_previews_prepare_the_authored_layer_and_media(
+    tmp_path, monkeypatch, name
+):
+    """A product preview includes its site furniture and authored images."""
+    source = ROOT / "docs" / f"{name}.html"
+    page = tmp_path / "preview"
+    monkeypatch.chdir(ROOT)
+
+    def run_leaf(*args, input_text=None):
+        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
+        assert result.exit_code == 0, result.output
+
+    prepare_page(page, read_fixture(source), run_leaf, final_status=None)
+    assert all(
+        (page / reference.removeprefix("/")).is_file()
+        for reference in SourceDocument(source.read_text()).media_refs
+    )
+    registry = json.loads((page / "registry.json").read_text())
+    assert "nav.sitenav" in registry["$idioms"]
+    assert (ROOT / "docs" / "package" / "theme.css").read_text().rstrip() in (
+        page / "theme.css"
+    ).read_text()
+    watched = preview.watch_paths(source, ROOT, [], {})
+    assert str(ROOT / "docs" / "layer.json") in watched.paths
+
+
+@pytest.mark.parametrize("kind", ["image", "css", "inline", "stylesheet", "sample"])
+def test_fixture_media_follows_versions_draft_assets_and_live_edits(
+    tmp_path, monkeypatch, kind
+):
+    """Markup selects media for preparation and refresh, including earlier versions."""
+    source = tmp_path / "source" / "index.html"
+    source.parent.mkdir()
+    (source.parent / "layer.json").write_text("[]")
+    (source.parent / "media").mkdir()
+    (source.parent / "leaf-assets.json").write_text("{}")
+    assets = tmp_path / "draft-assets"
+    assets.mkdir()
+    previous, current, revised, unused = [
+        assets / f"{name}.png" for name in ("previous", "current", "revised", "unused")
+    ]
+    for path in (previous, current, revised, unused):
+        path.write_bytes(path.stem.encode())
+
+    def markup(path, kind=kind):
+        address = f"/media/{media_name(path.read_bytes(), path.suffix)}"
+        head = ""
+        body = f'<img src="{address}" alt="Example">'
+        if kind == "css":
+            head = f"<style>.picture {{background-image:url({address})}}</style>"
+            body = '<div class="picture">Picture</div>'
+        elif kind == "inline":
+            body = f'<div style="background-image:url({address})">Picture</div>'
+        elif kind == "stylesheet":
+            companion = source.with_suffix(".page")
+            companion.mkdir(exist_ok=True)
+            (companion / f"{path.stem}.css").write_text(
+                f".picture {{background-image:url({address})}}"
+            )
+            head = f'<link rel="stylesheet" href="/page/{path.stem}.css">'
+            body = '<div class="picture">Picture</div>'
+        elif kind == "sample":
+            body = (
+                '<lf-sample id="sample" label="Picture">'
+                f'<template data-sample id="sample-content">{body}</template></lf-sample>'
+            )
+        return (
+            f"<!doctype html><html><head><title>Media fixture</title>{head}</head>"
+            f"<body><main><h1>Media fixture</h1>{body}"
+            "</main></body></html>"
+        )
+
+    versions = source.parent / "versions"
+    versions.mkdir()
+    (versions / "index.v1.html").write_text(markup(previous))
+    source.write_text(markup(current))
+    page = tmp_path / "page"
+
+    def run_leaf(*args, input_text=None):
+        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
+        assert result.exit_code == 0, result.output
+
+    prepare_page(page, read_fixture(source), run_leaf, assets=assets, final_status=None)
+    expected = {
+        media_name(path.read_bytes(), path.suffix) for path in (previous, current)
+    }
+    assert {path.name for path in (page / "media").iterdir()} == expected
+    source.write_text(markup(revised, kind="inline"))
+    monkeypatch.setattr(page_fixtures, "pinned_assets", lambda root: assets)
+    preview.refresh_media(source, page, run_leaf)
+    expected.add(media_name(revised.read_bytes(), revised.suffix))
+    assert {path.name for path in (page / "media").iterdir()} == expected
 
 
 def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():

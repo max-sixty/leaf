@@ -60,6 +60,7 @@ from leaf_dev.leaf_assets import CACHE as ASSETS_CACHE
 from leaf_dev.leaf_assets import assets_lock
 from leaf_dev.page_fixtures import (
     DEFAULT_PACKAGES,
+    import_referenced_media,
     media_source,
     package_selection_args,
     prepare_page,
@@ -201,7 +202,7 @@ def preview_lease(page: Path) -> Path:
     return page.with_name(f"{page.name}.lock")
 
 
-def refresh_media(source: Path, page: Path) -> None:
+def refresh_media(source: Path, page: Path, run_leaf) -> None:
     """Copy in new media. A name already copied keeps its bytes, since earlier
     revisions may reference it."""
     media = media_source(source)
@@ -217,6 +218,12 @@ def refresh_media(source: Path, page: Path) -> None:
                 f"media/{path.relative_to(media)} has different bytes in the preview; "
                 "use a new filename to preserve historical revisions"
             )
+    import_referenced_media(
+        page,
+        [version.read_text(encoding="utf-8") for version in example_versions(source)],
+        run_leaf,
+        source=source,
+    )
 
 
 def digest(path: Path) -> str | None:
@@ -446,7 +453,7 @@ def refresh_preview(
         if planned["changed"]:
             with service.replacing():
                 leaf(launcher, runtime, "page", "init", *selection_args, str(page))
-        refresh_media(source, page)
+        refresh_media(source, page, partial(leaf, launcher, runtime))
         if source_changed:
             previous = authored.read_bytes()
             authored.write_bytes(incoming)

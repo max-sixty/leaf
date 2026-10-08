@@ -1269,7 +1269,9 @@ def clean_browser(test=None):
 def judge_watches():
     """Judge every layout shift each watched page makes, once the frames the test's
     last act changed have painted (`shift_watch.js`, `lfShiftsJudged`), and then every
-    loss of typed words so far (`words_watch.js`, `lfWordsJudged`).
+    loss of typed words so far (`words_watch.js`, `lfWordsJudged`). The driver reads
+    frame-owner visibility across origins: an opaque child cannot inspect the
+    ancestor that suppresses its paint (`window.frameElement` is null there).
 
     Chrome hands a frame's shifts to the observer only after it paints, so a test whose
     last act moves the page or takes words away would end before the report. Judgement
@@ -1281,15 +1283,54 @@ def judge_watches():
     for page, _ in _BROWSER_PROBLEM_LISTS or ():
         if not page.is_closed() and page.lf_java_script_enabled:
             for frame in page.frames:
-                frame.wait_for_function(
-                    """async () => {
-                        await window.lfShiftsJudged?.();
-                        await window.lfWordsJudged?.();
-                        return true;
+                frame.evaluate(
+                    """ancestorsDrawn => {
+                        const judgement = window.lfWatchJudgement = {
+                          ancestorsDrawn, complete: false, error: null,
+                        };
+                        Promise.resolve().then(async () => {
+                          await window.lfShiftsJudged?.();
+                          await window.lfWordsJudged?.();
+                        }).then(() => { judgement.complete = true; },
+                          error => { judgement.error = error; });
                     }""",
-                    timeout=render_checks_model.SERVED_TIMEOUT_MS,
-                    polling=100,
+                    _frame_owners_drawn(frame),
                 )
+                deadline = (
+                    time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+                )
+                while True:
+                    complete = frame.evaluate(
+                        """ancestorsDrawn => {
+                            const judgement = window.lfWatchJudgement;
+                            judgement.ancestorsDrawn = ancestorsDrawn;
+                            if (judgement.error) throw judgement.error;
+                            return judgement.complete;
+                        }""",
+                        _frame_owners_drawn(frame),
+                    )
+                    if complete:
+                        break
+                    if time.monotonic() >= deadline:
+                        raise PlaywrightTimeout(
+                            f"health sensors did not drain: {frame.url}"
+                        )
+                    page.wait_for_timeout(100)
+                frame.evaluate("delete window.lfWatchJudgement")
+
+
+def _frame_owners_drawn(frame):
+    """Read current ancestor visibility across origin boundaries for the sensor."""
+    ancestor = frame
+    while ancestor.parent_frame is not None:
+        owner = ancestor.frame_element()
+        try:
+            if not owner.evaluate("element => element.checkVisibility()"):
+                return False
+        finally:
+            owner.dispose()
+        ancestor = ancestor.parent_frame
+    return True
 
 
 def watched(page, *, java_script_enabled=True):
@@ -2040,12 +2081,12 @@ def panel_settled(page, open=True):
 
     The panel stands over the page, so opening or closing it moves nothing else; its own
     slide is the one motion, finished rather than waited out for `edge_settled`'s reason.
-    Closed means the dialog itself has closed."""
+    Closed means the retained panel is no longer visible."""
     page.wait_for_function(
         """(open) => {
           const panel = document.querySelector('.lf-thread-panel');
           for (const move of panel.getAnimations()) move.finish();
-          return panel.classList.contains('open') === open && panel.open === open
+          return panel.classList.contains('open') === open && panel.checkVisibility() === open
             && panel.getAnimations().length === 0;
         }""",
         arg=open,

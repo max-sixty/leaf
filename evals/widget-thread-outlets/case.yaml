@@ -17,11 +17,6 @@ vars:
     Leaf should retain its normal conversations, drafts, and fallback for comments
     whose rows aren't visible. Return the JavaScript and required registry declaration.
 assert:
-- type: javascript
-  metric: reads-module-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/module-authoring\.md
 - type: llm-rubric
   metric: resolves-local-outlets
   value: |

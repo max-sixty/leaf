@@ -139,7 +139,7 @@ const WORK_WORDS = {
   awaiting_user: "waiting for you",
   replying: "replying",
 };
-export const countAnswers = (count) => `${count} answer${count === 1 ? "" : "s"}`;
+export const countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
 // What the banner and the leaves drawer both read off one page's server-owned `activity`
 // before either words it. Each seat keeps its own sentences; a fact they share changes
 // here once:
@@ -154,9 +154,9 @@ export function activityFacts({ activity }) {
   const { counts } = activity;
   const waiting = [];
   if (counts.queued)
-    waiting.push(`${countAnswers(counts.queued)} owed on queued updates`);
+    waiting.push(`${countResponses(counts.queued)} owed on queued updates`);
   if (counts.pending)
-    waiting.push(`${countAnswers(counts.pending)} owed on updates awaiting delivery`);
+    waiting.push(`${countResponses(counts.pending)} owed on updates awaiting delivery`);
   return Object.freeze({
     tone: TONE[activity.kind],
     work: WORK_WORDS[activity.observed_kind] || "working",

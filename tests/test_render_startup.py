@@ -3249,7 +3249,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(page.locator(".lf-status-queues")).to_have_text("2 on Claude")
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. 1 answer owed on updates awaiting delivery\."
+            r"^Claude is working — revising the plan \(.+\)\. 1 response owed on updates awaiting delivery\."
             r" Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
         )
     )
@@ -3271,7 +3271,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(text).to_have_text(
         re.compile(
             r"^Claude is working — revising the plan \(.+\)\. "
-            r"1 answer owed on queued updates\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+            r"1 response owed on queued updates\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3313,7 +3313,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             re.compile(
                 r"^Claude is working — revising the plan \(.+\)\. "
-                r"1 answer owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+                r"1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3332,7 +3332,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             re.compile(
                 r"^Claude is using a tool — revising the plan \(.+\) · "
-                r"Running the tests\. 1 answer owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+                r"Running the tests\. 1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3408,12 +3408,12 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # clipped, and a narrow window must not be why the decision goes unread.
         declare("waiting", "pick a storage engine")
         expect(text).to_have_text(
-            "Claude is listening — pick a storage engine. 1 answer owed on updates awaiting delivery."
+            "Claude is listening — pick a storage engine. 1 response owed on updates awaiting delivery."
             " Waiting on Claude: 1 reply."
         )
         expect(page.locator(".lf-status-button")).to_have_attribute(
             "title",
-            "Claude is listening — pick a storage engine. 1 answer owed on updates awaiting delivery."
+            "Claude is listening — pick a storage engine. 1 response owed on updates awaiting delivery."
             " Waiting on Claude: 1 reply.",
         )
 

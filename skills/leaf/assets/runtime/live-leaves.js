@@ -3,7 +3,7 @@ import { clocked } from "./presence.js";
 import { pagePresented } from "./presentation.js";
 import { liveLeavesList, drawerIsOpen, othersPanel } from "./drawers.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { activityFacts, countAnswers } from "./banner.js";
+import { activityFacts, countResponses } from "./banner.js";
 import { rowWalk } from "./walk-position.js";
 
 let others = [];
@@ -94,17 +94,17 @@ function rowPresence(entry) {
 // part of the account they can already read.
 const activityAccount = ({ counts }) => {
   const parts = [];
-  if (counts.active) parts.push(`${countAnswers(counts.active)} being worked on`);
+  if (counts.active) parts.push(`${countResponses(counts.active)} being worked on`);
   if (counts.handling)
-    parts.push(`${countAnswers(counts.handling)} owed on picked-up updates`);
+    parts.push(`${countResponses(counts.handling)} owed on picked-up updates`);
   if (counts.queued)
-    parts.push(`${countAnswers(counts.queued)} owed on queued updates`);
+    parts.push(`${countResponses(counts.queued)} owed on queued updates`);
   if (counts.picked_up)
     parts.push(
-      `${countAnswers(counts.picked_up)} owed on picked-up updates; no current turn observed`,
+      `${countResponses(counts.picked_up)} owed on picked-up updates; no current turn observed`,
     );
   if (counts.pending)
-    parts.push(`${countAnswers(counts.pending)} owed on updates awaiting delivery`);
+    parts.push(`${countResponses(counts.pending)} owed on updates awaiting delivery`);
   return parts.length ? parts.join("; ") : null;
 };
 

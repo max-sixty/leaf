@@ -2,8 +2,8 @@
 # Appearance scope failed 2/2 before, passed 2/2 after; fidelity passed 1/2 before
 # and 2/2 after. Ordering separated intermediate and final wording. Motion handoff
 # failed 2/2 before, passed 2/2 after. These score decisions, not executed artifacts.
-# Active-option follow-up (2026-10-07): foreground/background inspection wording
-# passed 2/2 menu plans against 0/2 on HEAD. Drag-preview and interaction-fix
+# Active-option follow-up (2026-10-07): explicit pointer/keyboard-target inspection
+# passed 2/2 menu plans against 0/2 on 89b38eee1. Drag-preview and interaction-fix
 # guards passed 2/2 each on both arms; the drag case is synthetic generalization
 # coverage, not a reconstruction of a live rectangle-tool failure.
 # Native fixed-output grader controls passed 3/3: reject an archived open/focus

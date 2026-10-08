@@ -1964,7 +1964,7 @@ diff --git a/tests/second.py b/tests/second.py
     expect(diff.locator(".lf-diff-wrap")).to_be_visible()
     search = diff.locator(".lf-diff-search input")
     search.fill("second")
-    expect(diff.locator(".lf-diff-progress")).to_have_text("2 files · 1 matching")
+    expect(diff.locator(".lf-diff-progress")).to_have_text("1 of 2")
     expect(diff.locator("summary").nth(0)).to_be_hidden()
     expect(diff.locator("summary").nth(1)).to_be_visible()
 

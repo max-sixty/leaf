@@ -12237,6 +12237,88 @@ def _bound_diff(browser, serve, patch=MULTI_HUNK_PATCH):
     return page
 
 
+@pytest.mark.parametrize("review", [False, True])
+@pytest.mark.parametrize("width", [390, 1280])
+def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(
+    browser, serve, review, width
+):
+    """The matching count must not resize the editor or wrap Soft wrap into a new row."""
+    source = (
+        MANIFEST_DIFF_PAGE.replace("<lf-diff", "<lf-diff review", 1)
+        if review
+        else MANIFEST_DIFF_PAGE
+    )
+    url = serve(source)
+
+    def patch(count):
+        return "".join(
+            f"diff --git a/src/file-{index}.py b/src/file-{index}.py\n"
+            f"--- a/src/file-{index}.py\n+++ b/src/file-{index}.py\n"
+            "@@ -1 +1 @@\n-old\n+new\n"
+            for index in range(count)
+        )
+
+    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch(12)))
+    page = open_page(browser, url)
+    resized(page, width, 844)
+    diff = page.locator("#patch")
+    search = diff.locator(".lf-diff-search input")
+    progress = diff.locator(".lf-diff-progress")
+    rows = diff.locator(".lf-diff-file:not(.lf-diff-filtered)")
+    geometry = """host => Object.fromEntries(
+      ['.lf-diff-tools', '.lf-diff-search input', '.lf-diff-wrap-label', '.lf-diff-next']
+        .map(selector => {
+          const node = selector.includes(' input')
+            ? host.shadowRoot.querySelector('.lf-diff-search').shadowRoot.querySelector('input')
+            : host.shadowRoot.querySelector(selector);
+          if (!node) return [selector, null];
+          const {x, y, width, height} = node.getBoundingClientRect();
+          return [selector, {x, y, width, height}];
+        }))"""
+
+    reviewed = 0
+    for total in (12, 1):
+        if total == 1:
+            data_model.cmd_data_set(
+                serve.page_dir, "review-patch", patch_manifest(patch(1))
+            )
+            told(page)
+        expect(rows).to_have_count(total)
+        base_label = (
+            f"{reviewed} of {total} reviewed"
+            if review
+            else f"{total} file{'s' if total != 1 else ''}"
+        )
+        expect(progress).to_have_text(base_label)
+        search.scroll_into_view_if_needed()
+        rendered(page)
+        before = diff.evaluate(geometry)
+        for query, matches in (("file-0.py", 1), ("no-such-file", 0), ("", total)):
+            search.fill(query)
+            expect(rows).to_have_count(matches)
+            expected_label = base_label
+            if matches != total:
+                expected_label = (
+                    f"{base_label} · {matches} matching"
+                    if review
+                    else f"{matches} of {total}"
+                )
+            expect(progress).to_have_text(expected_label)
+            rendered(page)
+            after = diff.evaluate(geometry)
+            assert after == before, (query, before, after)
+            expect(search).to_be_focused()
+
+        if review and not reviewed:
+            diff.locator(".lf-diff-review").first.click()
+            round_trip(page)
+            expect(progress).to_have_text(f"1 of {total} reviewed")
+            rendered(page)
+            after_review = diff.evaluate(geometry)
+            assert after_review == before, (before, after_review)
+            reviewed = 1
+
+
 @pytest.mark.parametrize("manifest", [False, True])
 def test_a_diff_refresh_keeps_the_readers_inspection(browser, serve, manifest):
     """A new patch changes evidence, while wrap, file disclosure and reading position

@@ -129,7 +129,8 @@
                  color: var(--code-muted); font: var(--t-6) var(--sans); }
 .lf-diff-search-label { flex: 1 1 6rem; min-width: 0; }
 .lf-diff-search { flex: 1 1 auto; width: 100%; }
-.lf-diff-progress { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.lf-diff-progress { flex: none; width: var(--lf-reserved-width, auto);
+                    font-variant-numeric: tabular-nums; white-space: nowrap; }
 .lf-diff-wrap-label { display: inline-flex; align-items: center; gap: 6px; flex: none;
                       min-height: var(--aim-floor);
                       white-space: nowrap; cursor: pointer; }

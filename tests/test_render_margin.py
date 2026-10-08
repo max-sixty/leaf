@@ -2887,6 +2887,49 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before_sheet
 
 
+@pytest.mark.parametrize("viewport", [(1440, 900), (390, 844), (1440, 300)])
+def test_page_map_filtering_keeps_search_and_close_in_place(browser, serve, viewport):
+    """Filtering changes the list below the search, keeping the sheet's top and the
+    controls the user is operating fixed. A full list still reaches its final row."""
+    page = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
+    resized(page, *viewport)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    search = dialog.get_by_role(
+        "searchbox", name="Find an action, status, or location in Page Map"
+    )
+    close = dialog.get_by_role("button", name="Close Page Map", exact=True)
+    groups = dialog.locator(".lf-page-map-group:visible")
+    expect(groups).to_have_count(12)
+    expect(search).to_be_focused()
+    before = {"search": search.bounding_box(), "close": close.bounding_box()}
+    top = dialog.bounding_box()["y"]
+
+    for query, count in [("Map note 12", 1), ("No such map entry", 0), ("", 12)]:
+        search.fill(query)
+        expect(groups).to_have_count(count)
+        rendered(page)
+        assert search.bounding_box() == before["search"]
+        assert close.bounding_box() == before["close"]
+        assert dialog.bounding_box()["y"] == top
+        assert (
+            dialog.bounding_box()["y"] + dialog.bounding_box()["height"] <= viewport[1]
+        )
+
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("End")
+    rows = dialog.locator("button.lf-page-map-action")
+    expect(rows.last).to_be_focused()
+    rendered(page)
+    list_box = dialog.locator(".lf-page-map-list").bounding_box()
+    last = rows.last.bounding_box()
+    assert last["y"] >= list_box["y"]
+    assert last["y"] + last["height"] <= list_box["y"] + list_box["height"] + 1
+    assert dialog.locator(".lf-page-map-list").evaluate("node => node.scrollTop") > 0
+    assert close.bounding_box() == before["close"]
+
+
 def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
     """The dialog is a list under a search: Down leaves the search for the first row,
     Up and Down then step between rows rather than scrolling the page behind the modal,

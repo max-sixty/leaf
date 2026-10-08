@@ -119,6 +119,24 @@ export function nativeLayers() {
   return entries.filter((entry) => entry.active());
 }
 
+// Same-origin embedded pages consult the native owner of the document holding their
+// frame. The bridge exposes the owner's reading, never a second stack. An ordinary
+// host without Leaf cannot supply opening order: require containment in every standing
+// modal there, so an unobserved layer never becomes evidence that a child was shown.
+const NATIVE_LAYERS = Symbol.for("leaf.nativeLayers");
+Object.defineProperty(document, NATIVE_LAYERS, { value: nativeLayers });
+export function nativeModalAdmits(node) {
+  const owner = node.ownerDocument;
+  const reading = owner[NATIVE_LAYERS];
+  if (reading) {
+    const modal = reading().findLast((layer) => layer.kind === "modal")?.root;
+    return !modal || under(node, modal);
+  }
+  return [...owner.querySelectorAll("dialog:modal")].every((modal) =>
+    under(node, modal),
+  );
+}
+
 // Raising a native ancestor appends it above its standing descendants. Re-seat those
 // same layers after its transition, in their native order; their owners and retained
 // nodes keep the reading and the eventual return. The browser state changes in one

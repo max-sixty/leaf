@@ -279,9 +279,10 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
     repaint();
     anchorPaint?.refreshHover();
   },
-  // A comment box seated where a surface now stands, or in its home in a surface now
-  // gone, moves to the seat the user can reach: presenting the page again seats it.
+  // Auxiliary reach changes exposure without moving the retained message bodies.
+  // A comment box displaced by that reading also asks presentation for its new seat.
   reachChanged: () => {
+    app.read.exposureChanged();
     if (responseSurface.fabAnchorAt()) void app.invalidateDom();
   },
 });

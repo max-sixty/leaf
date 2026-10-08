@@ -95,13 +95,6 @@ export function createAuxiliarySurfaces({
       if (previous) previous.surface.removeAttribute("data-lf-covered");
       active = next;
       standing = selected;
-      keeps(envelope, "role", selected ? null : "presentation");
-      keeps(envelope, "aria-label", selected?.surface.getAttribute("aria-label"));
-      keeps(
-        envelope,
-        "aria-labelledby",
-        selected?.surface.getAttribute("aria-labelledby"),
-      );
       keeps(band, "inert", next && !next.underBand ? "" : null);
       if (next) keeps(next.surface, "data-lf-covered", "");
       if (changedPosture || !envelope.open) {
@@ -183,7 +176,14 @@ export function createAuxiliarySurfaces({
   let reachQueued = false;
   function sync() {
     const selected = controllers.get(selectedKey);
-    seat(selected && selected !== arriving ? selected : null);
+    const shown = selected && selected !== arriving ? selected : null;
+    // Selection states the final accessible surface once. Lifting a previous native
+    // boundary before its hide callback is only a mechanical handoff, not a visit to
+    // the idle presentation group between two selected surfaces.
+    keeps(envelope, "role", shown ? null : "presentation");
+    keeps(envelope, "aria-label", shown?.surface.getAttribute("aria-label"));
+    keeps(envelope, "aria-labelledby", shown?.surface.getAttribute("aria-labelledby"));
+    seat(shown);
     if (reachQueued) return;
     reachQueued = true;
     nextRender(() => {

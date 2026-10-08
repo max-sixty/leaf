@@ -6772,10 +6772,15 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
             const list = document.querySelector(".lf-threads");
             const style = getComputedStyle(list);
             const standing = document.activeElement?.closest(".lf-thread");
+            const bar = document.querySelector(".lf-shortcut-bar");
+            const box = bar.getBoundingClientRect();
+            const hit = document.elementFromPoint((box.left + box.right) / 2,
+                                                 box.bottom - 1);
             return {shortcut_bar: rect(document.querySelector(".lf-shortcut-bar")),
                     foot: rect(document.querySelector(".lf-thread-panel-foot")),
                     standingTitle: standing ? rect(document.activeElement) : null,
-                    lineCovered: Boolean(document.querySelector("dialog:modal")) && !document.querySelector("dialog:modal").contains(document.querySelector(".lf-shortcut-bar")),
+                    lineCovered: Boolean(document.querySelector("dialog:modal")) &&
+                                 Boolean(bar.closest("[inert]")) && !bar.contains(hit),
                     viewportHeight: innerHeight,
                     listPad: parseFloat(style.paddingBottom),
                     listScrollPad: parseFloat(style.scrollPaddingBottom)};
@@ -6783,6 +6788,11 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
 
     one_line = boxes()
     assert one_line["lineCovered"], one_line
+    assert page.evaluate("""() => {
+      const held = document.activeElement;
+      document.querySelector('.lf-shortcut-bar button').focus();
+      return document.activeElement === held;
+    }"""), "the suspended bar took focus from the foreground editor"
     assert one_line["shortcut_bar"]["right"] > one_line["foot"]["left"], (
         f"the fixture no longer exercises the overlapping lanes: {one_line}"
     )

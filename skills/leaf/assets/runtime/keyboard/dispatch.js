@@ -102,7 +102,7 @@ import {
   scopeIdentity,
 } from "./scopes.js";
 import { nativeLayers } from "./layer-stack.js";
-import { shadowHost, under, upFrom } from "../shadow.js";
+import { shadowHost, under, excludedByInert } from "../shadow.js";
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
 // reference lists a scope the page *has* and filters its rows by liveness only where the user
@@ -113,12 +113,7 @@ export const userIn = (scope) => {
   // Native modality excludes everything below its layer floor. An explicitly inert
   // subtree can also stand inside that floor (the suspended bottom bar in Threads),
   // and none of its latent scopes may answer a key or advertise a live command.
-  for (let node = scopeRoot(scope); node; node = upFrom(node)) {
-    if (node.inert) return false;
-    // showModal escapes inherited inertness, though an explicitly inert modal does
-    // not. Its descendants remain reachable even inside an inert authored region.
-    if (node instanceof Element && node.matches(":modal")) break;
-  }
+  if (excludedByInert(scopeRoot(scope))) return false;
   return !scope.at || scope.at();
 };
 // Where the user is first, and what the page has second: both are pure and the and is

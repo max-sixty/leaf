@@ -122,7 +122,12 @@ def test_delivery_uses_successful_turns_and_accepted_exact_thread_claims(tmp_pat
             "events": ["comment"],
             "ts": records[1]["received_at"],
         },
-        {"kind": "reply", "parent": "comment", "ts": records[3]["received_at"]},
+        {
+            "kind": "reply",
+            "parent": "comment",
+            "responds": "comment",
+            "ts": records[3]["received_at"],
+        },
     ]
     (tmp_path / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events))
 
@@ -133,6 +138,17 @@ def test_delivery_uses_successful_turns_and_accepted_exact_thread_claims(tmp_pat
         return grade("mid-turn", score(tmp_path))
 
     assert all(checks().values())
+    reply = events[-1]
+    for non_answer in (
+        {**reply, "failure": "turn_failed"},
+        {"kind": "reply", "parent": "comment", "ephemeral": True, "ts": reply["ts"]},
+        {**reply, "responds": "later-input"},
+    ):
+        (tmp_path / "events.jsonl").write_text(
+            "\n".join(json.dumps(e) for e in [*events[:-1], non_answer])
+        )
+        assert not checks()["replied-1"]
+    (tmp_path / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events))
     records[-1]["is_error"] = True
     assert not checks()["completed"]
     assert not checks()["turn-ended-1"]
@@ -177,3 +193,77 @@ def test_live_round_receipts_require_exact_admitted_user_inputs():
     assert not inputs_received(events, {"round-1", "round-2"})
     events.append({"kind": "pickup", "phase": "opened", "events": ["second"]})
     assert inputs_received(events, {"round-1", "round-2"})
+
+
+def test_answer_readings_distinguish_admitted_outcomes_from_thread_content(page_dir):
+    """All tools agree on the answer address admitted by the real append door.
+
+    Progress and a user follow-up share a thread with the eventual answer, but
+    neither answers the original input. A failure ends delivery without claiming
+    success; an answer to the follow-up must not credit the original input.
+    """
+    from interact_support import append_command, publish
+    from leaf.event_log import read_events
+    from leaf.thread import (
+        answered_by_reply,
+        cmd_reply,
+        response_replies,
+        successful_replies,
+    )
+    from leaf_dev import journey, review_scenario
+
+    publish(page_dir)
+    original = append_command(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "First question",
+            "revision": 1,
+            "attempt": review_scenario.attempt("first"),
+        },
+    )
+    progress = cmd_reply(
+        page_dir,
+        original["id"],
+        "Checking the question.",
+        None,
+        for_event=original["id"],
+        ephemeral=True,
+    )
+    failure = cmd_reply(
+        page_dir,
+        original["id"],
+        "The turn failed.",
+        None,
+        for_event=original["id"],
+        failure="turn_failed",
+    )
+    later = append_command(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": failure["id"],
+            "text": "Try another question",
+        },
+    )
+    answer = cmd_reply(
+        page_dir,
+        None,
+        "The later question is answered.",
+        None,
+        for_event=later["id"],
+    )
+    events = read_events(page_dir)
+    assert "responds" not in progress
+    assert response_replies(events, original["id"]) == [failure]
+    assert not successful_replies(events, original["id"])
+    assert not answered_by_reply(events, original["id"])
+    assert not review_scenario.answers(page_dir, "first")
+    assert successful_replies(events, later["id"]) == [answer]
+    assert answered_by_reply(events, later["id"])
+    assert journey.turn_failed(response_replies(events, original["id"]))
+    published = {"activated_at": answer["ts"]}
+    assert journey.recorded_steps(events, original, published)["replied"] is None
+    assert journey.recorded_steps(events, later, published)["replied"] is not None

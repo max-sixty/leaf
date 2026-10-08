@@ -3,6 +3,8 @@ import { build } from "esbuild";
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
+import { resolve } from "node:path";
+import { patchTransitions } from "./transition-patch.mjs";
 
 const [out, version, python] = process.argv.slice(2);
 const css = await build({
@@ -57,7 +59,24 @@ const result = await build({
   splitting: true,
   chunkNames: "webawesome/[name]-[hash]",
   external: ["/runtime/shadow-stage.js", "/vendor/lit.js"],
-  plugins: [lit],
+  plugins: [
+    lit,
+    {
+      name: "leaf-wa-transitions",
+      setup(build) {
+        build.onResolve({ filter: /^leaf-wa-transitions$/ }, () => ({
+          path: resolve("transitions.mjs"),
+        }));
+        build.onLoad(
+          { filter: /webawesome\/dist\/chunks\/.*\.js$/ },
+          async ({ path }) => ({
+            contents: patchTransitions(await readFile(path, "utf8")),
+            loader: "js",
+          }),
+        );
+      },
+    },
+  ],
   bundle: true,
   format: "esm",
   platform: "browser",

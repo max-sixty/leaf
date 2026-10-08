@@ -12966,6 +12966,115 @@ def test_webawesome_theme_reaches_a_declared_shadow_stage(browser, serve):
     )
 
 
+@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
+def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, motion):
+    """A superseded close cannot hide a reopened popover or strand its API promise.
+
+    Select, color picker and tooltip share the library's animation continuation.
+    The real Enter/Space route exposed it; direct public requests exercise the
+    same owner in the other consumers and both interruption directions.
+    """
+    source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    page = open_page(browser, serve(source))
+    page.emulate_media(reduced_motion=motion)
+    targeting_menu(page)
+    select = page.locator("#code-comparison-targeting wa-select").first
+    select.evaluate(
+        "n => { n.reopened = new Promise(r => n.addEventListener('wa-after-show', r, {once:true})); }"
+    )
+    page.keyboard.press("Enter")
+    page.keyboard.press("Space")
+    select.evaluate("n => n.reopened.then(() => true)")
+    expect(select.locator("wa-option:state(current)")).to_be_visible()
+    assert select.evaluate("n => n.open && n.popup.active && !n.listbox.hidden")
+    page.keyboard.press("Escape")
+
+    for tag in ("wa-select", "wa-color-picker", "wa-tooltip"):
+        page.evaluate(
+            """async tag => {
+          const {offer} = await import('/runtime/widget-api.js');
+          const holder = offer('div', 'transition-test');
+          const control = offer(tag, 'transition-control');
+          control.id = 'transition-control';
+          if (tag === 'wa-select') {
+            const option = offer('wa-option', '', 'First');
+            option.value = 'first'; control.append(option);
+          } else if (tag === 'wa-tooltip') {
+            control.trigger = 'manual'; control.content = 'Help';
+            control.append(offer('button', '', 'Help'));
+          }
+          holder.append(control); document.body.append(holder);
+          await control.updateComplete;
+          await control.show();
+        }""",
+            tag,
+        )
+        control = page.locator("#transition-control")
+        for final_open in (True, False):
+            control.evaluate(
+                """async (n, finalOpen) => {
+              if (n.open !== finalOpen) await (finalOpen ? n.show() : n.hide());
+              const interrupted = finalOpen ? n.hide() : n.show();
+              await n.updateComplete;
+              const latest = finalOpen ? n.show() : n.hide();
+              n.results = null;
+              Promise.all([interrupted, latest]).then(results => n.results = results);
+            }""",
+                final_open,
+            )
+            page.wait_for_function(
+                "document.querySelector('#transition-control').results !== null"
+            )
+            assert control.evaluate("n => n.results") == [False, True]
+            assert control.evaluate("n => n.open === n.popup.active")
+            assert control.evaluate("n => n.open") is final_open
+        for requests in ((True, False), (True, False, True)):
+            control.evaluate("n => n.hide()")
+            results = control.evaluate(
+                """async (n, requests) => {
+              return Promise.all(requests.map(open => open ? n.show() : n.hide()));
+            }""",
+                requests,
+            )
+            assert results == [False] * (len(requests) - 1) + [True]
+            assert control.evaluate("n => n.open === n.popup.active")
+            assert control.evaluate("n => n.open") is requests[-1]
+        control.evaluate("n => n.hide()")
+        assert (
+            control.evaluate("""async n => {
+          const pending = n.show(); n.open = false;
+          return pending;
+        }""")
+            is False
+        )
+        assert control.evaluate("n => !n.open && !n.popup.active")
+        if tag == "wa-color-picker":
+            control.evaluate("""n => {
+              const held = new Promise(resolve => n.releaseUpdate = resolve);
+              n.addEventListener('wa-show', () => {
+                Object.defineProperty(n, 'updateComplete', {configurable:true, get:()=>held});
+              }, {once:true});
+              n.interrupted = null;
+              n.show().then(result => n.interrupted = result);
+            }""")
+            page.wait_for_function(
+                "document.querySelector('#transition-control').releaseUpdate && Object.hasOwn(document.querySelector('#transition-control'), 'updateComplete')"
+            )
+            control.evaluate("n => { n.latest = n.hide(); }")
+            page.wait_for_function(
+                "document.querySelector('#transition-control').interrupted === false"
+            )
+            assert (
+                control.evaluate("""async n => {
+              delete n.updateComplete; n.releaseUpdate();
+              return n.latest;
+            }""")
+                is True
+            )
+            assert control.evaluate("n => !n.open && !n.popup.active && n.base.hidden")
+        control.evaluate("n => n.parentElement.remove()")
+
+
 # A phrase late in the diff's longest line: unwrapped it is off the right of the box, and
 # wrapped it is on a line box of its own — the two states the test below is about.
 _DIFF_TAIL = "whichever remote it came from"

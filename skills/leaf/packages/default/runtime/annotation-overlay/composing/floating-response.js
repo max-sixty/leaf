@@ -8,7 +8,9 @@
    collision placement and scroll observation.
 
    An editing field follows its passage out of view. The existing Resume writing route
-   reveals that same field; no window seat or duplicate input stands in for it. */
+   reveals that same field; no window seat or duplicate input stands in for it. A modal
+   side panel withholds the page's response bar and takes its focus until the page is
+   available again. */
 import { cancelRender, nextRender } from "/runtime/rendering.js";
 import { resolveAnchor } from "/runtime/anchor-resolution.js";
 import { sameAnchor } from "/runtime/anchor-coordinate.js";
@@ -97,6 +99,8 @@ export function createFloatingResponsePlacement({
       Math.ceil(boundary.width) >= Math.ceil(fabBar.getBoundingClientRect().width)
     );
   };
+  const panelCoversPage = () =>
+    panelIsOpen() && threadsBox.closest("dialog")?.matches(":modal");
 
   // The editing observer reports size and horizontal target movement: CSS anchors
   // own scroll following, while a target moved without resizing must let the shared
@@ -108,7 +112,7 @@ export function createFloatingResponsePlacement({
   // only its observers and geometry, never a handoff waiting for an inline seat.
   function stopFabPositioning({ reset = false } = {}) {
     nativeAttachment = false;
-    fabBar.style.removeProperty("height");
+    if (fabBar.style.height) fabBar.style.removeProperty("height");
     fabPosition.stop();
     cancelRender(fabPositionFrame);
     fabPositionFrame = 0;
@@ -247,6 +251,10 @@ export function createFloatingResponsePlacement({
   // beside that whole place, or above/below it when the rail is too narrow.
   function placeFab() {
     if (!response.anchor) return false;
+    if (panelCoversPage()) {
+      withholdFab();
+      return false;
+    }
     if (response.open && nativeAttachment) return true;
     const geometry = anchorGeometry(response.anchor);
     const target = geometry?.box;
@@ -394,12 +402,13 @@ export function createFloatingResponsePlacement({
   // Threads list takes focus. While the bar waits, its composer scope and selection
   // rung stand down; `c` brings it back.
   function withholdFab() {
+    const covered = panelCoversPage();
     stopFabPositioning({ reset: false });
     if (fabWithheld) return;
     fabWithheld = true;
     const held = holdFocus(fabBar);
-    const toPanel = held && panelIsOpen() && !fabFits();
-    fabBar.style.visibility = "hidden";
+    const toPanel = held && panelIsOpen() && (!fabFits() || covered);
+    if (fabBar.style.visibility !== "hidden") fabBar.style.visibility = "hidden";
     if (toPanel) threadsBox.focus({ preventScroll: true });
     else fabWithheldFocus = held;
   }

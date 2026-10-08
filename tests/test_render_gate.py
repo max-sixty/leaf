@@ -4110,6 +4110,10 @@ FRAMED_TABLES_PAGE = leaf_page(
     """
 <h1 id="t">Checks</h1>
 <table id="bare"><tr><th scope="row">Error rate</th><td><code>0.11%</code></td></tr></table>
+<table id="allocated" data-width="wide"><tr><th>Session</th><td>9:00</td></tr></table>
+<figure data-width="available">
+<table id="figure-table"><tr><th>Session</th><td>9:00</td></tr></table>
+</figure>
 <section class="panel" id="checks">
 <h2>Checks</h2>
 <table id="framed"><thead><tr><th>Check</th><th>Observed</th></tr></thead>
@@ -4123,12 +4127,14 @@ FRAMED_TABLES_PAGE = leaf_page(
 )
 
 
-def test_a_table_in_a_drawn_frame_fills_it_and_a_bare_one_keeps_to_its_content(
+def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its_content(
     browser, serve
 ):
     """A table directly in a panel runs its rules to the panel's inner edge, where they
-    used to stop short and read as a table cut off; the same table in the column keeps
-    to what its columns hold. A table too wide for the panel still scrolls inside it.
+    used to stop short and read as a table cut off. An explicit allocation, on the
+    table or its figure, also sizes the painted rows, not just their scrollport.
+    The same table with no allocation keeps to what its columns hold. A table too
+    wide for the panel still scrolls inside it.
     Code in a cell is set relative to the cell's text rather than at the chip size."""
     url = serve(FRAMED_TABLES_PAGE)
     page = open_page(browser, url)
@@ -4142,7 +4148,12 @@ def test_a_table_in_a_drawn_frame_fills_it_and_a_bare_one_keeps_to_its_content(
         const bare = document.querySelector('#bare'), framed = document.querySelector('#framed');
         const wide = document.querySelector('#wide-framed');
         const cell = framed.querySelector('td'), code = cell.querySelector('code');
+        const allocated = ['allocated', 'figure-table'].map(id => {
+            const table = document.getElementById(id);
+            return Math.round(inner(table) - rowEnd(table));
+        });
         return {
+            allocated,
             framedShort: Math.round(inner(framed.parentElement) - rowEnd(framed)),
             bareShort: Math.round(inner(bare.parentElement) - rowEnd(bare)),
             wideScrolls: wide.scrollWidth - wide.clientWidth,
@@ -4153,6 +4164,7 @@ def test_a_table_in_a_drawn_frame_fills_it_and_a_bare_one_keeps_to_its_content(
     }"""
     )
     assert abs(measured["framedShort"]) <= 1, measured
+    assert all(abs(short) <= 1 for short in measured["allocated"]), measured
     assert measured["bareShort"] > 100, "the bare table fills its column"
     assert measured["wideScrolls"] > 0 and measured["wideInside"] >= 0, measured
     assert measured["codeRatio"] == pytest.approx(0.9, abs=0.01), measured

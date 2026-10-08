@@ -272,6 +272,15 @@ def theme_hierarchy(page: Page) -> None:
     )
 
 
+def wide_schedule(page: Page) -> None:
+    """The gallery's explicitly allocated schedule, with its guide and caption."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Page & layout", exact=True
+    ).click()
+    page.locator("#bg-margin-layer-figure").scroll_into_view_if_needed()
+    settle(page)
+
+
 def wide_passage(page: Page) -> None:
     """A selected passage in a wide block, with its comment field beside it."""
     page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
@@ -625,6 +634,12 @@ STATES = (
     ),
     State("widget-inline-hints", "developer/feature-gallery", widget_inline_hints),
     State("gallery-wide-passage", "developer/feature-gallery", wide_passage),
+    State(
+        "gallery-wide-schedule",
+        "developer/feature-gallery",
+        wide_schedule,
+        viewport=(1726, 900),
+    ),
     State("gallery-multiline-passage", "developer/feature-gallery", multiline_passage),
     State("plan", "review-a-plan", at_rest),
     State("plan-dark", "review-a-plan", at_rest, scheme="dark"),

@@ -454,7 +454,7 @@ def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser,
             '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
             '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
         ),
-        packages=("pr-review", "diff"),
+        packages=("diff",),
     )
     data_model.cmd_data_set(
         serve.page_dir,
@@ -511,6 +511,63 @@ def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser,
             f"Opened {location} in the exact patch"
         )
 
+    # A note describes its exact holder, including the side, rather than reconstructing
+    # a section-only address that makes two different source lines sound identical.
+    for side, number in [("old", 6), ("new", 9)]:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About the {side} line",
+                "anchor": {
+                    "section": "patch",
+                    "datum": json.dumps(
+                        ["app.py", side, number], separators=(",", ":")
+                    ),
+                },
+            },
+        )
+    told(page)
+    notes = page.locator(".lf-mark-note")
+    expect(notes).to_have_count(2)
+    names = notes.evaluate_all(
+        "notes => notes.map(note => note.getAttribute('aria-label'))"
+    )
+    assert any("old line 6" in name and "app.py" in name for name in names), names
+    assert any("new line 9" in name and "app.py" in name for name in names), names
+    for key in ['["app.py","old",6]', '["app.py","new",9]']:
+        assert page.locator(f"#patch [data-lf-datum='{key}']").evaluate(
+            "line => line.ariaDetailsElements.some(note => note.matches('.lf-mark-note'))"
+        )
+
+    # Different exact context identities may share one old-side number in admitted
+    # overlapping hunks. A source request must not choose among them by row order.
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -5 +8 @@\n same()\n@@ -5 +20 @@\n same()\n",
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "calls-data",
+        "calldiff diff main → feature\n- same()  app.py:5",
+    )
+    told(page)
+    expect(links).to_have_count(1)
+    links.first.click()
+    expect(page.locator(".lf-live")).to_have_text(
+        "app.py:5 is not present in the exact patch"
+    )
+    assert resolved(["app.py", "source", "old", 5]) is None
+    assert resolved(["app.py", "old", 5]) is None
+    assert resolved(["app.py", "both", 5, 8]) == '["app.py","both",5,8]'
+    assert resolved(["app.py", "both", 5, 20]) == '["app.py","both",5,20]'
+    assert resolved(["app.py", "new", 8]) == '["app.py","both",5,8]'
+    assert resolved(["app.py", "new", 20]) == '["app.py","both",5,20]'
+
 
 @pytest.mark.parametrize("manifest", [False, True])
 def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
@@ -524,7 +581,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
             '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
             '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
         ),
-        packages=("pr-review", "diff"),
+        packages=("diff",),
     )
     patch = ""
     for previous, current in [("a.py", "b.py"), ("b.py", "c.py")]:
@@ -548,6 +605,8 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
         "- removed_a()  a.py:2\n+ new_a()  a.py:1\n+ added_b()  b.py:2",
     )
     page = open_page(browser, url)
+    expect(page.locator("#patch .lf-diff-head").nth(0)).to_contain_text("a.py → b.py")
+    expect(page.locator("#patch .lf-diff-head").nth(1)).to_contain_text("b.py → c.py")
     links = page.locator("#calls .lf-call-location:visible")
     for index, key in enumerate(
         [
@@ -573,6 +632,41 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
         == "removed_a()"
     )
 
+    # The parser and manifest producer admit repeated preimages even though a real
+    # Git comparison ordinarily has only one rename per source. Such navigation has
+    # no unique owner; canonical destination identities still name each file exactly.
+    header = page.locator("#patch .lf-diff-head").nth(1)
+    header.evaluate("node => { node.dataset.identityProbe = 'held'; node.focus(); }")
+    ambiguous = (
+        patch.replace("a/b.py b/c.py", "a/a.py b/c.py")
+        .replace("rename from b.py", "rename from a.py")
+        .replace("--- a/b.py", "--- a/a.py")
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        patch_manifest(ambiguous) if manifest else ambiguous,
+    )
+    told(page)
+    expect(header).to_contain_text("a.py → c.py")
+    expect(header).to_have_attribute("data-identity-probe", "held")
+    expect(header).to_be_focused()
+    links.nth(1).click()
+    expect(page.locator(".lf-live")).to_have_text(
+        "a.py:2 is not present in the exact patch"
+    )
+    assert page.locator("#patch").evaluate(
+        "(diff, key) => diff.lfDataDatum(JSON.stringify(key)) === null",
+        ["a.py", "source", "old", 2],
+    )
+    assert (
+        page.locator("#patch").evaluate(
+            "(diff, key) => diff.lfDataDatum(JSON.stringify(key)).textContent.trim()",
+            ["c.py", "old", 2],
+        )
+        == "removed_b()"
+    )
+
 
 def test_call_diff_projects_stable_commentable_rows(browser, serve):
     authored = leaf_page(
@@ -584,8 +678,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 <lf-diff id="patch" source="review-patch" collapsed review><pre></pre></lf-diff>
 """,
     )
-    # pr-review's lf-call-diff points at an lf-diff, which travels in `diff`.
-    url = serve(authored, packages=("pr-review", "diff"))
+    url = serve(authored, packages=("diff",))
     call_diff = """calldiff diff main → feature
 
   Limiter.bucket_key(self, request)  gateway/limits.py:38
@@ -881,7 +974,7 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
             '<lf-call-diff id="request-calls" source="request-call-diff" diff="patch">'
             '</lf-call-diff><lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>',
         ),
-        packages=("pr-review", "diff"),
+        packages=("diff",),
     )
     header = "calldiff diff main → feature\n"
     first = "  Limiter.first(self)  gateway/limits.py:10\n+ ├─ one()  gateway/limits.py:11\n"
@@ -10161,7 +10254,7 @@ def test_datum_travel_resolves_the_destination_after_reveal(
             '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
             '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
         ),
-        packages=("pr-review", "diff"),
+        packages=("diff",),
     )
     data_model.cmd_data_set(
         serve.page_dir,

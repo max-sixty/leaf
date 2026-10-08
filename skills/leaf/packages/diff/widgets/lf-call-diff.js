@@ -23,7 +23,7 @@ import {
   once,
 } from "/runtime/widget-api.js";
 
-import { diffLocationKey } from "/widgets/diff-coordinates.js";
+import { diffLocationKey } from "./diff-coordinates.js";
 
 const LOCATION = /^(.*?)(?: {2,})(\S+:\d+(?:-\d+)?)$/;
 

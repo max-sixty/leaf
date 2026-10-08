@@ -6,7 +6,8 @@
  * path names its preimage, even when that path also names another file's destination.
  * Source requests never enter the projection: commenting on their destination records
  * its durable datum identity. Either address matches only its named side's number.
- * Decoding validates the external key once; file and line lookup consume that reading. */
+ * Ambiguous addresses detach rather than choose a file by order. Decoding validates
+ * the external key once; file and line lookup consume that reading. */
 export const diffDatumKey = ({ path, file, side, oldLine, newLine }) =>
   JSON.stringify(
     file
@@ -58,24 +59,23 @@ export function readDiffCoordinate(key) {
 export function findDiffFile(entries, coordinate) {
   if (!coordinate || !entries) return null;
   if (coordinate.source && coordinate.side === "old") {
-    const renamed = entries.find(
+    const renamed = entries.filter(
       ({ record }) => record.previousPath === coordinate.path,
     );
-    if (renamed) return renamed;
+    if (renamed.length) return renamed.length === 1 ? renamed[0] : null;
   }
-  return (
-    entries.find(
-      ({ record }) =>
-        (coordinate.source && coordinate.side === "old"
-          ? (record.previousPath ?? record.path)
-          : record.path) === coordinate.path,
-    ) ?? null
+  const matching = entries.filter(
+    ({ record }) =>
+      (coordinate.source && coordinate.side === "old"
+        ? (record.previousPath ?? record.path)
+        : record.path) === coordinate.path,
   );
+  return matching.length === 1 ? matching[0] : null;
 }
 
 // File lookup has already chosen the source's owner; its lines carry destination paths.
 export function findDiffLine(lines, coordinate) {
-  return lines.find((line) =>
+  const matching = lines.filter((line) =>
     coordinate.side === "both"
       ? line.side === "both" &&
         line.oldLine === coordinate.oldLine &&
@@ -86,4 +86,5 @@ export function findDiffLine(lines, coordinate) {
           line.side !== "old" &&
           line.newLine === coordinate.newLine,
   );
+  return matching.length === 1 ? matching[0] : null;
 }

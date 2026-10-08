@@ -57,7 +57,7 @@ import {
   findDiffFile,
   findDiffLine,
   readDiffCoordinate,
-} from "/widgets/diff-coordinates.js";
+} from "./diff-coordinates.js";
 import "../vendor/webawesome.esm.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
 // an authored <lf-diff> bound to data
@@ -108,7 +108,7 @@ const changeCounts = (file) =>
 // rendered rows are a flat run with the separator chrome between them, so recovering
 // the grouping from the DOM afterwards would be reading a rendering for a fact the
 // parse already had. It rides on the same record the anchor coordinate is read off,
-// and `diffDatumKey` names only the four fields that make a comment's coordinate, so a row
+// and `diffDatumKey` names only the fields that make a comment's coordinate, so a row
 // knowing which hunk it is in changes no anchor.
 function sourceLines(file) {
   const lines = [];
@@ -256,6 +256,24 @@ function unwatchPathCut(details) {
   for (const part of pathParts(details)) pathSizes.unobserve(part);
 }
 
+function summaryPath(file) {
+  const path = file.prevName
+    ? `${file.prevName} → ${file.name}`
+    : file.name || "(unnamed file)";
+  const named = pathNode("lf-diff-path", path);
+  named.dataset.path = path.replaceAll("/", "/\u200b");
+  return named;
+}
+
+// Keep the disclosure's native owner while its source/destination mapping changes.
+function updateSummaryPath(details, next) {
+  const current = details.querySelector(".lf-diff-head > .lf-diff-path");
+  if (current.dataset.path === next.dataset.path) return;
+  unwatchPathCut(details);
+  current.replaceWith(next);
+  watchPathCut(details);
+}
+
 function summaryNode(file, open) {
   const details = document.createElement("details");
   details.className = "lf-diff-fold";
@@ -266,16 +284,13 @@ function summaryNode(file, open) {
   // space after each slash, since generated content takes no <wbr>.
   const summary = document.createElement("summary");
   summary.className = `lf-diff-head ${HOLDS_WORD}`;
-  const path = file.name || "(unnamed file)";
   const { adds, dels } = changeCounts(file);
   const stat = Object.assign(document.createElement("span"), {
     className: "lf-diff-stat",
     textContent: `+${adds} −${dels}`,
   });
   stat.dataset.lfGen = "1";
-  const named = pathNode("lf-diff-path", path);
-  named.dataset.path = path.replaceAll("/", "/\u200b");
-  summary.append(named, stat);
+  summary.append(summaryPath(file), stat);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",
@@ -443,6 +458,10 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
       }),
     );
   }
+  updateSummaryPath(
+    details,
+    rendered.node.querySelector(".lf-diff-head > .lf-diff-path"),
+  );
   keepsText(
     details.querySelector(".lf-diff-stat"),
     rendered.node.querySelector(".lf-diff-stat").textContent,
@@ -1073,6 +1092,7 @@ customElements.define(
             const details = summaryNode(
               {
                 name: record.path,
+                prevName: record.previousPath,
                 additions: record.additions,
                 deletions: record.deletions,
               },
@@ -1108,6 +1128,10 @@ customElements.define(
             additions: record.additions,
             deletions: record.deletions,
           });
+          updateSummaryPath(
+            entry.details,
+            summaryPath({ name: record.path, prevName: record.previousPath }),
+          );
           keepsText(entry.details.querySelector(".lf-diff-stat"), `+${adds} −${dels}`);
           if (prepared) this.applyManifestEntry(entry);
           else entry.details.querySelector("pre")?.toggleAttribute("hidden", true);

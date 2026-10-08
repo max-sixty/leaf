@@ -3606,11 +3606,11 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude picked up your comment and hasn't said what it's doing yet"
-        " (just now). 1 move waiting. Waiting on Claude: 2 replies, 1 task"
+        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies, 1 task"
         " (Work on the page)."
     )
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
-        "Working · 1 move waiting"
+        "Working · 1 response owed on updates awaiting delivery"
     )
 
     # The agent finishes the earlier task and waits on the user.
@@ -3623,7 +3623,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude picked up your comment and hasn't said what it's doing yet"
-        " (just now). 1 move waiting. Waiting on Claude: 2 replies."
+        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies."
     )
 
     with service_model.PageTransaction(d) as transaction:
@@ -3637,7 +3637,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # The turn ended with both updates still the agent's to answer, so they are overdue
     # and the remedy is the user's.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude last checked in just now. 2 moves are saved. "
+        "Claude last checked in just now. Your updates are saved. "
         "Nothing is answering them, so nudge it in the terminal."
         " Waiting on Claude: 2 replies."
     )

@@ -38,15 +38,33 @@ export function inlineMarkdownFragment(text, breaks = true) {
 
 // Registry text formatting belongs to the layer, so a package declaration cannot
 // make file-side passages read words the browser leaves as raw Markdown.
-export async function prepareDeclaredMarkdown(scope) {
-  const elements = elementsDeclaring(scope, "x-text-format");
-  if (declarationFor(scope, "x-text-format")) elements.unshift(scope);
-  if (!elements.length) return;
+export async function loadDeclaredMarkdown(scope) {
+  if (
+    !declarationFor(scope, "x-text-format") &&
+    !elementsDeclaring(scope, "x-text-format").length
+  )
+    return;
   let failure;
   if (!(await loadMarkdown((error) => (failure = error))))
     throw new Error(
       `leaf: Markdown renderer failed to load: ${failure?.message ?? failure}`,
     );
+}
+
+export async function prepareDeclaredMarkdown(scope) {
+  await loadDeclaredMarkdown(scope);
+  formatDeclaredMarkdown(scope);
+}
+
+// Only presentation nodes are formatted. Source documents stay intact for typed state,
+// revision patching and provenance; arrivals call this after capture, before connection.
+// Their import preparation has already made the parser ready, so this step is synchronous.
+export function formatDeclaredMarkdown(scope) {
+  const elements = elementsDeclaring(scope, "x-text-format");
+  if (declarationFor(scope, "x-text-format")) elements.unshift(scope);
+  if (!elements.length) return;
+  if (!tokenize)
+    throw new Error("leaf: Markdown formatting requires its loaded renderer");
   for (const element of elements) {
     if (declarationFor(element, "x-text-format") === "markdown") {
       const pre = element.querySelector(":scope > pre");

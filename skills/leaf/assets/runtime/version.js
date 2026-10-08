@@ -90,7 +90,11 @@ import {
   wrote,
 } from "./passages.js";
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
-import { paintMarkdown, prepareDeclaredMarkdown } from "./markdown.js";
+import {
+  paintMarkdown,
+  prepareDeclaredMarkdown,
+  formatDeclaredMarkdown,
+} from "./markdown.js";
 import { pageScroller } from "./scrolling.js";
 import { TEXT_BOX } from "./control-selectors.js";
 import {
@@ -139,7 +143,7 @@ import {
   versionMenuIsOpen,
 } from "./version-picker.js";
 import {
-  importWidgets,
+  preloadWidgets,
   patchDocument,
   reindexPassageOwners,
   rememberPassageParts,
@@ -1389,6 +1393,7 @@ export function createVersionController({
         // patch and matching server reading are admitted together, so this descriptor
         // cannot borrow the old widget's semantic state during preparation.
         commitWidgetDescriptors(descriptors);
+        formatDeclaredMarkdown(arriving);
         arrived.push(arriving);
       }
       return arriving;
@@ -1552,7 +1557,7 @@ export function createVersionController({
       // spends nothing on a fetch while the user is looking at the page. Inside this
       // try, because the loader keeps a rejected import: one 404 on a module an arriving
       // revision introduces would otherwise reject every later state read for good.
-      await importWidgets(doc.querySelector("body > main"));
+      await preloadWidgets(doc.querySelector("body > main"));
     } catch (error) {
       reportPageError(
         `revision ${target.revision} failed to load: ${error?.message ?? error}`,

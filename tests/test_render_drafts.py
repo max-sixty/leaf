@@ -648,10 +648,7 @@ def test_page_round_trip(browser, serve):
     draft.locator(".lf-draft-body").dblclick()
     write(draft.locator("leaf-text"), DRAFT_EDITED)
     draft_control(page, "save", "draft-ops").click()
-    page.wait_for_function(
-        "t => document.querySelector('#draft-ops .lf-draft-body').textContent === t",
-        arg=DRAFT_EDITED,
-    )
+    expect(draft.locator(".lf-draft-body")).to_have_text(DRAFT_EDITED)
 
     # Every gesture above must be in the log before v2's note lands, or the trail below
     # would interleave. The page posted them, so the page is what says they are all in:
@@ -673,10 +670,7 @@ def test_page_round_trip(browser, serve):
     ), "the passage moved and the comment lost it"
     # v2's markup carries the original draft text — Claude hasn't honored the
     # edit — so the user's words must arrive by replay, not visibly revert.
-    page.wait_for_function(
-        "t => document.querySelector('#draft-ops .lf-draft-body').textContent === t",
-        arg=DRAFT_EDITED,
-    )
+    expect(draft.locator(".lf-draft-body")).to_have_text(DRAFT_EDITED)
 
     # The trail those gestures left, exactly — kinds, authorship (the server
     # stamps browser events `user`), the anchor, and the move's placement.
@@ -6237,3 +6231,64 @@ def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(
             if e.get("action") == "edit"
         ]
         assert len(edits) == (1 if action == "save" else 0)
+
+
+def test_a_delayed_draft_close_yields_to_a_newer_page_selection(browser, serve):
+    """Returning editor focus cannot overwrite a real gesture made before that handoff."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Close focus",
+                '<p id="reading">Another passage for the reader to select.</p>'
+                '<lf-draft id="local"><pre>Editable source.</pre></lf-draft>',
+            )
+        ),
+        init_script="""(() => {
+          const frame=requestAnimationFrame.bind(window);
+          window.heldFrames=[];window.holdFrames=false;
+          window.requestAnimationFrame=callback=>frame(now=>{
+            if(window.holdFrames)heldFrames.push(callback);else callback(now);
+          });
+          window.releaseFrames=()=>{
+            window.holdFrames=false;
+            const callbacks=heldFrames.splice(0);
+            frame(now=>callbacks.forEach(callback=>callback(now)));
+          };
+        })();""",
+    )
+    draft_control(page, "edit", "local").click()
+    expect(page.locator("#local leaf-text")).to_be_focused()
+    rendered(page)
+    page.evaluate("""async()=>{
+      const {observeQueuedWork}=await window.__lfRuntimeImport('/runtime/queued-work.js');
+      window.closeJobs=new Set();window.captureClose=true;
+      window.stopCloseObserver=observeQueuedWork((phase,job)=>{
+        if(phase==='enqueue'&&captureClose)closeJobs.add(job);
+        if(phase==='finish'||phase==='cancel')closeJobs.delete(job);
+      });
+      window.holdFrames=true;
+    }""")
+    page.keyboard.press("Escape")
+    page.evaluate("window.captureClose=false")
+    expect(page.locator("#local leaf-text")).to_have_count(0)
+    page.wait_for_function("heldFrames.length>0", polling=20)
+    assert page.evaluate("closeJobs.size") > 0
+    start, end = page.locator("#reading").evaluate("""p=>[2,24].map(at=>{
+      const range=new Range();range.setStart(p.firstChild,at);range.setEnd(p.firstChild,at+1);
+      const box=range.getBoundingClientRect();return [box.left+0.01,box.top+box.height/2];
+    })""")
+    page.mouse.move(*start)
+    page.mouse.down()
+    page.mouse.move(*end, steps=5)
+    page.mouse.up()
+    selected = page.evaluate("getSelection().toString()")
+    assert selected
+    assert page.evaluate("document.activeElement===document.body")
+    page.evaluate("releaseFrames()")
+    page.wait_for_function("closeJobs.size===0", polling=20)
+    rendered(page)
+    assert page.evaluate("document.activeElement===document.body")
+    # The shared selection owner may expand partial words; the newer passage remains.
+    assert selected in page.evaluate("getSelection().toString()")
+    page.evaluate("stopCloseObserver()")

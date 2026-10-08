@@ -2641,6 +2641,9 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
     )
     assert shown == editing >= 16, (shown, editing)
     page.keyboard.press("Escape")
+    # Close returns focus to the persistent Edit control. Complete that handoff
+    # before installing the next native selection, which WebKit focus collapses.
+    expect(note.get_by_role("button", name="Edit", exact=True)).to_be_focused()
 
     page.locator("#p6").evaluate("""paragraph => {
       const box = paragraph.getBoundingClientRect();

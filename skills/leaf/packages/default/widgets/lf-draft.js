@@ -48,6 +48,7 @@ import {
   keepsHidden,
   focusDestination,
   nextRender,
+  retainUserIntent,
 } from "/runtime/widget-api.js";
 
 // The store key for a draft's unsent edit. The page's port is its own origin, so
@@ -521,6 +522,7 @@ customElements.define(
       // another tab's settlement brings takes focus from wherever they actually are.
       const left = document.activeElement;
       const stood = this.contains(left);
+      const mayReturn = retainUserIntent({ source: left });
       this.#editor.remove();
       this.#editor = null;
       this.#watchDraft();
@@ -532,12 +534,7 @@ customElements.define(
           nextRender(() => {
             // Command availability is painted before this callback. A new gesture
             // elsewhere wins over handing back the editor's vacated focus.
-            if (
-              this.isConnected &&
-              !this.#editor &&
-              (document.activeElement === document.body ||
-                document.activeElement === left)
-            )
+            if (this.isConnected && !this.#editor && mayReturn())
               focusDestination(this.#controls.get("edit"));
           });
       }

@@ -198,3 +198,60 @@ test("editor tokens retain native constructs and exact source syntax after parse
     ["\\*"],
   );
 });
+
+test("preloading an arriving Markdown widget preserves its exact authored body", async () => {
+  const { registry } = await import("/runtime/registry.js");
+  const { preloadWidgets } = await import("/runtime/widget-loader.js");
+  const { formatDeclaredMarkdown } = await import("/runtime/markdown.js");
+  const { dataBody } = await import("/runtime/widget-upgrade.js");
+  registry["lf-source-contract"] = { "x-text-format": "markdown" };
+  try {
+    const source = new DOMParser()
+      .parseFromString(
+        '<main><lf-source-contract id="source"><pre>    code\n\n**Words**  \n</pre></lf-source-contract></main>',
+        "text/html",
+      )
+      .querySelector("main");
+    const authored = source.innerHTML;
+    await preloadWidgets(source);
+    assert.equal(source.innerHTML, authored);
+    assert.equal(dataBody(source.firstElementChild), "    code\n\n**Words**  \n");
+    const arrival = document.importNode(source.firstElementChild, true);
+    formatDeclaredMarkdown(arrival);
+    assert.equal(arrival.querySelector("pre").textContent, "code\n");
+    assert.equal(arrival.querySelector("strong").textContent, "Words");
+    assert.equal(
+      source.innerHTML,
+      authored,
+      "presentation must not consume revision source",
+    );
+  } finally {
+    delete registry["lf-source-contract"];
+  }
+});
+
+test("Markdown paragraphs keep reading grain while annotations retain the authored host", async () => {
+  const { registry } = await import("/runtime/registry.js");
+  const { prepareDeclaredMarkdown } = await import("/runtime/markdown.js");
+  const { annotationAt } = await import("/runtime/anchor-resolution.js");
+  const { blockAt, elementReading } = await import("/runtime/passages.js");
+  registry["lf-seat-contract"] = { "x-text-format": "markdown" };
+  try {
+    const host = document.createElement("lf-seat-contract");
+    host.id = "authored-seat";
+    host.innerHTML = "<pre>First **words**.\n\n- Second words.</pre>";
+    await prepareDeclaredMarkdown(host);
+    const first = host.querySelector("strong").firstChild;
+    const second = host.querySelector("li").firstChild;
+    assert.equal(blockAt(first), host.querySelector("p"));
+    assert.equal(blockAt(second), host.querySelector("li"));
+    assert.equal(annotationAt(first), host);
+    assert.equal(annotationAt(second), host);
+    assert.equal(elementReading(host), "First words. Second words.");
+    const authoredParagraph = document.createElement("p");
+    authoredParagraph.textContent = "Ordinary prose.";
+    assert.equal(annotationAt(authoredParagraph.firstChild), authoredParagraph);
+  } finally {
+    delete registry["lf-seat-contract"];
+  }
+});

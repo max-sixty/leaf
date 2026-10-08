@@ -8691,7 +8691,15 @@ def test_command_goal_thread_follows_its_declaration_not_talk(
     expect(seat.get_by_role("button", name="pause", exact=True)).to_be_visible()
 
 
-def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
+@pytest.mark.parametrize(
+    "provided",
+    [
+        "ledger_id,amount\n7,42",
+        "ledger_id,amount\n7,42\n",
+        "\nledger_id,amount\n7,42  \n",
+    ],
+)
+def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided):
     """An input action discharges the request live; the honoring version removes its
     authored `needed` condition, so incorporating its state into source cannot turn the input back into
     a decision."""
@@ -8700,8 +8708,16 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     page = open_page(browser, live_url(url))
     draft = page.locator("#ledger-cargo")
     draft_control(page, "edit", "ledger-cargo").click()
-    provided = "ledger_id,amount\n7,42"
-    write(draft.get_by_role("textbox", name="Edit ledger-cargo"), provided)
+    editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
+    if provided.startswith("\n"):
+        # CodeMirror's bulk insertText reading drops an initial LF;
+        # create that line through the editor's ordinary key route instead.
+        write(editor, "")
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.insert_text(provided[1:])
+    else:
+        write(editor, provided)
+    expect(draft.get_by_role("textbox")).to_have_js_property("value", provided)
     draft_control(page, "save", "ledger-cargo").click()
     round_trip(page)
     expect_asks_answered(page, "1/5")
@@ -8709,7 +8725,8 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
 
     honoring = re.sub(
         r'<lf-draft id="ledger-cargo" needed>.*?</lf-draft>',
-        f'<lf-draft id="ledger-cargo"><pre>\n{provided}\n</pre></lf-draft>',
+        # The authoring contract adds only the opening LF consumed by HTML.
+        f'<lf-draft id="ledger-cargo"><pre>\n{provided}</pre></lf-draft>',
         COMMAND_HUB_PAGE,
         flags=re.DOTALL,
     )
@@ -8723,6 +8740,10 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")
     expect(page.locator("#ledger-fixture > .lf-task-meta")).not_to_contain_text(
         "privileged input"
+    )
+    draft_control(page, "edit", "ledger-cargo").click()
+    expect(page.locator("#ledger-cargo").get_by_role("textbox")).to_have_js_property(
+        "value", provided
     )
 
 
@@ -9832,6 +9853,94 @@ def test_command_hub_readings_stay_in_their_own_document(browser, serve):
     seat = page.locator(f"#hub-readings > {READING_PANELS}")
     expect(seat).to_have_count(3)
     expect(seat.first).to_contain_text("One clean shadow week")
+
+
+COMMAND_GOAL_CONTROLS = leaf_page(
+    "Task controls",
+    """
+<h1>Task controls</h1>
+<p id="outside-words">Read these words before inspecting the task.</p>
+<lf-command id="control-plan" label="Inspect the task">
+  <lf-task id="control-goal" status="active">
+    <strong id="goal-words">Inspect the worker evidence</strong>
+    <p><label for="goal-select">Evidence format</label>
+      <select id="goal-select"><option>Brief</option><option>Complete</option></select></p>
+    <p id="goal-editor" contenteditable="true" aria-label="Working note">Write a note</p>
+    <p id="goal-region" tabindex="0">Focus this evidence</p>
+    <p id="goal-aria" role="button" tabindex="0">Inspect this evidence</p>
+    <lf-tabs id="goal-tabs">
+      <lf-tab id="goal-tab" label="Evidence"><p id="nested-words">Read nested evidence</p></lf-tab>
+    </lf-tabs>
+    <lf-task id="child-goal" status="active"><strong id="child-words">Child task</strong>
+      <lf-agent id="child-worker" state="idle"><strong>Child worker</strong></lf-agent>
+    </lf-task>
+    <lf-agent id="control-worker" state="idle"><strong id="worker-words">Task worker</strong></lf-agent>
+  </lf-task>
+</lf-command>
+""",
+    # Preserve an outside selection on pointer-down, as nonselectable controls do,
+    # so the selection regression exercises the boundary rather than browser clearing.
+    head="<style>#goal-words { user-select: none; }</style>",
+)
+
+
+def test_command_goal_clicks_leave_nested_controls_to_their_owners(browser, serve):
+    """Native controls, platform regions and nested widgets never open the crew."""
+    page = open_page(browser, serve(COMMAND_GOAL_CONTROLS))
+    goal = page.locator("#control-goal")
+    crew = goal.locator(":scope > .lf-task-meta .lf-task-crew")
+    opened = []
+    for target in (
+        "#goal-select",
+        "label[for=goal-select]",
+        "#goal-editor",
+        "#goal-region",
+        "#goal-aria",
+        "#nested-words",
+    ):
+        page.locator(target).click()
+        page.keyboard.press("Escape")
+        rendered(page)
+        opened.append((target, goal.get_attribute("data-lf-open") is not None))
+        if goal.get_attribute("data-lf-open") is not None:
+            crew.click()
+            rendered(page)
+    assert opened == [(target, False) for target, _ in opened]
+
+    # The row still opens its own crew; a child task and a worker keep their boundaries.
+    page.locator("#child-words").click()
+    expect(page.locator("#child-worker")).to_be_visible()
+    expect(goal).not_to_have_attribute("data-lf-open", "")
+    page.locator("#goal-words").click()
+    expect(page.locator("#control-worker")).to_be_visible()
+    page.locator("#worker-words").click()
+    expect(page.locator("#control-worker")).to_be_visible()
+    crew.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator("#control-worker")).to_be_hidden()
+    page.keyboard.press("Space")
+    expect(page.locator("#control-worker")).to_be_visible()
+
+
+def test_command_goal_selection_only_guards_the_drag_that_ends_inside_it(
+    browser, serve
+):
+    """A standing selection elsewhere cannot make an ordinary task row dead."""
+    page = open_page(browser, serve(COMMAND_GOAL_CONTROLS))
+    words = page.locator("#outside-words")
+    words.dblclick()
+    assert page.evaluate("!getSelection().isCollapsed")
+    page.locator("#goal-words").click()
+    assert page.evaluate("!getSelection().isCollapsed")
+    expect(page.locator("#control-worker")).to_be_visible()
+
+    crew = page.locator("#control-goal > .lf-task-meta .lf-task-crew")
+    crew.click()
+    words = page.locator("#child-words").bounding_box()
+    y = words["y"] + words["height"] / 2
+    select(page, (words["x"] + 1, y), (words["x"] + words["width"] - 1, y))
+    assert page.evaluate("!getSelection().isCollapsed")
+    expect(page.locator("#child-worker")).to_be_hidden()
 
 
 def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):

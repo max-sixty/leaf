@@ -24,7 +24,12 @@
  * (paper, which nothing moves on, prints them whole), and from then on a reading that
  * changes their rows waits, the lists standing as they were, while that growth would
  * be seen; the count whose list waits says so (`HeldReading`, assets/AGENTS.md,
- * "Stability"). */
+ * "Stability").
+ *
+ * A goal's prose opens its crew. The shared `worksInside` boundary leaves nested
+ * controls and evidence with their owners; command, goal and worker ancestry keeps
+ * that gesture within its own row. Only a drag ending on the clicked words suppresses
+ * it, so a standing selection elsewhere does not deaden the row. */
 import {
   PRESS,
   threadBox,
@@ -40,13 +45,14 @@ import {
   offer,
   once,
   projectData,
+  reachedForWords,
   setChildren,
   relabel,
   selectableOffer,
   shortAgo,
-  TEXT_BOX,
   watchUpdates,
   watchOwner,
+  worksInside,
 } from "/runtime/widget-api.js";
 import {
   closestCommandRole,
@@ -372,8 +378,7 @@ function configureGoal(goal) {
   });
   goal.addEventListener("click", (event) => {
     if (!directCommandRole(goal, "worker").length) return;
-    if (event.target.closest(`button, a, ${TEXT_BOX}, input, summary, [data-lf-offer]`))
-      return;
+    if (worksInside(event.target, goal)) return;
     if (
       closestCommandRole(event.target, "command") !==
       closestCommandRole(goal, "command")
@@ -381,8 +386,7 @@ function configureGoal(goal) {
       return;
     if (closestCommandRole(event.target, "goal") !== goal) return;
     if (closestCommandRole(event.target, "worker")) return;
-    const selection = getSelection();
-    if (selection && !selection.isCollapsed) return;
+    if (event.detail !== 0 && reachedForWords(event.target)) return;
     toggleWorkers(goal);
   });
 }

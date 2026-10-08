@@ -54,9 +54,10 @@ words remain effective across revisions. The passage renders Markdown for readin
 Edit opens the exact source in the shared Markdown text field. Save records that
 source as the replacement, Cancel discards the unsaved edit, and Close keeps it.
 The editing controls stay inside the box; comments and receipts use annotations.
-The `<pre>` holds exact Markdown: indentation and trailing whitespace are content,
-so keep HTML layout indentation outside it. Enter writes a new line; ⌘/Ctrl+Enter
-saves the edit.
+The `<pre>` holds exact Markdown, including leading blank lines, indentation, and
+trailing whitespace. Follow the `lf-draft` registry entry's instructions and example
+for its HTML spelling; that entry owns how the source accounts for HTML's consumed
+opening newline. Enter writes a new line; ⌘/Ctrl+Enter saves the edit.
 
 ## Honor user state
 

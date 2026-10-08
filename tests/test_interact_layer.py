@@ -1588,7 +1588,7 @@ _LAYER_SHEET_ORDER = [
 
 
 def test_the_injected_control_face_is_a_default_only_the_document_reads():
-    """`.lf-ui` is a default. `offer()` writes it on every control a widget builds, and a
+    """`.lf-ui-face` is a native default. `offer()` writes it on native controls, and a
     component that states the same property overrides it, so the face stands first in
     the layer's page-side order and loses on position. It keeps a class's specificity,
     so the page's own element rules lose to it. And a declared tree copies shadow.css,
@@ -1612,12 +1612,18 @@ def test_the_injected_control_face_is_a_default_only_the_document_reads():
     assert faces, "no face was read from the layer's sheets — the reading is broken"
     # Public controls and injected controls share this one default; its root boundary
     # and class weight still protect shadow content and win over page element rules.
-    control_face = ":where(:root) :is(.lf-ui, .button, .field)"
+    control_face = ":where(:root) :is(.lf-ui-face, .button, .field)"
     assert faces[0] == ("assets/shadow.css", control_face), faces[0]
     defaults = [
         face
         for face in faces
-        if face[1] in {".lf-ui", ":where(.lf-ui)", ":where(:root) .lf-ui", control_face}
+        if face[1]
+        in {
+            ".lf-ui-face",
+            ":where(.lf-ui-face)",
+            ":where(:root) .lf-ui-face",
+            control_face,
+        }
     ]
     assert defaults == [faces[0]], defaults
 

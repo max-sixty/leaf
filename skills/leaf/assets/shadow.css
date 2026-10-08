@@ -4,9 +4,11 @@
  * need is stated here, once: the stage copies the composed shadow.css into each declared
  * root, and the document reads the same rules at the head of this root's part of
  * /theme.css. A rule belongs here when a declared tree has to see it too. */
-/* The face every widget-injected control wears. `offer()` writes `lf-ui` on each one it
+/* The default face of native widget-injected controls. `offer()` writes `lf-ui-face` on each one it
  * builds, so this is the layer's answer for a control standing in the page's own prose:
- * the chrome's family, size and ink rather than the document's serif.
+ * the chrome's family, size and ink rather than the document's serif. The separate
+ * lf-ui identity still marks custom-element apparatus, but its component owns its
+ * face: an outer host declaration would outrank even its internal state rules.
  *
  * It is a default, and three things make it behave like one. It stands at this sheet's
  * head, which composes ahead of theme.css and every package sheet, so each component rule
@@ -34,9 +36,9 @@
  * so a rule that weighs nothing is enough to stop that, and it leaves every rule that
  * sets these on purpose winning: at a class's weight it took the pane header's 600 off
  * each playground's presets. */
-:where(:root) :is(.lf-ui, .button, .field) { font-family: var(--sans); font-size: var(--t-5);
+:where(:root) :is(.lf-ui-face, .button, .field) { font-family: var(--sans); font-size: var(--t-5);
     line-height: var(--lf-ui-lh); color: var(--ink); }
-:where(:root .lf-ui, :root .button, :root .field) { font: var(--t-5) / var(--lf-ui-lh) var(--sans);
+:where(:root .lf-ui-face, :root .button, :root .field) { font: var(--t-5) / var(--lf-ui-lh) var(--sans);
     font-feature-settings: normal; font-variation-settings: normal;
     letter-spacing: normal; word-spacing: normal; text-transform: none; }
 /* Words for a user listening, silent on screen: real text, the one thing every

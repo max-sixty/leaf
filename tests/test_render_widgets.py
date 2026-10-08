@@ -12209,7 +12209,7 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
 def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
     browser, serve, color_scheme
 ):
-    """Leaf's control ink must remain readable on the library's active menu fill.
+    """Component-owned menu states remain readable through the shared theme.
 
     The targeting picker is a second consumer of the same theme as the trace
     prototype that exposed dark text on a solid blue active row.
@@ -12258,6 +12258,21 @@ def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
     contrast(current)
     options.first.hover()
     contrast(options.first)
+    # Generated apparatus identity must not replace a component's state ink. This
+    # catches both a generic host face and upstream root color promoted to the host;
+    # merely choosing a pale menu background would let either defect survive.
+    for generated in (False, True):
+        current.evaluate(
+            """(node, generated) => {
+          node.classList.toggle('lf-ui', generated);
+          node.style.setProperty('--wa-color-brand-on-loud', 'rgb(11, 22, 33)');
+        }""",
+            generated,
+        )
+        assert (
+            current.evaluate("node => getComputedStyle(node).color")
+            == "rgb(11, 22, 33)"
+        )
 
 
 def test_webawesome_theme_reaches_a_declared_shadow_stage(browser, serve):

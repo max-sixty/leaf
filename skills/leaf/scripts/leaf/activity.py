@@ -136,7 +136,7 @@ def reply_binding_stands(
     Server client will still commit the delivery turn's messages: its start may
     have produced no turn, or the client stopped reading. So the move is answered
     the ordinary way again, and a client that does commit late yields to that
-    answer (`thread.cmd_reply`, `post`). A client that is still reading commits before
+    answer (`thread.post_reply`, `post`). A client that is still reading commits before
     it closes the turn (`codex.TurnFold.commit`)."""
     return bool(
         binding
@@ -148,9 +148,9 @@ def reply_binding_stands(
 
 def answer_command(answer: dict) -> str:
     """The one operation that writes an answer, with the id it is addressed to."""
-    if answer["kind"] == "reply":
-        return f"`leaf thread reply <page> --for {answer['for']}`"
-    if answer["kind"] == "turn":
+    if answer["kind"] == "reply" and answer.get("writer") != "turn":
+        return f"`leaf response reply <answer.ref>` for {answer['for']}"
+    if answer.get("writer") == "turn":
         return f"your turn's final message for {answer['for']}"
     return f"a stamped version whose markup records action {answer['action']}"
 
@@ -159,9 +159,9 @@ def unanswered(obligations: list[dict], of: str = "") -> str:
     """Say how many user moves have no answer and name what answers each. `of`
     narrows which moves these are, such as the acknowledged ones."""
     commands = "; ".join(answer_command(item["answer"]) for item in obligations)
-    moves = f"user move{'s' if len(obligations) != 1 else ''}"
+    updates = f"user update{'s' if len(obligations) != 1 else ''}"
     return (
-        f"{len(obligations)} {of + ' ' if of else ''}{moves} with no answer "
+        f"{len(obligations)} {of + ' ' if of else ''}{updates} with no answer "
         f"({commands})"
     )
 
@@ -169,13 +169,13 @@ def unanswered(obligations: list[dict], of: str = "") -> str:
 def _turn_wrote(obligation: dict, state: dict) -> bool:
     """Whether the claimant's open turn finished the reply it owes this move.
 
-    A `turn` answer is written by the claimant's own turn, and the App Server
+    A provider-owned reply is written by the claimant's own turn, and the App Server
     client commits it once the turn ends, after the agent's last command. So the
     move is answered now when the turn's final message is complete, with text, in
     the reply draft bound to it."""
     draft = obligation.get("response") or {}
     return bool(
-        obligation["answer"]["kind"] == "turn"
+        obligation["answer"].get("writer") == "turn"
         and draft.get("state") == "active"
         and draft.get("settles")
         and draft.get("has_text")
@@ -200,7 +200,7 @@ def blocking_obligations(state: dict, *, watched: bool) -> list[dict]:
     `leaf status idle` refuses over exactly these: the acknowledged moves nothing
     else is set to answer. A move the adapter queued is answered by the later turn
     the queue opens, where the prompt hook records it `opened` and it blocks from
-    then on. A turn answer the open turn has finished is committed by the
+    then on. A provider reply the open turn has finished is committed by the
     claimant's App Server client once the turn ends, so it is answered while the
     session's watcher (`watched`) is live."""
     return [
@@ -507,7 +507,7 @@ def canonical_activity(
         ):
             item["answer"] = {
                 **item["answer"],
-                "kind": "turn",
+                "writer": "turn",
                 "attempt": binding["attempt"],
             }
 

@@ -12,6 +12,7 @@ from leaf.data_contracts import (
 )
 from leaf.passages import SourceReading
 from leaf.registry.contract import RegistryError
+from leaf.registry.schema import json_value
 from leaf.registry.storage import read_page_registry
 from leaf.revision_artifact import ArtifactError, RevisionArtifact, capture_artifact
 from leaf.sample_content import initial_sample_events
@@ -148,12 +149,14 @@ def _document_errors(page_dir: Path, parser) -> list[str]:
             continue  # ordinary document metadata: a title, a description, a card
         where = f'<meta name="{meta["name"]}"> (line {meta["line"]})'
         if meta["name"] not in LF_META:
-            errors.append(f"{where}: unknown lf- meta; known: {sorted(LF_META)}")
+            errors.append(
+                f"{where}: unknown lf- meta; known: {json_value(sorted(LF_META))}"
+            )
             continue
         allowed = LF_META[meta["name"]]
         if allowed is not None and meta["content"] not in allowed:
             errors.append(
-                f"{where}: content must be one of {sorted(allowed)}, "
+                f"{where}: content must be one of {json_value(sorted(allowed))}, "
                 f"found {meta['content']!r}"
             )
 
@@ -184,7 +187,9 @@ def _instance_errors(
     errors.extend(suggestion_errors(parser.lf_elements, registry, thread_ids))
     taken = sorted(parser.ids & thread_structure(events).ids)
     if taken:
-        errors.append(f"ids already taken by widget markup in a reply: {taken}")
+        errors.append(
+            f"ids already taken by widget markup in a reply: {json_value(taken)}"
+        )
     return errors
 
 
@@ -222,7 +227,9 @@ def _source_advice(
     """Report non-blocking drift after every error-producing phase has run."""
     return [
         *(
-            [f"ids dropped from revision r{revision.predecessor}: {dropped_ids}"]
+            [
+                f"ids dropped from revision r{revision.predecessor}: {json_value(dropped_ids)}"
+            ]
             if dropped_ids
             else []
         ),

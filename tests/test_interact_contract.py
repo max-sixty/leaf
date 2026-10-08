@@ -125,7 +125,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
         )
         assert threads["question"]["resolved"] is not None
 
-    answer = thread_model.cmd_reply(
+    answer = thread_model.post_reply(
         page_dir,
         "question",
         "Here is the completed answer.",
@@ -155,7 +155,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     )
     threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
     assert threads["question"]["resolved"] is None
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         page_dir,
         "question",
         "Additional detail on the original question.",
@@ -204,7 +204,7 @@ def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation
         page_dir, events_model.read_events(page_dir)
     )
     thread_model.cmd_resolve(page_dir, question["id"])
-    answer = thread_model.cmd_reply(
+    answer = thread_model.post_reply(
         page_dir,
         question["id"],
         "I applied your choice.",
@@ -308,7 +308,7 @@ def test_a_pick_names_only_options_its_group_holds():
 
     with pytest.raises(events_model.EventRefused) as refused:
         admit(STATED_LOG, pick)
-    assert "['live-mine'] name no member of 'live-pick'" in str(refused.value)
+    assert "live-mine name no member of 'live-pick'" in str(refused.value)
 
     add = admit(
         STATED_LOG,
@@ -1326,7 +1326,7 @@ def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
         page_dir,
         monkeypatch,
         "reply",
-        lambda: thread_model.cmd_reply(
+        lambda: thread_model.post_reply(
             page_dir, "c1", "Pick one:", markup, for_event="c1"
         ),
     )
@@ -1350,7 +1350,7 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
         '<lf-option id="thread-a">A</lf-option>'
         "</lf-options></lf-ask>"
     )
-    thread_model.cmd_reply(page_dir, "c1", "Pick one:", markup, for_event="c1")
+    thread_model.post_reply(page_dir, "c1", "Pick one:", markup, for_event="c1")
 
     registry = json.loads((page_dir / "registry.json").read_text())
     options = registry["lf-options"]
@@ -1851,7 +1851,7 @@ def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_di
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "Choose."},
     )
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         page_dir,
         "c1",
         "Use this control.",
@@ -2653,6 +2653,9 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
     result = check(page_dir)
     assert result.exit_code == exit_code, result.output
     assert not isinstance(result.exception, AttributeError)
+    if subschema is False:
+        assert "schema does not allow" in result.output, result.output
+        assert "None" not in result.output
 
 
 @pytest.mark.parametrize(
@@ -2799,7 +2802,7 @@ def test_check_refuses_a_widget_name_that_cannot_form_a_selector(page_dir, tag):
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert f"invalid element declaration names ['{tag}']" in result.output
+    assert f'invalid element declaration names ["{tag}"]' in result.output
     assert "an element name is `lf-` followed by" in result.output
 
 
@@ -3425,7 +3428,7 @@ def test_a_layers_own_widget_withdraws_as_its_entry_declares(trial_page):
     )
     assert "log-daily" in issues
     assert "log-hourly" not in issues
-    assert "ids dropped from revision r1: ['log-hourly', 'trial-log']" in result.output
+    assert 'ids dropped from revision r1: ["log-hourly", "trial-log"]' in result.output
 
 
 def test_a_widget_declaring_no_withdrawal_holds_its_ids_until_it_is_answered(
@@ -3695,7 +3698,7 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert f"<{tag}> {key} names undeclared attributes ['{missing}']" in result.output
+    assert f'<{tag}> {key} names undeclared attributes ["{missing}"]' in result.output
 
 
 @pytest.mark.parametrize(
@@ -3951,7 +3954,16 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     on_page = {"scope": "page"}
 
     def owes(kind):
-        return {"answer": {"kind": kind}}
+        return {
+            "answer": {
+                "kind": "reply" if kind == "turn" else kind,
+                **(
+                    {"writer": "turn" if kind == "turn" else "agent"}
+                    if kind in {"reply", "turn"}
+                    else {}
+                ),
+            }
+        }
 
     untitled = {"thread": {"title": None}}
     titled = {"thread": {"title": "Tuesday backfill"}}
@@ -4107,6 +4119,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         record["id"]: "1946b466",
         record["ts"]: "2026-09-21T20:12:30-07:00",
         envelope["id"]: "e8417b8a",
+        batch["claim"]: "page-session",
         str(page_dir): "/path/to/page",
     }
     envelope["created_at"] = 1790046750.29
@@ -4317,6 +4330,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
         queued.payload["id"]: "22222222",
         prepared.payload["id"]: "33333333",
         json.loads(hooked)["id"]: "44444444",
+        session: "claude-session",
         # The turn's reply attempt is derived from the delivery id.
         service_model.delivery_reply_attempt(
             prepared.payload["id"]
@@ -4423,7 +4437,7 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
         ],
     )
     assert result.exit_code != 0
-    assert "unadmitted ['x-nope']" in result.output
+    assert 'unadmitted ["x-nope"]' in result.output
 
     (overlay / "registry.json").write_text(
         json.dumps({"$keys": {"x-space": "wider, in this project"}})
@@ -4522,7 +4536,7 @@ def test_check_requires_the_vendored_layer(tmp_path):
     (d / "index.html").write_text(PAGE)
     result = check(d)
     assert result.exit_code == 1
-    assert "run `leaf page init` to vendor the layer" in result.output
+    assert f"run `leaf page init {d}`" in result.output
 
 
 def test_check_advises_page_css_that_scrolls_a_box_and_leaves_arrangement_alone(
@@ -4585,7 +4599,7 @@ def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
     result = check(page_dir)
     assert result.exit_code == 1
     assert (
-        "data-bound='bottom'> (line 9) has an invalid value; expected one of start, "
+        'data-bound="bottom"> (line 9) has an invalid value; expected one of start, '
         in (result.output)
     )
     assert "x-reading-role pane must contain exactly one direct body" in result.output
@@ -4601,7 +4615,7 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     result = check(page_dir)
     assert result.exit_code == 1
     assert (
-        "<table data-width='full'> (line 9) has an invalid value; expected one of "
+        '<table data-width="full"> (line 9) has an invalid value; expected one of '
         "column, wide, available" in result.output
     )
 
@@ -4628,7 +4642,7 @@ def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(pa
     result = check(page_dir)
     assert result.exit_code == 1
     assert (
-        "data-height='240px'> (line 9) has an invalid value; expected a whole number "
+        'data-height="240px"> (line 9) has an invalid value; expected a whole number '
         "of CSS pixels" in result.output
     )
     assert "<table data-height> (line 9) states the height of a widget" in (
@@ -4678,7 +4692,7 @@ def test_check_takes_a_rail_only_on_body_and_only_by_name(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "data-rail='left'> (line" in result.output
+    assert 'data-rail="left"> (line' in result.output
     assert "expected one of right, none" in result.output
     assert "data-rail> (line" in result.output
     assert result.output.count("belongs on <body>") == 2
@@ -5010,7 +5024,7 @@ def test_sample_checks_available_history_beside_forward_thread_references(
     result = check(page_dir)
     assert result.exit_code != 0
     assert (
-        "ids already taken by widget markup in a reply: ['duplicate']" in result.output
+        'ids already taken by widget markup in a reply: ["duplicate"]' in result.output
     )
 
 
@@ -5179,7 +5193,7 @@ def test_x_awaits_names_the_verbs_that_answer_it(page_dir):
     result = check(page_dir)
 
     assert result.exit_code == 1
-    assert "x-awaits answers with verbs ['missing'], which are not x-state" in (
+    assert 'x-awaits answers with verbs ["missing"], which are not x-state' in (
         result.output
     )
 
@@ -5392,9 +5406,9 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         ),
         (
             {"kind": "comment", "revision": 1, "token": "keep", "text": "and"},
-            "valid under each of",
+            "must match exactly one of",
         ),
-        ({"kind": "comment", "revision": 1}, "not valid under any"),
+        ({"kind": "comment", "revision": 1}, "must match exactly one of"),
         (
             {"kind": "comment", "revision": 1, "token": "keep", "suggestion": True},
             "suggestion",
@@ -5459,7 +5473,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     assert "already been taken back" in answer["error"], body
     # Answered, the page reaction is a thread, and the withdrawal would orphan
     # the answer; the user's move is in the thread it opened.
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         page_dir,
         reaction["id"],
         "Which part is long?",

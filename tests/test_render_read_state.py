@@ -69,7 +69,7 @@ def _select_new_route(page):
 
 
 def _agent_metric_reply(page_dir, root, number, for_event=None):
-    return thread_model.cmd_reply(
+    return thread_model.post_reply(
         page_dir,
         root,
         f"Update {number}.",
@@ -554,7 +554,7 @@ def test_visible_message_waits_for_whole_document_presentation(browser, serve):
       };
       window.__releaseReadPresentation = () => release();
     }""")
-    reply = thread_model.cmd_reply(
+    reply = thread_model.post_reply(
         serve.page_dir,
         root,
         "The result is ready.",
@@ -835,7 +835,7 @@ def test_a_reply_held_in_a_diff_thread_is_read_once_the_keyboard_opens_it(
     thread = page.locator(f'lf-diff .lf-page-thread[data-thread="{root}"]')
     expect(thread).to_be_visible()
     height = _box_height(thread)
-    reply = thread_model.cmd_reply(
+    reply = thread_model.post_reply(
         serve.page_dir,
         root,
         "The route-line answer is ready.",
@@ -1172,7 +1172,7 @@ def test_a_reopening_in_a_folded_diff_thread_waits_in_its_summary(
     _to_upper_third(thread)
     height = _box_height(thread)
     # Resolving answered the comment, so the agent's turn is one nothing asked for.
-    reply = thread_model.cmd_reply(
+    reply = thread_model.post_reply(
         serve.page_dir, root, "The route stays.", None, for_event=None
     )
     told(page)
@@ -1584,7 +1584,7 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
     page.keyboard.type("nothing matches this")
     expect(page.locator(".lf-threads > .lf-thread:not([hidden])")).to_have_count(0)
     find.blur()
-    reply = thread_model.cmd_reply(
+    reply = thread_model.post_reply(
         serve.page_dir,
         root,
         "The route-line answer is ready.",

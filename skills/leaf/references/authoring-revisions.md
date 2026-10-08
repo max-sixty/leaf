@@ -38,37 +38,27 @@ as a message; Save records the exact source as the passage's replacement text.
 
 ## Honor user state
 
-The event log preserves user choices, generated options, edits, and suggestion
-outcomes across revisions. Leave their authored inputs unchanged unless the
-content needs revision. The page directory and its export preserve that
-state without it being copied into markup.
+Preserve the user's choices, added options, edits, and suggestion outcomes. The
+page directory and export retain them; leave their authored inputs unchanged
+unless the content needs revision. To deliberately replace state established by
+an action, follow the registry's `$restated`.
 
-A moved card, on a board or in a swipe deck's piles, is one exception. A move
-records a place among the cards the user saw, so when you change the cards in
-its column or pile, write the moved card where its move in `state` left it: in the
-column or pile the move names, ordered among the cards there by rank (`$state` in
-`registry.json` defines ranks). `page check` names the place when a version misses
-it. From then on your markup places it. Keep it there in later versions too: a version
-keeps a user's placement unless it marks the card `restated`, and `page check`
-refuses one that moves it silently.
+When changing the cards in a board column or swipe pile, place each moved card
+in the column or pile and rank that `state` names. Keep that placement in later
+versions unless the card is `restated`. The registry's `$state` defines ranks,
+and `page check` names a placement a revision fails to preserve.
 
-A user's answer to a page Ask is the other: it shows as waiting on you until a
-stamped version takes it in, and until then it holds your turn open unless that turn
-started it. Where the answering widget declares a markup form for its state
-(its `x-state` `record`), that version's markup has to show the answer in that form:
-`chosen` on exactly the picked `lf-option` elements, with an option the user added
-written in as an ordinary option under its id and words, or the user's words as the
-body of a `needed` `lf-draft`. The next version you stamp takes in an answer with no
-such form, such as an accepted suggestion or a playground's submitted settings.
+Take in a user's answer to a page Ask in a stamped version. Where the widget's
+`x-state` declares a `record` form, write that form in the markup: `chosen` on
+exactly the picked `lf-option` elements, with user-added options under their
+original ids and words, or the user's words as the body of a `needed` `lf-draft`.
+Where it declares no form, such as an accepted suggestion or submitted playground
+settings, the next stamp takes in the answer. Until then the answer waits on you,
+as its delivered `handling` says.
 
 When incorporating a decided suggestion into surrounding prose, retain its
-surviving branch and ids.
-
-A worker's report stays provisional until a stamped version answers it, as its
-delivered `handling` says.
-
-To deliberately replace state established by an action, follow the registry's
-`$restated`.
+surviving branch and ids. A worker report also stays provisional until the
+stamped revision its delivered `handling` requires.
 
 ## Make changes easy to find
 

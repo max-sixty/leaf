@@ -18,7 +18,7 @@ from .event_contracts import admitted_event, command_record_schema
 from .event_meaning import AdmissionReadings
 from .page_view import InitialPageView
 from .projection import generated_children, retirement_outcomes, rewritten_bodies
-from .registry.schema import aware_instant, schema_error
+from .registry.schema import aware_instant, json_value, schema_error
 from .state import now_iso
 from .structure import SourceDocument
 from .thread_context import sample_events, thread_structure
@@ -141,7 +141,7 @@ def initial_sample_events(
                 raise ValueError("publication is owned by the checked source publisher")
             kind = event.get("kind")
             if not isinstance(kind, str) or kind not in kinds:
-                raise ValueError(f"kind must be one of {sorted(kinds)}")
+                raise ValueError(f"kind must be one of {json_value(sorted(kinds))}")
             spec = kinds[kind]["record"]
             event.setdefault("id", f"{seq:08x}")
             event.setdefault("ts", constructed_at)
@@ -192,7 +192,7 @@ def initial_sample_events(
                     {logged["id"] for logged in events} | {event["id"]}
                 ):
                     raise ValueError(
-                        f"message widget ids already taken by events: {sorted(collision)}"
+                        f"message widget ids already taken by events: {json_value(sorted(collision))}"
                     )
             events.append(admitted_event(view, events, event))
         except ValueError as error:

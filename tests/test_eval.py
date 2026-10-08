@@ -108,8 +108,16 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch, code
     ]
 
 
+@pytest.mark.parametrize(
+    "address",
+    [
+        "review-shows-the-change",
+        "interaction-proof-follows-the-reader/comparison",
+        "visible-outcome-before-handoff/shared-identity",
+    ],
+)
 def test_internal_instruction_cases_receive_their_arms_source(
-    tmp_path, monkeypatch, codex_cli
+    tmp_path, monkeypatch, codex_cli, address
 ):
     login = tmp_path / "login"
     login.mkdir()
@@ -122,7 +130,7 @@ def test_internal_instruction_cases_receive_their_arms_source(
         path.parent.mkdir(parents=True)
         path.write_text(f"{arm} maintainer instructions")
     config = prepare(
-        ["review-shows-the-change"],
+        [address],
         payloads,
         tmp_path / "scratch",
         ("claude-code", "codex"),
@@ -138,10 +146,7 @@ def test_internal_instruction_cases_receive_their_arms_source(
         )
         assert provider["config"][field] == f"{arm} maintainer instructions"
     assert [check["type"] for check in config["tests"][0]["assert"]] == ["llm-rubric"]
-    assert (
-        config["tests"][0]["vars"]["prompt"]
-        == catalog()["review-shows-the-change"]["vars"]["prompt"]
-    )
+    assert config["tests"][0]["vars"]["prompt"] == catalog()[address]["vars"]["prompt"]
 
 
 def test_native_codex_discovers_the_complete_arm_with_root_relative_access(

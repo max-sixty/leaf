@@ -2060,7 +2060,7 @@ def test_sign_off_stands_through_a_draft_and_moves_nothing(browser, serve):
         html.replace("</main>", "<p>A draft's new paragraph.</p></main>")
     )
     told(page)
-    expect(page.locator(".lf-version")).to_have_text("Draft")
+    expect(page.locator(".lf-version")).to_have_text("Showing Draft")
     expect(button).to_be_visible()
     expect(button).to_have_attribute(
         "title", "There is no stamped version to approve yet"
@@ -2147,7 +2147,7 @@ def test_an_approval_can_be_taken_back_like_any_other_user_gesture(browser, serv
     round_trip(page)
     expect(button).to_have_text("✓ Version approved")
     expect(button).to_have_attribute(
-        "title", "Approved. Press z to take it back while it is still your last gesture"
+        "title", "Approved. Press z to undo while approval is still your latest update"
     )
 
     undo(page)
@@ -2494,7 +2494,7 @@ def test_banner_status_is_compact_with_accessible_details(browser, serve, other_
     # The complete real action set, wherever the fold has put each of them: what this is
     # about is the pressure that set puts on the sentence beside it.
     on_the_row = page.evaluate(BANNER_ORDER)
-    for wanted in ("All leaves", "Queue", "Accept all", "v1", "Approve version"):
+    for wanted in ("All pages", "Queue", "Accept all", "v1", "Approve version"):
         assert any(wanted in name for name in on_the_row), (
             f"{wanted} was not on the row, so the fixture is short of the crowding this "
             f"test is about: {on_the_row}"
@@ -3103,7 +3103,7 @@ def test_one_version_opens_a_menu_with_its_version(browser, serve):
     page = open_page(browser, serve(LONG_PAGE))
     version = page.locator(".lf-version")
     expect(version).to_be_enabled()
-    expect(version).to_have_text("v1")
+    expect(version).to_have_text("Showing v1")
     expect(version).to_have_attribute("aria-haspopup", "menu")
     expect(version).to_have_attribute("aria-expanded", "false")
     banner_control(page, ".lf-version").click()
@@ -4673,7 +4673,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     )
     page = open_page(browser, url, context=one_user)
     btn = page.locator(".lf-others")
-    expect(btn).to_have_text("All leaves (2)")
+    expect(btn).to_have_text("All pages (2)")
     banner_control(page, ".lf-others").click()
     others_panel = page.locator(".lf-others-panel")
     expect(others_panel).to_be_visible()
@@ -4718,25 +4718,24 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     page.keyboard.press("Escape")
     expect(others_panel).not_to_be_visible()
     expect(btn).to_be_hidden()  # closing the panel keeps the button in its fixed menu
-    expect(btn).to_have_text("All leaves (2)")  # and the count
-    expect(btn).to_have_text("All leaves (2)")
+    expect(btn).to_have_text("All pages (2)")  # and the count
 
 
 def test_the_band_stays_over_the_covering_leaves_drawer(browser, serve, other_leaf):
     """A drawer stands under the bottom bar, its list ending above the band's height, and
-    the Leaves drawer, which always covers the page, is no exception: the band states the
+    the Pages drawer, which always covers the page, is no exception: the band states the
     keys the drawer answers and stays over it and its scrim, its More control live. The
     covering drawer used to stand over the band, hiding the hints it painted for the drawer
-    ("open it in a tab", "close leaves") under the drawer and the scrim, where the Asks
+    ("open it in a tab", "close pages") under the drawer and the scrim, where the Asks
     drawer, standing beside the page, left them in view."""
     page = open_page(browser, serve(LONG_PAGE))
     resized(page, 1440, 900)
-    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
+    expect(page.locator(".lf-others")).to_have_text("All pages (2)")
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     drawer = page.locator(".lf-others-panel")
     assert drawer.evaluate("surface => surface.closest('dialog').matches(':modal')")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close leaves")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("close pages")
     reading = page.evaluate(
         """() => {
           const band = document.querySelector('.lf-shortcut-bar');
@@ -4770,7 +4769,7 @@ def test_the_banner_uses_the_page_mark_and_puts_each_edge_by_its_panel(
     url = serve(html)
     stamp_page(serve.page_dir, html, "two")
     page = open_page(browser, url)
-    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
+    expect(page.locator(".lf-others")).to_have_text("All pages (2)")
     expect(page.locator(".lf-signoff")).to_be_visible()
 
     mark = page.locator(".lf-banner .lf-dot")
@@ -4837,7 +4836,7 @@ def test_a_panel_row_follows_its_pages_status_live(
     _, other_dir = other_leaf
     page = open_page(browser, serve(LONG_PAGE))
     # The key is live once the list has arrived, which the button's count states.
-    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
+    expect(page.locator(".lf-others")).to_have_text("All pages (2)")
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     row = page.locator("a.lf-others-row")
@@ -4884,7 +4883,7 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
     btn = page.locator(".lf-others")
     rows = page.locator("a.lf-others-row")
     row = rows.filter(has_text="The other leaf")
-    expect(btn).to_have_text("All leaves (3)")
+    expect(btn).to_have_text("All pages (3)")
     expect(rows).to_have_count(2)
     row.focus()
     before = page.evaluate(
@@ -4953,12 +4952,12 @@ def test_a_leaves_update_is_presented_before_the_page_calls_it_current(
         "semanticEpoch": before["semanticEpoch"],
         "presentedEpoch": before["presentedEpoch"],
         "ready": False,
-        "label": "All leaves (3)",
+        "label": "All pages (3)",
         "rows": 2,
     }
     page.evaluate("releaseLeavesPaint()")
     page.wait_for_function("window.leavesReady")
-    expect(btn).to_have_text("All leaves (2)")
+    expect(btn).to_have_text("All pages (2)")
     expect(rows).to_have_count(1)
     expect(row.locator(".lf-others-line")).to_have_text("Working — recording the demo")
     assert page.evaluate(
@@ -4991,7 +4990,7 @@ def test_a_closed_leaf_clears_itself_off_the_drawer(browser, serve, other_leaf):
     _, other_dir = other_leaf
     page = open_page(browser, serve(LONG_PAGE))
     btn = page.locator(".lf-others")
-    expect(btn).to_have_text("All leaves (2)")
+    expect(btn).to_have_text("All pages (2)")
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     rows = page.locator("a.lf-others-row")
@@ -5003,7 +5002,7 @@ def test_a_closed_leaf_clears_itself_off_the_drawer(browser, serve, other_leaf):
     )
     told(page)
     expect(rows).to_have_count(0)
-    expect(btn).to_have_text("All leaves (1)")
+    expect(btn).to_have_text("All pages (1)")
     expect(page.locator(".lf-others-self .lf-others-title")).to_have_text("long")
     expect(page.locator(".lf-others-panel")).to_be_focused()
     # The open panel remains the modal destination after its last link leaves. Its own
@@ -5318,17 +5317,17 @@ def test_the_leaves_drawer_takes_the_keyboard(browser, serve, live_leaf, one_use
     expect(page.locator("a.lf-others-row").first).to_have_attribute(
         "aria-keyshortcuts", "Enter"
     )
-    expect(btn).to_have_text("All leaves (3)")
+    expect(btn).to_have_text("All pages (3)")
     shortcut_bar = page.locator(".lf-shortcut-bar")
     # The go-to menu carries the panel only while there is another leaf to show.
     page.keyboard.press("g")
-    expect(shortcut_bar).to_contain_text("Leaves drawer")
+    expect(shortcut_bar).to_contain_text("Pages drawer")
     page.keyboard.press("Shift+l")
     rows = page.locator("a.lf-others-row")
     # Titles order the drawer, so the walk has a stated first row to start from.
     expect(rows.first.locator(".lf-others-title")).to_have_text("A second leaf")
     expect(rows.first).to_be_focused()
-    expect(shortcut_bar).to_contain_text("walk the leaves")
+    expect(shortcut_bar).to_contain_text("walk the pages")
     expect(shortcut_bar).to_contain_text("open it in a tab")
     page.keyboard.press("ArrowUp")
     expect(rows.first).to_be_focused()
@@ -5359,11 +5358,11 @@ def test_the_leaves_drawer_takes_the_keyboard(browser, serve, live_leaf, one_use
     page.keyboard.press("?")
     page.keyboard.press("?")
     help_el = page.locator(".lf-command-reference")
-    expect(help_el).to_contain_text("In the leaves drawer")
-    expect(help_el).to_contain_text("Previous leaf")
-    expect(help_el).to_contain_text("Next leaf")
-    expect(help_el).to_contain_text("First leaf")
-    expect(help_el).to_contain_text("Last leaf")
+    expect(help_el).to_contain_text("In the pages drawer")
+    expect(help_el).to_contain_text("Previous page")
+    expect(help_el).to_contain_text("Next page")
+    expect(help_el).to_contain_text("First page")
+    expect(help_el).to_contain_text("Last page")
 
 
 def test_a_press_on_the_pages_words_is_a_newer_word_than_a_waiting_hold(browser, serve):
@@ -5943,7 +5942,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
     """
     page = open_page(browser, serve(MANY_ASKS_PAGE))
     resized(page, 500, 640)
-    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
+    expect(page.locator(".lf-others")).to_have_text("All pages (2)")
     assert page.locator(".lf-others").evaluate(
         "el => Boolean(el.closest('.lf-banner-menu'))"
     ), "the fixture did not fold Leaves behind the banner menu"
@@ -6150,7 +6149,7 @@ def test_a_walk_down_the_drawer_stops_clear_of_the_shortcut_bar_text(
     for i, title in enumerate(names):
         live_leaf(f"n{i}", title)
     page = open_page(browser, serve(LONG_PAGE))
-    expect(page.locator(".lf-others")).to_have_text(f"All leaves ({len(names) + 1})")
+    expect(page.locator(".lf-others")).to_have_text(f"All pages ({len(names) + 1})")
     # Short enough that the rows overflow the drawer, which is the only shape in which
     # the reservation is the difference between a clear last row and a covered one.
     resized(page, 900, 320)
@@ -6183,7 +6182,7 @@ def test_a_walk_down_the_drawer_stops_clear_of_the_shortcut_bar_text(
 
 
 def test_a_walk_down_the_queue_stops_clear_of_the_shortcut_bar_text(browser, serve):
-    """The leaves drawer's reading above, made of the drawer beside it. The room is one
+    """The pages drawer's reading above, made of the drawer beside it. The room is one
     fact — the shortcut bar stands in the corner both lists reach — and it was written to one
     list, so the Asks list's walk parked its last row 47px under the line. Nothing said
     so, because no example ships enough Asks to fill a drawer and the walk that would have
@@ -6502,7 +6501,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page = open_page(browser, url)
     resized(page, width, 900)
     page.emulate_media(color_scheme=color_scheme)
-    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
+    expect(page.locator(".lf-others")).to_have_text("All pages (2)")
 
     def sweep(where):
         violations, report = serious_axe_violations(page)
@@ -6534,7 +6533,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     expect(page.locator(".lf-others-panel")).to_have_class(re.compile("open"))
-    sweep("standing in the leaves drawer")
+    sweep("standing in the pages drawer")
     page.keyboard.press("Escape")
     expect(page.locator(".lf-others-panel")).not_to_have_class(re.compile("open"))
 
@@ -7611,7 +7610,7 @@ RING_CASES = (
     # that never opens one stands on the trigger and nothing under it.
     ("a reaction palette", (), {"ship-review": ((".lf-react", "chip"),)}),
     ("the Queue panel", (), {"ship-review": ((".lf-queue-row", "queue-row"),)}),
-    ("the leaves drawer", ("g", "Shift+l"), {"corpus": ((None, "others-row"),)}),
+    ("the pages drawer", ("g", "Shift+l"), {"corpus": ((None, "others-row"),)}),
     ("page status", (), {"corpus": ((None, "status-detail"),)}),
     # The menu's own route after the key that opens it: an open lands on the version being
     # read, which is the first row, and the comparison press beside a row is a Tab forward
@@ -7715,7 +7714,7 @@ RING_SCOPE_SURFACE = {
     "target hints": (".lf-target-picker-hint.lf-current", None),
     "the response bar": (".lf-fab-bar .lf-composer[data-lf-open]", None),
     "the Queue panel": (".lf-queue-panel.open", ".lf-queue"),
-    "the leaves drawer": (".lf-others-panel.open", ".lf-others"),
+    "the pages drawer": (".lf-others-panel.open", ".lf-others"),
     "the versions menu": (".lf-version-menu:popover-open", None),
     "the command reference": (".lf-command-reference.open", None),
     "page status": (".lf-status-detail:popover-open", None),

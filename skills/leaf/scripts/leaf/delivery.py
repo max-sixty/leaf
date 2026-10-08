@@ -11,19 +11,21 @@ turn entry separately; neither settles the user's response requirement.
 Each batch carries distinct handling clause texts once, with ordered references
 on the events they apply to. Clause identities belong only to that batch.
 
-Two facts differ by the transport a delivery takes into an agent's context, and the
-caller freezing it states both once for the whole delivery rather than per event.
-`acknowledge` says who confirms receipt: the reader of a `leaf wait`, in the way
-its harness runs that command, or nobody, where the transport confirmed it itself. A
-hook confirms what it hands over inline, and the agent's `leaf delivery read`
-confirms a pointer a hook offered, Claude Code's, Pi's or Codex's, in the way the
-reading session's harness carries its input. `turn_replies` says whether the
-turn the delivery opens speaks for it, as an App Server turn does: that turns the
-one thread reply the delivery owes into a `turn` answer, which the turn's own
-messages write, where every other transport leaves it a `reply` for `leaf thread
-reply`. The envelope records the first and only the effect of the second: each
-event's `answer` is that same address. Its delivered `handling` combines registry
-clauses for the event kind and for that answer kind.
+The envelope names who confirms receipt through `acknowledge`. A hook confirms
+what it hands over inline; reading a pointer confirms it through the reading
+session's harness. `turn_replies` assigns final custody to the provider turn.
+An answer's `writer` guides initial handling at capture; the current binding alone
+controls final custody when writing. It is separate from the semantic operation:
+reply and markup requirements retain their meaning on every transport.
+
+Freeze emits an exact `answer.ref`, qualified by delivery, page batch and input.
+The immutable envelope is the only address store. Direct authors and provider
+finals resolve it through `response_address` before the rich durable reply writer
+rechecks the captured logical owner, exact input and standing obligation under the
+page lock. An address may be forwarded to a worker without changing its own
+author identity; another session's claim supersedes its authorization even after
+release or end. The owning session's process restart preserves it.
+
 """
 
 import json
@@ -41,17 +43,17 @@ from .machine import state_home
 from .schema import CURSOR_FILE
 from .service import (
     PageTransaction,
-    delivery_reply_attempt,
     owned_pages,
     requires_agent_attention,
     unacknowledged,
 )
 from .state import flocked, session_lock_path, session_record, write_json
 
-DELIVERY_FORMAT = "leaf-delivery-v3"
+DELIVERY_FORMAT = "leaf-delivery-v5"
 DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
 _BATCH_FIELDS = (
     "page",
+    "claim",
     "through_seq",
     "threads",
     "handling",
@@ -216,31 +218,59 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
         captured.append(entry)
     return {
         "page": str(page_dir),
+        "claim": transaction.delivery_owner,
         "through_seq": max(event["seq"] for event in batch),
         "threads": batch_threads(events, batch, within),
         "events": captured,
     }
 
 
-def delivered_answer(answer: dict, delivery_id: str, *, turn_replies: bool) -> dict:
-    """The answer one captured event owes once its delivery reaches the agent.
+def response_addresses(payload: dict) -> Iterator[dict]:
+    """Read each address exactly as its immutable envelope captured it."""
+    for batch in payload["batches"]:
+        for event in batch["events"]:
+            if (answer := event.get("answer")) is not None:
+                yield {
+                    **answer,
+                    "page": batch["page"],
+                    "claim": batch["claim"],
+                    "input": {"id": event["id"], "seq": event["seq"]},
+                }
 
-    A plain reply delivered into a turn that speaks for it (`turn_replies`) is that
-    turn's to write, with its opening and final messages, under the reply attempt
-    the delivery names; the same reply reaching an agent any other way stays `leaf
-    thread reply`'s. Every other answer is the same on every transport."""
-    if answer["kind"] == "reply" and turn_replies:
-        return {
-            **answer,
-            "kind": "turn",
-            "attempt": delivery_reply_attempt(delivery_id),
+
+def response_address(reference: str) -> dict:
+    """Resolve only a complete reference emitted by an immutable delivery.
+
+    Page-local event ids are not addresses. The delivery and batch qualify them;
+    consumers use the captured destination rather than interpreting the id again.
+    The writer rechecks the captured event against the page log under its lock.
+    """
+    payload = read_delivery(reference.partition(":")[0])
+    for address in response_addresses(payload):
+        if address["ref"] == reference:
+            return address
+    sys.exit(f"unknown response reference {reference!r}")
+
+
+def stream_reply_target(payload: dict) -> dict | None:
+    """The sole reply whose final text belongs to this delivery's provider turn."""
+    targets = [
+        {
+            "page": address["page"],
+            "reply_to": address["to"],
+            "responds": address["for"],
+            "ref": address["ref"],
         }
-    return answer
+        for address in response_addresses(payload)
+        if address.get("writer") == "turn"
+    ]
+    return targets[0] if len(targets) == 1 else None
 
 
-def handled(batch: dict, delivery_id: str, *, turn_replies: bool) -> dict:
-    """One captured batch as its delivery hands it over: each answer addressed for
-    `turn_replies`, and the `handling` its page's layer gives each event.
+def handled(
+    batch: dict, delivery_id: str, batch_index: int, *, turn_replies: bool
+) -> dict:
+    """One captured batch with exact references, writer custody and handling.
 
     A clause's `when` reads the event, the answer it owes, and its thread's
     digest, so each event is told only its own case and the answer it owes. The
@@ -265,9 +295,19 @@ def handled(batch: dict, delivery_id: str, *, turn_replies: bool) -> dict:
         }
         owed = (
             {
-                "answer": delivered_answer(
-                    event["answer"], delivery_id, turn_replies=turn_replies
-                )
+                "answer": {
+                    **event["answer"],
+                    "ref": f"{delivery_id}:{batch_index}:{event['id']}",
+                    **(
+                        {
+                            "writer": "turn"
+                            if turn_replies
+                            else event["answer"].get("writer", "agent")
+                        }
+                        if event["answer"]["kind"] == "reply"
+                        else {}
+                    ),
+                }
             }
             if "answer" in event
             else {}
@@ -325,8 +365,8 @@ def freeze_delivery(
             "batches": [
                 {field: batch[field] for field in _BATCH_FIELDS}
                 for batch in (
-                    handled(batch, delivery_id, turn_replies=turn_replies)
-                    for batch in batches
+                    handled(batch, delivery_id, index, turn_replies=turn_replies)
+                    for index, batch in enumerate(batches)
                 )
             ],
         }
@@ -342,6 +382,15 @@ def freeze_delivery(
         return payload
 
 
+def readable_delivery(payload, delivery_id: str) -> bool:
+    """Whether this immutable identity has the envelope this version consumes."""
+    return bool(
+        isinstance(payload, dict)
+        and payload.get("format") == DELIVERY_FORMAT
+        and payload.get("id") == delivery_id
+    )
+
+
 def read_delivery(delivery_id: str) -> dict:
     try:
         path = delivery_path(delivery_id)
@@ -350,7 +399,7 @@ def read_delivery(delivery_id: str) -> dict:
     payload = read_json(path)
     if payload is None:
         sys.exit(f"unknown delivery {delivery_id!r}")
-    if payload.get("format") != DELIVERY_FORMAT or payload.get("id") != delivery_id:
+    if not readable_delivery(payload, delivery_id):
         raise RuntimeError(f"delivery {delivery_id!r} has an invalid envelope")
     return payload
 

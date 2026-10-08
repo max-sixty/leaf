@@ -35,7 +35,7 @@ from leaf.registry.contract import (
     visual_parts,
 )
 from leaf.registry.reactions import reaction_tokens
-from leaf.registry.schema import schema_error
+from leaf.registry.schema import json_value, schema_error
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
 from leaf.structure import review_mode
 from leaf.tasks import task_error
@@ -115,7 +115,9 @@ def declared_event_error(event: dict, tag: str, registry: dict):
             verb for verb, _spec in state_specs(entry, writer=WRITERS[kind])
         )
         return f"<{tag}> does not declare {kind} verb {event['action']!r}" + (
-            f"; it declares {declared}" if kind == "report" and declared else ""
+            f"; it declares {json_value(declared)}"
+            if kind == "report" and declared
+            else ""
         )
     if message := schema_error(detail_schema(entry, spec), event["detail"]):
         return f"<{tag}> {kind} {event['action']!r} detail is invalid: {message}"
@@ -384,7 +386,7 @@ def record_contract_error(view, event, spec, readings, page_owned=True):
         members = record_members(event["widget"], projection, byid, spk, registry)
         named = event["detail"]["value"]
         if strangers := sorted(set(named) - members):
-            return f"{prefix}: {strangers} name no member of {event['widget']!r}"
+            return f"{prefix}: {', '.join(strangers)} name no member of {event['widget']!r}"
     return None
 
 
@@ -469,7 +471,7 @@ def _revision_error(view, event: dict) -> str | None:
         return None
     live = view.revisions
     if event["revision"] not in live:
-        return f"{event['kind']} revision must be one of {live}"
+        return f"{event['kind']} revision must be one of {json_value(live)}"
     return None
 
 
@@ -524,7 +526,7 @@ def _reaction_error(event: dict, registry: dict) -> str | None:
     if event["token"] not in tokens:
         return (
             f"unknown reaction token {event['token']!r}; this layer "
-            f"declares {sorted(tokens)}"
+            f"declares {json_value(sorted(tokens))}"
         )
     return None
 
@@ -631,9 +633,24 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
     page, and a task on the user on no Ask, which already is one; an outcome ends a
     task still open as its `ends` allows; a start names an open task or a move the
     agent owes (`tasks.task_error`)."""
-    if event["kind"] not in {"task", "task_end", "start"}:
+    from leaf.tasks import start_reading
+
+    progress_parent = (
+        event["parent"] if event["kind"] == "reply" and "start" in event else None
+    )
+    if start := start_reading(event):
+        event = start
+    elif event["kind"] not in {"task", "task_end"}:
         return None
     workflows = admission_workflows(readings)[0] if event["kind"] != "task_end" else []
+    if progress_parent is not None and not any(
+        item["input"] == event["item"]
+        and item["next_actor"] == "agent"
+        and item["answer"]["kind"] == "reply"
+        and item["answer"]["to"] == progress_parent
+        for item in workflows
+    ):
+        return "progress must take in hand the reply input addressed by its parent"
     threads = readings.work.threads if event["kind"] == "task" else {}
 
     def seat_error(widget: str) -> str | None:
@@ -717,7 +734,7 @@ def admitted_event(view, events: list, event: dict) -> dict:
     contracts = registry["$events"]["kinds"]
     kind = event.get("kind")
     if kind not in contracts:
-        raise EventRefused(f"kind must be one of {sorted(contracts)}")
+        raise EventRefused(f"kind must be one of {json_value(sorted(contracts))}")
     if "id" not in event:
         event = {**event, "id": new_event_id(events)}
     readings = AdmissionReadings(view, events, registry)

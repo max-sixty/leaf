@@ -6093,7 +6093,7 @@ body { font-family: system-ui, sans-serif; }
         "<h1>Review the deployment notification</h1>",
         "<h1>Deployment notification revised</h1>",
     )
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         serve.page_dir,
         comment["id"],
         "Added the deployment-run link to the artifact.",

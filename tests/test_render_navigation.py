@@ -3687,12 +3687,12 @@ def test_the_queue_panel_lists_both_queues_and_what_is_done(browser, serve):
     page.keyboard.press("Shift+q")
     expect(panel).to_be_visible()
     rows = page.evaluate(QUEUE_ROW_SAYS)
-    assert [(row["list"], row["kind"], row["title"]) for row in rows] == [
-        ("you", "ask", "Which channel first?"),
-        ("you", "question", "Weekly?"),
-        ("agent", "answer", "Tighten this."),
-        ("agent", "task", "Rebuild the notes"),
-        ("done", "task", "Retitle the release"),
+    assert [(row["list"], row["word"], row["title"]) for row in rows] == [
+        ("you", "Ask", "Which channel first?"),
+        ("you", "Question", "Weekly?"),
+        ("agent", "Reply", "Tighten this."),
+        ("agent", "Task", "Rebuild the notes"),
+        ("done", "Task", "Retitle the release"),
     ], rows
     assert rows[1]["where"].startswith("§ Release"), rows
     assert rows[-1]["where"].startswith("Done"), rows
@@ -7653,12 +7653,12 @@ def test_a_drawer_reached_from_another_drawer_leaves_both_of_them_shut(browser, 
 
 
 def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
-    """All leaves is the second drawer destination and follows the same focus contract."""
+    """All pages is the second drawer destination and follows the same focus contract."""
     live_leaf("second", "A second leaf")
     page = open_page(browser, serve(ADDRESSED_PAGE))
 
     page.keyboard.press("g")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("Leaves drawer")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("Pages drawer")
     expect(
         page.locator(
             '.lf-go-to-hints [data-lf-go-to-command="navigation.drawer.leaves"]'
@@ -7672,7 +7672,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     # destination remains operable even though the fixed More seat has no target overlay.
     live_leaf("third", "A third leaf")
     round_trip(page)
-    expect(page.locator(".lf-others")).to_contain_text("All leaves (3)")
+    expect(page.locator(".lf-others")).to_contain_text("All pages (3)")
     expect(threads_hint).to_be_visible()
     page.keyboard.press("Shift+l")
 
@@ -9362,7 +9362,7 @@ def test_named_go_to_addresses_toggle_their_auxiliary_surfaces(
         (
             "Shift+l",
             "navigation.drawer.leaves",
-            "Leaves drawer",
+            "Pages drawer",
             ".lf-others-panel",
             ".lf-others",
             True,
@@ -10540,7 +10540,7 @@ def test_signoff_uses_its_visible_button_and_g_l_never_falls_through(browser, se
     approve = page.locator(".lf-signoff")
     expect(approve).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
 
-    # All leaves is conditional. With no neighbouring leaf, its sequence must not be
+    # All pages is conditional. With no neighbouring leaf, its sequence must not be
     # reinterpreted as a page action carrying the same final key.
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
@@ -14244,9 +14244,9 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     expect(page.locator('.lf-queue-row[data-lf-at="shape-decision"]')).to_have_count(0)
     expect(page.locator('.lf-queue-row[data-lf-at="picked-decision"]')).to_have_count(1)
     expect(page.locator('.lf-queue-row[data-lf-at="sug-window"]')).to_have_count(1)
-    expect(
-        page.locator("[data-lf-queue='agent'] .lf-queue-row[data-lf-kind='answer']")
-    ).to_have_count(1)
+    agent_rows = page.locator("[data-lf-queue='agent'] .lf-queue-row")
+    expect(agent_rows).to_have_count(1)
+    expect(agent_rows).to_contain_text("Steel, unless the sealing is quick?")
 
     # The user is standing in it all the same, first with the panel still open.
     page.locator("#shape .lf-settle").focus()

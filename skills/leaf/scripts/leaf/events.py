@@ -262,7 +262,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             thread = {
                 "id": e["id"],
                 "root": message,
-                "title": None,
+                "title": e.get("title"),
                 "anchor": message.get("anchor"),
                 "detached_from": None,
                 "rewritten_from": None,
@@ -323,6 +323,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 thread_for[e["parent"]] = thread
             messages[e["id"]] = message
             thread["msgs"].append(message)
+            if thread["title"] is None and "title" in e:
+                thread["title"] = e["title"]
             if "token" not in e and "failure" not in e and not e.get("ephemeral"):
                 thread["resolved"] = None
             if "anchor" in e:

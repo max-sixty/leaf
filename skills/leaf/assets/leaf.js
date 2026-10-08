@@ -1121,12 +1121,9 @@ async function startPage() {
     replayReady,
   ]);
   if (!upgraded) return;
+  // Initial layout and later residency share prepaint's synchronous computation.
+  openResidency({ onRead: annotationRenderer?.syncMarginResidency });
   if (!offlineInteractive) {
-    // Authored residents are read from the upgraded document (content-layout.js).
-    openResidency({
-      rail: overlaySelected,
-      onRead: annotationRenderer?.syncMarginResidency,
-    });
     layout.syncLayout();
     asks.buildBulkAnswers();
     asks.syncAsks();

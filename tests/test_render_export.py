@@ -2222,3 +2222,32 @@ def test_an_export_runs_what_its_served_page_runs(browser, serve, tmp_path):
         context.route("https://outside.invalid/**", outside)
         page = open_page(browser, url, context=context)
         assert page.evaluate("() => window.policyOutcomes") == expected, url
+
+
+def test_an_interactive_export_reseats_authored_margin_notes(browser, serve, tmp_path):
+    """Offline reading shares the same initial and width-dependent composition."""
+    serve(
+        leaf_page(
+            "Exported notes",
+            '<h1 id="title">Migration</h1>'
+            '<aside class="sidenote" id="note">Keep earlier readers available.</aside>'
+            '<p id="passage">Advance the migration one cohort at a time.</p>',
+        )
+    )
+    interactive = tmp_path / "margin-notes.html"
+    result = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "export", str(serve.page_dir), "--out", str(interactive)],
+        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
+    )
+    assert result.exit_code == 0, result.output
+    page = browser.new_page(viewport={"width": 1440, "height": 900})
+    page.goto(interactive.as_uri(), wait_until="load")
+    expect(page.locator("body")).to_have_attribute(
+        "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
+    )
+    expect(page.locator("#note")).to_have_css("float", "right")
+    page.set_viewport_size({"width": 390, "height": 900})
+    expect(page.locator("#note")).to_have_css("float", "none")
+    page.set_viewport_size({"width": 1440, "height": 900})
+    expect(page.locator("#note")).to_have_css("float", "right")

@@ -332,18 +332,8 @@ export function landingInsets(scroller) {
 // the way down, which are not skipped and cheap to ask about — and it is drawn, so its
 // own style is not skipped either. A disclosure skips through a pseudo-element of its
 // own, so it is asked by its state rather than by its style.
-export function skipped(el) {
-  if (el.checkVisibility()) return false;
-  let child = el;
-  let box = renderedParent(el);
-  while (box && !box.checkVisibility()) {
-    child = box;
-    box = renderedParent(box);
-  }
-  if (!box) return false;
-  if (box.localName === "details") return !box.open && child.localName !== "summary";
-  return getComputedStyle(box).contentVisibility === "hidden";
-}
+export const skipped = (el) =>
+  document.documentElement.lfInitial.skipped(el, renderedParent);
 // The box an element shows as. An element that generates none of its own — a
 // display: contents wrapper — shows as what its contents paint, so its bounds are
 // theirs, and a range asks the platform for that union in one read. Its own rect is

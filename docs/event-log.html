@@ -377,33 +377,64 @@ flowchart TD
  "detail": {"option": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
    "text": "After the canary is healthy"},
  "attempt": "1f82bf7ba6828718a418aa6076e29c63", "author": "user",
+ "id": "f541943a",
  "meaning": {"scope": "page",
    "unit": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
    "depends": ["ship", "ship-option-1f82bf7ba6828718a418aa6076e29c63"],
+   "state": {"origin": "lf-options",
+     "unit": "option",
+     "record": null,
+     "creates": {"child": "lf-option", "words": "text"},
+     "update": false,
+     "detail": {"type": "object",
+       "properties": {"option": {"type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$"},
+         "text": {"type": "string", "minLength": 1}},
+       "required": ["option", "text"],
+       "additionalProperties": false}},
    "creates": "lf-option"},
- "attention": false,
- "id": "f541943a", "ts": "2026-09-23T22:09:53-07:00", "seq": 2}
+ "attention": false, "ts": "2026-09-23T22:09:53-07:00", "seq": 2}
 {"kind": "action", "revision": 1, "widget": "ship", "action": "choose",
  "detail": {"value": ["ship-option-1f82bf7ba6828718a418aa6076e29c63"]},
  "attempt": "d10bc95f51e47796494c2aa01b7c872f", "author": "user",
+ "id": "c47d1659",
  "meaning": {"scope": "page",
    "unit": "ship",
    "depends": ["ship", "ship-option-1f82bf7ba6828718a418aa6076e29c63"],
+   "state": {"origin": "lf-options",
+     "unit": "widget",
+     "record": {"kind": "attribute", "attr": "chosen"},
+     "creates": null,
+     "update": false,
+     "detail": {"type": "object",
+       "properties": {"value": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}},
+       "required": ["value"],
+       "additionalProperties": false}},
    "answer": null},
- "attention": true,
- "id": "c47d1659", "ts": "2026-09-23T22:09:53-07:00", "seq": 3}
+ "attention": true, "ts": "2026-09-23T22:09:53-07:00", "seq": 3}
 {"kind": "action", "revision": 1, "widget": "ship", "action": "choose",
  "detail": {"value": ["ship-later"]},
  "attempt": "26e7a30143df35cda03ec8b7b164f2b6", "author": "user",
- "meaning": {"scope": "page", "unit": "ship", "depends": ["ship", "ship-later"], "answer": null},
- "attention": true,
- "id": "0450d79c", "ts": "2026-09-23T22:09:54-07:00", "seq": 4}
-{"kind": "undo", "attempt": "abec07d894a0444733756c659d4edafe", "undoes": "0450d79c", "author": "user", "attention": true,
- "id": "6d9e1f06", "ts": "2026-09-23T22:09:54-07:00", "seq": 5}
-{"kind": "undo", "attempt": "5a3b1fb07f32ba1933b472b288a03e36", "undoes": "c47d1659", "author": "user", "attention": true,
- "id": "935db19d", "ts": "2026-09-23T22:09:55-07:00", "seq": 6}
-{"kind": "undo", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "undoes": "f541943a", "author": "user", "attention": false,
- "id": "b0f9f750", "ts": "2026-09-23T22:09:55-07:00", "seq": 7}
+ "id": "0450d79c",
+ "meaning": {"scope": "page",
+   "unit": "ship",
+   "depends": ["ship", "ship-later"],
+   "state": {"origin": "lf-options",
+     "unit": "widget",
+     "record": {"kind": "attribute", "attr": "chosen"},
+     "creates": null,
+     "update": false,
+     "detail": {"type": "object",
+       "properties": {"value": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}},
+       "required": ["value"],
+       "additionalProperties": false}},
+   "answer": null},
+ "attention": true, "ts": "2026-09-23T22:09:54-07:00", "seq": 4}
+{"kind": "undo", "attempt": "abec07d894a0444733756c659d4edafe", "undoes": "0450d79c", "author": "user",
+ "id": "6d9e1f06", "attention": true, "ts": "2026-09-23T22:09:54-07:00", "seq": 5}
+{"kind": "undo", "attempt": "5a3b1fb07f32ba1933b472b288a03e36", "undoes": "c47d1659", "author": "user",
+ "id": "935db19d", "attention": true, "ts": "2026-09-23T22:09:55-07:00", "seq": 6}
+{"kind": "undo", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "undoes": "f541943a", "author": "user",
+ "id": "b0f9f750", "attention": false, "ts": "2026-09-23T22:09:55-07:00", "seq": 7}
 </pre>
           <lf-note at="1"
             >The browser sent <code>kind</code>, <code>revision</code>,
@@ -412,23 +443,26 @@ flowchart TD
             <code>attention</code> records whether the move changes work the agent
             owes.</lf-note
           >
-          <lf-note at="8"
+          <lf-note at="19"
             >The door derives <code>meaning</code> and refuses a sender that supplies
             it. It keeps only what a reader without the registry could not recover:
             whether the action was made on the page or in a thread (<code>scope</code>),
-            its fold <code>unit</code>, the element ids it <code>depends</code> on, and
-            the child tag it <code>creates</code>.</lf-note
+            its fold <code>unit</code>, the element ids it <code>depends</code> on, the
+            child tag it <code>creates</code>, and the operation's
+            <code>state</code> definition. That definition records the operation and its
+            allowed detail values so later revisions can tell whether the decision still
+            applies.</lf-note
           >
-          <lf-note at="10"
+          <lf-note at="5"
             >The door mints the eight-hex <code>id</code>; <code>seq</code> is the
             record's line in the log.</lf-note
           >
-          <lf-note at="17"
+          <lf-note at="37"
             >This pick makes the Ask's answered condition hold, so it is the answer.
             <code>null</code> means it closes no thread; a group with a
             <code>resolves</code> attribute would name one here.</lf-note
           >
-          <lf-note at="27"
+          <lf-note at="58"
             >An undo names one gesture and nothing else. The folds drop the gesture it
             names, and both records stay in the log.</lf-note
           >

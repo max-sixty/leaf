@@ -102,8 +102,8 @@ author, `picture` owns the picture `page picture` draws of a drawing comment,
 Within `validation/`, `markup` owns shared document structure, `instances` owns
 registry-declared instance rules, `admission` owns what an agent's writer hands in,
 `compatibility` owns layer changes against the standing log, `source_history` owns
-predecessor readings, `transitions` compares revisions with standing actions,
-`source` composes those gates, and `command` owns the CLI and render handoff.
+predecessor readings and automatic anchor relocation,
+`source` composes current-document validation, and `command` owns the CLI and render handoff.
 
 ## Protocol references
 

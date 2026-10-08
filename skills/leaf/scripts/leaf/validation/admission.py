@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 from leaf.activity import answer_command
-from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
 from leaf.files import list_revisions
 from leaf.registry.storage import require_registry
@@ -199,7 +198,6 @@ def check_markup(
         + data_binding_errors(
             page_dir,
             registry,
-            read_contracts(page_dir),
             events,
             incoming=[(frag.lf_elements, f"incoming {kind} markup")],
         )

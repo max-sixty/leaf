@@ -139,7 +139,6 @@ class _SchemeContext:
     state: dict
     markup: str
     here: int
-    earlier: str | None
     replayed: bool
     unsettled: list
     devtools: DevtoolsIssues
@@ -231,7 +230,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     state = context.state
     markup = context.markup
     here = context.here
-    earlier = context.earlier
     replayed = context.replayed
     errors = context.errors
     resize_notices = context.resize_notices
@@ -263,7 +261,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
     # already reported by the readiness wait and supplies no comparison.
     dishonest_verbatim = _verbatim_findings(context) if replayed else []
     # Replay is scheme-blind, so one scheme's reading covers both.
-    conflicts = []
     silent = []
     missing_threads = []
     undeclared_attrs = []
@@ -316,33 +313,11 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
                     )
                 if holders:
                     retired = evaluate_probe(page, "retiredSlots", holders)
-    # Last: these probes render temporary complete states. Compare carried actions
-    # against the authored baseline, restore current state, then prove idempotence.
+    # Last: render the complete state again to prove idempotence.
     # The caught-up wait ensures they observe the same settled projection as the
     # preceding read-only probes.
     relative = []
     if scheme == "light" and replayed:
-        if earlier is not None:
-            projection = page_reading(
-                SourceReading(SourceDocument(markup), registry),
-                state["events"],
-                here,
-            ).projection
-            carried = [
-                event["id"]
-                for event, _spec in projection.actions.values()
-                if event["revision"] < here
-            ]
-            if carried:
-                conflicts = evaluate_probe(
-                    page,
-                    "replayOverrides",
-                    {
-                        "curHtml": markup,
-                        "prevHtml": earlier,
-                        "carriedActions": carried,
-                    },
-                )
         relative = evaluate_probe(page, "relativeReplays")
     # The replay above can resize what an observer watches. Chrome
     # delivers that notice in the next rendering turn, so closing on the write
@@ -410,7 +385,6 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         )
     found += [f"[{scheme}] {r}" for r in retired]
     found += [f"[{scheme}] {u}" for u in unsettled]
-    found += [f"[{scheme}] {c}" for c in conflicts]
     found += [f"[{scheme}] {r}" for r in relative]
     notices = [f"[{scheme}] console: {e}" for e in resize_notices]
     return found, notices

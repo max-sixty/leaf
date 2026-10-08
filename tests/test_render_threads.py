@@ -2608,7 +2608,6 @@ def test_original_image_link_has_a_standalone_target(browser, serve, touch):
     page.keyboard.press("Escape")
     expect(viewer).to_be_hidden()
     expect(page.locator("#image")).to_be_focused()
-    context.close()
 
 
 @pytest.mark.parametrize("offline", [False, True])

@@ -67,6 +67,7 @@ from pathlib import Path
 
 import click
 import psutil
+from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.hook_transport import INLINE_DELIVERY
@@ -316,10 +317,10 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     cc.until(answered("mid-turn"), "mid-turn: the comment was not answered")
     require(
         any(
-            event["kind"] == "pickup"
-            and event["turn"] == turn
-            and mid_turn in event["events"]
-            for event in read_events(page)
+            event["turn"] == turn
+            for event in pickup_receipts(
+                read_events(page), phase="opened", input_id=mid_turn
+            )
         ),
         f"mid-turn: the comment was not picked up in the user's turn {turn}",
     )
@@ -331,9 +332,8 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     before = nudged()
     first = user.comment("first")
     cc.until(
-        lambda: any(
-            event["kind"] == "pickup" and first in event["events"]
-            for event in read_events(page)
+        lambda: bool(
+            pickup_receipts(read_events(page), phase="opened", input_id=first)
         ),
         "ending: `first` was not picked up",
     )
@@ -343,8 +343,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     cc.until(answered("first", "ending"), "ending: the comments were not answered")
     picked = [
         event["turn"]
-        for event in read_events(page)
-        if event["kind"] == "pickup" and ending in event["events"]
+        for event in pickup_receipts(read_events(page), phase="opened", input_id=ending)
     ]
     require(
         turn in picked,
@@ -367,11 +366,7 @@ def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     woken = user.comment("woken")
 
     def pickups() -> list[dict]:
-        return [
-            event
-            for event in read_events(page)
-            if event["kind"] == "pickup" and woken in event["events"]
-        ]
+        return pickup_receipts(read_events(page), phase="opened", input_id=woken)
 
     # The watch has woken, and the hooks module has handed the comment to the turn,
     # which reads it only once its command ends.

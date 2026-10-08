@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from html import unescape
 from pathlib import Path
 
+from leaf.delivery import opened_input_ids, pickup_receipts
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.service import requires_agent_attention
@@ -37,7 +38,6 @@ from leaf_dev.arms import (
     inputs_received,
     now,
     observed_sum,
-    opened_input_ids,
     progress_start,
     read_page_state,
     read_trace,
@@ -1347,10 +1347,8 @@ def score_mixed(run: Run, trace: list[dict], browser: Browser) -> dict:
     post_ids = set(trace[r["post"]]["events"])
     batches = [
         e
-        for e in events
-        if e["kind"] == "pickup"
-        and e["phase"] == "opened"
-        and post_ids.intersection(e["events"])
+        for e in pickup_receipts(events, phase="opened")
+        if post_ids.intersection(e["events"])
     ]
     fixture_words = len(
         element_text((FIXTURES / "mixed.html").read_text(), "why-now").split()

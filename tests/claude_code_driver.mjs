@@ -25,6 +25,10 @@ import { register } from "../hooks/claude-code.ts";
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const [session, options] = [process.argv[2], JSON.parse(process.argv[3])];
 const print = (line) => process.stdout.write(`${JSON.stringify(line)}\n`);
+const watches = new Set();
+let releaseHook;
+let submissions = 0;
+let appends = 0;
 
 function start(argv, env, input) {
   const child = spawn(argv[0], argv.slice(1), {
@@ -41,13 +45,17 @@ function start(argv, env, input) {
  * terminates the child, even while a read waits on it. */
 function stream(request) {
   if (request.argv.includes("--watch")) {
-    print({ watching: JSON.parse(request.input) });
+    print({
+      watching: { ...JSON.parse(request.input), previous_active_watches: watches.size },
+    });
   }
   const child = start(request.argv, request.env, request.input);
+  if (request.argv.includes("--watch")) watches.add(child);
   let output = "";
   child.stdout.on("data", (text) => (output += text));
   const ended = new Promise((resolve) =>
     child.on("close", (code, signal) => {
+      watches.delete(child);
       resolve({ code, signal });
       // The module reads the exit through promises alone, so by the next
       // macrotask it has done all it does without waiting on `$`.
@@ -94,13 +102,17 @@ const $ = {
   plugin: { name: "leaf", root: ROOT },
   session: {
     id: async () => session,
-    append: async ({ message }) => print({ appended: message.content[0].text }),
+    append: async ({ message }) => {
+      ++appends;
+      print({ appended: message.content[0].text });
+    },
   },
   prompt: {
     // Claude Code refuses a plugin's prompt that would run a slash command.
     submit: async ({ text }) => {
       if (text.startsWith("/"))
         throw new Error("a text beginning with / would run a command");
+      ++submissions;
       print({ submitted: text });
     },
   },
@@ -111,9 +123,19 @@ const $ = {
         const child = start(argv, init.env, init.stdin);
         let stdout = "";
         child.stdout.on("data", (text) => (stdout += text));
-        child.on("close", (code) =>
-          resolve({ exitCode: code ?? 1, stdout, stderr: "" }),
-        );
+        child.on("close", (code) => {
+          const finish = () => resolve({ exitCode: code ?? 1, stdout, stderr: "" });
+          if (
+            options.holdPromptHook &&
+            init.stdin &&
+            JSON.parse(init.stdin).hook_event_name === "UserPromptSubmit"
+          ) {
+            // The real hook has confirmed input; hold its host return across
+            // turn completion so receipt and a pending wake can be distinguished.
+            releaseHook = finish;
+            print({ holding_hook: "UserPromptSubmit" });
+          } else finish();
+        });
       }),
     spawn: stream,
   },
@@ -128,7 +150,24 @@ print({ pid: process.pid, events: [...hooks.keys()] });
 
 let release;
 for await (const line of readline.createInterface({ input: process.stdin })) {
-  const { emit, e, answer, hold, release: releasing } = JSON.parse(line);
+  const {
+    emit,
+    e,
+    answer,
+    hold,
+    release: releasing,
+    release_hook,
+    flush,
+  } = JSON.parse(line);
+  if (release_hook) {
+    releaseHook();
+    continue;
+  }
+  if (flush) {
+    await new Promise(setImmediate);
+    print({ submissions, appends });
+    continue;
+  }
   if (releasing) {
     release();
     continue;

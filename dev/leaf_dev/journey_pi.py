@@ -46,6 +46,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import click
+from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.leases import wait_is_live
 from leaf.server import running_server
@@ -230,11 +231,10 @@ def steps(pi: Pi, user: User, page: Path) -> None:
     )
     require(
         any(
-            event["kind"] == "pickup"
-            and event["phase"] == "opened"
-            and event["turn"] == turn
-            and mid_turn in event["events"]
-            for event in read_events(page)
+            event["turn"] == turn
+            for event in pickup_receipts(
+                read_events(page), phase="opened", input_id=mid_turn
+            )
         ),
         f"the comment was not delivered into the user's turn {turn}",
     )
@@ -288,10 +288,7 @@ def steps(pi: Pi, user: User, page: Path) -> None:
         "the held-input tool ended before Escape",
     )
     require(
-        not any(
-            event["kind"] == "pickup" and held in event["events"]
-            for event in read_events(page)
-        ),
+        not pickup_receipts(read_events(page), phase="opened", input_id=held),
         "the held input already entered the run before Escape",
     )
     pi.escape()
@@ -301,11 +298,10 @@ def steps(pi: Pi, user: User, page: Path) -> None:
     )
     require(
         any(
-            event["kind"] == "pickup"
-            and event["phase"] == "opened"
-            and held in event["events"]
-            and event["turn"] != interrupted_turn
-            for event in read_events(page)
+            event["turn"] != interrupted_turn
+            for event in pickup_receipts(
+                read_events(page), phase="opened", input_id=held
+            )
         ),
         "held input did not enter a fresh turn after Escape",
     )

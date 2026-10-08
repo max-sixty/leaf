@@ -472,7 +472,7 @@ whitespace. Verbatim source quotations keep their exact text; logs and transcrip
 stay literal and uncolored when they are not source code.
 
 The runtime injects the status banner, thread panel, Versions menu, keyboard
-shortcuts, live-leaves drawer, and Queue panel, which lists the page's open Asks.
+shortcuts, live-leaves drawer, and Questions panel, which lists the page's open Asks.
 Do not duplicate that chrome or keep a second list of the Asks in the page.
 
 Keep content within its allocated column, visual surface, or pane. The theme scrolls a `<pre>` or a table
@@ -738,10 +738,10 @@ At each destination, check that the visible content and focus leave the user
 oriented and able to continue; compare equivalent moves across the page's views.
 
 For a page with Asks, the check also saves the window at each of the first eight
-as `a` reaches it from the top, which is how a user working the page meets each
+as `q` reaches it from the top, which is how a user working the page meets each
 question. At each arrival, confirm that the question, shared premise, alternatives,
 and evidence that distinguishes them are visible together, the displayed numbers
-match the available actions, and the next press of `a` reaches the next thing waiting
+match the available actions, and the next press of `q` reaches the next thing waiting
 on the user (an open Ask, a thread whose question is theirs, or a move to send again)
 while the complete page remains visible.
 

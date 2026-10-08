@@ -19,7 +19,7 @@
 import { html, render } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 import { handBack } from "./focus.js";
-import { closeControl } from "./widget-elements.js";
+import { closeControl, offered } from "./widget-elements.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
 import { nativeLayers } from "./keyboard/layer-stack.js";
 import { keeps, keepsText } from "./keeps.js";
@@ -97,7 +97,7 @@ function presentViewer(model) {
       <div class="lf-media-viewer-head">
         <strong id="lf-media-viewer-title">Image preview</strong>
         <div class="lf-media-viewer-actions">
-          ${model ? html`<a href=${model.url} target="_blank" rel="noopener">Original</a>` : null}
+          ${model ? html`<a ${offered("lf-media-viewer-original", true)} href=${model.url} target="_blank" rel="noopener">Original</a>` : null}
           ${viewerZoom}${viewerClose}
         </div>
       </div>

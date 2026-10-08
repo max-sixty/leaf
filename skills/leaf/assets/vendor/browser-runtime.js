@@ -448,14 +448,9 @@ function createApplicationPublisher(initial) {
   });
 }
 
-// skills/leaf/assets/runtime/collapse.js
-var COLLAPSE = /[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]+/g;
-
 // skills/leaf/assets/runtime/projection/model.js
 function foldedValue(event, record) {
   const value = event.detail.value;
-  if (record.kind === "body")
-    return String(value ?? "").replace(COLLAPSE, " ").trim();
   if (record.kind === "attribute") return [...value].sort().join(" ");
   return value ?? null;
 }

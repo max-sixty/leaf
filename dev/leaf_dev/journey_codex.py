@@ -62,6 +62,7 @@ from pathlib import Path
 import click
 import psutil
 from leaf.codex import private_app_server
+from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.leases import adapter_is_live, lock_is_held, titles_log
 from leaf.server import running_server
@@ -348,11 +349,10 @@ def steps(
         )
         require(
             any(
-                event["kind"] == "pickup"
-                and event["phase"] == "opened"
-                and event["turn"] == user_turn
-                and mid_turn in event["events"]
-                for event in read_events(page)
+                event["turn"] == user_turn
+                for event in pickup_receipts(
+                    read_events(page), phase="opened", input_id=mid_turn
+                )
             ),
             f"the active hook did not deliver the comment into turn {user_turn}",
         )
@@ -406,11 +406,10 @@ def steps(
         )
         require(
             any(
-                event["kind"] == "pickup"
-                and event["phase"] == "opened"
-                and event["turn"] == resumed
-                and during in event["events"]
-                for event in read_events(page)
+                event["turn"] == resumed
+                for event in pickup_receipts(
+                    read_events(page), phase="opened", input_id=during
+                )
             ),
             "the comment did not enter the empty-input resumed turn",
         )

@@ -70,7 +70,7 @@
 #        text: A design comment is about how the page looks or behaves rather than
 #              what it says. Its anchor's `section` is a widget's id or, when it
 #              starts `lf-`, a part of Leaf's own chrome, such as `lf-banner`,
-#              `lf-threads` (the Threads panel), `lf-queue` (the Queue panel),
+#              `lf-threads` (the Threads panel), `lf-queue` (the Questions panel),
 #              `lf-versions` or `lf-composer`; `part`, when present, names the control
 #              the click landed on. Find the source that produces what it names and
 #              fix it in this page's own source, unless the behavior belongs to a
@@ -114,16 +114,15 @@
 #              asks the user something.
 #      clause 8, does not apply:
 #        when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
-#        text: This reply belongs to your provider turn's final commitment. Before
-#              your first tool call, open with a short message to the user: the
-#              answer, or what you are about to do. Leaf streams it into the thread at
-#              once, and later working messages stay in Codex. Finish with the answer
-#              or what changed and where it appears. For widgets, a question awaiting
-#              the user, a title or relocation, prepare the complete reply with `leaf
-#              response reply <answer.ref>` and the rich options in
-#              `references/threads.md`; your completed final commits that prepared
-#              content, including its text. Without preparation, your opening and
-#              final text become the reply.
+#        text: Leaf streams your opening into the thread and commits your completed
+#              final unless an explicit successful reply already answered this input.
+#              Before your first tool call, open with a short message to the user: the
+#              answer, or what you are about to do. Later working messages stay in
+#              Codex. Finish with the answer or what changed and where it appears. For
+#              an explicit answer, including widgets, a question awaiting the user, a
+#              title or relocation, use `leaf response reply <answer.ref>` and the
+#              rich options in `references/threads.md`; it validates saved edits and
+#              commits immediately. Your later final yields to that recorded answer.
 #      clause 9, applies:
 #        (no `when`, so it always applies)
 #        text: Your reply renders as Markdown in a narrow column: give each point its
@@ -337,15 +336,15 @@ comment over App Server:
   told:
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
       text: >-
-        This reply belongs to your provider turn's final commitment. Before your
-        first tool call, open with a short message to the user: the answer, or what
-        you are about to do. Leaf streams it into the thread at once, and later
-        working messages stay in Codex. Finish with the answer or what changed and
-        where it appears. For widgets, a question awaiting the user, a title or
-        relocation, prepare the complete reply with `leaf response reply <answer.ref>`
-        and the rich options in `references/threads.md`; your completed final commits
-        that prepared content, including its text. Without preparation, your opening
-        and final text become the reply.
+        Leaf streams your opening into the thread and commits your completed final
+        unless an explicit successful reply already answered this input. Before
+        your first tool call, open with a short message to the user: the answer,
+        or what you are about to do. Later working messages stay in Codex. Finish
+        with the answer or what changed and where it appears. For an explicit answer,
+        including widgets, a question awaiting the user, a title or relocation,
+        use `leaf response reply <answer.ref>` and the rich options in `references/threads.md`;
+        it validates saved edits and commits immediately. Your later final yields
+        to that recorded answer.
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -491,15 +490,15 @@ design comment:
         A design comment is about how the page looks or behaves rather than what
         it says. Its anchor's `section` is a widget's id or, when it starts `lf-`,
         a part of Leaf's own chrome, such as `lf-banner`, `lf-threads` (the Threads
-        panel), `lf-queue` (the Queue panel), `lf-versions` or `lf-composer`; `part`,
-        when present, names the control the click landed on. Find the source that
-        produces what it names and fix it in this page's own source, unless the
-        behavior belongs to a package's widget or the user asks for a wider fix:
-        then change the package as the Leaf skill's `references/packages.md` says,
-        re-vendor, and note the re-vendor on the stamp. A fix that belongs in Leaf
-        itself is the user's to raise, as the Leaf skill's "Improve Leaf through
-        use" says. The stamped version that carries the fix is the result the reply
-        reports.
+        panel), `lf-queue` (the Questions panel), `lf-versions` or `lf-composer`;
+        `part`, when present, names the control the click landed on. Find the source
+        that produces what it names and fix it in this page's own source, unless
+        the behavior belongs to a package's widget or the user asks for a wider
+        fix: then change the package as the Leaf skill's `references/packages.md`
+        says, re-vendor, and note the re-vendor on the stamp. A fix that belongs
+        in Leaf itself is the user's to raise, as the Leaf skill's "Improve Leaf
+        through use" says. The stamped version that carries the fix is the result
+        the reply reports.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
         When the event asks for work, say in its thread what you will do before
@@ -859,15 +858,15 @@ pick inside a thread over App Server:
         The user already sees the action applied.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "turn"}}}}}
       text: >-
-        This reply belongs to your provider turn's final commitment. Before your
-        first tool call, open with a short message to the user: the answer, or what
-        you are about to do. Leaf streams it into the thread at once, and later
-        working messages stay in Codex. Finish with the answer or what changed and
-        where it appears. For widgets, a question awaiting the user, a title or
-        relocation, prepare the complete reply with `leaf response reply <answer.ref>`
-        and the rich options in `references/threads.md`; your completed final commits
-        that prepared content, including its text. Without preparation, your opening
-        and final text become the reply.
+        Leaf streams your opening into the thread and commits your completed final
+        unless an explicit successful reply already answered this input. Before
+        your first tool call, open with a short message to the user: the answer,
+        or what you are about to do. Later working messages stay in Codex. Finish
+        with the answer or what changed and where it appears. For an explicit answer,
+        including widgets, a question awaiting the user, a title or relocation,
+        use `leaf response reply <answer.ref>` and the rich options in `references/threads.md`;
+        it validates saved edits and commits immediately. Your later final yields
+        to that recorded answer.
     - text: >-
         Your reply renders as Markdown in a narrow column: give each point its own
         short paragraph or list item, link a page section as `[its name](#section-id)`,

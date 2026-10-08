@@ -78,6 +78,7 @@ from typing import NamedTuple
 from urllib.parse import urljoin, urlsplit
 
 import click
+from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.events import build_threads
 from leaf.server import running_server
@@ -232,15 +233,9 @@ def title(events: list[dict], thread: str) -> str | None:
 
 def pickup_at(events: list[dict], comment: str, phase: str) -> str | None:
     """When the harness first recorded `comment` picked up in `phase`: `queued` held
-    by the harness, `opened` in its context."""
+    by the harness, `opened` in its context (`leaf.delivery.pickup_receipts`)."""
     return next(
-        (
-            event["ts"]
-            for event in events
-            if event["kind"] == "pickup"
-            and event["phase"] == phase
-            and comment in event["events"]
-        ),
+        (e["ts"] for e in pickup_receipts(events, phase=phase, input_id=comment)),
         None,
     )
 

@@ -582,6 +582,7 @@ const queueWalk = createQueueWalk({
 const queue = createQueuePanel({
   arriveAtItem: queueWalk.arriveAtItem,
   endTask: queueWalk.endTask,
+  next: queueWalk.next,
   announce,
 });
 
@@ -791,6 +792,7 @@ if (window.frameElement?.hasAttribute("data-lf-contained")) {
 }
 drawers = createDrawers({
   doors: { queue: [queueCounts] },
+  sideEdge: layout.commentsEdge,
   landEdge: layout.landEdge,
   auxiliarySurfaces,
   closePreview: app.overlay?.closePreview,
@@ -812,11 +814,11 @@ goToSequence = createGoToSequence({
   elements: { banner, toggleBtn },
   hintChrome,
   directDestinations: () => [
-    version.PICKER,
     writingResume,
     passageSelection.command,
     navigation.alignTop,
     app.read.firstUnreadCommand,
+    version.PICKER,
   ],
   scrollToElement: anchorTravel.scrollToElement,
   leavesOffered,
@@ -1114,12 +1116,9 @@ async function startPage() {
     replayReady,
   ]);
   if (!upgraded) return;
+  // Initial layout and later residency share prepaint's synchronous computation.
+  openResidency({ onRead: annotationRenderer?.syncMarginResidency });
   if (!offlineInteractive) {
-    // Authored residents are read from the upgraded document (content-layout.js).
-    openResidency({
-      rail: overlaySelected,
-      onRead: annotationRenderer?.syncMarginResidency,
-    });
     layout.syncLayout();
     asks.buildBulkAnswers();
     asks.syncAsks();

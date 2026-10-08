@@ -26,7 +26,10 @@ def call_api(prompt: str, options: dict, context: dict) -> dict:
     executor = import_module(metadata["executor"])
     judged = (
         {"shots": Path(config["screenshots"]) / work.name}
-        if hasattr(executor, "rubrics")
+        if any(
+            r["type"].endswith("agent-rubric")
+            for r in getattr(executor, "rubrics", lambda _: [])(metadata["scenario"])
+        )
         else {}
     )
     response = executor.execute_scenario(

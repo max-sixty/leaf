@@ -30,7 +30,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
 from contextlib import contextmanager
 from datetime import datetime
 from functools import partial
@@ -40,9 +40,8 @@ from typing import Self
 import click
 from leaf.codex import APP_SERVER_ENV
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
-from leaf.registry.kernel import kernel_event_kinds
-from leaf.registry.schema import aware_instant, json_validator
 from leaf.tasks import start_reading
+from leaf.thread import successful_replies
 
 from leaf_dev import ROOT
 from leaf_dev.page_fixtures import prepare_page, read_fixture
@@ -672,7 +671,12 @@ def opened_input_ids(events: list[dict]) -> set[str]:
 
 
 def read_trace(stream: Path) -> list[dict]:
-    return [json.loads(line) for line in stream.read_text().splitlines()]
+    """An unrun phase has no trace; malformed retained evidence still raises."""
+    return (
+        [json.loads(line) for line in stream.read_text().splitlines()]
+        if stream.exists()
+        else []
+    )
 
 
 def trace_result(trace: list[dict]) -> dict:
@@ -725,63 +729,38 @@ def token_counts(trace: list[dict]) -> dict[str, int | None]:
     }
 
 
-def accepted_command_records(trace: list[dict]) -> Iterator[tuple[int, str, dict]]:
-    """Newly dated canonical event records returned by successful command calls.
-
-    The event must fall inside the call's observed start/end interval on the same
-    eval host. Missing or reversed bounds earn no claim. Compound stdout may include
-    historical log readings; these do not count. This proves fresh work returned
-    during the call, not which shell statement wrote it. Yield result index, call id
-    and the validated event; consumers use its declared meaning and log sequence.
-    """
-    contracts = kernel_event_kinds()
-    calls = {}
-    for index, record in enumerate(trace):
-        stamped = record.get("received_at")
-        observed = aware_instant(stamped) if isinstance(stamped, str) else None
-        for block in blocks([record]):
-            if block.get("type") == "tool_use" and block["name"] == "Bash":
-                calls[block["id"]] = (index, observed)
-                continue
-            began_at, began = calls.get(block.get("tool_use_id"), (None, None))
-            if (
-                block.get("type") != "tool_result"
-                or block.get("is_error") is not False
-                or began is None
-                or observed is None
-                or not (began_at < index and began <= observed)
-            ):
-                continue
-            content = block["content"]
-            text = (
-                content
-                if isinstance(content, str)
-                else "\n".join(
-                    part["text"] for part in content if part.get("type") == "text"
-                )
-            )
-            for line in text.splitlines():
-                try:
-                    written = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if not isinstance(written, dict):
-                    continue
-                kind = written.get("kind")
-                contract = contracts.get(kind) if isinstance(kind, str) else None
-                if (
-                    contract is not None
-                    and json_validator(contract["record"]).is_valid(written)
-                    and (emitted := aware_instant(written["ts"])) is not None
-                    and began <= emitted <= observed
-                ):
-                    yield index, block["tool_use_id"], written
-
-
-def accepted_starts(trace: list[dict], item: str) -> dict[str, int]:
-    """Command ids and result indices returning fresh canonical work on ITEM."""
+def trace_summary(trace: list[dict]) -> dict:
+    """Native completion and observed accounting, with unknown values left unknown."""
+    done = trace_result(trace)
+    ended = [r for r in trace if r.get("type") == "result"]
+    cost = done.get("total_cost_usd")
     return {
-        call: index
-        for index, call, event in accepted_command_records(trace)
-        if (start := start_reading(event)) is not None and start["item"] == item
+        "completed": completed(trace),
+        "turns": sum(r.get("num_turns", 0) for r in ended),
+        "cost_usd": round(cost, 3) if cost is not None else None,
+        "cost_known": cost is not None,
+        "minutes": round(sum(r["duration_ms"] for r in ended) / 60000, 1)
+        if ended and all("duration_ms" in r for r in ended)
+        else None,
+        **token_counts(trace),
+        "reply": done.get("result") or "",
     }
+
+
+def progress_start(events: list[dict], for_event: str) -> dict | None:
+    """The admitted start on this exact input before its first successful answer.
+
+    Score the page log, independent of command spelling, stdout and when the
+    native stream was read. A later log reading cannot invent or reorder work.
+    """
+    final = next(iter(successful_replies(events, for_event)), None)
+    return next(
+        (
+            start
+            for event in events
+            if (start := start_reading(event)) is not None
+            and start["item"] == for_event
+            and (final is None or start["seq"] < final["seq"])
+        ),
+        None,
+    )

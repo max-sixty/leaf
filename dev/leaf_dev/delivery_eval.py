@@ -3,13 +3,13 @@
 Idle posts two successive comments; mid-turn posts during the setup turn. Each
 trajectory uses an isolated home, page and state directory, and retains streams
 and the admitted event log. Every expected comment must be picked up, receive an
-accepted start (`leaf task start`) and a reply in its handling turn, and complete that turn.
-Latency and work before the start remain diagnostics: a Bash call can contain
-several operations, so its trace alone cannot prove their internal order.
+accepted start (`leaf task start`) and a successful exact-input reply. The native
+session must complete its work.
+Latency remains diagnostic. Starts and replies come from the admitted page log;
+native observations establish turn completion, not whether a command wrote an event.
 """
 
 import json
-import re
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -19,10 +19,9 @@ from leaf.harness import ClaudeCodeHarness
 from leaf.thread import successful_replies
 
 from leaf_dev.arms import (
-    accepted_starts,
-    blocks,
     completed,
     hook_delivered,
+    progress_start,
     read_trace,
     run_leaf,
     scratch,
@@ -110,50 +109,40 @@ def score(run: Path) -> list[dict]:
             ),
             None,
         )
+        progress = progress_start(events, comment["id"])
         replies = [
             datetime.fromisoformat(e["ts"]).timestamp()
             for e in successful_replies(events, comment["id"])
         ]
-        # From the post to the turn's end: what carried the comment in, what the
-        # agent ran before claiming its work, and the claim.
-        delivery, transport, before_claim, claimed, ended = None, None, [], None, None
+        claimed = (
+            datetime.fromisoformat(progress["ts"]).timestamp() if progress else None
+        )
+        delivery, transport, ended = None, None, None
         turn_completed = False
-        handling = False
-        accepted = accepted_starts(stream, comment["id"])
         for record in stream[stream.index(marker) + 1 :]:
-            handling = handling or any(
-                b.get("type") == "tool_result" and b.get("tool_use_id") in accepted
-                for b in blocks([record])
-            )
-            if record["type"] == "result" and handling:
+            if (
+                record["type"] == "result"
+                and claimed is not None
+                and (
+                    record.get("turn_id") == progress["turn"]
+                    if progress.get("turn") and record.get("turn_id")
+                    else moment(record) >= claimed
+                )
+            ):
                 ended = moment(record)
                 turn_completed = completed([record])
                 break
-            if not claimed:
-                for block in blocks([record]):
-                    if (
-                        block.get("type") == "tool_result"
-                        and block["tool_use_id"] in accepted
-                    ):
-                        claimed = moment(record)
-                    elif (
-                        block.get("type") == "tool_use" and block["id"] not in accepted
-                    ):
-                        before_claim += [block["input"].get("command") or block["name"]]
             if (
                 record.get("subtype") == "task_notification"
                 and record["tool_use_id"] in waits
-                and not delivery
+                and delivery is None
             ):
                 delivery, transport = record, "notification"
-            elif (
-                (stop_blocked(record) or hook_delivered(record))
-                and transport in (None, "notification")
-                and not claimed
+            elif (stop_blocked(record) or hook_delivered(record)) and transport in (
+                None,
+                "notification",
             ):
-                # A hook that brings the comment in, or a Stop hook holding the turn
-                # open with it unread, carried it, even after a notification.
-                delivery, before_claim = record, []
+                delivery = record
                 transport = f"{record['hook_event'].lower()} hook".replace(
                     "userpromptsubmit", "prompt"
                 )
@@ -172,22 +161,10 @@ def score(run: Path) -> list[dict]:
                 "session_completed": session_completed,
                 "transport": transport,
                 "woken_s": since(delivery and moment(delivery), start),
-                # The page log stamps whole seconds.
                 "pickup_s": since(pickup, posted),
                 "claim_s": since(claimed, start),
                 "reply_s": since(replies[0] if replies else None, posted),
-                # No reply of a later turn falls at or before this one's end.
-                "done_s": since(
-                    max((r for r in replies if ended and r <= ended), default=None),
-                    posted,
-                ),
                 "turn_s": since(ended, start),
-                "before_claim": [short(c) for c in before_claim],
-                "claim_commands": [
-                    b["input"]["command"]
-                    for b in blocks(stream)
-                    if b.get("type") == "tool_use" and b["id"] in accepted
-                ],
             }
         )
     return readings or [{"comment": None, "timed_out": timed_out}]
@@ -195,11 +172,6 @@ def score(run: Path) -> list[dict]:
 
 def since(t: float | None, origin: float) -> float | None:
     return None if t is None else round(t - origin, 1)
-
-
-def short(ran: str) -> str:
-    """One command with its directories dropped, so a table can show it."""
-    return re.sub(r"(?<![\w$])/[^\s;&|]*/", "", ran)
 
 
 def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
@@ -244,7 +216,7 @@ def grade(case: str, readings: list[dict]) -> dict[str, bool]:
         )
         checks[f"picked-up-{n}"] = r["pickup_s"] is not None
         checks[f"claimed-{n}"] = r["claim_s"] is not None
-        checks[f"replied-{n}"] = r["done_s"] is not None
+        checks[f"replied-{n}"] = r["reply_s"] is not None
         checks[f"turn-ended-{n}"] = r["turn_completed"]
     return checks
 

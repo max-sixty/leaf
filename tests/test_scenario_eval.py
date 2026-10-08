@@ -6,7 +6,8 @@ from leaf_dev.delivery_eval import expected_checks, grade, score
 
 
 def test_partial_native_traces_do_not_report_zero_elapsed_minutes(tmp_path):
-    from leaf_dev import arrangement_eval, usability_eval
+    from leaf_dev import usability_eval
+    from leaf_dev.arms import trace_summary
 
     stream = tmp_path / "stream.jsonl"
     for trace, minutes in (
@@ -15,11 +16,11 @@ def test_partial_native_traces_do_not_report_zero_elapsed_minutes(tmp_path):
         ([{"type": "result", "is_error": False, "duration_ms": 2700000}], 45),
     ):
         stream.write_text("".join(json.dumps(record) + "\n" for record in trace))
-        assert arrangement_eval.trace_scores(stream)["minutes"] == minutes
+        assert trace_summary(trace)["minutes"] == minutes
         assert usability_eval.trace_scores(trace)["minutes"] == minutes
 
 
-def test_delivery_requires_every_comment_and_a_completed_reply_turn():
+def test_delivery_requires_every_comment_and_a_completed_session():
     complete = {
         "comment": 1,
         "injection": "running",
@@ -30,9 +31,8 @@ def test_delivery_requires_every_comment_and_a_completed_reply_turn():
         "session_completed": True,
         "pickup_s": 0,
         "claim_s": 0,
-        "done_s": 0,
+        "reply_s": 0,
         "turn_s": 0,
-        "before_claim": [],
     }
     assert all(grade("mid-turn", [complete]).values())
     for partial in [
@@ -58,137 +58,91 @@ def test_delivery_requires_every_comment_and_a_completed_reply_turn():
     assert not grade("mid-turn", [{**complete, "after_completion": True}])[
         "injected-as-requested-1"
     ]
-    assert not grade("mid-turn", [{**complete, "done_s": None}])["replied-1"]
+    assert not grade("mid-turn", [{**complete, "reply_s": None}])["replied-1"]
     assert not grade("mid-turn", [{**complete, "claim_s": None}])["claimed-1"]
 
 
-def test_delivery_uses_successful_turns_and_accepted_exact_thread_claims(tmp_path):
-    # Native CC stream and Leaf start record shapes, recorded at the scorer boundary.
-    status = {
-        "attention": False,
-        "id": "a1b2c3d4",
-        "author": "agent",
-        "seq": 1,
-        "ts": "2026-10-02T00:00:02.500+00:00",
-        "kind": "start",
-        "item": "comment",
-        "text": "editing",
-    }
-    records = [
-        {
-            "type": "eval_post",
-            "round": 1,
-            "injection": "running",
-            "active_turn": "setup-turn",
-        },
-        {
-            "type": "system",
-            "subtype": "hook_response",
-            "hook_event": "UserPromptSubmit",
-            "output": "leaf-delivery-v",
-        },
-        {
-            "type": "assistant",
-            "message": {
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "id": "claim",
-                        "name": "Bash",
-                        "input": {"command": "leaf task start page comment editing"},
-                    }
-                ]
-            },
-        },
-        {
-            "type": "user",
-            "message": {
-                "content": [
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": "claim",
-                        "is_error": False,
-                        "content": json.dumps(status),
-                    }
-                ]
-            },
-        },
-        {"type": "result", "is_error": False},
-    ]
-    for n, record in enumerate(records):
-        record["received_at"] = f"2026-10-02T00:00:0{n}+00:00"
+def test_delivery_reads_admitted_progress_and_exact_answers(tmp_path):
+    """Slow stream observation and shell failures leave admitted work intact."""
     events = [
         {
             "kind": "comment",
             "id": "comment",
             "author": "user",
             "attempt": "delivery-eval-0001-attempt",
-            "ts": records[0]["received_at"],
+            "ts": "2026-10-02T00:00:00Z",
         },
         {
             "kind": "pickup",
             "phase": "opened",
             "events": ["comment"],
-            "ts": records[1]["received_at"],
+            "ts": "2026-10-02T00:00:01Z",
+        },
+        {
+            "kind": "start",
+            "item": "comment",
+            "turn": "handling",
+            "text": "Editing",
+            "ts": "2026-10-02T00:00:02Z",
         },
         {
             "kind": "reply",
             "author": "agent",
-            "parent": "comment",
+            "parent": "root",
             "responds": "comment",
-            "ts": records[3]["received_at"],
+            "text": "Done",
+            "ts": "2026-10-02T00:00:03Z",
         },
     ]
-    (tmp_path / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events))
+    records = [
+        {
+            "type": "eval_post",
+            "round": 1,
+            "injection": "running",
+            "active_turn": "setup",
+            "received_at": "2026-10-02T00:00:00Z",
+        },
+        {
+            "type": "system",
+            "subtype": "hook_response",
+            "hook_event": "UserPromptSubmit",
+            "output": "leaf-delivery-v",
+            "received_at": "2026-10-02T00:00:04Z",
+        },
+        {
+            "type": "result",
+            "turn_id": "handling",
+            "is_error": False,
+            "received_at": "2026-10-02T00:00:05Z",
+        },
+    ]
 
-    def checks():
+    def checks(log=events):
+        (tmp_path / "events.jsonl").write_text("\n".join(json.dumps(e) for e in log))
         (tmp_path / "stream-1.jsonl").write_text(
             "\n".join(json.dumps(r) for r in records)
         )
         return grade("mid-turn", score(tmp_path))
 
     assert all(checks().values())
-    reply = events[-1]
     for changes in (
         {"ephemeral": True},
         {"failure": "turn_failed"},
         {"responds": "later-input"},
-        {"responds": None},
         {"author": "user"},
     ):
-        (tmp_path / "events.jsonl").write_text(
-            "\n".join(json.dumps(e) for e in [*events[:-1], {**reply, **changes}])
-        )
-        assert not checks()["replied-1"]
-    # Presentation can live under another root; the response address owns success.
-    (tmp_path / "events.jsonl").write_text(
-        "\n".join(json.dumps(e) for e in [*events[:-1], {**reply, "parent": "root"}])
-    )
-    assert checks()["replied-1"]
+        assert not checks([*events[:-1], events[-1] | changes])["replied-1"]
+    assert not checks([events[0], events[1], events[-1], events[2]])["claimed-1"]
+    assert not checks([e for e in events if e["kind"] != "start"])["claimed-1"]
+    assert not checks(
+        [events[0], events[1], events[2] | {"item": "other"}, events[-1]]
+    )["claimed-1"]
     records[-1]["is_error"] = True
     assert not checks()["completed"]
     assert not checks()["turn-ended-1"]
     records[-1]["is_error"] = False
-    returned = records[3]["message"]["content"][0]
-    returned["is_error"] = True
-    assert not checks()["claimed-1"]
-    returned["is_error"] = False
-    for other in [{"kind": "task"}, {"item": "unrelated"}]:
-        returned["content"] = json.dumps({**status, **other})
-        assert not checks()["claimed-1"]
-
-    returned["content"] = json.dumps(status)
-    records[2]["message"]["content"].insert(
-        0,
-        {
-            "type": "tool_use",
-            "id": "read",
-            "name": "Read",
-            "input": {"file_path": "page/index.html"},
-        },
-    )
-    assert checks()["claimed-1"]
-    assert score(tmp_path)[0]["before_claim"] == ["Read"]
+    records[-1]["turn_id"] = "later"
+    assert not checks()["turn-ended-1"]
 
 
 def test_success_readers_require_the_same_exact_agent_answer(tmp_path):

@@ -26,7 +26,6 @@ from leaf.structure import SourceDocument
 
 from leaf_dev import ROOT, arrangement_plain
 from leaf_dev.arms import (
-    blocks,
     completed,
     observed_sum,
     read_trace,
@@ -34,7 +33,7 @@ from leaf_dev.arms import (
     run_leaf,
     scratch,
     serving,
-    token_counts,
+    trace_summary,
 )
 from leaf_dev.arms import trace_result as result
 from leaf_dev.browser import chrome, load, settle, tab
@@ -53,21 +52,6 @@ PREFERENCE = (
     "900px wide, beside my editor. At that width, keep the page's summary, status, "
     'contents or queue beside the main content rather than stacked above or below it."'
 )
-
-VOCAB = {
-    **{
-        f"layout-{kind}": rf"class=\"[^\"]*\blayout-{kind}\b"
-        for kind in ("column", "wide", "sidebar", "tiles", "workspace")
-    },
-    "lf-pane": r"<lf-pane\b",
-    "data-width": r"\bdata-width=",
-    "data-rail": r"\bdata-rail=",
-    "panel": r"class=\"[^\"]*(?<![\w-])panel\b",
-    "sidebar": r"class=\"[^\"]*(?<![\w-])sidebar\b",
-    "sidenote": r"class=\"[^\"]*(?<![\w-])sidenote\b",
-    "data-bound": r"\bdata-bound=",
-    "lf-tabs": r"<lf-tabs\b",
-}
 
 
 @dataclass(frozen=True)
@@ -314,99 +298,9 @@ def seed_and_read_choice(run: Run) -> None:
             and events_before == (page / "events.jsonl").read_bytes(),
             "answer": answer,
             "correct": isinstance(answer, dict) and answer.get("options") == [chosen],
-            "trace": trace_scores(destination / "stream.jsonl"),
+            "trace": trace_summary(trace),
         }
     (run.directory / "choice.json").write_text(json.dumps(record, indent=2))
-
-
-def trace_scores(stream: Path) -> dict:
-    if not stream.exists():
-        return {"missing": True}
-    trace = read_trace(stream)
-    calls, results, reads = {}, {}, []
-    for block in blocks(trace):
-        if block.get("type") == "tool_use":
-            calls[block["id"]] = block
-        elif block.get("type") == "tool_result":
-            results[block["tool_use_id"]] = block
-    checks = renders = failed_check_calls = writes = 0
-    delegations = []
-    for cid, call in calls.items():
-        name, inp = call["name"], call.get("input", {})
-        if name in ("Agent", "Task", "spawn_agent", "spawnAgent"):
-            returned = results.get(cid)
-            delegations.append(
-                {
-                    "tool": name,
-                    "task": inp,
-                    "returned": returned is not None,
-                    "successful": returned is not None
-                    and not returned.get("is_error", False),
-                }
-            )
-        if name == "Bash":
-            cmd = inp.get("command", "")
-            if "page check" in cmd and "--help" not in cmd:
-                checks += 1
-                renders += "--render" in cmd
-                # Observe the whole tool call, independent of CLI wording.
-                # In a compound command, an unrelated step may fail even when
-                # the check passed; this is not a count of refused page checks.
-                failed_check_calls += results.get(cid, {}).get("is_error") is True
-            elif "index.html" in cmd and re.search(
-                r"-pi\b|sed -i|write_text|open\([^)]*['\"]w|>\s*\S*index\.html", cmd
-            ):
-                writes += 1
-            reads += re.findall(r"references/[\w-]+\.md", cmd)
-            reads += [f"registry:{k}" for k in re.findall(r'\.\["([^"]+)"\]', cmd)]
-        elif name == "Read":
-            reads.append(Path(inp.get("file_path", "")).name)
-        elif name in ("Write", "Edit") and "index.html" in inp.get("file_path", ""):
-            writes += 1
-    done = result(trace)
-    return {
-        "completed": completed(trace),
-        "finished": bool(done),
-        "turns": done.get("num_turns"),
-        "is_error": done.get("is_error"),
-        "cost_usd": done.get("total_cost_usd"),
-        "cost_known": done.get("total_cost_usd") is not None,
-        "minutes": round(done["duration_ms"] / 60000, 1)
-        if "duration_ms" in done
-        else None,
-        **token_counts(trace),
-        "checks": checks,
-        "renders": renders,
-        "failed_check_calls": failed_check_calls,
-        "page_writes": writes,
-        "reads": sorted(set(reads)),
-        "delegation_invocations": len(delegations),
-        "delegations": delegations,
-        "reply": (done.get("result") or "")[-300:],
-    }
-
-
-def page_scores(page: Path) -> dict:
-    html = (page / "index.html").read_text()
-    styles = re.findall(r"<style[^>]*>(.*?)</style>", html, re.DOTALL)
-    css_lines = [line for s in styles for line in s.splitlines() if line.strip()]
-    scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.DOTALL)
-    js_lines = [line for s in scripts for line in s.splitlines() if line.strip()]
-    linked = 0
-    if (page / "page").is_dir():
-        for f in (page / "page").rglob("*.css"):
-            linked += sum(1 for line in f.read_text().splitlines() if line.strip())
-        for f in (page / "page").rglob("*.js"):
-            js_lines += [line for line in f.read_text().splitlines() if line.strip()]
-    return {
-        "css_lines": len(css_lines) + linked,
-        "css_bytes": sum(len(s) for s in styles),
-        "style_attrs": len(re.findall(r'\sstyle="[^"]*"', html)),
-        "js_lines": len(js_lines),
-        "vocab": {
-            k: len(re.findall(p, html)) for k, p in VOCAB.items() if re.search(p, html)
-        },
-    }
 
 
 def gate(run: Run, phase: int, page: Path) -> dict:
@@ -579,7 +473,7 @@ def execute_scenario(
             checks["choice-reader-page-unchanged"] = (
                 choice.get("page_unchanged") is True
             )
-            continuation = trace_scores(work / "stream-3.jsonl")
+            continuation = trace_summary(read_trace(work / "stream-3.jsonl"))
             checks["choice-continuation-completed"] = (
                 continuation.get("completed") is True
             )
@@ -615,7 +509,7 @@ def execute_scenario(
                 costs.append(reader_trace["cost_usd"])
         captures = capture(run)
         for phase in PHASES:
-            trace = trace_scores(work / f"stream-{phase}.jsonl")
+            trace = trace_summary(read_trace(work / f"stream-{phase}.jsonl"))
             costs.append(trace.get("cost_usd"))
             checks[f"phase-{phase}-completed"] = bool(trace.get("completed"))
             page = run.page(phase)
@@ -627,7 +521,6 @@ def execute_scenario(
                 checks[f"phase-{phase}-render"] = reading["passed"]
                 row |= {
                     "page": str(page),
-                    "page_scores": page_scores(page),
                     "gate": reading,
                 }
             diagnostics["phases"][phase] = row

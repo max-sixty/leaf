@@ -16,10 +16,10 @@ from leaf_dev.usability_eval import (
     attempt_key,
     build_fixture,
     checks_for,
-    claimed_first,
     expected_checks,
     page_events,
     post_round,
+    progress_shown,
     score_elided,
     score_mixed,
 )
@@ -30,7 +30,9 @@ def test_every_scenario_has_fixed_nonvacuous_checks():
     for case in CASES:
         expected = expected_checks(case)
         assert expected[0] == "completed"
-        assert len(expected) > 1
+        from leaf_dev.usability_eval import rubrics
+
+        assert len(expected) > 1 or rubrics(case)
         assert len(set(expected)) == len(expected)
         actual = checks_for(case, {}, [], False)
         assert list(actual) == expected
@@ -195,159 +197,37 @@ def test_live_rounds_wait_for_delivery_and_cancel_the_completion_timer(
             scheduled.cancel()
 
 
-@pytest.mark.parametrize(
-    "reply_command",
-    [
-        "leaf response reply delivery:0:comment --text Done",
-        "python final_writer.py",
-    ],
-)
-def test_a_thread_claim_must_be_accepted_for_the_comment_before_reply(reply_command):
-    envelope = {"attention": False, "id": "a1b2c3d4", "author": "agent"}
-    started = {
-        **envelope,
-        "seq": 2,
-        "ts": "2026-10-07T12:00:00.500-07:00",
-        "kind": "start",
-        "item": "comment",
-        "text": "Edit",
-    }
+def test_progress_uses_the_admitted_log_before_the_exact_answer():
+    """Observation delays and command failures cannot erase admitted progress."""
+    started = {"kind": "start", "seq": 2, "item": "comment", "text": "Edit"}
     answered = {
-        **envelope,
-        "id": "b2c3d4e5",
-        "seq": 3,
-        "ts": "2026-10-07T12:00:02.500-07:00",
         "kind": "reply",
-        "parent": "comment",
+        "seq": 3,
+        "author": "agent",
+        "parent": "root",
         "responds": "comment",
         "text": "Done",
     }
-    late = {
-        **started,
-        "id": "c3d4e5f6",
-        "seq": 4,
-        "ts": "2026-10-07T12:00:04.500-07:00",
-    }
-
-    def call(identity, command, output, begin, end, refused=False):
-        return [
-            {
-                "type": "assistant",
-                "received_at": begin,
-                "message": {
-                    "content": [
-                        {
-                            "type": "tool_use",
-                            "id": identity,
-                            "name": "Bash",
-                            "input": {"command": command},
-                        }
-                    ]
-                },
-            },
-            {
-                "type": "user",
-                "received_at": end,
-                "message": {
-                    "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": identity,
-                            "is_error": refused,
-                            "content": output,
-                        }
-                    ]
-                },
-            },
-        ]
-
-    def start(event=started, refused=False):
-        return call(
-            "start",
-            "python progress_writer.py",
-            json.dumps(event),
-            "2026-10-07T11:59:59-07:00",
-            "2026-10-07T12:00:01-07:00",
-            refused,
-        )
-
-    reply = call(
-        "reply",
-        reply_command,
-        json.dumps(answered),
-        "2026-10-07T12:00:02-07:00",
-        "2026-10-07T12:00:03-07:00",
-    )
-    later = call(
-        "later",
-        "python progress_writer.py",
-        json.dumps(late),
-        "2026-10-07T12:00:04-07:00",
-        "2026-10-07T12:00:05-07:00",
-    )
-    assert claimed_first(start() + reply, "comment")
-    assert not claimed_first(start(refused=True) + reply, "comment")
-    assert not claimed_first(
-        start({**started, "item": "another-thread"}) + reply, "comment"
-    )
-    assert not claimed_first(reply + later, "comment")
-    addressed_elsewhere = call(
-        "reply",
-        reply_command,
-        json.dumps({**answered, "parent": "root"}),
-        "2026-10-07T12:00:02-07:00",
-        "2026-10-07T12:00:03-07:00",
-    )
-    assert not claimed_first(addressed_elsewhere + later, "comment")
-    noise = call(
-        "noise",
-        "printf '%s' 'thread reply'",
-        "thread reply",
-        "2026-10-07T11:59:57-07:00",
-        "2026-10-07T11:59:58-07:00",
-    )
-    assert claimed_first(noise + start() + reply, "comment")
-
-    # The admitted log's sequence orders a compound result too, independent of
-    # shell spelling, result position, or the order records were printed.
-    combined = call(
-        "combined",
-        reply_command,
-        json.dumps(late) + "\n" + json.dumps(answered),
-        "2026-10-07T12:00:02-07:00",
-        "2026-10-07T12:00:05-07:00",
-    )
-    assert not claimed_first(combined, "comment")
-    combined = call(
-        "combined",
-        reply_command,
-        json.dumps(answered) + "\n" + json.dumps(started),
-        "2026-10-07T11:59:59-07:00",
-        "2026-10-07T12:00:03-07:00",
-    )
-    assert claimed_first(combined, "comment")
-
-    # An unsuccessful attempt, missing record, historical reading or another
-    # input's reply cannot become this input's accepted final cutoff.
-    for output, refused in (
-        (json.dumps(answered), True),
-        ("", False),
-        (json.dumps({**answered, "ts": "2026-10-07T11:59:00-07:00"}), False),
-        (json.dumps({**answered, "parent": "other", "responds": "other"}), False),
-        (json.dumps({**answered, "responds": "later-input"}), False),
-        (json.dumps({**answered, "ephemeral": True}), False),
-        (json.dumps({**answered, "failure": "turn_failed"}), False),
-        (json.dumps({**answered, "author": "user"}), False),
+    assert progress_shown([], [started, answered], "comment")
+    assert not progress_shown([], [started, answered], "other-input")
+    assert not progress_shown([], [{**started, "seq": 4}, answered], "comment")
+    assert not progress_shown([], [{**started, "item": "other"}, answered], "comment")
+    for changes in (
+        {"ephemeral": True},
+        {"failure": "turn_failed"},
+        {"responds": "other"},
+        {"author": "user"},
     ):
-        not_final = call(
-            "attempt",
-            reply_command,
-            output,
-            "2026-10-07T12:00:02-07:00",
-            "2026-10-07T12:00:03-07:00",
-            refused,
-        )
-        assert claimed_first(not_final + later, "comment")
+        assert progress_shown([], [answered | changes, started | {"seq": 4}], "comment")
+    progress = {
+        "kind": "reply",
+        "author": "agent",
+        "seq": 2,
+        "ephemeral": True,
+        "start": {"item": "comment"},
+        "text": "Edit",
+    }
+    assert progress_shown([], [progress, answered], "comment")
 
 
 def test_native_opening_requires_page_response_evidence_before_the_first_tool():
@@ -372,17 +252,17 @@ def test_native_opening_requires_page_response_evidence_before_the_first_tool():
         "response": {"state": "active", "has_text": True},
     }
     state = {"type": "eval_first_tool_state", "workflows": [workflow]}
-    assert claimed_first([opening, tool, state], "comment")
-    assert not claimed_first([opening, tool], "comment")
-    assert not claimed_first([tool, state, opening], "comment")
-    assert not claimed_first([opening, tool, state], "other-input")
+    assert progress_shown([opening, tool, state], [], "comment")
+    assert not progress_shown([opening, tool], [], "comment")
+    assert not progress_shown([tool, state, opening], [], "comment")
+    assert not progress_shown([opening, tool, state], [], "other-input")
     workflow["response"]["state"] = "failed"
-    assert not claimed_first([opening, tool, state], "comment")
+    assert not progress_shown([opening, tool, state], [], "comment")
     workflow["response"]["state"] = "active"
     workflow["response"]["has_text"] = False
-    assert not claimed_first([opening, tool, state], "comment")
+    assert not progress_shown([opening, tool, state], [], "comment")
     workflow["response"] = None
-    assert not claimed_first([opening, tool, state], "comment")
+    assert not progress_shown([opening, tool, state], [], "comment")
 
 
 @pytest.mark.parametrize("membership", ["together", "split", "missing-error"])
@@ -449,7 +329,7 @@ def test_native_scenario_output_preserves_unavailable_usage(
     tmp_path, monkeypatch, usage, expected
 ):
     from leaf_dev import usability_eval
-    from leaf_dev.arrangement_eval import trace_scores as arrangement_trace_scores
+    from leaf_dev.arms import read_trace, trace_summary
 
     def observed_execution(run, work):
         # Replace the external model call with its recorded result shape; retain
@@ -470,7 +350,7 @@ def test_native_scenario_output_preserves_unavailable_usage(
         assert "tokenUsage" not in response
     phases = response["metadata"]["diagnostics"]["phases"]
     for index, phase in enumerate(phases, 1):
-        arrangement = arrangement_trace_scores(tmp_path / f"stream-{index}.jsonl")
+        arrangement = trace_summary(read_trace(tmp_path / f"stream-{index}.jsonl"))
         for field in ("input_tokens", "output_tokens"):
             assert phase[field] == (usage[index - 1] or {}).get(field)
             assert arrangement[field] == phase[field]
@@ -564,12 +444,15 @@ def test_round_scoring_leaves_the_watch_with_leaf():
 
 @pytest.mark.parametrize("harness", ["claude-code", "codex"])
 def test_live_injection_reads_the_claimants_turn_from_the_isolated_home(
-    tmp_path, harness
+    tmp_path, harness, monkeypatch
 ):
     import os
     from types import SimpleNamespace
 
-    from leaf_dev.usability_eval import arm_python, observed_active_turn
+    from leaf.harness import ClaudeCodeHarness
+    from leaf.service import PageTransaction
+    from leaf.state import close_session_turn, prompt_turn
+    from leaf_dev.usability_eval import observed_active_turn
 
     run = Run("mixed", ROOT, tmp_path, harness)
     run.state.mkdir()
@@ -578,35 +461,20 @@ def test_live_injection_reads_the_claimants_turn_from_the_isolated_home(
     # Create actual session and page-claim publications in the child state home.
     # Only the external model transport is replaced; the CLI joins the canonical
     # claim and lifecycle under the arm's own isolated environment.
-    arm_python(
-        run,
-        """
-import os, sys
-from pathlib import Path
-from leaf.harness import ClaudeCodeHarness
-from leaf.service import PageTransaction
-from leaf.state import prompt_turn
-os.environ["CLAUDE_PID"] = sys.argv[2]
-with PageTransaction(Path(sys.argv[1])) as page:
-    page.take_claim(ClaudeCodeHarness(session="injection-observer", agent="Claude"))
-prompt_turn("injection-observer", "actual-parent-turn")
-""",
-        str(page),
-        str(os.getpid()),
-    )
+    monkeypatch.setenv("XDG_STATE_HOME", str(run.state))
+    monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
+    with PageTransaction(page) as transaction:
+        transaction.take_claim(
+            ClaudeCodeHarness(session="injection-observer", agent="Claude")
+        )
+    prompt_turn("injection-observer", "actual-parent-turn")
     child = SimpleNamespace(task=SimpleNamespace(running={"actual-parent-turn"}))
     assert observed_active_turn(run, page, child) == "actual-parent-turn"
     if harness == "codex":
         child.task.running.clear()
         assert observed_active_turn(run, page, child) is None
         child.task.running.add("actual-parent-turn")
-    arm_python(
-        run,
-        """
-from leaf.state import close_session_turn
-assert close_session_turn("injection-observer", "actual-parent-turn")
-""",
-    )
+    assert close_session_turn("injection-observer", "actual-parent-turn")
     assert observed_active_turn(run, page, child) is None
 
 
@@ -673,3 +541,31 @@ def test_handoff_url_must_match_the_server_observed_by_the_live_run():
     assert not handed_page_url(trace, "http://127.0.0.1:42042/?t=other-page")
     assert not handed_page_url(trace, "http://127.0.0.1:42041/?t=this-page-other-key")
     assert not handed_page_url([], url)
+
+
+def test_copy_repair_requires_the_button_to_copy(tmp_path):
+    from leaf_dev.usability_eval import copy_summary_works
+
+    run = Run("mixed", ROOT, tmp_path)
+    run.state.mkdir()
+    page = tmp_path / "page"
+    build_fixture(run, "mixed", page)
+    source = page / "index.html"
+    original = source.read_text()
+    assert not copy_summary_works(run, page)
+    source.write_text(original.replace("/\\s+/", "/\\s+/g"))
+    run.leaf("page", "stamp", str(page), "--text", "Repair copy", check=True)
+    assert copy_summary_works(run, page)
+    source.write_text(
+        original.replace("/\\s+/", "/\\s+/g").replace(
+            '"click", () => {',
+            '"click", async () => {\nawait new Promise(resolve => setTimeout(resolve, 100));',
+        )
+    )
+    run.leaf("page", "stamp", str(page), "--text", "Async copy", check=True)
+    assert copy_summary_works(run, page)
+    source.write_text(
+        original[: original.index('<script type="module">')] + "</main></body></html>"
+    )
+    run.leaf("page", "stamp", str(page), "--text", "Remove behavior", check=True)
+    assert not copy_summary_works(run, page)

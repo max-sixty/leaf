@@ -43,6 +43,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { WatchOwner } from "./watch.ts";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const LEAF = path.join(ROOT, "bin", "leaf");
@@ -84,15 +85,10 @@ async function hook(payload: Payload): Promise<string | undefined> {
 	}
 }
 
-type Watch = { child: ChildProcess; done: Promise<string>; interrupted: boolean };
-
 export default function leaf(pi: ExtensionAPI) {
 	let session = "";
 	let hasUI = false;
-	// Set as Pi shuts this instance down: Pi refuses a stale instance's calls,
-	// so a wake still in flight then sends nothing.
-	let disposed = false;
-	let watch: Watch | undefined;
+	const watch = new WatchOwner();
 	// Whether a run is going, from `agent_start` until it settles.
 	let running = false;
 	// Whether the Stop hook has already kept this turn going (`stop_hook_active`).
@@ -105,40 +101,22 @@ export default function leaf(pi: ExtensionAPI) {
 
 	const message = (content: string) => ({ customType: CUSTOM_TYPE, content, display: true });
 
-	async function stopWatch() {
-		const stopping = watch;
-		watch = undefined;
-		stopping?.child.kill("SIGTERM");
-		await stopping?.done;
-	}
-
-	/** Keep one watch running for this ending. A watch at a Stop ending goes on
-	 * past another Stop ending; any other ending replaces it, and an interrupted
-	 * one always starts afresh, since its watch closes the turn and looks at the
-	 * logs anew. A watch is replaced only once the one before it has exited,
-	 * since the session's wait lease admits one, and one from before would read
-	 * the closed turn as the Stop hook's ending. */
+	/** Pi owns availability, process termination and its notification wake. The
+	 * watch owner serializes replacement and rejects stale completion. */
 	async function ensureWatch(interrupted: boolean) {
-		// The watch closes the turn after this returns, so it states when it ended,
-		// in POSIX seconds.
 		const ended = Date.now() / 1000;
-		if (!hasUI || disposed || (watch && !watch.interrupted && !interrupted)) return;
-		await stopWatch();
-		// A shutdown, or another start, may have come while the old one exited.
-		if (disposed || watch) return;
-		const started = run(["hook", "--harness", "pi", "--watch"], {
-			hook_event_name: interrupted ? "Interrupt" : "Stop",
-			session_id: session,
-			ended_at: ended,
-		});
-		const current = { ...started, interrupted };
-		watch = current;
-		void current.done.then((woke) => wake(current, woke));
+		if (!hasUI) return;
+		await watch.ensure(interrupted, () => {
+			const started = run(["hook", "--harness", "pi", "--watch"], {
+				hook_event_name: interrupted ? "Interrupt" : "Stop",
+				session_id: session,
+				ended_at: ended,
+			});
+			return { stop: () => started.child.kill("SIGTERM"), done: started.done };
+		}, wake);
 	}
 
-	function wake(ended: Watch, woke: string) {
-		if (watch !== ended || disposed) return;
-		watch = undefined;
+	function wake(woke: string) {
 		if (!woke.trim()) return;
 		// A notification can be queued or cleared by Pi. Receipt belongs only to
 		// accepted message finalization or a live turn boundary Pi persists.
@@ -161,8 +139,7 @@ export default function leaf(pi: ExtensionAPI) {
 	});
 
 	pi.on("session_shutdown", async (event) => {
-		disposed = true;
-		await stopWatch();
+		await watch.close();
 		if (event.reason !== "reload") {
 			await run(["session-end"], { hook_event_name: "SessionEnd", session_id: session }, SESSION_END_TIMEOUT_MS)
 				.done;

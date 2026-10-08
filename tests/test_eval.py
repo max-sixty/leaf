@@ -79,6 +79,9 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
             skill = Path(settings["cli_env"]["CODEX_HOME"]) / "skills" / "leaf"
             assert skill.resolve() == payloads[arm] / "skills" / "leaf"
             assert settings["persist_threads"] is False
+            assert settings["ephemeral"] is True
+            assert "thread_id" not in settings
+            assert "reuse_server" not in settings
     assert len(set(homes)) == 4
     assert "must-not-enter-config" not in json.dumps(config)
     brief = config["tests"][0]

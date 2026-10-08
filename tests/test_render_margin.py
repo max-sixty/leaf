@@ -733,6 +733,86 @@ def test_an_unchanged_compact_margin_keeps_the_user_at_the_document_end(browser,
     assert position["after"] == position["before"]
 
 
+@pytest.mark.parametrize("annotations", ["overlay", "page"])
+def test_an_inline_contribution_name_needs_no_physical_margin(
+    browser, serve, annotations
+):
+    """The shared control's native name remains readable when a page owns annotations."""
+    source = leaf_page("Inline names", '<button id="inline">Read</button>').replace(
+        "<body>", f'<body data-annotations="{annotations}">'
+    )
+    page = open_page(browser, serve(source))
+    page.evaluate(
+        """async () => {
+          const {contributionEntry, presentContributionEntry} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          presentContributionEntry(document.getElementById('inline'),
+            contributionEntry({key: 'inline', icon: 'dot', label: 'Read inline name'}));
+        }"""
+    )
+    control = page.get_by_role("button", name="Read inline name", exact=True)
+    control.focus()
+    expect(control.locator(".lf-margin-entry-label")).to_be_visible()
+    page.mouse.move(0, 0)
+    page.keyboard.press("Tab")
+    expect(control.locator(".lf-margin-entry-label")).to_be_hidden()
+
+
+def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):
+    """A name has one visible position from its first reveal, whatever its border
+    or whether its control stands in the rail or as a pin."""
+    page = open_page(
+        browser,
+        serve(leaf_page("Steady margin names", '<p id="target">Read this target.</p>')),
+    )
+    page.evaluate(
+        """async () => {
+          const {contributionEntry, registerContribution} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          registerContribution({key: 'names', target: document.getElementById('target'),
+            read: () => ({entries: ['action', 'disclosure'].map(behavior =>
+              contributionEntry({key: behavior, behavior, icon: 'dot',
+                label: `Read ${behavior}`}))}), activate: () => {}});
+        }"""
+    )
+    for width in (1440, 390):
+        resized(page, width, 900)
+        for behavior in ("action", "disclosure"):
+            control = page.get_by_role("button", name=f"Read {behavior}", exact=True)
+            expect(control).to_be_visible()
+            page.wait_for_function(
+                "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
+            )
+            reading = control.evaluate(
+                """async control => {
+                  const label = control.querySelector('.lf-margin-entry-label');
+                  const frames = [];
+                  const read = () => {
+                    const style = getComputedStyle(label);
+                    if (style.visibility !== 'visible' || Number(style.opacity) === 0)
+                      return;
+                    const box = label.getBoundingClientRect();
+                    frames.push({x: box.x, y: box.y});
+                  };
+                  control.focus();
+                  read();
+                  for (let n = 0; n < 8; n++) {
+                    await new Promise(requestAnimationFrame);
+                    read();
+                  }
+                  const posture = control.closest('.lf-margin-cluster').dataset.lfPlace;
+                  control.blur();
+                  await new Promise(requestAnimationFrame);
+                  return {frames, posture};
+                }"""
+            )
+            assert len(reading["frames"]) >= 2, reading
+            assert all(frame == reading["frames"][0] for frame in reading["frames"]), (
+                reading
+            )
+            assert reading["posture"] == ("rail" if width == 1440 else "pin")
+
+
 def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, serve):
     """A tooltip moves rather than covering a neighboring margin entry."""
     fixture = leaf_page(

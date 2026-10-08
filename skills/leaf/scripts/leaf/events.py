@@ -38,9 +38,10 @@ def event_document(event: dict) -> dict:
     return document_identity(event["meaning"]["scope"], event["revision"])
 
 
-def standing_approvals(events: list) -> list:
+def standing_approvals(events: list, *, withdrawn: set | None = None) -> list:
     """The sign-off approvals no later undo took back, in log order."""
-    withdrawn = taken_back(events)
+    if withdrawn is None:
+        withdrawn = taken_back(events)
     return [
         event
         for event in events

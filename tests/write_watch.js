@@ -69,6 +69,9 @@
     // Sortable takes a dragged card's ghost class off and puts it back as the drag
     // crosses into another lane.
     /^class on .*\.lf-ghost/,
+    // PhotoSwipe reasserts its root's zoom and pointer classes while handling
+    // gestures and viewport changes, including when those classes already stand.
+    /^class on div\.pswp(?:\.|$)/,
   ];
   const reported = new Set();
   const report = (what) => {

@@ -6,6 +6,8 @@
 // Inspect and `i` cycle through parts when the drawing is too small to aim at. A tap
 // on empty stage or Escape closes inspection. Leaf's own target gestures (Alt-click,
 // or `s` after pointing) comment on a part. Terminal lines seek to their printed moment.
+// A narrow stage reads the same frame as vertical history, worktree rows and a
+// terminal disclosure, with step buttons holding each outcome.
 //
 // The film opens paused on its poster, the fully drawn branch just before `wt merge`
 // runs, so a first look (or a capture) reads the setup at once; Play runs it from the
@@ -21,10 +23,18 @@ import {
   offer,
   once,
   registerVisualParts,
+  scrollIntoReadingBand,
+  sizeObserver,
 } from "/runtime/widget-api.js";
 import { DEFAULT_FLAGS, EXAMPLE, Painter, compile, frame } from "../film.js";
 
+import { PhonePainter } from "../phone.js";
+
 const SVG = "http://www.w3.org/2000/svg";
+const chapterEnd = (film, key) => {
+  const last = film.scenes.findLast((scene) => scene.chapter === key);
+  return last.start + last.dur;
+};
 
 const FLAG_CONTROLS = [
   ["moved", "main moved on", false],
@@ -52,10 +62,12 @@ customElements.define(
 
     connectedCallback() {
       if (once(this)) this.#build();
+      this.sizing.observe(this.stage);
       this.#paint();
     }
 
     disconnectedCallback() {
+      this.sizing.disconnect();
       cancelAnimationFrame(this.#raf);
       this.#playing = false;
     }
@@ -67,7 +79,10 @@ customElements.define(
       this.svg.setAttribute("role", "img");
       this.svg.setAttribute("aria-label", "wt merge, animated");
       stage.append(this.svg);
-      this.painter = new Painter(this.svg);
+      this.desktopPainter = new Painter(this.svg);
+      this.phonePainter = new PhonePainter(stage);
+      this.painter = this.desktopPainter;
+      this.sizing = sizeObserver(() => this.#paint());
       this.inspector = document.createElement("div");
       this.inspector.className = "film-inspect";
       this.inspector.hidden = true;
@@ -113,11 +128,33 @@ customElements.define(
         this.#speed = this.#speed === 1 ? 2 : this.#speed === 2 ? 0.5 : 1;
         this.speedBtn.textContent = `${this.#speed}×`;
       });
+      this.previous = offer("button", "film-previous", "Previous");
+      this.next = offer("button", "film-next", "Next");
+      this.previous.setAttribute("aria-label", "Previous step");
+      this.next.setAttribute("aria-label", "Next step");
+      for (const [button, direction] of [
+        [this.previous, -1],
+        [this.next, 1],
+      ])
+        button.addEventListener("click", () => {
+          this.#pause();
+          this.#holdChapter(direction);
+          this.#paint();
+        });
       const inspectBtn = offer("button", "film-inspect-next", "Inspect");
       inspectBtn.setAttribute("aria-label", "Inspect next element");
       inspectBtn.setAttribute("aria-keyshortcuts", "i");
       inspectBtn.addEventListener("click", () => this.#cycle());
-      bar.append(this.playBtn, this.scrub, this.speedBtn, inspectBtn);
+      bar.append(
+        this.playBtn,
+        this.previous,
+        this.scrub,
+        this.next,
+        this.speedBtn,
+        inspectBtn,
+      );
+      this.caption = document.createElement("p");
+      this.caption.className = "film-caption";
 
       const flags = offer("fieldset", "film-flags");
       const legend = document.createElement("legend");
@@ -138,7 +175,12 @@ customElements.define(
         flags.append(wrap);
       }
 
-      this.append(stage, bar, flags);
+      this.settings = document.createElement("details");
+      this.settings.className = "film-settings";
+      const settingsTitle = document.createElement("summary");
+      settingsTitle.textContent = "Change the run";
+      this.settings.append(settingsTitle, flags);
+      this.append(this.caption, stage, bar, this.settings);
       this.stage = stage;
       this.scrub.max = this.#film.total;
     }
@@ -153,6 +195,7 @@ customElements.define(
       this.#inspect(null);
       this.#t = Math.max(0, Math.min(this.#film.total, t));
       this.#paint();
+      this.#reveal();
     }
 
     seekChapter(key) {
@@ -163,6 +206,14 @@ customElements.define(
       this.#t = at;
       this.#paint();
       if (!this.#playing) this.#play();
+      this.#reveal();
+    }
+
+    #reveal() {
+      if (this.hasAttribute("data-phone")) {
+        if (this.settings.open) this.settings.open = false;
+        scrollIntoReadingBand(this, this, "start", "smooth");
+      }
     }
 
     // The last moment before the first step: every commit, ref and worktree drawn.
@@ -172,17 +223,22 @@ customElements.define(
 
     #recompile() {
       const chapter = frame(this.#film, this.#t).chapter;
+      const start = this.#film.starts[chapter];
+      const progress = (this.#t - start) / (chapterEnd(this.#film, chapter) - start);
       this.#film = compile(this.#flags, EXAMPLE);
       this.#t = this.#fresh
         ? this.#poster()
-        : (this.#film.starts[chapter] ?? Math.min(this.#t, this.#film.total));
+        : this.#film.starts[chapter] !== undefined
+          ? this.#film.starts[chapter] +
+            progress * (chapterEnd(this.#film, chapter) - this.#film.starts[chapter])
+          : Math.min(this.#t, this.#film.total);
       keeps(this.scrub, "max", this.#film.total);
       this.#inspect(null);
       this.#paint();
     }
 
     #partAt(target) {
-      const g = target.closest?.("g[data-label]");
+      const g = target.closest?.("[data-label]");
       if (!g) return null;
       return this.painter.parts().find((p) => p.element === g) ?? null;
     }
@@ -239,12 +295,18 @@ customElements.define(
         box.right - stage.left + 10,
         stage.width - this.inspector.offsetWidth - 10,
       );
+      const bottom = this.hasAttribute("data-phone")
+        ? Math.min(stage.bottom, window.innerHeight)
+        : stage.bottom;
       const top = Math.min(
         box.top - stage.top,
-        stage.height - this.inspector.offsetHeight - 10,
+        bottom - stage.top - this.inspector.offsetHeight - 10,
       );
       this.inspector.style.left = `${Math.max(10, left)}px`;
-      this.inspector.style.top = `${Math.max(10, top)}px`;
+      const visibleTop = this.hasAttribute("data-phone")
+        ? Math.max(10, 10 - stage.top)
+        : 10;
+      this.inspector.style.top = `${Math.max(visibleTop, top)}px`;
     }
 
     // Film keys work from any of the film's controls. Keys a focused control already
@@ -275,6 +337,10 @@ customElements.define(
 
     #cycle() {
       this.#pause();
+      if (this.hasAttribute("data-phone")) {
+        this.settings.open = false;
+        scrollIntoReadingBand(this.playBtn.parentElement, this, "start", "instant");
+      }
       const parts = this.painter.parts();
       if (!parts.length) return;
       const at = parts.findIndex((p) => p.id === this.#inspected);
@@ -291,6 +357,16 @@ customElements.define(
         dir > 0
           ? (starts.find((s) => s > this.#t + 0.05) ?? this.#t)
           : (starts.findLast((s) => s < this.#t - 0.6) ?? 0);
+    }
+
+    // The phone's step buttons hold the outcome, rather than the first frame of a
+    // transition. Playback and the keyboard's timeline keys retain their own routes.
+    #holdChapter(direction) {
+      this.#inspect(null);
+      const keys = Object.keys(this.#film.starts);
+      const current = keys.indexOf(frame(this.#film, this.#t).chapter);
+      const chapter = keys[Math.max(0, Math.min(keys.length - 1, current + direction))];
+      this.#t = chapterEnd(this.#film, chapter) - 0.01;
     }
 
     #toggle() {
@@ -326,7 +402,21 @@ customElements.define(
 
     #paint() {
       const fr = frame(this.#film, this.#t);
-      this.painter.paint(this.#film, fr, this.#focus);
+      const width = this.stage.clientWidth;
+      const narrow = width < 560;
+      if (this.hasAttribute("data-phone") !== narrow) this.settings.open = !narrow;
+      else if (!narrow && !this.settings.open) this.settings.open = true;
+      this.stage.toggleAttribute("data-phone", narrow);
+      this.toggleAttribute("data-phone", narrow);
+      this.painter = narrow ? this.phonePainter : this.desktopPainter;
+      if (narrow) this.painter.paint(this.#film, fr, width);
+      else this.painter.paint(this.#film, fr, this.#focus);
+      keepsText(this.caption, fr.caption);
+      keeps(this.caption, "data-tone", fr.captionTone);
+      const first = fr.chapter === "setup";
+      const last = fr.chapter === "end";
+      if (this.previous.disabled !== first) this.previous.disabled = first;
+      if (this.next.disabled !== last) this.next.disabled = last;
       this.scrub.value = this.#t;
       this.#placeInspector();
       // Every paint can move a part, so Leaf re-reads the inventory and its geometry.

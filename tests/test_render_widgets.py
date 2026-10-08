@@ -18,6 +18,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import patch_manifest
+from leaf_dev.stills import targeting_menu
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ASKS_IN_ORDER,
@@ -13125,6 +13126,76 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
     ), "the package theme must outrank the lazy vendor defaults"
 
 
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
+    browser, serve, color_scheme
+):
+    """Component-owned menu states remain readable through the shared theme.
+
+    The targeting picker is a second consumer of the same theme as the trace
+    prototype that exposed dark text on a solid blue active row.
+    """
+    source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    page = open_page(browser, serve(source), color_scheme=color_scheme)
+    targeting_menu(page)
+    control = page.locator("#code-comparison-targeting wa-select").first
+    options = control.locator("wa-option")
+
+    def contrast(option):
+        colors = option.evaluate("""async node => {
+          await Promise.all(node.getAnimations().map(animation => animation.finished));
+          const canvas = document.createElement('canvas');
+          canvas.width = canvas.height = 1;
+          const ctx = canvas.getContext('2d', {willReadFrequently: true});
+          const rgb = color => {
+            ctx.clearRect(0, 0, 1, 1);
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, 1, 1);
+            return [...ctx.getImageData(0, 0, 1, 1).data];
+          };
+          const style = getComputedStyle(node);
+          return [rgb(style.color), rgb(style.backgroundColor)];
+        }""")
+        assert all(color[3] == 255 for color in colors), colors
+        luminances = [
+            sum(
+                (v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4) * weight
+                for v, weight in zip(
+                    (channel / 255 for channel in color[:3]),
+                    (0.2126, 0.7152, 0.0722),
+                    strict=True,
+                )
+            )
+            for color in colors
+        ]
+        assert (max(luminances) + 0.05) / (min(luminances) + 0.05) >= 4.5, colors
+
+    current = control.locator("wa-option:state(current)")
+    expect(current).to_be_visible()
+    contrast(current)
+    initial = current.get_attribute("value")
+    page.keyboard.press("ArrowDown")
+    expect(current).not_to_have_attribute("value", initial)
+    contrast(current)
+    options.first.hover()
+    contrast(options.first)
+    # Generated apparatus identity must not replace a component's state ink. This
+    # catches both a generic host face and upstream root color promoted to the host;
+    # merely choosing a pale menu background would let either defect survive.
+    for generated in (False, True):
+        current.evaluate(
+            """(node, generated) => {
+          node.classList.toggle('lf-ui', generated);
+          node.style.setProperty('--wa-color-brand-on-loud', 'rgb(11, 22, 33)');
+        }""",
+            generated,
+        )
+        assert (
+            current.evaluate("node => getComputedStyle(node).color")
+            == "rgb(11, 22, 33)"
+        )
+
+
 def test_webawesome_theme_reaches_a_declared_shadow_stage(browser, serve):
     page = _bound_diff(browser, serve)
     diff = page.locator("lf-diff")
@@ -13132,6 +13203,142 @@ def test_webawesome_theme_reaches_a_declared_shadow_stage(browser, serve):
     assert (
         diff.evaluate(f"el => ({WEB_AWESOME_SHEET})(el.shadowRoot.adoptedStyleSheets)")
         is True
+    )
+
+
+@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
+def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, motion):
+    """A superseded close cannot hide a reopened popover or strand its API promise.
+
+    Select, color picker and tooltip share the library's animation continuation.
+    The real Enter/Space route exposed it; direct public requests exercise the
+    same owner in the other consumers and both interruption directions.
+    """
+    source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    page = open_page(browser, serve(source))
+    page.emulate_media(reduced_motion=motion)
+    targeting_menu(page)
+    select = page.locator("#code-comparison-targeting wa-select").first
+    select.evaluate(
+        "n => { n.reopened = new Promise(r => n.addEventListener('wa-after-show', r, {once:true})); }"
+    )
+    page.keyboard.press("Enter")
+    page.keyboard.press("Space")
+    select.evaluate("n => n.reopened.then(() => true)")
+    expect(select.locator("wa-option:state(current)")).to_be_visible()
+    assert select.evaluate("n => n.open && n.popup.active && !n.listbox.hidden")
+    page.keyboard.press("Escape")
+
+    for tag in ("wa-select", "wa-color-picker", "wa-tooltip"):
+        page.evaluate(
+            """async tag => {
+          const {offer} = await import('/runtime/widget-api.js');
+          const holder = offer('div', 'transition-test');
+          const control = offer(tag, 'transition-control');
+          control.id = 'transition-control';
+          if (tag === 'wa-select') {
+            const option = offer('wa-option', '', 'First');
+            option.value = 'first'; control.append(option);
+          } else if (tag === 'wa-tooltip') {
+            control.trigger = 'manual'; control.content = 'Help';
+            control.append(offer('button', '', 'Help'));
+          }
+          holder.append(control); document.body.append(holder);
+          await control.updateComplete;
+          await control.show();
+        }""",
+            tag,
+        )
+        control = page.locator("#transition-control")
+        for final_open in (True, False):
+            control.evaluate(
+                """async (n, finalOpen) => {
+              if (n.open !== finalOpen) await (finalOpen ? n.show() : n.hide());
+              const interrupted = finalOpen ? n.hide() : n.show();
+              await n.updateComplete;
+              const latest = finalOpen ? n.show() : n.hide();
+              n.results = null;
+              Promise.all([interrupted, latest]).then(results => n.results = results);
+            }""",
+                final_open,
+            )
+            page.wait_for_function(
+                "document.querySelector('#transition-control').results !== null"
+            )
+            assert control.evaluate("n => n.results") == [False, True]
+            assert control.evaluate("n => n.open === n.popup.active")
+            assert control.evaluate("n => n.open") is final_open
+        for requests in ((True, False), (True, False, True)):
+            control.evaluate("n => n.hide()")
+            results = control.evaluate(
+                """async (n, requests) => {
+              return Promise.all(requests.map(open => open ? n.show() : n.hide()));
+            }""",
+                requests,
+            )
+            assert results == [False] * (len(requests) - 1) + [True]
+            assert control.evaluate("n => n.open === n.popup.active")
+            assert control.evaluate("n => n.open") is requests[-1]
+        control.evaluate("n => n.hide()")
+        assert (
+            control.evaluate("""async n => {
+          const pending = n.show(); n.open = false;
+          return pending;
+        }""")
+            is False
+        )
+        assert control.evaluate("n => !n.open && !n.popup.active")
+        if tag == "wa-color-picker":
+            control.evaluate("""n => {
+              const held = new Promise(resolve => n.releaseUpdate = resolve);
+              n.addEventListener('wa-show', () => {
+                Object.defineProperty(n, 'updateComplete', {configurable:true, get:()=>held});
+              }, {once:true});
+              n.interrupted = null;
+              n.show().then(result => n.interrupted = result);
+            }""")
+            page.wait_for_function(
+                "document.querySelector('#transition-control').releaseUpdate && Object.hasOwn(document.querySelector('#transition-control'), 'updateComplete')"
+            )
+            control.evaluate("n => { n.latest = n.hide(); }")
+            page.wait_for_function(
+                "document.querySelector('#transition-control').interrupted === false"
+            )
+            assert (
+                control.evaluate("""async n => {
+              delete n.updateComplete; n.releaseUpdate();
+              return n.latest;
+            }""")
+                is True
+            )
+            assert control.evaluate("n => !n.open && !n.popup.active && n.base.hidden")
+        control.evaluate("n => n.parentElement.remove()")
+
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    # Copy feedback consumes tooltip completion. Reopening its timed hide must
+    # release the copy lock even though the obsolete after-hide never fires.
+    page.evaluate("""async () => {
+      const {offer} = await import('/runtime/widget-api.js');
+      const copy = offer('wa-copy-button', 'copy-feedback');
+      copy.id = 'copy-feedback'; copy.value = 'copied value';
+      copy.tooltip = 'copy'; copy.feedbackDuration = 80;
+      document.body.append(copy); await copy.updateComplete;
+      copy.activeTooltip.addEventListener('wa-hide', () => copy.activeTooltip.show(), {once:true});
+      copy.copied = 0;
+      copy.addEventListener('wa-copy', () => copy.copied++);
+    }""")
+    copy = page.locator("#copy-feedback")
+    copy.get_by_role("button").click()
+    page.wait_for_function("document.querySelector('#copy-feedback').copied === 1")
+    page.wait_for_function("!document.querySelector('#copy-feedback').isCopying")
+    assert copy.evaluate(
+        "n => n.status === 'rest' && n.activeTooltip.open && !n.copyIcon.hidden"
+    )
+    copy.get_by_role("button").click()
+    page.wait_for_function("document.querySelector('#copy-feedback').copied === 2")
+    page.wait_for_function("!document.querySelector('#copy-feedback').isCopying")
+    assert copy.evaluate(
+        "n => n.status === 'rest' && !n.activeTooltip.open && !n.copyIcon.hidden"
     )
 
 

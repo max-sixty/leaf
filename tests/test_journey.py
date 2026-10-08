@@ -3,6 +3,8 @@ each harness's session gives its turn phases, and how the Claude Code journey re
 its pane."""
 
 import json
+import os
+import signal
 import subprocess
 import sys
 import time
@@ -119,9 +121,20 @@ def test_a_steps_comments_are_timed_from_the_log_and_the_page():
     ]
     assert reading["turn"][0] == {"phase": "delivery", "startMs": 0, "ms": 1000}
     assert terminal.approved == []
-    rows = journey.chart_rows([{**sample, "target": "claude-code"}])
+    prompted = {**sample, "target": "claude-code", "version": "old"}
+    later = {
+        **sample,
+        "target": "claude-code",
+        "comment": {**sample["comment"], "approved": []},
+    }
+    rows = journey.chart_rows(
+        [prompted, later, {**later, "comment": sample["comment"]}]
+    )
+    # The latest version is chosen before rows split by prompt, so a prompted run of
+    # an older version leaves the chart once a newer one runs.
     assert {row["row"] for row in rows} == {
-        "Claude Code after a permission prompt at v"
+        "Claude Code at v",
+        "Claude Code after a permission prompt at v",
     }
 
 
@@ -163,9 +176,13 @@ def test_the_users_command_is_found_only_among_the_panes_own_processes():
     """Journeys run side by side run the same command; each finds only its own, among
     its pane's descendants, so another journey's command is not this one's turn."""
     command = [sys.executable, "-c", f"import time; {SLEEP}"]
-    pane = subprocess.Popen(["sh", "-c", f"{subprocess.list2cmdline(command)}; true"])
-    other = subprocess.Popen(command)
-    neighbour = subprocess.Popen(["sh", "-c", "sleep 30; true"])
+    # Each in a process group of its own, which the test ends whole.
+    pane = subprocess.Popen(
+        ["sh", "-c", f"{subprocess.list2cmdline(command)}; true"],
+        start_new_session=True,
+    )
+    other = subprocess.Popen(command, start_new_session=True)
+    neighbour = subprocess.Popen(["sh", "-c", "sleep 30; true"], start_new_session=True)
     try:
         deadline = time.monotonic() + 10
         while not journey_claude_code.runs(pane.pid, SLEEP):
@@ -174,9 +191,8 @@ def test_the_users_command_is_found_only_among_the_panes_own_processes():
         assert not journey_claude_code.runs(neighbour.pid, SLEEP)
     finally:
         for process in (pane, other, neighbour):
-            process.kill()
+            os.killpg(process.pid, signal.SIGKILL)
             process.wait()
-        subprocess.run(["pkill", "-f", f"import time; {SLEEP}"], check=False)
 
 
 def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):

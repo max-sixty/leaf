@@ -28,8 +28,9 @@ The steps, in order:
   that turn and be answered before its first final response, starting no turn of
   its own;
 - `resume`, on `codex-queue`: a turn interrupted during its shell command is resumed
-  with empty input, as the desktop app resumes one, and a comment sent while the
-  resumed turn reruns that command enters it, starting no turn of its own;
+  with empty input, as the desktop app resumes one, to report the interruption, so its
+  first boundary is its Stop; a comment sent as it starts enters it, starting no turn
+  of its own;
 - `restart`: with the adapter killed, the user's next turn ends with the agent having
   started it again, and a comment sent afterwards is answered.
 
@@ -92,12 +93,12 @@ from leaf_dev.review_scenario import (
 )
 
 RESTART_TURN = "Reply with the single word OK."
-# A resumed turn reruns the command it was interrupted in, so it is still running
-# when the comment sent during it is admitted.
+# A resumed turn only reports its interruption, so the first boundary it reaches is
+# its Stop, which must carry the comment sent while it runs.
 RESUME_TURN = (
     f"Run `python3 -c 'import time; {SLEEP}'` in the shell, then in a separate tool "
     "call run `printf 'verified\\n'`, then say done. If interrupted and resumed, "
-    "run the same `python3` command again first, then continue."
+    "skip the remaining shell command and report the interruption."
 )
 # Where the queue wrapper finds the private App Server the task's `codex queue` reaches.
 ENDPOINT = "LEAF_JOURNEY_CODEX_ENDPOINT"
@@ -376,6 +377,9 @@ def steps(
         # Aborted command items need not emit item/completed. They cannot stand
         # in for execution of the resumed turn's first command.
         task.running_commands.clear()
+        # The user writes the comment now and sends it the moment the resumed turn
+        # starts, so its admission does not wait on typing in a turn this short.
+        send = user.write("resume")
         previous_turns = len(task.started)
         resumed = task.request(
             "turn/start",
@@ -388,8 +392,8 @@ def steps(
         codex.until(
             lambda: resumed in task.started, "the empty-input resume did not start"
         )
-        codex.await_command(SLEEP, "the resumed turn did not rerun its command")
-        during = user.comment("resume")
+        require(resumed in task.running, "the empty-input resume already ended")
+        during = send()
         codex.settle(
             lambda: user.answered("resume"),
             "the comment sent during resume was not answered",

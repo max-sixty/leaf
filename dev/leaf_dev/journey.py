@@ -83,7 +83,7 @@ from leaf.events import build_threads
 from leaf.server import running_server
 from leaf.tasks import start_reading
 from leaf.thread import successful_replies
-from playwright.sync_api import BrowserContext, Page
+from playwright.sync_api import BrowserContext, Locator, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf_dev import ROOT
@@ -470,18 +470,11 @@ def uncovered_word(page: Page, passage: str) -> list[float] | None:
     )
 
 
-def send_comment(
-    session: Session,
-    text: str,
-    profile: AgentProfile,
-    clock: str | None,
-    passage: str | None = None,
-) -> dict:
-    """Send `text` and return the admitted comment: on the page, through the open
+def write_comment(session: Session, text: str, passage: str | None = None) -> Locator:
+    """Write `text`, unsent, and return the box holding it: on the page, in the open
     Threads composer, or on the element with id `passage`, by selecting its words and
-    commenting on the selection. The send is timed from `clock`, a page expression
-    returning the time, where one is given; `profile` records it."""
-    page, url = session.page, session.url
+    commenting on the selection."""
+    page = session.page
     if passage is None:
         box = page.locator(".lf-general leaf-text")
     else:
@@ -490,6 +483,29 @@ def send_comment(
         box = page.locator(".lf-composer leaf-text")
     box.focus()
     page.keyboard.insert_text(text)
+    return box
+
+
+def send_comment(
+    session: Session,
+    text: str,
+    profile: AgentProfile,
+    clock: str | None,
+    passage: str | None = None,
+) -> dict:
+    """Write `text` (`write_comment`), send it, and return the admitted comment."""
+    box = write_comment(session, text, passage)
+    return send_written(session, box, text, profile, clock)
+
+
+def send_written(
+    session: Session, box: Locator, text: str, profile: AgentProfile, clock: str | None
+) -> dict:
+    """Send the comment `text` written in `box` and return it, admitted. The send is
+    timed from `clock`, a page expression returning the time, where one is given;
+    `profile` records it."""
+    page, url = session.page, session.url
+    box.focus()
     if clock is not None:
         profile.started = time.monotonic()
         profile.visible_reply_started_ms = page.evaluate(clock)
@@ -626,7 +642,11 @@ def open_news(page: Page, thread: str) -> None:
     does. The page times what it then shows, so when this runs changes no reading."""
     news = page.locator(f'.lf-thread[data-id="{thread}"] .lf-thread-news')
     if news.count() and news.first.is_visible():
-        news.first.click()
+        try:
+            news.first.click(timeout=1000)
+        except PlaywrightTimeout:
+            # The notice went, its news shown, between the look and the click.
+            pass
 
 
 def shown_reply(page: Page, answer: dict) -> dict | None:
@@ -949,17 +969,28 @@ class User:
 
     def comment(self, name: str) -> str:
         """Send step `name`'s comment (`COMMENTS`) on its passage; return its id."""
+        return self.write(name)()
+
+    def write(self, name: str) -> Callable[[], str]:
+        """Write step `name`'s comment (`COMMENTS`) on its passage, unsent, as a
+        user does before the moment they mean it for; return what sends it, which
+        returns its id."""
         passage, text = COMMENTS[name]
         page = self.session.page
         # Every reply is read in Threads, which the release step's reload may shut.
         if not page.locator(".lf-general leaf-text").is_visible():
             page.locator(".lf-threads-toggle").click()
-        profile = AgentProfile()
-        profile.ask_count = 1
-        comment = send_comment(self.session, text, profile, "Date.now()", passage)
-        self.ids[name], self.profiles[name] = comment["id"], profile
-        self.sent.append(name)
-        return comment["id"]
+        box = write_comment(self.session, text, passage)
+
+        def send() -> str:
+            profile = AgentProfile()
+            profile.ask_count = 1
+            comment = send_written(self.session, box, text, profile, "Date.now()")
+            self.ids[name], self.profiles[name] = comment["id"], profile
+            self.sent.append(name)
+            return comment["id"]
+
+        return send
 
     def answered(self, name: str) -> bool:
         """Whether the agent has answered step `name`'s comment. Waiting on it, the
@@ -1213,21 +1244,20 @@ LABEL_PX = 5.5
 
 
 def chart_target(sample: dict) -> str:
-    """What a chart row names: the target, with the options it ran under, and
-    whether the user answered a permission prompt during its release ask."""
+    """What a chart row names: the target, with the options it ran under."""
     return (
         TARGET_NAMES.get(sample["target"], sample["target"])
         + (" with the hooks module" if sample.get("hooksModule") else "")
         + (" through a preview" if sample.get("preview") else "")
-        # A permission prompt holds the session for as long as it stands.
-        + (" after a permission prompt" if sample["comment"].get("approved") else "")
     )
 
 
 def chart_rows(samples: list[dict]) -> list[dict]:
     """One dot per sign each sample's release ask saw, for the latest version each
-    target ran. Samples kept before the journey ran its steps (`steps`) are left
-    out: their targets had other names, and their Claude Code ran headless."""
+    target ran, with its options. A release ask the user answered a permission
+    prompt during has a row of its own, since the prompt held the session for as
+    long as it stood. Samples kept before the journey ran its steps (`steps`) are
+    left out: their targets had other names, and their Claude Code ran headless."""
     samples = [sample for sample in samples if "steps" in sample]
     latest = {chart_target(sample): sample["version"] for sample in samples}
     rows = []
@@ -1236,7 +1266,10 @@ def chart_rows(samples: list[dict]) -> list[dict]:
         if sample["version"] != latest[name]:
             continue
         version = re.sub(r"[0-9a-f]{32,}", lambda sha: sha[0][:8], sample["version"])
-        row = f"{name} at {version}"
+        prompted = (
+            " after a permission prompt" if sample["comment"].get("approved") else ""
+        )
+        row = f"{name}{prompted} at {version}"
         for sign, clock, step, _ in SIGNS:
             if (ms := sample["comment"][clock].get(step)) is not None:
                 rows.append({"row": row, "sign": sign, "s": round(ms / 1000, 2)})

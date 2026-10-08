@@ -46,43 +46,60 @@
     watch = null;
   }
 
+  // The watch keeps its reading in memory and writes it only when it changes. Each
+  // mutation batch adopts the nodes it adds and rereads only the nodes in view.
   function startWatch() {
     if (sessionStorage.getItem(startedKey) === null || watch) return;
-    const inView = new WeakSet();
+    const found = shown();
+    let dirty = false;
+    const inView = new Set();
     const observed = new WeakSet();
-    const record = () => {
-      const found = shown();
-      const now = Date.now();
-      const seen = (node) => inView.has(node) && node.checkVisibility();
-      for (const message of document.querySelectorAll(".lf-msg.agent[data-mid]")) {
-        const id = message.dataset.mid;
-        if (
-          found.messages[id] === undefined &&
-          seen(message) &&
-          message.querySelector(".lf-msg-text")?.textContent.trim()
-        )
-          found.messages[id] = now;
-      }
-      for (const row of document.querySelectorAll(
-        ".lf-thread[data-id] > .lf-thread-summary",
-      )) {
-        const thread = row.parentElement.dataset.id;
-        const latest = row
-          .querySelector(".lf-thread-recency")
-          ?.getAttribute("datetime");
-        found.rows[thread] ??= {};
-        if (latest && found.rows[thread][latest] === undefined && seen(row))
-          found.rows[thread][latest] = now;
-      }
-      for (const node of document.querySelectorAll(".lf-thread[data-id]")) {
-        const thread = node.dataset.id;
-        const notice = node.querySelector(".lf-thread-news");
-        const said = notice && seen(notice) ? notice.textContent.trim() : null;
-        const notices = found.notices[thread] ?? [];
-        if ((notices.at(-1)?.[0] ?? null) !== said)
-          found.notices[thread] = [...notices, [said, now]];
-      }
+    const selector =
+      ".lf-msg.agent[data-mid], .lf-thread[data-id] > .lf-thread-summary, .lf-thread-news";
+    const note = (table, key, now) => {
+      if (table[key] !== undefined) return;
+      table[key] = now;
+      dirty = true;
+    };
+    const save = () => {
+      if (!dirty) return;
       sessionStorage.setItem(shownKey, JSON.stringify(found));
+      dirty = false;
+    };
+    const record = () => {
+      const now = Date.now();
+      const said = {};
+      for (const node of inView) {
+        if (!node.isConnected) {
+          inView.delete(node);
+          continue;
+        }
+        if (!node.checkVisibility()) continue;
+        if (node.matches(".lf-msg.agent[data-mid]")) {
+          if (node.querySelector(".lf-msg-text")?.textContent.trim())
+            note(found.messages, node.dataset.mid, now);
+        } else if (node.matches(".lf-thread-summary")) {
+          const thread = node.parentElement?.dataset.id;
+          const latest = node
+            .querySelector(".lf-thread-recency")
+            ?.getAttribute("datetime");
+          if (thread && latest) note((found.rows[thread] ??= {}), latest, now);
+        } else {
+          const thread = node.closest(".lf-thread[data-id]")?.dataset.id;
+          if (thread) said[thread] = node.textContent.trim();
+        }
+      }
+      for (const thread of new Set([
+        ...Object.keys(found.notices),
+        ...Object.keys(said),
+      ])) {
+        const notices = found.notices[thread] ?? [];
+        const saying = said[thread] ?? null;
+        if ((notices.at(-1)?.[0] ?? null) === saying) continue;
+        found.notices[thread] = [...notices, [saying, now]];
+        dirty = true;
+      }
+      save();
     };
     const intersections = new IntersectionObserver((entries) => {
       for (const { isIntersecting, target } of entries)
@@ -90,39 +107,43 @@
         else inView.delete(target);
       record();
     });
-    const observe = () => {
-      for (const node of document.querySelectorAll(
-        ".lf-msg.agent[data-mid], .lf-thread[data-id] > .lf-thread-summary, .lf-thread-news",
-      ))
+    const adopt = (root) => {
+      if (!(root instanceof Element)) return;
+      const nodes = root.matches(selector) ? [root] : [];
+      for (const node of [...nodes, ...root.querySelectorAll(selector)])
         if (!observed.has(node)) {
           observed.add(node);
           intersections.observe(node);
         }
+    };
+    const mutations = new MutationObserver((changes) => {
+      for (const change of changes)
+        if (change.type === "attributes") adopt(change.target);
+        else for (const node of change.addedNodes) adopt(node);
       record();
       watchApplied();
+    });
+    // The page's applied state is the runtime's own reading, which a reply joins when
+    // the page has it, whether or not it draws it.
+    const apply = (reading) => {
+      const now = Date.now();
+      for (const event of reading.authoritative?.events ?? [])
+        note(found.applied, event.id, now);
+      save();
     };
-    const mutations = new MutationObserver(observe);
+    const watchApplied = () => {
+      if (!watch || watch.applied || !document.querySelector("script[data-lf-server]"))
+        return;
+      watch.applied = runtimeModule("semantic-state").then((semantic) => {
+        apply(semantic.readApplication());
+        if (watch) watch.unsubscribe = semantic.watchSemantic(apply);
+      });
+    };
     watch = { mutations, intersections };
     mutations.observe(document, { attributes: true, childList: true, subtree: true });
-    observe();
-  }
-
-  // The page's applied state is the runtime's own reading, which a reply joins when
-  // the page has it, whether or not it draws it.
-  function watchApplied() {
-    if (!watch || watch.applied || !document.querySelector("script[data-lf-server]"))
-      return;
-    watch.applied = runtimeModule("semantic-state").then((semantic) => {
-      const apply = (reading) => {
-        const found = shown();
-        const now = Date.now();
-        for (const event of reading.authoritative?.events ?? [])
-          found.applied[event.id] ??= now;
-        sessionStorage.setItem(shownKey, JSON.stringify(found));
-      };
-      apply(semantic.readApplication());
-      if (watch) watch.unsubscribe = semantic.watchSemantic(apply);
-    });
+    adopt(document.documentElement);
+    record();
+    watchApplied();
   }
 
   // When the page first showed the user reply `id`, admitted at `ts` in `thread`, and

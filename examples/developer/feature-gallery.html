@@ -211,8 +211,8 @@
 
       .interaction-frame {
         display: none;
-        width: var(--interaction-viewport-size, 200%);
-        height: var(--interaction-viewport-size, 200%);
+        width: calc(100% / var(--interaction-page-scale, 0.5));
+        height: calc(100% / var(--interaction-page-scale, 0.5));
         border: 0;
         opacity: 0;
         pointer-events: none;
@@ -221,17 +221,14 @@
       }
 
       .interaction-gallery[data-interaction-viewport="1"] {
-        --interaction-viewport-size: 100%;
         --interaction-page-scale: 1;
       }
 
       .interaction-gallery[data-interaction-viewport="2"] {
-        --interaction-viewport-size: 200%;
         --interaction-page-scale: 0.5;
       }
 
       .interaction-gallery[data-interaction-viewport="4"] {
-        --interaction-viewport-size: 400%;
         --interaction-page-scale: 0.25;
       }
 
@@ -318,6 +315,16 @@
         }
       ]
     </script>
+    <script id="bg-title-sheen-history" type="application/json">
+      [
+        {
+          "id": "bg-title-sheen-question",
+          "kind": "comment",
+          "author": "user",
+          "text": "Can we schedule the workshop lunch?"
+        }
+      ]
+    </script>
     <script type="module">
       import { afterPresentation, commands } from "/runtime/widget-api.js";
 
@@ -368,6 +375,23 @@
         });
 
       await customElements.whenDefined("lf-sample");
+
+      const titleSample = document.querySelector("#bg-title-sheen-sample");
+      let titleRequested = false;
+      let shownTitleRevision = null;
+      const showPendingTitle = () => {
+        const ready = titleSample.ready;
+        if (!titleRequested || !ready || shownTitleRevision === ready) return;
+        shownTitleRevision = ready;
+        void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
+      };
+      document.querySelector("#bg-title-sheen-show").addEventListener("click", () => {
+        titleRequested = true;
+        shownTitleRevision = null;
+        showPendingTitle();
+      });
+      titleSample.addEventListener("lf-sample-ready", showPendingTitle);
+      void titleSample.ready.then(showPendingTitle);
 
       const sample = document.querySelector("#bg-panel-sample");
       let selected = null;
@@ -941,7 +965,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               the agent; open one to read the full messages beneath it. Reply follows a
               short conversation directly; in a long conversation it stays visible while
               you scroll. While you write in a short thread, an arriving reply waits
-              behind “new reply” until you open it.
+              behind “new reply” until you open it. Switch to another browser tab, have
+              the agent add a reply, then return: held replies and the first refreshed
+              reply appear automatically with the usual arrival tint. Your draft and
+              caret stay in the same editor. Leave this page visible beside another
+              window and focus that window: new replies still wait behind the notice.
             </p>
             <p id="bg-thread-notices">
               <strong>New information.</strong> Have the agent add a message after the
@@ -1029,6 +1057,32 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </p>
             <section id="bg-thread-state-titles">
               <h3>Thread title</h3>
+              <section id="bg-title-sheen">
+                <p id="bg-title-sheen-guide">
+                  Open the sample thread to see a pending title highlighted across its
+                  lettering. Reset starts a fresh untitled thread. Reduced motion shows
+                  solid muted text.
+                </p>
+                <button id="bg-title-sheen-show" type="button">
+                  Open sample thread
+                </button>
+                <lf-sample
+                  id="bg-title-sheen-sample"
+                  label="Pending thread title"
+                  window
+                >
+                  <template
+                    id="bg-title-sheen-page"
+                    data-sample
+                    data-sample-events="bg-title-sheen-history"
+                  >
+                    <h1>Workshop schedule</h1>
+                    <p id="bg-title-sheen-copy">
+                      Lunch is the remaining question for the workshop.
+                    </p>
+                  </template>
+                </lf-sample>
+              </section>
               <div id="bg-thread-title-pair">
                 <section id="bg-thread-title-before">
                   <p class="eyebrow">Before · untitled</p>
@@ -1036,8 +1090,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     <strong>An untitled thread.</strong> The workshop schedule leaves
                     lunch open. Open Threads to view it. The agent asked without naming
                     the thread, so its row reads the question itself. A thread you open
-                    reads <code>Generating title</code> in muted text until the agent
-                    gives it a short name.
+                    reads <code>Generating title</code> with a highlight sweeping across
+                    the lettering until the agent gives it a short name. With reduced
+                    motion, the text stays a solid muted color.
                   </p>
                 </section>
                 <section id="bg-thread-title-after">
@@ -1602,12 +1657,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   id="bg-gloss"
                   tip="A narrow end-to-end path through the real system."
                   >walking skeleton</lf-gloss
-                >. Code adds line numbers and Notes, and quotes an excerpt under its
-                file's own numbers with an elided row where it skips; Tree shows file
-                structure. Use “Copy code” on the right of either block below, or
-                <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard keeps the
-                code's whitespace and leaves out line numbers and Notes. Bash separates
-                commands, arguments, and flags with the same syntax colors as a diff.
+                >. Hover the term, then move into its explanation; the card stays open
+                while you read it. Code adds line numbers and Notes, and quotes an
+                excerpt under its file's own numbers with an elided row where it skips;
+                Tree shows file structure. Use “Copy code” on the right of either block
+                below, or <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard
+                keeps the code's whitespace and leaves out line numbers and Notes. Bash
+                separates commands, arguments, and flags with the same syntax colors as
+                a diff.
               </p>
               <pre
                 id="bg-plain-code"
@@ -1793,6 +1850,8 @@ gallery/
                 selected panel after reload. At page level, scroll a view and switch
                 away and back: each selection reaches the panel’s beginning below the
                 tab strip. Browser Back and Forward return to the corresponding views.
+                Narrow the window until the gallery’s own tab names overflow, then page
+                them with the edge arrows. Reduced motion makes that move immediate.
               </p>
               <lf-tabs id="bg-tabs">
                 <lf-tab id="bg-tab-current" label="Current">

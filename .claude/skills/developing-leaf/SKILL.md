@@ -66,12 +66,16 @@ theme's tokens. Follow
 selection and exploration elements, present the candidates, and submit a task
 saying what to build.
 
-When the subject already exists and the candidates are to be implemented,
-implement each in the runtime and theme that own the surface and present it
-through a shipped example or fixture. A sketch without implementation is
-page-local markup derived from the current surface's controls, copy, and
-styling, shown beside that surface as the baseline. For a live Leaf interface,
-embed the baseline and candidates as `lf-sample window` children in the playground.
+For an existing-interface comparison, the property the user named defines which
+controls and states the survey covers. Find it in its defining code; it can
+cross owners or select part of one owner's interface. Candidates share the
+current interface except for the requested change. Use this checkout's rendered
+interface as the baseline in the review state. Implement runtime candidates in
+the runtime and theme that own the surface; an appearance sketch can restyle
+the live surface. A separate sketch keeps the same contract unless the user
+requested a partial demonstration. Verify the comparison by operating the
+baseline and candidates through the same journey before handoff. For a live
+Leaf interface, embed them as `lf-sample window` children.
 The outer page carries the configuration and feedback; the children carry practice
 interactions. Start their fictional histories with `data-sample-events`, sharing
 one parent-local JSON fixture when the candidates need the same conversation
@@ -79,14 +83,13 @@ one parent-local JSON fixture when the candidates need the same conversation
 
 ## Choose what the user reviews
 
-Show the change or unresolved choice that needs the user's judgment, with the
-comparison and tradeoff needed to assess it. Name the feedback sought. When
-nothing needs their judgment, hand over the verified result.
+Prefer outputs that are quick for the user to review. Perform reviews yourself
+when you can do them as well as the user, and report the results.
 
-Verify behavior expected to stay unchanged against the baseline yourself and
-report what you checked and found. An unchanged sample can explain a changed
-contract; make it optional to operate and keep regression verification with the
-agent. Present visible and interaction changes using the proof below.
+Choose the review decisions from the user's request, then revise the page's
+choices to match.
+
+Present visible and interaction changes using the proof below.
 
 ## Prove and hand off a visible change
 
@@ -100,9 +103,13 @@ Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
 appear. A Playwright screenshot of an element taller than the viewport draws
 fixed overlays in the wrong place; crop a viewport capture instead.
 
-Re-vendor before trusting a browser result after a runtime, theme, registry, or
-widget change. A green suite does not judge visual quality; run `/ui-sweep` or
-look at a composed page.
+Make required visual relationships hold as content and sizes change. Express
+them through layout constraints or positions derived from one shared coordinate
+or dimension. Derive the relationships from the source and check their computed
+geometry in the delivered page, including embedded views; a screenshot alone
+can hide a small alignment error.
+Re-vendor after a runtime, theme, registry, or widget change, then judge the
+composed page visually as well.
 
 To ask a page a question, such as where an element sits, what style it computes, or
 what holds focus after a key, run `uv run leaf-dev probe` rather than writing a
@@ -139,14 +146,9 @@ uv run leaf-dev trace-server \
 The command prints the viewer URL and stays running. Link that URL in the review
 page; open a desktop browser only when the user asks to watch.
 
-When showing a timeline in Leaf, select the optional `playwright` package and
-read its author instructions. Bind `lf-trace` to the original archive's imported
-`playwright-trace` source; that contract's producer instructions own the import
-command. The widget combines action checkpoints and optional intermediate frames
-in one chronological timeline, with comments on images and saved accessibility
-elements, and a direct link to the
-same recording in the running Trace Viewer. The viewer supplies DOM, source,
-console and network inspection. Keep both previews running and verify that the
+Show the trace on the Leaf page in `lf-trace`, as
+`skills/leaf/references/authoring-evidence.md`, "Source files and media", says,
+importing it with that viewer URL. Keep both previews running and verify that the
 viewer URL reaches the user's browser before handing it over.
 
 For an important result, perform the input and use a Playwright expectation to
@@ -171,13 +173,14 @@ the same difference. Check them all, show the difference once, in the state wher
 it reads most clearly, and say in a line which other states repeat it, since the
 user reads every pair and a repeat tells them nothing new. A dark-scheme or phone
 pair belongs only where the change looks different there, as a change to a colour
-or theme token does in the dark scheme. For an
-interaction-only change, serve both versions ("Compare checkout versions" below),
-keep both previews live, and hand off the labeled URL pair with the action that
-reveals the difference. Exercise the same journey in both at the same fragment,
-viewport, theme, and interaction state. A live preview handed to the user
-carries the fragment of the semantic block it is about (a titled section's own
-id) and stays running.
+or theme token does in the dark scheme.
+
+For an interaction-only change, compare the same journey on both versions
+("Compare checkout versions" below), at the same fragment, viewport, theme,
+and interaction state. Choose the handoff materials using "Choose what the user
+reviews" above, and use the recorded journey for motion evidence. A live preview
+handed to the user carries the fragment of the semantic block it is about
+(a titled section's own id) and stays running.
 
 ## Preview a page
 
@@ -316,7 +319,7 @@ To make an existing page exercise the current checkout, re-vendor it with the
 checkout launcher (`<root>/skills/leaf/references/serving-pages.md`); fix or
 report a compatibility refusal rather than falling back to the installed plugin.
 A page that explains how a Leaf interface behaves lets the user operate it
-(`references/sample-explainers.md`).
+(`references/page-authoring.md`, "Live samples").
 
 ## Score an instruction change
 
@@ -385,6 +388,7 @@ them when they fail (`tests/AGENTS.md`, "Run what the change needs").
 is a fast-forward failure.
 
 Installed sessions load harness caches, not the checkout. Claude Code picks up a
-push on its marketplace sweep; the post-merge hook refreshes an installed Codex
-plugin, and after a merge that skipped hooks, run
+push on its marketplace sweep; Codex refreshes configured Git marketplaces and
+installed plugins at startup. Both follow the configured ref (`prepared` for
+consumer installs). For an immediate Codex refresh in a running session, run
 `codex plugin marketplace upgrade leaf`.

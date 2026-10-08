@@ -123,13 +123,33 @@
         (record.attributeName === "inert" && transition.focusedInert))
     );
   };
+  // Residency verifies that authored CSS actually supplies a requested grid shift.
+  // An ignored request is withdrawn in the same reading; every other style member
+  // must remain unchanged. A settled failed placement must not probe again (the
+  // authored-track browser test separately asserts zero subsequent mutations).
+  const columnProbe = ({ record, through }) => {
+    if (record.attributeName !== "style" || record.target !== document.body)
+      return false;
+    const withoutShift = (value) => {
+      const style = document.createElement("div").style;
+      style.cssText = value ?? "";
+      style.removeProperty("--lf-column-shift");
+      return style.cssText;
+    };
+    const before = withoutShift(record.oldValue);
+    return (
+      through.some((value) => value !== record.oldValue) &&
+      through.every((value) => withoutShift(value) === before)
+    );
+  };
   const putBack = ({ record, through }) =>
     (record.attributeName === "tabindex" &&
       record.oldValue === null &&
       through.every((value) => value === "-1")) ||
     (record.attributeName === "class" &&
       record.target.matches(".lf-margin-cluster") &&
-      through.every((value) => sameTokens(tokens(value), tokens(record.oldValue))));
+      through.every((value) => sameTokens(tokens(value), tokens(record.oldValue)))) ||
+    columnProbe({ record, through });
   // An element reference set through reflection (`ariaDetailsElements`, and the rest of
   // the aria-*Elements family) writes an empty attribute whatever the elements are, so
   // an empty value that stays empty says nothing about whether the relation changed.

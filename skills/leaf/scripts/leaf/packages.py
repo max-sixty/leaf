@@ -7,15 +7,11 @@ import re
 import shutil
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 
 from packaging.requirements import InvalidRequirement, Requirement
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib
 
 from .files import read_json, replace_files
 from .layer import (

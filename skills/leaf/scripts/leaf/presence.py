@@ -17,7 +17,7 @@ from .files import (
 from .harness import claim_harness
 from .leases import wait_is_live, waiter_lease_path
 from .machine import state_home
-from .page_memory import memo
+from .page_memory import Slot, memo
 from .schema import (
     INTERACTIONS_FILE,
     UNNAMED_AGENT,
@@ -41,8 +41,8 @@ from .state import now_iso, page_key
 # without touching a page file. Readers share one observation for two seconds, while
 # a changed page file invalidates it immediately.
 PRESENCE_CACHE_S = 2.0
-# (state-home stamp, resolved candidate pages): the machine's, so one slot.
-_candidates = ((), ())
+# The machine's candidates, keyed by the two directory stamps, in one slot.
+_candidates = Slot()
 _candidates_lock = threading.Lock()
 
 
@@ -84,29 +84,24 @@ def neighbor_candidates() -> tuple:
     session's scratch directory. Released and dead claims stay useful here as
     provenance.
 
-    The set moves when an entry in one of those two directories does, or when a
-    page it holds is deleted, which for a claimed scratch page moves neither. So
-    it is read again only then: keyed on the two stamps, the way `leaf wait` keys
-    its ownership set on the claims directory's, and on each held page still
-    being there, so the read drops a deleted page from the candidates after its
-    deletion. Whether each page is serving is the caller's question, asked fresh
+    Discovery is keyed on the two directory stamps, the way `leaf wait` keys its
+    ownership set on the claims directory's. Each reading drops paths no longer
+    present: deleting a claimed scratch page moves neither directory stamp.
+    Whether each remaining page is serving is the caller's question, asked fresh
     every time."""
-    global _candidates
     home = state_home()
     claims, pages = home / "claims", home / "pages"
     stamp = (home, file_stamp(claims), file_stamp(pages))
-    with _candidates_lock:
-        if _candidates[0] == stamp and all(page.is_dir() for page in _candidates[1]):
-            return _candidates[1]
+
+    def discover() -> tuple[Path, ...]:
         found = [d for d in pages.iterdir() if d.is_dir()] if pages.is_dir() else []
         found += (Path(claim["page"]) for claim in claim_records())
-        resolved = dict.fromkeys(
-            page for page in (path.resolve() for path in found) if page.is_dir()
-        )
-        # Keyed on the stamp taken before the read, so an entry written during it
-        # moves the stamp and the next call reads again.
-        _candidates = (stamp, tuple(resolved))
-        return _candidates[1]
+        return tuple(dict.fromkeys(path.resolve() for path in found))
+
+    with _candidates_lock:
+        # Keyed on the stamp taken before discovery, so an entry written during
+        # the read moves the stamp and the next call discovers again.
+        return tuple(page for page in _candidates.get(stamp, discover) if page.is_dir())
 
 
 def other_leaves(page_dir: Path) -> list:

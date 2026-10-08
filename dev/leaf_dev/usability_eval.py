@@ -619,15 +619,15 @@ GRACE = 20
 def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     """Serve the case's page from a live session and play its user.
 
-    Each time a turn ends with every posted round delivered, the next round goes out
-    through the served page, a few seconds later so that Leaf's watcher has
-    taken its lease. The session closes once the last round's turn has ended, when a
-    round waits past DELIVERY_LIMIT, or at LIVE_LIMIT, which voids the run. At each
-    turn's end the stream records the page's status."""
+    Each round retains its admitted inputs until delivery is confirmed. The next
+    round goes out at a turn's end, or during work for a declared running injection.
+    An idle injection pauses so Leaf's watcher can take its lease. The session closes
+    once the last round's turn ends, when delivery waits past DELIVERY_LIMIT, or at
+    LIVE_LIMIT, which voids the run. Each turn's end records the page's status."""
     prompt = case.prompts[0].replace("{page}", str(page))
     (run.dir / "prompt-1.txt").write_text(prompt)
-    # The deadline for the posted round's delivery; unstarted until the first post.
-    waiting = threading.Timer(DELIVERY_LIMIT, lambda: None)
+    waiting: threading.Timer | None = None
+    closing: threading.Timer | None = None
     url, posted, delivered = None, 0, 0
     pending_events: set[str] = set()
     attempts: set[str] = set()
@@ -652,8 +652,53 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 stream.write(json.dumps(record) + "\n")
                 stream.flush()
 
-            def post(injection: str) -> None:
-                nonlocal posted, pending_events, waiting
+            for record in child.records():
+                if delivered < posted:
+                    events = page_events(page)
+                    if inputs_received(
+                        events, attempts
+                    ) and pending_events <= opened_input_ids(events):
+                        delivered = posted
+                        waiting.cancel()
+                        note(
+                            {
+                                "type": "eval_received",
+                                "round": posted,
+                                "events": sorted(pending_events),
+                                "received_at": now(),
+                            }
+                        )
+                note(record)
+                if not url and (found := URL.search(json.dumps(record))):
+                    url = found[0]
+                if record.get("type") == "result":
+                    state = page_state(run, page)
+                    note(
+                        {
+                            "type": "eval_status",
+                            "status": state.get("status"),
+                            "listening": state["listening"],
+                            "received_at": now(),
+                        }
+                    )
+                # Keep the round and its receipt deadline together: posting the next
+                # running round cannot replace an undelivered round's evidence.
+                if delivered < posted:
+                    continue
+                if not url or posted == len(case.rounds):
+                    if record.get("type") == "result":
+                        if closing is not None:
+                            closing.cancel()
+                        closing = threading.Timer(GRACE, child.close)
+                        closing.start()
+                    continue
+                injection = "idle" if record.get("type") == "result" else "running"
+                if (
+                    injection == "running"
+                    and (case.injection[posted] if case.injection else "idle")
+                    != "running"
+                ):
+                    continue
                 if injection == "idle":
                     time.sleep(3)
                 active_turn = observed_active_turn(run, page, child)
@@ -680,53 +725,11 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 )
                 waiting = threading.Timer(DELIVERY_LIMIT, child.close)
                 waiting.start()
-
-            for record in child.records():
-                if delivered < posted:
-                    events = page_events(page)
-                    if inputs_received(
-                        events, attempts
-                    ) and pending_events <= opened_input_ids(events):
-                        delivered = posted
-                        waiting.cancel()
-                        note(
-                            {
-                                "type": "eval_received",
-                                "round": posted,
-                                "events": sorted(pending_events),
-                                "received_at": now(),
-                            }
-                        )
-                note(record)
-                if not url and (found := URL.search(json.dumps(record))):
-                    url = found[0]
-                if (
-                    posted < len(case.rounds)
-                    and url
-                    and record.get("type") != "result"
-                    and (case.injection[posted] if case.injection else "idle")
-                    == "running"
-                ):
-                    post("running")
-                if record.get("type") != "result":
-                    continue
-                state = page_state(run, page)
-                note(
-                    {
-                        "type": "eval_status",
-                        "status": state.get("status"),
-                        "listening": state["listening"],
-                        "received_at": now(),
-                    }
-                )
-                if delivered < posted:
-                    continue
-                if url and posted < len(case.rounds):
-                    post("idle")
-                else:
-                    threading.Timer(GRACE, child.close).start()
     finally:
-        waiting.cancel()
+        if waiting is not None:
+            waiting.cancel()
+        if closing is not None:
+            closing.cancel()
         run.leaf("server", "stop", str(page))
 
 

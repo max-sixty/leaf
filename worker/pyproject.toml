@@ -6,7 +6,7 @@
 [project]
 name = "leaf-website"
 version = "0"
-requires-python = ">=3.10"
+requires-python = ">=3.14"
 dependencies = ["leaf"]
 
 [tool.uv.sources]

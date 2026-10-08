@@ -4137,7 +4137,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
                 if select.select([door], [], [], 0)[0]:
                     break
                 door.sendall(b"%x\r\n" % len(chunk) + chunk + b"\r\n")
-        except (BrokenPipeError, ConnectionResetError, TimeoutError):
+        except BrokenPipeError, ConnectionResetError, TimeoutError:
             # The door has stopped reading, so the rest of the body has nowhere to go.
             pass
         try:
@@ -4146,7 +4146,7 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
                 if not heard:
                     break
                 spoken += heard
-        except (ConnectionResetError, TimeoutError):
+        except ConnectionResetError, TimeoutError:
             pass
     finally:
         door.close()
@@ -4399,6 +4399,18 @@ def test_neighbour_discovery_sees_a_page_made_in_one_clock_tick(page_dir, monkey
     written(pages)
     assert (pages / "second").resolve() not in before
     assert (pages / "second").resolve() in presence_model.neighbor_candidates()
+
+
+def test_neighbor_discovery_follows_a_claimed_scratch_directory_lifetime(tmp_path):
+    """A claim's path can disappear and return without either discovery stamp moving."""
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    record_claim(scratch, id="scratch-session")
+    assert scratch.resolve() in presence_model.neighbor_candidates()
+    scratch.rmdir()
+    assert scratch.resolve() not in presence_model.neighbor_candidates()
+    scratch.mkdir()
+    assert scratch.resolve() in presence_model.neighbor_candidates()
 
 
 def test_a_snapshot_holds_declared_data_media_with_the_current_value(

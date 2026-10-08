@@ -105,9 +105,13 @@ Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
 appear. A Playwright screenshot of an element taller than the viewport draws
 fixed overlays in the wrong place; crop a viewport capture instead.
 
-Re-vendor before trusting a browser result after a runtime, theme, registry, or
-widget change. A green suite does not judge visual quality; run `/ui-sweep` or
-look at a composed page.
+Make required visual relationships hold as content and sizes change. Express
+them through layout constraints or positions derived from one shared coordinate
+or dimension. Derive the relationships from the source and check their computed
+geometry in the delivered page, including embedded views; a screenshot alone
+can hide a small alignment error.
+Re-vendor after a runtime, theme, registry, or widget change, then judge the
+composed page visually as well.
 
 To ask a page a question, such as where an element sits, what style it computes, or
 what holds focus after a key, run `uv run leaf-dev probe` rather than writing a

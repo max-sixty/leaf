@@ -8227,14 +8227,17 @@ def test_composer_grows_caps_and_shrinks_with_its_text(browser, serve):
     grown = state()
     write(box, "x " * 900)  # far past the ceiling
     capped = state()
+    expect(page.locator(".lf-threads")).to_be_visible()
     write(box, "short again")
     shrunk = state()
 
     assert grown["h"] > empty["h"], "the box must grow with its content"
     assert not grown["scrollable"], "a box that fits its text must not be scrollable"
-    # The ceiling is 50vh — the viewport's share, not a count of lines — measured
-    # here in the suite's 900px-tall window.
-    assert capped["h"] == 450, f"the box must stop at its ceiling, got {capped['h']}px"
+    # The panel foot yields room to the thread list, so its available share can
+    # cap the editor before the viewport's 50vh ceiling does.
+    assert grown["h"] < capped["h"] <= page.viewport_size["height"] / 2, (
+        f"the box must grow within the panel's available share, got {capped['h']}px"
+    )
     assert capped["scrollable"], (
         "past the ceiling the scrollbar is real and belongs there"
     )

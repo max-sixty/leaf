@@ -7,6 +7,7 @@ and activity transitions still have bounded timed reads. Diagnostics never wake
 the page subscribers. watchfiles owns platform notifications and polling fallback.
 """
 
+import os
 import threading
 import weakref
 from pathlib import Path
@@ -35,25 +36,54 @@ class FileChanges:
         self.stop = threading.Event()
         self.threads = []
         self.watchers = []
-        polling = _default_force_polling(None)
-        for recursive in (False, True):
-            paths = [path for path, nested in roots.items() if nested == recursive]
-            if not paths:
-                continue
-            watcher = RustNotify(
-                [str(path) for path in paths],
-                _default_debug(None),
-                polling,
-                _default_poll_delay_ms(300),
-                recursive,
-                _default_ignore_permission_denied(None),
-            )
-            self.watchers.append(watcher)
-            thread = threading.Thread(
-                target=self._run, args=(watcher, accepts), daemon=True
-            )
-            self.threads.append(thread)
-            thread.start()
+        self.roots = {}
+        try:
+            # Keep the directory objects alive for exactly their subscription.
+            # Linux can reuse a deleted directory's inode after an inotify watch
+            # is revoked; an open descriptor prevents that identity alias.
+            for path, recursive in roots.items():
+                self.roots[path] = (
+                    recursive,
+                    os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC),
+                )
+            polling = _default_force_polling(None)
+            for recursive in (False, True):
+                paths = [path for path, nested in roots.items() if nested == recursive]
+                if not paths:
+                    continue
+                watcher = RustNotify(
+                    [str(path) for path in paths],
+                    _default_debug(None),
+                    polling,
+                    _default_poll_delay_ms(300),
+                    recursive,
+                    _default_ignore_permission_denied(None),
+                )
+                self.watchers.append(watcher)
+                thread = threading.Thread(
+                    target=self._run, args=(watcher, accepts), daemon=True
+                )
+                thread.start()
+                self.threads.append(thread)
+        except BaseException:
+            self.close()
+            raise
+
+    def matches(self, roots: dict[Path, bool]) -> bool:
+        """Whether the installed, pinned directories still occupy these paths."""
+        if self.stop.is_set() or self.roots.keys() != roots.keys():
+            return False
+        for path, (recursive, descriptor) in self.roots.items():
+            held = os.fstat(descriptor)
+            if recursive != roots[path]:
+                return False
+            try:
+                current = path.stat()
+            except FileNotFoundError:
+                return False
+            if (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino):
+                return False
+        return True
 
     def _run(self, watcher, accepts):
         try:
@@ -105,6 +135,9 @@ class FileChanges:
             thread.join()
         for watcher in self.watchers:
             watcher.close()
+        while self.roots:
+            _path, (_recursive, descriptor) = self.roots.popitem()
+            os.close(descriptor)
 
     def batch(self, timeout: float) -> set[str]:
         """Consume retained paths for a single batch reader, or an idle timeout."""
@@ -127,19 +160,6 @@ def existing_root(path: Path) -> Path:
     while not path.is_dir():
         path = path.parent
     return path
-
-
-def subscription_key(roots: dict[Path, bool]) -> tuple:
-    """Native directory identities, without treating each child write as a rearm."""
-    keys = []
-    for path, recursive in roots.items():
-        try:
-            stat = path.stat()
-            identity = (stat.st_dev, stat.st_ino)
-        except FileNotFoundError:
-            identity = None
-        keys.append((path, recursive, identity))
-    return tuple(sorted(keys))
 
 
 def page_change(page: Path, changed: Path) -> bool:
@@ -167,7 +187,6 @@ class _PageChanges:
     def __init__(self):
         self.lock = threading.Lock()
         self.targets = None
-        self.roots = None
         self.changes = None
         self.release = None
 
@@ -176,12 +195,11 @@ class _PageChanges:
         roots = {existing_root(target.parent): False for target in targets}
         roots[existing_root(page.parent)] = False
         roots[existing_root(page)] = True
-        root_key = subscription_key(roots)
         with self.lock:
             if (
                 self.changes is None
                 or self.targets != targets
-                or self.roots != root_key
+                or not self.changes.matches(roots)
             ):
                 if self.release is not None:
                     self.release()
@@ -193,7 +211,6 @@ class _PageChanges:
                 # an unheld page memory therefore closes and joins its provider.
                 self.release = weakref.finalize(self, self.changes.close)
                 self.targets = targets
-                self.roots = root_key
             return self.changes
 
 

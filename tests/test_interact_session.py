@@ -3461,23 +3461,24 @@ def test_app_server_activity_throttles_stream_deltas(monkeypatch):
         lifecycle=cleanup_model.session_record("codex-thread"),
     )
     clock = iter([10.0, 10.1, 10.3])
-    monkeypatch.setattr(codex_model.time, "monotonic", lambda: next(clock))
     updates = []
     clears = []
     take_stream_activity(monkeypatch, updates, clears)
 
-    for delta in ("one", " two", " three"):
-        fold.absorb(
-            {
-                "method": "item/agentMessage/delta",
-                "params": {
-                    "threadId": "codex-thread",
-                    "turnId": "turn-live",
-                    "itemId": "message-live",
-                    "delta": delta,
-                },
-            }
-        )
+    with monkeypatch.context() as clock_patch:
+        clock_patch.setattr(codex_model.time, "monotonic", lambda: next(clock))
+        for delta in ("one", " two", " three"):
+            fold.absorb(
+                {
+                    "method": "item/agentMessage/delta",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turnId": "turn-live",
+                        "itemId": "message-live",
+                        "delta": delta,
+                    },
+                }
+            )
 
     assert updates == [
         ("codex-thread", "turn-live", {"kind": "replying"}),
@@ -8853,6 +8854,11 @@ def test_a_watch_wakes_on_what_its_pass_read_moving(page_dir):
         watch.release()
 
 
+# This interval is the subject of diagnostic absence assertions, not a deadline
+# for native scheduling; their later positive write is bounded by STATED_TIMEOUT.
+DIAGNOSTIC_QUIET_WINDOW_S = 0.2
+
+
 def test_a_quiet_native_watch_discovers_claim_transfer_and_nested_source_edits(
     page_dir, monkeypatch
 ):
@@ -8871,7 +8877,7 @@ def test_a_quiet_native_watch_discovers_claim_transfer_and_nested_source_edits(
         list(watch.tick())
         mark = watch.mark()
         cleanup_model.write_json(page_dir / "user-views.json", {"diagnostic": True})
-        assert not watch.await_news(mark, timeout=0.2)
+        assert not watch.await_news(mark, timeout=DIAGNOSTIC_QUIET_WINDOW_S)
         source = page_dir / "page" / "nested"
         source.mkdir(parents=True)
         module = source / "state.js"
@@ -8943,7 +8949,7 @@ def test_an_explicit_native_watch_follows_foreign_claim_and_lifecycle_publicatio
         )
         mark = watch.mark()
         cleanup_model.write_json(page_dir / "user-views.json", {"diagnostic": True})
-        assert not watch.await_news(mark, timeout=0.2)
+        assert not watch.await_news(mark, timeout=DIAGNOSTIC_QUIET_WINDOW_S)
     finally:
         watch.release()
 
@@ -8981,7 +8987,9 @@ def test_native_watch_rearms_a_session_partition_created_after_startup(
         watch.release()
 
 
-def test_shared_page_native_owner_rearms_created_and_replaced_directories(tmp_path):
+def test_shared_page_native_owner_rearms_created_and_replaced_directories(
+    tmp_path, monkeypatch
+):
     from leaf.file_changes import _PageChanges
 
     page = tmp_path / "later-page"
@@ -9003,13 +9011,153 @@ def test_shared_page_native_owner_rearms_created_and_replaced_directories(tmp_pa
             waiting = executor.submit(changes.wait, mark, STATED_TIMEOUT)
             module.write_text("later authored input")
             assert waiting.result(timeout=STATED_TIMEOUT)
+        descriptor = changes.roots[page][1]
+        previous_identity = os.fstat(descriptor)
         shutil.rmtree(page)
         page.mkdir()
-        replacement = owner.connect(page)
+        current_identity = page.stat()
+        assert (previous_identity.st_dev, previous_identity.st_ino) != (
+            current_identity.st_dev,
+            current_identity.st_ino,
+        ), "the subscribed directory descriptor must prevent inode reuse"
+        closed = []
+        real_close = os.close
+
+        def closing(descriptor):
+            closed.append(descriptor)
+            real_close(descriptor)
+
+        with monkeypatch.context() as observation:
+            observation.setattr(os, "close", closing)
+            replacement = owner.connect(page)
         assert replacement is not changes
+        assert descriptor in closed
         assert all(not thread.is_alive() for thread in changes.threads)
+        source = page / "page"
+        source.mkdir()
+        mark = replacement.mark()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            waiting = executor.submit(replacement.wait, mark, STATED_TIMEOUT)
+            (source / "after-replacement.html").write_text("replacement authored input")
+            assert waiting.result(timeout=STATED_TIMEOUT)
     finally:
         owner.release()
+
+
+def test_session_native_watch_pins_roots_until_replacement(page_dir, monkeypatch):
+    """The native provider holds an inode while the pathname is replaced."""
+    watch = session_model.Watch(None, pages=(page_dir,))
+    assert watch.acquire()
+    try:
+        list(watch.tick())
+        watch.mark()
+        previous = watch.changes
+        descriptor = previous.roots[page_dir][1]
+        held = os.fstat(descriptor)
+        shutil.rmtree(page_dir)
+        page_dir.mkdir()
+        current = page_dir.stat()
+        assert (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)
+        watch.mark()
+        assert watch.changes is not previous
+        assert all(not thread.is_alive() for thread in previous.threads)
+    finally:
+        watch.release()
+
+
+@pytest.mark.parametrize("failure", ["directory", "provider"])
+def test_native_subscription_releases_partial_startup_resources(
+    tmp_path, monkeypatch, failure
+):
+    from leaf import file_changes
+
+    shallow, tree = tmp_path / "shallow", tmp_path / "tree"
+    shallow.mkdir()
+    tree.mkdir()
+    opened, readers = [], []
+    real_open, real_thread, real_native = (
+        os.open,
+        threading.Thread,
+        file_changes.RustNotify,
+    )
+
+    def opening(*args, **kwargs):
+        if failure == "directory" and opened:
+            raise RuntimeError("directory installation refused")
+        descriptor = real_open(*args, **kwargs)
+        opened.append(descriptor)
+        return descriptor
+
+    def thread(*args, **kwargs):
+        reader = real_thread(*args, **kwargs)
+        readers.append(reader)
+        return reader
+
+    providers = []
+
+    def installing(*args, **kwargs):
+        if failure == "provider" and providers:
+            raise RuntimeError("provider installation refused")
+        provider = real_native(*args, **kwargs)
+        providers.append(provider)
+        return provider
+
+    monkeypatch.setattr(os, "open", opening)
+    monkeypatch.setattr(file_changes.threading, "Thread", thread)
+    monkeypatch.setattr(file_changes, "RustNotify", installing)
+    with pytest.raises(RuntimeError, match="installation refused"):
+        file_changes.FileChanges({shallow: False, tree: True}, lambda _path: True)
+    assert opened
+    for descriptor in opened:
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
+    assert all(not reader.is_alive() for reader in readers)
+
+
+def test_native_subscription_rearms_a_root_replaced_during_installation(
+    tmp_path, monkeypatch
+):
+    """A replacement between pinning and native installation invalidates the plan."""
+    from leaf import file_changes
+
+    page = tmp_path / "installing"
+    page.mkdir()
+    real_native = file_changes.RustNotify
+    installations = []
+
+    def installing(*args, **kwargs):
+        if not installations:
+            page.rmdir()
+            page.mkdir()
+        installations.append(args)
+        return real_native(*args, **kwargs)
+
+    owner = file_changes._PageChanges()
+    monkeypatch.setattr(file_changes, "RustNotify", installing)
+    try:
+        initial = owner.connect(page)
+        assert not initial.matches(
+            {path: nested for path, (nested, _fd) in initial.roots.items()}
+        )
+        replacement = owner.connect(page)
+        assert replacement is not initial
+        assert all(not reader.is_alive() for reader in initial.threads)
+        roots = {path: nested for path, (nested, _fd) in replacement.roots.items()}
+        assert replacement.matches(roots)
+        (page / "diagnostic.json").write_text("{}")
+        assert owner.connect(page) is replacement, (
+            "a child edit must not rearm its root"
+        )
+        descriptors = [fd for _nested, fd in replacement.roots.values()]
+        replacement.close()
+        replacement.close()
+        assert not replacement.matches(roots)
+        for descriptor in descriptors:
+            with pytest.raises(OSError):
+                os.fstat(descriptor)
+    finally:
+        if owner.release is not None:
+            owner.release()
 
 
 def test_shared_native_page_owner_survives_held_memory_and_closes_on_eviction(

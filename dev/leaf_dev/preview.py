@@ -575,6 +575,14 @@ class PreviewChanges(FileChanges):
         return self.batch(WATCH_INTERVAL_MS / 1000)
 
 
+def watch_roots(watched: Watched) -> dict[Path, bool]:
+    """Recursive input trees and shallow parents for replaceable file inputs."""
+    directories = {path for path in watched.roots if path.is_dir()}
+    roots = {path.parent: False for path in watched.roots if path not in directories}
+    roots.update(dict.fromkeys(directories, True))
+    return roots
+
+
 def watch_changes(watched: Watched) -> PreviewChanges:
     """Install the native subscriptions before publishing the preview URL.
 
@@ -583,12 +591,9 @@ def watch_changes(watched: Watched) -> PreviewChanges:
     """
     from watchfiles import DefaultFilter
 
-    directories = {path for path in watched.roots if path.is_dir()}
-    roots = {path.parent: False for path in watched.roots if path not in directories}
-    roots.update(dict.fromkeys(directories, True))
     default_filter = DefaultFilter()
     return PreviewChanges(
-        roots,
+        watch_roots(watched),
         lambda path: default_filter(None, str(path)),
         collect=True,
     )
@@ -704,16 +709,25 @@ def serve_preview(
                 return  # the service was stopped, or the owning session ended
             if service.user and not service.running:
                 service.serve_again()
-            if not reported:
-                continue  # the idle wake-up that carried the check above
-            if not any(watched.relevant(path) for path in reported):
-                continue
-            # An added input is only in the reading taken after it arrived, and a
-            # deleted one only in the reading taken while it was still there.
-            if not reported & watched.paths:
-                current = watch_paths(source, runtime, roots, state["seed"])
-                if not reported & current.paths:
+            replaced = not changes.matches(watch_roots(watched))
+            if replaced:
+                # Native directory watches expire when their directory is
+                # removed, even if its pathname and selected inputs return.
+                # Edits during that gap have no file batch, so this invalidates
+                # the canonical input reading as well as the subscription.
+                changes.close()
+                changes = watch_changes(watched)
+            if not replaced:
+                if not reported:
+                    continue  # lifetime and root checks need no input discovery
+                if not any(watched.relevant(path) for path in reported):
                     continue
+                # An added input is only in the reading taken after it arrived, and a
+                # deleted one only in the reading taken while it was still there.
+                if not reported & watched.paths:
+                    current = watch_paths(source, runtime, roots, state["seed"])
+                    if not reported & current.paths:
+                        continue
             refreshed = refresh_preview(source, page, launcher, runtime, state, service)
             # Init can commit a selection even when the following source stamp
             # refuses. Follow the installed layer after every attempt, so that
@@ -722,7 +736,7 @@ def serve_preview(
                 tuple(read_json(page / "registry.json")["$layer"]["packages"])
             )
             rebuilt = watch_paths(source, runtime, roots, state["seed"])
-            if rebuilt.roots != watched.roots:
+            if not changes.matches(watch_roots(rebuilt)):
                 # A refresh can change which packages the page vendors, and a
                 # subscription is fixed for its lifetime. Holding the old one
                 # wherever the roots stand still keeps the edits made during the

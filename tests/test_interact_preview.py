@@ -367,6 +367,23 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     assert ROOT not in watched.roots  # A single assets pin does not watch its checkout.
 
 
+class _ScriptedChanges:
+    """A controlled input stream with the subscription's root-plan boundary."""
+
+    def __init__(self, iterator, watched):
+        self.iterator = iterator
+        self.roots = preview.watch_roots(watched)
+
+    def __next__(self):
+        return next(self.iterator)
+
+    def close(self):
+        self.iterator.close()
+
+    def matches(self, roots):
+        return self.roots == roots
+
+
 def test_preview_filters_feedback_before_discovering_inputs(tmp_path, monkeypatch):
     """Page-side writes must not rediscover the whole installed layer."""
     source = tmp_path / "reading.html"
@@ -393,7 +410,11 @@ def test_preview_filters_feedback_before_discovering_inputs(tmp_path, monkeypatc
         assert "Revised</h1>" in (page / "index.html").read_text()
 
     monkeypatch.setattr(preview, "watch_paths", read_inputs)
-    monkeypatch.setattr(preview, "watch_changes", changes)
+    monkeypatch.setattr(
+        preview,
+        "watch_changes",
+        lambda watched: _ScriptedChanges(changes(watched), watched),
+    )
     with pytest.raises(StopIteration):
         preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)
 
@@ -484,6 +505,62 @@ def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
         changes.close()
 
 
+def test_preview_refreshes_replaced_inputs_even_without_a_native_file_batch(
+    tmp_path, monkeypatch
+):
+    """Files can change while the old root watch is revoked before rearming."""
+    directory = tmp_path / "source"
+    directory.mkdir()
+    source = directory / "reading.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Reading</title></head>"
+        "<body><main><h1>Original</h1></main></body></html>"
+    )
+    page = tmp_path / "preview"
+    batches = []
+
+    def replaced_input(_changes):
+        if not batches:
+            original = source.read_text()
+            shutil.rmtree(directory)
+            directory.mkdir()
+            source.write_text(original.replace("Original</h1>", "Revised</h1>"))
+            batches.append(True)
+            return set()  # Only the bounded lifetime wake survives the replacement.
+        assert "Revised</h1>" in (page / "index.html").read_text()
+        raise StopIteration
+
+    monkeypatch.setattr(preview.PreviewChanges, "__next__", replaced_input)
+    with pytest.raises(StopIteration):
+        preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)
+
+
+def test_preview_rearms_a_replaced_native_input_tree(tmp_path):
+    """The selected file paths can stay equal while their native root expires."""
+    tree = tmp_path / "inputs"
+    tree.mkdir()
+    module = tree / "state.py"
+    module.write_text("initial")
+    watched = preview.Watched((tree,), frozenset({str(module)}), frozenset({tree}))
+    changes = preview.watch_changes(watched)
+    try:
+        assert changes.matches(preview.watch_roots(watched))
+        shutil.rmtree(tree)
+        tree.mkdir()
+        module.write_text("replacement")
+        assert not changes.matches(preview.watch_roots(watched))
+        changes.close()
+        changes = preview.watch_changes(watched)
+        module.write_text("later authored edit")
+        wait_for(
+            lambda: next(changes),
+            lambda paths: str(module) in paths,
+            failure="the replacement preview input tree lost later authored edits",
+        )
+    finally:
+        changes.close()
+
+
 def test_preview_tracks_committed_layer_across_refused_source_edits(
     tmp_path, monkeypatch
 ):
@@ -548,7 +625,11 @@ def test_preview_tracks_committed_layer_across_refused_source_edits(
         assert after["fingerprint"] != committed["fingerprint"]
         assert "Revised" in (page / "index.html").read_text()
 
-    monkeypatch.setattr(preview, "watch_changes", changes)
+    monkeypatch.setattr(
+        preview,
+        "watch_changes",
+        lambda watched: _ScriptedChanges(changes(watched), watched),
+    )
     with pytest.raises(StopIteration):
         preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)
 
@@ -601,7 +682,11 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
             assert after["generation"] != installed["generation"]
             assert "--package-proof: 2" in (page / "theme.css").read_text()
 
-    monkeypatch.setattr(preview, "watch_changes", changes)
+    monkeypatch.setattr(
+        preview,
+        "watch_changes",
+        lambda watched: _ScriptedChanges(changes(watched), watched),
+    )
     with pytest.raises(StopIteration):
         preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)
     assert len(subscriptions) == 2

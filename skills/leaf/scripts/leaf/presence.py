@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .activity import Turn, current_turn, declared_at
 from .event_log import read_cursor
-from .file_changes import FileChanges, existing_root, subscription_key
+from .file_changes import FileChanges, existing_root
 from .files import (
     entry_stamps,
     file_stamp,
@@ -47,7 +47,6 @@ _candidates_lock = threading.Lock()
 _row_files = {}
 _row_subscription = None
 _row_home = None
-_row_roots = None
 
 
 class _Neighbors:
@@ -116,14 +115,17 @@ def neighbor_candidates() -> tuple:
     stamp; readers hold the parsed envelopes until a producer changes them.
     Server leases are still checked on every observation, independent of files.
     """
-    global _candidates, _row_home, _row_subscription, _row_files, _row_roots
+    global _candidates, _row_home, _row_subscription, _row_files
     home = state_home()
     rows = home / "rows"
     stamp = (home, file_stamp(rows))
     with _candidates_lock:
         roots = {existing_root(rows.parent): False, existing_root(rows): False}
-        root_key = subscription_key(roots)
-        if _row_home != rows or _row_roots != root_key:
+        if (
+            _row_home != rows
+            or _row_subscription is None
+            or not _row_subscription.matches(roots)
+        ):
             if _row_subscription is not None:
                 _row_subscription.close()
             _row_subscription = FileChanges(
@@ -136,7 +138,7 @@ def neighbor_candidates() -> tuple:
             )
             if _row_home != rows:
                 _row_files = {}
-            _row_home, _row_roots = rows, root_key
+            _row_home = rows
         changes = {Path(path) for path in _row_subscription.batch(0)}
         if _candidates[0] == stamp and not changes:
             return _candidates[1]

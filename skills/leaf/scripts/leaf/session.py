@@ -19,7 +19,6 @@ from .file_changes import (
     existing_root,
     page_change,
     page_targets,
-    subscription_key,
 )
 from .files import file_stamp, read_json
 from .harness import Harness, claim_harness, session_harness
@@ -222,8 +221,12 @@ class Watch:
         for page in pages:
             roots[existing_root(page.parent)] = False
             roots[existing_root(page)] = True
-        key = (pages, frozenset(targets), subscription_key(roots))
-        if self.changes is None or key != self.change_pages:
+        key = (pages, frozenset(targets))
+        if (
+            self.changes is None
+            or key != self.change_pages
+            or not self.changes.matches(roots)
+        ):
             if self.changes is not None:
                 self.changes.close()
             self.changes = FileChanges(

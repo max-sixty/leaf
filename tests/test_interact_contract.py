@@ -1738,6 +1738,58 @@ def test_candidate_vocabulary_changes_leave_old_actions_in_captured_history(page
     assert refused.revision == revision + 1
 
 
+def test_an_action_an_earlier_runtime_logged_is_left_out_of_the_fold(page_dir):
+    """A pick logged before admission recorded its state operation, in the payload
+    shape of its day, folds as absent: `leaf page state` reads on with the current
+    pick standing instead of failing on the old record."""
+    source = PAGE.replace(
+        "</section>",
+        '<lf-options id="picks" choose><lf-option id="first">First</lf-option>'
+        '<lf-option id="second">Second</lf-option></lf-options></section>',
+    )
+    (page_dir / "index.html").write_text(source)
+    publish(page_dir)
+    revision = files_model.latest_revision(page_dir)
+    current = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": revision,
+            "widget": "picks",
+            "action": "choose",
+            "detail": {"value": ["first"]},
+        },
+    )
+    # The shape a runtime before recorded state operations logged a pick in.
+    earlier = {
+        "kind": "action",
+        "revision": revision,
+        "widget": "picks",
+        "action": "choose",
+        "detail": {"options": ["second"]},
+        "author": "user",
+        "id": "earlier-pick",
+        "meaning": {
+            "scope": "page",
+            "unit": "picks",
+            "depends": ["picks", "second"],
+            "answer": None,
+        },
+        "attention": True,
+        "ts": "2026-10-06T20:14:37.092-07:00",
+    }
+    with (page_dir / schema_model.EVENTS_FILE).open("a") as log:
+        log.write(json.dumps(earlier) + "\n")
+
+    out = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])
+
+    assert out.exit_code == 0, out.output
+    assert [(s["widget"], s["detail"]) for s in json.loads(out.stdout)["state"]] == [
+        ("picks", current["detail"])
+    ]
+
+
 def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(page_dir):
     """A retracted action on a removed sender is interpreted only in its old revision."""
     from leaf.projection import page_reading

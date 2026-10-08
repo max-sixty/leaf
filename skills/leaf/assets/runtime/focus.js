@@ -8,7 +8,9 @@
    `press`, `step`, `move` and `drop`. A `focusin` listener on a node hears nothing of a
    move between two nodes of one shadow tree beneath it, which reaches it as no event,
    and each reader guessing for itself which moves were the runtime's own returns or
-   the keyboard's arrivals answered the same question several ways. The lint
+   the keyboard's arrivals answered the same question several ways. A layer waiting
+   one frame for its return target releases a hidden focused control immediately;
+   a newer input owns the page and cancels that pending return. The lint
    (`architecture/standing-listeners`) refuses `focusin` and `focusout` elsewhere, and
    `focus` and `blur` on the document or captured anywhere, except in the few files it
    names: those that ask about one element or its own subtree, and the interaction
@@ -274,6 +276,7 @@ function publish(node, cause) {
 }
 // The press the user last made, as the nodes under it, until a key follows it.
 let pressedPath = null;
+let inputEpoch = 0;
 // Whether the user's latest input was a press rather than a key, so that a `move` is a
 // route a press began: what the platform's `:focus-visible` guesses from, read here
 // from the inputs themselves. No input yet reads as no press.
@@ -373,6 +376,7 @@ for (const type of ["keydown", "pointerdown", "wheel", "touchstart"])
   addEventListener(
     type,
     (event) => {
+      inputEpoch++;
       if (type === "pointerdown") pressedPath = new Set(event.composedPath());
       else if (type === "keydown") pressedPath = null;
       stepping = null;
@@ -649,9 +653,19 @@ export function handBack(...destinations) {
     letGo();
     return;
   }
+  // The close has already hidden its focused control. Give the next key the page
+  // while a connected return target has one frame to become focusable again.
+  const yielded = !drawn(deepFocus());
+  if (yielded) releaseFocus();
   const began = placements;
+  const pendingInput = inputEpoch;
   nextRender(() => {
-    if (placements !== began || landed()) return;
+    if (
+      inputEpoch !== pendingInput ||
+      (yielded ? deepFocus() !== document.body : placements !== began) ||
+      landed()
+    )
+      return;
     letGo();
   });
 }

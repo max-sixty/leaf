@@ -267,6 +267,8 @@ def test_settled_requires_context_entry_even_with_a_reply_and_closed_turn(
     # that check context entry, its timing, its turn or one-delivery coverage.
     assert pickup_receipts(events, phase=phase, input_id=comment["id"]) == [receipt]
     assert pickup_receipts(events, phase=phase, input_id="other") == []
+    assert pickup_receipts(events, phase=None, input_id=comment["id"]) == [receipt]
+    assert pickup_receipts(events, phase=None, input_id="other") == []
     assert opened_input_ids(events) == ({comment["id"]} if phase == "opened" else set())
     if phase == "opened":
         assert settled(page_dir, session, ["idle"])["turn_closed"] is not None

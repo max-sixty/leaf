@@ -419,21 +419,22 @@ def cmd_delivery_read(delivery_id: str) -> None:
 def pickup_receipts(
     events: list[dict],
     *,
-    phase: Literal["queued", "opened", "failed"],
+    phase: Literal["queued", "opened", "failed"] | None,
     input_id: str | None = None,
 ) -> list[dict]:
-    """Select admitted receipts for one transport milestone, in log order.
+    """Select admitted receipts for an explicit transport reading, in log order.
 
     Keep each complete receipt: its exact input batch, session, turn and timestamp
     belong together. Queued transport acceptance and failed delivery do not prove
     context entry; readers checking pickup must request ``opened``. This reading
     establishes transport evidence only, never work or a successful response.
+    ``phase=None`` selects every transport milestone recorded for the input.
     """
     return [
         event
         for event in events
         if event["kind"] == "pickup"
-        and event["phase"] == phase
+        and (phase is None or event["phase"] == phase)
         and (input_id is None or input_id in event["events"])
     ]
 

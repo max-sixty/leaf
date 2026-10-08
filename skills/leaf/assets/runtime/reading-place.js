@@ -35,6 +35,7 @@ import {
   pageBlocks,
   pageText,
   rangeOf,
+  showsWords,
 } from "./passages.js";
 import { ADDRESSABLE, resolveAnchor } from "./anchor-resolution.js";
 import { targetElement, targetSegments } from "./resolved-target.js";
@@ -96,12 +97,9 @@ export function* blocksOnScreen(region = null, blocks = textBlocks()) {
       ? shownWindow({ within: shown })
       : shown;
   for (const block of blocks) {
-    // [hidden] needs an explicit skip: hidden="until-found" resolves to
-    // content-visibility, under which descendants still report real rects —
-    // but what's behind an inactive tab isn't what the user is reading.
     if (
       inChrome(block) ||
-      closestAcross(block, "[hidden]") ||
+      !showsWords(block) ||
       (region
         ? !under(block, region.body)
         : readingPosture(readingRegionFor(block)) === "bounded")

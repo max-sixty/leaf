@@ -403,9 +403,14 @@ def test_standalone_options_own_their_digit_bindings(browser, serve, cards):
     expect(group).to_be_focused()
     hints = group.locator(".lf-key-badge[data-lf-binding-badge]")
     expect(hints).to_have_text(["1", "2", "3"])
-    expect(group.get_by_role("button", name=re.compile("^Done:"))).to_have_attribute(
-        "aria-keyshortcuts", "4"
-    )
+    done = group.locator(".lf-done")
+    expect(done).to_have_attribute("aria-keyshortcuts", "4")
+    page.keyboard.press("4")
+    round_trip(page)
+    expect(done).to_have_attribute("aria-pressed", "true")
+    done.click()
+    round_trip(page)
+    expect(done).to_have_attribute("aria-pressed", "false")
     positions = hints.evaluate_all(
         "es => es.map(e => { const r = e.getBoundingClientRect(); return [r.x, r.y]; })"
     )

@@ -139,6 +139,36 @@ test("content moved across the page marks nothing at the place it left", () => {
   assert.equal(describeDifference(reading), "1 area moved");
 });
 
+test("rounded frames do not join neighbouring text into a changed container", () => {
+  // The curve has non-line edge pixels, but the border is not a paragraph. A frame
+  // near static text used to join it, then fragment the moving frame into changes.
+  const framed = (x) => {
+    const image = painted(
+      blank(360, 180),
+      [x, 20, 140, 50],
+      [x + 2, 22, 136, 46, undefined, 255],
+      ...[
+        [0, 0],
+        [138, 0],
+        [0, 48],
+        [138, 48],
+      ].map(([dx, dy]) => [x + dx, 20 + dy, 2, 2, undefined, 255]),
+      [x + 12, 34, 20, 10],
+      [x + 44, 34, 18, 10],
+      ...Array.from({ length: 4 }, (_, i) => [20 + i * 25, 78, 18, 10]),
+    );
+    return image;
+  };
+  const reading = differingRegions(framed(20), framed(60));
+  assert.deepEqual(outlines(reading, "before"), [
+    { x: 31, y: 33, width: 52, height: 12, kind: "moved" },
+  ]);
+  assert.deepEqual(outlines(reading, "after"), [
+    { x: 71, y: 33, width: 52, height: 12, kind: "moved" },
+  ]);
+  assert.equal(describeDifference(reading), "1 area moved");
+});
+
 test("rows only the taller image has are a change, though they draw nothing", () => {
   const reading = differingRegions(blank(64, 40), blank(64, 60));
   assert.equal(reading.changed, 64 * 20);

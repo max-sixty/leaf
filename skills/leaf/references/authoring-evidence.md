@@ -90,12 +90,26 @@ registry's `$keys` entry for `x-visual` states the contract.
 ## Source files and media
 
 Use `lf-text-document` when literal UTF-8 text should remain selectable and commentable
-without copying it into the authored HTML. Use a unified-patch capture with
+without copying it into the authored HTML. Set `preview="markdown"` or
+`preview="html"` to give the document Preview and Source tabs over that same
+text. Markdown uses Leaf’s message dialect; raw HTML remains literal text.
+HTML previews render HTML, CSS, and scripts in an opaque-origin sandbox,
+keeping their styles inside the preview and denying access to Leaf’s document.
+The HTML provider owns its typography, spacing, and responsive CSS; the frame
+inherits no Leaf styles. Both readings occupy the same scrollable viewport, so
+switching keeps the surrounding page still. Set `--lf-bound` on the widget to
+size that viewport; it defaults to `28rem`. Each reading keeps its own scroll place.
+Markdown previews and source text can receive passage comments;
+HTML frame contents are inspected inside their own document, so comment on the
+source or the surrounding widget. `language` optionally overrides source syntax
+coloring. Other previews, such as a diagram, image, or live sample, can share an ordinary `lf-tabs` set
+with the source widget. Switching views is local reading state; it records no
+decision. Use a unified-patch capture with
 `lf-diff`; the diff keeps its per-file view
 and gives each source line a stable comment coordinate. `lf-diff` and the
 `unified-diff` contract travel in the `diff` package: initialize such a page with
 `leaf page init --package diff <page>`. First add a data binding so Leaf can give the
-source its page-lifetime contract:
+source its current contract:
 
 ```html
 <lf-text-document id="skill-source" source="leaf-skill" label="SKILL.md" language="markdown"></lf-text-document>

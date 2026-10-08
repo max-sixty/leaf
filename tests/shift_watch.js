@@ -1734,6 +1734,9 @@
   checkpoint();
   const drawing = () => {
     if (document.hidden) return false;
+    // The driver sees owners across origins; an opaque child cannot. Read it
+    // again while draining because an ancestor can hide after judgement starts.
+    if (window.lfWatchJudgement?.ancestorsDrawn === false) return false;
     for (let view = window; view.frameElement; view = view.parent)
       if (!view.frameElement.checkVisibility()) return false;
     return true;

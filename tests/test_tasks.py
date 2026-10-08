@@ -428,10 +428,8 @@ def test_a_widget_task_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     assert [item["id"] for item in state_json(page_dir)["tasks"]] == [task["id"]]
     (page_dir / "index.html").write_text(PAGE)
     dropped = stamp(page_dir, "Card gone")
-    assert dropped.exit_code != 0
-    assert "would remove the target of the open task on 'rollout-card'" in (
-        dropped.output
-    )
+    assert dropped.exit_code == 0, dropped.output
+    assert [item["id"] for item in state_json(page_dir)["tasks"]] == [task["id"]]
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace("<title>t</title>", "<title>t · v3</title>")
     )
@@ -443,7 +441,7 @@ def test_a_widget_task_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     [ended] = [
         item for item in tasks_model.canonical_tasks(events_model.read_events(page_dir))
     ]
-    assert (ended["state"], ended["outcome"]["detail"]) == ("done", "v3")
+    assert (ended["state"], ended["outcome"]["detail"]) == ("done", "v4")
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace("<title>t</title>", "<title>t · v4</title>")
     )
@@ -798,23 +796,23 @@ def test_a_task_an_earlier_leaf_wrote_without_an_owner_is_absent(page_dir):
     assert served["browser"]["tasks"] == []
 
 
-def test_a_version_keeps_the_target_of_every_open_task_on_an_id(page_dir):
-    """A version that drops a section with a task on it, the agent's or the user's, is
-    refused, as one dropping a widget with the agent's task on it is; ending each task
-    lets it through."""
+def test_a_version_can_remove_a_target_while_its_tasks_stay_open(page_dir):
+    """Removing a page subject does not silently settle either side's tasks."""
     (page_dir / "index.html").write_text(WORK_PAGE)
     publish(page_dir)
     mine = written(leaf("task", "open", page_dir, "plan", "Rewrite the plan"))
     theirs = written(
         leaf("task", "open", page_dir, "plan", "Is the plan enough?", "--on", "user")
     )
-    assert mine["subject"] == theirs["subject"] == {"kind": "element", "id": "plan"}
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace('<section id="plan">', '<section id="scheme">')
     )
+    dropped = stamp(page_dir, "Plan renamed")
+    assert dropped.exit_code == 0, dropped.output
+    assert {task["id"] for task in state_json(page_dir)["tasks"]} == {
+        mine["id"],
+        theirs["id"],
+    }
     for task in (theirs, mine):
-        dropped = stamp(page_dir, "Plan renamed")
-        assert dropped.exit_code != 0
-        assert "would remove the target of the open task on 'plan'" in dropped.output
         written(leaf("task", "end", page_dir, task["id"], "dropped", "Renamed"))
-    assert stamp(page_dir, "Plan renamed").exit_code == 0
+    assert state_json(page_dir)["tasks"] == []

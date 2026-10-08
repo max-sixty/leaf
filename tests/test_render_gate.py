@@ -4,6 +4,7 @@ import itertools
 import json
 import re
 import threading
+from html import escape
 from urllib.parse import urlsplit
 
 import pytest
@@ -1193,8 +1194,8 @@ def test_the_gate_reports_a_devtools_issue_the_page_owns(browser, serve):
 
     The page owns an image it authors in a form-associated control's light DOM, and
     a frame it embeds, whose issue is placed at the frame. The same image in the
-    control's shadow tree is the control's implementation, so the page is not refused
-    for it."""
+    control's shadow tree is the control's implementation, even inside a frame,
+    so the page is not refused for it."""
     src = SHOT_SRC["before"]
     control = f"""<script type="module">
 customElements.define("field-host", class extends HTMLElement {{
@@ -1206,6 +1207,9 @@ customElements.define("field-host", class extends HTMLElement {{
   }}
 }});
 </script></head>"""
+    shadow_frame = escape(
+        "<head>" + control + "<body><field-host></field-host></body>", quote=True
+    )
     source = LONG_PAGE.replace("</head>", control).replace(
         '<h1 id="t">Long</h1>',
         f"""<h1 id="t">Long</h1>
@@ -1213,7 +1217,8 @@ customElements.define("field-host", class extends HTMLElement {{
 <img id="sized" src="{src}" alt="A panel" loading="lazy" width="600" height="300">
 <field-host id="host"><img id="authored" src="{src}" alt="" loading="lazy"></field-host>
 <iframe id="frame" title="A frame" srcdoc='<img src="{src}" alt="" loading="lazy">'>
-</iframe>""",
+</iframe>
+<iframe id="shadow-frame" title="A control’s shadow tree" srcdoc="{shadow_frame}"></iframe>""",
     )
 
     failures = render_gate_model.render_version(
@@ -1229,6 +1234,33 @@ customElements.define("field-host", class extends HTMLElement {{
         f"[{scheme}] DevTools issue LazyLoadImageIssue at {where} (url={src})"
         for scheme in ("light", "dark")
         for where in ("<img id=unsized>", "<img id=authored>", "<iframe id=frame>")
+    )
+
+
+def test_a_devtools_issue_inside_nested_cross_origin_frames_is_unplaced(browser):
+    """A same-origin inner frame cannot lend access through its outer boundary."""
+    context = browser.new_context()
+    context.route(
+        "http://issue-top.local/**",
+        lambda route: route.fulfill(
+            body='<iframe src="http://issue-other.local/frame"></iframe>',
+            content_type="text/html",
+        ),
+    )
+    context.route(
+        "http://issue-other.local/**",
+        lambda route: route.fulfill(
+            body="<iframe srcdoc='<img alt=\"An issue node\">'></iframe>",
+            content_type="text/html",
+        ),
+    )
+    page = context.new_page()
+    page.goto("http://issue-top.local/")
+    node = page.frame_locator("iframe").frame_locator("iframe").locator("img")
+    expect(node).to_have_count(1)
+    assert (
+        node.evaluate(f"node => ({render_gate_readings._ISSUE_NODE}).call(node)")
+        is None
     )
 
 

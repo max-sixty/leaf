@@ -5226,6 +5226,18 @@ def test_go_to_threads_lands_on_the_open_thread_from_a_page_thread(
         assert page.evaluate("document.activeElement === document.body")
     assert landings[0] == landings[1], landings
 
+    # A pointer press on the door does carry the page thread it began beside.
+    page.keyboard.press("t")
+    page.keyboard.press("t")
+    selected = page.locator(".lf-margin-preview .lf-page-thread").get_attribute(
+        "data-thread"
+    )
+    page.locator(".lf-threads-toggle").click()
+    expect(panel).to_be_visible()
+    expect(
+        page.locator(f'.lf-thread[data-id="{selected}"] > .lf-thread-summary')
+    ).to_be_focused()
+
 
 def test_a_panel_thread_closes_with_the_panel_as_go_to_threads_does(browser, serve):
     """A thread with no page destination opens in Threads and Escape closes the panel."""

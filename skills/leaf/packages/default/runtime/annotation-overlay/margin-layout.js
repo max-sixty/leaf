@@ -448,7 +448,9 @@ function laneFor(scroller) {
   if (!lane) {
     lane = document.createElement("div");
     lane.className = "lf-margin-lane";
-    layer.root.parentElement.append(lane);
+    // Keep every materialized lane beside the root margin layer, before the native
+    // foreground whose key chips may anchor to these rows.
+    layer.root.after(lane);
     layer.lanes.set(scroller, lane);
     layer.sizes.observe(scroller);
   }

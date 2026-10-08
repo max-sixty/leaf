@@ -405,17 +405,22 @@ customElements.define(
       const stageWidth = entry.shotHost.clientWidth;
       const stageHeight = shownWindow({ viewport: "layout" }).height;
 
-      const gap = 8;
-      const frameBorder = 2;
-      const labelHeight = 24;
+      const stageStyle = getComputedStyle(entry.shotHost);
+      const gap = parseFloat(stageStyle.getPropertyValue("--lf-vr-gap"));
+      const frameBorder =
+        2 * parseFloat(stageStyle.getPropertyValue("--lf-vr-frame-border"));
+      const labelHeight = parseFloat(
+        stageStyle.getPropertyValue("--lf-vr-label-height"),
+      );
       const sideWidthScale = (stageWidth - gap - 2 * frameBorder) / (2 * width);
       const sideContainScale = Math.min(
         sideWidthScale,
-        (stageHeight - labelHeight) / Math.max(...visibleHeights),
+        (stageHeight - labelHeight - frameBorder) / Math.max(...visibleHeights),
       );
       const stackContainScale = Math.min(
         (stageWidth - frameBorder) / width,
-        (stageHeight - 2 * labelHeight - gap) / (visibleHeights[0] + visibleHeights[1]),
+        (stageHeight - 2 * (labelHeight + frameBorder)) /
+          (visibleHeights[0] + visibleHeights[1]),
       );
       // Geometry chooses the comparison, not another preference for the user to
       // manage. Wide captures stack so their scan lines remain readable as the reader

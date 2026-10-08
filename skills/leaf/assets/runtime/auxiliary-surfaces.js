@@ -57,6 +57,7 @@ export const standsBeside = () =>
   ) > 0;
 
 export function createAuxiliarySurfaces({
+  envelope,
   band,
   syncLayout,
   afterChange,
@@ -67,7 +68,6 @@ export function createAuxiliarySurfaces({
   scrim.className = "lf-auxiliary-scrim";
   scrim.hidden = true;
   scrim.setAttribute("aria-hidden", "true");
-  const envelope = document.createElement("dialog");
   envelope.className = "lf-ui lf-auxiliary-envelope";
   // Start as an ordinary nonmodal presentation group. Initial `open` markup performs
   // no dialog focusing steps, so mounting chrome cannot borrow an author's focus.
@@ -293,7 +293,6 @@ export function createAuxiliarySurfaces({
   // initialization graph.
   registerCoveringAuxiliarySurface(coveringSurface);
   return {
-    envelope,
     registerAuxiliarySurface,
     select,
     restore,

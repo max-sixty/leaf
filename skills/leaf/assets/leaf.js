@@ -11,7 +11,7 @@ import {
   annotationMode,
 } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
-import { chromeRoot } from "./runtime/chrome.js";
+import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
 import { landingPlace } from "./runtime/reading-place.js";
 import { mountHistory } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
@@ -270,6 +270,7 @@ let pageGeometry;
 let goToSequence;
 
 const auxiliarySurfaces = createAuxiliarySurfaces({
+  envelope: chromeForeground,
   band: shortcutBarEl,
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
@@ -874,15 +875,12 @@ if (!offlineInteractive) {
   ];
   // One permanent home for auxiliary surfaces and their permitted foreground. Native
   // modality changes at this ancestor; none of these live descendants is reparented.
-  auxiliarySurfaces.envelope.append(
+  chromeForeground.append(
     overflowMenu,
     versionMenu,
     othersPanel,
     queuePanel,
     panel,
-    goToHintLayer,
-    commandHintLayer,
-    targetPickerHintLayer,
     pageSearchSurface,
     targetPaint.targetTraceLayer,
     targetPaint.aimLayer,
@@ -899,7 +897,7 @@ if (!offlineInteractive) {
     ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
     drawingPaint.layer,
     fabBar,
-    auxiliarySurfaces.envelope,
+    chromeForeground,
   );
   document.body.prepend(skipToChrome);
   document.body.append(chromeRoot);
@@ -915,7 +913,7 @@ if (!offlineInteractive) {
   // resolve updateComplete until connection, and keyboard registration needs that input.
   narrowing.mount();
   await panelKeys.mount();
-  pageComment.mount(auxiliarySurfaces.envelope);
+  pageComment.mount(chromeForeground);
   selectionComposer.mount();
   responseSurface.mount();
   holdToRead();
@@ -927,13 +925,16 @@ if (!offlineInteractive) {
   anchorPaint?.mount();
   anchorControls.mount();
   pageGeometry.mount();
-  pageMapDialog.mount(auxiliarySurfaces.envelope);
+  pageMapDialog.mount(chromeForeground);
   asks.mount();
   queueWalk.mount();
   queue.mount();
   commandHints.mount();
   app.mountAnnotations();
   app.overlay?.mount();
+  // Margin rows insert before the permanent foreground home, so these chips are laid
+  // out after every target they name while retaining their native modal ancestor.
+  chromeForeground.append(goToHintLayer, commandHintLayer, targetPickerHintLayer);
   app.mountThread();
   app.mountRead();
   wireThreadLanding(threadsBox);

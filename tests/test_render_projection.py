@@ -5912,11 +5912,10 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     nothing printed, which is the one failure a user cannot tell from slowness: the
     gate stopping is loud, and the gate never stopping looks like a slow machine.
 
-    Stalled on the previous version's address, because the page never asks for that one
-    itself — a path the runtime fetches on load would wedge the navigation instead,
-    and the gate would report the banner it never saw rather than the read it never
-    got. The deadline is shortened here for the same reason every wait in this suite
-    states one: the number is not the subject, the bound is.
+    Stall the gate's second read of this version, after its first read delivered the
+    page. Stalling that first read would wedge navigation instead and report the
+    banner the gate never saw. The deadline is shortened here because the number is
+    not the subject, the bound is.
     """
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(render_gate_model, "SERVED_TIMEOUT_MS", 1500)
@@ -5925,17 +5924,24 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     for _ in (1, 2):
         stamp_page(d, REPLY_HOST_PAGE, "t")
 
+    delivered = threading.Event()
     asked = threading.Event()
     release = threading.Event()
 
     class Stalls(http_model.PageEndpoint):
-        """Answers everything but the earlier version, which it accepts and drops."""
+        """Delivers the document, then accepts and drops the gate's file read."""
 
         def _get(self):
-            if self.path.startswith("/versions/v1.html"):
-                asked.set()
-                release.wait()
-                return None
+            if self.path.startswith("/versions/v2.html"):
+                if not delivered.is_set():
+                    delivered.set()
+                elif not asked.is_set():
+                    asked.set()
+                    release.wait()
+                    return None
+                else:
+                    # The next render attempt begins after the bounded read timed out.
+                    release.set()
             return super()._get()
 
     httpd = hosting_model.LeafHTTPServer(

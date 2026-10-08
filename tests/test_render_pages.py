@@ -87,6 +87,7 @@ from render_harness import (
     scroll_settled,
     sending,
     stamp_page,
+    take_browser_errors,
     told,
     wait_for_revision,
     write,
@@ -4045,6 +4046,81 @@ def test_an_authored_shell_admits_only_margin_room_it_can_supply(
         main = page.locator("main").bounding_box()
         assert main["x"] == pytest.approx((width - main["width"]) / 2 + 60, abs=1)
         assert root_overflow(page) == 0
+
+
+@pytest.mark.parametrize("tracks", ["1fr 1fr", "0px 1fr 0px"])
+def test_margin_residency_verifies_authored_tracks_and_retries_changed_css(
+    browser, serve, tracks
+):
+    source = leaf_page(
+        "Authored tracks",
+        '<h1>Migration</h1><aside class="sidenote" id="note">Keep earlier readers.</aside>'
+        "<p>Advance one cohort at a time.</p>",
+    ).replace(
+        "</head>",
+        f'<style id="author-grid">body {{ grid-template-columns: {tracks}; }}</style></head>',
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    expect(page.locator("#note")).to_have_css("float", "none")
+    assert root_overflow(page) == 0
+    for active in (True, False, True, False):
+        page.evaluate(
+            """active => {
+          const sheet = document.querySelector('#author-grid').sheet;
+          sheet.disabled = active;
+          document.documentElement.lfInitial.residency();
+        }""",
+            active,
+        )
+        expect(page.locator("#note")).to_have_css(
+            "float", "right" if active else "none"
+        )
+        assert root_overflow(page) == 0
+    assert page.evaluate("""async () => {
+      let writes = 0;
+      const observer = new MutationObserver(records => writes += records.length);
+      observer.observe(document.body, {attributes: true, attributeFilter: ['style']});
+      const owner = document.documentElement.lfInitial;
+      const changed = owner.residency() || owner.residency();
+      await new Promise(requestAnimationFrame);
+      observer.disconnect();
+      return {changed, writes};
+    }""") == {"changed": False, "writes": 0}
+
+
+@pytest.mark.parametrize("bad_write", ["restatement", "other-cycle", "priority-cycle"])
+def test_the_write_gate_allows_only_the_column_measurement_property(
+    browser, serve, bad_write
+):
+    source = leaf_page("Style gate", "<h1>Migration</h1>").replace(
+        "<body", '<body style="--probe-stable: 1;"', 1
+    )
+    page = open_page(browser, serve(source))
+    page.evaluate("""() => {
+      document.body.style.setProperty('--lf-column-shift', '1px');
+      document.body.style.removeProperty('--lf-column-shift');
+    }""")
+    assert take_browser_errors(page) == []
+    page.evaluate(
+        """kind => {
+      const body = document.body;
+      if (kind === 'restatement') {
+        body.setAttribute('style', body.getAttribute('style'));
+        body.setAttribute('style', body.getAttribute('style'));
+      } else if (kind === 'other-cycle') {
+        body.style.setProperty('color', 'red');
+        body.style.removeProperty('color');
+      } else {
+        body.style.setProperty('--probe-stable', '1', 'important');
+        body.style.setProperty('--probe-stable', '1');
+      }
+    }""",
+        bad_write,
+    )
+    failures = consume_browser_errors(page, "unchanged write:")
+    assert len(failures) == 1
+    assert "style on body" in failures[0]
 
 
 def test_margin_residency_ignores_concealed_ancestors(browser, serve):

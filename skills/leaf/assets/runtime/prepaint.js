@@ -215,6 +215,24 @@
     map: ["left", "--map"],
     note: ["right", "--note"],
   };
+  // A failed placement is a mechanical fit result, retried only when its inputs
+  // change. Keep authored sheet identities/rules too: two CSS declarations can draw
+  // the same unshifted tracks while only one responds to a requested shift.
+  const failedPlacements = new WeakMap();
+  const authoredSheets = () =>
+    [...document.styleSheets]
+      .filter((sheet) => !sheet.ownerNode?.hasAttribute("data-lf-runtime"))
+      .flatMap((sheet) => {
+        let rules;
+        try {
+          rules = [...sheet.cssRules].map((rule) => rule.cssText).join("\n");
+        } catch (error) {
+          // An opaque cross-origin sheet cannot be modified through CSSOM either.
+          if (error.name !== "SecurityError") throw error;
+          rules = null;
+        }
+        return [sheet, sheet.disabled, sheet.media.mediaText, rules];
+      });
   // The nearest painted ancestor distinguishes skipped contents from a box the page
   // hides itself. Geometry adopts this same reading with its composed-parent walk.
   const skipped = (element, parent = (node) => node.parentElement) => {
@@ -243,25 +261,14 @@
     const gridShift = canShift
       ? ((tracks[0] - tracks.at(-1)) / 2) * (shellStyle.direction === "rtl" ? -1 : 1)
       : 0;
-    const shifted = gridShift;
     const shellWritten =
       parseFloat(document.body.style.getPropertyValue("--lf-column-shift")) || 0;
     const column = main.getBoundingClientRect();
     const shell = document.body.getBoundingClientRect();
     const room = {
-      left: column.left - shifted - shell.left,
-      right: shell.right - column.right + shifted,
+      left: column.left - gridShift - shell.left,
+      right: shell.right - column.right + gridShift,
     };
-    const taken = { left: 0, right: 0 };
-    const standing = [];
-    if (
-      (document.body.dataset.annotations ?? "overlay") === "overlay" &&
-      document.body.getAttribute("data-rail") !== "none" &&
-      room.right >= need("--rail")
-    ) {
-      standing.push("rail");
-      taken.right = need("--rail");
-    }
     const declared = new Map();
     // A resident a box around it hides (a closed disclosure, a tab not chosen) needs no
     // room. One the page hides itself stays a resident, since a page may hide it until it
@@ -279,43 +286,117 @@
       if (postures.length) declared.set(postures.join(" "), postures);
     }
     const side = (postures) => POSTURES[postures[0]][0];
-    for (const postures of [...declared.values()].sort(
+    const preferences = [...declared.values()].sort(
       (a, b) => (side(a) === "left" ? 0 : 1) - (side(b) === "left" ? 0 : 1),
-    ))
-      for (const posture of postures) {
-        const [at, token] = POSTURES[posture];
-        const wants = { ...taken, [at]: Math.max(taken[at], need(token)) };
-        if (wants.left + wants.right > room.left + room.right + 0.5) continue;
-        // An authored shell can override the grid. It still admits residents where
-        // they fit, but cannot promise room that only moving the column would supply.
-        if (!canShift && (wants.left > room.left || wants.right > room.right)) continue;
-        standing.push(posture);
-        Object.assign(taken, wants);
-        break;
-      }
-    const shift = Math.round(
-      taken.left > room.left
-        ? taken.left - room.left
-        : taken.right > room.right
-          ? room.right - taken.right
-          : 0,
     );
+    const inputs = (box = column, placement = shellStyle) => [
+      box.left,
+      box.right,
+      shell.left,
+      shell.right,
+      placement.gridTemplateColumns,
+      placement.direction,
+      placement.display,
+      main.getAttribute("style"),
+      document.body.getAttribute("style"),
+      main.className,
+      document.body.className,
+      root.className,
+      document.body.dataset.annotations,
+      document.body.dataset.rail,
+      ...Object.values(POSTURES).map(([, token]) => need(token)),
+      need("--rail"),
+      preferences.flat().join(" "),
+      ...authoredSheets(),
+    ];
+    const priorFailure = failedPlacements.get(main);
+    const currentInputs = priorFailure ? inputs() : null;
+    const sameFailure =
+      priorFailure &&
+      currentInputs.length === priorFailure.length &&
+      currentInputs.every((input, at) => input === priorFailure[at]);
+    const allocate = (room, movable) => {
+      const taken = { left: 0, right: 0 };
+      const standing = [];
+      if (
+        (document.body.dataset.annotations ?? "overlay") === "overlay" &&
+        document.body.getAttribute("data-rail") !== "none" &&
+        room.right >= need("--rail")
+      ) {
+        standing.push("rail");
+        taken.right = need("--rail");
+      }
+      for (const postures of preferences)
+        for (const posture of postures) {
+          const [at, token] = POSTURES[posture];
+          const wants = { ...taken, [at]: Math.max(taken[at], need(token)) };
+          if (wants.left + wants.right > room.left + room.right + 0.5) continue;
+          if (!movable && (wants.left > room.left || wants.right > room.right))
+            continue;
+          standing.push(posture);
+          Object.assign(taken, wants);
+          break;
+        }
+      const requested = Math.round(
+        taken.left > room.left
+          ? taken.left - room.left
+          : taken.right > room.right
+            ? room.right - taken.right
+            : 0,
+      );
+      // Auto margins can centre the column only while its track still holds it.
+      const reach = Math.max(0, (shell.width - column.width) / 2);
+      const shift = movable ? Math.max(-reach, Math.min(reach, requested)) : 0;
+      return { taken, standing, shift };
+    };
+    let allocation = allocate(
+      sameFailure
+        ? {
+            left: column.left - shell.left,
+            right: shell.right - column.right,
+          }
+        : room,
+      canShift && !sameFailure,
+    );
+    // CSS is the placement authority. An authored track override can ignore our
+    // requested shift even on a grid. Verify the supplied room before admitting it;
+    // when it cannot supply the request, withdraw it and allocate in actual flow.
+    if (!sourceShells.has(document.body))
+      sourceShells.set(document.body, document.body.cloneNode(false));
+    const place = (shift) => {
+      if (shift) setRuntimeRootStyle(document.body, "--lf-column-shift", `${shift}px`);
+      else removeRuntimeRootStyle(document.body, "--lf-column-shift");
+    };
+    place(allocation.shift);
+    const supplied =
+      allocation.shift === shellWritten ? column : main.getBoundingClientRect();
+    if (
+      allocation.taken.left > supplied.left - shell.left + 0.5 ||
+      allocation.taken.right > shell.right - supplied.right + 0.5
+    ) {
+      place(0);
+      const actual = main.getBoundingClientRect();
+      allocation = allocate(
+        { left: actual.left - shell.left, right: shell.right - actual.right },
+        false,
+      );
+      failedPlacements.set(main, inputs(actual, getComputedStyle(document.body)));
+    } else if (!sameFailure) {
+      failedPlacements.delete(main);
+    }
+    const { shift, standing } = allocation;
     const tokens = standing.join(" ");
     const seated = (main.getAttribute("data-lf-margin") ?? "") !== tokens;
     if (!seated && shift === shellWritten) return false;
     // Source copies keep the authored shell before initial geometry writes to it;
     // children still follow their original routes as the parser continues.
     if (!sourceShells.has(main)) sourceShells.set(main, main.cloneNode(false));
-    if (!sourceShells.has(document.body))
-      sourceShells.set(document.body, document.body.cloneNode(false));
     if (seated) {
       if (tokens) main.setAttribute("data-lf-margin", tokens);
       else main.removeAttribute("data-lf-margin");
     }
     // Module-time adoption announces changed seats to reading-region discovery;
     // before upgrade the same attributes already provide the final authored box.
-    if (shift) setRuntimeRootStyle(document.body, "--lf-column-shift", `${shift}px`);
-    else removeRuntimeRootStyle(document.body, "--lf-column-shift");
     return true;
   };
 

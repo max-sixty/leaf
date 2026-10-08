@@ -312,8 +312,8 @@ export class MessageView {
       // One phase drives the message's ground and its sticky header. CSS resolves
       // the tint and resting colour at this message after insertion; Firefox's
       // Web Animations interpolates a var() colour keyframe discretely.
-      // The shared motion gate answers for restoration and reduced motion; opacity
-      // continues to describe delivery independently (marks.css).
+      // The shared motion gate answers for restoration and reduced motion; the
+      // delivery receipt and busy cursor remain independent of the arrival tint.
       this.#arrivalMotion = motion(
         this.node,
         [{ "--lf-msg-arrival": 1, offset: 0 }],

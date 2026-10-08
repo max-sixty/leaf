@@ -10994,16 +10994,33 @@ def test_pending_messages_stay_readable_through_admission(browser, serve, surfac
                 bodies: [...root.querySelectorAll('.lf-msg-body')].map(opacity),
                 pending: [...root.querySelectorAll('.lf-msg')].map(node =>
                   node.getAttribute('aria-busy') === 'true'),
+                pendingCursors: [...root.querySelectorAll('.lf-msg[aria-busy="true"] .lf-msg-body')]
+                  .map(node => getComputedStyle(node).cursor),
               };
             }"""
         )
 
-    assert reading() == {"headers": [1, 1], "bodies": [1, 1], "pending": [True, True]}
+    assert reading() == {
+        "headers": [1, 1],
+        "bodies": [1, 1],
+        "pending": [True, True],
+        "pendingCursors": ["progress", "progress"],
+    }
     held.pop().continue_()
     holding(page, held, 1, "the reply following its admitted root")
     rendered(page)
-    assert reading() == {"headers": [1, 1], "bodies": [1, 1], "pending": [False, True]}
+    assert reading() == {
+        "headers": [1, 1],
+        "bodies": [1, 1],
+        "pending": [False, True],
+        "pendingCursors": ["progress"],
+    }
     held.pop().continue_()
     page.unroute("**/api/event", hold)
     round_trip(page)
-    assert reading() == {"headers": [1, 1], "bodies": [1, 1], "pending": [False, False]}
+    assert reading() == {
+        "headers": [1, 1],
+        "bodies": [1, 1],
+        "pending": [False, False],
+        "pendingCursors": [],
+    }

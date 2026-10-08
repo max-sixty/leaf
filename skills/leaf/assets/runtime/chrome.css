@@ -144,10 +144,6 @@
 :is(button, [role="button"])[aria-busy="true"] {
   animation: lf-runtime-4f3c2a8d-working 140ms linear 200ms both;
 }
-[aria-busy="true"],
-[aria-busy="true"] :is(button, [role="button"]) {
-  cursor: progress;
-}
 /* Holding ⌥ changes what a click means, and nothing on the page said so — the sequence's
    whole cost is that it is invisible. Two things say it, and the division matters:
    the item under the pointer wears the aim's box (.lf-aim, in the chrome's scope

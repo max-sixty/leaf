@@ -71,17 +71,17 @@ def session_claims(session_id: str) -> Path:
 
 
 def publish_claim(page_dir: Path, claim: dict) -> None:
-    """Commit the canonical payload, then publish this session's locator.
+    """Prepare discovery, then commit ownership in the canonical payload.
 
     Discovery validates the payload's owner against the partition. A transfer's
-    old locator therefore stops standing at the canonical commit; publishing the
-    new locator only exposes that committed ownership. Resident writers retain
-    the same flat payload path, so their atomic updates cannot destroy discovery.
+    old locator therefore stops standing at the canonical commit, which also
+    admits the prepared new locator. Failed preparation leaves ownership intact.
+    Resident writers retain the same flat payload path, so their atomic updates
+    cannot destroy discovery.
     """
     path = claim_path(page_dir)
     previous = read_json(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    write_json(path, claim)
     locator = session_claims(claim["id"]) / path.name
     locator.parent.mkdir(parents=True, exist_ok=True)
     staged = locator.with_name(f".{secrets.token_hex(8)}.tmp")
@@ -91,6 +91,7 @@ def publish_claim(page_dir: Path, claim: dict) -> None:
         fsync_parents([locator])
     finally:
         staged.unlink(missing_ok=True)
+    write_json(path, claim)
     if (
         isinstance(previous, dict)
         and isinstance(previous.get("id"), str)

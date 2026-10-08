@@ -66,7 +66,12 @@ from .codex import (
     stream_reply_target,
     write_record,
 )
-from .codex_state import delivery_lock_path, hook_turn, step_delivery_turn
+from .codex_state import (
+    delivery_lock_path,
+    hook_turn,
+    step_delivery_turn,
+    sync_transcript_turn,
+)
 from .detached import Handshake, starting_detached
 from .event_log import read_cursor
 from .harness import CodexHarness, Harness, session_harness
@@ -774,6 +779,11 @@ def _offer_queued_delivery(
         # activity may hold back, but only fresh provider status permits a start.
         # Saying so is not work done: the loop goes on watching pages meanwhile.
         return False
+    if connection is None:
+        # Resume may start with no input and therefore no prompt hook. Read the
+        # provider's lifecycle before reserving the idle queue, including while
+        # the resumed turn is still executing its first tool.
+        sync_transcript_turn(session_id)
     observed_hook_turn = hook_turn(session_id)
     if connection is None and step_delivery_turn(session_id) is not None:
         # A trusted tool hook can offer this input before the running turn ends.

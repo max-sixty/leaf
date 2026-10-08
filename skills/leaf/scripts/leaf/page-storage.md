@@ -139,9 +139,11 @@ other page files and the external state listed below.
 
 - `<state-home>/claims/<page-key>.json` — the page's one atomic canonical claim
   payload. `<state-home>/claims/<session-key>/<page-key>.json` is a symlink
-  locating that payload for the owning session's discovery. The payload commits
-  before its session locator; discovery admits a locator only when the payload
-  names that partition's session, so a stale locator cannot reclaim a transferred page.
+  locating that payload for the owning session's discovery. The locator is prepared
+  before ownership commits in the payload; failed preparation leaves ownership
+  intact. Discovery admits a locator only when the payload names that partition's
+  session, so a stale locator cannot reclaim a transferred page. Named watches
+  follow prepared locators' canonical targets until ownership commits.
   Named discovery reads only that session's partition; global observation reads
   the canonical payloads directly. Atomic updates by existing
   page-server writers retain the payload's path and leave discovery intact.

@@ -8954,6 +8954,114 @@ def test_an_explicit_native_watch_follows_foreign_claim_and_lifecycle_publicatio
         watch.release()
 
 
+@pytest.mark.parametrize("previous_owner", [None, "previous-owner"])
+def test_failed_claim_discovery_publication_preserves_ownership(
+    page_dir, monkeypatch, previous_owner
+):
+    """A claim cannot commit before its owner can discover it."""
+    if previous_owner:
+        record_claim(page_dir, id=previous_owner)
+    before = service_model.page_claim(page_dir)
+    locator = (
+        service_model.session_claims("successor")
+        / service_model.claim_path(page_dir).name
+    )
+    replace = service_model.os.replace
+
+    def unavailable_locator(source, target):
+        if Path(target) == locator:
+            raise OSError("discovery publication interrupted")
+        return replace(source, target)
+
+    with monkeypatch.context() as interrupted:
+        interrupted.setattr(service_model.os, "replace", unavailable_locator)
+        with pytest.raises(OSError, match="discovery publication interrupted"):
+            record_claim(page_dir, id="successor")
+    assert service_model.page_claim(page_dir) == before
+    assert service_model.owned_pages("successor") == []
+    if previous_owner:
+        assert service_model.owned_pages(previous_owner) == [page_dir]
+
+
+@pytest.mark.parametrize("preparation_phase", ["waiting", "subscribing"])
+def test_native_watch_follows_a_prepared_claim_until_ownership_commits(
+    page_dir, monkeypatch, preparation_phase
+):
+    """Discovery preparation and ownership commit can straddle a watch pass."""
+    record_claim(page_dir, id="previous-owner")
+    cleanup_model.ensure_session("successor", {"pid": os.getpid()})
+    harness = harness_model.ClaudeCodeHarness("successor", "Claude")
+    prepared = service_model.prepare_claim(harness, page_dir)
+    partition = service_model.session_claims("successor")
+    partition.mkdir(parents=True)
+    watch = session_model.Watch(harness)
+    assert watch.acquire()
+    commit_entered = threading.Event()
+    allow_commit = threading.Event()
+    write_json = service_model.write_json
+
+    def held_commit(path, value):
+        if path == service_model.claim_path(page_dir):
+            commit_entered.set()
+            assert allow_commit.wait(STATED_TIMEOUT), (
+                "ownership commit was not released"
+            )
+        return write_json(path, value)
+
+    try:
+        list(watch.tick())
+        with monkeypatch.context() as publication:
+            publication.setattr(service_model, "write_json", held_commit)
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                try:
+
+                    def prepare():
+                        publishing = executor.submit(
+                            service_model.publish_claim, page_dir, prepared
+                        )
+                        assert commit_entered.wait(STATED_TIMEOUT), (
+                            "claim publisher did not reach the ownership commit"
+                        )
+                        return publishing
+
+                    if preparation_phase == "subscribing":
+                        changes = session_model.FileChanges
+                        publications = []
+
+                        def subscribing(*args):
+                            subscribed = changes(*args)
+                            publications.append(prepare())
+                            return subscribed
+
+                        with monkeypatch.context() as registration:
+                            registration.setattr(
+                                session_model, "FileChanges", subscribing
+                            )
+                            mark = watch.mark()
+                        (publishing,) = publications
+                    else:
+                        mark = watch.mark()
+                        publishing = prepare()
+                    assert (
+                        partition / service_model.claim_path(page_dir).name
+                    ).is_symlink()
+                    assert service_model.owned_pages("successor") == []
+                    assert watch.await_news(mark, timeout=STATED_TIMEOUT)
+                    assert list(watch.tick()) == []
+                    # Reconnect to the prepared discovery set, then consume any
+                    # preparation notifications before the later commit.
+                    watch.mark()
+                    while watch.changes.wait(watch.changes.mark(), 0.1):
+                        pass
+                    _write_during_native_wait(watch, allow_commit.set, monkeypatch)
+                    publishing.result(timeout=STATED_TIMEOUT)
+                    assert watch.pages() == [page_dir]
+                finally:
+                    allow_commit.set()
+    finally:
+        watch.release()
+
+
 def test_native_watch_rearms_a_session_partition_created_after_startup(
     page_dir, tmp_path, monkeypatch
 ):
@@ -10650,6 +10758,138 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     cleanup_model.close_session_turn("codex-thread", "user-turn")
     assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     assert not queued
+
+
+def test_codex_resume_without_input_delivers_in_its_first_tool(
+    page_dir, codex_loop, capsys, monkeypatch, tmp_path
+):
+    """Native turn starts cover resumes that produce no UserPromptSubmit hook.
+
+    The watcher reads that start before reserving the queue, even while the
+    resumed turn's first command is running. Late old callbacks and transcript
+    lag cannot replace that provider identity or reopen a closed one.
+    """
+    codex_loop(page_dir)
+    source = tmp_path / "rollout.jsonl"
+    source.write_text(
+        json.dumps({"type": "session_meta", "payload": {"id": "codex-thread"}}) + "\n"
+    )
+
+    def append(kind, turn, *, partial=False):
+        line = json.dumps(
+            {
+                "type": "event_msg",
+                "timestamp": cleanup_model.now_iso(),
+                "payload": {"type": kind, "turn_id": turn},
+            }
+        )
+        with source.open("a") as stream:
+            stream.write(line if partial else line + "\n")
+
+    append("task_started", "prior")
+    hooks_model.cmd_hook(
+        "codex",
+        {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "codex-thread",
+            "turn_id": "prior",
+            "transcript_path": str(source),
+        },
+    )
+    capsys.readouterr()
+    leases_model.mark_step_hook("codex-thread")
+    with source.open("a") as stream:
+        stream.write(
+            json.dumps({"type": "response_item", "payload": {"output": "x" * 150_000}})
+            + "\n"
+        )
+    append("turn_aborted", "prior")
+    hooks_model.cmd_hook(
+        "codex",
+        {
+            "hook_event_name": "Interrupt",
+            "session_id": "codex-thread",
+            "turn_id": "prior",
+        },
+    )
+    capsys.readouterr()
+    append("task_started", "resumed", partial=True)
+    before = cleanup_model.session_record("codex-thread")
+    assert codex_state_model.sync_transcript_turn("codex-thread") == before
+    with source.open("a") as stream:
+        stream.write("\n")
+    # Hooks start cold in separate processes; their ordering proof must also
+    # work without the resident adapter's earlier source reading.
+    codex_state_model.transcript_turns.cache_clear()
+    comment = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "text": "Keep the earlier decision",
+        },
+    )
+    monkeypatch.setattr(
+        codex_adapter_model,
+        "queue_delivery",
+        lambda *_: pytest.fail("resumed turn was queued"),
+    )
+    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
+    assert cleanup_model.session_record("codex-thread")["turn"] == "resumed"
+    hooks_model.cmd_hook(
+        "codex",
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "codex-thread",
+            "turn_id": "prior",
+        },
+    )
+    assert not capsys.readouterr().out
+    hooks_model.cmd_hook(
+        "codex",
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "codex-thread",
+            "turn_id": "resumed",
+        },
+    )
+    offer = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    [(path, _)] = codex_records("codex-thread")
+    assert offer["additionalContext"] == codex_model.delivery_pointer_prompt(path.stem)
+    delivery_model.cmd_delivery_read(path.stem)
+    capsys.readouterr()
+    [pickup] = [e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"]
+    assert (pickup["phase"], pickup["turn"], pickup["events"]) == (
+        "opened",
+        "resumed",
+        [comment["id"]],
+    )
+    append("task_complete", "prior")
+    assert codex_state_model.sync_transcript_turn("codex-thread")["turn_closed"] is None
+    append("task_complete", "resumed")
+    codex_state_model.transcript_turns.cache_clear()
+    closed = codex_state_model.sync_transcript_turn("codex-thread")
+    assert closed["turn_closed"] is not None
+    hooks_model.cmd_hook(
+        "codex",
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "codex-thread",
+            "turn_id": "resumed",
+        },
+    )
+    assert cleanup_model.session_record("codex-thread") == closed
+    # A newer prompt can precede its native transcript append.
+    newest = cleanup_model.prompt_turn("codex-thread", "newest")
+    codex_state_model.transcript_turns.cache_clear()
+    assert codex_state_model.sync_transcript_turn("codex-thread") == newest
+    foreign = tmp_path / "other.jsonl"
+    foreign.write_text(source.read_text().replace('"codex-thread"', '"other-session"'))
+    assert codex_state_model.sync_transcript_turn("codex-thread", foreign) == newest
+    # Replacing the source with an earlier prefix is another lagging reading,
+    # rather than proof that the new prompt ended or moved backwards.
+    source.write_text("\n".join(source.read_text().splitlines()[:2]) + "\n")
+    assert codex_state_model.sync_transcript_turn("codex-thread") == newest
 
 
 def test_codex_tool_hook_reads_a_quiet_page_without_the_page_model(

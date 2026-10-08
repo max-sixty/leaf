@@ -156,8 +156,9 @@ class Watch:
     starts it again, so the wait watches a disabled service without reviving it.
 
     Between passes native subscriptions follow this session's claim partition,
-    lifecycle, and each page a pass found. A subscription is installed before its
-    observation; its generation retains a write landing during the pass. Timed
+    canonical targets (including prepared claims), lifecycle, and each page a pass
+    found. A subscription is installed before its observation; its generation
+    retains a write landing during the pass. Timed
     passes check process and lease facts, while a quiet wait performs no repeated
     page-tree stat scans.
     """
@@ -205,15 +206,32 @@ class Watch:
                 locations.add(path_location(page))
         return watched
 
-    def reading(self) -> tuple:
-        """The stamps of everything the last pass read: the claims, and its pages."""
-        return (file_stamp(self.claims), *map(_page_reading_or_none, self.watched))
+    def discovery_targets(self) -> set[Path]:
+        """Canonical payloads named by this session's prepared or admitted locators."""
+        if not self.session_id:
+            return set()
+        return {
+            self.claims.parent / locator.name for locator in self.claims.glob("*.json")
+        }
+
+    def reading(self, discovery: set[Path] | None = None) -> tuple:
+        """Stamp discovery and its payloads before a claim can enter the page set."""
+        if discovery is None:
+            discovery = self.discovery_targets()
+        return (
+            file_stamp(self.claims),
+            tuple((target, file_stamp(target)) for target in sorted(discovery)),
+            *map(_page_reading_or_none, self.watched),
+        )
 
     def mark(self) -> tuple:
         """What the next pass starts from, taken before it reads, so a write that
         lands during the pass moves the stamps `await_news` compares against."""
         pages = tuple(self.watched)
-        targets = {target for page in pages for target in page_targets(page)}
+        discovery = self.discovery_targets()
+        targets = discovery | {
+            target for page in pages for target in page_targets(page)
+        }
         if self.session_id:
             targets.add(session_file(self.session_id, SESSION_SUFFIX).resolve())
         roots = {existing_root(self.claims): False}
@@ -242,7 +260,9 @@ class Watch:
                 ),
             )
             self.change_pages = key
-        return (list(pages), self.reading(), self.changes.mark())
+        # Stamp the subscribed set. A locator added during installation must
+        # differ at the next comparison, so its target is subscribed in turn.
+        return (list(pages), self.reading(discovery), self.changes.mark())
 
     def await_news(self, mark: tuple, timeout: float = REVIVAL_CHECK_S) -> bool:
         """Return True once anything the pass since `mark` read has moved, or False

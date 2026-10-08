@@ -165,7 +165,8 @@ in `leaf-assets.json` and the README's image URLs that name it.
 
 - `leaf-dev verify-codex-task` runs real Codex tasks with this working tree's
   plugin through both transports of automatic server handoff. It posts comments while the
-  task is idle, mid-turn, and after the adapter is killed, and fails when a comment is
+  task is idle, mid-turn, during an empty-input resume, and after the adapter is
+  killed, and fails when a comment is
   not answered exactly once, queue-backed work does not pick up and answer a comment
   in the same active turn, or the page's claim does not name the task's last turn,
   closed. It spends the host's Codex login, so CI does not run it.

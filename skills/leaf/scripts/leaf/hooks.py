@@ -7,9 +7,10 @@ empty turn. SessionEnd retires the harness instance without reading pages;
 activity-backed desktop chats retain their generation across instance unloads.
 
 Codex's synchronous prompt hook records the provider turn even before the session
-claims a page. Once the session has claimed one (`state.hook_needed`), its tool
-hook can identify an unknown session turn once, offer a pointer between steps, and
-leave receipt to the agent's actual delivery read.
+claims a page. Its native transcript also records turns resumed without input,
+which run no prompt hook. Hooks reconcile that provider evidence before checking
+their turn identity, then offer a pointer between steps and leave receipt to the
+agent's actual delivery read.
 The payload names the session and turn: hook subprocesses need not have the tool
 process's environment. Stop or Interrupt closes that observed turn, including a
 turn not yet claimed by any page; a newer prompt protects its own epoch. A payload
@@ -58,6 +59,10 @@ def cmd_hook(harness: str, payload: dict) -> None:
     if not sid:
         return
     expected = session_record(sid)
+    if harness == "codex" and expected is not None and event != "UserPromptSubmit":
+        from .codex_state import sync_transcript_turn
+
+        expected = sync_transcript_turn(sid, payload.get("transcript_path"))
     if event == "SessionStart":
         if payload.get("source") == "resume":
             from .harness import HOOK_HARNESSES
@@ -81,6 +86,10 @@ def cmd_hook(harness: str, payload: dict) -> None:
         expected = prompt_turn(sid, turn_id)
         if expected is None:
             return
+        if harness == "codex":
+            from .codex_state import sync_transcript_turn
+
+            expected = sync_transcript_turn(sid, payload.get("transcript_path"))
     elif turn_id:
         # A first trusted step can identify an unknown session-scoped turn.
         # Once a prompt/provider named it, late callbacks cannot replace it.

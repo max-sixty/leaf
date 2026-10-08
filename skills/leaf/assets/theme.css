@@ -1604,7 +1604,9 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
   margin-block-start: 2px; color: color-mix(in srgb, var(--paper) 72%, transparent);
   font-size: 10px; line-height: 1.25; font-weight: 450;
 }
-.lf-margin-entry[data-lf-label-side] > .lf-margin-entry-label {
+/* Inline controls keep their native label. Physical margin controls take the
+   geometry owner's placement, whose readiness gates their first visible paint. */
+.lf-margin-projection .lf-margin-entry[data-lf-label-side] > .lf-margin-entry-label {
   inset: auto; left: var(--lf-label-x); top: var(--lf-label-y);
 }
 .lf-margin-entry:is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"])
@@ -1624,6 +1626,9 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
 .lf-margin-entry:is(:focus-visible, .lf-focus-visible):not([aria-expanded="true"])
   > .lf-margin-entry-label {
   transition: none;
+}
+.lf-margin-projection .lf-margin-entry:not([data-lf-label-side]) > .lf-margin-entry-label {
+  opacity: 0; visibility: hidden; transition: none;
 }
 .lf-margin-count { position: absolute; top: -7px; right: -7px; min-width: 16px;
     height: 16px; padding: 0 3px; box-sizing: border-box; border-radius: 999px;

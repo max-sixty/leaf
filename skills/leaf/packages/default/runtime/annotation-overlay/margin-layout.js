@@ -34,6 +34,11 @@
    bounded block in the column's flow. A target or its rendered part leaving
    withholds the row before the next paint; layout withholds it when its region hides it.
 
+   A control carries its label as a native descendant. This owner chooses its place
+   before CSS reveals it and clears that readiness while the label is inactive, so a
+   later reveal reads the room afresh. Label offsets use the control's padding box,
+   the containing block for absolute descendants, rather than its border-box origin.
+
    Visibility reads `shownParts`, not the target's raw client rect: a project may set
    `display: contents` while its rendered descendants remain usable, and a collapsed
    target has no rendered part to offer. */
@@ -326,7 +331,10 @@ const labelRect = (name, left, top, label) => ({
 
 function placeMarginEntryLabel(control) {
   const label = control.querySelector(":scope > .lf-margin-entry-label");
-  if (!label || !control.checkVisibility()) return;
+  if (!label || !control.checkVisibility()) {
+    keeps(control, "data-lf-label-side", null);
+    return;
+  }
   const marginEntryBox = control.getBoundingClientRect();
   const labelBox = label.getBoundingClientRect();
   // The window the page shows, under the banner and over the bottom bar (geometry.js).
@@ -350,7 +358,9 @@ function placeMarginEntryLabel(control) {
     labelRect("after", clusterRight + 6, centered, labelBox),
     labelRect("before", clusterLeft - 6 - labelBox.width, centered, labelBox),
   ];
-  const blockers = [...document.querySelectorAll(".lf-margin-entry")]
+  const blockers = [
+    ...document.querySelectorAll(".lf-margin-projection .lf-margin-entry"),
+  ]
     .filter((candidate) => candidate !== control && candidate.checkVisibility())
     .map((candidate) => candidate.getBoundingClientRect());
   const fits = ({ rect }) =>
@@ -366,23 +376,32 @@ function placeMarginEntryLabel(control) {
     ) ??
     candidates.find(fits) ??
     candidates[0];
-  keeps(control, "data-lf-label-side", choice.name);
-  label.style.setProperty(
+  setStyle(
+    label,
     "--lf-label-x",
-    `${choice.rect.left - marginEntryBox.left}px`,
+    layoutPx(choice.rect.left - marginEntryBox.left - control.clientLeft),
   );
-  label.style.setProperty("--lf-label-y", `${choice.rect.top - marginEntryBox.top}px`);
+  setStyle(
+    label,
+    "--lf-label-y",
+    layoutPx(choice.rect.top - marginEntryBox.top - control.clientTop),
+  );
+  keeps(control, "data-lf-label-side", choice.name);
 }
 
+const REVEALS_LABEL =
+  ':is(:hover, :focus-visible, .lf-focus-visible):not([aria-expanded="true"]), [data-lf-held-word]';
 let labelPlacementFrame = 0;
 export function scheduleMarginEntryLabels() {
   if (labelPlacementFrame) return;
   labelPlacementFrame = nextRender(() => {
     labelPlacementFrame = 0;
     for (const control of document.querySelectorAll(
-      '.lf-margin-entry:is(:hover, :focus-visible, .lf-focus-visible, [data-lf-held-word]):not([aria-expanded="true"])',
-    ))
-      placeMarginEntryLabel(control);
+      `.lf-margin-projection .lf-margin-entry:is(${REVEALS_LABEL}, [data-lf-label-side])`,
+    )) {
+      if (control.matches(REVEALS_LABEL)) placeMarginEntryLabel(control);
+      else keeps(control, "data-lf-label-side", null);
+    }
   });
 }
 

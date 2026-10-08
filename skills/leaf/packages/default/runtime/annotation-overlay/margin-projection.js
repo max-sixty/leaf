@@ -2539,6 +2539,9 @@ export function createMarginProjection({
     document.addEventListener("pointerover", scheduleMarginEntryLabels, {
       capture: true,
     });
+    document.addEventListener("pointerout", scheduleMarginEntryLabels, {
+      capture: true,
+    });
     // A drop is the change's own to put right: the margin follows where the user stands.
     onStanding((node, cause) => {
       if (cause === "drop") return;

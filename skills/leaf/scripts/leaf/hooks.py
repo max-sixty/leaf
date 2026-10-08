@@ -9,8 +9,8 @@ activity-backed desktop chats retain their generation across instance unloads.
 Codex's synchronous prompt hook records the provider turn even before the session
 claims a page. Its native transcript also records turns resumed without input,
 which run no prompt hook. Hooks reconcile that provider evidence before checking
-their turn identity, then offer a pointer between steps and leave receipt to the
-agent's actual delivery read.
+their turn identity, then offer a pointer between steps or before Stop and leave
+receipt to the agent's actual delivery read.
 The payload names the session and turn: hook subprocesses need not have the tool
 process's environment. Stop or Interrupt closes that observed turn, including a
 turn not yet claimed by any page; a newer prompt protects its own epoch. A payload
@@ -19,8 +19,8 @@ as the Interrupt from Pi's extension or Leaf's Claude Code hooks module does, an
 then leaves a turn opened or renewed since open.
 
 Hooks with no retained claim avoid page reading. Page-owning prompt and Stop hooks
-reach `hook_transport`; Codex's tool hook reaches the delivery records in `codex`;
-and a second Claude Code Stop hook watches between turns (`cmd_watch`). The
+reach `hook_transport`; Codex's tool and Stop hooks reach its delivery records
+in `codex`; a second Claude Code Stop hook watches between turns (`cmd_watch`). The
 application entry routes `leaf hook` here before loading the CLI.
 
 Resume and prompt hooks also inspect retained claims for disconnected pages
@@ -115,21 +115,23 @@ def cmd_hook(harness: str, payload: dict) -> None:
             sid, turn_id, expected=expected, ended_at=payload.get("ended_at")
         )
         return
-    if event == "PostToolUse":
-        # Only Codex registers this hook (`hooks/codex.json`). Its output can
-        # enter an active turn, but it cannot wake an idle one.
-        if not turn_id:
-            return
-        mark_step_hook(sid)
-        if not owned_pages(sid):
-            return
+    if harness == "codex" and event in {"PostToolUse", "Stop"} and turn_id:
+        # Both boundaries offer through Codex's one transport reservation.
+        # Empty-input resume can reach Stop without executing another tool.
+        if event == "PostToolUse":
+            mark_step_hook(sid)
         from .codex import offer_hook_delivery
         from .harness import HOOK_HARNESSES
 
-        if prompt := offer_hook_delivery(sid, turn_id):
+        if owned_pages(sid) and (prompt := offer_hook_delivery(sid, turn_id)):
             import json
 
             print(json.dumps(HOOK_HARNESSES[harness].hook_context(event, prompt)))
+            return
+        # Offering renews the observed turn even on a quiet page. Carry the
+        # resulting revision into Stop's independent response-debt check.
+        expected = session_record(sid)
+    if event == "PostToolUse":
         return
     # Retained claims may need reconnecting after active ownership expired.
     retained = event == "UserPromptSubmit" and any(

@@ -407,15 +407,18 @@ reads `idle`; with no record, not until a Stop closes a later turn. The adapter
 and the host declare no nudge and need none: each queues or starts turns
 itself, and if it is gone so is the session it served.
 
-In Codex, the adapter and tool hook collect available input into the same delivery
+In Codex, the adapter and tool and Stop hooks collect input into the same delivery
 records under the session's delivery lock. Capture excludes events already in any
 standing record, including an offer whose transport has not yet accepted it.
 While a proven tool hook can reach the running claimant turn, the queue adapter
 holds input for that hook. The hook freezes a plain-reply envelope and records
-its offer's exact turn; another hook does not repeat that pointer or take an offer
+its offer's exact turn. Stop uses the same offer path, including when a resumed turn
+executes no tool. Another hook does not repeat that pointer or take an offer
 another transport owns. Reading the pointer in the task reserves acceptance before
-taking page receipts. The adapter reconciles interrupted receipts the same way as
-every accepted delivery. An unread hook offer takes the idle queue once Stop or
+taking page receipts. That exact reservation proves receipt eligibility even when
+no earlier tool hook proved between-step delivery; the queue likewise respects
+that reservation while its exact turn remains eligible. The adapter reconciles
+interrupted receipts the same way as every accepted delivery. An unread hook offer takes the idle queue once Stop or
 Interrupt closes the turn, or the canonical activity reading stops believing it.
 Input collected after the freeze belongs to a later delivery. Without an App Server
 observer, it hands the bounded id-only `leaf-delivery` pointer to Codex's durable

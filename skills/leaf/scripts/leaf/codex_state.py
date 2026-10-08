@@ -3,7 +3,7 @@
 The session lifecycle owner records provider identity, lifetime and revision.
 This module derives an observation from that authority, and proves eligibility
 with the page's dated activity rather than maintaining another running flag.
-A pointer read reaches acceptance only after that proof under its exact revision.
+A pointer read proves entry through its exact hook reservation and lifecycle revision.
 Codex can resume without a user prompt. Its native transcript supplies ordered
 turn starts and endings that both the queue adapter and hooks publish through the
 same lifecycle owner. Transcript readings are disposable process memory; the
@@ -18,7 +18,7 @@ from functools import lru_cache
 from pathlib import Path
 from threading import RLock
 
-from .leases import session_state_path, step_hook_ran
+from .leases import session_state_path
 from .state import (
     advance_turn,
     flocked,
@@ -260,17 +260,17 @@ def hook_turn(session_id: str) -> dict | None:
     }
 
 
-def step_delivery_turn(session_id: str) -> str | None:
-    """The observed provider turn a proven step hook can deliver into.
+def delivery_turn(session_id: str) -> str | None:
+    """The observed provider turn eligible for hook delivery.
 
     Use the same dated activity reading as the page, so an interrupted or stale
     turn never holds the idle queue indefinitely. Claims derive the current
-    provider turn from the session lifecycle; tool hooks renew it and offer
+    provider turn from the session lifecycle; delivery hooks renew it and offer
     feedback. Read outside the delivery lock: capture takes a page transaction
     before that lock.
     """
     observed = hook_turn(session_id)
-    if not step_hook_ran(session_id) or not observed or not observed["running"]:
+    if not observed or not observed["running"]:
         return None
     from .presence import claimant_reading
     from .service import PageTransaction, owned_pages
@@ -289,15 +289,16 @@ def step_delivery_turn(session_id: str) -> str | None:
 def accept_codex_delivery_read(session_id: str, delivery_id: str) -> None:
     """Use the owning task's pointer read as evidence of entry into its exact turn.
 
-    Reading an envelope alone authorizes no receipt. The hook observation is
+    Only a pointer reserved by a hook for this exact turn authorizes receipt.
+    This proves entry independently of the tool-hook capability that holds the
+    idle queue: Stop may be the first hook to offer input. The hook observation is
     rechecked under the acceptance lock, so queue reservation or a newer turn
     invalidates this proof before any delivery record changes.
     """
-    if (turn := step_delivery_turn(session_id)) is None:
-        return
     observation = hook_turn(session_id)
-    if not observation or observation["turn"] != turn or not observation["running"]:
+    if not observation or not observation["running"]:
         return
+    turn = observation["turn"]
     from .codex import accept_codex_delivery
 
     accept_codex_delivery(session_id, delivery_id, turn, hook_observation=observation)

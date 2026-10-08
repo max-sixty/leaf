@@ -67,8 +67,8 @@ from .codex import (
 )
 from .codex_state import (
     delivery_lock_path,
+    delivery_turn,
     hook_turn,
-    step_delivery_turn,
     sync_transcript_turn,
 )
 from .delivery import stream_reply_target
@@ -80,6 +80,7 @@ from .leases import (
     adapter_lease_path,
     release_lease,
     session_state_path,
+    step_hook_ran,
     take_lease,
 )
 from .machine import state_home
@@ -786,7 +787,8 @@ def _offer_queued_delivery(
         # the resumed turn is still executing its first tool.
         sync_transcript_turn(session_id)
     observed_hook_turn = hook_turn(session_id)
-    if connection is None and step_delivery_turn(session_id) is not None:
+    active_hook_turn = delivery_turn(session_id) if connection is None else None
+    if active_hook_turn is not None and step_hook_ran(session_id):
         # A trusted tool hook can offer this input before the running turn ends.
         # Stop/Interrupt closes that turn; unread pointers then take this queue.
         return False
@@ -808,6 +810,13 @@ def _offer_queued_delivery(
         prepared = None
         if unoffered is not None:
             path, record = unoffered
+            if active_hook_turn is not None and record.get("transport") == {
+                "phase": "hook",
+                "turn": active_hook_turn,
+            }:
+                # A reserved Stop offer proves this specific delivery can enter
+                # the running turn even without earlier between-step capability.
+                return False
             prepared = offer_delivery(path, record, turn_replies=connection is not None)
             if (record.get("transport") or {}).get("phase") != "starting":
                 record["transport"] = {

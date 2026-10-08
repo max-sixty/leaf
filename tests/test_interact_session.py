@@ -10886,14 +10886,69 @@ def test_codex_tool_hook_delivers_into_the_running_turn_once(
     assert not queued
 
 
-def test_codex_resume_without_input_delivers_in_its_first_tool(
-    page_dir, codex_loop, capsys, monkeypatch, tmp_path
+@pytest.mark.parametrize("delivery_hook", ["PostToolUse", "Stop"])
+def test_codex_hooks_leave_collected_input_after_ownership_transfers(
+    page_dir, codex_loop, capsys, delivery_hook
+):
+    """A collecting delivery stays inactive after its task loses its last page."""
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "active")
+    event = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Keep the decision"}
+    )
+    with service_model.PageTransaction(page_dir) as tx:
+        codex_model.append_batch("codex-thread", page_dir, tx, [event])
+    record_claim(page_dir, id="successor", harness="codex", agent="Codex")
+    hooks_model.cmd_hook(
+        "codex",
+        {
+            "hook_event_name": delivery_hook,
+            "session_id": "codex-thread",
+            "turn_id": "active",
+        },
+    )
+    assert not capsys.readouterr().out
+    assert codex_records("codex-thread")[0][1]["state"] == "collecting"
+    assert bool(cleanup_model.session_record("codex-thread")["turn_closed"]) == (
+        delivery_hook == "Stop"
+    )
+
+
+def test_codex_hook_pointer_read_cannot_move_its_offer_to_a_newer_turn(
+    page_dir, codex_loop, capsys
+):
+    """Receipt proves the reserved turn, rather than whichever turn reads later."""
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "offered")
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Keep the decision"}
+    )
+    hooks_model.cmd_hook(
+        "codex",
+        {"hook_event_name": "Stop", "session_id": "codex-thread", "turn_id": "offered"},
+    )
+    capsys.readouterr()
+    [(path, _)] = codex_records("codex-thread")
+    cleanup_model.prompt_turn("codex-thread", "newer")
+    delivery_model.cmd_delivery_read(path.stem)
+    capsys.readouterr()
+    assert codex_records("codex-thread")[0][1]["state"] == "offering"
+    assert not any(e["kind"] == "pickup" for e in events_model.read_events(page_dir))
+
+
+@pytest.mark.parametrize(
+    ("delivery_hook", "prior_step"),
+    [("PostToolUse", True), ("Stop", True), ("Stop", False)],
+)
+def test_codex_resume_without_input_delivers_in_its_first_hook(
+    page_dir, codex_loop, capsys, monkeypatch, tmp_path, delivery_hook, prior_step
 ):
     """Native turn starts cover resumes that produce no UserPromptSubmit hook.
 
     The watcher reads that start before reserving the queue, even while the
-    resumed turn's first command is running. Late old callbacks and transcript
-    lag cannot replace that provider identity or reopen a closed one.
+    resumed turn's first command is running or its first boundary is Stop. Late
+    old callbacks and transcript lag cannot replace that provider identity or
+    reopen a closed one.
     """
     codex_loop(page_dir)
     source = tmp_path / "rollout.jsonl"
@@ -10923,7 +10978,8 @@ def test_codex_resume_without_input_delivers_in_its_first_tool(
         },
     )
     capsys.readouterr()
-    leases_model.mark_step_hook("codex-thread")
+    if prior_step:
+        leases_model.mark_step_hook("codex-thread")
     with source.open("a") as stream:
         stream.write(
             json.dumps({"type": "response_item", "payload": {"output": "x" * 150_000}})
@@ -10960,8 +11016,11 @@ def test_codex_resume_without_input_delivers_in_its_first_tool(
         "queue_delivery",
         lambda *_: pytest.fail("resumed turn was queued"),
     )
-    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
-    assert cleanup_model.session_record("codex-thread")["turn"] == "resumed"
+    if prior_step:
+        assert not codex_adapter_model._offer_queued_delivery(
+            "codex", "codex-thread", None
+        )
+        assert cleanup_model.session_record("codex-thread")["turn"] == "resumed"
     hooks_model.cmd_hook(
         "codex",
         {
@@ -10974,14 +11033,20 @@ def test_codex_resume_without_input_delivers_in_its_first_tool(
     hooks_model.cmd_hook(
         "codex",
         {
-            "hook_event_name": "PostToolUse",
+            "hook_event_name": delivery_hook,
             "session_id": "codex-thread",
             "turn_id": "resumed",
         },
     )
-    offer = json.loads(capsys.readouterr().out)["hookSpecificOutput"]
+    offer = json.loads(capsys.readouterr().out)
     [(path, _)] = codex_records("codex-thread")
-    assert offer["additionalContext"] == codex_model.delivery_pointer_prompt(path.stem)
+    pointer = codex_model.delivery_pointer_prompt(path.stem)
+    if delivery_hook == "Stop":
+        assert offer == {"decision": "block", "reason": pointer}
+    else:
+        assert offer["hookSpecificOutput"]["additionalContext"] == pointer
+    assert cleanup_model.session_record("codex-thread")["turn_closed"] is None
+    assert not codex_adapter_model._offer_queued_delivery("codex", "codex-thread", None)
     delivery_model.cmd_delivery_read(path.stem)
     capsys.readouterr()
     [pickup] = [e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"]
@@ -11209,7 +11274,7 @@ def test_a_codex_tool_step_wins_a_queue_offer_based_on_stale_activity(
     def stale_activity(session_id):
         prompts.append(codex_model.offer_hook_delivery(session_id, "user-turn"))
 
-    monkeypatch.setattr(codex_adapter_model, "step_delivery_turn", stale_activity)
+    monkeypatch.setattr(codex_adapter_model, "delivery_turn", stale_activity)
     queued = []
     monkeypatch.setattr(
         codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
@@ -11309,7 +11374,7 @@ def test_an_unread_codex_hook_pointer_falls_back_to_the_idle_queue(
             },
         )
         assert not capsys.readouterr().out
-        assert codex_state_model.step_delivery_turn("codex-thread") is None
+        assert codex_state_model.delivery_turn("codex-thread") is None
         # A late tool hook cannot reopen the turn or duplicate the pointer.
         hooks_model.cmd_hook(
             "codex",
@@ -11446,6 +11511,8 @@ def test_codex_acceptance_survives_interruption_before_page_receipt(
         leases_model.mark_step_hook("codex-thread")
     codex_model.offer_hook_delivery("codex-thread", "user-turn")
     [(path, _)] = codex_records("codex-thread")
+    if transport == "queue":
+        cleanup_model.close_session_turn("codex-thread", "user-turn")
     queued = []
     monkeypatch.setattr(
         codex_adapter_model, "queue_delivery", lambda *args: queued.append(args)
@@ -18560,7 +18627,7 @@ def test_newer_prompt_supersedes_hook_policy_before_effects(
 
     monkeypatch.setattr(hook_transport_model, "stop_continues", supersede)
     hooks_model.cmd_hook(
-        "codex",
+        "claude-code",
         {
             "hook_event_name": "Stop",
             "session_id": "s1",

@@ -1180,12 +1180,14 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
         )
     ).to_have_attribute("data-lf-datum", frame_target)
     # Page selection is the scope of both the axis pins and their labels.
-    pages = widget.get_by_role("group", name="Recorded page or API stream")
+    expect(
+        widget.get_by_role("radiogroup", name="Recorded page or API stream")
+    ).to_be_visible()
     before_scope = widget.locator(".lf-trace-position").inner_text()
     before_origin = widget.locator(".lf-trace-body").evaluate(
         "e => e.getBoundingClientRect().top + scrollY"
     )
-    pages.get_by_role("button", name=re.compile("API calls")).click()
+    widget.get_by_role("radio", name=re.compile("API calls")).click()
     expect(summary).to_have_text("Moments (1)")
     expect(widget.locator(".lf-trace-image-tools")).to_be_hidden()
     expect(widget.locator(".lf-trace-bookmark:visible")).to_have_count(1)
@@ -1197,7 +1199,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
         "button", name="API stream completion"
     ).click()
     expect(widget.locator(f'[data-lf-datum="{api_target}"]')).to_be_visible()
-    pages.get_by_role("button", name="Page 1", exact=True).click()
+    widget.get_by_role("radio", name="Page 1", exact=True).click()
     expect(widget.locator(".lf-trace-position")).to_have_text(before_scope)
     assert (
         widget.locator(".lf-trace-body").evaluate(

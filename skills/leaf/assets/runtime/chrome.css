@@ -1049,11 +1049,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     gap: 8px; min-width: 0; max-width: 160px; overflow: hidden;
     font: 400 11px/14px var(--sans); }
   .lf-thread-draft { color: var(--muted); font-size: 10px; white-space: nowrap; }
-  .lf-thread-unread { color: var(--accent); font-size: 10px;
-    font-weight: 700; white-space: nowrap; }
   .lf-thread-status { max-width: 150px; min-width: 0; overflow: hidden; text-overflow: ellipsis;
-    white-space: nowrap; color: var(--muted); font-size: 11px; }
-  .lf-thread-status[data-lf-turn="user"] { color: var(--turn-ink); }
+    white-space: nowrap; }
+  .lf-thread-status:not(.lf-thread-notice) { color: var(--muted); font-size: 11px; }
+  .lf-thread-status:not(.lf-thread-notice)[data-lf-turn="user"] { color: var(--turn-ink); }
   /* Open, the card shows what these digest: a message's stage, the draft, the unread. */
   details[open] > .lf-thread-summary .lf-thread-meta > [data-lf-folded] { display: none; }
   .lf-thread-trailing { grid-column: 3; grid-row: 1; display: flex; align-items: baseline;
@@ -1061,7 +1060,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     font: 400 11px/14px var(--sans); }
   /* A summary is itself a button. Its separate settlement control belongs to the
      expanded body, anchored beside the disclosure at the status's reserved box. */
-  .lf-thread-status[data-lf-settlement] { anchor-name: --lf-thread-settlement; padding-inline: 4px; }
+  .lf-thread-status[data-lf-settlement] { anchor-name: --lf-thread-settlement; }
+  .lf-thread-status[data-lf-settlement]:not(.lf-thread-notice) { padding-inline: 4px; }
   .lf-thread-compact[open] > .lf-thread-summary .lf-thread-status[data-lf-settlement] { visibility: hidden; }
   /* The reserved label is hidden while its separate button paints at that anchor,
      over the title it stands in, however high the title stacks to stay over its rows. */
@@ -1070,10 +1070,10 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     z-index: calc(var(--lf-thread-title-z) + 1);
     inset-inline-start: anchor(left); inset-block-start: anchor(center);
     translate: 0 -50%; width: anchor-size(width); box-sizing: border-box;
-    font: 400 11px/14px var(--sans); padding: 0 4px; margin: 0;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lf-thread-action.lf-thread-header-action { font: 400 11px/14px var(--sans); padding: 0 4px; margin: 0;
     text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
-  .lf-thread-header-action:hover { text-decoration-style: solid; }
+  .lf-thread-action.lf-thread-header-action:hover { text-decoration-style: solid; }
   .lf-thread-compact:not([open]) > .lf-thread-header-action { display: none; }
   /* The container supplies navigation and an inset; shadow.css owns the conversation. */
   .lf-thread-compact > .lf-thread-content { padding-block-start: 12px; }

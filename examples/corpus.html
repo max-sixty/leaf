@@ -1915,9 +1915,19 @@
       await customElements.whenDefined("lf-sample");
 
       const titleSample = document.querySelector("#bg-title-sheen-sample");
+      let titleRequested = false;
+      let shownTitleRevision = null;
       const showPendingTitle = () => {
+        const ready = titleSample.ready;
+        if (!titleRequested || !ready || shownTitleRevision === ready) return;
+        shownTitleRevision = ready;
         void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
       };
+      document.querySelector("#bg-title-sheen-show").addEventListener("click", () => {
+        titleRequested = true;
+        shownTitleRevision = null;
+        showPendingTitle();
+      });
       titleSample.addEventListener("lf-sample-ready", showPendingTitle);
       void titleSample.ready.then(showPendingTitle);
 
@@ -7155,10 +7165,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <h3>Thread title</h3>
               <section id="bg-title-sheen">
                 <p id="bg-title-sheen-guide">
-                  The pending title below uses a highlight that travels across the
-                  lettering and returns. Reset starts a fresh untitled thread. Reduced
-                  motion shows solid muted text.
+                  Open the sample thread to see a pending title highlighted across its
+                  lettering. Reset starts a fresh untitled thread. Reduced motion shows
+                  solid muted text.
                 </p>
+                <button id="bg-title-sheen-show" type="button">
+                  Open sample thread
+                </button>
                 <lf-sample
                   id="bg-title-sheen-sample"
                   label="Pending thread title"

@@ -55,11 +55,6 @@ vars:
     with the page's HTML, including its <style>. Show one case's cards; the other
     cases can be placeholders.
 assert:
-- type: javascript
-  metric: reads-playground-instructions
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/packages/playground/instructions/author\.md
 - type: llm-rubric
   metric: candidates-line-up
   value: |

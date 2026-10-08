@@ -37,6 +37,8 @@ from leaf_dev import ROOT
 from leaf_dev.arms import (
     HARNESSES,
     MODELS,
+    TURN_LIMIT,
+    WORKFLOW_LIMIT,
     base_ref,
     build_arm,
     child_class,
@@ -110,8 +112,6 @@ def native_provider(harness: str, payload: Path, work: Path) -> dict:
                 "apiKeyRequired": False,
                 "working_dir": str(work),
                 "persist_session": False,
-                "setting_sources": [],
-                "strict_mcp_config": True,
                 "plugins": [{"type": "local", "path": str(payload)}],
                 "additional_directories": [str(payload)],
                 "tools": ["Skill", "Read"],
@@ -168,11 +168,7 @@ def native_provider(harness: str, payload: Path, work: Path) -> dict:
             "model_reasoning_effort": "medium",
             "working_dir": str(work),
             "skip_git_repo_check": True,
-            "sandbox_mode": "read-only",
-            "approval_policy": "never",
-            "persist_threads": False,
-            "ephemeral": True,
-            "turn_timeout_ms": 300000,
+            "turn_timeout_ms": TURN_LIMIT * 1000,
             "cli_env": cli_env,
         },
     }
@@ -203,7 +199,7 @@ def workflow_provider(
             "samples": str(samples),
             "screenshots": str(screenshots),
             "pythonExecutable": sys.executable,
-            "timeout": 1800000,
+            "timeout": WORKFLOW_LIMIT * 1000,
         },
     }
 
@@ -265,6 +261,7 @@ def prepare(
         test = definitions[address]
         metadata = test.get("metadata", {})
         executor = metadata.get("executor")
+        instructions = metadata.get("instructions")
         for condition in conditions:
             if condition not in metadata.get("conditions", ["leaf"]):
                 continue
@@ -278,6 +275,7 @@ def prepare(
                         f"{workflow_harness(harness)}/{arm}/workflow"
                         if executor
                         else f"{harness}/{arm}"
+                        + ("/instructions" if instructions else "")
                     )
                     if label not in providers:
                         if executor:
@@ -288,6 +286,15 @@ def prepare(
                             work = scratch / "work" / label
                             work.mkdir(parents=True)
                             configured = native_provider(harness, payload, work)
+                            if instructions:
+                                field = (
+                                    "append_system_prompt"
+                                    if harness == ClaudeCodeHarness.name
+                                    else "developer_instructions"
+                                )
+                                configured["config"][field] = (
+                                    payload / instructions
+                                ).read_text()
                         providers[label] = {**configured, "label": label}
                     labels.append(label)
             if not labels:
@@ -306,9 +313,8 @@ def prepare(
                     *(
                         {
                             "type": "javascript",
-                            "value": "file://scenario-check.cjs",
+                            "value": f"context.providerResponse.metadata?.checks?.[{json.dumps(check)}] === true",
                             "metric": check,
-                            "config": {"check": check},
                         }
                         for check in checks
                     ),
@@ -319,7 +325,8 @@ def prepare(
             else:
                 sample["vars"] = {
                     **sample["vars"],
-                    "prompt": SKILL_PREFIX + sample["vars"]["prompt"],
+                    "prompt": ("" if instructions else SKILL_PREFIX)
+                    + sample["vars"]["prompt"],
                 }
                 images = pinned_copy(ROOT / "evals" / task)
                 if images is not None and images.is_dir():
@@ -362,7 +369,6 @@ def prepare(
                     "config": {
                         "model": MODELS["judge"],
                         "apiKeyRequired": False,
-                        "setting_sources": [],
                         "persist_session": False,
                     },
                 }

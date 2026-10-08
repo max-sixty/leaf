@@ -4031,7 +4031,7 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
           const present = list.present.bind(list);
           const held = Promise.withResolvers();
           list.present = model => {
-            if (!document.querySelector('.lf-thread-panel').open) return present(model);
+            if (!document.querySelector('.lf-thread-panel').classList.contains('open')) return present(model);
             window.replyContinuationHeld = true;
             return held.promise.then(() => present(model));
           };

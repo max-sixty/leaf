@@ -249,12 +249,6 @@ def turn_obligations(state: dict, *, watched: bool) -> list[dict]:
     ]
 
 
-def transition_due(activity: dict, now_iso: str) -> bool:
-    """Whether a projected activity reading has reached its refresh boundary."""
-    due = _moment(activity.get("next_transition_at"))
-    return bool(due and due <= datetime.fromisoformat(now_iso))
-
-
 class Turn(NamedTuple):
     """The claimant session's current turn, as the one reading every rule of the
     fold takes: whether it is running; when it was seen to end, where something saw

@@ -269,12 +269,12 @@ def resolve_dependency(specifier: str, importer: str, *, module=False) -> str | 
     return resolved
 
 
-def javascript_tree(data: bytes, path: str):
-    """Parse UTF-8 JavaScript once at its source boundary, with located errors.
+def javascript_imports(data: bytes, path: str):
+    """Yield exact string-literal spans of static exports/imports and import().
 
-    Artifact capture and developer source analysis consume this same syntax
-    reading. Import admission remains with the artifact's reference reader.
-    """
+    A computed import() binds when it runs, so capture neither follows nor refuses it:
+    a CDN module named that way loads, and a page file it names is in the revision
+    only if something imports it literally."""
     try:
         data.decode("utf-8")
     except UnicodeDecodeError as error:
@@ -290,16 +290,6 @@ def javascript_tree(data: bytes, path: str):
                 )
             pending.extend(reversed(node.children))
         raise ArtifactError(f"{path}: invalid JavaScript")
-    return tree
-
-
-def javascript_imports(data: bytes, path: str):
-    """Yield exact string-literal spans of static exports/imports and import().
-
-    A computed import() binds when it runs, so capture neither follows nor refuses it:
-    a CDN module named that way loads, and a page file it names is in the revision
-    only if something imports it literally."""
-    tree = javascript_tree(data, path)
     pending = [tree.root_node]
     while pending:
         node = pending.pop()

@@ -284,12 +284,10 @@ height and where a switch lands wait on the workspace decision under Layout.
 
 ### Recorded interaction review
 
-Max's assessment (2026-10-05): "I'm not sure this is great." Ship the optional
-Leaf timeline as a trial alongside Playwright's viewer. Keeping it is undecided;
-we may use Playwright directly. Try the comment workflow before investing further
-in the integration.
+Keep the optional Leaf timeline alongside Playwright's viewer, as Max chose
+on 2026-10-07.
 
-- **Explore DOM selection if we keep the imported timeline.** The optional `playwright`
+- **Explore DOM selection in the imported timeline.** The optional `playwright`
   package imports native actions, checkpoint images, captured frames and saved
   accessibility elements; following their comments restores the moment. Reuse
   Playwright's DOM renderer to add arbitrary element and passage selection, with
@@ -401,6 +399,12 @@ in the integration.
 Revisit these when their stated trigger becomes real; they are not an active queue.
 
 ### Product and harness ideas
+
+- **Assess whether automatic measurement freshness is useful (#7 in the simplification audit).**
+  Keep the current `lf-num` source/write-time reminder for now. Look for cases where
+  its warnings lead an author to update a stale claim, and weigh that benefit against
+  the source binding, timestamp and special markup authors maintain. Consider
+  removing the subsystem if it does not prove useful.
 
 - **Revisit where an abandoned comment's words come back.** A page comment closed
   with Escape keeps its words, and the next box `c` opens, such as a thread card's

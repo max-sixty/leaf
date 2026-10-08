@@ -10930,14 +10930,16 @@ def test_a_focused_scope_owns_its_declared_key_while_the_command_is_unavailable(
     assert (
         page.get_by_role("button", name="Inner scope").get_attribute("data-f2") is None
     )
-    available = page.evaluate(
-        """async () => {
-          const { availableCommands } = await window.__lfRuntimeImport('/runtime/keyboard/dispatch.js');
-          return [...availableCommands()];
-        }"""
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    expect(reference.get_by_role("button", name="Run outer F2")).to_have_attribute(
+        "data-lf-available", "false"
     )
-    assert "test.outer-f2" not in available
-    assert "test.outer-f3" in available
+    expect(reference.get_by_role("button", name="Run outer F3")).to_have_attribute(
+        "data-lf-available", "true"
+    )
+    page.keyboard.press("Escape")
 
     page.keyboard.press("F3")
     expect(page.locator("#outer-scope")).to_have_attribute("data-f3", "1")

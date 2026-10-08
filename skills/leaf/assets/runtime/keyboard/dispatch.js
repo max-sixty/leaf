@@ -494,12 +494,11 @@ export function activeCommandLabel(ids) {
   const command = commandMatching((entry) => wanted.has(entry.id));
   return command?.binding != null ? spell(command.binding) : "";
 }
-// Snapshot every executable route while focus is still on the page. Keep both readings:
-// command ids answer whether a semantic result can be invoked, while row bindings answer
-// whether this exact advertised route works. The distinction matters when a widget's
-// intrinsic key and an Ask alias share one command id but only one binding is shadowed.
-function availableRouteSnapshot() {
-  const commands = new Set();
+// Snapshot executable bindings by row while focus is still on the page. A widget's
+// intrinsic key and an Ask alias can share a command id while only one is shadowed.
+// The reference is a modal scope and shadows the page once it opens, so callers take
+// this snapshot before opening it.
+export function availableCommandRoutes() {
   const routes = new Map();
   const unclaimedEscape = unclaimedScopes("Escape");
   const nearer = shadow();
@@ -514,7 +513,6 @@ function availableRouteSnapshot() {
       for (const binding of allBindings(row).length ? reachable : [undefined]) {
         for (const command of commandEntries(row, [binding])) {
           if (!invocationFor(row, binding, command)) continue;
-          commands.add(command.id);
           if (!routes.has(row)) routes.set(row, new Set());
           routes.get(row).add(binding);
         }
@@ -522,12 +520,8 @@ function availableRouteSnapshot() {
     }
     nearer.past(scope);
   }
-  return { commands, routes };
+  return routes;
 }
-// The reference is a modal scope and correctly shadows the page once it opens; callers
-// take this snapshot before that point.
-export const availableCommands = () => availableRouteSnapshot().commands;
-export const availableCommandRoutes = () => availableRouteSnapshot().routes;
 // A control standing in for a press (touch-controls.js) makes that press itself: the
 // binding names which of a routed row's results it is, and a nearer claim on the key is
 // about the key, not the command.

@@ -15811,13 +15811,14 @@ def test_a_command_button_owns_activation_and_the_native_form_default(browser, s
           two.textContent = 'Second route';
           one.form.append(two);
           commandForm.routes = [];
+          commandForm.firstRouteAvailable = false;
           commands(one.form, 'Routed form', [{
             id: 'test.form-routes', keys: ['1', '2'], title: 'Apply route', control: one,
-            routes: [{id: 'test.form-one', title: 'First', binding: '1'},
+            routes: [{id: 'test.form-one', title: 'First', binding: '1',
+              when: () => commandForm.firstRouteAvailable},
               {id: 'test.form-two', title: 'Second', binding: '2', control: two}],
             run: binding => commandForm.routes.push(binding),
           }]);
-          one.setAttribute('aria-disabled', 'true');
           commandForm.invalidate();
         }"""
     )

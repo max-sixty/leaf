@@ -63,6 +63,7 @@ from render_cases_navigation import (
     DIFF_PAGE,
     _publish,
     actions,
+    go_to_address,
 )
 from render_cases_widgets import (
     SCROLLED,
@@ -146,6 +147,39 @@ document.querySelector('#comparison').prepend(summary);
     expect(page.locator("#comparison")).not_to_have_attribute("open", "")
     assert control.bounding_box() == before
     context.close()
+
+
+def test_offered_native_targets_keep_their_navigation_meaning(browser, serve):
+    """An offered disclosure or link keeps its native Go-to arrival, not a generic press."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Native routes",
+                """<h1>Comparison</h1>
+<details id="comparison"><p>Inspection controls.</p></details>
+<p id="destination">Destination evidence.</p>
+<script type="module">
+import {offer} from '/runtime/widget-api.js';
+const summary = offer('summary', '', 'Inspect comparison');
+summary.id = 'inspect';
+document.querySelector('#comparison').prepend(summary);
+const link = offer('a', '', 'Evidence');
+link.id = 'evidence';
+link.href = '#destination';
+document.querySelector('main').append(link);
+</script>""",
+            )
+        ),
+    )
+    summary = page.locator("#inspect")
+    go_to_address(page, "Fold", "inspect")
+    expect(summary).to_be_focused()
+    expect(page.locator("#comparison")).to_have_attribute("open", "")
+    page.keyboard.press("Enter")
+    expect(page.locator("#comparison")).not_to_have_attribute("open", "")
+    go_to_address(page, "Link", "evidence")
+    expect(page).to_have_url(re.compile(r"#destination$"))
 
 
 @pytest.mark.parametrize("width", [390, 1440])

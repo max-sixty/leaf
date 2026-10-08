@@ -72,12 +72,13 @@ which markers stand and where, which is what the overlay exists to avoid. Where 
 covers something the user needs, the answers are `o` (or More's Hide annotations
 under a finger) and a better placement (`TODO.md`), never room made for it.
 
-The auxiliary surfaces (Queue panel, thread panel, Leaves drawer) stand over the page and
-never change its geometry; the Queue panel and thread panel leave the page live beside
-them, and cover it where they would leave less than a usable page
+The auxiliary surfaces (Questions panel, thread panel, Leaves drawer) stand over the page and
+never change its geometry; the Questions panel and thread panel share the right edge, one
+at a time, leave the page live beside them, and cover it where they would leave less than
+a usable page
 (`--lf-auxiliary-beside`, read by `standsBeside`). Which box scrolls is the
 stylesheet's, a Layout's or the page's, which the runtime reads rather than decides.
-The Queue panel is experimental and expected to change a lot: it replaced the Asks
+The Questions panel is experimental and expected to change a lot: it replaced the Asks
 drawer to try one place for both queues (`runtime/queue-panel.js`).
 
 Widgets in ordinary document flow grow with their content by default. Internal

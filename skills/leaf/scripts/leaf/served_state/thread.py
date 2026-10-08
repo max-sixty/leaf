@@ -1,19 +1,16 @@
 """Thread-scoped browser projection."""
 
-from ..asks import thread_ask_readings, thread_awaits_user
 from ..events import (
     active_summaries,
     awaits_agent,
     bare_reaction,
     conversation_turns,
     seat_root,
-    standing_approvals,
     unanswered_agent_turn,
 )
-from ..projection import FrozenThreadReading, frozen_thread_reading
+from ..projection import FrozenThreadReading
 from ..read_state import unread_content
 from ..schema import agent_name
-from ..tasks import task_ends
 from .wire import browser_projection
 
 
@@ -39,37 +36,20 @@ def _named(event: dict) -> dict:
 
 
 def browser_thread(
-    events: list,
-    registry: dict,
-    threads: dict,
-    live_reply: dict | None = None,
+    work, live_reply: dict | None = None
 ) -> tuple[dict, FrozenThreadReading]:
-    """The threads' browser reading. Whose turn each thread is reaches the browser
-    only as its `attention`, which `served_state.browser` attaches from this
-    reading's Asks and `user_prompt` and the page's workflows. Each message, and the
-    event that closed a thread, carries as `agent` the name it is shown under
-    (`agent_name`), so the browser keeps no fallback name of its own."""
-    settled = {identity for identity, thread in threads.items() if thread["resolved"]}
-    reading = frozen_thread_reading(events, registry)
-    asks = thread_ask_readings(events, registry, settled, reading=reading)
-    awaiting = asks["awaiting"]
+    """Serialize the shared frozen-thread work reading, adding presentation only.
+    Messages and closing events carry their canonical display name; provisional
+    replies and unread/summary protection never become durable work authority."""
+    events, threads = work.events, work.threads
+    reading, asks = work.thread, work.asks
     unread = unread_content(
         events, threads, reading.thread_by_name, reading.thread_by_widget
     )
-    open_ask_threads = {ask["thread"] for ask in asks["user"]}
-    ended = set(task_ends(events))
     summaries_for = active_summaries(events, threads)
     rendered_threads = []
     for thread_id, thread in threads.items():
-        awaits_user, user_prompt = thread_awaits_user(
-            thread_id,
-            thread,
-            registry,
-            awaiting,
-            reading.structure,
-            open_ask_threads,
-            ended,
-        )
+        awaits_user, user_prompt = work.questions[thread_id]
         protected = set()
         turns = conversation_turns(thread)
         if awaits_agent(thread):
@@ -144,7 +124,7 @@ def browser_thread(
             "threads": rendered_threads,
             # What the banner's own button reads to say whether the version has
             # been signed off.
-            "done": standing_approvals(events),
+            "done": work.approvals,
         },
         reading,
     )

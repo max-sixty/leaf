@@ -70,6 +70,7 @@ export function createThreadPanelController({
     key,
     surface: panel,
     scroller: () => threadsBox,
+    edge: "right",
     // The panel stands over the right of the page, and the page beside it stays live: a
     // user presses the marks and passages its threads are about while it is open. It
     // takes the covering boundary only where it leaves less than a usable page.
@@ -88,15 +89,18 @@ export function createThreadPanelController({
     pressedInlineThread = threadAtStanding();
   };
   const toggle = (event) => {
-    const pressed = pressIsKeyboardActivation(event) ? null : pressedInlineThread;
+    const keyboard = pressIsKeyboardActivation(event);
+    const pressed = keyboard ? null : pressedInlineThread;
     pressedInlineThread = null;
     if (panelIsOpen()) {
       setPanel(false);
       return;
     }
-    const inlineThread = pressed ?? threadAtStanding();
+    // A keyboard press enters the panel's standing thread. A pointer press may carry
+    // the page thread it began beside, even after focus moves to this door.
+    const inlineThread = keyboard ? null : (pressed ?? threadAtStanding());
     if (inlineThread) showThread(inlineThread, { focus: "thread" });
-    else setPanel(true, { focus: pressIsKeyboardActivation(event) });
+    else setPanel(true, { focus: keyboard });
   };
   function mountThreadPanel() {
     if (mounted) return;

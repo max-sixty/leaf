@@ -460,8 +460,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
    & > lf-option[chosen] > .lf-pick::before {
                      width: auto; height: auto; border: 0; background: transparent;
                      color: inherit; }
-   & > lf-option > .lf-key-badge,
-   & > lf-options-done > .lf-done > .lf-key-badge {
+   & > lf-option > .lf-key-badge {
                      inset-inline-start: auto; inset-inline-end: var(--sp-2); }
    & > lf-option > .lf-key-badge { top: var(--sp-2); }
    /* An empty draft offers only the route into its field, so that binding badge occupies
@@ -573,13 +572,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * final cell on the page and in a thread. */
 :scope:is(lf-options) > lf-options-done > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      border-color: var(--ok); background: var(--ok-tint); }
-/* Its Ask binding badge stands where the rows' do: in the binding column, centred on the
- * press, inside the cell rather than hung off its corner. */
 :scope:is(lf-options) > lf-options-done { display: grid; padding: 0; }
-:scope:is(lf-options) > lf-options-done > .lf-done { position: relative; width: 100%; }
-:scope:is(lf-options) > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-index: 1;
-                     inset-inline-start: var(--lf-key-badge-start);
-                     top: 0; bottom: 0; margin: auto 0; }
+:scope:is(lf-options) > lf-options-done > .lf-done { width: 100%; }
 /* A group under `choose` is one control, not a set of options standing near each other.
  * Deleting the offer word left the question of what says a decision is waiting, and the
  * answer is the group rather than another thing drawn on every member: a group offers and
@@ -2671,83 +2665,52 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 
-/* A draft keeps the page's type and frame while its shared Markdown editor opens.
-   Plain text retains its reading geometry; Markdown takes the field's common face.
-   Keep the reading body in flow until the editor has content, so its initial layout
-   cannot collapse a scrolled page or pane. Edit, Save and Cancel belong to the target's
-   contribution surface; native history keeps its allocated row below the text.
-   The frame carries the inset focus ring, and print keeps the saved reading body
-   while dropping editing controls. */
-:scope:is(lf-draft) { display: block; border: 1px dashed var(--border-2); border-radius: 6px;
-           padding: 10px 14px; margin: 12px 0; background: var(--card); }
-.lf-draft-body, .lf-draft-edit.lf-ui { white-space: pre-wrap; }
-/* The authored <pre> stands where the drawn body will, so it wraps as that body does
-   and drops what the module's decoder drops (`decodeBodyRecord`, projection/authored.js):
-   the indentation the HTML around it gave every line, and the line of spaces before an
-   indented closing tag. pre-line keeps the draft's line breaks and drops both, so the first
-   paint has the drawn body's lines; it reads otherwise only where the draft's own lines
-   are indented relative to one another or hold runs of spaces. */
+/* Drafts read as Markdown, with editor operations in their own stable footer.
+   Reserve that footer before upgrade; actual history shares it rather than adding
+   an empty Changes row. The frame holds focus, and print retains saved prose. */
+:scope:is(lf-draft) { display: block; border: 1px solid var(--border-2); border-radius: 6px;
+  padding: 10px 14px; margin: 12px 0; background: var(--card);
+  font-size: max(var(--entry-floor), 1em); }
+.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body { white-space: normal; }
+:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :first-child { margin-top: 0; }
+:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :last-child { margin-bottom: 0; }
 :scope:is(lf-draft) > pre { white-space: pre-line; }
-.lf-draft-pencil { opacity: 1; }
-/* The one control whose face is deliberately the document's: the box shows the page's
-   words in the page's serif, or the word under the press reflows out from under the
-   pointer the moment the box opens. Stated unlayered, so it outranks the runtime's layered
-   UA-clearing and the chrome face .lf-ui would otherwise put on it. */
 .lf-draft-edit.lf-ui { display: block; width: 100%; padding: 0; border: 0; background: none;
-           font: inherit; min-height: 0; max-height: none; overflow: hidden; }
-/* The editor is a field, so on a touch screen it stands on --entry-floor (shadow.css);
-   the box holds its shown words on the same floor, or a draft in a 14px sidenote opens a
-   size larger than the words it showed. */
-:scope:is(lf-draft) { font-size: max(var(--entry-floor), 1em); }
+  font: inherit; min-height: 0; max-height: none; overflow: hidden; }
 .lf-draft-edit.lf-ui:is(:focus, .lf-focus) { outline: none; box-shadow: none;
-           --lf-focus-ring: none; }
-.lf-draft-history { display: none; }
+  --lf-focus-ring: none; }
+.lf-draft-footer { display: none; }
 @media screen {
-
-    /* The box is the door (lf-draft.js), so the box answers the pointer: the dashed
-       edge it already wears to say "editable" sharpens under the aim, the way the
-       layer's own pressables warm their ground. Not the ground here — the user is
-       about to type on it, and the words have to stay the page's words while they
-       decide. A quoted draft is an exhibit with no door and gets none of this. */
-  :scope:is(lf-draft):not(:where([data-lf-exhibit]) *):not(:has(.lf-draft-edit)):hover {
-    border-color: var(--muted); }
-  :scope:is(lf-draft):has(.lf-draft-edit) { border-style: solid;
-    border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
-    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+  @scope (html[data-lf-interactive] :scope) {
+    :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
+      display: grid;
+      grid-template-rows: minmax(min-content, auto) minmax(max(32px, var(--aim-floor)), auto);
+      gap: 8px;
+    }
+  }
+  :scope:is(lf-draft):has(.lf-draft-edit) { border-color: var(--muted); }
   :scope:is(lf-draft):has(.lf-draft-edit:focus) { outline: var(--focus-ring);
     --lf-focus-ring: draft-editor;
     outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap))); }
   :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body { display: none; }
-  .lf-draft-history { display: block; }
-
-  /* The live draft's second row belongs to its native history disclosure from the
-     parser's first paint. The complete reading supplies the real summary; until
-     then the same row is empty. Its minimum is the native details spacing and one
-     chrome line, so opening history can grow it without a measured-height cache.
-     The text row keeps its content minimum even when the shared field clips overflow,
-     so a bounded draft scrolls its words instead of shrinking that row. */
-  @scope (html[data-lf-interactive] :scope) {
-    :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
-      display: grid;
-      grid-template-rows: minmax(min-content, auto) minmax(calc(3 * var(--details-padding-block) +
-        var(--details-margin-block) + 2 * var(--details-border) +
-        var(--t-5) * var(--lf-ui-lh)), auto);
-    }
-  }
-
+  .lf-draft-footer { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 8px 12px;
+    min-width: 0; font: var(--t-5)/var(--lf-ui-lh) var(--sans); }
+  .lf-draft-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-inline-start: auto; }
+  .lf-draft-action { min-height: max(32px, var(--aim-floor)); }
+  .lf-draft-status { color: var(--danger-ink); align-self: center; }
+  .lf-draft-status:empty { display: none; }
+  .lf-draft-history { flex: 1; min-width: 0; margin: 0; padding: 0; border: 0;
+    --lf-block-frame: 1; font: inherit; color: var(--ink-2); }
+  .lf-draft-history[hidden] { display: none; }
+  .lf-draft-history > summary { width: max-content; max-width: 100%; cursor: pointer;
+    padding-block: 5px; color: var(--muted); }
+  .lf-draft-history > summary:hover { color: var(--ink-2); }
 }
 @media (forced-colors: active) {
-  :scope:is(lf-draft):has(.lf-draft-edit:focus){
+  :scope:is(lf-draft):has(.lf-draft-edit:focus) {
     outline: 2px solid Highlight; outline-offset: -5px; box-shadow: none;
   }
 }
-.lf-draft-history { margin-top: var(--details-padding-block);
-                    padding-top: var(--details-padding-block);
-                    border-top: var(--details-border) solid var(--rule);
-                    --lf-block-frame: 1;
-                    font-size: var(--t-5); color: var(--ink-2); }
-.lf-draft-history > summary { width: max-content; cursor: pointer; color: var(--muted); }
-.lf-draft-history > summary:hover { color: var(--ink-2); }
 .lf-draft-current { margin: 10px 0; }
 .lf-draft-current > strong { display: block; margin-bottom: 4px; }
 .lf-draft-revisions { margin: 0; padding-left: 20px; }

@@ -114,6 +114,8 @@ export {
   loadMarkdown,
   markdownReady,
   markdownWords,
+  markdownSourceOffset,
+  paintMarkdown,
   renderInlineMarkdown,
   renderMarkdown,
 } from "./markdown.js";

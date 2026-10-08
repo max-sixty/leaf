@@ -1072,9 +1072,9 @@ export default [
     rules: { "no-undef": "error" },
   },
   {
-    // The site verifier resolves the release-scoped runtime URL from the page under
-    // test. That URL is data, so its two imports cannot be static dependency edges.
-    files: ["dev/leaf_dev/verify_site_browser.js"],
+    // Browser diagnostics resolve published runtime entries from the page under
+    // test. Those scoped URLs are data rather than static dependency edges.
+    files: ["dev/leaf_dev/verify_site_browser.js", "dev/leaf_dev/bench_latency.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: {
       "no-undef": "error",

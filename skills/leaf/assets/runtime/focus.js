@@ -538,6 +538,15 @@ for (const type of ["pointermove", "pointerdown", "wheel"])
     capture: true,
     passive: true,
   });
+// A repeated click can choose the focused destination without moving focus.
+addEventListener(
+  "click",
+  (event) => {
+    if (event.isTrusted && event.button === 0)
+      placeInput = focused()?.contains(event.composedPath()[0]) ? "focus" : "pointer";
+  },
+  { capture: true, passive: true },
+);
 export const recentPlaceInput = () => placeInput;
 
 // The primary pointer's press, from its `pointerdown` until it ends: its pointer and the

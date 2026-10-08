@@ -587,6 +587,7 @@ const queueWalk = createQueueWalk({
 const queue = createQueuePanel({
   arriveAtItem: queueWalk.arriveAtItem,
   endTask: queueWalk.endTask,
+  next: queueWalk.next,
   announce,
 });
 
@@ -797,6 +798,7 @@ if (window.frameElement?.hasAttribute("data-lf-contained")) {
 }
 drawers = createDrawers({
   doors: { queue: [queueCounts] },
+  sideEdge: layout.commentsEdge,
   landEdge: layout.landEdge,
   auxiliarySurfaces,
   closePreview: app.overlay?.closePreview,
@@ -818,11 +820,11 @@ goToSequence = createGoToSequence({
   elements: { banner, toggleBtn },
   hintChrome,
   directDestinations: () => [
-    version.PICKER,
     writingResume,
     passageSelection.command,
     navigation.alignTop,
     app.read.firstUnreadCommand,
+    version.PICKER,
   ],
   scrollToElement: anchorTravel.scrollToElement,
   leavesOffered,

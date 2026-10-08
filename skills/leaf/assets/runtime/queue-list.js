@@ -1,4 +1,4 @@
-/* The Queue panel's generated list. EXPERIMENTAL: the panel is a first cut at one place
+/* The Questions panel's generated list. EXPERIMENTAL: the panel is a first cut at one place
    for what waits on the user and on the agent, and its groups, rows and words are
    expected to change a lot.
 
@@ -131,7 +131,7 @@ class QueueList extends RetainedFace {
     for (const row of this.querySelectorAll(ROW)) {
       if (this.#wired.has(row)) continue;
       this.#wired.add(row);
-      keys(row, "In the Queue", [
+      keys(row, "In Questions", [
         { id: "queue.row.open", keys: PRESS, title: "go to this item" },
         {
           id: "queue.row.done",

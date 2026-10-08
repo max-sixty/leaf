@@ -390,7 +390,7 @@
   },
   "lf-trace": {
     "description": "A commentable Playwright recording with action phases, native captured frames and saved accessibility elements.",
-    "x-instructions": "Bind one empty widget to an imported playwright-trace source. Use data-height to size the review frame; images and saved elements scroll beneath its controls. Displayed times are elapsed within each recording stream. One chronological timeline navigates recorded action checkpoints; Show intermediate frames includes native JPEG frames between them. Left and Right step through the displayed stops. A checkpoint marks the recorded API phase; a separately captured image retains its own timestamp. Comments on images pin their exact capture, while comments on saved elements pin the selected action phase and tree path. Keep the linked Playwright viewer running for DOM, source, console and network inspection.",
+    "x-instructions": "Bind the widget to an imported playwright-trace source. Optional lf-trace-bookmark members mark exact images or action phases on a time-scaled timeline. Numbers match the chronological Moments list and selected readout. Each moment is independently selectable and exposes its name and time on hover or focus. Close times stack; explicit timeline zoom and pan preserve their native times. Image controls provide pan, zoom, fit and actual size. Ordinary wheel scrolling stays with the page. The ruler starts at recording time zero; navigation selects actual captured stops. Evidence grows in page flow. One chronological timeline navigates recorded action checkpoints; Show intermediate frames includes native JPEG frames between them. Left and Right step through the displayed stops. Comments on images pin their exact capture, while comments on saved elements pin the selected action phase and tree path. Keep the linked Playwright viewer running for DOM, source, console and network inspection.",
     "type": "object",
     "properties": {
       "id": {
@@ -407,7 +407,7 @@
       "source"
     ],
     "additionalProperties": false,
-    "x-content": "empty",
+    "x-content": "members",
     "x-data": {
       "trace": {
         "contract": "playwright-trace",
@@ -415,13 +415,40 @@
       }
     },
     "x-upgrade": true,
-    "x-height": true,
     "x-space": "available",
     "x-visual": {
       "prefixes": [
         "trace-"
       ]
     },
-    "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\" data-height=\"640\"></lf-trace>"
+    "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"></lf-trace>",
+    "x-prepaint": "<p class=\"lf-trace-waiting\">Waiting for a Playwright recording.</p>"
+  },
+  "lf-trace-bookmark": {
+    "description": "An authored, labeled jump to an exact captured image or action phase in its trace.",
+    "x-instructions": "Set target to an existing trace visual coordinate: trace-ARCHIVE_SHA256-image-IMAGE_ID or trace-ARCHIVE_SHA256-phase-ACTION_ID-PHASE. Read those ids from the imported source; phase is before, action, after, start or end. The widget derives elapsed time from the capture. A target absent from the recording is shown as unavailable.",
+    "type": "object",
+    "properties": {
+      "label": {
+        "type": "string",
+        "minLength": 1
+      },
+      "target": {
+        "type": "string",
+        "pattern": "^trace-[a-f0-9]{64}-(image|phase)-[a-z0-9-]+$"
+      }
+    },
+    "required": [
+      "label",
+      "target"
+    ],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-owners": [
+      "lf-trace"
+    ],
+    "x-name": "label",
+    "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"><lf-trace-bookmark label=\"Popup closes\" target=\"trace-0000000000000000000000000000000000000000000000000000000000000000-image-demo\"></lf-trace-bookmark></lf-trace>",
+    "x-upgrade": false
   }
 }

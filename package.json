@@ -47,6 +47,8 @@
     "markdown-it-task-lists": "2.1.1",
     "photoswipe": "5.4.4",
     "sortablejs": "1.15.7",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "viewerjs": "1.15.2",
+    "vis-timeline": "8.5.4"
   }
 }

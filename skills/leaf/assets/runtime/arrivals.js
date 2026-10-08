@@ -188,3 +188,53 @@ export function watchScrolls(listener) {
     document.removeEventListener("scroll", listener, SCROLL);
   };
 }
+
+// Whether a scroll is in flight anywhere in the page, from its first frame until it
+// settles, and each settle as it comes: a `scrollend` where the browser sends one, else
+// a settle after the last scroll frame, since a scroll restoration that replaces what
+// was scrolling ends without one. A scroll the runtime writes a frame at a time
+// (navigation.js, `glideTo`) sends a `scrollend` for each frame, so it holds the flight
+// until it lands (`scrollGlides`). What rides a scroll on an anchor is placed again once
+// it settles rather than on its frames, where a placement would trail the scroll a
+// frame behind.
+const SETTLE_MS = 80;
+const settleListeners = new Set();
+let inFlight = false;
+let gliding = false;
+let settleTimer = 0;
+let trackingScrolls = false;
+function settle() {
+  if (!inFlight || gliding) return;
+  inFlight = false;
+  clearTimeout(settleTimer);
+  for (const listener of settleListeners) listener();
+}
+function trackScrolls() {
+  if (trackingScrolls) return;
+  trackingScrolls = true;
+  watchScrolls(() => {
+    inFlight = true;
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(settle, SETTLE_MS);
+  });
+  document.addEventListener("scrollend", settle, SCROLL);
+}
+export function scrollGlides(on) {
+  trackScrolls();
+  gliding = on;
+  if (on) inFlight = true;
+  // A glide stopped before it wrote sends nothing more to settle on.
+  else if (inFlight) {
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(settle, SETTLE_MS);
+  }
+}
+export function scrolling() {
+  trackScrolls();
+  return inFlight;
+}
+export function watchScrollEnds(listener) {
+  trackScrolls();
+  settleListeners.add(listener);
+  return () => settleListeners.delete(listener);
+}

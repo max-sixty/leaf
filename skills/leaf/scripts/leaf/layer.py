@@ -389,6 +389,28 @@ def payload_runtime_fingerprint() -> str:
     )
 
 
+def payload_server_inputs(root: Path) -> list[Path]:
+    """The serving code and dependency manifests an init must restart to adopt."""
+    return [
+        *sorted((root / "skills/leaf/scripts").rglob("*.py")),
+        root / "pyproject.toml",
+        root / "uv.lock",
+    ]
+
+
+def payload_server_fingerprint() -> str:
+    """Identify the serving inputs and interpreter independently of a Git commit."""
+    return files_identity(
+        {
+            "$python": sys.version.encode(),
+            **{
+                path.relative_to(PLUGIN_ROOT).as_posix(): path.read_bytes()
+                for path in payload_server_inputs(PLUGIN_ROOT)
+            },
+        }
+    )
+
+
 def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
     """Why this Leaf cannot serve a page, given its recorded `$layer`: the page's
     runtime came from another Leaf. None when the page carries this Leaf's own.

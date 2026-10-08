@@ -211,8 +211,8 @@
 
       .interaction-frame {
         display: none;
-        width: var(--interaction-viewport-size, 200%);
-        height: var(--interaction-viewport-size, 200%);
+        width: calc(100% / var(--interaction-page-scale, 0.5));
+        height: calc(100% / var(--interaction-page-scale, 0.5));
         border: 0;
         opacity: 0;
         pointer-events: none;
@@ -221,17 +221,14 @@
       }
 
       .interaction-gallery[data-interaction-viewport="1"] {
-        --interaction-viewport-size: 100%;
         --interaction-page-scale: 1;
       }
 
       .interaction-gallery[data-interaction-viewport="2"] {
-        --interaction-viewport-size: 200%;
         --interaction-page-scale: 0.5;
       }
 
       .interaction-gallery[data-interaction-viewport="4"] {
-        --interaction-viewport-size: 400%;
         --interaction-page-scale: 0.25;
       }
 
@@ -446,8 +443,9 @@
       <p id="bg-start">
         Choose a view below. Its contents spine and Page Map lead to each feature. The
         top link brings the eyebrow and heading together; the first dot sits at the
-        spine’s origin. Each sample’s eyebrow names the <code>lf-*</code> elements it
-        exercises.
+        spine’s origin. The title has the largest ring, section rings are smaller, and
+        deeper headings use small dots. The current destination fills its marker. Each
+        sample’s eyebrow names the <code>lf-*</code> elements it exercises.
       </p>
 
       <lf-tabs id="bg-gallery-tabs">

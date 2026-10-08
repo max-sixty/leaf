@@ -1,8 +1,8 @@
 """Preview input readings and the user handoff's harness connection.
 
 `leaf-dev preview` resolves three things from wherever its source sits: the
-package layer, the media directory, and the set of paths a watcher subscribes
-to. Input tests state a directory tree and ask for those pure readings. The user
+package layer, the companion media and pinned assets, and the paths a watcher
+subscribes to. Input tests exercise those readings and shared page preparation. The user
 handoff crosses the real claim, server and delivery adapter boundaries, without
 opening a browser.
 
@@ -21,10 +21,15 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
+from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import ROOT, STATED_TIMEOUT, declare_idle, fetch, stamp, wait_for
+from leaf import cli as cli_model
 from leaf import codex_adapter, hosting, leases, server, service, session, state
-from leaf_dev import preview
+from leaf.media import media_name
+from leaf.structure import SourceDocument
+from leaf_dev import page_fixtures, preview
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 
 def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
@@ -231,10 +236,102 @@ def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
     assert preview.media_source(source) == media
     watched = preview.watch_paths(source, ROOT, [], {})
     assert str(examples / "layer.json") in watched.paths
-    # The layer is told apart from the page's own inputs, because re-vendoring changes
-    # what a revision is as executable code and editing the source does not.
-    assert str(examples / "layer.json") not in watched.layer
-    assert str(ROOT / "uv.lock") in watched.layer
+    assert str(ROOT / "uv.lock") in watched.paths
+
+
+@pytest.mark.parametrize("name", ["how-it-works", "index", "examples"])
+def test_product_previews_prepare_the_authored_layer_and_media(
+    tmp_path, monkeypatch, name
+):
+    """A product preview includes its site furniture and authored images."""
+    source = ROOT / "docs" / f"{name}.html"
+    page = tmp_path / "preview"
+    monkeypatch.chdir(ROOT)
+
+    def run_leaf(*args, input_text=None):
+        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
+        assert result.exit_code == 0, result.output
+
+    prepare_page(page, read_fixture(source), run_leaf, final_status=None)
+    assert all(
+        (page / reference.removeprefix("/")).is_file()
+        for reference in SourceDocument(source.read_text()).media_refs
+    )
+    registry = json.loads((page / "registry.json").read_text())
+    assert "nav.sitenav" in registry["$idioms"]
+    assert (ROOT / "docs" / "package" / "theme.css").read_text().rstrip() in (
+        page / "theme.css"
+    ).read_text()
+    watched = preview.watch_paths(source, ROOT, [], {})
+    assert str(ROOT / "docs" / "layer.json") in watched.paths
+
+
+@pytest.mark.parametrize("kind", ["image", "css", "inline", "stylesheet", "sample"])
+def test_fixture_media_follows_versions_draft_assets_and_live_edits(
+    tmp_path, monkeypatch, kind
+):
+    """Markup selects media for preparation and refresh, including earlier versions."""
+    source = tmp_path / "source" / "index.html"
+    source.parent.mkdir()
+    (source.parent / "layer.json").write_text("[]")
+    (source.parent / "media").mkdir()
+    (source.parent / "leaf-assets.json").write_text("{}")
+    assets = tmp_path / "draft-assets"
+    assets.mkdir()
+    previous, current, revised, unused = [
+        assets / f"{name}.png" for name in ("previous", "current", "revised", "unused")
+    ]
+    for path in (previous, current, revised, unused):
+        path.write_bytes(path.stem.encode())
+
+    def markup(path, kind=kind):
+        address = f"/media/{media_name(path.read_bytes(), path.suffix)}"
+        head = ""
+        body = f'<img src="{address}" alt="Example">'
+        if kind == "css":
+            head = f"<style>.picture {{background-image:url({address})}}</style>"
+            body = '<div class="picture">Picture</div>'
+        elif kind == "inline":
+            body = f'<div style="background-image:url({address})">Picture</div>'
+        elif kind == "stylesheet":
+            companion = source.with_suffix(".page")
+            companion.mkdir(exist_ok=True)
+            (companion / f"{path.stem}.css").write_text(
+                f".picture {{background-image:url({address})}}"
+            )
+            head = f'<link rel="stylesheet" href="/page/{path.stem}.css">'
+            body = '<div class="picture">Picture</div>'
+        elif kind == "sample":
+            body = (
+                '<lf-sample id="sample" label="Picture">'
+                f'<template data-sample id="sample-content">{body}</template></lf-sample>'
+            )
+        return (
+            f"<!doctype html><html><head><title>Media fixture</title>{head}</head>"
+            f"<body><main><h1>Media fixture</h1>{body}"
+            "</main></body></html>"
+        )
+
+    versions = source.parent / "versions"
+    versions.mkdir()
+    (versions / "index.v1.html").write_text(markup(previous))
+    source.write_text(markup(current))
+    page = tmp_path / "page"
+
+    def run_leaf(*args, input_text=None):
+        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
+        assert result.exit_code == 0, result.output
+
+    prepare_page(page, read_fixture(source), run_leaf, assets=assets, final_status=None)
+    expected = {
+        media_name(path.read_bytes(), path.suffix) for path in (previous, current)
+    }
+    assert {path.name for path in (page / "media").iterdir()} == expected
+    source.write_text(markup(revised, kind="inline"))
+    monkeypatch.setattr(page_fixtures, "pinned_assets", lambda root: assets)
+    preview.refresh_media(source, page, run_leaf)
+    expected.add(media_name(revised.read_bytes(), revised.suffix))
+    assert {path.name for path in (page / "media").iterdir()} == expected
 
 
 def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
@@ -257,7 +354,6 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
         preview.fixture_seed(source),
     )
 
-    assert watched.layer < watched.paths
     assert [
         path
         for path in sorted(watched.paths)
@@ -271,11 +367,10 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
 
 
 def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_path):
-    """Which set a reported path lands in is what decides whether the refresh vendors.
+    """New modules and prior versions arrive under the existing subscription.
 
-    The sets are read from the files as they now stand, so a module added since the
-    last reading is layer, a file beside it that nothing vendors is neither, and a
-    prior version of the source is the page's own.
+    Initialization owns whether an edit changes the layer; the watcher must report
+    every input that could change that reading, including a newly added module.
     """
 
     source = tmp_path / "examples" / "page.html"
@@ -294,9 +389,8 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
         return preview.watch_paths(source, runtime, [layer_root], {})
 
     subscription = watched().roots
-    assert str(existing_script) in watched().layer
+    assert str(existing_script) in watched().paths
     assert str(source) in watched().paths
-    assert str(source) not in watched().layer
 
     ignored = scripts / "README.md"
     ignored.write_text("ignored", encoding="utf-8")
@@ -304,7 +398,7 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
 
     added_script = scripts / "added.py"
     added_script.write_text("new", encoding="utf-8")
-    assert str(added_script) in watched().layer
+    assert str(added_script) in watched().paths
 
     added_script.unlink()
     assert str(added_script) not in watched().paths
@@ -314,15 +408,137 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     version = versions / "page.v1.html"
     version.write_text("version", encoding="utf-8")
     assert str(version) in watched().paths
-    assert str(version) not in watched().layer
 
     widget = widgets / "lf-new.js"
     widget.write_text("export {};", encoding="utf-8")
-    assert str(widget.resolve()) in watched().layer
+    assert str(widget.resolve()) in watched().paths
 
     # None of those arrivals moved the subscription: each landed inside a directory
     # already watched recursively, so the open watcher kept collecting through them.
     assert watched().roots == subscription
+
+
+def test_preview_tracks_committed_layer_across_refused_source_edits(
+    tmp_path, monkeypatch
+):
+    """Real preparation, vendoring and revision publication consume scripted events.
+
+    The scripted filesystem stream batches real edits without relying on timing.
+    A committed layer survives a later source refusal without being re-vendored on
+    retry. A refused deletion stays a layer change until it can be committed.
+    """
+    import os
+
+    source = tmp_path / "reading.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Reading</title></head>"
+        '<body><main><h1>Reading</h1><p id="reading">Original</p></main></body></html>'
+    )
+    seed = source.with_suffix(".jsonl")
+    seed.write_text("")
+    package = tmp_path / "package"
+    package.mkdir()
+    (package / "registry.json").write_text("{}")
+    theme = package / "theme.css"
+    theme.write_text(":root { --proof: 1; }")
+    (tmp_path / "layer.json").write_text(
+        json.dumps(["./" + os.path.relpath(package, ROOT)])
+    )
+    page = tmp_path / "preview"
+
+    def changes(_watched):
+        def layer():
+            return json.loads((page / "registry.json").read_text())["$layer"]
+
+        before = layer()
+        theme.write_bytes(theme.read_bytes())
+        yield {(0, str(theme))}
+        assert layer()["generation"] == before["generation"]
+
+        original = source.read_text()
+        theme.write_text(":root { --proof: 2; }")
+        source.write_text(
+            original.replace("</main>", "<lf-undefined></lf-undefined></main>")
+        )
+        yield {(0, str(theme)), (0, str(source))}
+        committed = layer()
+        assert committed["generation"] != before["generation"]
+        assert (page / "index.html").read_text() == original
+
+        source.write_bytes(source.read_bytes())
+        yield {(0, str(source))}
+        assert layer()["generation"] == committed["generation"]
+
+        theme.unlink()
+        seed.write_text("\n")
+        yield {(0, str(theme)), (0, str(seed))}
+        assert layer()["generation"] == committed["generation"]
+
+        seed.write_text("")
+        source.write_text(original.replace("Original", "Revised"))
+        yield {(0, str(seed)), (0, str(source))}
+        after = layer()
+        assert after["generation"] != committed["generation"]
+        assert after["fingerprint"] != committed["fingerprint"]
+        assert "Revised" in (page / "index.html").read_text()
+
+    monkeypatch.setattr(preview, "watch_changes", changes)
+    with pytest.raises(StopIteration):
+        preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)
+
+
+def test_preview_follows_a_committed_package_after_a_source_refusal(
+    tmp_path, monkeypatch
+):
+    """A failed source edit cannot hide edits to its newly installed package."""
+    import os
+
+    source = tmp_path / "pages/reading.html"
+    source.parent.mkdir()
+    original = (
+        "<!doctype html><html><head><title>Reading</title></head>"
+        "<body><main><h1>Reading</h1></main></body></html>"
+    )
+    source.write_text(original)
+    manifest = source.parent / "layer.json"
+    manifest.write_text("[]")
+    package = tmp_path / "elsewhere/package"
+    package.mkdir(parents=True)
+    (package / "registry.json").write_text("{}")
+    theme = package / "theme.css"
+    theme.write_text(":root { --package-proof: 1; }")
+    selection = "./" + os.path.relpath(package, ROOT)
+    page = tmp_path / "preview"
+    subscriptions = []
+
+    def changes(watched):
+        subscriptions.append(watched)
+        if len(subscriptions) == 1:
+            assert str(theme) not in watched.paths
+            manifest.write_text(json.dumps([selection]))
+            source.write_text(
+                original.replace("</main>", "<lf-undefined></lf-undefined></main>")
+            )
+            yield {(0, str(manifest)), (0, str(source))}
+            pytest.fail("Committed package did not rebuild the watch subscription")
+        else:
+            installed = json.loads((page / "registry.json").read_text())["$layer"]
+            assert installed["packages"] == [selection]
+            assert (page / "index.html").read_text() == original
+            assert str(theme) in watched.paths
+            assert any(
+                root == package or root in package.parents for root in watched.roots
+            )
+            theme.write_text(":root { --package-proof: 2; }")
+            yield {(0, str(theme))}
+            after = json.loads((page / "registry.json").read_text())["$layer"]
+            assert after["generation"] != installed["generation"]
+            assert "--package-proof: 2" in (page / "theme.css").read_text()
+
+    monkeypatch.setattr(preview, "watch_changes", changes)
+    with pytest.raises(StopIteration):
+        preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)
+    assert len(subscriptions) == 2
 
 
 def test_a_preview_follows_a_linked_package_wherever_its_files_resolve(tmp_path):
@@ -363,7 +579,7 @@ def test_a_preview_follows_a_linked_package_wherever_its_files_resolve(tmp_path)
         (nested, outside_module),
     ):
         watched = preview.watch_paths(source, ROOT, [root], {})
-        assert str(followed.resolve()) in watched.layer, root
+        assert str(followed.resolve()) in watched.paths, root
         assert all(path == path.resolve() for path in watched.roots), watched.roots
         assert [
             path

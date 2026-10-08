@@ -1298,7 +1298,7 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
     page.keyboard.press("a")
     expect(page.locator("#bg-replace")).to_be_focused()
     expect(
-        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_text(["1", "2"])
     geometry = page.evaluate(
         """() => {
@@ -1326,7 +1326,7 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
               node => node.getBoundingClientRect().top
             )),
             chips: boxes([...document.querySelectorAll(
-              '.lf-command-binding-badges > .lf-command-binding-badge'
+              '.lf-command-binding-badges .lf-command-binding-badge'
             )]),
           };
         }"""
@@ -11155,6 +11155,46 @@ def page_annotation_action_source():
     """,
         head="<style>lf-annotation-rail {height:360px;width:430px}</style>",
     ).replace("<body>", '<body data-annotations="page">')
+
+
+def test_rail_reading_keys_follow_its_scroll_box_after_reconnection(browser, serve):
+    """Paging in an allocated annotation region moves its rows, and reconnecting
+    the retained rail keeps its scroll position and reading route."""
+    choices = "".join(
+        f'<lf-ask id="question-{i}"><h2>Decision {i}</h2>'
+        f'<lf-options id="options-{i}" choose>'
+        f'<lf-option id="choice-{i}">Keep sample {i}</lf-option>'
+        "</lf-options></lf-ask>"
+        for i in range(30)
+    )
+    source = page_annotation_rail_source().replace("<textarea", choices + "<textarea")
+    page = open_page(browser, serve(source))
+    rail = page.locator("#annotations")
+    assert rail.evaluate("el => el.scrollHeight > el.clientHeight")
+    rail.locator(".lf-ar-item").first.focus()
+    document_before = page.evaluate("scrollY")
+    for _ in range(2):
+        before = rail.evaluate("el => el.scrollTop")
+        page.keyboard.press("d")
+        page.wait_for_function(
+            "before => document.querySelector('#annotations').scrollTop > before.rail"
+            " || scrollY !== before.document",
+            arg={"rail": before, "document": document_before},
+        )
+        scroll_settled(page, "#annotations")
+        after = rail.evaluate("el => el.scrollTop")
+        assert after > before
+        assert page.evaluate("scrollY") == document_before
+        rail.evaluate("""async el => {
+          const {preserveReadingRegions} = await __lfRuntimeImport('/runtime/reading-regions.js');
+          const parent = el.parentNode, next = el.nextSibling;
+          await preserveReadingRegions(parent, () => {
+            el.remove();
+            parent.insertBefore(el, next);
+          });
+        }""")
+        rendered(page)
+        assert rail.evaluate("el => el.scrollTop") == after
 
 
 def test_rail_ask_draft_and_optimistic_undo(browser, serve):

@@ -330,7 +330,7 @@ def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
     edited = tmp_path / "source.html"
     edited.write_text("<p>authored</p>", encoding="utf-8")
     changes = preview_model.watch_changes(
-        preview_model.Watched((tmp_path,), frozenset({str(edited)}))
+        preview_model.Watched((tmp_path,), frozenset({str(edited)}), frozenset())
     )
     try:
         edited.write_text("<p>edited</p>", encoding="utf-8")
@@ -341,7 +341,7 @@ def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
             assert time.monotonic() < deadline, (
                 f"the edit was never reported: {reported}"
             )
-            reported |= {path for _, path in next(changes)}
+            reported |= next(changes)
     finally:
         changes.close()
 

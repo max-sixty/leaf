@@ -58,6 +58,7 @@ from render_harness import (
     hold_pending_thread_presentation,
     holding,
     leaf_page,
+    nudge,
     open_page,
     panel_settled,
     primed,
@@ -178,6 +179,10 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
         rendered(page)
         news = thread.locator(".lf-thread-news")
         expect(news).to_be_visible()
+        news.hover()
+        expect(news).to_have_css("box-shadow", "none")
+        expect(news).to_have_css("background-color", "rgba(0, 0, 0, 0)")
+        expect(news).to_have_css("text-decoration-line", "underline")
         expect(thread.locator(".lf-msg")).to_have_count(1)
         assert geometry() == before
         if notice_box is None:
@@ -206,6 +211,19 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
     news.click()
     expect(thread.locator(".lf-msg")).to_have_count(3)
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
+
+
+def test_gallery_pending_title_opens_when_the_reader_requests_it(browser, serve):
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    sample = page.frame_locator("#bg-title-sheen-sample iframe")
+    expect(sample.locator(".lf-thread-panel")).not_to_have_attribute("open", "")
+
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
+    page.locator("#bg-title-sheen-show").click()
+    expect(sample.locator(".lf-thread-panel")).to_have_attribute("open", "")
+    expect(sample.locator('.lf-thread-topic[data-lf-pending-title=""]')).to_have_text(
+        "Generating title"
+    )
 
 
 def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):
@@ -373,6 +391,117 @@ def append_agent_reply(page_dir, parent, text, markup=None):
     if markup is not None:
         event["markup"] = markup
     return append_carried_log_record(page_dir, event)
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
+def test_returning_to_a_hidden_tab_reveals_held_and_refreshed_replies(
+    browser, serve, motion
+):
+    """Returning catches up once, keeping the native draft and its caret.
+
+    Losing focus during visible reading keeps the notice. A hidden interval ends
+    that reading, including news admitted by the first asynchronous refresh; later
+    arrivals protect the resumed reading again.
+    """
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Keep this discussion open.")
+    page = open_page(browser, url)
+    page.emulate_media(reduced_motion=motion)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    focus_panel_thread(card)
+    field = card.locator("leaf-text")
+    words = "A thought to continue when I return."
+    write(field, words)
+    field.evaluate(
+        "field => { field.setSelectionRange(8, 8); window.__returnEditor = field; }"
+    )
+    first = append_agent_reply(serve.page_dir, root, "An answer held during reading.")
+    told(page)
+    expect(card.locator(".lf-thread-news")).to_be_visible()
+    first_message = card.locator(f'.lf-msg[data-mid="{first["id"]}"]')
+    expect(first_message).to_have_count(0)
+
+    page.evaluate("window.dispatchEvent(new Event('blur'))")
+    rendered(page)
+    expect(card.locator(".lf-thread-news")).to_be_visible()
+    expect(first_message).to_have_count(0)
+
+    page.evaluate("""() => {
+      window.__lfTestVisibility = 'hidden';
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true, get: () => window.__lfTestVisibility,
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    held = []
+    page.route("**/api/state*", lambda route: held.append(route))
+    nudge(serve.page_dir)
+    with page.expect_request("**/api/news"):
+        page.evaluate("""() => {
+          window.__lfTestVisibility = 'visible';
+          document.dispatchEvent(new Event('visibilitychange'));
+        }""")
+    holding(page, held, 1, "the first refresh after returning")
+    expect(first_message).to_be_visible()
+    second = append_agent_reply(serve.page_dir, root, "Another answer while away.")
+    expect(card.locator(f'.lf-msg[data-mid="{second["id"]}"]')).to_have_count(0)
+    held.pop().continue_()
+    page.unroute("**/api/state*")
+    told(page)
+    rendered(page)
+    expect(card.locator(f'.lf-msg[data-mid="{second["id"]}"]')).to_be_visible()
+    expect(card.locator(".lf-thread-news")).to_have_count(0)
+    expect(field).to_have_js_property("value", words)
+    expect(field).to_be_focused()
+    assert field.evaluate("""field => field === window.__returnEditor
+      && field.selectionStart === 8 && field.selectionEnd === 8""")
+
+    third = append_agent_reply(serve.page_dir, root, "News after reading resumes.")
+    told(page)
+    rendered(page)
+    expect(card.locator(".lf-thread-news")).to_be_visible()
+    expect(card.locator(f'.lf-msg[data-mid="{third["id"]}"]')).to_have_count(0)
+
+
+@pytest.mark.watch_shifts
+def test_returning_to_a_hidden_tab_applies_a_held_resolution_to_the_open_filter(
+    browser, serve
+):
+    """A card kept in Open during reading leaves when that reading ends."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "This discussion will be settled elsewhere.")
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    focus_panel_thread(card)
+    append_carried_log_record(
+        serve.page_dir, {"kind": "resolve", "author": "agent", "parent": root}
+    )
+    told(page)
+    rendered(page)
+    expect(card.get_by_role("button", name="Resolved", exact=True)).to_be_visible()
+    expect(card).to_have_attribute("data-resolved", "false")
+
+    page.evaluate("""() => {
+      window.__lfTestVisibility = 'hidden';
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true, get: () => window.__lfTestVisibility,
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+    }""")
+    with page.expect_request("**/api/news"):
+        page.evaluate("""() => {
+          window.__lfTestVisibility = 'visible';
+          document.dispatchEvent(new Event('visibilitychange'));
+        }""")
+    told(page)
+    rendered(page)
+    expect(card).to_be_hidden()
+    expect(card).to_have_attribute("data-resolved", "true")
 
 
 def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
@@ -1738,6 +1867,51 @@ def test_panel_settlement_moves_focus_with_optimistic_state_and_restores_a_refus
     held.pop().continue_()
     round_trip(page)
     expect(reply).to_be_focused()
+
+
+@pytest.mark.watch_shifts
+def test_a_reopen_refused_after_the_input_window_moves_nothing(held_events, serve):
+    """The refusal returns the user to Resolved without a gesture of theirs, so the
+    filters and the thread they stand on hold still through it. Resolved hid the
+    Waiting on filters that Open shows, so the return took that row away and moved
+    everything below it up by its height; and each count that gained a digit, as
+    Page (1) does becoming Page (24), pushed the choices after it along the row."""
+    browser, held = held_events
+    url = serve(LONG_PAGE)
+    roots = []
+    for i in range(24):
+        root = panel_comment(serve.page_dir, f"Resolved thread {i}. " + LANDING_WORDS)
+        append_carried_log_record(
+            serve.page_dir, {"kind": "resolve", "author": "user", "parent": root}
+        )
+        roots.append(root)
+    page = open_page(browser, url)
+    resized(page, 1200, 900)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    page.locator(".lf-thread-filter-toggle").click()
+    resolved = page.locator('[data-filter-value="resolved"]')
+    resolved.click()
+    card = page.locator(f'.lf-thread[data-id="{roots[0]}"]')
+    title = card.locator(":scope > .lf-thread-summary")
+    focus_panel_thread(card)
+    page.keyboard.press("r")
+    holding(page, held, 1, "the reopen the log will refuse")
+    expect(resolved).to_have_attribute("aria-pressed", "false")
+    rendered(page)
+    scroll_settled(page, ".lf-threads")
+    # Chrome reports no shift within 500ms of input, so the refusal lands after it.
+    page.wait_for_function(
+        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
+    )
+    before = title.bounding_box()["y"]
+    held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
+    round_trip(page)
+    expect(resolved).to_have_attribute("aria-pressed", "true")
+    expect(title).to_be_focused()
+    rendered(page)
+    scroll_settled(page, ".lf-threads")
+    assert abs(title.bounding_box()["y"] - before) < 1
 
 
 def test_a_refused_reopen_preserves_a_filter_typed_during_its_reveal(
@@ -4985,8 +5159,16 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
     pick("status", "open").click()
     expect(pick("waiting", "user")).to_have_attribute("aria-pressed", "true")
     expect(visible).to_have_count(1)
+    # Resolved keeps every choice where it stood: Waiting on counts the open threads
+    # a press there switches to, and the placement refinement stands while any thread
+    # is detached, with nothing to find among the resolved.
     pick("status", "resolved").click()
-    expect(waiting_group).to_be_hidden()
+    expect(waiting_group).to_be_visible()
+    expect(pick("waiting", "user")).to_have_attribute("aria-pressed", "false")
+    expect(pick("waiting", "user")).to_have_text("You (1)")
+    expect(pick("waiting", "agent")).to_have_text("Agent (3)")
+    expect(pick("gone", "gone")).to_be_visible()
+    expect(pick("gone", "gone")).to_be_disabled()
     expect(visible).to_have_count(1)
     expect(page.locator(f'.lf-thread[data-id="{resolved}"]')).to_be_visible()
     pick("status", "resolved").click()
@@ -8586,6 +8768,40 @@ def test_escape_then_enter_round_trips_a_panel_reply(browser, serve):
     expect(card.locator("leaf-text")).to_have_js_property("value", "draft")
 
 
+def test_escape_from_a_seated_reply_send_returns_to_its_thread(browser, serve):
+    """Escape leaves a reply's whole composition row, its Send control included, onto
+    the thread the reply belongs to. On a thread seated in the page's flow the page's
+    let-go answered Send first, since it deferred only to a box that takes letters, so
+    the press dropped the user onto the page with the draft left behind."""
+    url = serve(THREAD_DIFF_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "Does the tray fit the north bracket?",
+            "anchor": {"section": "cd-q"},
+        },
+    )
+    page = open_page(browser, live_url(url))
+    resized(page, 1200, 900)
+    thread = page.locator("#cd-q .lf-page-thread")
+    thread.focus()
+    page.keyboard.press("c")
+    box = thread.locator("leaf-text")
+    expect(box).to_be_focused()
+    page.keyboard.type("draft")
+    page.keyboard.press("Tab")
+    expect(thread.locator(".lf-thread-send")).to_be_focused()
+    assert "back to thread" in shortcut_bar_text(page)
+    page.keyboard.press("Escape")
+    expect(thread).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(box).to_be_focused()
+    expect(box).to_have_js_property("value", "draft")
+
+
 def test_leaving_a_long_threads_reply_keeps_the_list_where_it_was(browser, serve):
     """Escape out of the reply of a thread taller than the list focuses its title
     without landing it: the landing took the list to the thread's head, away from the
@@ -10027,9 +10243,9 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
       return [style.animationName, style.backgroundClip, style.color];
     }"""
     sweep, clip, fill = topic.evaluate(paint)
-    assert sweep == "none" and clip != "text"
-    assert fill != "rgba(0, 0, 0, 0)"
-    # The placeholder remains readable and still under either motion preference.
+    assert sweep == "lf-title-sheen" and clip == "text"
+    assert topic.evaluate("el => getComputedStyle(el).backgroundImage") != "none"
+    # Reduced motion paints ordinary text instead of an animated clipped gradient.
     page.emulate_media(reduced_motion="reduce")
     sweep, clip, fill = topic.evaluate(paint)
     assert sweep == "none" and clip != "text"

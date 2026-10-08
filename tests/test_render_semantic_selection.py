@@ -1501,21 +1501,15 @@ def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
     page.evaluate(
         """() => {
           const originalRect = Element.prototype.getBoundingClientRect;
-          const originalVisibility = Element.prototype.checkVisibility;
-          let rectReads = 0;
-          let visibilityReads = 0;
+          let hiddenRectReads = 0;
           Element.prototype.getBoundingClientRect = function (...args) {
-            rectReads += 1;
+            if (this.id.startsWith('hidden-'))
+              hiddenRectReads += 1;
             return originalRect.apply(this, args);
           };
-          Element.prototype.checkVisibility = function (...args) {
-            visibilityReads += 1;
-            return originalVisibility.apply(this, args);
-          };
           addEventListener('scrollend', () => requestAnimationFrame(() => {
-            window.lfHintScrollReads = {rectReads, visibilityReads};
+            window.lfHintScrollReads = {hiddenRectReads};
             Element.prototype.getBoundingClientRect = originalRect;
-            Element.prototype.checkVisibility = originalVisibility;
           }), {capture: true, once: true});
           document.scrollingElement.scrollTo({top: 600, behavior: 'smooth'});
         }"""
@@ -1523,8 +1517,7 @@ def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
     page.wait_for_function("() => window.lfHintScrollReads")
     reads = page.evaluate("() => window.lfHintScrollReads")
 
-    assert reads["rectReads"] < hidden_count, reads
-    assert reads["visibilityReads"] < hidden_count * 3, reads
+    assert reads["hiddenRectReads"] == 0, reads
 
 
 def test_cancelling_page_search_restores_the_control_that_opened_it(browser, serve):

@@ -161,11 +161,15 @@ function backFromBox() {
   return route?.target?.isConnected ? route : null;
 }
 // Whether the box the user is typing in has somewhere to hand them back: the
-// thread it belongs to, or the panel's list where it is the chrome's own box. The
-// page's standing scope asks the same question, since a box with nowhere to go back to
-// is a control the user is standing on, theirs to let go of.
-export const boxHandsBack = () =>
+// thread it belongs to, or the panel's list where it is the chrome's own box.
+const boxHandsBack = () =>
   Boolean(backFromBox()) || Boolean(documentFocused()?.closest?.(".lf-thread-panel"));
+// The box, or the reply's composition row around it, which takes its Send control too.
+const inBox = () => takesLetters(focused()) || replyDraftContext(focused()) !== null;
+// Whether Escape here leaves a box for the place it hands back to. The page's let-go
+// defers to it from the box and from every control in its row; a box with nowhere to
+// hand back to is a control the user stands on, theirs to let go of.
+export const leavesBox = () => inBox() && boxHandsBack();
 
 // A box words are typed into takes character keys and the keys that edit it: Enter,
 // deletion, caret movement, Home/End, and page movement, including their modified forms.
@@ -181,7 +185,7 @@ export const boxHandsBack = () =>
 pageScope("text entry", {
   title: "In a text box",
   root: focused,
-  at: () => takesLetters(focused()) || replyDraftContext(focused()) !== null,
+  at: inBox,
   claims: (binding) => takesLetters(focused()) && TEXT_ENTRY(binding),
   rows: [
     {
@@ -192,7 +196,7 @@ pageScope("text entry", {
       // The thread the box belongs to, or the panel's list where it is the chrome's
       // own box. A page text box that is neither leaves the row dead and the page's rung
       // standing, which is the honest answer: nothing there to go back to.
-      when: boxHandsBack,
+      when: leavesBox,
       run: () => {
         const back = backFromBox();
         dismissReplyAt(focused());

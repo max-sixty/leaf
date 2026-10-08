@@ -112,6 +112,12 @@ takes the growth into what they scrolled past, or below it. A short thread's rep
 box follows its last message; a long panel thread pins the
 box at its scroller's foot. News that would move a reply in flow waits behind the
 thread's existing notice; a pinned reply lets the transcript grow above it.
+These holds protect continuous reading. A hidden tab ends it; returning reveals
+the held reading and the first refreshed reading before protection resumes
+(`reading-continuity.js`, closed by `state-feed.js` after presentation). Keyboard
+blur alone does not end reading: the page may remain visible beside another window.
+Returning uses the ordinary arrival tint and thread transitions, and keeps a native
+editor the user was composing in, including its focus and caret.
 Where news would move what the reader is reading, it waits behind a control of fixed size:
 in a seat in the page's flow or an open panel card, whatever the thread would draw
 differently (an agent's reply, a reaction from another tab, the thread resolved or
@@ -205,8 +211,11 @@ never moves the user.
 
 ### Motion
 
-Use restrained, finite animations to acknowledge state changes. Do not animate
-continuously while a state remains unchanged.
+Use restrained, finite animations to acknowledge state changes. An untitled
+thread awaiting the agent uses a sheen sweeping across “Generating title”.
+It stops when the title arrives or the thread stops awaiting the agent, and
+is static under reduced motion. Other unchanged states
+do not animate continuously.
 
 Nothing the user must read, press, or decide waits on a clock. Motion runs from a
 state that is already true, and motion that must finish before the result can be

@@ -207,7 +207,7 @@ pane's header or footer select that pane. Register from `connectedCallback` and 
 the returned cleanup from `disconnectedCallback`, so a reconnect can claim the same id.
 `readingPosture(node)` is `bounded` exactly while the region's body is its own
 scroller, and `watchReadingRegionTransitions(listener)` receives a `shift` when a
-region's scroller changes without a gesture; the continuity owner records the user's
+shown region's scroller or width changes without a gesture; the continuity owner records the user's
 place as they scroll and restores it there.
 
 A compound widget whose parts scroll independently registers each with

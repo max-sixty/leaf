@@ -3536,6 +3536,9 @@ aside.note { --lf-resident: note; display: none }
     loaded = []
     page.on("request", lambda request: loaded.append(request.url))
     page.goto(fixture)
+    # Runtime modules read the storage and initial-drawing services installed by
+    # the classic prepaint script before their module graph is imported.
+    page.add_script_tag(url=asset.replace("content-layout.js", "prepaint.js"))
     reading = page.evaluate(
         """async ({asset, rail}) => {
       const owner = await import(asset);

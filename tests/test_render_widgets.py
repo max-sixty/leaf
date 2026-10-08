@@ -2057,6 +2057,30 @@ def test_logs_in_a_hidden_tab_open_on_their_newest_entries(browser, serve):
         page.evaluate("() => window.lfAsked.splice(0)")
 
 
+def test_closed_details_region_is_not_sampled_until_open(browser, serve):
+    url = serve(
+        leaf_page(
+            "Log in a disclosure",
+            '<details id="history"><summary>History</summary>'
+            '<div id="log" data-bound="end"><p>Entry</p></div></details>',
+        )
+    )
+    page = open_page(browser, live_url(url))
+    region_ids = """async () => {
+      const { readingRegions, unconcealedReadingRegions } =
+        await import('/runtime/reading-regions.js');
+      return {
+        registered: readingRegions().map(({ id }) => id),
+        sampled: unconcealedReadingRegions().map(({ id }) => id),
+      };
+    }"""
+    closed = page.evaluate(region_ids)
+    assert "lf-region:log:bound" in closed["registered"]
+    assert "lf-region:log:bound" not in closed["sampled"]
+    page.locator("#history summary").click()
+    assert "lf-region:log:bound" in page.evaluate(region_ids)["sampled"]
+
+
 def revised_log(first, last):
     """A page whose log bounded at its end holds entries `first` to `last`."""
     filler = "".join(

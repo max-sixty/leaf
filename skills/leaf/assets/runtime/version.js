@@ -100,7 +100,7 @@ import {
   readingRegionFor,
   readingRegions,
   recentReadingRegion,
-  scrollersSettled,
+  regionsSettled,
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
@@ -1694,7 +1694,7 @@ export function createVersionController({
       recordQueued = false;
       const moved = scrolled.has(undefined) ? null : new Set(scrolled);
       scrolled.clear();
-      if (!compositionChanges.size && scrollersSettled()) recordRegions(moved);
+      if (!compositionChanges.size && regionsSettled()) recordRegions(moved);
     });
   };
 

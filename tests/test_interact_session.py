@@ -14927,6 +14927,19 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
     assert service_model.owned_pages("s1") == []
 
 
+def test_desktop_codex_unloading_keeps_the_chat_page_owned(page_dir):
+    """Desktop unloads idle running instances without ending the user's chat."""
+    claim = record_claim(
+        page_dir, harness="codex", activity="multiplexed", ts=cleanup_model.now_iso()
+    )
+    before = cleanup_model.session_record("s1")
+    hooks_model.cmd_hook("codex", {"hook_event_name": "SessionEnd", "session_id": "s1"})
+    assert service_model.claim_is_active(service_model.page_claim(page_dir))
+    assert service_model.page_claim(page_dir)["acquisition"] == claim["acquisition"]
+    assert cleanup_model.session_record("s1")["generation"] == before["generation"]
+    assert cleanup_model.session_record("s1")["turn_closed"] is not None
+
+
 @pytest.mark.parametrize("harness", ["claude-code", "codex"])
 def test_resumed_session_is_told_once_to_reconnect_its_retired_leaf(
     page_dir, harness, capsys

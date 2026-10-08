@@ -318,6 +318,16 @@
         }
       ]
     </script>
+    <script id="bg-title-sheen-history" type="application/json">
+      [
+        {
+          "id": "bg-title-sheen-question",
+          "kind": "comment",
+          "author": "user",
+          "text": "Can we schedule the workshop lunch?"
+        }
+      ]
+    </script>
     <script type="module">
       import { afterPresentation, commands } from "/runtime/widget-api.js";
 
@@ -368,6 +378,23 @@
         });
 
       await customElements.whenDefined("lf-sample");
+
+      const titleSample = document.querySelector("#bg-title-sheen-sample");
+      let titleRequested = false;
+      let shownTitleRevision = null;
+      const showPendingTitle = () => {
+        const ready = titleSample.ready;
+        if (!titleRequested || !ready || shownTitleRevision === ready) return;
+        shownTitleRevision = ready;
+        void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
+      };
+      document.querySelector("#bg-title-sheen-show").addEventListener("click", () => {
+        titleRequested = true;
+        shownTitleRevision = null;
+        showPendingTitle();
+      });
+      titleSample.addEventListener("lf-sample-ready", showPendingTitle);
+      void titleSample.ready.then(showPendingTitle);
 
       const sample = document.querySelector("#bg-panel-sample");
       let selected = null;
@@ -940,7 +967,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               the agent; open one to read the full messages beneath it. Reply follows a
               short conversation directly; in a long conversation it stays visible while
               you scroll. While you write in a short thread, an arriving reply waits
-              behind “new reply” until you open it.
+              behind “new reply” until you open it. Switch to another browser tab, have
+              the agent add a reply, then return: held replies and the first refreshed
+              reply appear automatically with the usual arrival tint. Your draft and
+              caret stay in the same editor. Leave this page visible beside another
+              window and focus that window: new replies still wait behind the notice.
             </p>
             <p id="bg-thread-notices">
               <strong>New information.</strong> Have the agent add a message after the
@@ -1028,6 +1059,32 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </p>
             <section id="bg-thread-state-titles">
               <h3>Thread title</h3>
+              <section id="bg-title-sheen">
+                <p id="bg-title-sheen-guide">
+                  Open the sample thread to see a pending title highlighted across its
+                  lettering. Reset starts a fresh untitled thread. Reduced motion shows
+                  solid muted text.
+                </p>
+                <button id="bg-title-sheen-show" type="button">
+                  Open sample thread
+                </button>
+                <lf-sample
+                  id="bg-title-sheen-sample"
+                  label="Pending thread title"
+                  window
+                >
+                  <template
+                    id="bg-title-sheen-page"
+                    data-sample
+                    data-sample-events="bg-title-sheen-history"
+                  >
+                    <h1>Workshop schedule</h1>
+                    <p id="bg-title-sheen-copy">
+                      Lunch is the remaining question for the workshop.
+                    </p>
+                  </template>
+                </lf-sample>
+              </section>
               <div id="bg-thread-title-pair">
                 <section id="bg-thread-title-before">
                   <p class="eyebrow">Before · untitled</p>
@@ -1035,8 +1092,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     <strong>An untitled thread.</strong> The workshop schedule leaves
                     lunch open. Open Threads to view it. The agent asked without naming
                     the thread, so its row reads the question itself. A thread you open
-                    reads <code>Generating title</code> in muted text until the agent
-                    gives it a short name.
+                    reads <code>Generating title</code> with a highlight sweeping across
+                    the lettering until the agent gives it a short name. With reduced
+                    motion, the text stays a solid muted color.
                   </p>
                 </section>
                 <section id="bg-thread-title-after">

@@ -72,6 +72,7 @@ import {
   removeRuntimeRootStyle,
   replaceEntry,
   restorePlace,
+  scrollBehavior,
   selectableOffer,
   setRuntimeRootStyle,
   sizeObserver,
@@ -522,7 +523,7 @@ customElements.define(
         const ahead = getComputedStyle(strip).direction === "rtl" ? -1 : 1;
         strip.scrollBy({
           left: ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
-          behavior: "smooth",
+          behavior: scrollBehavior(),
         });
       };
       edge.append(face);

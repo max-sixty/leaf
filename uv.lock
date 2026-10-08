@@ -284,6 +284,7 @@ dependencies = [
     { name = "tree-sitter-javascript" },
     { name = "turbohtml" },
     { name = "uvicorn" },
+    { name = "watchfiles" },
     { name = "websockets" },
 ]
 
@@ -301,7 +302,6 @@ dev = [
     { name = "pytest-xdist" },
     { name = "pyyaml" },
     { name = "unidiff" },
-    { name = "watchfiles" },
 ]
 
 [package.metadata]
@@ -320,6 +320,7 @@ requires-dist = [
     { name = "tree-sitter-javascript", specifier = ">=0.25.0" },
     { name = "turbohtml", specifier = ">=1.7" },
     { name = "uvicorn", specifier = ">=0.31.1" },
+    { name = "watchfiles", specifier = ">=1.1.0" },
     { name = "websockets", specifier = ">=15" },
 ]
 
@@ -337,7 +338,6 @@ dev = [
     { name = "pytest-xdist", specifier = ">=3" },
     { name = "pyyaml", specifier = ">=6" },
     { name = "unidiff", specifier = ">=1" },
-    { name = "watchfiles", specifier = ">=1.1.0" },
 ]
 
 [[package]]

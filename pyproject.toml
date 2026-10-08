@@ -15,8 +15,8 @@
 # passed on.
 #
 # The dev group is what the suite and `leaf-dev` need on top of the runtime:
-# pytest, the accessibility checks, screenshot assertions, and the filesystem
-# watcher behind `leaf-dev preview`. These run here rather than carrying
+# pytest, the accessibility checks, and screenshot assertions. These run here
+# rather than carrying
 # dependency headers of their own — developer tools like the suite, so one environment
 # covers both. `bin/leaf` passes `--no-dev`, so an install never fetches the group,
 # though the lock records it.
@@ -24,6 +24,8 @@
 # psutil is a compiled extension, so every install fetches a platform wheel for it
 # rather than pure Python. It is a runtime dependency because every page claim
 # reads the process tree above it (`machine.py`).
+# watchfiles supplies the native subscriptions shared by page maintenance,
+# delivery waits and developer previews, avoiding repeated idle filesystem scans.
 #
 # packaging and tomllib read a package script's inline
 # metadata when `package check` holds it to the dependency policy (`packages.py`).
@@ -54,6 +56,7 @@ dependencies = [
   "tree-sitter-javascript>=0.25.0",
   "turbohtml>=1.7",
   "uvicorn>=0.31.1",
+  "watchfiles>=1.1.0",
   "websockets>=15",
 ]
 
@@ -81,9 +84,6 @@ dev = [
   "pytest-regtest>=2.7",
   # The YAML snapshots `interact_support.yaml_document` writes.
   "pyyaml>=6",
-  # `leaf-dev preview`'s watcher. 1.1.0 is the first release with a wheel for the
-  # interpreter this project runs on; earlier ones would build Rust from source.
-  "watchfiles>=1.1.0",
   # Every requirement a bundled package script's header declares, repeated here so
   # this lock pins what the suite runs those scripts against and a fresh machine
   # needs no network after setup.

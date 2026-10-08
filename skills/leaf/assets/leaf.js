@@ -11,7 +11,7 @@ import {
   annotationMode,
 } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
-import { chromeRoot } from "./runtime/chrome.js";
+import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
 import { landingPlace } from "./runtime/reading-place.js";
 import { mountHistory } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
@@ -270,7 +270,7 @@ let pageGeometry;
 let goToSequence;
 
 const auxiliarySurfaces = createAuxiliarySurfaces({
-  chromeRoot,
+  envelope: chromeForeground,
   band: shortcutBarEl,
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
@@ -279,9 +279,10 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
     repaint();
     anchorPaint?.refreshHover();
   },
-  // A comment box seated where a surface now stands, or in its home in a surface now
-  // gone, moves to the seat the user can reach: presenting the page again seats it.
+  // Auxiliary reach changes exposure without moving the retained message bodies.
+  // A comment box displaced by that reading also asks presentation for its new seat.
   reachChanged: () => {
+    app.read.exposureChanged();
     if (responseSurface.fabAnchorAt()) void app.invalidateDom();
   },
 });
@@ -873,27 +874,31 @@ if (!offlineInteractive) {
     chromeSheet,
     marksSheet,
   ];
-  chromeRoot.append(
-    banner,
+  // One permanent home for auxiliary surfaces and their permitted foreground. Native
+  // modality changes at this ancestor; none of these live descendants is reparented.
+  chromeForeground.append(
     overflowMenu,
     versionMenu,
     othersPanel,
     queuePanel,
     panel,
-    legendRoot,
     pageSearchSurface,
-    ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
-    drawingPaint.layer,
     targetPaint.targetTraceLayer,
     targetPaint.aimLayer,
-    fabBar,
     liveEl,
     mediaViewer,
     commandReferenceDialog,
-    auxiliarySurfaces.scrim,
     bottomStatusEl,
     shortcutBarEl,
     inspectEl,
+  );
+  chromeRoot.append(
+    banner,
+    legendRoot,
+    ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
+    drawingPaint.layer,
+    fabBar,
+    chromeForeground,
   );
   document.body.prepend(skipToChrome);
   document.body.append(chromeRoot);
@@ -909,7 +914,7 @@ if (!offlineInteractive) {
   // resolve updateComplete until connection, and keyboard registration needs that input.
   narrowing.mount();
   await panelKeys.mount();
-  pageComment.mount(chromeRoot);
+  pageComment.mount(chromeForeground);
   selectionComposer.mount();
   responseSurface.mount();
   holdToRead();
@@ -921,16 +926,16 @@ if (!offlineInteractive) {
   anchorPaint?.mount();
   anchorControls.mount();
   pageGeometry.mount();
-  pageMapDialog.mount(chromeRoot);
+  pageMapDialog.mount(chromeForeground);
   asks.mount();
   queueWalk.mount();
   queue.mount();
   commandHints.mount();
   app.mountAnnotations();
   app.overlay?.mount();
-  // Key chips stand anchored to what they name, a margin row among them, so they come
-  // after the margin, since an anchor positions only a box laid out after it.
-  chromeRoot.append(goToHintLayer, commandHintLayer, targetPickerHintLayer);
+  // Margin rows insert before the permanent foreground home, so these chips are laid
+  // out after every target they name while retaining their native modal ancestor.
+  chromeForeground.append(goToHintLayer, commandHintLayer, targetPickerHintLayer);
   app.mountThread();
   app.mountRead();
   wireThreadLanding(threadsBox);

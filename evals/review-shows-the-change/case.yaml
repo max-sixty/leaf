@@ -313,10 +313,11 @@ variants:
       - type: llm-rubric
         metric: interface-guidelines
         value: |
-          Pass if the proposed review reads the current Web Interface Guidelines,
+          Judge the proposed checks, not browser execution in this read-only task.
+          Pass if the review plan reads the current Web Interface Guidelines,
           applies them to the changed UI and dependent interactions, and verifies
           applicable findings using the browser and Leaf's owning contracts.
-          It reports verified findings and coverage without claiming the checklist
+          It plans to report verified findings and coverage without claiming the checklist
           caused all findings. An experiment is optional rather than a requirement
           for every ordinary review.
           Fail if green focused tests replace this review or Max is asked to

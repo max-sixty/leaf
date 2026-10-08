@@ -70,7 +70,8 @@ where the case came from and what it measured, `metadata.purpose` the behavior i
 pins, and `metadata.tags` its area.
 
 Internal instruction cases declare `metadata.instructions`, a source path in
-that arm. The native provider receives its contents as system/developer context;
+that arm. The native provider receives its contents and source file location as
+system/developer context, retaining the origin of its linked references;
 the case grades the resulting behavior. These columns end in `/instructions`.
 Shipped-skill cases instead let the agent load its skill and references. Both kinds
 score the resulting answer against the task. Reading a named file is not a scored

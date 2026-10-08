@@ -22,6 +22,28 @@ a word only for a concept with no standard name, and let its entry say which sta
 term comes closest and why it does not fit. Qualify a noun when another web or Leaf
 concept uses the same word.
 
+## Reader-facing words
+
+Use these words in UI labels, command help, errors and prose. Protocol field names
+and implementation terms retain their exact spelling when the reader needs them.
+
+| Term | Meaning and visible use |
+|---|---|
+| **Page** | The document the user reads and acts on. Use *page* in prose and commands; *page instance* below identifies its durable directory |
+| **Update** | A user input of any kind, or a mixed collection of inputs: “Your updates are saved”. Where its kind is known, name the **comment**, **reply**, **choice**, **reaction** or **approval** instead |
+| **Response** | Aggregate work owed to user input when its required kind is not available: “2 responses owed”. Where the kind is known, name the **answer** or **reply** instead |
+| **Answer** | A response satisfying an Ask or a user update: a choice, a reply, or a stamped revision, as the declared requirement specifies. Use the specific noun when its kind is known |
+| **Reply** | A message in a conversation, including an answer or a proactive message. A reply owed by the agent is separate from delivery and work: the Queue calls message obligations **replies** and revision obligations **answers** until they arrive |
+| **Delivery** | Whether an update reached the agent. **Sending**, **Queued** and **Picked up** describe delivery; Picked up does not claim work has begun |
+| **Working** | The agent is currently working. A particular update or task says Working only when the agent explicitly starts it; page activity alone does not establish that fact |
+| **Undo** | Take back the latest eligible user update. Do not rename this action after the widget verb it withdraws |
+| **Threads** | The control and panel listing conversations. A **thread** is one conversation; a **comment box** is the field where the user writes a comment or reply |
+| **Version** | A stamped page the user can revisit. The version picker says **Showing v4**; a live unstamped source says **Showing Draft**. Update counts do not count revisions |
+
+The **Pages drawer**, opened by **All pages**, lists live pages on this machine. **No session** means no agent
+session currently holds the page, on both the banner and neighboring-page rows.
+**Page closed** means the page's work has ended.
+
 ## Pages, packages, and layers
 
 | Term | Identity criterion |
@@ -81,6 +103,8 @@ item.
 | **Frame** | A box whose size comes from outside it: `main`, a root tab panel, a pane, a cell of a Layout or of the page's own grid, or any box declaring `--lf-block-frame`. A frame that draws one (`1`) holds what it holds to its width, never the page's room; a frame that only trims its edges and draws nothing (`trim`: `main`, a root tab panel, a command's goal) lets a surface break out as it would with no frame |
 | **Text** and **surface** | How a block uses its frame's width: text (a paragraph, list item, term or description, quote, caption or heading) keeps the reading measure however wide its frame, as does a block allocated the column (`x-space` or `data-width` `column`), starting at the same edge; every other box is a surface that fills its frame. A surface with `x-space` or `data-width` past the column breaks out of it on a column page, and a `wide` one holds to `--wide` in a frame wider than that |
 | **Bounded block** | A block that holds its own height and scrolls inside it (`x-bound`, `data-bound`); a reading region while it stands in the page, so what it scrolls moves it rather than the page |
+| **Sidebar Layout** | `layout-sidebar`: a wrapping layout inside the content frame, placing the main region beside a smaller supporting region when both fit. It works on wide pages and nested blocks |
+| **Margin sidebar** | `aside.sidebar`: page-level supporting material beside a column page, typically navigation. It sits in the left margin where space permits and returns to normal flow in a narrow window. It does not create side-by-side content regions |
 | **Workspace** | A page on `main.layout-workspace`, which keeps task regions together |
 | **Full-height** | A workspace filling the window exactly, where the window is large enough (`layouts.css`'s media query; `--lf-full-height: 1` on `main`): header and footer at their content's height, one body taking the rest, and the page itself does not scroll. A pane that is the body or a direct cell of it scrolls on its own; anything deeper scrolls with the body. Elsewhere the workspace flows and the page scrolls. The web's name for the arrangement is a full-height or app-shell layout |
 | **Pane** | One reading region, typically in a workspace's body: an optional header, exactly one body element, an optional footer |
@@ -106,9 +130,9 @@ stylesheet decides whether their bodies scroll.
 | **Bottom bar** | The row at the window's foot, at one stated height (`--lf-bottom-bar-h`), holding the shortcut bar and the status; the page ends above it as it starts below the banner |
 | **Auxiliary surface** | Chrome opened `beside`, `over`, or `covering` the content frame |
 | **Thread panel** | The right-side auxiliary surface containing threads; it stands over the page and takes no width from it, and covers the page only where it leaves less than a usable page beside it. It shares the right edge, its width and its handle with the Questions panel, one at a time |
-| **Drawer** | A mutually exclusive auxiliary surface built as a head over a list of rows, one at a time: the Questions panel slides in at the right edge and stands over the page as the thread panel does, and the Leaves drawer slides in at the left and always covers |
+| **Drawer** | A mutually exclusive auxiliary surface built as a head over a list of rows, one at a time: the Questions panel slides in at the right edge and stands over the page as the thread panel does, and the Pages drawer slides in at the left and always covers |
 
-The current drawers are the **Questions panel** (experimental) and the **Leaves drawer**. Use *covering auxiliary
+The current drawers are the **Questions panel** (experimental) and the **Pages drawer**. Use *covering auxiliary
 surface*, not *modal workspace*: a covering surface and a modal dialog are different
 web interaction primitives. A covering surface makes the page inert behind it; a surface
 over the page, such as the thread panel on a desktop window, takes no width from
@@ -168,7 +192,7 @@ spine instead.
 | **Target picker** | The `s` interaction that presents addressable elements and ends when the user chooses one or closes it |
 | **Page search** | The `/` interaction that filters or walks text matches for a query |
 | **Walk** | Ordered semantic movement among one category of destination: open threads (`t`), the user's queue (`q`), a list's rows |
-| **Queue** | What one side has to act on: the user's (`on_you`: their open tasks, then each thread or page move to send again) or the agent's (`on_agent`: owed replies, moves in hand that owe nothing, its open tasks). `agent_state.queues` and `runtime/queues.js` select both from the same readings; `q` walks the user's, and the Questions panel lists both, the user's under **Questions** and the agent's under **Tasks**, with the ended tasks folded beneath as Done. Questions and Tasks are the page's words for the two sides; the code calls both tasks |
+| **Queue** | What one side has to act on: the user's (`on_you`: their open tasks, then each thread or page update to send again) or the agent's (`on_agent`: owed answers, updates with work started that owe nothing, its open tasks). `agent_state.queues` and `runtime/queues.js` select both from the same readings; `q` walks the user's, and the Questions panel lists both, the user's under **Questions** and the agent's under **Tasks**, with the ended tasks folded beneath as Done. Questions and Tasks are the page's words for the two sides; the code calls both tasks |
 | **Task** | The one item both queues hold besides moves: something owed, with an `owner`, the agent or the user, and a subject (a thread, a widget, an element, or the page). The agent's come from `leaf task open`; the user's from an Ask in the markup, a thread question (`--awaits`), or `leaf task open --on user` on a widget, an element or the page. How a task ends follows from its owner and subject: the agent's at `leaf task end` or `--completes`, an Ask's when its widget answers it, a question's at the user's reply or a settling reaction, any other of the user's at their **Done**; the agent can end any but an Ask's. Each served task names this as `ends`. A row names the item by how it ends (`taskNoun`): an Ask by its widget's word, a thread question as Thread, a task the agent put on the user as To do, and the agent's own as Task |
 | **Done** | The control that ends a task the agent put on the user with `--on user`, which nothing else answers (an Ask or a thread question has none): a button beside its Questions panel row, `x` on that row or where `q` stands on the task, and a step on the banner's row under a finger. It writes the user's `task_end`, which `z` takes back like any gesture. Distinct from the Questions panel's Done fold, which lists ended tasks |
 | **Trip** | One travel to a destination, a thread's passage, an Ask, a datum, or the element a followed fragment link names: it clears the auxiliary surface hiding the destination, then stays when the user already has it or departs, leaving a history entry. A fragment link always departs, by the entry the browser's navigation adds; Back or Forward to an entry whose fragment names an element the page has hidden since is a trip that departs by no entry |

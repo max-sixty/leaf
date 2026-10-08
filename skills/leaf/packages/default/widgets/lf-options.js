@@ -147,7 +147,7 @@ customElements.define(
     // order and then the user's in the order they added them. An option the user added
     // is named by the words its `add` carries, and an authored one by its markup.
     static answerWords(state, group) {
-      const picked = new Set(state.choose.detail.options);
+      const picked = new Set(state.choose.detail.value);
       const added = Object.entries(state.add?.units ?? {});
       const authored = [...group.querySelectorAll(":scope > lf-option")].filter(
         (option) => picked.has(option.id) && !added.some(([id]) => id === option.id),
@@ -289,7 +289,7 @@ customElements.define(
 
     #picked() {
       const ids = new Set(
-        this.reading?.state.choose?.detail.options ?? this.#authoredChoice().options,
+        this.reading?.state.choose?.detail.value ?? this.#authoredChoice().value,
       );
       return new Set([...this.#options()].filter((option) => ids.has(option.id)));
     }
@@ -531,7 +531,7 @@ customElements.define(
 
     #syncChoice(detail) {
       const options = [...this.#options()];
-      const picked = new Set(detail.options);
+      const picked = new Set(detail.value);
       for (const [option] of this.#controls)
         if (option.parentElement !== this) this.#controls.delete(option);
       for (const [index, option] of options.entries()) {
@@ -558,7 +558,7 @@ customElements.define(
 
     #authoredChoice() {
       return {
-        options: [...this.#options()]
+        value: [...this.#options()]
           .filter((option) => option.hasAttribute("chosen"))
           .map((option) => option.id),
       };

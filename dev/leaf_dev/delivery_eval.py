@@ -15,6 +15,8 @@ from functools import partial
 from pathlib import Path
 
 from leaf.event_log import read_events
+from leaf.harness import ClaudeCodeHarness
+from leaf.thread import successful_replies
 
 from leaf_dev.arms import (
     accepted_starts,
@@ -62,7 +64,9 @@ def stop_blocked(record: dict) -> bool:
     )
 
 
-def run_session(arm: Path, case: str, run: Path, *, harness: str = "cc") -> None:
+def run_session(
+    arm: Path, case: str, run: Path, *, harness: str = ClaudeCodeHarness.name
+) -> None:
     """Drive delivery timing through the same feedback loop as larger examples."""
     run.mkdir(parents=True, exist_ok=True)
     work = scratch()
@@ -106,14 +110,11 @@ def score(run: Path) -> list[dict]:
         )
         replies = [
             datetime.fromisoformat(e["ts"]).timestamp()
-            for e in events
-            if e["kind"] == "reply"
-            and e.get("parent") == comment["id"]
-            and not e.get("ephemeral")
+            for e in successful_replies(events, comment["id"])
         ]
         # From the post to the turn's end: what carried the comment in, what the
         # agent ran before claiming its work, and the claim.
-        delivery, route, before_claim, claimed, ended = None, None, [], None, None
+        delivery, transport, before_claim, claimed, ended = None, None, [], None, None
         turn_completed = False
         handling = False
         accepted = accepted_starts(stream, comment["id"])
@@ -142,16 +143,16 @@ def score(run: Path) -> list[dict]:
                 and record["tool_use_id"] in waits
                 and not delivery
             ):
-                delivery, route = record, "notification"
+                delivery, transport = record, "notification"
             elif (
                 (stop_blocked(record) or hook_delivered(record))
-                and route in (None, "notification")
+                and transport in (None, "notification")
                 and not claimed
             ):
                 # A hook that brings the comment in, or a Stop hook holding the turn
                 # open with it unread, carried it, even after a notification.
                 delivery, before_claim = record, []
-                route = f"{record['hook_event'].lower()} hook".replace(
+                transport = f"{record['hook_event'].lower()} hook".replace(
                     "userpromptsubmit", "prompt"
                 )
         start = moment(marker)
@@ -167,7 +168,7 @@ def score(run: Path) -> list[dict]:
                 "timed_out": timed_out,
                 "turn_completed": turn_completed,
                 "session_completed": session_completed,
-                "route": route,
+                "transport": transport,
                 "woken_s": since(delivery and moment(delivery), start),
                 # The page log stamps whole seconds.
                 "pickup_s": since(pickup, posted),
@@ -251,7 +252,7 @@ def execute_scenario(
     payload: Path,
     work: Path,
     *,
-    harness: str = "cc",
+    harness: str = ClaudeCodeHarness.name,
     condition: str = "leaf",
 ) -> dict:
     run_session(payload, case, work, harness=harness)

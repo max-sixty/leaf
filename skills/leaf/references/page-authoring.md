@@ -142,8 +142,12 @@ and the margin", below).
 
 Long scrolling documents include a contents outline. It gives the reader a
 persistent route between sections and shows where they are in the document. A short
-document that can be read at a glance needs no outline. Put an empty `lf-toc` with a
-stable id in an `aside.sidebar`, directly inside `main` near the opening:
+document that can be read at a glance needs no outline. Keep navigation available at
+the desktop opening and while the document scrolls; in a narrow window, place it
+before the substantive reading.
+
+Write an empty `lf-toc` with a stable id. On a column page, put it in an
+`aside.sidebar`, directly inside `main` near the opening:
 
 ```html
 <aside class="sidebar" id="contents-sidebar">
@@ -151,9 +155,12 @@ stable id in an `aside.sidebar`, directly inside `main` near the opening:
 </aside>
 ```
 
-On a column page with room in the desktop margin, Leaf presents it as the contents
+With room in the desktop margin, Leaf presents the column's outline as the contents
 spine; in a narrow window it is an open outline in the page's flow ("The rail and the
-margin"). Workspaces and root page tabs use their own navigation.
+margin"). On a sidebar page, keep the outline and short verdict or status available
+in the opening overview inside the Layout's `aside` ("A wide page"). Keep that
+overview short enough to fit the window, with detailed evidence and history in the
+body or behind a disclosure. Workspaces and root page tabs use their own navigation.
 
 ### Layouts
 
@@ -202,8 +209,13 @@ both:
 ```html
 <main class="layout-sidebar">
   <header><h1>…</h1><p class="lede">…</p></header>
-  <div id="body">…</div>        <!-- what the reader works through -->
-  <aside id="status">…</aside>  <!-- what they keep an eye on -->
+  <aside id="status">
+    <div class="overview">
+      <lf-toc id="contents"></lf-toc>
+      <p>…</p>                 <!-- short verdict or status -->
+    </div>
+  </aside>
+  <div id="body">…</div>        <!-- document and supporting evidence -->
 </main>
 ```
 
@@ -222,6 +234,8 @@ changes and questions it asks beside the document it judges; that panel is the
 `aside`, and sticks (below). Stack each
 track's regions inside it, so every region stands on the same two vertical lines, rather
 than a new split per row whose edges land somewhere new each time.
+
+"Contents navigation" sets where the overview's outline goes at each width.
 
 A track shorter than the window can stay in view while the body scrolls beside it:
 give the `aside` `align-self: stretch`, so it runs the body's height, and the block it
@@ -293,15 +307,19 @@ such as a source file or log, can keep its scrolling and the advisory finding.
 
 ### Bounds and widths
 
-A log, feed, or long listing bounds its own height with `data-bound`, naming the end
-its newest entry is at. Put the entries in the order the reader needs, then bound
-that order. A list that grows downward takes `data-bound="end"`, which opens it on
-its last line, keeps that line in view while the user is at the end, and leaves them
-where they scrolled back to otherwise. A newest-first list takes
-`data-bound="start"`, which opens it at the top, as the page's own activity feed
-does. Some widgets bound themselves by default. Don't make a box scroll vertically with page
-CSS: Leaf keeps no reading position in a scroller it did not make, and `page
-check` advises against one.
+Prefer one document scroll: let reading content and evidence grow in flow, with
+disclosures for supporting detail. Internal vertical scrolling needs a task that
+benefits from keeping a region in view while its contents move, as in a workspace,
+or a live stream whose newest entry the reader follows. Length alone is no reason
+to bound a listing or an inspection widget.
+
+For a live stream that needs a bounded reading region, use `data-bound`, naming
+the end its newest entry is at. A list that grows downward takes
+`data-bound="end"`, which follows its last line while the user is at the end and
+leaves them where they scrolled back to otherwise. A newest-first list takes
+`data-bound="start"`, which opens at the top, as the page's activity feed does.
+Don't make a box scroll vertically with page CSS: Leaf keeps no reading position
+in a scroller it did not make, and `page check` advises against one.
 
 An individual block or section may request a responsive allocation with
 `data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
@@ -335,52 +353,27 @@ scrolling; page-local width overrides and wheel handlers should not be needed.
 
 ### The rail and the margin
 
-Leaf marks each commented or decided element with a marker: a thread, an Ask, a
-suggestion's ✓/✗. Nothing Leaf draws moves the page's content, so plan the page's
-geometry without them:
+Lay out the page without reserving space for Leaf's annotation markers. With room
+beside the content, Leaf puts markers in a rail; otherwise it puts them near their
+targets on the page. Pins can overlap text in a crowded view. The user hides pins
+and passage marks with `o`, or Hide annotations in the banner's More menu under
+a finger, to read the content beneath them. Padding a heading for its pin leaves
+unused space when the marker is in the rail.
 
-- A column page keeps a rail, a strip `--rail` wide beside its column, wherever the
-  room beside the column holds it: from a window of about 960px with a mouse and about
-  1010px with a finger. Its markers stand in it, 22px past the column. A marker level
-  with a note hanging in the margin stands as a pin instead.
-- A column page's first `aside.sidebar` and its `aside.sidenote`s join the rail in the
-  margin where the window holds all of them beside the column: a sidebar from about
-  1130px, a note from about 1150px, both from about 1420px, the column moving off
-  centre to make the room. With a mouse, a sidebar holding the contents map needs only
-  the map's spine. Below that each stays where it was written. Leaf writes what stands
-  in the margin on `main` as `data-lf-margin` (`rail`, `map`, `sidebar`, `note`), so page
-  CSS that should follow the margin keys on it, such as
-  `main:not([data-lf-margin~="sidebar"]) #route { display: none }`.
-- A wide page fills the window up to its cap, so the rail stands beside it only in a
-  window of about 1920px or wider. Elsewhere its markers stand as pins over the page by
-  their targets, as every marker does where the rail does not stand: in a narrower
-  window, and in a pane that scrolls on its own. A
-  block's pin stands inside its top-right corner and a run of text's just after its
-  last word, unless that covers words, a control, or another block; then it takes the
-  nearest room beside its target that covers none, such as the free end of a line or
-  the gap below it. Where its target leaves no such room, it may take the empty end of
-  a neighbouring block's line, such as beside a short heading above it, unless that
-  block paints its box (a fill, border or shadow, as a card or table does). Where none
-  of that room lies within reach, it reaches one line further out, past a line of words
-  but never past a painted block or nearer another pin's target, such as to the end of
-  the section's heading above a full first line. A pin is 26px with a mouse and 44px
-  under a finger. A pair, such as a suggestion's Accept and Reject, that finds no such
-  room folds to one control, a marker wearing the face of what it folds (a suggestion's
-  is a change), that opens to both on a tap or when the keyboard arrives on it or on
-  its target, and takes room of that size; where even that finds none, as in a
-  phone's full lines deep in a paragraph, the pin stays in the corner over the block's
-  words.
-- A marker on a figure grown past the rail stands on the figure as a pin, at the
-  corner of the part it names when it names one.
-- The user hides every pin and passage mark with `o`, or with Hide annotations in the
-  banner's More under a finger, to see what lies under them; the rail stays, since it
-  covers nothing. So leave no room for a pin in the page's CSS, such as padding at the
-  end of a heading: wherever the rail stands, the room is left empty.
+On a column page, write its contents outline in the first `aside.sidebar` and
+short notes in `aside.sidenote`. Leaf moves them into the margin when they fit;
+in a narrow window they stay where you authored them. A `layout-sidebar` page
+instead has an authored body and `aside` region ("A wide page").
 
-`data-rail="right"` on `body` keeps the rail on a wide page, and `data-rail="none"`
-gives a column page's right margin to something of the page's own. A marker level
-with a hanging `aside.sidenote` stands as a pin on its block, so a page with notes needs
-neither.
+For CSS that depends on a margin resident, use `main`'s `data-lf-margin` tokens
+(`rail`, `map`, `sidebar`, `note`), such as
+`main:not([data-lf-margin~="sidebar"]) #route { display: none }`. Verify the
+page at the widths where a resident returns to the document flow.
+
+`data-rail="right"` on `body` keeps a rail on a wide page.
+`data-rail="none"` gives a column page's right margin to the page's own content.
+A marker beside a hanging `aside.sidenote` already appears as a pin, so notes
+need neither override.
 
 ### Page-owned annotations
 
@@ -391,10 +384,11 @@ styles and geometry. Exact comments, Asks, decisions, Undo, live revisions and
 drawing capture still use the shared Leaf mechanisms. Changing the selection
 replaces the document through the ordinary revision lifetime.
 
-Place one empty `<lf-annotation-rail id="annotations"></lf-annotation-rail>`
-where the reader should find conversations and actions. Allocate its width and
-height in the page's CSS; it scrolls inside that box. At narrow widths, give it a
-place the user can reach by touch and keyboard. Leaf supplies native disclosures,
+When the task needs conversations and actions kept in an independent region
+("Bounds and widths"), place one empty
+`<lf-annotation-rail id="annotations"></lf-annotation-rail>` there. Allocate its
+width and height in the page's CSS; it scrolls inside that box. At narrow widths,
+give it a place the user can reach by touch and keyboard. Leaf supplies native disclosures,
 reply editors, action controls and retained reading; the page supplies their layout.
 Widget-local conversations keep their exact seats before the page rail takes
 remaining targets. The Threads panel remains the complete conversation index.
@@ -737,7 +731,9 @@ findings, claims have evidence, decisions have controls, drawings add
 information, and visible prose is needed by the user. Draw any subject the page
 currently explains only in words when a picture would convey it.
 
-Follow the page's links and operate its navigation with pointer and keyboard.
+For a page with contents, start at its opening at desktop and phone widths and
+jump to a later section without first scrolling through the article to find the
+navigation. Follow the page's links and operate its navigation with pointer and keyboard.
 At each destination, check that the visible content and focus leave the user
 oriented and able to continue; compare equivalent moves across the page's views.
 

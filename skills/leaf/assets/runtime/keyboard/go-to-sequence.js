@@ -15,7 +15,7 @@
    `g G` glide to the page edges; from a focused thread, `g k` and `g j` place its card at
    an edge of the list; `g p` returns focus to the page while leaving open surfaces
    standing. Uppercase mnemonics remain named
-   global destinations: `g T` Threads, `g Q` Questions, `g L` All leaves, `g M` the searchable
+   global destinations: `g T` Threads, `g Q` Questions, `g L` All pages, `g M` the searchable
    Page Map and `g V` Versions. A named
    panel destination toggles that panel, matching its visible control. Completing one that
    opens a surface leaves the user in that surface, whose own Escape step is the way out
@@ -24,8 +24,11 @@
    covers the page: the sequence belongs to that modal surface while the inert document's
    ordinary scopes remain unavailable.
 
-   `BUILTIN_DIRECT_DESTINATIONS` declares the uppercase destinations this owner implements;
-   another owner contributes a complete row through `directDestinations`. `TARGET_KINDS`
+   Named destinations contribute complete command rows, including native controls whose
+   activation stays with their own owner. Each has an unbound semantic route for the
+   command reference and a prefixed keyboard presentation; arming the sequence changes
+   which keys reach it, not whether its capability exists. Another owner contributes a
+   complete row through `directDestinations`. `TARGET_KINDS`
    declares the members, label, exposure rule, and activation for each visible target
    family. `TARGET_FILTERS` declares semantic subsets of that complete map. Exact duplicate
    activation elements collapse to one candidate, while distinct overlapping actions remain
@@ -57,7 +60,7 @@
 
    The Go-to sequence has no timeout. The user is not charged a time limit for reading
    the hints just painted. */
-import { bindings, labelOf, live, spell, word } from "./bindings.js";
+import { bindings, labelOf, live, word } from "./bindings.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { createHintSession, HINT_KEYS, hintCodes, renderKeys } from "./hints.js";
 import {
@@ -76,14 +79,7 @@ import { pageParts } from "../passages.js";
 import { addressableSays } from "../anchor-resolution.js";
 import { announce, notice } from "../notifications.js";
 import { closestAcross, pageQueryAll } from "../passages.js";
-import {
-  currentDrawer,
-  othersBtn,
-  othersPanel,
-  queueBtn,
-  queuePanel,
-  queueRows,
-} from "../drawers.js";
+import { currentDrawer, othersBtn, queueBtn } from "../drawers.js";
 import { mapButton } from "../page-map-dialog.js";
 
 import { claimsEsc, focused, saying } from "./scopes.js";
@@ -91,21 +87,18 @@ import { repaint } from "../repaint.js";
 
 // The eye's copy of the go-to map. The layer is aria-hidden because the live region and
 // Tab walk provide the same map without asking a screen reader to traverse paint chrome.
-export const goToHintLayer = el("div", "lf-ui lf-go-to-hints");
+export const goToHintLayer = el("div", "lf-ui lf-key-chips lf-go-to-hints");
 goToHintLayer.setAttribute("aria-hidden", "true");
 
 // Construct the command vocabulary once; boot mounts the viewport listeners after
 // the chrome is attached. All travel and auxiliary-surface effects are explicit capabilities.
 export function createGoToSequence({
   panelIsOpen,
-  elements: { banner, toggleBtn, threadsBox },
+  elements: { banner, toggleBtn },
   hintChrome,
   directDestinations,
-  setPanel,
-  setOpenDrawer,
   scrollToElement,
   leavesOffered,
-  othersLinks,
   activateMarginEntry,
   marginEntryKind,
   visibleMarginEntries,
@@ -114,9 +107,6 @@ export function createGoToSequence({
   seenScroller,
   stopGlide,
   coveringAuxiliarySurface,
-  enterPageMap,
-  leavePageMap,
-  pageMapIsActive,
 }) {
   // How a destination in this sequence is written where the sequence itself is not on screen —
   // a notice naming the way back to a draft that has just gone down, say. Spelled off the
@@ -175,30 +165,22 @@ export function createGoToSequence({
   // One-off direct travel is one vocabulary too. The mnemonic completes the trip or closes
   // the named panel already standing, and every destination owns the liveness, landing, and
   // close that make its surface useful rather than leaving the dispatcher to know which
-  // furniture it enters.
-  const BUILTIN_DIRECT_DESTINATIONS = [
+  // furniture it enters. Other owners' destinations rank ahead of the fixed doors, so a
+  // narrow line keeps the step a notice just named, such as Resume writing.
+  const destinations = [
+    ...directDestinations(),
     {
       id: "navigation.panel.threads",
-      key: "Shift+t",
+      keys: ["Shift+t"],
       description: () =>
         panelIsOpen() ? "Close the Threads panel" : "Go to the Threads panel",
       title: () => (panelIsOpen() ? "close Threads panel" : "Threads panel"),
       control: () => toggleBtn,
       when: () => true,
-      go: () => {
-        setPanel(true);
-        threadsBox.focus({ preventScroll: true });
-      },
-      active: (...args) => panelIsOpen(...args),
-      // The mnemonic pressed over an open panel closes it outright. The way back out of
-      // one it opened is the panel's own step, which is the same step for a panel the
-      // user already had.
-      close: () => setPanel(false),
-      toggle: true,
     },
     {
       id: "navigation.drawer.queue",
-      key: "Shift+q",
+      keys: ["Shift+q"],
       description: () =>
         currentDrawer() === "queue"
           ? "Close the Questions panel"
@@ -207,45 +189,34 @@ export function createGoToSequence({
         currentDrawer() === "queue" ? "close Questions panel" : "Questions panel",
       control: () => queueBtn,
       when: () => true,
-      go: () => {
-        setOpenDrawer("queue");
-        (queueRows()[0] ?? queuePanel).focus({ preventScroll: true });
-      },
-      active: () => currentDrawer() === "queue",
-      close: () => setOpenDrawer(null),
-      toggle: true,
     },
     {
       id: "navigation.drawer.leaves",
-      key: "Shift+l",
+      keys: ["Shift+l"],
       description: () =>
         currentDrawer() === "leaves"
-          ? "Close the Leaves drawer"
-          : "Go to the Leaves drawer",
+          ? "Close the Pages drawer"
+          : "Go to the Pages drawer",
       title: () =>
-        currentDrawer() === "leaves" ? "close Leaves drawer" : "Leaves drawer",
+        currentDrawer() === "leaves" ? "close Pages drawer" : "Pages drawer",
       control: () => othersBtn,
       when: (...args) => leavesOffered(...args),
-      go: () => {
-        setOpenDrawer("leaves");
-        (othersLinks()[0] ?? othersPanel).focus({ preventScroll: true });
-      },
-      active: () => currentDrawer() === "leaves",
-      close: () => setOpenDrawer(null),
-      toggle: true,
     },
     {
       id: "navigation.page-map",
-      key: "Shift+m",
+      keys: ["Shift+m"],
       description: "Open the Page Map dialog",
       title: "Page Map dialog",
       control: () => mapButton,
       when: () => true,
-      go: (...args) => enterPageMap(...args),
-      active: pageMapIsActive,
-      close: (...args) => leavePageMap(...args),
     },
   ];
+  // Whether each door's surface stands, by the door's id.
+  const DOOR_STANDS = new Map([
+    ["navigation.panel.threads", () => panelIsOpen()],
+    ["navigation.drawer.queue", () => currentDrawer() === "queue"],
+    ["navigation.drawer.leaves", () => currentDrawer() === "leaves"],
+  ]);
   // A press hint is an activation and an arrival. Reveal first so a nested control can open
   // the panel that holds it, then focus and use its click path so pointer and keyboard
   // remain one behavior.
@@ -562,8 +533,6 @@ export function createGoToSequence({
   // prefix; once a generated route has begun, only valid continuations, audible browsing,
   // activation, and backing remain.
   let goRows = null;
-  // Each named door's row, to the surface it opens and closes.
-  const doors = new Map();
   const GO_TO_SCOPE = {
     title: "Go to",
     escape: "inner",
@@ -579,7 +548,7 @@ export function createGoToSequence({
     // stands beside, and a line too narrow for every door keeps that one.
     get rows() {
       goRows ??= build();
-      const standing = goRows.filter((row) => doors.get(row)?.active());
+      const standing = goRows.filter((row) => DOOR_STANDS.get(row.id)?.());
       return standing.length
         ? [...standing, ...goRows.filter((row) => !standing.includes(row))]
         : goRows;
@@ -593,10 +562,10 @@ export function createGoToSequence({
         // A focused thread is one place, so its two placements complete the sequence
         // without naming a list or taking a digit. This is the thread-local counterpart
         // to the page edges below: k/j place the card inside its panel rather than moving
-        // the document to the passage the card is about. It leads while live, after only
-        // the door to the standing surface, because it is the one offer specific to where
-        // the user stands; list members wear their Go-to hints directly when the sequence
-        // starts.
+        // the document to the passage the card is about. It leads while live, after
+        // only the door to the standing surface, because it is the one offer specific to
+        // where the user stands; list members wear their Go-to hints directly when the
+        // sequence starts.
         keys: THREAD_EDGE_KEYS,
         routes: [
           {
@@ -701,9 +670,8 @@ export function createGoToSequence({
       // A destination whose control belongs to another runtime owner joins this one
       // vocabulary as its complete row. The Go-to hint layer contributes only the sequence's
       // progress and cancellation; liveness, words, landing, and return remain with the
-      // owner that can keep them true. These rank ahead of the fixed doors below, so a
-      // narrow line keeps the step a notice just named, such as Resume writing.
-      ...directDestinations().map((destination) => ({
+      // owner that can keep them true.
+      ...destinations.map((destination) => ({
         ...destination,
         // A direct destination's finger route is its standing page command in
         // More. Arming this keyboard sequence doesn't seat another gesture control.
@@ -715,25 +683,6 @@ export function createGoToSequence({
           else word(destination.control).click();
         },
       })),
-      ...BUILTIN_DIRECT_DESTINATIONS.map((destination) =>
-        door(destination, {
-          id: destination.id,
-          keys: [destination.key],
-          label: spell(destination.key),
-          description: destination.description,
-          title: destination.title,
-          control: destination.control,
-          when: () => atGoToTargets() && destination.when(),
-          // No way back of its own: the surface the mnemonic travels to owns the step
-          // that takes it off again, and it is the same step whichever door opened it.
-          run: () => {
-            const closing = destination.toggle && destination.active();
-            setGoToSequence(false);
-            if (closing) destination.close();
-            else destination.go();
-          },
-        }),
-      ),
       {
         id: "navigation.page.edge",
         keys: PAGE_EDGE_KEYS,
@@ -783,10 +732,6 @@ export function createGoToSequence({
       },
     ];
   }
-  function door(destination, row) {
-    if (destination.toggle) doors.set(row, destination);
-    return row;
-  }
 
   // The way in to the sequence. Its row supplies the same leader every painted Go-to hint uses,
   // so the letter the user presses and the letter the page prints cannot diverge.
@@ -809,9 +754,17 @@ export function createGoToSequence({
 
   pageScope("go to", GO_TO_SCOPE);
   pageCommand(OPEN_GO_TO);
-  for (const destination of directDestinations())
-    if (destination.touch)
-      pageCommand({ ...destination, keys: [], lineWhen: () => false });
+  // Every named capability stays invocable by id outside the armed sequence. Native
+  // control activation and generated touch controls remain separate from that route:
+  // a run-less row delegates to its control without replacing its native default.
+  for (const destination of destinations)
+    pageCommand({
+      ...destination,
+      keys: [],
+      touch: destination.touch ?? false,
+      covering: true,
+      lineWhen: () => false,
+    });
 
   return {
     goToStatus,

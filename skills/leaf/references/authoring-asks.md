@@ -1,5 +1,8 @@
 # Asks and sign-off
 
+Use an Ask for every decision waiting on the user. A recommendation leaves
+that decision open until the user decides.
+
 The user answers an Ask from what is on screen when they reach it, and `q`
 brings its start to the top with everything above it out of view. Keep its question,
 short shared premise, and evidence together with the answering control. Use `lf-ask`
@@ -44,10 +47,10 @@ markup holds it. Something you need from the user that no widget
 answers is a task you put on them rather than an Ask (`conversation-loop.md`, "Tasks
 on the user").
 
-For independent proposals, make progress visible as each one is decided: give
-each proposal its own `lf-ask` with explicit accept and reject choices. Either
-choice completes that Ask; leaving it unanswered keeps it open. A shared
-`multiple` group fits a question whose answer is a selected set.
+The user can finish each independently answerable proposal as they review it.
+Give each its own `lf-ask` with explicit accept and reject choices. Either choice
+completes that proposal's Ask; leaving it unanswered keeps it open. The
+`lf-options` entry owns questions whose answer is a selected set.
 
 For an interface or behavior choice, make the relevant interaction work inside
 each option so the user can try every alternative before choosing. For a choice

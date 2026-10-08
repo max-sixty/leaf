@@ -326,13 +326,14 @@ export function createQueueWalk({
         id: "queue.next",
         binding: "q",
         title: "Next question",
-        description: "Next Ask, thread, to-do or move to resend waiting on you",
+        description: "Next Ask, thread, to-do or update to send again waiting on you",
       },
       {
         id: "queue.previous",
         binding: "Shift+q",
         title: "Previous question",
-        description: "Previous Ask, thread, to-do or move to resend waiting on you",
+        description:
+          "Previous Ask, thread, to-do or update to send again waiting on you",
       },
     ],
     title: "Questions",

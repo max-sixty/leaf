@@ -6,9 +6,10 @@ allowed-tools:
   - Bash(jq:*)
 ---
 
-Leaf presents work as a live HTML page. The user reads, comments on exact
-passages, and acts through widgets while you revise it in place. Write the page,
-check it, hand over its URL with a status saying what you want back, and wait.
+You author a live HTML page for the user, whose directions override your choices
+of content and presentation. The user reads, comments on exact passages, and acts
+through widgets while you revise it in place. Write the page, check it, hand over
+its URL with a status saying what you want back, and wait.
 Answer each delivered user move on the page and in its thread, stamp checkpoints,
 and idle the page when it is finished.
 
@@ -43,7 +44,8 @@ incomplete. A checkout keeps the launcher at `bin/leaf`. Pages conventionally
 live at `~/.local/state/leaf/pages/<slug>/`, though every command takes the
 directory explicitly; export or copy anything that must outlive the page directory.
 
-1. Run `leaf page init <page>`, and name a package when the page needs an
+1. Read `references/conversation-loop.md`, "When to write", to record the work
+   you take on. Run `leaf page init <page>`, and name a package when the page needs an
    optional vocabulary or instructions, as in
    `leaf page init --package diagram --package diff <page>`. "Package reach" in
    `references/packages.md` lists the optional packages and what each adds;
@@ -77,32 +79,37 @@ directory explicitly; export or copy anything that must outlive the page directo
    does (`references/authoring-revisions.md`). A page declaring
    `<meta name="lf-review" content="sign-off">` is always a record, since
    approval requires a stamped version.
-4. Read `references/conversation-loop.md` and exactly one harness contract:
-   `references/harness-claude-code.md` in Claude Code; `references/harness-pi.md` in
-   Pi; in Codex, `references/harness-codex-app-server.md` when
-   `LEAF_CODEX_APP_SERVER` is set or the user gave you the task's App Server
-   endpoint, and `references/harness-codex.md` otherwise. Set the
-   page's status as the conversation reference defines, hand over by the harness's
-   route, name the gesture available to the user, and finish the turn with the
-   exact URL, or with what the harness contract hands over instead.
-5. When a delivery arrives, read `references/event-batches.md`, the harness
-   contract, and, for user messages,
+4. Read the contract selected by "Harness selection" below. Follow
+   `references/conversation-loop.md`, "Status and handoff", and serve and hand
+   over the page by that contract's route.
+5. When a delivery arrives, read `references/event-batches.md`, the
+   selected harness contract, and, for user messages,
    `references/threads.md`, and answer every event as they say.
    Say what you are doing before doing it, as `references/conversation-loop.md`,
    "When to write", orders it.
 6. Stamp checkpoints and end the page as `references/page-checkpoints.md` says.
 
-From the first hand-over on, include the page's exact URL in each turn's final
-response. Intermediate progress updates do not repeat it.
+## Harness selection
+
+Select the contract for the session that owns the page:
+
+| Session | Contract |
+| --- | --- |
+| Claude Code | `references/harness-claude-code.md` |
+| Pi | `references/harness-pi.md` |
+| Codex with `LEAF_CODEX_APP_SERVER`, or an App Server endpoint supplied by the user | `references/harness-codex-app-server.md` |
+| Other Codex tasks, including the desktop app and IDE | `references/harness-codex.md` |
+
+A desktop Codex app's own App Server does not expose an endpoint Leaf can use;
+its page follows the ordinary Codex contract. Delivery continues under the
+selected contract. `references/codex-setup.md` owns terminal App Server setup.
 
 ## Stay responsive
 
-A message with no sign that you have it reads as ignored, so when input arrives,
-post a line in its thread at once saying what you will do, before you read or edit
-anything; a message that needs no work gets its answer at once instead. Give work
-that would hold up the next message to background workers; you keep the page.
-`references/conversation-loop.md`, "When to write" and "Long-running work", says
-how.
+`references/conversation-loop.md`, "When to write", owns the immediate reply
+and work status for each user update. For work that would delay the next update,
+follow its "Long-running work" section: background workers do the work while
+you keep the page and answer the user.
 
 ## Leaf soul
 
@@ -170,25 +177,21 @@ so a phase does not depend on discovering a chain of references.
 ### Author a version
 
 - `references/page-authoring.md`: before writing or revising any version.
-- `references/authoring-asks.md`: while authoring a new, unanswered ask or
-  sign-off.
+- `references/authoring-asks.md`: when the page needs an answer from the user or
+  sign-off, before choosing its widgets.
 - `references/authoring-revisions.md`: before changing a handed-over page,
   proposing a rewrite, using a user-owned draft, or revising standing state.
 - `references/authoring-evidence.md`: before drawing a figure, or using measured
-  facts, diagrams, charts, source files, images, or before/after captures.
+  facts, diagrams, charts, source files, images, recordings, or before/after
+  captures.
 
 ### First handoff
 
 - `references/conversation-loop.md`: before a page handoff, starting work on the page,
   work long enough to delegate, or asking the user to do something no Ask or thread
   question answers.
-- `references/harness-claude-code.md`: before the first handoff in Claude Code or
-  recovery of its direct wait loop.
-- `references/harness-pi.md`: before the first handoff in Pi.
-- `references/harness-codex.md`: before the first handoff in Codex reached through its
-  queue, which includes the desktop app, and for the delivery its later turns receive.
-- `references/harness-codex-app-server.md`: before the first handoff in a Codex task
-  Leaf reaches over App Server, and for the delivery turns Leaf starts there.
+- The contract selected by "Harness selection": before the first handoff and
+  when a delivery arrives.
 
 ### Continue after input
 
@@ -208,7 +211,8 @@ so a phase does not depend on discovering a chain of references.
 - `references/packages.md`: for package design, registry declarations, theme rules,
   data contracts, or a design comment whose fix belongs in a package.
 
-### Use a separate Codex watcher
+### Set up a Codex connection
 
+- `references/codex-setup.md`: when setting up a terminal App Server connection.
 - `references/codex-watcher.md`: only after the user explicitly authorizes a
   visible Codex watcher task. Follow it before handing over the page.

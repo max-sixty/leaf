@@ -39,7 +39,7 @@ import shutil
 import subprocess
 import time
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
 from types import SimpleNamespace
@@ -597,9 +597,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
             for index in range(len(lines) - 1, -1, -1):
                 event = json.loads(lines[index])
                 if event["kind"] == "note":
-                    event["ts"] = datetime.now(timezone.utc).isoformat(
-                        timespec="seconds"
-                    )
+                    event["ts"] = datetime.now(UTC).isoformat(timespec="seconds")
                     lines[index] = json.dumps(event, separators=(",", ":"))
                     log.write_text("\n".join(lines) + "\n", encoding="utf-8")
                     break
@@ -1269,29 +1267,71 @@ def clean_browser(test=None):
 def judge_watches():
     """Judge every layout shift each watched page makes, once the frames the test's
     last act changed have painted (`shift_watch.js`, `lfShiftsJudged`), and then every
-    loss of typed words so far (`words_watch.js`, `lfWordsJudged`).
+    loss of typed words so far (`words_watch.js`, `lfWordsJudged`). The driver reads
+    frame-owner visibility across origins: an opaque child cannot inspect the
+    ancestor that suppresses its paint (`window.frameElement` is null there).
 
     Chrome hands a frame's shifts to the observer only after it paints, so a test whose
     last act moves the page or takes words away would end before the report. Judgement
     waits for that evidence with a hang deadline; elapsed time cannot count as a
-    completed paint. `conftest.py` calls this as the test body returns, while the
+    completed paint. Scripts-disabled pages have no script-driven sensors to judge.
+    `conftest.py` calls this as the test body returns, while the
     pages' servers still answer: a page left painting
     after its server is gone lets its failed fetches reach the console."""
     for page, _ in _BROWSER_PROBLEM_LISTS or ():
-        if not page.is_closed():
+        if not page.is_closed() and page.lf_java_script_enabled:
             for frame in page.frames:
-                frame.wait_for_function(
-                    """async () => {
-                        await window.lfShiftsJudged?.();
-                        await window.lfWordsJudged?.();
-                        return true;
+                frame.evaluate(
+                    """ancestorsDrawn => {
+                        const judgement = window.lfWatchJudgement = {
+                          ancestorsDrawn, complete: false, error: null,
+                        };
+                        Promise.resolve().then(async () => {
+                          await window.lfShiftsJudged?.();
+                          await window.lfWordsJudged?.();
+                        }).then(() => { judgement.complete = true; },
+                          error => { judgement.error = error; });
                     }""",
-                    timeout=render_checks_model.SERVED_TIMEOUT_MS,
-                    polling=100,
+                    _frame_owners_drawn(frame),
                 )
+                deadline = (
+                    time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+                )
+                while True:
+                    complete = frame.evaluate(
+                        """ancestorsDrawn => {
+                            const judgement = window.lfWatchJudgement;
+                            judgement.ancestorsDrawn = ancestorsDrawn;
+                            if (judgement.error) throw judgement.error;
+                            return judgement.complete;
+                        }""",
+                        _frame_owners_drawn(frame),
+                    )
+                    if complete:
+                        break
+                    if time.monotonic() >= deadline:
+                        raise PlaywrightTimeout(
+                            f"health sensors did not drain: {frame.url}"
+                        )
+                    page.wait_for_timeout(100)
+                frame.evaluate("delete window.lfWatchJudgement")
 
 
-def watched(page):
+def _frame_owners_drawn(frame):
+    """Read current ancestor visibility across origin boundaries for the sensor."""
+    ancestor = frame
+    while ancestor.parent_frame is not None:
+        owner = ancestor.frame_element()
+        try:
+            if not owner.evaluate("element => element.checkVisibility()"):
+                return False
+        finally:
+            owner.dispose()
+        ancestor = ancestor.parent_frame
+    return True
+
+
+def watched(page, *, java_script_enabled=True):
     """Collect browser problems into one retained list per page.
 
     Console warnings/errors and uncaught exceptions are joined by window errors
@@ -1300,7 +1340,9 @@ def watched(page):
     by layout shifts without input or that carry a field being typed in
     (`shift_watch.js`), and by typed words leaving the screen without a key or press
     (`words_watch.js`).
-    Call before navigation so the init scripts take effect.
+    Call before navigation so the init scripts take effect. With scripting disabled,
+    retain native console and page errors but install no script-driven sensors and
+    await none at judgement.
     Repeated calls return the existing list. `tests/AGENTS.md`, "Consume a browser
     error where it is caused", owns consumption and cleanup policy."""
     assert _BROWSER_PROBLEM_LISTS is not None, (
@@ -1311,6 +1353,7 @@ def watched(page):
     errors = []
     _BROWSER_PROBLEM_LISTS.append((page, errors))
     page.lf_errors = errors
+    page.lf_java_script_enabled = java_script_enabled
 
     def console_message(message):
         problem = render_gate_model.console_problem(message)
@@ -1319,6 +1362,8 @@ def watched(page):
 
     page.on("console", console_message)
     page.on("pageerror", lambda e: errors.append(str(e)))
+    if not java_script_enabled:
+        return errors
     render_checks_model.install_window_errors(page)
     page.add_init_script(path=WRITE_WATCH_SOURCE)
     # One init script keeps cause tracking installed before its words subscriber;
@@ -1755,7 +1800,9 @@ def opened_tab(page, destination, press):
     # handed over, so the tab this makes is readable only because it is made readable
     # here — and before the navigation, which is the only side of it an init script
     # reaches.
-    tab = readable(page.context.new_page())
+    tab = readable(
+        page.context.new_page(), java_script_enabled=page.lf_java_script_enabled
+    )
     tab.goto(destination)
     return tab
 
@@ -1788,10 +1835,10 @@ arm_interception = render_gate_model.arm_interception
 expect.set_options(timeout=render_checks_model.SERVED_TIMEOUT_MS)
 
 
-def readable(page):
+def readable(page, *, java_script_enabled=True):
     """Install what the suite reads off a page, before the page navigates.
 
-    The three readings are the same for every page: the delivery ledger the traffic
+    The three readings are the same for every scripted page: the delivery ledger the traffic
     helpers consume, the arm that keeps a later route real, and the problem list the
     browser fixture rejects at the end of the test. None of them can be installed
     afterwards — an init script has to precede the navigation it instruments, and a
@@ -1802,13 +1849,16 @@ def readable(page):
     They are therefore installed where a page is made rather than asked for by each
     test, which is what `WatchedBrowser` is for. A page that already carries them is
     left alone, since a second console listener would report every problem twice.
+    A scripts-disabled context keeps the native error collector and shared deadlines;
+    the script-driven readings are unavailable there.
     """
     if getattr(page, "lf_errors", None) is not None:
         return page
     page.set_default_timeout(render_checks_model.SERVED_TIMEOUT_MS)
-    page.lf_traffic = Traffic(page)
     arm_interception(page)
-    watched(page)
+    if java_script_enabled:
+        page.lf_traffic = Traffic(page)
+    watched(page, java_script_enabled=java_script_enabled)
     return page
 
 
@@ -1824,11 +1874,15 @@ class WatchedContext:
     opened.
     """
 
-    def __init__(self, context):
+    def __init__(self, context, *, java_script_enabled=True):
         self._context = context
+        self._java_script_enabled = java_script_enabled
 
     def new_page(self, **kwargs):
-        return readable(self._context.new_page(**kwargs))
+        return readable(
+            self._context.new_page(**kwargs),
+            java_script_enabled=self._java_script_enabled,
+        )
 
     def __getattr__(self, name):
         return getattr(self._context, name)
@@ -1855,10 +1909,16 @@ class WatchedBrowser:
         self.unwatched = browser
 
     def new_context(self, **kwargs):
-        return WatchedContext(self._browser.new_context(**kwargs))
+        return WatchedContext(
+            self._browser.new_context(**kwargs),
+            java_script_enabled=kwargs.get("java_script_enabled", True),
+        )
 
     def new_page(self, **kwargs):
-        return readable(self._browser.new_page(**kwargs))
+        return readable(
+            self._browser.new_page(**kwargs),
+            java_script_enabled=kwargs.get("java_script_enabled", True),
+        )
 
     def __getattr__(self, name):
         return getattr(self._browser, name)
@@ -2019,12 +2079,12 @@ def panel_settled(page, open=True):
 
     The panel stands over the page, so opening or closing it moves nothing else; its own
     slide is the one motion, finished rather than waited out for `edge_settled`'s reason.
-    Closed means the dialog itself has closed."""
+    Closed means the retained panel is no longer visible."""
     page.wait_for_function(
         """(open) => {
           const panel = document.querySelector('.lf-thread-panel');
           for (const move of panel.getAnimations()) move.finish();
-          return panel.classList.contains('open') === open && panel.open === open
+          return panel.classList.contains('open') === open && panel.checkVisibility() === open
             && panel.getAnimations().length === 0;
         }""",
         arg=open,
@@ -2329,23 +2389,73 @@ def scroll_writes(page, steps, scroller="document.scrollingElement"):
     )
 
 
-def scroll_followers(writes):
-    """The places a scroll writes on more than two of its steps, as findings.
+_GESTURE = """async ([scroller, by, sample]) => {
+  const box = eval(scroller);
+  const read = sample ? eval(sample) : () => null;
+  let frame = 0;
+  let ended = false;
+  const samples = [];
+  const end = () => { ended = true; };
+  document.addEventListener('scrollend', end, {capture: true, once: true});
+  window.lfWrites = [];
+  window.lfWriteStep = frame;
+  const tick = () => {
+    window.lfWriteStep = ++frame;
+    if (!ended) {
+      samples.push({scrolled: box.scrollTop, read: read()});
+      requestAnimationFrame(tick);
+    }
+  };
+  box.scrollBy({top: by, behavior: 'smooth'});
+  requestAnimationFrame(tick);
+  while (!ended) await new Promise(requestAnimationFrame);
+  return {frames: frame, samples};
+}"""
+
+
+def gesture_writes(page, by, scroller="document.scrollingElement", sample=None):
+    """Scroll `scroller` (a page expression) by `by` in one smooth gesture, as a wheel
+    or a key does, and return each DOM write it caused, numbered by the frame it came
+    in, with what its settle wrote under its last, and how many frames it took. The
+    pointer is moved off the page's controls first, so the scroll brings nothing new
+    under it. With `sample`, a page function, it returns that function's reading on
+    each frame before the settle too, beside how far the scroller had gone."""
+    page.mouse.move(2, 300)
+    rendered(page)
+    start = page.evaluate(f"() => {scroller}.scrollTop")
+    gesture = page.evaluate(_GESTURE, [scroller, by, sample])
+    rendered(page)
+    assert page.evaluate(f"() => {scroller}.scrollTop") == pytest.approx(
+        start + by, abs=1
+    ), "the scroll did not go where the gesture leads"
+    writes = page.evaluate(
+        "() => { const w = window.lfWrites; window.lfWrites = null; return w; }"
+    )
+    if sample:
+        return writes, gesture["frames"], gesture["samples"]
+    return writes, gesture["frames"]
+
+
+def scroll_followers(writes, frames=None):
+    """The places a scroll writes on more than two of its steps, or on more than a
+    third of a gesture's `frames`, as findings.
 
     A state the scroll changes crosses a small pass at most once each way, while a
     position written from scroll events is written on every step, a frame behind the
     browser, which carries a box that CSS lays out (an anchor, a sticky offset, a scroll
-    timeline) with the scroll itself. A write that changes nothing needs no reading
-    here: the browser fixture fails it wherever it happens (`write_watch.js`)."""
+    timeline) with the scroll itself. A gesture takes as many frames as its speed gives
+    it, and crosses more as it goes further, as a tag steps clear of each neighbour
+    crossing beside it, so it is allowed a share of them. A write that changes nothing needs no reading here: the browser fixture
+    fails it wherever it happens (`write_watch.js`)."""
     places = {}
     for w in writes:
         places.setdefault(w["key"], []).append(w)
     found = []
     for written in places.values():
         what = f"{written[0]['type']} {written[0]['attribute'] or ''} on {written[0]['target']}"
-        steps = {w["step"] for w in written}
-        if len(steps) > 2:
-            found.append(f"{what} follows the scroll, written on {len(steps)} steps")
+        on = {w["step"] for w in written}
+        if len(on) > max(2, (frames or 0) / 3):
+            found.append(f"{what} follows the scroll, written on {len(on)} steps")
     return found
 
 

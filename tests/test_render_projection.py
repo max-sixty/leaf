@@ -31,6 +31,7 @@ from leaf import structure as structure_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.render_gate.preview import preview_server
+from leaf.render_gate.readings import DevtoolsIssues
 from leaf.schema import ELEMENT_ID
 from leaf.validation import compatibility as validation_model
 from playwright.sync_api import expect
@@ -106,7 +107,6 @@ from render_harness import (
     example_media,
     expect_asks_answered,
     expect_banner_control_offered,
-    fills_the_window,
     holding,
     leaf_page,
     open_page,
@@ -491,6 +491,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         },
     )
     page = open_page(browser, url)
+    assert not DevtoolsIssues(page).findings()
     widget = page.locator("#request-calls")
     lines = widget.locator(".lf-call-line")
 
@@ -505,6 +506,11 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     groups = widget.locator(":scope > .lf-call-group")
     expect(groups).to_have_count(1)
     group = groups.first
+    summary = group.locator(":scope > summary")
+    root_location = widget.locator(".lf-call-root-location .lf-call-location").first
+    expect(root_location).to_have_text("gateway/limits.py:38")
+    expect(root_location).to_be_visible()
+    expect(summary.locator("a, button")).to_have_count(0)
     assert group.evaluate("el => getComputedStyle(el).backgroundColor") == page.locator(
         "#code-surface"
     ).evaluate("el => getComputedStyle(el).backgroundColor")
@@ -607,7 +613,11 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator("#patch [data-line-type]")).to_have_count(0)
     entries = page.evaluate("history.length")
-    lines.nth(1).locator(".lf-call-location").click()
+    summary.click()
+    expect(group).not_to_have_attribute("open", "")
+    expect(root_location).to_be_visible()
+    root_location.click()
+    expect(group).not_to_have_attribute("open", "")
     context = page.locator(
         'lf-diff [data-lf-datum=\'["gateway/limits.py","both",38,38]\']'
     )
@@ -616,6 +626,8 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "Opened gateway/limits.py:38 in the exact patch"
     )
     expect(context).to_be_focused()
+    summary.click()
+    expect(group).to_have_attribute("open", "")
 
     search = page.locator("#patch .lf-diff-search input")
     search.fill("nothing-matches")
@@ -640,11 +652,28 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     )
     told(page)
     expect(context).to_contain_text("class Limiter:  # raw source")
-    lines.nth(1).locator(".lf-call-location").click()
+    root_location.click()
     expect(context).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:38 in the exact patch"
     )
+
+    # Native tab order exposes source navigation even with the call tree closed.
+    summary.click()
+    expect(group).not_to_have_attribute("open", "")
+    page.keyboard.press("Shift+Tab")
+    expect(root_location).to_be_focused()
+    assert root_location.evaluate("node => node.matches(':focus-visible')")
+    page.keyboard.press("Enter")
+    expect(context).to_be_focused()
+    expect(group).not_to_have_attribute("open", "")
+    expect(context).to_be_in_viewport()
+    summary.click()
+    expect(group).to_have_attribute("open", "")
+    page.keyboard.press("Space")
+    expect(group).not_to_have_attribute("open", "")
+    page.keyboard.press("Enter")
+    expect(group).to_have_attribute("open", "")
 
     page.evaluate("() => getSelection().removeAllRanges()")
     lines.nth(2).click(modifiers=["Alt"])
@@ -675,7 +704,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     shifted = page.locator(
         'lf-diff [data-lf-datum=\'["gateway/limits.py","both",100,102]\']'
     )
-    widget.locator(".lf-call-line").nth(1).locator(".lf-call-location").click()
+    root_location.click()
     expect(shifted).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
         "Opened gateway/limits.py:100 in the exact patch"
@@ -696,6 +725,17 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
         "line 2 appears before a changed root"
     )
+
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "request-call-diff",
+        "calldiff diff main → feature\n  missing_location()",
+    )
+    told(page)
+    expect(widget.locator(":scope > .lf-call-invalid")).to_contain_text(
+        "line 2 has no source location; capture --locs output"
+    )
+    expect(widget.locator(".lf-call-root-location, .lf-call-group")).to_have_count(0)
 
     resized(page, 390, 900)
     assert root_overflow(page) == 0
@@ -750,6 +790,52 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
         groups.first.locator(".lf-call-group-body .lf-call-body").first
     ).to_have_text("├─ three()")
     expect(row).to_be_focused()
+
+    # Equal root names can share a stable call row while its group changes. The
+    # closed destination may already exist or arrive in this capture; both expose
+    # the user's focused row while a transfer without focus leaves its group closed.
+    first_work = "  work()  app.py:1\n"
+    second_work = "  work()  app.py:20\n"
+    third_work = "  work()  app.py:60\n"
+    unfocused = "  ├─ other_helper()  utils.py:3\n"
+    shared = "  └─ helper()  utils.py:2\n"
+    capture(first_work + unfocused + shared, second_work, third_work)
+    told(page)
+    expect(groups).to_have_count(3)
+    expect(groups.nth(1)).not_to_have_attribute("open", "")
+    location = widget.locator(".lf-call-location", has_text="utils.py:2")
+    location.focus()
+    location.evaluate(
+        """node => {
+          window.heldCallDiffControl = node;
+          window.heldCallDiffRow = node.closest('.lf-call-line');
+        }"""
+    )
+    for destination, roots in (
+        ("app.py:20", (first_work, second_work + shared, third_work + unfocused)),
+        (
+            "app.py:40",
+            (
+                "  work()  app.py:30\n",
+                "  work()  app.py:40\n" + shared,
+                third_work + unfocused,
+            ),
+        ),
+    ):
+        capture(*roots)
+        told(page)
+        expect(
+            location.locator("xpath=ancestor::details/preceding-sibling::*[1]").locator(
+                ".lf-call-location"
+            )
+        ).to_have_text(destination)
+        expect(location).to_be_visible()
+        expect(location).to_be_focused()
+        expect(groups.last).not_to_have_attribute("open", "")
+        assert location.evaluate(
+            """node => node === window.heldCallDiffControl &&
+              node.closest('.lf-call-line') === window.heldCallDiffRow"""
+        ), "a surviving call's group change replaced its row or control"
 
 
 def test_visual_review_guides_one_typed_still_run(browser, serve):
@@ -949,21 +1035,26 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     assert after_box["top"] >= before_box["bottom"]
     resized(page, 1200, 900)
     expect(widget).to_have_attribute("data-compare-layout", "stack")
-    flow_height = shot_host.evaluate("node => node.getBoundingClientRect().height")
-    page.evaluate(
-        "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
-    )
+
+    # In flow the stage is as tall as the view it shows, whatever part of the page
+    # the window shows.
+    def stage_height():
+        return shot_host.evaluate("node => node.getBoundingClientRect().height")
+
+    def scrolled(top):
+        page.evaluate(f"() => document.scrollingElement.scrollTo(0, {top})")
+
+    compare_height = stage_height()
+    scrolled("document.scrollingElement.scrollHeight")
+    assert stage_height() == pytest.approx(compare_height, abs=1)
     widget.get_by_role("radio", name="Flip").evaluate("node => node.click()")
     expect(widget).to_have_attribute("data-inspection-mode", "flip")
-    assert shot_host.evaluate(
-        "node => node.getBoundingClientRect().height"
-    ) == pytest.approx(flow_height, abs=1), (
-        "ordinary-flow evidence height must not depend on its viewport offset"
-    )
+    flip_height = stage_height()
+    assert flip_height < compare_height
+    scrolled(0)
+    assert stage_height() == pytest.approx(flip_height, abs=1)
     widget.get_by_role("radio", name="Compare").evaluate("node => node.click()")
-    assert shot_host.evaluate(
-        "node => node.getBoundingClientRect().height"
-    ) == pytest.approx(flow_height, abs=1)
+    assert stage_height() == pytest.approx(compare_height, abs=1)
 
     widget.get_by_role("radio", name="Full frame").click()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
@@ -975,9 +1066,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
 
     widget.get_by_role("radio", name="100%").click()
     expect(widget).to_have_attribute("data-inspection-scale", "actual")
-    assert shot_host.evaluate(
-        "node => node.scrollWidth > node.clientWidth || node.scrollHeight > node.clientHeight"
-    )
+    assert shot_host.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
     captured_width = first.locator("lf-shot img").first.evaluate(
         "image => image.getBoundingClientRect().width"
     )
@@ -1370,16 +1459,16 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
 
 
 def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
-    """A focused review is a root workspace, not prose followed by a narrow widget.
+    """A focused review is a wide page, not prose followed by a narrow widget.
 
     The case picker never taxes the evidence width, the disposition is available before
-    the pixels, and a tall mobile pair keeps its authored focus width side by side inside
-    the scrolling evidence stage. Capture facts follow the comparison rather than delaying it.
+    the pixels, and a tall mobile pair keeps its authored focus width side by side in an
+    evidence stage as tall as the pair, which the page scrolls through. Capture facts
+    follow the comparison rather than delaying it.
     """
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1366, 768)
     widget = page.locator("#visual-review-run")
-    fills_the_window(page, widget, True)
     gallery_scope = widget.get_by_role("radiogroup", name="Scope")
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
@@ -1396,12 +1485,8 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         }"""
     )
     assert geometry["widget"]["width"] > 1000
-    assert geometry["widget"]["bottom"] <= 768
     assert geometry["decision"]["bottom"] <= geometry["evidence"]["top"]
-    # 340 rather than 360 since a root workspace keeps its title clear of the banner
-    # (the sp-4 it pads its own top by comes out of the stage at a 768px laptop).
-    assert geometry["evidence"]["height"] >= 340, geometry
-    assert geometry["evidence"]["bottom"] <= 768, geometry
+    assert geometry["capture"]["bottom"] <= geometry["evidence"]["bottom"] + 1, geometry
     # The capture opens at the stage's top edge, inside its border: the stage sets the
     # box of the lf-shot it holds over that widget's own block margin.
     assert geometry["capture"]["top"] - geometry["evidence"]["top"] <= 1.5, geometry
@@ -1412,7 +1497,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     ).first.evaluate("node => node.getBoundingClientRect().width")
     assert case_image_width == pytest.approx(350, abs=1), geometry
     assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
-        "node => node.scrollHeight > node.clientHeight"
+        "node => node.scrollHeight <= node.clientHeight + 1"
     )
     assert geometry["support"]["top"] >= geometry["evidence"]["bottom"]
     case = widget.locator(".lf-vr-case:not([hidden])")
@@ -1479,15 +1564,8 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     resized(page, 390, 900)
     assert root_overflow(page) == 0
     resized(page, 1366, 768)
-    fills_the_window(page, widget, True)
     shot_host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
     assert shot_host.evaluate("node => node.scrollWidth == node.clientWidth")
-    shot_host.evaluate("node => node.style.height = '120px'")
-    expect(widget).to_have_attribute("data-compare-layout", "side")
-    assert widget.locator(".lf-vr-case:not([hidden]) .lf-shotframe img").first.evaluate(
-        "node => node.getBoundingClientRect().width"
-    ) == pytest.approx(350, abs=1)
-    shot_host.evaluate("node => node.style.removeProperty('height')")
     expect(widget).to_have_attribute("data-compare-layout", "side")
     widget.locator(".lf-vr-shot-host").evaluate_all(
         "nodes => nodes.forEach(node => node.style.setProperty('--lf-vr-capture-width', '300px'))"
@@ -1520,8 +1598,33 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     expect(gallery_scope).to_be_hidden()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
     assert widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
-        "node => node.scrollHeight > node.clientHeight"
+        "node => node.scrollHeight <= node.clientHeight + 1"
     )
+
+
+def test_visual_review_fits_frames_using_the_authored_spacing(browser, serve):
+    """Fitting and the painted frame tracks agree when spacing is authored in rem."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    widget = page.locator("#visual-review-run")
+    widget.locator(".lf-vr-shot-host").evaluate_all(
+        "nodes => nodes.forEach(node => node.style.setProperty('--sp-2', '1rem'))"
+    )
+    resized(page, 760, 800)
+    expect(widget).to_have_attribute("data-compare-layout", "side")
+    geometry = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
+        """host => {
+          const shot = host.querySelector('lf-shot');
+          const frames = [...shot.querySelectorAll('.lf-shotframe')]
+            .map(frame => frame.getBoundingClientRect());
+          return {available: host.clientWidth, width: shot.getBoundingClientRect().width,
+                  gap: frames[1].left - frames[0].right,
+                  rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
+                  overflow: host.scrollWidth - host.clientWidth};
+        }"""
+    )
+    assert geometry["gap"] == pytest.approx(geometry["rem"], abs=0.1), geometry
+    assert geometry["width"] == pytest.approx(geometry["available"], abs=0.1), geometry
+    assert geometry["overflow"] == 0, geometry
 
 
 def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
@@ -2353,9 +2456,8 @@ def test_a_revision_that_moves_the_block_the_user_types_in_keeps_them_there(
 ):
     """A revision that reorders siblings moves the element the user is typing in.
 
-    The patch keeps that element, so the carry leaves it alone, and moving it blurs it to
-    the page body in the same call. The patch's placement holds the user's place across
-    the move: they stay in the box, caret included.
+    The patch keeps that element, so the carry leaves it alone. Native placement retains
+    the browser's own state across the move: they stay in the box, caret included.
     """
     first = leaf_page(
         "Moved first",
@@ -2399,6 +2501,56 @@ def test_a_revision_that_moves_the_block_the_user_types_in_keeps_them_there(
         "focused": True,
         "caret": [6, 9, "backward"],
     }, f"the revision's move took the user out of their box: {standing}"
+
+
+def test_a_revision_reorders_a_live_sample_without_replacing_its_document(
+    browser, serve
+):
+    """Moving a retained sample keeps its child document and focused unsent editor.
+
+    A removal and reinsertion keeps the iframe element but reloads its document.
+    Draft persistence can recover the words while still dropping the child's focus,
+    so identity, words, and focus together establish that the child stayed live.
+    """
+    first = leaf_page(
+        "Sample first",
+        """
+<h1 id="sample-title">Live sample revision</h1>
+<p id="sample-before">This paragraph comes first.</p>
+<lf-sample id="sample-held" label="Live draft" window>
+  <template id="sample-source" data-sample>
+    <h1>Practice draft</h1>
+    <lf-draft id="sample-draft"><pre>Authored sample words.</pre></lf-draft>
+  </template>
+</lf-sample>
+""",
+    )
+    paragraph = '<p id="sample-before">This paragraph comes first.</p>\n'
+    second = (
+        first.replace("Sample first", "Sample second")
+        .replace(paragraph, "")
+        .replace("</lf-sample>\n", "</lf-sample>\n" + paragraph)
+    )
+    page = open_page(browser, live_url(serve(first)))
+    sample = page.locator("#sample-held")
+    expect(sample.get_by_role("button", name="Reset", exact=True)).to_be_enabled()
+    frame = sample.locator("iframe")
+    frame.evaluate("frame => window.heldSampleDocument = frame.contentDocument")
+    child = page.frame_locator("#sample-held iframe")
+    child.locator(".lf-draft-body").click()
+    editor = child.locator("#sample-draft leaf-text")
+    write(editor, "Unsent sample words.")
+    expect(editor).to_be_focused()
+
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Sample second")
+    expect(page.locator("#sample-held + #sample-before")).to_be_attached()
+    assert frame.evaluate(
+        "frame => frame.contentDocument === window.heldSampleDocument"
+    ), "the revision's retained sample move replaced its child document"
+    expect(editor).to_have_js_property("value", "Unsent sample words.")
+    expect(editor).to_be_focused()
 
 
 def test_a_declared_widget_with_no_id_survives_a_revision_that_left_it_alone(
@@ -3179,14 +3331,8 @@ def test_a_projected_attribute_opens_an_ask_captured_from_authored_markup(
         "x-upgrade": True,
         "x-state": {
             "phase": {
-                "detail": {
-                    "type": "object",
-                    "properties": {"phase": {"enum": ["closed", "open"]}},
-                    "required": ["phase"],
-                    "additionalProperties": False,
-                },
                 "unit": "widget",
-                "record": {"kind": "value", "attr": "phase", "value": "phase"},
+                "record": {"kind": "value", "attr": "phase"},
             },
             "answer": {
                 "detail": {
@@ -3232,7 +3378,7 @@ customElements.define("lf-conditional", class extends HTMLElement {
                 "revision": 1,
                 "widget": "question",
                 "action": "phase",
-                "detail": {"phase": phase},
+                "detail": {"value": phase},
             },
         )
         told(page)
@@ -5071,7 +5217,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
 
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["page", "report", str(d), "t-parser", "status", "status=review"],
+        ["page", "report", str(d), "t-parser", "status", "value=review"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -5096,7 +5242,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # fraction chip recounts across the tree.
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["page", "report", str(d), "t-parser", "status", "status=done"],
+        ["page", "report", str(d), "t-parser", "status", "value=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -5176,7 +5322,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
                 "revision": 1,
                 "widget": "t-parser",
                 "action": "status",
-                "detail": {"status": "done"},
+                "detail": {"value": "done"},
             },
         )
         told(page)
@@ -5264,8 +5410,8 @@ def test_a_rosters_row_says_when_the_log_last_heard_from_that_worker(browser, se
             str(d),
             "ag-wren",
             "state",
-            "state=waiting",
-            "doing=rebasing onto main",
+            "value=waiting",
+            "text=rebasing onto main",
         ],
     )
     assert sent.exit_code == 0, sent.output
@@ -5334,8 +5480,8 @@ def test_the_update_feed_reads_reports_by_typed_target(browser, serve):
             str(d),
             "ag-wren",
             "state",
-            "state=working",
-            "doing=checking the mount prices",
+            "value=working",
+            "text=checking the mount prices",
         ],
     )
     assert report.exit_code == 0, report.output
@@ -5356,7 +5502,7 @@ def test_the_update_feed_reads_reports_by_typed_target(browser, serve):
         "target": {"kind": "widget", "id": "ag-wren"},
         "source": "report",
         "action": "state",
-        "detail": {"state": "working", "doing": "checking the mount prices"},
+        "detail": {"value": "working", "text": "checking the mount prices"},
         "text": "checking the mount prices",
         "ts": by_source["report"]["ts"],
         "revision": 1,
@@ -5421,8 +5567,8 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
             str(d),
             "ag-wren",
             "state",
-            "state=working",
-            "doing=checking the first mount",
+            "value=working",
+            "text=checking the first mount",
         ],
     )
     assert first.exit_code == 0, first.output
@@ -5446,8 +5592,8 @@ def test_report_words_and_widget_state_wait_together_for_a_drag(browser, serve):
             str(d),
             "ag-wren",
             "state",
-            "state=idle",
-            "doing=checking the second mount",
+            "value=idle",
+            "text=checking the second mount",
         ],
     )
     assert second.exit_code == 0, second.output
@@ -5489,8 +5635,8 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
             str(d),
             "ag-wren",
             "state",
-            "state=working",
-            "doing=first report",
+            "value=working",
+            "text=first report",
         ],
     )
     assert first.exit_code == 0, first.output
@@ -5563,8 +5709,8 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
             str(d),
             "ag-wren",
             "state",
-            "state=idle",
-            "doing=held report",
+            "value=idle",
+            "text=held report",
         ],
     )
     assert second.exit_code == 0, second.output
@@ -5650,8 +5796,8 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
             str(d),
             "ag-finch",
             "state",
-            "state=idle",
-            "doing=picking up",
+            "value=idle",
+            "text=picking up",
         ],
     )
     assert sent.exit_code == 0, sent.output
@@ -5672,8 +5818,8 @@ def test_a_rosters_row_survives_the_polls_that_keep_it_fresh(browser, serve):
             str(d),
             "ag-wren",
             "state",
-            "state=working",
-            "doing=on to the baffles",
+            "value=working",
+            "text=on to the baffles",
         ],
     )
     assert sent.exit_code == 0, sent.output
@@ -5741,7 +5887,7 @@ def test_a_recounted_fraction_holds_the_width_it_had(browser, serve):
 
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["page", "report", str(d), "t-parser", "status", "status=done"],
+        ["page", "report", str(d), "t-parser", "status", "value=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -5811,23 +5957,17 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     )
 
 
-def test_render_reports_markup_the_log_replays_over(browser, serve):
-    """The static gate refuses a version that rewords what a decision rests on,
-    but `chosen` and its kind say nothing a text diff can see — a version asserting
-    one against the log used to lose silently, replay painting the user's state back
-    over the author's intent. The render gate reports exactly that: an id the author
-    changed since the previous version and replay then wrote. Silence (carrying the
-    old markup forward) and honor (authoring the decided state) both stay clean,
-    because silence changes no id and honor makes the replay a no-op.
+def test_render_allows_authored_state_the_log_replays_over(browser, serve):
+    """A revision may change its baseline while the recorded decision still paints.
 
-    A move is not that case. Any later revision absorbs it and places the card
-    itself, so replay never writes a card over a version; the static gate is what
-    holds the version to where the move put it."""
+    Historical state is a complete-state fold, not permission to edit. Placement
+    belongs to the new authored container when its contents change.
+    """
     url = serve(REPLAYED_PAGE)
     d = serve.page_dir
     for widget, action, detail in [
-        ("approach", "choose", {"options": ["opt-shim"]}),
-        ("work", "move", {"card": "card-importer", "to": "col-done", "rank": "0i"}),
+        ("approach", "choose", {"value": ["opt-shim"]}),
+        ("work", "move", {"unit": "card-importer", "value": "col-done", "rank": "0i"}),
     ]:
         append_command(
             d,
@@ -5859,8 +5999,8 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     honored = moved.replace('id="opt-shim"', 'id="opt-shim" chosen')
     assert render_gate_model.render_version(browser, stamp(3, honored)).failures == []
 
-    # v4 asserts the other option and reorders the moved card's column: replay
-    # overrides the pick, so the author must hear; the order is v4's own.
+    # v4 changes the baseline pick and the card's column order. Rendering remains
+    # valid: the user's choice paints over the baseline; the new order is authored.
     contradicted = honored.replace('id="opt-shim" chosen', 'id="opt-shim"')
     contradicted = contradicted.replace(
         'id="opt-stage"', 'id="opt-stage" chosen'
@@ -5868,9 +6008,10 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     contradicted = contradicted.replace(
         "</lf-card></lf-column>", f"</lf-card>{IMPORTER_CARD}</lf-column>"
     )
-    failures = preview(contradicted)
-    assert len(failures) == 1, failures
-    assert "id=approach" in failures[0] and "opt-stage" in failures[0], failures
+    assert preview(contradicted) == []
+    page = open_page(browser, stamp(4, contradicted))
+    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
 
 
 @pytest.mark.parametrize(
@@ -5897,7 +6038,7 @@ def test_render_accepts_actions_made_after_the_authored_change(
             "revision": 2,
             "widget": "approach",
             "action": "choose",
-            "detail": {"options": ["opt-shim"]},
+            "detail": {"value": ["opt-shim"]},
         },
     )
     assert (
@@ -5924,14 +6065,8 @@ def test_render_separates_old_and_new_verbs_on_one_element(
     )
     declaration["x-state"] = {
         verb: {
-            "detail": {
-                "type": "object",
-                "properties": {"value": {"type": "string"}},
-                "required": ["value"],
-                "additionalProperties": False,
-            },
             "unit": "widget",
-            "record": {"kind": "value", "attr": verb, "value": "value"},
+            "record": {"kind": "value", "attr": verb},
         }
         for verb in ("first", "second")
     }
@@ -5982,14 +6117,14 @@ customElements.define("lf-pair", class extends HTMLElement {
         ).failures
         == []
     )
-    # The same older verb really is contradicted when its own record changes.
+    # Changing the older verb's authored baseline is allowed too.
     with preview_server(
         d,
         structure_model.SourceDocument(current.replace('first="a"', 'first="b"')),
         3,
     ) as preview_url:
         failures = render_gate_model.render_version(browser, preview_url).failures
-    assert len(failures) == 1 and "id=pair" in failures[0], failures
+    assert failures == []
 
 
 def test_the_render_gate_applies_every_standing_action_a_second_time(browser, serve):
@@ -6024,8 +6159,8 @@ def test_the_render_gate_applies_every_standing_action_a_second_time(browser, se
     # to leave both where they stand. Splitting the clause into another verb would make
     # the two reports compete for one fold key.
     for widget, verb, fields in [
-        ("ab-baffles", "status", ["status=done"]),
-        ("ab-wren", "state", ["state=blocked", "doing=waiting on the fixture"]),
+        ("ab-baffles", "status", ["value=done"]),
+        ("ab-wren", "state", ["value=blocked", "text=waiting on the fixture"]),
     ]:
         sent = CliRunner().invoke(
             cli_model.cli,
@@ -6096,24 +6231,16 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
         "type": "string",
         "pattern": "^[0-9]+$",
     }
-    record = {"kind": "value", "attr": "count", "value": "count"}
-    count_detail = {
-        "type": "object",
-        "properties": {"count": {"type": "string", "pattern": "^[0-9]+$"}},
-        "required": ["count"],
-        "additionalProperties": False,
-    }
+    record = {"kind": "value", "attr": "count"}
     declarations["lf-tally"]["x-state"] = {
         "set": {
-            "detail": count_detail,
             "unit": "widget",
             "record": record,
         },
         "observe": {
             "writer": "agent",
-            "detail": count_detail,
             "unit": "widget",
-            "record": {"kind": "value", "attr": "seen", "value": "count"},
+            "record": {"kind": "value", "attr": "seen"},
         },
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
@@ -6151,7 +6278,7 @@ customElements.define("lf-tally", class extends HTMLElement {
                 "revision": 1,
                 "widget": widget,
                 "action": action,
-                "detail": {"count": count},
+                "detail": {"value": count},
             },
         )
 
@@ -6196,22 +6323,10 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     owner["x-content"] = "members"
     owner["x-state"] = {
         "move": {
-            "detail": {
-                "type": "object",
-                "properties": {
-                    "piece": {"type": "string"},
-                    "to": {"type": "string"},
-                    "rank": {"type": "string"},
-                },
-                "required": ["piece", "to", "rank"],
-                "additionalProperties": False,
-            },
-            "unit": "piece",
+            "unit": "unit",
             "record": {
                 "kind": "position",
                 "within": "lf-zone",
-                "value": "to",
-                "rank": "rank",
             },
         }
     }
@@ -6233,14 +6348,8 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     piece.setdefault("required", []).append("pinned")
     piece["x-state"] = {
         "move": {
-            "detail": {
-                "type": "object",
-                "properties": {"pinned": {"type": "string"}},
-                "required": ["pinned"],
-                "additionalProperties": False,
-            },
             "unit": "widget",
-            "record": {"kind": "value", "attr": "pinned", "value": "pinned"},
+            "record": {"kind": "value", "attr": "pinned"},
         }
     }
     piece.pop("x-example", None)
@@ -6288,7 +6397,7 @@ customElements.define("lf-piece", class extends HTMLElement {
             "revision": 1,
             "widget": "owner",
             "action": "move",
-            "detail": {"piece": "piece", "to": "zone-b", "rank": "0i"},
+            "detail": {"unit": "piece", "value": "zone-b", "rank": "0i"},
         },
         {
             "kind": "action",
@@ -6296,7 +6405,7 @@ customElements.define("lf-piece", class extends HTMLElement {
             "revision": 1,
             "widget": "piece",
             "action": "move",
-            "detail": {"pinned": "yes"},
+            "detail": {"value": "yes"},
         },
     ):
         append_command(serve.page_dir, event)
@@ -6372,32 +6481,20 @@ def test_the_render_gate_catches_a_relative_state_renderer(
     declarations["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
     declarations["lf-tally"]["x-state"] = {
         "step": {
-            "detail": {
-                "type": "object",
-                "properties": {"count": {"type": "string", "pattern": "^[0-9]+$"}},
-                "required": ["count"],
-                "additionalProperties": False,
-            },
             "unit": "widget",
-            "record": {"kind": "value", "attr": "count", "value": "count"},
+            "record": {"kind": "value", "attr": "count"},
         },
         "caption": {
-            "detail": {
-                "type": "object",
-                "properties": {"text": {"type": "string"}},
-                "required": ["text"],
-                "additionalProperties": False,
-            },
             "unit": "widget",
-            "record": {"kind": "body", "value": "text"},
+            "record": {"kind": "body"},
         },
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(RELATIVE_WIDGET_MODULE)
     url = serve(RELATIVE_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     for widget, action, detail in [
-        ("tally-fitted", "step", {"count": "3"}),
-        ("tally-fitted", "caption", {"text": "Two greys at the north feeder."}),
+        ("tally-fitted", "step", {"value": "3"}),
+        ("tally-fitted", "caption", {"value": "Two greys at the north feeder."}),
     ]:
         append_command(
             serve.page_dir,
@@ -6560,7 +6657,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
         "revision": 1,
         "widget": "drift-note",
         "action": "settle",
-        "detail": {"offset": "0"},
+        "detail": {"value": "0"},
     }
 
     class TheLogArrivesLate(http_model.PageEndpoint):
@@ -7030,12 +7127,11 @@ def test_a_settled_holder_in_a_reply_joins_the_panel_wearing_its_mark(
 
 
 @pytest.mark.parametrize("shadow", [False, True])
-def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
+def test_withdrawing_a_custom_settlement_clears_the_layers_mark(
     browser, serve, tmp_path, monkeypatch, shadow
 ):
-    """Authored reconstruction states markup, not a logged decision. A holder may
-    validly record a value its deciding verb carries; restoring that value after
-    undo must not re-mark the withdrawn action or keep its slot retired."""
+    """A custom deciding payload can drive a widget's presentation alongside the
+    layer's retirement. Undo clears both its presentation and the retired slot."""
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     registry_path = tmp_path / ".leaf" / "registry.json"
@@ -7051,7 +7147,6 @@ def test_withdrawing_a_recorded_settlement_clears_the_layers_mark(
     decide = holder["x-state"]["decide"]
     decide["detail"]["properties"]["decision"] = {"enum": ["open", "shelved"]}
     decide["detail"]["required"].append("decision")
-    decide["record"] = {"kind": "value", "attr": "decision", "value": "decision"}
     registry_path.write_text(json.dumps(declarations))
     stage = (
         "if (once(this)) shadowStage(this, [...this.children]);"
@@ -7069,7 +7164,7 @@ customElements.define("lf-trial", class extends HTMLElement {
   #stop;
   connectedCallback() { STAGE this.#stop ??= this.#controller.subscribe(() => {}); }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { keeps(this, "decision", state.decide.value); }
+  renderState(state) { keeps(this, "decision", state.decide.detail.decision ?? "open"); }
 });
 """.replace("STAGE", stage)
     )
@@ -7653,13 +7748,7 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
                     "x-state": {
                         "edit": {
                             "unit": "widget",
-                            "record": {"kind": "body", "value": "text"},
-                            "detail": {
-                                "type": "object",
-                                "properties": {"text": {"type": "string"}},
-                                "required": ["text"],
-                                "additionalProperties": False,
-                            },
+                            "record": {"kind": "body"},
                         }
                     },
                     "x-example": '<lf-delayed-body id="example"><pre>Text</pre></lf-delayed-body>',
@@ -7723,7 +7812,7 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
             "kind": "action",
             "widget": "reply-body",
             "action": "edit",
-            "detail": {"text": "User's exact words.\n"},
+            "detail": {"value": "User's exact words.\n"},
             "revision": 1,
         },
     )
@@ -7914,7 +8003,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "revision": 1,
             "widget": "rp-live",
             "action": "choose",
-            "detail": {"options": ["rp-shim"]},
+            "detail": {"value": ["rp-shim"]},
         },
     )
     page = open_page(browser, live_url(url))
@@ -8251,7 +8340,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     assert [
         (event["action"], event["detail"]) for event in actions(serve.page_dir)
     ] == [
-        ("choose", {"options": ["tq-logs"]}),
+        ("choose", {"value": ["tq-logs"]}),
         ("answer", {}),
     ]
     consume_browser_errors(page, "400")
@@ -8718,7 +8807,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
 
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["page", "report", str(d), "api-errors", "status", "status=done"],
+        ["page", "report", str(d), "api-errors", "status", "value=done"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -8774,7 +8863,7 @@ def test_command_hub_lists_wait_behind_their_counts(browser, serve):
 
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["page", "report", str(d), "api-sdk", "status", "status=blocked"],
+        ["page", "report", str(d), "api-sdk", "status", "value=blocked"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -8791,7 +8880,7 @@ def test_command_hub_lists_wait_behind_their_counts(browser, serve):
     # stopped list waits.
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["page", "report", str(d), "w-1", "state", "state=waiting", "doing=parked"],
+        ["page", "report", str(d), "w-1", "state", "value=waiting", "text=parked"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -8843,8 +8932,8 @@ def test_command_hub_reads_one_publication_before_worker_presentation_commits(
             str(serve.page_dir),
             "w-1",
             "state",
-            "state=waiting",
-            "doing=ready for review",
+            "value=waiting",
+            "text=ready for review",
         ],
     )
     assert sent.exit_code == 0, sent.output
@@ -9100,9 +9189,9 @@ def test_command_hub_input_is_trimmed_before_it_enters_the_record(browser, serve
         for event in reversed(events_model.read_events(d))
         if event.get("widget") == "ledger-cargo"
     )
-    assert "Alice" not in edit["detail"]["text"]
-    assert "a@example.test" not in edit["detail"]["text"]
-    assert edit["detail"]["text"].count("[redacted]") == 2
+    assert "Alice" not in edit["detail"]["value"]
+    assert "a@example.test" not in edit["detail"]["value"]
+    assert edit["detail"]["value"].count("[redacted]") == 2
     saved = page.locator("#atlas-record .lf-activity-row").first
     expect(saved).to_contain_text("You edited")
     expect(saved.locator('a[href="#ledger-cargo"]')).to_have_count(1)
@@ -9162,8 +9251,8 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
             str(d),
             "w-2",
             "state",
-            "state=waiting",
-            "doing=parked for review",
+            "value=waiting",
+            "text=parked for review",
         ],
     )
     assert sent.exit_code == 0, sent.output
@@ -9180,8 +9269,8 @@ def test_command_hub_keeps_projection_focus_when_unrelated_news_arrives(browser,
             str(d),
             "w-2",
             "state",
-            "state=blocked",
-            "doing=waiting on evidence",
+            "value=blocked",
+            "text=waiting on evidence",
         ],
     )
     assert sent.exit_code == 0, sent.output
@@ -9300,7 +9389,7 @@ def test_command_hub_repaints_anchors_after_generated_projections_change(
     round_trip(page)
     sent = CliRunner().invoke(
         cli_model.cli,
-        ["page", "report", str(d), "goal-parser", "status", "status=review"],
+        ["page", "report", str(d), "goal-parser", "status", "value=review"],
     )
     assert sent.exit_code == 0, sent.output
     told(page)
@@ -9492,7 +9581,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
             "revision": 1,
             "widget": "parser-dedupe",
             "action": "status",
-            "detail": {"status": "stalled"},
+            "detail": {"value": "stalled"},
             "ts": (datetime.now().astimezone() - timedelta(hours=3)).isoformat(),
         },
     )
@@ -9519,7 +9608,7 @@ def test_command_hub_stopped_age_does_not_cross_an_active_publication(
             "revision": 3,
             "widget": "parser-dedupe",
             "action": "status",
-            "detail": {"status": "stalled"},
+            "detail": {"value": "stalled"},
             "ts": (datetime.now().astimezone() - timedelta(minutes=90)).isoformat(),
         },
     )
@@ -9791,19 +9880,10 @@ def test_project_widget_can_join_the_orchestration_projection(
             "x-state": {
                 "phase": {
                     "writer": "agent",
-                    "detail": {
-                        "type": "object",
-                        "properties": {
-                            "phase": {"enum": ["active", "blocked", "done"]}
-                        },
-                        "required": ["phase"],
-                        "additionalProperties": False,
-                    },
                     "unit": "widget",
                     "record": {
                         "kind": "value",
                         "attr": "phase",
-                        "value": "phase",
                     },
                 }
             },

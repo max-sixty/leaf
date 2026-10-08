@@ -14,9 +14,11 @@ import { createLiveLeavesList } from "./live-leaves-list.js";
 import { bannerControlDoor, dismissBannerControls } from "./banner-toolbar.js";
 import { createQueueList, shownItems, walkStops } from "./queue-list.js";
 import { keeps } from "./keeps.js";
+import { pressIsKeyboardActivation } from "./pointer.js";
+import { registerReadingRegion } from "./reading-regions.js";
 // Two drawers, each a head over a list of rows, selected one at a time with every other
 // auxiliary surface by the shared auxiliary-surface owner. Both stand over the page and
-// take no room from it. The Leaves drawer holds the left edge and covers the document,
+// take no room from it. The pages drawer holds the left edge and covers the document,
 // because its rows leave the page. The Questions panel holds the right edge, where the
 // Threads panel stands, and is drawn by that panel's edge at that panel's width: only one
 // of them is open at a time, so they are two views of one side panel, and their doors
@@ -36,7 +38,7 @@ import { keeps } from "./keeps.js";
 // the shell's CSS value directly; there is no observed measurement loop or second number
 // system to reconcile during a transition.
 
-// The Leaves drawer's edge, on the left, and everything said above said again for it:
+// The pages drawer's edge, on the left, and everything said above said again for it:
 // the width it stands at until the user moves it, and how narrow they may draw it.
 //
 // 220 is where the drawer's own row stops being one. A leaf's row spends 45px before any
@@ -56,7 +58,8 @@ export const DRAWER_SLOT_PROP = "--lf-drawer-slot-width";
 // the layout reserves at the foot of one it reserves at the foot of every one, and a
 // drawer left out of a second list of them parks its last row under the shortcut bar.
 // Callers state the clearance; this owner decides which lists it reaches and how each
-// one spends it.
+// one spends it. Mounting registers each shell and list as a reading region, so
+// reading keys and travel select the list from its rows or header in either posture.
 function drawerFurniture(panel, name, list = el("div", "lf-drawer-list")) {
   const head = el("div", "lf-drawer-head");
   const title = el("span", "lf-auxiliary-title", name);
@@ -87,16 +90,16 @@ export const queueBtn = el("button", "lf-btn lf-queue", "Questions");
 // the stable identity, since address, port and key all survive a restart — and a
 // status change repaints the row's own dot and words without moving it.
 export const othersBtn = el("button", "lf-btn lf-others", "");
-othersBtn.title = "Leaves live on this machine, and what each is doing";
+othersBtn.title = "Pages live on this machine, and what each is doing";
 // A nav, because navigation is what it is and a bare div may not carry the
 // aria-label the card needs (axe: aria-prohibited-attr, serious).
 export const othersPanel = el("nav", "lf-ui lf-drawer-panel lf-others-panel");
 othersPanel.id = "lf-leaves";
-othersPanel.setAttribute("aria-label", "Leaves on this machine");
+othersPanel.setAttribute("aria-label", "Pages on this machine");
 othersPanel.tabIndex = -1;
 const leavesFurniture = drawerFurniture(
   othersPanel,
-  "Leaves",
+  "Pages",
   createLiveLeavesList(othersBtn),
 );
 export const liveLeavesList = leavesFurniture.list;
@@ -119,11 +122,6 @@ queueNextBtn.title = "Go to the next question waiting on you (q)";
 queueNextBtn.addEventListener("mousedown", (event) => event.preventDefault());
 queueFurniture.head.insertBefore(queueNextBtn, queueFurniture.close);
 
-// What each drawer is called where the user reads it, as its banner door says.
-const DRAWER_NAMES = Object.freeze({
-  leaves: ["Leaves", "Leaves drawer"],
-  queue: ["Questions", "Questions panel"],
-});
 // Furniture is local to this owner; selection belongs to the auxiliary-surface owner.
 const drawers = new Map();
 export const currentDrawer = () =>
@@ -161,8 +159,9 @@ export function createDrawers({
   // panel's is also the agent's Tasks count beside the status. Every door says whether
   // the drawer stands, and closing hands focus back to the door the user opened it from,
   // where that door is still on screen, else to the control (through More where it is
-  // folded).
-  function registerDrawer(key, panel, btn, close, paint, side) {
+  // folded). `names` is what the user reads it as: the word its door says, and the whole
+  // noun.
+  function registerDrawer(key, names, panel, btn, close, paint, side) {
     const entrances = [btn, ...(doors[key] ?? [])];
     const returnDoor = () => {
       const opened = drawers.get(key)?.openedBy;
@@ -176,7 +175,7 @@ export function createDrawers({
       scroller: () => panel.querySelector(".lf-drawer-list"),
       edge: side,
       // Questions needs the document beside it because its rows lead to places there.
-      // Leaves covers it: its rows leave the page.
+      // The pages drawer covers it: its rows leave the page.
       beside: key === "queue",
       // Every drawer list ends above the bottom bar, which stands over the drawer in
       // both postures.
@@ -216,12 +215,13 @@ export function createDrawers({
         else hide();
       },
     });
-    drawers.set(key, { panel, btn, close, entrances, openedBy: null });
+    drawers.set(key, { names, panel, btn, close, entrances, openedBy: null });
   }
   // The painters are thunks: each drawer's owner imports this module back, so neither
   // painter is a binding this module can read as it evaluates.
   registerDrawer(
     "leaves",
+    ["pages", "pages drawer"],
     othersPanel,
     othersBtn,
     leavesFurniture.close,
@@ -230,6 +230,7 @@ export function createDrawers({
   );
   registerDrawer(
     "queue",
+    ["Questions", "Questions panel"],
     queuePanel,
     queueBtn,
     queueFurniture.close,
@@ -238,7 +239,7 @@ export function createDrawers({
   );
   const drawerNames = Object.freeze([...drawers.keys()]);
 
-  // The Questions panel's own walk, the same one as the leaves drawer's: the arrows, Home
+  // The Questions panel's own walk, the same one as the pages drawer's: the arrows, Home
   // and End are the page's scroll everywhere else and the drawer's here, and Enter is the
   // platform's, a row being a button — so the scope names what walking does and leaves
   // the press to the button.
@@ -246,11 +247,18 @@ export function createDrawers({
     drawersEdge.handle(othersPanel, () => othersBtn);
     sideEdge.handle(queuePanel, () => queueBtn);
     for (const [key, drawer] of drawers) {
+      registerReadingRegion({
+        id: drawer.panel.id,
+        host: drawer.panel,
+        body: drawer.panel.querySelector(".lf-drawer-list"),
+      });
       drawer.btn.classList.add("lf-auxiliary-toggle");
       for (const door of drawer.entrances) {
-        door.onclick = () => {
+        door.onclick = (event) => {
           drawer.openedBy = door;
-          setOpenDrawer(drawerIsOpen(key) ? null : key);
+          setOpenDrawer(drawerIsOpen(key) ? null : key, {
+            focus: pressIsKeyboardActivation(event),
+          });
         };
         keeps(door, "aria-expanded", "false");
       }
@@ -279,8 +287,8 @@ export function createDrawers({
     currentDrawer()
       ? {
           root: drawers.get(currentDrawer()).panel,
-          title: `close ${DRAWER_NAMES[currentDrawer()][0]}`,
-          description: `Close the ${DRAWER_NAMES[currentDrawer()][1]}`,
+          title: `close ${drawers.get(currentDrawer()).names[0]}`,
+          description: `Close the ${drawers.get(currentDrawer()).names[1]}`,
           // A drawer's parent is the document, so its step lands the user there rather
           // than on the edge button that reopens it.
           out: () => {

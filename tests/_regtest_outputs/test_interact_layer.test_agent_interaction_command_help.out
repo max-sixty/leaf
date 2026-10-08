@@ -18,7 +18,7 @@ Usage: leaf delivery read [OPTIONS] DELIVERY_ID
 
   Print DELIVERY_ID with its complete batches and response requirements. Where a
   harness's hook offered it to this session as a pointer, reading it confirms
-  it, so the user's moves read Picked up.
+  it, so the user's updates read Picked up.
 
 Options:
   --help  Show this message and exit.
@@ -34,8 +34,8 @@ Usage: leaf page state [OPTIONS] PAGE [ID]
   ID narrows the reading to what it names. A message, or a widget frozen into
   one, names its thread: the reading is that thread with a page of its messages,
   their frozen markup, and the state on its widgets, paged by --after and
-  --limit. A widget on the page names itself: its element, the moves and reports
-  standing on it, its Asks, and its workflows.
+  --limit. A widget on the page names itself: its element, the actions and
+  reports standing on it, its Asks, and its workflows.
 
 Options:
   --after SEQ            a thread's history after this sequence (default: from
@@ -68,9 +68,9 @@ Usage: leaf status [OPTIONS] PAGE {waiting|idle} [DETAIL]
 
   Use waiting with DETAIL naming the answer you want from the user; waiting
   without DETAIL invites text comments. Either puts down every item you started
-  before it. Use idle when finished; unacknowledged input, unanswered user moves
-  and open tasks prevent it. Work in hand is no status: name it with `leaf task
-  start`.
+  before it. Use idle when finished; unacknowledged input, unanswered user
+  updates and open tasks prevent it. Work in hand is no status: name it with
+  `leaf task start`.
 
 Options:
   --help  Show this message and exit.
@@ -96,37 +96,52 @@ Options:
   --help         Show this message and exit.
 
 ## leaf thread reply --help
-Usage: leaf thread reply [OPTIONS] PAGE [THREAD]
+Usage: leaf thread reply [OPTIONS] PAGE THREAD
 
-  Post a threaded reply as the agent (--text or stdin).
+  Post a new agent message to THREAD (--text or stdin).
 
-  Answer user input with --for EVENT_ID. With exactly one outstanding reply in
-  this turn's opened delivery, omit it to select that reply. THREAD, by any
-  message in it, posts a new agent message there instead, refused while that
-  thread owes a reply.
-
-  --ephemeral posts progress without answering. On a move you owe, it also takes
-  the move in hand as `leaf task start` does, with its one line as the Working
-  line.
-
-  --quote, --section, and --part move the thread's current anchor; --detach
-  removes it when the subject leaves the page. The original anchor stays in the
-  log. A reply validates and activates any changed source before posting.
+  A message is refused while the thread owes a response; answer its delivery
+  reference with `leaf response reply`. --ephemeral posts progress. Saved page
+  edits are validated and activated before posting.
 
 Options:
-  --for EVENT_ID  delivery event whose current reply obligation this answers
-  --quote TEXT    new passage text to move this thread onto
-  --section ID    new element ID, or scope for --quote
-  --part ID       new declared visual part within --section
-  --detach        remove the current page target when its subject leaves the
-                  page
-  --text TEXT     reply text (default: stdin)
-  --markup TEXT   widget markup to render after the text, validated here
-  --awaits        the reply's prose asks the user a question
-  --ephemeral     progress update; on a move you owe, one line that takes it in
-                  hand. Folds when the next ordinary agent reply arrives
+  --title TEXT   name the thread for the panel unless it has a name: a few
+                 words, at most 80 characters
+  --ephemeral    one-line progress, without answering
+  --awaits       the reply asks the user a question
+  --markup TEXT  frozen widget markup after the text
+  --text TEXT    reply text (default: stdin)
+  --detach       remove the thread's page target
+  --part ID      new declared visual part within --section
+  --section ID   new element ID, or scope for --quote
+  --quote TEXT   new passage text to move this thread onto
+  --help         Show this message and exit.
+
+## leaf response reply --help
+Usage: leaf response reply [OPTIONS] REFERENCE
+
+  Answer the exact REFERENCE printed in a delivery's answer.ref.
+
+  Text, frozen widgets, prose questions, titles and anchor moves share this
+  command. It validates saved page edits. An active provider reservation
+  prepares full content for that turn's completed final, which activates and
+  commits it. Without that reservation, this command activates edits and commits
+  the reply. Repeating a committed reply's reference returns its earlier record;
+  --attempt names retries of progress.
+
+Options:
+  --attempt TEXT  retry identity (ordinary replies default to the reference)
+  --failure TEXT  failure code when no answer is coming
   --title TEXT    name the thread for the panel unless it has a name: a few
                   words, at most 80 characters
+  --ephemeral     one-line progress, without answering
+  --awaits        the reply asks the user a question
+  --markup TEXT   frozen widget markup after the text
+  --text TEXT     reply text (default: stdin)
+  --detach        remove the thread's page target
+  --part ID       new declared visual part within --section
+  --section ID    new element ID, or scope for --quote
+  --quote TEXT    new passage text to move this thread onto
   --help          Show this message and exit.
 
 ## leaf thread edit --help
@@ -163,9 +178,10 @@ Usage: leaf page report [OPTIONS] PAGE WIDGET VERB [NAME=VALUE]...
   Report a state change onto a page widget, as a worker.
 
   The verb and its fields are the widget's own agent-written x-state verb \u2014
-  `leaf page report <page> t-parser status status=review` moves a task. The page
-  paints the report live as provisional news; it stands until a version absorbs
-  or overrules it, and the page's watcher wakes to fold it in.
+  `leaf page report <page> t-parser status value=review text="Ready for review"`
+  moves a task. The page paints the report live as provisional news; it stands
+  until a version absorbs or overrules it, and the page's watcher wakes to fold
+  it in.
 
 Options:
   --help  Show this message and exit.
@@ -191,8 +207,8 @@ Usage: leaf page stamp [OPTIONS] PAGE
 
   Checks the exact source first, then records it as the next public version.
   Repeat --completes for each widget whose open tasks this version completes,
-  which ends them done, citing the version. A task on a widget otherwise
-  survives unrelated versions, and a version cannot silently remove its widget.
+  which ends them done, citing the version. A task otherwise remains open,
+  including when a revision removes its widget.
 
 Options:
   --text TEXT         changelog text (default: stdin)

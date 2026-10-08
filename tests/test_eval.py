@@ -1,12 +1,22 @@
 """The catalog expands into Promptfoo tests run on one column per harness and arm."""
 
 import json
+import os
 from pathlib import Path
 
 import click
 import pytest
 import yaml
-from leaf_dev.eval import catalog, prepare, select_cases
+from leaf_dev.eval import catalog, native_provider, prepare, select_cases
+
+
+@pytest.fixture
+def codex_cli(monkeypatch):
+    """Use the eval dependency's real CLI for model-free installation checks;
+    the suite otherwise puts a failing harness stub ahead of installed programs."""
+    programs = Path(__file__).parents[1] / "evals/node_modules/.bin"
+    assert (programs / "codex").is_file(), "Install eval dependencies with npm ci"
+    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
 
 
 def arms(tmp_path, *names):
@@ -15,6 +25,15 @@ def arms(tmp_path, *names):
         skill = tmp_path / arm / "skills" / "leaf"
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text(f"{arm} instructions")
+        payload = tmp_path / arm
+        for name in (".agents/plugins/marketplace.json", ".codex-plugin/plugin.json"):
+            target = payload / name
+            target.parent.mkdir(parents=True)
+            target.write_bytes((Path(__file__).parents[1] / name).read_bytes())
+        (payload / "bin").mkdir()
+        (payload / "bin" / "leaf").write_text(f"{arm} launcher")
+        (skill / "assets").mkdir()
+        (skill / "assets" / "registry.json").write_text(json.dumps({"arm": arm}))
         payloads[arm] = tmp_path / arm
     return payloads
 
@@ -30,7 +49,7 @@ def test_library_cases_supply_a_task_and_native_promptfoo_assertions(address):
     assert all(assertion["type"] and assertion["value"] for assertion in case["assert"])
 
 
-def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
+def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch, codex_cli):
     login = tmp_path / "harness-login"
     login.mkdir()
     (login / "auth.json").write_text('{"fixture": "local-login"}')
@@ -46,11 +65,16 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
         ["brief-document-needs-no-outline", "shot-pair-outlined"],
         payloads,
         tmp_path / "scratch",
-        ("cc", "codex"),
+        ("claude-code", "codex"),
         ("leaf",),
         tmp_path / "samples",
     )
-    labels = ["cc/base", "cc/candidate", "codex/base", "codex/candidate"]
+    labels = [
+        "claude-code/base",
+        "claude-code/candidate",
+        "codex/base",
+        "codex/candidate",
+    ]
     assert [provider["label"] for provider in config["providers"]] == labels
     assert [test["providers"] for test in config["tests"]] == [labels, labels]
     homes = []
@@ -61,30 +85,93 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
         assert (
             Path(settings["working_dir"]) / "evals/shot-pair-outlined/captures"
         ).is_dir()
-        if harness == "cc":
+        if harness == "claude-code":
             homes.append(settings["env"]["HOME"])
             assert settings["plugins"][0]["path"] == str(payloads[arm])
-            assert settings["setting_sources"] == []
             private_config = Path(settings["env"]["HOME"]) / ".claude"
             assert json.loads((private_config / ".credentials.json").read_text()) == {
                 "fixture": "claude-login"
             }
         else:
             homes.append(settings["cli_env"]["HOME"])
-            skill = Path(settings["cli_env"]["CODEX_HOME"]) / "skills" / "leaf"
-            assert skill.resolve() == payloads[arm] / "skills" / "leaf"
-            assert settings["persist_threads"] is False
+            home = Path(settings["cli_env"]["CODEX_HOME"])
+            skill = next(home.glob("plugins/cache/leaf/leaf/*/skills/leaf/SKILL.md"))
+            assert skill.read_text() == f"{arm} instructions"
     assert len(set(homes)) == 4
     assert "must-not-enter-config" not in json.dumps(config)
     brief = config["tests"][0]
     assert brief["description"] == "brief-document-needs-no-outline"
     assert brief["vars"]["prompt"].startswith("Use the Leaf skill")
     assert [assertion["metric"] for assertion in brief["assert"]] == [
-        "loads-leaf",
-        "reads-page-authoring",
         "no-outline",
         "judgment",
     ]
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "review-shows-the-change",
+        "interaction-proof-follows-the-reader/comparison",
+        "visible-outcome-before-handoff/shared-identity",
+    ],
+)
+def test_internal_instruction_cases_receive_their_arms_source(
+    tmp_path, monkeypatch, codex_cli, address
+):
+    login = tmp_path / "login"
+    login.mkdir()
+    (login / "auth.json").write_text("{}")
+    monkeypatch.setenv("CODEX_HOME", str(login))
+    payloads = arms(tmp_path, "base", "candidate")
+    source = ".claude/skills/developing-leaf/SKILL.md"
+    for arm, payload in payloads.items():
+        path = payload / source
+        path.parent.mkdir(parents=True)
+        path.write_text(f"{arm} maintainer instructions")
+    config = prepare(
+        [address],
+        payloads,
+        tmp_path / "scratch",
+        ("claude-code", "codex"),
+        ("leaf",),
+        tmp_path / "samples",
+    )
+    for provider in config["providers"]:
+        harness, arm, _ = provider["label"].split("/")
+        field = (
+            "append_system_prompt"
+            if harness == "claude-code"
+            else "developer_instructions"
+        )
+        injected = provider["config"][field]
+        assert str(payloads[arm] / source) in injected
+        assert injected.endswith(f"{arm} maintainer instructions")
+    assert [check["type"] for check in config["tests"][0]["assert"]] == ["llm-rubric"]
+    assert config["tests"][0]["vars"]["prompt"] == catalog()[address]["vars"]["prompt"]
+
+
+def test_native_codex_discovers_the_complete_arm_with_root_relative_access(
+    tmp_path, monkeypatch, codex_cli
+):
+    """Use Codex's real installer without running a model. A skill-only symlink
+    hides the registry from ordinary discovery and loses its plugin-root launcher."""
+    login = tmp_path / "login"
+    login.mkdir()
+    (login / "auth.json").write_text("{}")
+    monkeypatch.setenv("CODEX_HOME", str(login))
+    payloads = arms(tmp_path, "candidate")
+    work = tmp_path / "work"
+    work.mkdir()
+    provider = native_provider("codex", payloads["candidate"], work)
+    settings = provider["config"]
+    home = Path(settings["cli_env"]["CODEX_HOME"])
+    registry = next(home.rglob("registry.json"), None)
+    assert registry is not None, f"No registry installed under {home}"
+    assert json.loads(registry.read_text()) == {"arm": "candidate"}
+    skill = registry.parent.parent
+    assert (skill / "SKILL.md").read_text() == "candidate instructions"
+    assert (skill / "../../bin/leaf").read_text() == "candidate launcher"
 
 
 def test_native_javascript_assertions_and_asset_addresses_survive_preparation(
@@ -112,7 +199,7 @@ def test_native_javascript_assertions_and_asset_addresses_survive_preparation(
         ["example"],
         arms(tmp_path, "candidate"),
         tmp_path / "scratch",
-        ("cc",),
+        ("claude-code",),
         ("leaf",),
         tmp_path / "samples",
     )
@@ -151,6 +238,21 @@ def test_catalog_contexts_keep_complete_original_check_coverage():
         select_cases(("no-such-task",))
 
 
+def test_sidebar_primary_scores_rendered_work_and_retains_instruction_diagnostics():
+    from leaf_dev.arrangement_eval import expected_checks, rubrics
+
+    cases = catalog()
+    task = "sidebar-page-at-900px"
+    assert cases[task]["metadata"]["executor"] == "leaf_dev.arrangement_eval"
+    assert not any(check.startswith("choice-") for check in expected_checks(task))
+    assert any("completed rollout" in rubric["value"] for rubric in rubrics(task))
+    for variant in ("instructions", "live"):
+        case = cases[f"{task}/{variant}"]
+        assert case["metadata"]["executor"] is None
+        assert "page directory is not reachable" in case["vars"]["prompt"]
+        assert case["assert"]
+
+
 def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(
     tmp_path, monkeypatch
 ):
@@ -173,21 +275,28 @@ def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(
         ["dashboard/reader-seeded", "document"],
         payloads,
         tmp_path / "scratch",
-        ("cc", "codex"),
+        ("claude-code", "codex"),
         ("leaf", "html"),
         tmp_path / "samples",
     )
     tests = {test["description"]: test for test in config["tests"]}
-    # The judge calibration runs on Claude Code; the HTML control has no base.
+    # The judge calibration runs on Claude Code; the HTML control has no base. A
+    # Codex workflow column names the one Leaf transport its session takes.
     assert {name: test["providers"] for name, test in tests.items()} == {
-        "dashboard/reader-seeded": ["cc/base/workflow", "cc/candidate/workflow"],
-        "document": [
-            "cc/base/workflow",
-            "cc/candidate/workflow",
-            "codex/base/workflow",
-            "codex/candidate/workflow",
+        "dashboard/reader-seeded": [
+            "claude-code/base/workflow",
+            "claude-code/candidate/workflow",
         ],
-        "document (html)": ["cc/html/workflow", "codex/html/workflow"],
+        "document": [
+            "claude-code/base/workflow",
+            "claude-code/candidate/workflow",
+            "codex:app-server/base/workflow",
+            "codex:app-server/candidate/workflow",
+        ],
+        "document (html)": [
+            "claude-code/html/workflow",
+            "codex:app-server/html/workflow",
+        ],
     }
     for condition, test in (
         ("leaf", tests["document"]),
@@ -214,7 +323,7 @@ def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(
     html = next(
         provider["config"]
         for provider in config["providers"]
-        if provider["label"] == "codex/html/workflow"
+        if provider["label"] == "codex:app-server/html/workflow"
     )
     assert (html["harness"], html["condition"], html["payload"], html["samples"]) == (
         "codex",
@@ -327,7 +436,7 @@ def test_command_passes_promptfoo_options_and_status_without_api_keys(
     monkeypatch.setenv("OPENAI_API_KEY", "must-not-reach-promptfoo")
 
     def run(*args):
-        return CliRunner().invoke(module.eval, ["--harness", "cc", *args])
+        return CliRunner().invoke(module.eval, ["--harness", "claude-code", *args])
 
     result = run("task-outlasts-the-turn", "--repeat", "3")
     assert result.exit_code == 100, result.output
@@ -336,7 +445,7 @@ def test_command_passes_promptfoo_options_and_status_without_api_keys(
     config = json.loads(
         next((tmp_path / "runs").glob("*/promptfooconfig.json")).read_text()
     )
-    assert [p["label"] for p in config["providers"]] == ["cc/candidate"]
+    assert [p["label"] for p in config["providers"]] == ["claude-code/candidate"]
     assert config["description"].endswith(
         "(working tree on 012345678): task-outlasts-the-turn"
     )

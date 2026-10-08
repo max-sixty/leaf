@@ -1,11 +1,18 @@
 """Thread writes and the harness-neutral delivery-bound reply lifecycle."""
 
 import sys
+from dataclasses import asdict, dataclass
+from hashlib import sha256
 from pathlib import Path
 
 from leaf.activity import answer_command, reply_binding_stands
 from leaf.asks import local_ask_entry
-from leaf.delivery import ReceiptRefused, current_responses, record_pickup
+from leaf.delivery import (
+    ReceiptRefused,
+    current_responses,
+    record_pickup,
+    response_address,
+)
 from leaf.event_contracts import append_admitted
 from leaf.event_log import read_events
 from leaf.events import build_threads
@@ -23,10 +30,11 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
+from leaf.registry.schema import json_value
 from leaf.revision_artifact import active_enclosing, read_revision
-from leaf.schema import MESSAGE_KINDS, THREAD_ANSWER_KINDS
+from leaf.schema import MESSAGE_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt
-from leaf.tasks import start_line_error, take_in_hand
+from leaf.tasks import start_line_error
 from leaf.thread_context import thread_message, thread_names
 from leaf.validation.admission import (
     check_markup,
@@ -34,6 +42,39 @@ from leaf.validation.admission import (
     read_text_arg,
     thread_obligation,
 )
+
+
+@dataclass
+class ReplyContent:
+    """Complete author content, shared by direct and provider-owned replies.
+
+    A provider reply keeps this content on its exact response attempt binding until
+    completion. Custody controls publication, not the author's available content.
+    """
+
+    text: str
+    markup: str = ""
+    awaits: bool = False
+    quote: str = ""
+    section: str = ""
+    part: str = ""
+    detach: bool = False
+    failure: str | None = None
+    title: str | None = None
+
+
+def authored_reply(page, session: str, attempt: str, responds: str) -> dict | None:
+    """Read full author operation from its exact response binding, never display state."""
+    stream = page.status.get("stream") or {}
+    binding = (stream.get("reply_bindings") or {}).get(responds)
+    if (
+        binding is None
+        or binding["session"] != session
+        or binding["attempt"] != attempt
+        or "author_reply" not in binding
+    ):
+        return None
+    return binding["author_reply"]
 
 
 def _messages(events: list) -> dict[str, dict]:
@@ -45,7 +86,7 @@ def _unknown_message(page_dir: Path, events: list, name: str) -> None:
     sys.exit(
         f"unknown comment id {name!r}"
         + (f"; {held}" if held else "")
-        + f"; known: {sorted(_messages(events))}"
+        + f"; known: {json_value(sorted(_messages(events)))}"
     )
 
 
@@ -193,8 +234,8 @@ class DeliveryReply:
         the transaction that appends the reply. That includes the ways out that
         raise: recording the draft's last state re-reads a page the turn's own work
         may have left unopenable, and a binding left standing refuses every other
-        writer the delivery's move — the carrier's receipt that no answer is coming
-        among them — until the claim itself goes.
+        writer the delivery's move — the harness's failure receipt that no answer
+        is coming among them — until the claim itself goes.
         """
         committed = False
         try:
@@ -238,16 +279,12 @@ class DeliveryReply:
     def _commit(self, text: str) -> dict | None:
         page_dir = Path(self.target["page"])
         try:
-            accepted = cmd_reply(
-                page_dir,
-                self.target["reply_to"],
+            accepted = post_response(
+                self.target["ref"],
                 text,
-                "",
-                for_event=self.target["responds"],
+                reservation=self.attempt,
                 attempt=self.attempt,
-                when_settled="post",
                 identity={"session": self.session_id},
-                validate_source=True,
                 claimed_session=self.session_id,
             )
             with PageTransaction(page_dir) as page:
@@ -339,7 +376,14 @@ def _capture_anchor(
 
 @contract_writer
 def cmd_comment(
-    page_dir: Path, quote: str, section: str, part: str, text, markup: str
+    page_dir: Path,
+    quote: str,
+    section: str,
+    part: str,
+    text,
+    markup: str,
+    *,
+    title: str | None = None,
 ) -> dict:
     """Open a thread, as the user's own gestures do: on a passage where --quote or
     --section points at one, and on the page as a whole where neither does — the same
@@ -351,6 +395,8 @@ def cmd_comment(
     # Reading a body may wait on stdin; do that before taking the page lease.
     body = read_text_arg(page_dir, text)
     with PageTransaction(page_dir) as page:
+        if title is not None and (refusal := title_refusal(page_dir, title)):
+            sys.exit(refusal)
         events = page.events
         revision, anchor = _current_anchor(
             page_dir, events, quote, section, part, transaction=page
@@ -368,7 +414,26 @@ def cmd_comment(
             event["anchor"] = anchor
         if markup:
             event["markup"] = markup
+        if title is not None:
+            event["title"] = title
         return append_admitted(page, event)
+
+
+def successful_replies(events: list[dict], for_event: str) -> list[dict]:
+    """Agent answers to this exact input, excluding progress and failure receipts.
+
+    A thread parent locates presentation; only ``responds`` names the input an
+    answer settles. User replies, progress and failures do not assert an answer.
+    """
+    return [
+        event
+        for event in events
+        if event["kind"] == "reply"
+        and event["author"] == "agent"
+        and event.get("responds") == for_event
+        and not event.get("ephemeral")
+        and "failure" not in event
+    ]
 
 
 def answered_by_reply(events: list[dict], for_event: str) -> bool:
@@ -377,12 +442,7 @@ def answered_by_reply(events: list[dict], for_event: str) -> bool:
     Failure receipts and user settlement do not assert a provider answer, so a
     recovered final message may still answer that original delivered address.
     """
-    return any(
-        event["kind"] == "reply"
-        and event.get("responds") == for_event
-        and "failure" not in event
-        for event in events
-    )
+    return bool(successful_replies(events, for_event))
 
 
 @contract_writer
@@ -406,14 +466,19 @@ def post_reply(
     validate_source: bool = False,
     claimed_session: str | None = None,
     ephemeral: bool = False,
-) -> list[dict]:
+    captured_input: dict | None = None,
+    captured_claim: str | None = None,
+    title: str | None = None,
+    preparation: str | None = None,
+    reservation: str | None = None,
+) -> dict | None:
     """Post one complete threaded reply, optionally moving or detaching its anchor;
-    the records appended, or the earlier reply a repeated `attempt` names, or none
+    the appended record, or the earlier reply a repeated `attempt` names, or none
     when `when_settled` leaves nothing to write.
 
     ``for_event`` fences the write to the exact current obligation. Its response
     address may differ from ``to`` when a widget gesture belongs to a frozen
-    thread. One unambiguous delivered reply supplies both values. ``to``
+    thread. The immutable response reference supplies both values. ``to``
     without ``for_event`` posts a new agent message, which the thread must
     currently owe no reply for; the event then carries no ``responds``.
 
@@ -430,12 +495,22 @@ def post_reply(
     ``ephemeral`` posts progress at the same response address without answering it.
     It remains content, and cannot carry a question, widgets, failure or relocation.
     Progress on a move the agent owes says what it has in hand, so it also takes that
-    move in hand with its text as the line (`tasks.take_in_hand`), which is why that
+    move in hand with its text as the line (`tasks.start_reading`), which is why that
     text is one line: the move reads Working beside its thread and in the banner, and
     the user's message gets the agent's first words and its Working line from one
     write.
     """
-    body = read_text_arg(page_dir, text)
+    content = ReplyContent(
+        read_text_arg(page_dir, text),
+        markup,
+        awaits,
+        quote,
+        section,
+        part,
+        detach,
+        failure,
+        title,
+    )
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
         if claimed_session is not None:
@@ -445,7 +520,30 @@ def post_reply(
                     f"page is no longer claimed by session {claimed_session!r}"
                 )
             posting_identity = {"agent": claim["agent"], "session": claim["id"]}
+        if captured_input is not None and captured_claim != page.delivery_owner:
+            raise ReceiptRefused("response page claim no longer matches its delivery")
+        provider_session = (
+            posting_identity.get("session") if reservation is not None else None
+        )
+        if reservation is not None:
+            prepared = authored_reply(page, provider_session, reservation, for_event)
+            if prepared is not None:
+                content = ReplyContent(**prepared["content"])
+                posting_identity = prepared["identity"]
+                attempt = prepared["attempt"]
+            if content.failure is not None:
+                when_settled = "skip"
         events = page.events
+        if captured_input is not None and not any(
+            event["id"] == captured_input["id"]
+            and event["seq"] == captured_input["seq"]
+            for event in events
+        ):
+            raise ReceiptRefused("response no longer matches its page log")
+        if content.title is not None and (
+            refusal := title_refusal(page_dir, content.title)
+        ):
+            sys.exit(refusal)
         if attempt is not None:
             existing = next(
                 (event for event in events if event.get("attempt") == attempt), None
@@ -463,74 +561,41 @@ def post_reply(
                     or not same_scope
                 ):
                     sys.exit(f"attempt {attempt!r} already belongs to another event")
-                return [existing]
+                return existing
         if (
             when_settled == "post"
             and for_event is not None
             and answered_by_reply(events, for_event)
         ):
-            return []
+            return None
         responses = current_responses(page_dir, events)
-        if for_event is None and to is None:
-            claim = page.active_claim
-            delivered = (
-                {
-                    event_id
-                    for event in events
-                    if event["kind"] == "pickup"
-                    and event["phase"] == "opened"
-                    and event["session"] == claim["id"]
-                    and event["turn"] == claim.get("turn")
-                    for event_id in event["events"]
-                }
-                if claim is not None
-                and posting_identity.get("session") == claim["id"]
-                and claim.get("turn") is not None
-                and claim.get("turn_closed") is None
-                else set()
-            )
-            pending = [
-                (event_id, response)
-                for event_id, response in responses.items()
-                if event_id in delivered and response["kind"] == "reply"
-            ]
-            if len(pending) != 1:
-                sys.exit(
-                    "cannot infer a reply: this turn's opened delivery holds "
-                    f"{len(pending)} reply obligations. Read what the page still "
-                    "owes with `leaf page state <page>`; use --for EVENT_ID to "
-                    "answer one, or name the thread to post a new message only if "
-                    "that read shows nothing owed"
-                )
-            for_event, expected = pending[0]
-            to = expected["to"]
-        elif for_event is not None:
+        if for_event is not None and to is None:
             expected = responses.get(for_event)
-            if expected is None or expected["kind"] not in THREAD_ANSWER_KINDS:
+            if expected is None or expected["kind"] != "reply":
                 held = logged_id(events, for_event, responses)
                 refusal = f"event {for_event!r} takes no reply; " + (
                     held or f"this page's log holds no event {for_event!r}"
                 )
                 if when_settled == "skip":
-                    return []
-                if when_settled != "post" or to is None:
-                    sys.exit(refusal)
-            elif to is None:
-                to = expected["to"]
+                    return None
+                sys.exit(refusal)
+            to = expected["to"]
         assert to is not None
         thread_id, to = thread_addressed(page_dir, events, to)
         opening = _messages(events).get(thread_id)
-        # The owed move an ephemeral update takes in hand.
+        # Current custody belongs to the binding, independently of capture-time
+        # writer hints and caller-supplied retry identity.
+        preparing = False
         in_hand = None
         if for_event is not None:
             expected = responses.get(for_event)
             if (
                 expected is None
-                or expected["kind"] not in THREAD_ANSWER_KINDS
+                or expected["kind"] != "reply"
                 or (expected["to"], expected["for"]) != (to, for_event)
             ):
                 if when_settled == "skip":
-                    return []
+                    return None
                 if when_settled != "post":
                     sys.exit(
                         f"event {for_event!r} no longer requires a reply to {to!r}; "
@@ -538,16 +603,29 @@ def post_reply(
                     )
             elif ephemeral:
                 in_hand = for_event
-            elif expected["kind"] == "turn" and expected["attempt"] != attempt:
-                sys.exit(
-                    f"event {for_event!r} is answered by this turn's messages; "
-                    "finish the reply in your final message"
-                )
+            binding = (
+                (page.status.get("stream") or {}).get("reply_bindings") or {}
+            ).get(for_event)
+            claim = page.active_claim
+            if claim and reply_binding_stands(
+                binding, claim["id"], claim["turn"], claim["turn_closed"]
+            ):
+                if reservation is not None:
+                    if (provider_session, reservation) != (
+                        binding["session"],
+                        binding["attempt"],
+                    ):
+                        return None
+                elif not ephemeral:
+                    if preparation is None:
+                        sys.exit(
+                            f"event {for_event!r} is answered by this turn's messages; "
+                            "finish the reply in your final message"
+                        )
+                    preparing = True
         else:
             standing = thread_obligation(events, responses, thread_id)
-            if ephemeral:
-                in_hand = standing["for"] if standing is not None else None
-            elif standing is not None and standing["kind"] == "turn":
+            if standing is not None and standing.get("writer") == "turn":
                 sys.exit(
                     f"thread {thread_id!r} is answered by this turn's messages; "
                     "finish the reply in your final message"
@@ -561,21 +639,27 @@ def post_reply(
             event["kind"] == "pickup" and for_event in event["events"]
             for event in events
         ):
-            return []
-        moving = bool(quote or section or part)
-        if ephemeral and (awaits or markup or failure or moving or detach):
+            return None
+        moving = bool(content.quote or content.section or content.part)
+        if ephemeral and (
+            content.awaits
+            or content.markup
+            or content.failure
+            or moving
+            or content.detach
+        ):
             sys.exit(
                 "--ephemeral is for progress text; it cannot ask a question, carry widgets, report failure, or move the thread"
             )
-        if in_hand is not None and start_line_error(body.strip()):
+        if in_hand is not None and start_line_error(content.text.strip()):
             sys.exit(
                 f"progress on {in_hand!r}, a move you owe, takes it in hand, and its "
                 "text is the Working line beside the thread and in the banner: write "
                 "it as one line saying what you are doing"
             )
-        if detach and moving:
+        if content.detach and moving:
             sys.exit("--detach cannot be combined with --quote, --section, or --part")
-        relocating = moving or detach
+        relocating = moving or content.detach
         if relocating and opening is None:
             sys.exit(
                 f"thread {thread_id!r} has no surviving opening comment, so its "
@@ -588,17 +672,19 @@ def post_reply(
             )
         current_thread = (
             build_threads(events, active_enclosing(page_dir)).get(thread_id)
-            if detach
+            if content.detach
             else None
         )
-        if detach and (current_thread is None or current_thread["anchor"] is None):
+        if content.detach and (
+            current_thread is None or current_thread["anchor"] is None
+        ):
             sys.exit(f"thread {thread_id!r} has no current anchor to detach")
         reply_revision = None
         prospective_page = None
         prospective_anchor = None
         source_events = events
         source_matches_active = True
-        if validate_source or detach:
+        if validate_source or content.detach:
             active = latest_revision(page_dir)
             source_matches_active = bool(
                 active is not None
@@ -613,7 +699,7 @@ def post_reply(
                         "kind": "reply",
                         "id": "prospective-anchor-transition",
                         "author": "agent",
-                        "text": body,
+                        "text": content.text,
                         "seq": events[-1]["seq"] + 1,
                         "ts": "pending",
                         "parent": to,
@@ -626,7 +712,7 @@ def post_reply(
             else:
                 from leaf.validation.source import check_source
 
-                checked = check_source(page_dir, source_events, allow_transition=False)
+                checked = check_source(page_dir, source_events)
                 if checked.errors:
                     operation = "reply" if validate_source else "detach"
                     sys.exit(
@@ -641,17 +727,19 @@ def post_reply(
                         page_dir,
                         events,
                         SourceReading(checked.document, require_registry(page_dir)),
-                        quote,
-                        section,
-                        part,
+                        content.quote,
+                        content.section,
+                        content.part,
                         (active or 0) + 1,
                     )
         fragment = (
-            check_markup(page_dir, "reply", markup, events, page=prospective_page)
-            if markup
+            check_markup(
+                page_dir, "reply", content.markup, events, page=prospective_page
+            )
+            if content.markup
             else None
         )
-        if awaits and fragment:
+        if content.awaits and fragment:
             from leaf.registry.storage import require_registry
 
             registry = require_registry(page_dir)
@@ -678,13 +766,13 @@ def post_reply(
             revision, anchor = _current_anchor(
                 page_dir,
                 events,
-                quote,
-                section,
-                part,
+                content.quote,
+                content.section,
+                content.part,
                 revision=reply_revision,
                 transaction=page,
             )
-        elif detach:
+        elif content.detach:
             revision, anchor = reply_revision, None
         else:
             revision, anchor = None, None
@@ -693,7 +781,7 @@ def post_reply(
             "author": "agent",
             **posting_identity,
             "parent": to,
-            "text": body,
+            "text": content.text,
             **(
                 {"responds": for_event}
                 if for_event is not None and not ephemeral
@@ -702,33 +790,110 @@ def post_reply(
         }
         if ephemeral:
             event["ephemeral"] = True
-        if awaits:
+        if in_hand is not None:
+            claim = page.claim
+            turn = (
+                claim.get("turn")
+                if claim and claim["id"] == posting_identity.get("session")
+                else None
+            )
+            event["start"] = {
+                "item": in_hand,
+                **({"turn": turn} if turn else {}),
+            }
+        if content.awaits:
             event["awaits"] = True
-        if markup:
-            event["markup"] = markup
+        if content.markup:
+            event["markup"] = content.markup
         if attempt is not None:
             event["attempt"] = attempt
-        if failure is not None:
-            event["failure"] = failure
-        if relocating or markup:
+        if content.failure is not None:
+            event["failure"] = content.failure
+        if relocating or content.markup:
             event["revision"] = revision or latest_revision(page_dir)
         if relocating:
             event["anchor"] = anchor
+        if content.title is not None:
+            event["title"] = content.title
+        if preparing:
+            from leaf.event_contracts import admitted_event
+            from leaf.page_view import CandidatePageView, PageView
+
+            view = (
+                PageView(page_dir)
+                if source_matches_active
+                else CandidatePageView(page_dir, reply_revision, checked.reading, None)
+            )
+            admitted_event(
+                view,
+                events,
+                event
+                if source_matches_active
+                else {**event, "revision": reply_revision},
+            )
+            page.author_bound_reply(
+                binding["session"],
+                for_event,
+                binding["attempt"],
+                {
+                    "content": asdict(content),
+                    "identity": posting_identity,
+                    "attempt": attempt,
+                },
+            )
+            return {"kind": "response", "ref": preparation, "state": "prepared"}
         if not source_matches_active:
             from leaf.revisioning import publish_checked_event
 
-            records = [publish_checked_event(page, checked, event)]
+            record = publish_checked_event(page, checked, event)
         else:
-            records = [append_admitted(page, event)]
-        if in_hand is not None:
-            records.append(take_in_hand(page, in_hand, body.strip(), posting_identity))
-        return records
+            record = append_admitted(page, event)
+        if in_hand is not None and page.status["state"] == "idle":
+            page.set_status("waiting", "")
+        return record
 
 
-def cmd_reply(page_dir: Path, *args, **kwargs) -> dict | None:
-    """The reply `post_reply` posts, or the one a repeated `attempt` names; None when
-    it writes nothing."""
-    return next(iter(post_reply(page_dir, *args, **kwargs)), None)
+def post_response(
+    reference: str, text, markup: str = "", *, reservation: str | None = None, **options
+) -> dict | None:
+    """Author a complete reply at the delivery's exact captured response address.
+
+    The reference chooses page, input and frozen thread destination. All rich reply
+    options belong to the durable writer. A direct write refuses a superseded input;
+    a provider's final preserves its captured destination after user settlement but
+    yields to another successful answer. Binding admission retains final custody.
+    """
+    address = response_address(reference)
+    if address["kind"] != "reply":
+        sys.exit(
+            f"response {reference!r} requires {answer_command(address)}, not a reply"
+        )
+    attempt = options.pop("attempt", None)
+    if reservation is None and (attempt is not None or not options.get("ephemeral")):
+        # Public retry keys identify this addressed author's writes, never a
+        # provider's reservation. The disjoint namespace prevents a progress
+        # retry key from consuming its provider final's append identity too.
+        retry = reference if attempt is None else f"{reference}:{attempt}"
+        attempt = f"leaf-response-{sha256(retry.encode()).hexdigest()}"
+    identity = options.get("identity") or message_identity()
+    options.setdefault("identity", identity)
+    return post_reply(
+        Path(address["page"]),
+        address["to"],
+        text,
+        markup,
+        for_event=address["for"],
+        captured_input=address["input"],
+        captured_claim=address["claim"],
+        attempt=attempt,
+        when_settled="post" if reservation is not None else "refuse",
+        validate_source=True,
+        preparation=reference
+        if reservation is None and not options.get("ephemeral")
+        else None,
+        reservation=reservation,
+        **options,
+    )
 
 
 def fail_answer(
@@ -749,8 +914,8 @@ def fail_answer(
     never left owed with nobody to answer it:
 
     - a `reply` answer takes a reply carrying `failure` in its thread, which
-      the user resends into; a `turn` answer refuses it until its turn gives the
-      reply up and the answer reads as a `reply` again;
+      the user resends into; provider custody refuses it until its turn gives the
+      reply up;
     - a `markup` answer takes a failed pickup: the user's Ask answer stands in the
       log, and answering again sends a new move.
 
@@ -768,7 +933,7 @@ def fail_answer(
         return _fail_markup_answer(
             page_dir, responds, failure, only_if_unclaimed, claimed_session
         )
-    return cmd_reply(
+    return post_reply(
         page_dir,
         None,
         text,
@@ -813,7 +978,7 @@ def _fail_markup_answer(
 
 @contract_writer
 def cmd_edit(page_dir: Path, to: str, text) -> dict:
-    """Append a text revision to one message authored by this agent session.
+    """Append a text revision to one agent-authored message.
 
     The message event is immutable: the edit points back to it, so the log retains
     every wording while thread folds project the latest one. Markup stays frozen with
@@ -829,11 +994,6 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
         if target["author"] != "agent":
             sys.exit(f"message {to!r} is not agent-authored")
         identity = message_identity()
-        owner = target.get("session")
-        if not owner:
-            sys.exit(f"message {to!r} has no agent session identity")
-        if owner != identity.get("session"):
-            sys.exit(f"message {to!r} belongs to agent session {owner!r}")
         return append_admitted(
             page,
             {
@@ -882,25 +1042,12 @@ def name_untitled(page, thread: str, title: str, identity: dict) -> dict | None:
     """Append `thread`'s first title in the voice of `identity`, within the caller's
     page transaction, or nothing where it has one: a name given once stands until
     someone renames the thread on purpose (`cmd_title`)."""
-    if any(
-        event["kind"] == "thread_title" and event["thread"] == thread
-        for event in page.events
+    if (
+        build_threads(page.events, active_enclosing(page.page_dir))[thread]["title"]
+        is not None
     ):
         return None
     return append_admitted(page, title_event(thread, title, identity))
-
-
-@contract_writer
-def cmd_name(page_dir: Path, message: str, text: str) -> dict | None:
-    """Name the thread `message` reaches unless it has a name, as a message posted
-    with a title does; the record, or None where the thread was named already."""
-    with PageTransaction(page_dir) as page:
-        return name_untitled(
-            page,
-            thread_named(page_dir, page.events, message),
-            text,
-            message_identity(),
-        )
 
 
 @contract_writer

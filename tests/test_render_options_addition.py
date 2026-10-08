@@ -343,7 +343,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     ]
     assert moves == [
         ("add", {"option": identity, "text": "Insulate the camera battery"}),
-        ("choose", {"options": [identity]}),
+        ("choose", {"value": [identity]}),
     ]
     assert not [
         event for event in events_model.read_events(d) if event["kind"] == "comment"

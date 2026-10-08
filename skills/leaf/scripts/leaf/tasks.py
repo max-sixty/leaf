@@ -80,13 +80,26 @@ OUTCOMES = ("done", "failed", "dropped")
 PAGE_SUBJECT = "page"
 
 
+def start_reading(event: dict) -> dict | None:
+    """One work-start reading, from an explicit start or addressed progress reply.
+
+    A progress reply retains its message identity and history while atomically
+    taking the declared input in hand. Its text is the same visible Working line.
+    """
+    if event["kind"] == "start":
+        return event
+    if event["kind"] == "reply" and "start" in event:
+        return {**event, "kind": "start", **event["start"]}
+    return None
+
+
 def item_starts(events: list) -> dict[str, dict]:
     """The start standing on each item, by the item's id: the newest naming it, unless
     a `put_down` came after it."""
     starts: dict[str, dict] = {}
     for event in events:
-        if event["kind"] == "start":
-            starts[event["item"]] = event
+        if start := start_reading(event):
+            starts[start["item"]] = start
         elif event["kind"] == "put_down":
             starts.clear()
     return starts
@@ -95,7 +108,7 @@ def item_starts(events: list) -> dict[str, dict]:
 def last_start(events: list) -> str | None:
     """When the agent last took an item in hand, which renews the turn that did."""
     return next(
-        (event["ts"] for event in reversed(events) if event["kind"] == "start"), None
+        (event["ts"] for event in reversed(events) if start_reading(event)), None
     )
 
 
@@ -202,8 +215,7 @@ def owed_tasks(events: list) -> list[dict]:
 
 
 def log_tasks_open(events: list) -> list[dict]:
-    """The log's tasks nothing has ended, on either side: what a version or a layer
-    must leave a target for (`work.tasks_without_targets`)."""
+    """The log's open tasks on either side, even when their targets are gone."""
     return [task for task in canonical_tasks(events) if task["state"] == "open"]
 
 
@@ -418,12 +430,14 @@ def task_error(
             return f"thread {subject['id']!r} is resolved; reopen it before a task"
         return None
     if kind == "start":
+        if error := start_line_error(event["text"]):
+            return error
         item = event["item"]
         if item in owed or any(task["id"] == item for task in owed_tasks(events)):
             return None
         return (
-            f"{item!r} is neither an open task of yours nor a move you owe; start the "
-            "id a delivered move or `leaf task open` gave you"
+            f"{item!r} is neither an open task of yours nor an update you owe an answer to; start the "
+            "id a delivered update or `leaf task open` gave you"
         )
     if kind != "task_end":
         return None
@@ -513,9 +527,9 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
     is what lets that turn end over the move it started (`activity.started_in_turn`)
     and what ends the start's hold with the turn. Another session's start names none: a
     Claude Code subagent runs as its parent's session, so workers leave starts to the
-    session driving the page. `leaf task start` writes one, and so does an ephemeral
-    reply to a move the agent owes (`thread.post_reply`): the progress it posts is
-    what the agent has in hand."""
+    session driving the page. `leaf task start` writes this explicit event. Addressed ephemeral replies
+    carry their start on the message itself (`thread.post_reply`), and every
+    start consumer reads either form through `start_reading`."""
     from .event_contracts import append_admitted
 
     claim = page.claim
@@ -534,7 +548,7 @@ def take_in_hand(page, item: str, text: str, identity: dict) -> dict:
         },
     )
     # Work in hand reopens a page the agent had closed: `idle` says it was done with
-    # the page, and every carrier stands down for an idle page. The reopening is a
+    # the page, and every watcher stands down for an idle page. The reopening is a
     # bare declaration, with no `put_down` to take this start back.
     if page.status["state"] == "idle":
         page.set_status("waiting", "")

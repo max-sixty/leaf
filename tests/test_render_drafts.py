@@ -701,12 +701,12 @@ def test_page_round_trip(browser, serve):
     assert {k: events[2][k] for k in ("widget", "action", "detail")} == {
         "widget": "board",
         "action": "move",
-        "detail": {"card": "card-x", "to": "col-done", "rank": "i"},
+        "detail": {"unit": "card-x", "value": "col-done", "rank": "i"},
     }
     assert {k: events[3][k] for k in ("widget", "action", "detail")} == {
         "widget": "draft-ops",
         "action": "edit",
-        "detail": {"text": DRAFT_EDITED},
+        "detail": {"value": DRAFT_EDITED},
     }
 
 
@@ -973,7 +973,7 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(
         for event in events_model.read_events(serve.page_dir)
         if event.get("action") == "edit"
     ]
-    assert [event["detail"]["text"] for event in edits] == [saved]
+    assert [event["detail"]["value"] for event in edits] == [saved]
     page.locator("#exhibit .lf-draft-body").click()
     expect(page.locator("#exhibit leaf-text")).to_have_count(0)
     expect(page.locator("#exhibit .lf-draft-body")).to_have_text("Read-only source.")
@@ -997,7 +997,7 @@ def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
     )
     question = page.locator("#note-decision")
     editor = page.locator("#note leaf-text")
-    hints = page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    hints = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
 
     def return_to_question():
         question.evaluate(
@@ -1063,7 +1063,7 @@ def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
         for event in events_model.read_events(serve.page_dir)
         if event.get("action") == "edit"
     ]
-    assert [event["detail"]["text"] for event in edits] == [saved]
+    assert [event["detail"]["value"] for event in edits] == [saved]
 
 
 def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, serve):
@@ -1113,7 +1113,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
                 "revision": 1,
                 "widget": "draft-ops",
                 "action": "edit",
-                "detail": {"text": text},
+                "detail": {"value": text},
             },
         )
     append_command(
@@ -1124,7 +1124,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
             "revision": 1,
             "widget": "board",
             "action": "move",
-            "detail": {"card": "card-x", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-x", "value": "col-done", "rank": "0i"},
         },
     )
 
@@ -1196,7 +1196,7 @@ def test_an_empty_draft_survives_reload_and_blocks_a_version_switch(browser, ser
     until_draft_settled(page, "edit:draft-ops")
     events = [e for e in events_model.read_events(d) if e["kind"] == "action"]
     assert events[-1]["action"] == "edit"
-    assert events[-1]["detail"] == {"text": ""}
+    assert events[-1]["detail"] == {"value": ""}
 
 
 def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
@@ -1248,7 +1248,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
     ]
-    assert [event["detail"]["text"] for event in events] == [sent]
+    assert [event["detail"]["value"] for event in events] == [sent]
 
     draft_control(page, "edit", "draft-ops").click()
     expect(draft.locator("leaf-text")).to_be_focused()
@@ -1358,7 +1358,7 @@ def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
         if event.get("action") == "edit"
     ]
     assert [event["detail"] for event in edits] == [
-        {"text": "Keep the revised unsent words."}
+        {"value": "Keep the revised unsent words."}
     ]
     consume_browser_errors(page, "400")
 
@@ -1415,7 +1415,7 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
     ]
-    assert [event["detail"]["text"] for event in events] == [edited]
+    assert [event["detail"]["value"] for event in events] == [edited]
 
 
 def test_one_shared_draft_edit_appends_one_action_across_tabs(browser, serve, one_user):
@@ -1446,7 +1446,7 @@ def test_one_shared_draft_edit_appends_one_action_across_tabs(browser, serve, on
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action" and event["action"] == "edit"
     ]
-    assert [event["detail"]["text"] for event in edits] == [text]
+    assert [event["detail"]["value"] for event in edits] == [text]
     assert edits[0]["attempt"]
     assert _traffic(first).sends == _traffic(second).sends == 1
     expect(second_draft.locator("leaf-text")).to_have_count(0)
@@ -1506,7 +1506,7 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     adds = [event["detail"] for event in moves if event["action"] == "add"]
     assert adds == [held_detail]
     picks = {
-        tuple(event["detail"]["options"])
+        tuple(event["detail"]["value"])
         for event in moves
         if event["action"] == "choose"
     }
@@ -4031,7 +4031,7 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
           const present = list.present.bind(list);
           const held = Promise.withResolvers();
           list.present = model => {
-            if (!document.querySelector('.lf-thread-panel').open) return present(model);
+            if (!document.querySelector('.lf-thread-panel').classList.contains('open')) return present(model);
             window.replyContinuationHeld = true;
             return held.promise.then(() => present(model));
           };
@@ -4450,7 +4450,7 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
     ]
-    assert [event["detail"]["text"] for event in events] == [
+    assert [event["detail"]["value"] for event in events] == [
         edits[0],
         edits[1],
         edits[0],
@@ -4463,9 +4463,9 @@ def test_a_draft_explains_its_change_and_restores_history_as_an_edit(browser, se
           const widget = document.getElementById('draft-ops');
           const controller = widgetController(widget);
           const first = controller.read().actions.edit.history;
-          first[0].detail.text = 'A widget must not mutate the runtime log.';
+          first[0].detail.value = 'A widget must not mutate the runtime log.';
           return controller.read().actions.edit.history
-            .map(event => [event.seq, event.detail.text]);
+            .map(event => [event.seq, event.detail.value]);
         }"""
     )
     assert [text for _, text in sequence] == [edits[0], edits[1], edits[0]]
@@ -4496,7 +4496,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
                 "revision": version,
                 "widget": "draft-ops",
                 "action": "edit",
-                "detail": {"text": text},
+                "detail": {"value": text},
             },
         )
 
@@ -4545,7 +4545,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
             "revision": 1,
             "widget": "board",
             "action": "move",
-            "detail": {"card": "card-x", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-x", "value": "col-done", "rank": "0i"},
         },
     )
     append_command(
@@ -4556,7 +4556,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
             "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
-            "detail": {"text": DRAFT_EDITED},
+            "detail": {"value": DRAFT_EDITED},
         },
     )
     # The highest user event reached context, so everything so far is ours to answer.
@@ -4596,7 +4596,7 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
             "revision": 1,
             "widget": "draft-ops",
             "action": "edit",
-            "detail": {"text": DRAFT_EDITED},
+            "detail": {"value": DRAFT_EDITED},
         },
     )
     refused = CliRunner().invoke(

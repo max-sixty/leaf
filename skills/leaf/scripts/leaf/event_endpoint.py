@@ -22,6 +22,7 @@ from .leases import wait_is_live
 from .page_view import PageView
 from .presence import claimant_reading
 from .registry.contract import RegistryError
+from .registry.schema import json_value
 from .service import PageTransaction, requires_agent_attention
 from .thread_titles import name_admitted_thread
 
@@ -95,7 +96,9 @@ def accept_event(
     )
     kind = event.get("kind")
     if not isinstance(kind, str) or kind not in browser_kinds:
-        return event_rejection(event, f"kind must be one of {browser_kinds}")
+        return event_rejection(
+            event, f"kind must be one of {json_value(browser_kinds)}"
+        )
     # The server owns the record envelope and agent identity. Removing client
     # copies before validation prevents them from entering attempt identity too.
     for field in ("id", "author", "agent", "session", "ts", "seq", "attention"):
@@ -139,7 +142,7 @@ def _execute_event(
             except RegistryError as error:
                 return event_rejection(event, str(error))
             claim = page.active_claim
-            # Input no carrier will pick up: the claimant takes no input, by the
+            # Input no watcher will pick up: the claimant takes no input, by the
             # activity fold's own reading (`activity.takes_input`), because its
             # turn was seen to end — closed by the Stop hook, or interrupted as
             # its harness's record says — and no wait lease is held. A turn Leaf
@@ -150,7 +153,7 @@ def _execute_event(
             # a user ticking three boxes queues one turn or one approval rather
             # than three, while a turn interrupted again after a new prompt is
             # messaged again. The claimant's harness decides whether its session
-            # can be reached at all and what to say; a harness whose carrier is a
+            # can be reached at all and what to say; a harness whose watcher is a
             # process of its own has nowhere to put this and answers no. It is
             # sent under the lock, so the mark it leaves is exact: a local socket
             # accepts or refuses at once, and input after a refusal tries again.
@@ -169,7 +172,7 @@ def _execute_event(
 
 def nudge_unwatched(page: PageTransaction) -> None:
     """Message the claimant of a page holding input nothing will carry, once per
-    ending of its turn (`session-lifetime.md`, Carriers): no wait lease is held,
+    ending of its turn (`session-lifetime.md`, Watchers): no wait lease is held,
     and its turn has ended, so nothing takes input by the activity fold's reading
     (`activity.takes_input`). Run under the page's lock, which makes the mark it
     leaves exact."""

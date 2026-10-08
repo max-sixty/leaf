@@ -1,4 +1,4 @@
-"""Codex delivery eligibility and paths for its serialized route reservations.
+"""Codex delivery eligibility and paths for its serialized transport reservations.
 
 The session lifecycle owner records provider identity, lifetime and revision.
 This module derives an observation from that authority, and proves eligibility
@@ -21,7 +21,7 @@ def delivery_lock_path(session_id: str) -> Path:
 
 
 def hook_turn(session_id: str) -> dict | None:
-    """The canonical session observation for delivery route revision checks.
+    """The canonical session observation for transport reservation revision checks.
 
     Running is derived from the dated session lifecycle, never stored by a
     second Codex writer. Page activity still proves current delivery eligibility.
@@ -65,23 +65,18 @@ def step_delivery_turn(session_id: str) -> str | None:
     return None
 
 
-def accept_codex_delivery_read(delivery_id: str) -> None:
+def accept_codex_delivery_read(session_id: str, delivery_id: str) -> None:
     """Use the owning task's pointer read as evidence of entry into its exact turn.
 
     Reading an envelope alone authorizes no receipt. The hook observation is
     rechecked under the acceptance lock, so queue reservation or a newer turn
     invalidates this proof before any delivery record changes.
     """
-    from .harness import session_harness
-
-    harness = session_harness()
-    if harness is None or (turn := step_delivery_turn(harness.session)) is None:
+    if (turn := step_delivery_turn(session_id)) is None:
         return
-    observation = hook_turn(harness.session)
+    observation = hook_turn(session_id)
     if not observation or observation["turn"] != turn or not observation["running"]:
         return
     from .codex import accept_codex_delivery
 
-    accept_codex_delivery(
-        harness.session, delivery_id, turn, hook_observation=observation
-    )
+    accept_codex_delivery(session_id, delivery_id, turn, hook_observation=observation)

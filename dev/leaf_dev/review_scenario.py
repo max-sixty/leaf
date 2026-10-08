@@ -4,7 +4,7 @@ Every harness starts with the same request and one stamped, undecided document. 
 scenario uses only the current triage source on the default layer: the catalog's
 packages, companion history and prior versions are outside the delivery experiment.
 The runners own transport, timing and assertions. The verifiers of a real task
-(`verify_cc_task`, `verify_codex_task`, `verify_pi_task`) also share the comments a step posts, as the
+(`verify_claude_code_task`, `verify_codex_task`, `verify_pi_task`) also share the comments a step posts, as the
 page's tab posts them, and the reading of the replies that answer each.
 """
 
@@ -15,6 +15,7 @@ import click
 from leaf.event_log import read_events
 from leaf.server import running_server
 from leaf.service import page_claim
+from leaf.thread import successful_replies
 
 from leaf_dev import ROOT
 from leaf_dev.arms import PageClient, run_leaf
@@ -66,15 +67,8 @@ def comment_id(page: Path, step: str) -> str:
 
 
 def answers(page: Path, step: str) -> list[dict]:
-    """The replies that answer one posted comment; a failure receipt is not one."""
-    posted = comment_id(page, step)
-    return [
-        event
-        for event in read_events(page)
-        if event["kind"] == "reply"
-        and event.get("responds") == posted
-        and "failure" not in event
-    ]
+    """Successful agent replies to one posted comment."""
+    return successful_replies(read_events(page), comment_id(page, step))
 
 
 def settled(page: Path, session: str, posted: list[str]) -> dict:

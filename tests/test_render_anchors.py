@@ -8,7 +8,7 @@ from html import escape
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
-from interact_support import append_carried_log_record, record_claim
+from interact_support import append_carried_log_record, record_claim, response_reference
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -2961,6 +2961,76 @@ def test_staged_widget_controls_name_the_presses_their_owners_make(browser, serv
     expect(line).to_contain_text("comment")
 
 
+def test_tab_between_two_staged_controls_turns_the_shortcut_bar_over(browser, serve):
+    """The line says the keys of the control the user stands on, including after a Tab
+    from one control to another inside one widget's shadow tree.
+
+    Such a move reaches the document as no focus event at all, so a repaint that waits
+    for one leaves the line naming the keys of the control the user left, until the
+    heartbeat or a resize repaints it. A file's title and its Reviewed button make
+    different presses, and the line names them differently."""
+    page = open_page(
+        browser,
+        serve(DIFF_PAGE.replace('<lf-diff id="patch">', '<lf-diff id="patch" review>')),
+    )
+    page.keyboard.press("Tab")  # keyboard modality, as a user reaching the title has
+    title = page.locator("lf-diff summary.lf-diff-head").first
+    title.scroll_into_view_if_needed()
+    title.focus()
+    expect(title).to_be_focused()
+    on_title = shortcut_bar_text(page)
+    assert "hide this file" in on_title, on_title
+
+    page.keyboard.press("Tab")
+    expect(page.locator("lf-diff .lf-diff-review:focus")).to_have_count(1)
+    said = shortcut_bar_text(page)
+    assert "next hunk" in said, said
+    assert "this file" not in said, said
+
+    # A control hidden under the user drops them to the body with no move of theirs, and
+    # the line stops naming the keys of a control that is no longer there.
+    page.evaluate(
+        """() => {
+          let at = document.activeElement;
+          while (at.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+          at.style.display = "none";
+        }"""
+    )
+    page.wait_for_function("() => document.activeElement === document.body")
+    said = shortcut_bar_text(page)
+    assert "next hunk" not in said, said
+
+
+def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_standing(
+    browser, serve
+):
+    """A component that makes its own shadow root, as a Web Awesome control does, moves
+    focus between its own controls with no event reaching any root focus.js listens on.
+    Where the user stands is still read once the key's task ends, so every reader of it
+    hears the move as the Tab it was."""
+    page = open_page(browser, serve(DIFF_PAGE))
+    page.evaluate(
+        """async () => {
+          const host = document.createElement("span");
+          host.id = "own-root";
+          host.attachShadow({ mode: "open" }).innerHTML =
+            "<button id=one>one</button><button id=two>two</button>";
+          document.querySelector("main").append(host);
+          const { onStanding } = await window.__lfRuntimeImport("/runtime/focus.js");
+          window.heard = [];
+          onStanding((node, cause) => window.heard.push([node?.id ?? null, cause]));
+          host.shadowRoot.getElementById("one").focus();
+        }"""
+    )
+    page.wait_for_function("() => window.heard.some(([id]) => id === 'one')")
+    page.keyboard.press("Tab")
+    page.wait_for_function(
+        "() => document.getElementById('own-root').shadowRoot.activeElement?.id === 'two'"
+    )
+    page.wait_for_function("() => window.heard.at(-1)?.[0] === 'two'")
+    assert page.evaluate("() => window.heard.at(-1)") == ["two", "step"]
+
+
 def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     """A figure can carry more than one thread. When the page's record of what it drew was
     keyed by the mark, the second comment overwrote the first, and the panel told the
@@ -3468,11 +3538,9 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
     moved = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(d),
-            "--for",
-            root["id"],
+            response_reference(d, root["id"]),
             "--section",
             "drift",
             "--quote",
@@ -3541,11 +3609,9 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     detached = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(d),
-            "--for",
-            root["id"],
+            response_reference(d, root["id"]),
             "--detach",
             "--text",
             "I removed the section; this thread no longer has a page target.",
@@ -6443,6 +6509,49 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
         "deferred app.py",
         "current": replacement,
     }
+    result = page.evaluate(
+        """async () => {
+          const {loadDeferred} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+          const manifest = document.querySelector('#patch').manifestSnapshot;
+          const original = runtime.data;
+          const failures = [];
+          try {
+            for (const change of ['contract', 'validity']) {
+              const candidate = structuredClone(original);
+              candidate.version = change;
+              if (change === 'contract')
+                candidate.sources['review-patch'].contract = 'another-contract';
+              else {
+                delete candidate.sources['review-patch'].value;
+                candidate.sources['review-patch'].error = 'source is no longer valid';
+              }
+              acceptData(candidate, runtime.state.taken);
+              try {
+                await loadDeferred(manifest, 'app.py');
+                failures.push(null);
+              } catch (error) {
+                failures.push(error.message);
+              }
+            }
+          } finally {
+            acceptData(original, runtime.state.taken);
+            await notifyDataSubscribers();
+          }
+          return {revision: manifest.revision, failures};
+        }"""
+    )
+    assert (
+        result["failures"]
+        == [
+            (
+                f"source review-patch revision {result['revision']} changed before loading "
+                "deferred app.py"
+            )
+        ]
+        * 2
+    )
 
 
 def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):

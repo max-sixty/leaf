@@ -282,7 +282,7 @@ export function worksInside(node, container) {
 }
 
 // The chrome a widget injects: a control, or the box that holds controls. Three
-// markers, one per question asked of it — `lf-ui` for the runtime's look, which
+// markers, one per question asked of it — `lf-ui` for apparatus identity, which
 // anchoring reads where no label speaks nearer; `data-lf-gen` so the diff looks away; `data-lf-offer`
 // for a thing to work, which paper drops because there is nothing there to press.
 // A widget writes none of the three by hand: they are what make an element chrome,
@@ -294,34 +294,11 @@ export function worksInside(node, container) {
 // registers its widget-specific keys. An input supplies its type here so the type and the
 // pressability marker cannot disagree. Custom controls opt in when their host exposes
 // the complete activation method that the go-to sequence can call.
-export function offer(tag, cls, label, inputType, pressable = false) {
-  const node = document.createElement(tag);
-  if (inputType !== undefined) {
-    if (tag !== "input")
-      throw new TypeError("only an input offer can declare an input type");
-    node.type = inputType;
-  }
-  presentOffer(node, cls, pressable);
-  if (label !== undefined) node.textContent = label;
-  return node;
-}
-
-function presentOffer(node, cls, pressable) {
-  if (node instanceof HTMLButtonElement && !node.hasAttribute("type"))
-    keeps(node, "type", "button");
-  keeps(node, "class", cls ? `${cls} lf-ui` : "lf-ui");
-  keeps(node, "data-lf-gen", "1");
-  keeps(
-    node,
-    "data-lf-offer",
-    pressable
-      ? node.localName
-      : node instanceof HTMLButtonElement ||
-          (node.localName === "input" && ["checkbox", "radio"].includes(node.type))
-        ? node.type
-        : "",
-  );
-}
+// Native elements also receive lf-ui-face, the default Leaf typography and ink.
+// Custom-element hosts keep their component-owned face and state styling.
+export const offer = (...args) => document.documentElement.lfInitial.offer(...args);
+export const offerElement = (...args) =>
+  document.documentElement.lfInitial.offerElement(...args);
 
 // The template form of `offer`: `<button ${offered("lf-btn")}>`. It owns the
 // element's class and generated-control markers; attributes, values and handlers
@@ -337,7 +314,7 @@ export const offered = directive(
       return nothing;
     }
     update(part, [cls, pressable = false]) {
-      presentOffer(part.element, cls, pressable);
+      offerElement(part.element, cls, pressable);
       return nothing;
     }
   },
@@ -352,7 +329,7 @@ export function selectableOffer(role, cls, label) {
   const node = document.createElement("span");
   node.setAttribute("role", role);
   node.tabIndex = 0;
-  node.className = cls ? `${cls} lf-ui` : "lf-ui";
+  node.className = cls ? `${cls} lf-ui lf-ui-face` : "lf-ui lf-ui-face";
   node.dataset.lfGen = "1";
   node.dataset.lfOffer = role;
   node.dataset.lfSelectableOffer = "";

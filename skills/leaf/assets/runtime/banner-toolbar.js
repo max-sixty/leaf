@@ -37,6 +37,7 @@ import { repaint } from "./repaint.js";
 import {
   deepFocus,
   focusDestination,
+  onStanding,
   readCaret,
   releaseFocus,
   returningFocus,
@@ -171,12 +172,13 @@ function holdOpener(node = deepFocus()) {
   };
 }
 overflowBtn.addEventListener("pointerdown", () => holdOpener());
-document.addEventListener("focusout", (event) => {
-  if (event.relatedTarget === overflowBtn) holdOpener(event.composedPath()[0]);
-});
-document.addEventListener("focusin", (event) => {
-  if (event.target !== overflowBtn && !overflowMenu.contains(event.target))
-    opener = null;
+// A key's way onto More holds the place it left. Arriving from nowhere leaves the
+// press's own reading, which saw the selection the press would go on to keep.
+onStanding((node, cause, left) => {
+  if (cause === "drop") return;
+  if (node === overflowBtn) {
+    if (left) holdOpener(left);
+  } else if (!overflowMenu.contains(node)) opener = null;
 });
 export function bannerStanding() {
   const at = deepFocus();

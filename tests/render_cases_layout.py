@@ -164,7 +164,7 @@ def arrival_findings(browser, url):
         # the former design-decision example, and buys this nothing.
         page.goto(url, wait_until="load")
         render_checks_model.wait_until_ready(page)
-    except (PlaywrightTimeout, render_checks_model.PageNotReady):
+    except PlaywrightTimeout, render_checks_model.PageNotReady:
         return [
             "[arrivals] the page never came up unarranged, so nothing could be "
             "arranged — "
@@ -179,7 +179,7 @@ def arrival_findings(browser, url):
         try:
             page.reload(wait_until="load")
             render_checks_model.wait_until_ready(page)
-        except (PlaywrightTimeout, render_checks_model.PageNotReady):
+        except PlaywrightTimeout, render_checks_model.PageNotReady:
             found.append(
                 f"[{restore_case['name']}] the page never finished coming up — "
                 + ("; ".join([*errors, *notices]) or "and no console error says why")
@@ -664,14 +664,15 @@ def geometry(page, edge):
 def draw_edge(page, edge, by):
     """Draw the region's edge `by` pixels wider, as a hand on it would.
 
-    Whole pixels, per `hold_selection`'s reason: a press on a fractional point
-    is a press the browser is free to round somewhere else. In steps, because one jump
+    Take hold at the grip's center, in whole pixels per `hold_selection`'s reason:
+    the browser may round a fractional press elsewhere. In steps, because one jump
     from press to release is a drag with no `pointermove` between its ends, and the move
     is the whole of what this gesture is made of. Wider is away from the side the region
     is held to, which is the reading the runtime makes of the same gesture.
     """
     box = page.locator(f"{edge.region} .lf-edge").bounding_box()
-    x, y = math.floor(box["x"] + box["width"] / 2), math.floor(box["y"] + 200)
+    x = math.floor(box["x"] + box["width"] / 2)
+    y = math.floor(box["y"] + box["height"] / 2)
     page.mouse.move(x, y)
     page.mouse.down()
     page.mouse.move(x + (by if edge.side == "left" else -by), y, steps=8)
@@ -843,7 +844,7 @@ def unfolded_button(control):
 
 # The banner's controls in their one ranked order: fixed secondary menu seats followed
 # by the primary row. The door itself and controls the page has taken away are omitted.
-BANNER_ORDER = """() => {
+BANNER_ORDER = r"""() => {
   const toolbar = document.querySelector('.lf-banner-actions');
   const menu = document.querySelector('.lf-banner-menu');
   const more = document.querySelector('.lf-banner-more');
@@ -851,7 +852,9 @@ BANNER_ORDER = """() => {
     .filter(control => control !== more &&
             getComputedStyle(control).display !== 'none' &&
             getComputedStyle(control).visibility !== 'hidden')
-    .map(control => (control.getAttribute('aria-label') || control.textContent).trim());
+    .map(control => (control.getAttribute('aria-label') || control.textContent).trim()
+      // The version's age ticks with the clock between two readings; the order does not.
+      .replace(/ · \S+ ago$/, ''));
 }"""
 
 

@@ -16,7 +16,7 @@
   "scripts": {
     "build:browser": "node build/browser/build.mjs",
     "check:browser": "node build/browser/build.mjs --check",
-    "test:browser": "node --test build/browser/*.test.mjs",
+    "test:browser": "node --test build/browser/*.test.mjs build/*.test.mjs",
     "test:runtime": "node --import ./tests/runtime/dom.mjs --test tests/runtime/*.test.mjs"
   },
   "devDependencies": {
@@ -44,6 +44,7 @@
     "lit": "3.3.3",
     "lit-html": "3.3.0",
     "marked": "18.0.14",
+    "photoswipe": "5.4.4",
     "sortablejs": "1.15.7",
     "typescript": "7.0.2"
   }

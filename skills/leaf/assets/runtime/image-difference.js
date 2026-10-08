@@ -31,9 +31,9 @@
  * blocks, the way a reader groups it. An edge is where a pixel is unlike its neighbour;
  * a straight run of one colour along an edge at least LINE long is a line (a border, a
  * rule, a bar's side), and the other edges are marks (text, icons). In CELL squares,
- * anything joins what it touches, and marks join the marks beside them, in a row or a
- * column, across a gap no wider than SPACING times the shorter one's height. So a word,
- * a paragraph, a control, or a chart on its axes reads as one block whatever the
+ * anything joins what it touches, and components without lines join across whitespace
+ * in a row or a column, across a gap no wider than SPACING times the shorter one's
+ * height. So a word, a paragraph, a control, or a chart on its axes reads as one block whatever the
  * capture's pixel density, while a frame's padding keeps the frame apart from what it
  * holds. A block of lines alone is a frame: a card's border, a filled panel's edge, a
  * rule.
@@ -312,12 +312,14 @@ function blocksOf(image, pixels, columns) {
   const count = ownColumns * rows;
   const boxes = new Int32Array(count * 4).fill(-1);
   const marked = new Uint8Array(count);
+  const lined = new Uint8Array(count);
   for (let y = 0; y < height; y += 1)
     for (let x = 0; x < width; x += 1) {
       const i = y * width + x;
       if (!acrossRows[i] && !acrossColumns[i]) continue;
       const cell = Math.floor(y / CELL) * ownColumns + Math.floor(x / CELL);
       if (!line[i]) marked[cell] = 1;
+      else lined[cell] = 1;
       const k = cell * 4;
       if (boxes[k] < 0) {
         boxes[k] = boxes[k + 2] = x;
@@ -356,7 +358,10 @@ function blocksOf(image, pixels, columns) {
         )
           join(cell, near);
     }
-  // Then marks join the marks beside them, in a row or a column, across a gap no wider
+  // Only components without structural lines join across whitespace. A rounded
+  // frame's corners are marks too; letting those make it a text candidate joins the
+  // entire frame to neighbouring paragraphs and controls.
+  // Marks join the marks beside them, in a row or a column, across a gap no wider
   // than SPACING times the shorter one's height: the space between words, or between the
   // lines of a paragraph, scales with the text, whatever the capture's pixel density.
   const pieces = new Map();
@@ -373,6 +378,7 @@ function blocksOf(image, pixels, columns) {
         right: boxes[k + 2],
         bottom: boxes[k + 3],
         marked: !!marked[cell],
+        lined: !!lined[cell],
       });
     else {
       piece.left = Math.min(piece.left, boxes[k]);
@@ -380,10 +386,11 @@ function blocksOf(image, pixels, columns) {
       piece.right = Math.max(piece.right, boxes[k + 2]);
       piece.bottom = Math.max(piece.bottom, boxes[k + 3]);
       piece.marked ||= !!marked[cell];
+      piece.lined ||= !!lined[cell];
     }
   }
   const marks = [...pieces.values()]
-    .filter((piece) => piece.marked)
+    .filter((piece) => piece.marked && !piece.lined)
     .sort((p, q) => p.top - q.top);
   for (const [i, p] of marks.entries()) {
     const height = p.bottom - p.top + 1;

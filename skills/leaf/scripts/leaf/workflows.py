@@ -15,13 +15,13 @@ an owed move holds the agent's turn is `activity.turn_obligations`'s to say.
 Answers are one of:
 
 - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread input, or a
-  move in an answered Ask in frozen thread markup, answered by `leaf thread reply --for`;
-- `{"kind": "turn", "to", "for", "attempt": <reply attempt>}` — the same reply
-  once it is bound to the claimant's App Server turn, which writes it with its own
-  opening and final messages. The binding lives in the page's stream status, so
-  `activity` routes the answer while the binding stands
-  (`activity.reply_binding_stands`), and a delivery frozen for App Server routes it
-  ahead of the binding; `leaf thread reply` refuses every writer but that attempt;
+  move in an answered Ask in frozen thread markup, answered through its exact delivery reference by `leaf response reply`;
+  Final-message custody is independent of the operation: `activity` adds
+  `writer: "turn"` and its attempt while the provider's reply binding stands.
+  Delivery captures the same writer policy ahead of that binding, and emits an
+  exact response reference. Direct commands and provider finals resolve that
+  reference through the same rich reply writer; only the bound attempt may
+  commit while its provider owns the final.
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
   widget's answered Ask and the authored markup does not yet record, answered by
   a stamped version that writes it in.
@@ -36,7 +36,7 @@ in: on the page, until the markup records it or a later version supersedes it
 (`page_action_unsettled`); in frozen thread markup, which no version rewrites,
 until the agent's next spoken turn in that thread or a resolution after it.
 Delivery is separate from workflows. Admission records whether a user's move
-changes outstanding Asks, pending answers, work in hand or approval; carriers keep
+changes outstanding Asks, pending answers, work in hand or approval; delivery keeps
 that decision even after these workflows settle.
 
 A user move on a widget whose own Ask the user has not finished answering — a

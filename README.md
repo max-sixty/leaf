@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/1f8120341ec78443b68daf272186dfaa54e00637/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/1f8120341ec78443b68daf272186dfaa54e00637/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/4f837a0fbf7b4f4e4cffbb7b86293b8f0877c8b6/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/4f837a0fbf7b4f4e4cffbb7b86293b8f0877c8b6/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/1f8120341ec78443b68daf272186dfaa54e00637/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/4f837a0fbf7b4f4e4cffbb7b86293b8f0877c8b6/demo/demo.gif)
 
 </details>
 
@@ -29,25 +29,27 @@ You need [`uv`](https://docs.astral.sh/uv/),
 [`jq`](https://jqlang.github.io/jq/download/) 1.6 or newer on `PATH`, and a
 browser that can reach the machine the agent runs on. No Leaf account or
 configuration is required.
+Leaf ships a prepared browser runtime. Users and package authors never need to
+build Leaf or run npm; custom widgets are ordinary browser JavaScript.
 
 Claude Code:
 
 ```
-/plugin marketplace add max-sixty/leaf
+/plugin marketplace add max-sixty/leaf#prepared
 /plugin install leaf@leaf
 ```
 
 Codex:
 
 ```
-codex plugin marketplace add max-sixty/leaf
+codex plugin marketplace add max-sixty/leaf --ref prepared
 codex plugin add leaf@leaf
 ```
 
 Pi (a highly experimental trial, which the rest of these docs don't cover yet):
 
 ```
-pi install git:github.com/max-sixty/leaf
+pi install git:github.com/max-sixty/leaf@prepared
 ```
 
 Then ask: “Use Leaf to write up the options for this change.” The explicit skill is

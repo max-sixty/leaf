@@ -8,16 +8,22 @@ import pytest
 import tinycss2
 from interact_support import PAGE
 from leaf import revisioning as revisioning_model
-from leaf.exporting import AssetInliner
+from leaf.exporting import AssetInliner, ReadableAssets
 from leaf.files import revision_path
 from leaf.http import scope_page_urls
-from leaf.revision_artifact import ArtifactError, Resource, capture_artifact
+from leaf.revision_artifact import (
+    ArtifactError,
+    Resource,
+    capture_artifact,
+    capture_local_resource,
+)
 from leaf.revision_delivery import (
     Delivery,
     DeliveryAddress,
     compose_document,
     deliver_resource,
     json_script,
+    mark_declared,
     media_size,
     rebase_document,
 )
@@ -26,6 +32,174 @@ from leaf.structure import SourceDocument
 PAGE_ROOT = "/p/user"
 ROOT = PAGE_ROOT + "/revisions/r1-0123456789abcdef"
 ADDRESS = DeliveryAddress(PAGE_ROOT, ROOT)
+
+
+@pytest.mark.parametrize(
+    "inliner_type,depth", [(AssetInliner, 1200), (ReadableAssets, 3)]
+)
+def test_export_walks_css_imports_without_recursion_and_retains_their_meaning(
+    inliner_type, depth
+):
+    """Object-URL graphs can exceed Python's stack; readable data URLs are nested.
+
+    Both walks retain namespaces and import conditions, suppress only the cyclic
+    edge, and read shared resources once. The data-URL case stays shallow because
+    each parent base64-encodes its child, expanding the result with every level.
+    """
+    import base64
+    from collections import Counter
+
+    resources = {
+        f"/page/{index}.css": Resource(
+            (
+                f'@import "./{(index + 1) % depth}.css" '
+                "layer(order) supports(display: grid) screen;\n"
+                '@namespace svg "http://www.w3.org/2000/svg";\n'
+                f".sheet-{index} {{ color: red; background-image: url('./badge.svg#mark'); }}"
+            ).encode(),
+            "text/css",
+        )
+        for index in range(depth)
+    }
+    resources["/page/badge.svg"] = Resource(b"<svg/>", "image/svg+xml")
+    reads = Counter()
+
+    def read(path):
+        reads[path] += 1
+        return resources[path]
+
+    inliner = inliner_type(read)
+    css = inliner.stylesheet("/page/0.css")
+    for index in range(depth):
+        assert f".sheet-{index}" in css
+        assert "layer(order) supports(display: grid) screen;" in css
+        assert '@namespace svg "http://www.w3.org/2000/svg";' in css
+        assert "color: red;" in css
+        if inliner_type is AssetInliner:
+            assert "#mark" in css
+        else:
+            assert "background-image" not in css
+        imported = next(
+            rule
+            for rule in tinycss2.parse_stylesheet(css)
+            if rule.type == "at-rule" and rule.lower_at_keyword == "import"
+        )
+        address = next(
+            token.value for token in imported.prelude if token.type == "string"
+        )
+        css = (
+            inliner.embedded[address].data.decode()
+            if inliner_type is AssetInliner
+            else base64.b64decode(address.partition(",")[2]).decode()
+        )
+    assert css == ""
+    assert reads == Counter({path: 1 for path in resources})
+
+
+def test_initial_producers_are_captured_once_and_called_after_each_complete_host():
+    source = (
+        "<html><head><title>Initial</title></head><body><main>"
+        '<lf-early id="first"><p>First</p></lf-early>'
+        '<lf-early id="second"><p>Second</p></lf-early>'
+        "<template><lf-unused></lf-unused></template>"
+        "</main></body></html>"
+    )
+    registry = {
+        "lf-early": {"x-initial": "/vendor/early.js"},
+        "lf-unused": {"x-initial": "/vendor/unused.js"},
+    }
+    resources = {
+        "/runtime/prepaint.js": Resource(
+            b"window.prepaint = true;", "application/javascript"
+        ),
+        "/vendor/early.js": Resource(
+            b'window.initial = "</script>";', "application/javascript"
+        ),
+        "/runtime/annotation-overlay/annotation-theme.css": Resource(b"", "text/css"),
+        "/runtime/chrome.css": Resource(b"", "text/css"),
+        "/runtime/marks.css": Resource(b"", "text/css"),
+        "/runtime/annotation-overlay/annotation-chrome.css": Resource(b"", "text/css"),
+        "/runtime/annotation-overlay/annotation-marks.css": Resource(b"", "text/css"),
+    }
+    delivered = compose_document(
+        source,
+        1,
+        None,
+        executable=None,
+        widgets={},
+        resources=resources,
+        registry=registry,
+        delivery=Delivery(
+            address=ADDRESS,
+            runtime="<script data-lf-runtime>window.boot = true;</script>",
+        ),
+    )
+    parsed = SourceDocument(delivered.removeprefix("\ufeff"))
+    scripts = parsed.tree.find_all("script")
+    calls = [script for script in scripts if "lfInitial.mount" in script.text]
+    assert len(calls) == 2
+    assert [script.previous_sibling.tag for script in calls] == ["lf-early", "lf-early"]
+    assert delivered.count("data-lf-initial-source") == 2
+    assert delivered.count('window.initial = "<\\/script>";') == 1
+    assert (
+        delivered.index("window.prepaint")
+        < delivered.index("window.initial")
+        < delivered.index("window.boot")
+    )
+    assert mark_declared(source, registry, resources) == source
+
+
+def test_capture_refuses_a_declared_initial_producer_that_is_absent(tmp_path):
+    with pytest.raises(
+        ArtifactError, match=r"/page/early\.js: cannot capture dependency"
+    ):
+        capture_artifact(
+            tmp_path,
+            SourceDocument(PAGE),
+            {"lf-early": {"x-initial": "/page/early.js"}},
+        )
+
+
+def test_capture_follows_deep_and_cyclic_dependencies_once(tmp_path):
+    """A complete authored graph does not depend on Python's recursion limit."""
+    directory = tmp_path / "page"
+    directory.mkdir()
+    depth = 1200
+    for index in range(depth):
+        target = index + 1 if index + 1 < depth else 0
+        (directory / f"{index}.js").write_text(
+            f'import "./{target}.js"; import "./shared.js";', encoding="utf-8"
+        )
+    (directory / "shared.js").write_text("export const shared = true;")
+    (directory / "first.css").write_text('@import "./second.css";')
+    (directory / "second.css").write_text('@import "./first.css";')
+    source = PAGE.replace(
+        "</head>",
+        '<script type="module" src="/page/0.js"></script>'
+        '<link rel="stylesheet" href="/page/first.css"></head>',
+    )
+    reads = []
+
+    def read_resource(path):
+        reads.append(path)
+        return capture_local_resource(tmp_path, path)
+
+    artifact = capture_artifact(
+        tmp_path, SourceDocument(source), {}, read_resource=read_resource
+    )
+
+    expected = {f"/page/{index}.js" for index in range(depth)} | {
+        "/page/shared.js",
+        "/page/first.css",
+        "/page/second.css",
+    }
+    assert set(reads) == expected
+    assert len(reads) == len(expected)
+    assert artifact.resources[f"/page/{depth - 1}.js"].dependencies == (
+        "/page/0.js",
+        "/page/shared.js",
+    )
+    assert artifact.resources["/page/second.css"].dependencies == ("/page/first.css",)
 
 
 def test_document_rewrites_only_resource_references_with_exact_source_spans():

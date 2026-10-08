@@ -15,7 +15,7 @@ from leaf.state import EVENTS_FILE, flocked, now_iso
 
 
 def read_cursor(page_dir: Path) -> int:
-    """The seq the agent's carrier has confirmed through; 0 before any.
+    """The seq whose receipt is confirmed through; 0 before any.
 
     A cursor is a position in this log, so one past its end belongs to a log that
     is gone — what `page init` on a directory whose log was moved or renamed away
@@ -185,7 +185,7 @@ def _parse_events(data: bytes, before: int = 0) -> list[dict]:
             continue
         try:
             event = json.loads(line.decode("utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError):
+        except json.JSONDecodeError, UnicodeDecodeError:
             # The final line is a concurrent append mid-flush, complete on the
             # next read. An earlier one is the tear a crash left, standing alone
             # because append_event repairs the discipline before writing: that

@@ -26,6 +26,10 @@ has tried; settle that before building it.
 
 ### User experience
 
+- **#25 — Answer one decision beside its evidence and on a board.** A section's
+  picker and its board card currently record independent facts. Choose the owner
+  and test both views against one decision, including ordering, write-ins and
+  revision retraction ([design](notes/shared-decisions.md)).
 - **Make complete reading journeys feel coherent.** Audit a document, workspace,
   board or table, and populated thread in light and dark at wide and narrow
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
@@ -69,6 +73,16 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
+- **Consider a reminder when revising decided content.** An optional `--force`
+  acknowledgment could make an agent pause over an existing decision. Revisions
+  currently remain unrestricted; decide whether such a reminder helps before
+  adding one.
+
+- **#3 — Prevent an obsolete execution from closing continued work.** A later
+  `task start` records a new execution, but admission still accepts an older
+  session's `task_end`. Test competing continuations and keep the delayed result
+  from closing the newer work ([comparison proposal](notes/comparisons.md#concrete-follow-up-proposals-2026-10-04-revised-2026-10-05)).
+
 - **Compare Leaf authoring with plain HTML (#19).** The
   [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
   now covers the live loop, a mixed batch, an elided thread, an unfamiliar package and a
@@ -81,14 +95,26 @@ has tried; settle that before building it.
   multi-step work, and delegation. Show the plan as well as the current step;
   check that the hosted website agent's status is readable without delaying its
   reply. Keep delegated work visible while its watcher is live.
-- **#24 — Measure the fresh-reader review across pages.** The catalog's
+- **#24 — Measure time to an initial reviewable page and the value of review.**
+  Measure from the user's request to the first browser-reachable page handed over
+  for review. Separate preparation and reference reads, authoring, markup and
+  render checks, the author's navigation task, independent reading, revisions,
+  and serving and handoff. Record wall time, agent and tool cost, defects caught,
+  and whether the author acts on findings; distinguish quick drafts from finished
+  records and first handoff from later revisions. Compare the current scaffold and
+  Layout examples with optional, editable compositions that make navigation and
+  supporting material easy to place. Keep a composition only where it saves time
+  or prevents defects while still letting agents change the layout or create their
+  own; measure the cost of departing from it as well as starting from it.
+  Run the study with actual page, registry, editing, and rendering tools so the
+  measured handoff is a usable page rather than an HTML-only proposal.
+  The catalog's
   `dashboard/reader-seeded` and `dashboard/reader-clean` contexts show the screenshot
   judge one triage board each, with a seeded count defect or the correct count, and
   ask both whether the count matches the cards. That narrow calibration scores count
   detection and false alarms separately from other page defects; it does not
-  establish overall page acceptance. Measure
-  whether authors invoke the review, its cost and what it catches across actual
-  pages. Author delegation traces and independent judge cost are separate evidence.
+  establish overall page acceptance. Author delegation traces and independent
+  judge cost are separate evidence.
 
 ### Prose
 
@@ -102,6 +128,18 @@ has tried; settle that before building it.
 
 ### User continuity and mobile access
 
+- **Decide when a page merits a separate phone composition.** Many pages are
+  ephemeral and authored for a user reading on a large screen, so a bespoke phone
+  animation may not repay its cost. Decide how the agent weighs the user's viewing
+  context, expected reuse, and a readable fallback against that work. Distinguish
+  those pages from maintained public examples such as `wt-merge`, where a phone
+  design can be worth exploring.
+- **Improve maintained examples through a phone-quality queue.** Keep desktop
+  as the priority and address phone composition in a dedicated stream. Start with
+  `triage-board`: at 390px only one bucket is meaningfully visible, while other
+  buckets scroll horizontally and the release rationale sits below the board.
+  Keep comparison context available during a move, preserving direct destination
+  controls and undo.
 - **Consider automatic Leaf recovery on resume.** Reuse the reconnect notice's
   eligibility checks to restore serving, ownership, and feedback delivery, while
   respecting explicit stops and transfers to another session.
@@ -219,13 +257,6 @@ Boxes that still move without input, which the "Stability" rule in
 `skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Draw the playground at its final size from first paint.** `lf-playground`,
-  `lf-playground-control`, `-output`, `-preview` and `-value` are `keeps-first-box`
-  findings: the module builds each control's inputs and the words of the instruction it
-  copies after first paint. Put each control's initial value and text in the authored markup, so
-  the module fills in what is there rather than adding it. Check first how values a
-  viewer restores from the tab's storage change the size, since markup carries only
-  the authored defaults.
 - **Size the activity feed and text documents at first paint.** `lf-activity` draws the
   log's history and `lf-text-document` its bound source's value, and both arrive with
   the first state answer, after first paint. Serving that state inside the page does
@@ -241,11 +272,9 @@ that changes size after first paint, with its cause.
   it measures at that point. A held summary does not answer that cause. Check first whether a
   container or media query on the space beside the column can make the same decision
   in CSS.
-- **Find a first-paint fix for the gallery's margin entry and for targeting.**
-  `lf-margin-entry-gallery` wraps words whose height follows the viewer's fonts (22px
-  to 45px taller on CI's Linux than on macOS), so no height its examples state holds
-  everywhere. `lf-targeting` has no recorded cause; read `lf-targeting.js` for what it
-  builds after first paint before choosing an approach.
+- **Find a first-paint fix for targeting.** `lf-targeting` has no recorded cause;
+  read `lf-targeting.js` for what it builds after first paint before choosing an
+  approach.
 - **Check that margin markers paint in place in their first frame.** The shift watch
   exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
@@ -369,6 +398,11 @@ in the integration.
   in `notes/user-feedback-responsiveness.md`. Uploading a CI artifact needs no extra
   token but keeps 90 days; a file in `max-sixty/leaf-assets` keeps history but needs
   a token that can push there.
+- **Decide whether `leaf-dev` should draw charts.** `leaf-dev journey-chart` prints
+  an `lf-chart` of the kept journey samples, so a reading needs no numbers copied
+  into a page by hand. It is an experiment: the alternative is for the command to
+  print the samples' rows and leave the chart to the agent writing the page. Keep it
+  if it gets used for later readings; otherwise reduce it to the rows.
 - **Consider bundling the browser runtime.** A navigation loads about 220 JS modules
   over HTTP/1.1's six connections. A prototype bundling `leaf.js` with esbuild cut a
   widgetless page from 217 requests to 38 and its open from 332–483 ms to 238–258 ms,
@@ -514,8 +548,9 @@ Revisit these when their stated trigger becomes real; they are not an active que
   state before answering. Measure that cost before expanding tool observation;
   a compiled hook path is a further step if import cleanup is insufficient.
 - **Invoker commands:** revisit when the browser support Leaf needs can replace
-  the current dialog and popover handlers. See the
-  [dependency survey](notes/dependency-survey.md).
+  the current dialog and popover handlers. At a Chromium floor of at least 135,
+  test `command` and `commandfor`; Leaf still owns layer ordering, semantic state
+  and focus restoration.
 - **MCP Apps:** rebuild inline hosting as the direct-resource design when a host
   the user runs renders MCP Apps. See [notes/mcp-apps/PROJECT.md](notes/mcp-apps/PROJECT.md).
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.

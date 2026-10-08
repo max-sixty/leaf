@@ -90,12 +90,26 @@ registry's `$keys` entry for `x-visual` states the contract.
 ## Source files and media
 
 Use `lf-text-document` when literal UTF-8 text should remain selectable and commentable
-without copying it into the authored HTML. Use a unified-patch capture with
+without copying it into the authored HTML. Set `preview="markdown"` or
+`preview="html"` to give the document Preview and Source tabs over that same
+text. Markdown uses Leaf’s message dialect; raw HTML remains literal text.
+HTML previews render HTML, CSS, and scripts in an opaque-origin sandbox,
+keeping their styles inside the preview and denying access to Leaf’s document.
+The HTML provider owns its typography, spacing, and responsive CSS; the frame
+inherits no Leaf styles. Both readings occupy the same scrollable viewport, so
+switching keeps the surrounding page still. Set `--lf-bound` on the widget to
+size that viewport; it defaults to `28rem`. Each reading keeps its own scroll place.
+Markdown previews and source text can receive passage comments;
+HTML frame contents are inspected inside their own document, so comment on the
+source or the surrounding widget. `language` optionally overrides source syntax
+coloring. Other previews, such as a diagram, image, or live sample, can share an ordinary `lf-tabs` set
+with the source widget. Switching views is local reading state; it records no
+decision. Use a unified-patch capture with
 `lf-diff`; the diff keeps its per-file view
 and gives each source line a stable comment coordinate. `lf-diff` and the
 `unified-diff` contract travel in the `diff` package: initialize such a page with
 `leaf page init --package diff <page>`. First add a data binding so Leaf can give the
-source its page-lifetime contract:
+source its current contract:
 
 ```html
 <lf-text-document id="skill-source" source="leaf-skill" label="SKILL.md" language="markdown"></lf-text-document>
@@ -130,9 +144,21 @@ element, supplies its text. Add `collapsed` to a large diff so each file starts 
 a comment or navigation target still opens the file that owns its line.
 
 Run `leaf page media <page> <file>…` and use each printed `/media/…` `path` for
-images, video, and audio. Never inline media bytes. Use a recording for a fixed
+images, video, and audio. Never inline media bytes. Offer image inspection by
+linking the image to its own media URL: `<a href="/media/…"><img
+src="/media/…" alt="…"></a>`. A click or Enter opens Image preview, where the reader
+can zoom to actual size, pan, and return to the page. A figure's caption stays visible
+there; Original opens the file separately. Links to another destination retain that
+destination.
+
+Use a recording for a fixed
 demo or screen capture; keep a live widget where the user should manipulate the
-subject. Give native `<video>` and `<audio>` elements `controls`, label their
+subject. Show a browser journey recorded with Playwright as its trace in `lf-trace`
+rather than as its video, so the user can step through each recorded action and
+comment on its screenshots and saved page elements. `lf-trace` travels in the `playwright` package; after
+`leaf page init --package playwright <page>`,
+`leaf page instructions <page> producer --contract playwright-trace` gives the
+import command. Give native `<video>` and `<audio>` elements `controls`, label their
 content, and give a video a `poster` image. MP4 and WebM video, and MP3, M4A,
 Ogg, and WAV audio are admitted; codec playback is the browser's. Export embeds
 the complete recording for offline playback with no size cap or omissions: base64

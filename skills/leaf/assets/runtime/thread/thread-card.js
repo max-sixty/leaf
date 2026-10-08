@@ -203,7 +203,11 @@ function navigationSummary(model, control) {
       ${
         status
           ? html`<span
-              class="lf-thread-status"
+              class=${
+                control && model.news
+                  ? "lf-thread-status lf-thread-notice lf-thread-notice-news"
+                  : "lf-thread-status"
+              }
               data-lf-settlement=${control ? "" : nothing}
               data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
               data-lf-folded=${model.statusFolded ? "" : nothing}
@@ -219,7 +223,7 @@ function navigationSummary(model, control) {
       ${
         model.unreadCount
           ? html`<span
-              class="lf-thread-unread"
+              class="lf-thread-notice lf-thread-unread"
               data-lf-folded
               aria-label=${`${model.unreadCount} unread`}
               >${model.unreadCount} unread</span
@@ -361,11 +365,8 @@ export class ThreadView {
       this.repaint();
     });
     if (surface === "panel") {
-      // Pointer focus waits for the click's landing; other title focus chooses now.
-      this.node.addEventListener("focusin", (event) => {
-        if (event.target.matches?.(".lf-thread-summary:not(:active)"))
-          this.#commands.choose();
-      });
+      // A press on the title chooses at its click, which lands it; focus arriving on the
+      // title any other way chooses at once (thread-list-view.js).
       this.node.addEventListener("click", (event) => {
         if (event.target.closest(".lf-thread-summary")?.parentElement !== this.node)
           return;
@@ -759,10 +760,17 @@ export class ThreadView {
               >
                 ${
                   model.news?.reopened
-                    ? model.news.label
+                    ? html`<span class="lf-thread-notice lf-thread-notice-news"
+                        >${model.news.label}</span
+                      >`
                     : html`Resolved · ${model.messages.length}
                       message${model.messages.length === 1 ? "" : "s"}${
-                        model.news ? ` · ${model.news.label}` : ""
+                        model.news
+                          ? html` ·
+                              <span class="lf-thread-notice lf-thread-notice-news"
+                                >${model.news.label}</span
+                              >`
+                          : nothing
                       }`
                 }
               </summary>`

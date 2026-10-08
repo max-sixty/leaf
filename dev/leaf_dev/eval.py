@@ -1,14 +1,20 @@
 """Run the eval catalog through Promptfoo on Claude Code and Codex.
 
 This command does only what Promptfoo cannot: it builds each Leaf arm (the working
-tree, and with `--base` a ref), gives each provider a home of its own holding just the
+tree, and with `--base` a ref), gives each provider a home of its own seeded with the
 harness's login, and expands the catalog's task/context addresses into Promptfoo tests.
+Native probes install the complete arm as a plugin and read it in fresh sessions;
+Codex shares one server per provider home while starting fresh ephemeral, read-only
+threads for each test.
 Promptfoo owns the rest: repetition, concurrency, assertions, the console table, and
 the result database its viewer reads. Arguments after the cases go to `promptfoo eval`.
 
-A provider is one column of the results: a harness on one arm (`cc/candidate`), suffixed
-`/workflow` for the Python provider that runs complete tasks, and on arm `html` for
-the plain HTML control. A test is one catalog address under one condition.
+A provider is one column of the results: a harness on one arm (`claude-code/candidate`),
+suffixed `/workflow` for the Python provider that runs complete tasks, and on arm `html`
+for the plain HTML control. A workflow column names the Leaf transport its harness
+session takes where the harness has more than one (`codex:app-server/base/workflow`),
+since a workflow scores only that transport. A test is one catalog address under one
+condition.
 """
 
 import fnmatch
@@ -25,22 +31,33 @@ from pathlib import Path
 
 import click
 import yaml
+from leaf.harness import ClaudeCodeHarness
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
+    HARNESSES,
     MODELS,
+    TURN_LIMIT,
+    WORKFLOW_LIMIT,
     base_ref,
     build_arm,
+    child_class,
     claude_child,
     codex_home,
     environment,
 )
 from leaf_dev.leaf_assets import pinned_copy
 
-HARNESSES = ("cc", "codex")
 PROMPTFOO = ROOT / "evals/node_modules/.bin/promptfoo"
 RUNS = ROOT / ".tmp/eval"
 SKILL_PREFIX = "Use the Leaf skill ($leaf in Codex; leaf:leaf in Claude Code).\n\n"
+
+
+def codex_program() -> Path:
+    """Resolve the host CLI used by Codex providers and plugin installation."""
+    if (installed := shutil.which("codex")) is None:
+        raise click.ClickException("Codex evals require the Codex CLI; install it")
+    return Path(installed).resolve()
 
 
 def context_case(source: dict, address: str) -> dict:
@@ -85,18 +102,16 @@ def select_cases(globs: tuple[str, ...]) -> list[str]:
 
 
 def native_provider(harness: str, payload: Path, work: Path) -> dict:
-    """A native agent provider that can read the arm's skill and nothing else of ours."""
-    if harness == "cc":
+    """A read-only native agent with the arm installed as its complete plugin."""
+    if harness == ClaudeCodeHarness.name:
         child = claude_child(work)
         return {
             "id": "anthropic:claude-agent-sdk",
             "config": {
-                "model": MODELS["cc"],
+                "model": MODELS[ClaudeCodeHarness.name],
                 "apiKeyRequired": False,
                 "working_dir": str(work),
                 "persist_session": False,
-                "setting_sources": [],
-                "strict_mcp_config": True,
                 "plugins": [{"type": "local", "path": str(payload)}],
                 "additional_directories": [str(payload)],
                 "tools": ["Skill", "Read"],
@@ -121,28 +136,48 @@ def native_provider(harness: str, payload: Path, work: Path) -> dict:
     home = work.with_name(f"{work.name}-home")
     home.mkdir(mode=0o700)
     config_home = codex_home(home / ".codex")
-    (config_home / "skills").mkdir()
-    (config_home / "skills" / "leaf").symlink_to(payload / "skills" / "leaf")
+    codex = codex_program()
+    cli_env = {
+        "HOME": str(home),
+        "CODEX_HOME": str(config_home),
+        "XDG_STATE_HOME": str(home / ".local/state"),
+    }
+    # The installer and provider use the same CLI. Installing the complete
+    # plugin preserves discovery and skill references relative to the plugin root.
+    for args in (
+        ("plugin", "marketplace", "add", str(payload), "--json"),
+        ("plugin", "add", "leaf@leaf", "--json"),
+    ):
+        installed = subprocess.run(
+            [str(codex), *args],
+            cwd=work,
+            env=environment(**cli_env),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if installed.returncode:
+            raise click.ClickException(
+                f"Codex plugin installation failed:\n{installed.stdout}{installed.stderr}"
+            )
     return {
         "id": "openai:codex-app-server",
         "config": {
             "model": MODELS["codex"],
+            "codex_path_override": str(codex),
             "model_reasoning_effort": "medium",
             "working_dir": str(work),
             "skip_git_repo_check": True,
-            "sandbox_mode": "read-only",
-            "approval_policy": "never",
-            "persist_threads": False,
-            "ephemeral": True,
-            "reuse_server": False,
-            "turn_timeout_ms": 300000,
-            "cli_env": {
-                "HOME": str(home),
-                "CODEX_HOME": str(config_home),
-                "XDG_STATE_HOME": str(home / ".local/state"),
-            },
+            "turn_timeout_ms": TURN_LIMIT * 1000,
+            "cli_env": cli_env,
         },
     }
+
+
+def workflow_harness(harness: str) -> str:
+    """The harness as a workflow column names it, with its session's transport."""
+    transport = child_class(harness).transport
+    return harness if transport is None else f"{harness}:{transport}"
 
 
 def workflow_provider(
@@ -164,7 +199,7 @@ def workflow_provider(
             "samples": str(samples),
             "screenshots": str(screenshots),
             "pythonExecutable": sys.executable,
-            "timeout": 1800000,
+            "timeout": WORKFLOW_LIMIT * 1000,
         },
     }
 
@@ -179,9 +214,7 @@ def screenshot_judge(screenshots: Path, home: Path) -> dict:
     itself, so the profile also grants the executable, run by its resolved path: a
     symlink's own location is refused. A profile replaces Codex's older sandbox
     settings, so the provider sets no `sandbox_mode`."""
-    if (installed := shutil.which("codex")) is None:
-        raise click.ClickException("The screenshot judge runs on Codex; install it")
-    codex = Path(installed).resolve()
+    codex = codex_program()
     home.mkdir(mode=0o700, parents=True)
     profile = "\n".join(
         [
@@ -228,6 +261,7 @@ def prepare(
         test = definitions[address]
         metadata = test.get("metadata", {})
         executor = metadata.get("executor")
+        instructions = metadata.get("instructions")
         for condition in conditions:
             if condition not in metadata.get("conditions", ["leaf"]):
                 continue
@@ -237,7 +271,12 @@ def prepare(
                 if harness not in metadata.get("harnesses", HARNESSES):
                     continue
                 for arm, payload in columns.items():
-                    label = f"{harness}/{arm}" + ("/workflow" if executor else "")
+                    label = (
+                        f"{workflow_harness(harness)}/{arm}/workflow"
+                        if executor
+                        else f"{harness}/{arm}"
+                        + ("/instructions" if instructions else "")
+                    )
                     if label not in providers:
                         if executor:
                             configured = workflow_provider(
@@ -247,6 +286,17 @@ def prepare(
                             work = scratch / "work" / label
                             work.mkdir(parents=True)
                             configured = native_provider(harness, payload, work)
+                            if instructions:
+                                field = (
+                                    "append_system_prompt"
+                                    if harness == ClaudeCodeHarness.name
+                                    else "developer_instructions"
+                                )
+                                source = payload / instructions
+                                configured["config"][field] = (
+                                    f"Instructions from {source}:\n\n"
+                                    + source.read_text()
+                                )
                         providers[label] = {**configured, "label": label}
                     labels.append(label)
             if not labels:
@@ -265,9 +315,8 @@ def prepare(
                     *(
                         {
                             "type": "javascript",
-                            "value": "file://scenario-check.cjs",
+                            "value": f"context.providerResponse.metadata?.checks?.[{json.dumps(check)}] === true",
                             "metric": check,
-                            "config": {"check": check},
                         }
                         for check in checks
                     ),
@@ -278,7 +327,8 @@ def prepare(
             else:
                 sample["vars"] = {
                     **sample["vars"],
-                    "prompt": SKILL_PREFIX + sample["vars"]["prompt"],
+                    "prompt": ("" if instructions else SKILL_PREFIX)
+                    + sample["vars"]["prompt"],
                 }
                 images = pinned_copy(ROOT / "evals" / task)
                 if images is not None and images.is_dir():
@@ -321,7 +371,6 @@ def prepare(
                     "config": {
                         "model": MODELS["judge"],
                         "apiKeyRequired": False,
-                        "setting_sources": [],
                         "persist_session": False,
                     },
                 }

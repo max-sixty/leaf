@@ -6053,8 +6053,8 @@ def _hold_required_thread_panel(page):
         __lfRuntimeImport('/runtime/thread/state.js'),
         __lfRuntimeImport('/runtime/application.js')]);
       const elements=createThreadPanelElements();
-      elements.panel.style.cssText='position:fixed;left:8px;top:160px;width:400px;height:400px';
-      document.body.append(elements.panel);elements.panel.show();
+      elements.panel.style.cssText='position:relative;inset:auto;width:400px;height:400px;margin:0';
+      document.body.append(elements.panel);elements.panel.classList.add('open');
       const controller=createThreadListController(elements);
       const original=controller.renderThreads.bind(controller);
       controller.renderThreads=async(...args)=>{

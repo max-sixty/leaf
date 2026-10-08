@@ -1532,9 +1532,8 @@ def titling_app_server(app_server, answer: str) -> tuple[str, list[dict]]:
 
 
 def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_server):
-    """A turn over App Server writes its reply with its own messages, so it has no
-    `--title` to name the thread with; the App Server client names it from the opening message
-    and the passage it is on, and the delivery does not ask the turn to."""
+    """The App Server client gives an unnamed thread its first title from the
+    opening message and passage."""
     comment = append_carried_log_record(
         page_dir,
         {
@@ -1551,7 +1550,6 @@ def test_an_app_server_turn_names_the_untitled_thread_it_answers(page_dir, app_s
     [batch] = prepared.payload["batches"]
     [delivered] = batch["events"]
     assert delivered["answer"]["writer"] == "turn"
-    assert not any("title" in text for text in batch["handling"].values())
 
     endpoint, received = titling_app_server(app_server, '{"title": "Export speed"}')
     records = []
@@ -6594,8 +6592,8 @@ def test_first_delivery_carries_thread_title_without_repeating_messages(
 
 
 def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir, sessionless):
-    """The page and each event's sequence identify retries for any consumer of a
-    wait that prints its delivery."""
+    """Repeated waits retain every input fact until receipt. Each delivery qualifies
+    its own reply address; either address reaches the same input without a second answer."""
     serving(page_dir, 1)
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
@@ -6620,8 +6618,14 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir, sessi
     retry = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert retry.exit_code == 0, retry.output
     retry_payload, retry_batch, _ = printed(retry.output)
-    assert retry_batch == header
+    retry_ref = retry_batch["events"][0]["answer"]["ref"]
+    first_ref = event["answer"]["ref"]
+    assert retry_batch == {
+        **header,
+        "events": [{**event, "answer": {**event["answer"], "ref": retry_ref}}],
+    }
     assert retry_payload["id"] != first_payload["id"]
+    assert delivery_model.read_delivery(first_payload["id"]) == first_payload
     pickups = [e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"]
     assert pickups == []
 
@@ -6639,6 +6643,30 @@ def test_wait_repeats_a_stable_transport_neutral_batch_until_ack(page_dir, sessi
     assert [thread["id"] for thread in grown_header["threads"]] == ["c1", "c2"]
     assert grown_header["through_seq"] == 2
     assert [event["seq"] for event in grown_events] == [1, 2]
+
+    progress = CliRunner().invoke(
+        cli_model.cli,
+        ["response", "reply", first_ref, "--ephemeral", "--text", "Checking"],
+    )
+    assert progress.exit_code == 0, progress.output
+    assert json.loads(progress.output)["parent"] == event["id"]
+    answered = CliRunner().invoke(
+        cli_model.cli, ["response", "reply", retry_ref, "--text", "Hello"]
+    )
+    assert answered.exit_code == 0, answered.output
+    reply = json.loads(answered.output)
+    assert reply["responds"] == event["id"]
+    retried = CliRunner().invoke(
+        cli_model.cli, ["response", "reply", retry_ref, "--text", "Hello"]
+    )
+    assert retried.exit_code == 0, retried.output
+    assert json.loads(retried.output) == reply
+    assert thread_model.successful_replies(
+        events_model.read_events(page_dir), event["id"]
+    ) == [reply]
+    assert set(
+        delivery_model.current_responses(page_dir, events_model.read_events(page_dir))
+    ) == {"c2"}
 
 
 def test_thread_read_is_exact_and_paginated(page_dir):
@@ -7505,13 +7533,15 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
     )
 
     assert session_model.cmd_wait(page_dir) == 0
-    _, header, shown = delivered(capsys)
+    payload, header, shown = delivered(capsys)
     assert [event["id"] for event in shown] == [accepted["id"]]
     assert shown[0]["threads"] == [origin["id"], target["id"]]
     assert shown[0]["answer"] == {
         "kind": "reply",
         "to": origin["id"],
         "for": accepted["id"],
+        "ref": f"{payload['id']}:0:{accepted['id']}",
+        "writer": "agent",
     }
     assert [thread["id"] for thread in header["threads"]] == [
         origin["id"],

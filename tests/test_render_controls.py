@@ -5945,11 +5945,11 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
     expect(page.locator(".lf-others")).to_have_text("All pages (2)")
     assert page.locator(".lf-others").evaluate(
         "el => Boolean(el.closest('.lf-banner-menu'))"
-    ), "the fixture did not fold Leaves behind the banner menu"
+    ), "the fixture did not fold Pages behind the banner menu"
 
     for selector, panel, name, first_destination in (
         (".lf-queue", ".lf-queue-panel", "queue", ".lf-queue-row"),
-        (".lf-others", ".lf-others-panel", "leaves", "a.lf-others-row"),
+        (".lf-others", ".lf-others-panel", "pages", "a.lf-others-row"),
     ):
         door = banner_control(page, selector)
         door.click()

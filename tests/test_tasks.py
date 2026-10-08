@@ -203,6 +203,15 @@ def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir):
         None,
     )
 
+    served = full_state(page_dir, events_model.read_events(page_dir))
+    named_question = next(
+        message
+        for thread in served["browser"]["thread"]["threads"]
+        for message in thread["msgs"]
+        if message["id"] == question["id"]
+    )
+    assert asked["agent"] == named_question["agent"]
+
     warm = append_carried_log_record(
         page_dir,
         {

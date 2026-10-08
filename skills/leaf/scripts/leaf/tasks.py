@@ -36,7 +36,7 @@ writes with `--on user` on a widget, an element or the page, never a thread, whe
 the question is the task. Nothing else answers it, so it ends at the user's Done,
 their own `task_end`, which `undo` takes back. The agent can end any task on the
 user but an Ask's, which the markup holds and a version retires: ending a question's
-settles it, since the prompt reading takes an ended one off the user (`task_ends`).
+settles it, since the prompt reading takes an ended one off the user (`TaskReading.ends`).
 
 A start lasts until its item ends: a task's end, or for a move the reply or stamped
 version that answers it (`workflows.canonical_workflows`), and it holds its item
@@ -74,6 +74,7 @@ from pathlib import Path
 
 from .asks import settles
 from .events import conversation_turns, is_reaction, note_settlements, taken_back
+from .schema import agent_name
 
 OUTCOMES = ("done", "failed", "dropped")
 
@@ -221,11 +222,6 @@ def canonical_tasks(events: list) -> list[dict]:
     return TaskReading(events).tasks
 
 
-def task_ends(events: list) -> dict[str, dict]:
-    """The standing endings, including endings of questions with no task event."""
-    return TaskReading(events).ends
-
-
 def owed_tasks(events: list) -> list[dict]:
     """The agent's tasks nothing has ended: the work it still owes."""
     return TaskReading(events).owed
@@ -269,7 +265,7 @@ def _derived(
 ) -> dict:
     """A task on the user that the page's markup or a thread's question holds rather
     than a `task` event, in the shape of the log's: it has no title of its own, and
-    nobody opened it. `ended` is the `task_end` that ended it (`task_ends`), if one
+    nobody opened it. `ended` is the `task_end` that ended it (`TaskReading.ends`), if one
     did."""
     return {
         "id": identity,
@@ -280,7 +276,7 @@ def _derived(
         "state": ended["state"] if ended else state,
         "seq": message["seq"] if message else None,
         "ts": message["ts"] if message else None,
-        "agent": message.get("agent") if message else None,
+        "agent": agent_name(message) if message else None,
         "session": message.get("session") if message else None,
         "revision": None,
         "running": None,
@@ -339,7 +335,7 @@ def page_tasks(
     (`ask_tasks`), as the open ones and the ended ones, each with its `owner`, how it
     `ends`, and the `thread` it stands in.
 
-    `log` is the log's tasks (`canonical_tasks`), each stamped with its thread, the
+    `log` is the log's tasks (`TaskReading.tasks`), each stamped with its thread, the
     agent's open ones as the activity fold aged them. `thread_asks` is the frozen
     threads' Ask reading, and `threads` the durable threads; `prompts` names
     the agent turn each thread's question stands on: a thread whose agent turn asks the

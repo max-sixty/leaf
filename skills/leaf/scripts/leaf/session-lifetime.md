@@ -195,7 +195,7 @@ given a marked payload stands down (`hooks/scripts/loop-guard.py`).
 Its unanswered-work guard reads `activity.turn_obligations` over the page's
 activity, selected from the same `workflows` projection the browser reads; it does not reconstruct threads
 itself. The hook planner reads each page once under its transaction, including
-ownership, log, cursor, status and the full served projection. Its typed input,
+ownership, log, cursor, status and the shared live work reading. Its typed input,
 response debt and watcher facts feed Stop policy before harness formatting; prompt
 pickup is an explicit transition and rechecks that debt remains unsettled.
 Every hook effect checks its captured session generation and revision, including

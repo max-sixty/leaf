@@ -32,9 +32,7 @@ HELD_REQUEST = (
 # One draft, three revisions of it. The user rewrote the authored words in r1;
 # r2 rewrote them again and said so; r3 is an unrelated edit on r2's words.
 DRAFT = """<h1 id="t">Journey</h1>
-<lf-draft id="draft-ops"{attrs}><pre>
-    {text}
-</pre></lf-draft>"""
+<lf-draft id="draft-ops"{attrs}><pre>{text}</pre></lf-draft>"""
 AUTHORED = "Run the migration before deploying."
 USER_EDIT = "Run the migration before deploying. It takes about a minute."
 CORRECTED = "Run the migration after deploying — it needs the new column."

@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/4f837a0fbf7b4f4e4cffbb7b86293b8f0877c8b6/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/4f837a0fbf7b4f4e4cffbb7b86293b8f0877c8b6/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/be5e5f61cf76ffb8530a7708dc6360381fd68c62/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/be5e5f61cf76ffb8530a7708dc6360381fd68c62/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/4f837a0fbf7b4f4e4cffbb7b86293b8f0877c8b6/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/be5e5f61cf76ffb8530a7708dc6360381fd68c62/demo/demo.gif)
 
 </details>
 
@@ -60,6 +60,9 @@ The result opens in a browser page; its comments return to the same agent task.
 
 <details>
 <summary>Browser and environment requirements</summary>
+
+Known functional limitations and accepted visual differences in current browsers
+are recorded in [Browser support gaps](notes/browser-support.md).
 
 The first run syncs the plugin's uv environment through your configured package
 index. Render checks use the executable named by

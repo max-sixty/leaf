@@ -340,7 +340,6 @@ export function createResponseSurface({
         },
         pointIn: fabPointIn,
       },
-      panel,
       panelIsOpen,
       threadsBox,
       positioned: answerFabPosition,

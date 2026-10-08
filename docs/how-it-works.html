@@ -1296,7 +1296,7 @@ flowchart TD
               <pre>
 flowchart LR
   accTitle: Agent commands and visible outcomes
-  accDescr: Replies appear in threads, tasks in the Queue panel, stamped versions on the page, reports on their widgets, and status in the banner and nearby labels.
+  accDescr: Replies appear in threads, questions and tasks in the Questions panel, stamped versions on the page, reports on their widgets, and status in the banner and nearby labels.
   subgraph Sources["Who writes it"]
     Reply["agent: leaf response reply · proactive leaf thread reply · leaf thread open"]
     Awaits["agent: leaf thread reply --awaits · leaf task open --on user"]
@@ -1308,7 +1308,7 @@ flowchart LR
   end
   subgraph Reads["Where you read it"]
     Thread["the thread"]
-    Queue["the Queue panel"]
+    Queue["the Questions panel"]
     Versions["the page and its versions menu"]
     Widget["the widget"]
     Banner["the banner, tab icon and Pages drawer"]
@@ -1375,16 +1375,16 @@ flowchart LR
               <li id="updates-written-awaits">
                 <strong><code>leaf thread reply … --awaits</code></strong> A question
                 for you, which is a task on you until you answer it. The thread reads
-                <em>On you to answer</em>, and the question joins your side of the Queue
-                panel.
+                <em>On you to answer</em>, and the question joins your Questions, in the
+                Questions panel.
               </li>
               <li id="updates-written-on-you">
                 <strong><code>leaf task open … --on user</code></strong> Something the
                 agent needs you to do that no question or widget answers, such as trying
-                a build, as a task on your side of the Queue panel, where
-                <code>a</code> reaches it. Its <em>Done</em>, on its row or
-                <kbd>x</kbd> where <code>a</code> lands, ends it and tells the agent. A
-                question in a thread has no Done: your reply answers it.
+                a build, as a To do under your Questions, where <code>q</code> reaches
+                it. Its <em>Done</em>, on its row or <kbd>x</kbd> where
+                <code>q</code> lands, ends it and tells the agent. A question in a
+                thread has no Done: your reply answers it.
               </li>
               <li id="updates-written-comment">
                 <strong
@@ -2738,13 +2738,14 @@ flowchart TD
             <p id="chrome-what">
               Leaf adds controls around the authored HTML. This interface is called
               <em>chrome</em>: the top banner, bottom bar, comment and decision markers,
-              thread panels, and Queue panel. An Ask requests a user decision and is a
-              task on the user until answered. The Queue panel lists what each has to
-              act on. The user’s side holds Asks, threads awaiting a reply, and explicit
-              tasks on the user. The agent’s side holds unanswered moves and open agent
-              tasks. The banner shows both queues' counts; pressing them opens the
-              panel. Opening these controls preserves the page's text wrapping and
-              reading position.
+              thread panels, and Questions panel. An Ask requests a user decision and is
+              a task on the user until answered. The Questions panel lists what each
+              side has to act on. Your Questions hold Asks, threads awaiting a reply,
+              and to-dos the agent put on you. The agent’s Tasks hold unanswered moves
+              and its open tasks. The banner's Questions door, beside Threads, counts
+              yours, and the Tasks count after the status counts the agent's; either
+              opens the panel. Opening these controls preserves the page's text wrapping
+              and reading position.
             </p>
             <p id="chrome-bars">
               The banner and bottom bar have fixed heights, and the page scrolls between
@@ -2765,7 +2766,8 @@ flowchart TD
             <p id="chrome-surfaces-what">
               A thread card opens beside its marker in the margin. If the margin is
               narrower than the card, it overlaps the text's edge. The Threads panel and
-              Queue panel open over the page's edges, one at a time.
+              the Questions panel open over the page's right edge, one at a time, and
+              the Leaves drawer over its left.
             </p>
 
             <div class="panels" id="chrome-figure">
@@ -2874,7 +2876,8 @@ flowchart TD
               <figure id="chrome-surfaces">
                 <svg class="drawing" viewBox="0 0 240 160" role="img">
                   <title>
-                    The Queue panel and the Threads panel open over the page's edges
+                    The Threads or Questions panel opens over the page's right edge, the
+                    Leaves drawer over its left
                   </title>
                   <rect class="frame" x="1" y="1" width="238" height="158" rx="6" />
                   <rect class="frame-head" x="2" y="2" width="236" height="18" rx="5" />
@@ -2909,25 +2912,29 @@ flowchart TD
                     height="4"
                     rx="2"
                   />
-                  <g id="chrome-queue-panel">
+                  <g id="chrome-leaves-drawer">
                     <rect class="over" x="6" y="24" width="72" height="112" rx="5" />
-                    <text class="strong" x="42" y="44" text-anchor="middle">Queue</text>
-                    <text class="strong" x="42" y="58" text-anchor="middle">panel</text>
+                    <text class="strong" x="42" y="44" text-anchor="middle">
+                      Leaves
+                    </text>
+                    <text class="strong" x="42" y="58" text-anchor="middle">
+                      drawer
+                    </text>
                   </g>
                   <g id="chrome-threads-panel">
                     <rect class="over" x="152" y="24" width="82" height="112" rx="5" />
                     <text class="strong" x="193" y="44" text-anchor="middle">
-                      Threads
+                      Threads or
                     </text>
                     <text class="strong" x="193" y="58" text-anchor="middle">
-                      panel
+                      Questions
                     </text>
                   </g>
                 </svg>
                 <figcaption id="cap-chrome-surfaces">
-                  <strong>Panels over the page</strong>The Queue panel and the Threads
-                  panel open over the page's edges, one at a time. The page keeps its
-                  width underneath.
+                  <strong>Panels over the page</strong>The Threads and Questions panels
+                  share the right edge, one at a time, and the Leaves drawer opens on
+                  the left. The page keeps its width underneath.
                 </figcaption>
               </figure>
               <figure id="chrome-card">
@@ -3088,10 +3095,10 @@ flowchart TD
                   </td>
                 </tr>
                 <tr>
-                  <td>Reach work waiting on the user</td>
+                  <td>Reach the questions waiting on the user</td>
                   <td>
-                    <kbd>a</kbd> advances through the user's queue; <kbd>Shift</kbd> +
-                    <kbd>a</kbd> goes back.
+                    <kbd>q</kbd> advances through them; <kbd>Shift</kbd> +
+                    <kbd>q</kbd> goes back.
                   </td>
                 </tr>
                 <tr>
@@ -3162,12 +3169,12 @@ flowchart TD
                   </tr>
                   <tr>
                     <td><kbd>Q</kbd></td>
-                    <td>Open or close the Queue panel, when offered.</td>
+                    <td>Open or close the Questions panel.</td>
                   </tr>
                   <tr>
                     <td><kbd>L</kbd></td>
                     <td>
-                      Open or close the Leaves drawer, when neighbouring pages are
+                      Open or close the Pages drawer, when neighbouring pages are
                       available.
                     </td>
                   </tr>
@@ -3518,7 +3525,7 @@ flowchart TD
                 behind it inaccessible until it closes.
               </p>
               <p id="navigation-comment-return">
-                <kbd>a</kbd>, <kbd>c</kbd>, <kbd>Escape</kbd> returns focus to the Ask,
+                <kbd>q</kbd>, <kbd>c</kbd>, <kbd>Escape</kbd> returns focus to the Ask,
                 with its option keys available again. A second Escape lets go of the
                 Ask. Commenting from an option or by aiming at the same Ask follows the
                 same return route. A visual comment returns to its current response
@@ -3527,10 +3534,10 @@ flowchart TD
                 selection.
               </p>
               <p id="navigation-panel-exchange">
-                Opening Leaves or Queue in place of another auxiliary surface exchanges
-                surfaces. Escape closes the resulting surface; it does not reopen the
-                previous one. Opening a surface by pointer and by its keyboard route
-                gives it the same Escape parent.
+                Opening Pages or Questions in place of another auxiliary surface
+                exchanges surfaces. Escape closes the resulting surface; it does not
+                reopen the previous one. Opening a surface by pointer and by its
+                keyboard route gives it the same Escape parent.
               </p>
             </details>
             <details id="navigation-reading-cases">

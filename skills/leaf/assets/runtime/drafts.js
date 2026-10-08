@@ -310,7 +310,6 @@ export function transferDraft(from, to, text) {
   return true;
 }
 export const loadDraft = (ctx) => activeDraftRecord(ctx)?.text ?? null;
-export const loadDraftPayload = (ctx) => activeDraftRecord(ctx)?.payload;
 export const draftContexts = () =>
   new Set([
     ...draftCache.keys(),

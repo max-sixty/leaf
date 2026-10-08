@@ -249,12 +249,6 @@ def turn_obligations(state: dict, *, watched: bool) -> list[dict]:
     ]
 
 
-def transition_due(activity: dict, now_iso: str) -> bool:
-    """Whether a projected activity reading has reached its refresh boundary."""
-    due = _moment(activity.get("next_transition_at"))
-    return bool(due and due <= datetime.fromisoformat(now_iso))
-
-
 class Turn(NamedTuple):
     """The claimant session's current turn, as the one reading every rule of the
     fold takes: whether it is running; when it was seen to end, where something saw
@@ -450,22 +444,25 @@ def canonical_activity(
     stream: dict | None = None,
     reply: dict | None = None,
     bindings: dict | None = None,
+    *,
+    task_reading=None,
 ) -> dict:
     """Return the one current reading of agent activity for a page snapshot.
 
     `interaction_evidence` are the page's workflows (`workflows.canonical_workflows`)
     and `events` the log they were read from, which holds the agent's open tasks and
-    the starts running on them (`tasks.canonical_tasks`). Both come back aged, as
+    the starts running on them (`tasks.TaskReading`). Both come back aged, as
     `workflows` and `tasks`.
 
     `bindings` are the stream's reply bindings. A reply address whose binding
     stands (`reply_binding_stands`) is the claimant's App Server turn to write,
-    with its own opening and final messages, so its workflow's answer reads as a
-    `turn` under the binding's attempt: every consumer that holds the agent to an
-    answer, or refuses a second writer, reads that answer rather than the
-    binding."""
-    from .tasks import owed_tasks
+    with its own opening and final messages. Its workflow keeps the `reply`
+    answer kind and adds `writer: "turn"` and the binding's attempt. Every
+    consumer that holds the agent to an answer, or refuses a second writer,
+    reads that answer rather than the binding."""
+    from .tasks import TaskReading
 
+    log = task_reading or TaskReading(events)
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
     declared = declared_at(present, events)
@@ -488,9 +485,7 @@ def canonical_activity(
     workflows, aging = _canonical_workflows(
         interaction_evidence, present, now, held=held, turn=turn
     )
-    tasks, task_aging = _canonical_tasks(
-        owed_tasks(events), present, now, held=held, turn=turn
-    )
+    tasks, task_aging = _canonical_tasks(log.owed, present, now, held=held, turn=turn)
     _bind_reply(workflows, reply)
     for item in workflows:
         binding = (bindings or {}).get(item.get("input"))

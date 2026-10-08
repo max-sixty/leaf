@@ -1,7 +1,7 @@
 // <lf-merge-steps>: the step list beside a merge film. Its text is authored markup, so
 // every step's sentence can take a comment; this module only marks which step is playing
 // and how this run treats each one, and adds a line saying why where a step was skipped
-// or stopped the merge. A click on a step plays the film from it.
+// or stopped the merge. A click on a step holds its result for reading.
 
 import { keeps, keepsText, once } from "/runtime/widget-api.js";
 
@@ -16,9 +16,7 @@ customElements.define(
       this.items = [...this.querySelectorAll("li[data-chapter]")];
       for (const li of this.items)
         li.addEventListener("click", () => {
-          const key = li.dataset.chapter;
-          if (key === "setup") film.seek(0);
-          else film.seekChapter(key);
+          film.seekChapter(li.dataset.chapter);
         });
       film.addEventListener("film-frame", (e) => this.#show(e.detail));
       // The film may have painted before this list upgraded; ask for the current frame.
@@ -34,6 +32,11 @@ customElements.define(
         const now = key === d.chapter;
         const state = d.status[key] ?? "run";
         keeps(li, "data-state", state);
+        keeps(
+          li.querySelector("button"),
+          "disabled",
+          state === "unreached" ? "" : null,
+        );
         li.toggleAttribute("data-now", now);
         // The run's own line only where it adds something: why a step was skipped or
         // stopped, what the branch is, and how the run ended. The caption leads with the

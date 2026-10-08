@@ -2,7 +2,7 @@
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { aimTargets, anchoringIsReady } from "../anchor-resolution.js";
 import { bindings } from "../keyboard/bindings.js";
-import { el, LAYOUT } from "../widget-elements.js";
+import { el, LAYOUT, reserve } from "../widget-elements.js";
 import { coarsePointer } from "../pointer.js";
 import { html, nothing, render } from "../../vendor/browser-runtime.js";
 
@@ -68,6 +68,8 @@ pageSearchInput.setAttribute("aria-label", "Search page text");
 const pageSearchStatus = el("span", "lf-page-search-status");
 pageSearchStatus.setAttribute("role", "status");
 pageSearchSurface.append(pageSearchInput, pageSearchStatus);
+const noMatches = "No matches";
+const searchCount = (position, total) => `${position} of ${total}`;
 
 // Target choosing and whole-page text search. `s` opens a viewport-local map of
 // the same stable addressables and visual parts Alt-click reaches, then opens Comment on the
@@ -243,6 +245,10 @@ export function createTargetPicker({
     pageSearchOpen = on;
     keepsHidden(pageSearchSurface, !on);
     if (on) {
+      // A nonempty query cannot match more often than there are characters. Reserve
+      // the whole reading's count before editing, so narrowing never resizes the field.
+      const maximum = pageText().raw.length;
+      reserve(pageSearchStatus, [noMatches, searchCount(maximum, maximum)]);
       focusDestination(pageSearchInput, "move");
       presentSearchStatus();
       announce("Search the page.");
@@ -290,8 +296,8 @@ export function createTargetPicker({
     const status = !query
       ? nothing
       : matches.length
-        ? `${active + 1} of ${matches.length}`
-        : "No matches";
+        ? searchCount(active + 1, matches.length)
+        : noMatches;
     render(html`${status}`, pageSearchStatus);
   }
 

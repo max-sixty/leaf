@@ -208,10 +208,17 @@ Usage: leaf page stamp [OPTIONS] PAGE
   Checks the exact source first, then records it as the next public version.
   Repeat --completes for each widget whose open tasks this version completes,
   which ends them done, citing the version. A task otherwise remains open,
-  including when a revision removes its widget.
+  including when a revision removes its widget. --from-directory replaces
+  index.html and the complete page/ tree atomically with stamping; --if-source
+  is the authored-input digest read through leaf.publishing, refusing a
+  competing edit.
 
 Options:
-  --text TEXT         changelog text (default: stdin)
-  --completes WIDGET  a widget whose open tasks this version completes
-                      (repeatable)
-  --help              Show this message and exit.
+  --text TEXT                 changelog text (default: stdin)
+  --from-directory DIRECTORY  replace index.html and page/ together from this
+                              candidate directory
+  --if-source TEXT            expected authored-input digest, required with
+                              --from-directory
+  --completes WIDGET          a widget whose open tasks this version completes
+                              (repeatable)
+  --help                      Show this message and exit.

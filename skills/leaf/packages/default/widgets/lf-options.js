@@ -314,11 +314,7 @@ customElements.define(
     #doneRow() {
       this.#done = offer(DONE_TAG, "lf-options-done");
       const button = offer("button", "lf-btn lf-done", "Done");
-      const badge = offer("span", "lf-key-badge");
-      badge.setAttribute("aria-hidden", "true");
-      button.prepend(badge);
       this.#done.control = button;
-      this.#done.bindingBadge = badge;
       this.#done.append(button);
       this.append(this.#done);
     }
@@ -485,7 +481,6 @@ customElements.define(
           contextKeys: this.#contextKeys("done"),
           control: () => this.#done.control,
           decision: true,
-          bindingBadge: () => this.#done.bindingBadge,
           title: "Done",
           description: () =>
             this.reading?.state.answer?.action

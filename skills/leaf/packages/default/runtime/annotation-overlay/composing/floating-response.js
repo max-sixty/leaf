@@ -8,12 +8,14 @@
    collision placement and scroll observation.
 
    An editing field follows its passage out of view. The existing Resume writing route
-   reveals that same field; no window seat or duplicate input stands in for it. */
+   reveals that same field; no window seat or duplicate input stands in for it. A modal
+   side panel withholds the page's response bar and takes its focus until the page is
+   available again. */
 import { cancelRender, nextRender } from "/runtime/rendering.js";
 import { resolveAnchor } from "/runtime/anchor-resolution.js";
 import { sameAnchor } from "/runtime/anchor-coordinate.js";
 import { declareOffFlowSurface } from "/runtime/off-flow.js";
-import { shownBox } from "/runtime/geometry.js";
+import { rightCover, shownBox } from "/runtime/geometry.js";
 import {
   passageGeometry,
   rangeGeometry,
@@ -43,7 +45,6 @@ import { keeps, layoutPx } from "/runtime/keeps.js";
 export function createFloatingResponsePlacement({
   nodes: { bar: fabBar, input: fabInput },
   response,
-  panel,
   panelIsOpen,
   threadsBox,
   positioned,
@@ -53,7 +54,7 @@ export function createFloatingResponsePlacement({
   scrollToRange,
 }) {
   const floatBoundary = (region = null) =>
-    commentBoundary({ region, right: panelIsOpen() ? panel.offsetLeft : Infinity });
+    commentBoundary({ region, right: rightCover() });
   // The side the bar holds and its inline start, by the rule the thread card it becomes
   // stands by too (comment-placement.js).
   const fabPlacement = commentPlacement();
@@ -98,6 +99,8 @@ export function createFloatingResponsePlacement({
       Math.ceil(boundary.width) >= Math.ceil(fabBar.getBoundingClientRect().width)
     );
   };
+  const panelCoversPage = () =>
+    panelIsOpen() && threadsBox.closest("dialog")?.matches(":modal");
 
   // The editing observer reports size and horizontal target movement: CSS anchors
   // own scroll following, while a target moved without resizing must let the shared
@@ -109,7 +112,7 @@ export function createFloatingResponsePlacement({
   // only its observers and geometry, never a handoff waiting for an inline seat.
   function stopFabPositioning({ reset = false } = {}) {
     nativeAttachment = false;
-    fabBar.style.removeProperty("height");
+    if (fabBar.style.height) fabBar.style.removeProperty("height");
     fabPosition.stop();
     cancelRender(fabPositionFrame);
     fabPositionFrame = 0;
@@ -248,6 +251,10 @@ export function createFloatingResponsePlacement({
   // beside that whole place, or above/below it when the rail is too narrow.
   function placeFab() {
     if (!response.anchor) return false;
+    if (panelCoversPage()) {
+      withholdFab();
+      return false;
+    }
     if (response.open && nativeAttachment) return true;
     const geometry = anchorGeometry(response.anchor);
     const target = geometry?.box;
@@ -395,12 +402,13 @@ export function createFloatingResponsePlacement({
   // Threads list takes focus. While the bar waits, its composer scope and selection
   // rung stand down; `c` brings it back.
   function withholdFab() {
+    const covered = panelCoversPage();
     stopFabPositioning({ reset: false });
     if (fabWithheld) return;
     fabWithheld = true;
     const held = holdFocus(fabBar);
-    const toPanel = held && panelIsOpen() && !fabFits();
-    fabBar.style.visibility = "hidden";
+    const toPanel = held && panelIsOpen() && (!fabFits() || covered);
+    if (fabBar.style.visibility !== "hidden") fabBar.style.visibility = "hidden";
     if (toPanel) focusDestination(threadsBox, "return");
     else fabWithheldFocus = held;
   }

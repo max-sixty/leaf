@@ -1907,7 +1907,7 @@ export function createVersionController({
           restorePointer(handoff.pointer);
           restoreView(handoff.view, currentIntent);
           restoreRetainedStanding(handoff.retainedStanding);
-          restoreCarryScroll();
+          currentIntent.handoff(restoreCarryScroll);
           await restoreEditingContinuity(handoff, currentIntent);
           if (handoff.comparison !== null && stamped(handoff.comparison))
             showComparison(handoff.comparison);

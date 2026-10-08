@@ -1,6 +1,6 @@
 /* lf-activity: the page's history as a feed, newest first.
  *
- * The server's history reading is the only input and this list stores nothing: every
+ * The server's history reading is the only semantic input: every
  * reading of `watchHistory` restates the whole feed. A row says who moved (You for the
  * user, Page for what the page did by itself, and otherwise the name the server serves
  * the row under), what they did, the thing they did it to, and how long ago.
@@ -23,9 +23,18 @@
  *
  * An excerpt is the words its Markdown renders, never the source.
  *
- * Rows are keyed by event id and only new rows are inserted, so a user tabbing down
- * the feed keeps their place when the log grows or the clock moves a timestamp. */
+ * History has no authored size. Its fixed disclosure stands from first paint; rows
+ * appear only when the reader opens it. Once open, HeldReading keeps visible history
+ * behind that same disclosure until the reader asks to see the change or leaves it
+ * off screen. Rows retain their event identity and focus while that reading stands.
+ * Tab memory retains the drawn presentation through a fresh document. Its initial
+ * producer draws it before first paint, then the ready authoritative reading is
+ * compared through HeldReading. This never folds events or records a decision. */
 import {
+  HeldReading,
+  holdFocus,
+  initialRender,
+  tabStore,
   addressableLabel,
   addressableWord,
   ago,
@@ -39,10 +48,13 @@ import {
   openThread,
   relabel,
   watchHistory,
+  watchOwner,
   keeps,
   keepsHidden,
   keepsText,
 } from "/runtime/widget-api.js";
+
+import { ACTIVITY_VIEW, fillActivityRow } from "./activity-view.js";
 
 const NAME = 60;
 
@@ -143,70 +155,6 @@ function describe(row) {
   }
 }
 
-function target(row) {
-  if (row.thread) {
-    const button = offer("button", "lf-activity-target");
-    relabel(button, row.label, { says: "echo" });
-    button.addEventListener(
-      "click",
-      () => void openThread(row.thread, { focus: "thread" }),
-    );
-    return button;
-  }
-  if (!row.widget && !row.label) return null;
-  const label = row.label ?? nameOf(row.widget);
-  if (!row.widget || !document.getElementById(row.widget)) {
-    const span = document.createElement("span");
-    span.className = "lf-activity-target";
-    span.textContent = label;
-    return span;
-  }
-  const link = document.createElement("a");
-  link.className = "lf-activity-target";
-  link.href = `#${encodeURIComponent(row.widget)}`;
-  link.textContent = label;
-  return link;
-}
-
-function fill(item, row) {
-  const avatar = document.createElement("span");
-  avatar.className = "lf-activity-avatar";
-  avatar.setAttribute("aria-hidden", "true");
-  avatar.textContent = row.actor.slice(0, 1).toUpperCase();
-  const line = document.createElement("p");
-  line.className = "lf-activity-line";
-  const actor = document.createElement("strong");
-  actor.className = "lf-activity-actor";
-  actor.textContent = row.actor;
-  const what = document.createElement("span");
-  what.className = "lf-activity-what";
-  what.textContent = row.what;
-  line.append(actor, " ", what);
-  const place = target(row);
-  if (place) line.append(" ", place);
-  const time = document.createElement("time");
-  time.className = "lf-activity-time";
-  time.dateTime = row.ts;
-  time.title = new Date(row.ts).toLocaleString();
-  line.append(" ", time);
-  if (row.undone) {
-    const undone = document.createElement("span");
-    undone.className = "lf-activity-undone";
-    undone.textContent = "undone";
-    line.append(" ", undone);
-  }
-  item.replaceChildren(avatar, line);
-  const excerpt = clip(row.excerpt, 140);
-  if (excerpt) {
-    const said = document.createElement("p");
-    said.className = "lf-activity-excerpt";
-    said.textContent = excerpt;
-    item.append(said);
-  }
-  keeps(item, "data-lf-activity-author", row.author);
-  item.toggleAttribute("data-lf-undone", row.undone);
-}
-
 customElements.define(
   "lf-activity",
   class extends HTMLElement {
@@ -215,18 +163,47 @@ customElements.define(
     // Event id to its row and the description it was last filled from.
     #rows = new Map();
     #history = [];
+    #notice = null;
+    #opened = false;
+    #reading = null;
+    #printing = false;
+    #closedReading = null;
+    #restored = null;
+    #ready = false;
 
     connectedCallback() {
       if (!once(this)) return;
-      this.#list = document.createElement("ol");
-      this.#list.className = "lf-activity-list";
-      this.#list.dataset.lfGen = "1";
-      this.#empty = document.createElement("p");
-      this.#empty.className = "lf-activity-empty";
-      this.#empty.dataset.lfGen = "1";
-      this.#empty.textContent = "Nothing has happened on this page yet.";
-      this.replaceChildren(this.#list, this.#empty);
-      watchHistory(this, (history) => {
+      const drawing = initialRender(this);
+      this.#list = drawing.list;
+      this.#empty = drawing.empty;
+      this.#notice = drawing.notice;
+      this.#rows = drawing.rows;
+      this.#opened = drawing.reading.open;
+      this.#closedReading = drawing.restored ? drawing.reading.shown : null;
+      this.#restored = drawing.restored ? drawing.reading.shown : null;
+      for (const row of JSON.parse(drawing.reading.shown))
+        this.#bind(this.#rows.get(row.id).item, row);
+      this.#reading = new HeldReading(
+        () => [this.#notice, this.#list, this.#empty],
+        () => this.#render(this.#history),
+      );
+      this.#notice.addEventListener("click", () => {
+        if (this.#notice.hasAttribute("data-lf-news")) this.#opened = true;
+        else this.#opened = !this.#opened;
+        this.#reading.release();
+        this.#render(this.#history);
+      });
+      const paper = matchMedia("print");
+      const printing = () => {
+        this.#printing = paper.matches;
+        this.#render(this.#history);
+      };
+      watchOwner(this, {
+        connect: () => paper.addEventListener("change", printing),
+        disconnect: () => paper.removeEventListener("change", printing),
+      });
+      watchHistory(this, (history, { ready }) => {
+        this.#ready = ready;
         this.#history = history;
         this.#render(history);
         // Excerpts painted from the source take the parser's words once it lands.
@@ -237,16 +214,68 @@ customElements.define(
       });
     }
 
+    disconnectedCallback() {
+      this.#reading?.dispose();
+    }
+
+    #bind(item, row) {
+      const button = item.querySelector("button.lf-activity-target");
+      if (!button) return;
+      relabel(button, row.label, { says: "echo" });
+      button.addEventListener(
+        "click",
+        () => void openThread(row.thread, { focus: "thread" }),
+      );
+    }
+
     #render(history) {
-      const rows = history.map((served) => ({
+      if (!this.#ready && !this.#printing) return;
+      if (this.#restored !== null) {
+        if (this.#ready) {
+          this.#reading.hold(this.#restored);
+          this.#restored = null;
+        }
+      }
+      const current = history.map((served) => ({
         ...describe(served),
-        excerpt: served.excerpt ? markdownWords(served.excerpt) : null,
+        excerpt: served.excerpt ? clip(markdownWords(served.excerpt), 140) : null,
         id: served.id,
         ts: served.ts,
         author: served.author,
         actor: actorOf(served),
         undone: served.undone,
       }));
+      // Hold the complete drawn reading, including an undo or a changed title:
+      // those may wrap too. The authoritative history always remains #history.
+      for (const row of current) {
+        row.available = Boolean(row.widget && document.getElementById(row.widget));
+        if (row.widget || row.label) row.label ??= nameOf(row.widget);
+      }
+      const wanted = JSON.stringify(current);
+      if (this.#closedReading === null) this.#closedReading = wanted;
+      const shown = this.#printing
+        ? wanted
+        : this.#opened
+          ? this.#reading.hold(wanted)
+          : this.#closedReading;
+      const rows = JSON.parse(shown);
+      const news = shown !== wanted;
+      const known = new Set(rows.map(({ id }) => id));
+      const arrived = current.filter(({ id }) => !known.has(id)).length;
+      keeps(this.#notice, "data-lf-news", news ? "" : null);
+      keeps(this.#notice, "aria-expanded", String(this.#opened));
+      keepsText(
+        this.#notice,
+        !this.#opened
+          ? `Show activity${arrived ? ` · ${arrived} new` : ""}`
+          : news
+            ? arrived
+              ? `${arrived} new ${arrived === 1 ? "update" : "updates"}`
+              : "Activity changed"
+            : "Hide activity",
+      );
+      if (this.#opened && !this.#printing) this.#closedReading = shown;
+      keepsHidden(this.#list, !this.#opened && !this.#printing);
 
       const kept = new Set();
       let next = this.#list.firstElementChild;
@@ -261,8 +290,12 @@ customElements.define(
           this.#rows.set(row.id, seat);
         }
         const { item } = seat;
+        keeps(item, "data-lf-activity-author", row.author);
         if (seat.key !== key) {
-          fill(item, row);
+          const restoreFocus = holdFocus(item);
+          fillActivityRow(item, row, offer);
+          this.#bind(item, row);
+          restoreFocus?.(item.querySelector(".lf-activity-target"));
           seat.key = key;
         }
         // Read synchronously, so the shared clock repaints this reading when it turns.
@@ -276,7 +309,17 @@ customElements.define(
           item.remove();
           this.#rows.delete(id);
         }
-      keepsHidden(this.#empty, rows.length > 0);
+      keepsHidden(this.#empty, (!this.#opened && !this.#printing) || rows.length > 0);
+      if (!this.#printing)
+        tabStore.set(
+          ACTIVITY_VIEW + this.id,
+          JSON.stringify({
+            open: this.#opened,
+            shown,
+            label: this.#notice.textContent,
+            news,
+          }),
+        );
     }
   },
 );

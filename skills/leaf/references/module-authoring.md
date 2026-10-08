@@ -297,6 +297,14 @@ passed, such as the replacement keyed on the same identity. It does nothing once
 placed elsewhere in the meantime, and `holdFocus` returns `null` where the user stands
 outside `scope`.
 
+Generated native controls can give themselves a stable `data-lf-carry` key inside
+their nearest named owner. That owner must match authored markup by id and tag;
+another named wrapper establishes its own scope. Live document replacement carries
+focus and caret by owner id, key and native tag, once the generated control is visible
+after upgrade. Authored inputs retain focus immediately so typing continues during
+startup. The widget owns its drawing and values. An initial renderer keeps retained
+view geometry from the first frame. Keys are unique within their named owner.
+
 A module that takes the user to a thread calls `openThread(id, {focus})`
 with the Thread's `id`. It opens the thread where the page shows it, inline beside
 its passage or widget, and in Threads when it has no place on the page, the same choice a
@@ -687,7 +695,10 @@ A widget that renders the page's history declares `x-history` and reads it throu
 `watchHistory(owner, callback)`: the server's rows, newest first, each already
 carrying its thread, whether it was undone, the name an agent's row is shown under
 as `agent`, and a gesture's words as the document it was made in had them. The
-widget words those facts; it does not fold the log.
+widget words those facts; it does not fold the log. The callback also receives
+`{ready}`: whether the authoritative application is ready. A widget that restores a
+tab-local retained reading keeps it through preparation, then compares it with the
+ready history; a preparation reading is not a new history baseline.
 
 ## Data subscriptions and projections
 

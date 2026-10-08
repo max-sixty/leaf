@@ -2201,6 +2201,13 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * as a link either way because both take the user there; the time sits after it in
  * the muted voice. A row taken back keeps its place, struck through and marked undone. */
 :scope:is(lf-activity) { display: block; margin: var(--sp-3) 0; }
+:scope:is(lf-activity) .lf-activity-news { display: block; box-sizing: border-box;
+  inline-size: 100%; block-size: var(--aim-floor); min-block-size: var(--aim-floor);
+  appearance: none; background: none; border: 0; padding: 0; margin: 0;
+  color: var(--accent); font: 600 var(--t-5)/var(--lf-ui-lh) var(--sans);
+  text-align: start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+:scope:is(lf-activity) .lf-activity-news[data-lf-news] { color: var(--danger); }
 :scope:is(lf-activity) .lf-activity-list { list-style: none; margin: 0; padding: 0;
   font: var(--t-5)/var(--lf-ui-lh) var(--sans); }
 :scope:is(lf-activity) .lf-activity-row { display: grid; grid-template-columns: 22px minmax(0, 1fr);
@@ -2223,7 +2230,9 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   padding: 0; margin: 0; font: inherit; text-align: start; cursor: pointer; }
 :scope:is(lf-activity) :is(a, button).lf-activity-target:hover { text-decoration-color: currentColor; }
 :scope:is(lf-activity) span.lf-activity-target { color: var(--ink-2); }
-:scope:is(lf-activity) .lf-activity-time { color: var(--muted); white-space: nowrap; }
+:scope:is(lf-activity) .lf-activity-time { color: var(--muted); white-space: nowrap;
+  display: inline-block; inline-size: 10ch; font-variant-numeric: tabular-nums;
+  overflow: hidden; text-overflow: ellipsis; vertical-align: bottom; }
 :scope:is(lf-activity) .lf-activity-time::before { content: "· "; }
 :scope:is(lf-activity) .lf-activity-undone { color: var(--muted); font-size: var(--t-6);
   border: 1px solid var(--border-2); border-radius: var(--chip-r);
@@ -2233,6 +2242,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-activity) .lf-activity-excerpt { grid-column: 2; margin: 2px 0 0; color: var(--muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 :scope:is(lf-activity) .lf-activity-empty { margin: 0; color: var(--muted); font: var(--t-5) var(--sans); }
+@media print { :scope:is(lf-activity) .lf-activity-news { display: none; } }
 
 /* lf-ask: a semantic reading and arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the

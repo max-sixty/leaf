@@ -2565,7 +2565,11 @@ def test_a_milestone_marker_is_centred_on_its_title(browser, serve):
         "milestone marker alignment",
         """
 <h1>Release plan</h1>
-<style>#rail { width: 160px; }</style>
+<style>
+#rail { width: 160px; }
+#publish { --lf-timeline-rule: 4px; }
+#publish::before { width: 22px; height: 22px; border-width: 3px; }
+</style>
 <lf-milestones id="rail">
   <lf-milestone id="publish" status="active"><strong>Publish the release after validation</strong></lf-milestone>
 </lf-milestones>
@@ -2585,13 +2589,47 @@ def test_a_milestone_marker_is_centred_on_its_title(browser, serve):
           return {
             title: title.top + lineHeight / 2,
             titleLines: title.height / lineHeight,
+            spineX: box.left + parseFloat(getComputedStyle(item).borderLeftWidth) / 2,
+            markerX: box.left + parseFloat(getComputedStyle(item).borderLeftWidth)
+              + parseFloat(marker.left) + parseFloat(marker.width) / 2
+              + new DOMMatrix(marker.transform === 'none' ? undefined : marker.transform).m41,
             marker: box.top + parseFloat(marker.top)
-              + (parseFloat(marker.height) + border) / 2,
+              + (parseFloat(marker.height) + border) / 2
+              + new DOMMatrix(marker.transform === 'none' ? undefined : marker.transform).m42,
           };
         }"""
     )
     assert centres["titleLines"] >= 2, centres
+    assert centres["markerX"] == pytest.approx(centres["spineX"], abs=0.1), centres
     assert centres["marker"] == pytest.approx(centres["title"], abs=0.5), centres
+
+
+@pytest.mark.parametrize("timestamp", ['at="09:14"', 'at=""', ""])
+def test_a_chronology_marker_follows_its_first_visible_line(browser, serve, timestamp):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "chronology marker alignment",
+                f"""<h1>Observed events</h1><lf-chronology id="history">
+<lf-chronology-entry id="observed" {timestamp}><strong>Work started</strong>
+The team began validation.</lf-chronology-entry></lf-chronology>""",
+            )
+        ),
+    )
+    centres = page.locator("#observed").evaluate(
+        """item => {
+          const box = item.getBoundingClientRect(), marker = getComputedStyle(item, '::after');
+          const label = item.querySelector('[data-lf-said="at"]');
+          const first = label && label.getClientRects().length ? label : item;
+          const line = first.getBoundingClientRect().top
+            + parseFloat(getComputedStyle(first).lineHeight) / 2;
+          const matrix = new DOMMatrix(marker.transform === 'none' ? undefined : marker.transform);
+          return {line, marker: box.top + parseFloat(marker.top)
+            + parseFloat(marker.height) / 2 + matrix.m42};
+        }"""
+    )
+    assert centres["marker"] == pytest.approx(centres["line"], abs=0.1), centres
 
 
 def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):

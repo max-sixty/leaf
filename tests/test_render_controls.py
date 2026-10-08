@@ -4690,6 +4690,12 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     # so the row says so — dot and words both the banner's own vocabulary.
     expect(link.locator(".lf-others-line")).to_have_text("Working — running the suite")
     expect(link.locator(".lf-dot")).to_have_class(re.compile(r"\bworking\b"))
+    for row in (self_row, link):
+        lefts = row.evaluate("""node => [
+          node.querySelector('.lf-others-title').getBoundingClientRect().left,
+          node.querySelector('.lf-others-line').getBoundingClientRect().left,
+        ]""")
+        assert lefts[0] == pytest.approx(lefts[1], abs=0.5), lefts
     # Every row is cut to the panel's width, so the hover holds the whole account.
     # This page's own row carries the work behind it, which is what tells two rows
     # apart when their titles are alike. Neighbors publish the same compact account.

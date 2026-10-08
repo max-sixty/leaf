@@ -6,7 +6,8 @@ page directory, composed on the order and merge grains in
 The page directory itself lives wherever the caller says —
 conventionally ~/.local/state/leaf/pages/<slug>/ — and is self-contained,
 so an approved version can't change under its user; re-running `page init`
-is the explicit re-vendor, which restarts a served page's server around it
+is the explicit re-vendor, which restarts a served page's server when its installed
+layer or serving code changes
 (`../../references/serving-pages.md`, "Re-vendoring and layer epochs"). One
 transition covers start, stop, init, contract-bearing CLI writes, and preview reads.
 Stop retains it through the server's release, so no operation can cross the old
@@ -18,10 +19,15 @@ all frozen thread markup and the actions sent from it, because that
 document has no revision boundary. Page events whose senders the candidate removes are
 historical-only and remain interpretable through the registry captured with their
 immutable revisions. Re-vendoring composes page-owned declarations over the
-prospective layer before running this same candidate check. Each successful init
-records three deliberately different identities under `$layer`:
+prospective layer before running this same candidate check. Initialization compares
+the desired layer with every installed file it owns, including stale files in its
+directories. Identical initialization preserves files, generation, provenance, and
+the running server. Repairing installed files or changing the layer, package
+selection, or serving code requires a transition. `page init --dry-run` reports
+that decision as `changed` without writing or stopping the service. Each layer
+records four deliberately different identities under `$layer`:
 
-- `generation` is a fresh epoch embedded in both `runtime/layer-generation.js` and the
+- `generation` is a fresh epoch for each transition, embedded in both `runtime/layer-generation.js` and the
   registry. State reports it and event requests carry it; the server repeats it on
   contract responses, so an old or half-loaded tab refuses a foreign answer rather
   than letting a replacement server interpret or append its event. That tab reloads
@@ -55,6 +61,11 @@ records three deliberately different identities under `$layer`:
   made only in the Python server, the boot `leaf.js`, the theme, or a package's
   widgets passes it. A checkout whose runtime modules were edited refuses every page
   vendored before the edit until each is re-vendored.
+- `server` is the SHA-256 identity of the payload's Python serving code,
+  `pyproject.toml`, `uv.lock`, and interpreter version. Initialization reads these inputs whether
+  invoked directly or by a preview, so a server-only edit requires a new generation
+  even when the installed browser files are unchanged. This identity decides
+  re-vendoring; the runtime identity still owns the server's bind check.
 
 HTTP responses also identify the serving incarnation in `Leaf-Server`. Every
 document that runs the runtime, served or exported, carries an inline prepaint that
@@ -62,8 +73,8 @@ marks a startup failure before the module graph or stylesheet can fail, so the t
 gives back the readable fallback. A served page's inline bootstrap also supervises
 the failure. It reloads when the server incarnation, layer generation, or website
 release changes. A published page also reloads when its release-addressed probe
-disappears. This includes a rejected re-vendor: its layer stays frozen, but the
-restarted server can finish a formerly interrupted load. Source files carry neither
+disappears. A rejected or unchanged re-vendor preserves its running server and
+layer, so neither triggers a reload. Source files carry neither
 script, and an export no supervisor.
 
 `registry.json` remains the source of truth for the current custom vocabulary and

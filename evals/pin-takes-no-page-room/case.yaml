@@ -27,16 +27,6 @@ vars:
     element the page needs, or say that it needs none, and the reply you would give the
     user.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-page-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/page-authoring\.md
 - type: llm-rubric
   metric: judgment
   value: |

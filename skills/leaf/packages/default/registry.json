@@ -95,8 +95,8 @@
     "x-example": "The import now takes <lf-num source=\"import-latency\" at=\"2026-08-27T09:00:00Z\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
   "lf-text-document": {
-    "description": "A file-backed text document supplied through Leaf data, with optional syntax coloring.",
-    "x-instructions": "Bind source to the page-owned feed. Use label when its source id would not name the document clearly. Put it inside ordinary details or an lf-tab when the document should begin collapsed or in a separate view.",
+    "description": "A file-backed text document with optional syntax coloring and rendered Markdown or HTML previews.",
+    "x-instructions": "Bind source to the page-owned feed. Use label to name the file. Set preview to markdown or html for Preview and Source tabs over the same text; language optionally overrides the source syntax. HTML is a separate document: its provider owns typography, spacing, and responsive CSS; it inherits no Leaf styles. Both readings share a scrollable viewport sized by --lf-bound (28rem by default). Compose ordinary lf-tabs for other kinds of preview. Put it inside details when it should begin collapsed.",
     "x-name": "label",
     "type": "object",
     "properties": {
@@ -111,6 +111,10 @@
       "label": {
         "type": "string",
         "minLength": 1
+      },
+      "preview": {
+        "type": "string",
+        "enum": ["markdown", "html"]
       },
       "language": {
         "type": "string"
@@ -479,6 +483,7 @@
     "additionalProperties": false,
     "x-content": "data",
     "x-upgrade": true,
+    "x-initial": "/vendor/lf-tree-initial.js",
     "x-example": "<lf-tree id=\"feeder-tree\"><pre>\nfeeders/\n  mount.py  +2 -2\n  schedule.py  +1\n  sites/\n    north.toml\n</pre></lf-tree>"
   },
   "lf-code": {

@@ -518,7 +518,7 @@
               The banner also shows <strong>Threads</strong>, the
               <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd>
               then <kbd>Shift+M</kbd>), <strong>Command reference</strong> (<kbd>?</kbd>
-              twice), and <strong>All leaves</strong> when another Leaf page is live. A
+              twice), and <strong>All pages</strong> when another Leaf page is live. A
               quiet status line at the bottom right reports the current keyboard walk or
               a useful command result. It moves above the bottom-left shortcuts when
               room is tight.
@@ -1114,6 +1114,21 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     into its reply box to see the thumbnail Leaf keeps in the draft
                     without exposing image Markdown.
                   </p>
+                  <figure id="bg-image-preview">
+                    <a href="/media/051bee487bfb5d13.png">
+                      <img
+                        src="/media/051bee487bfb5d13.png"
+                        width="1800"
+                        height="746"
+                        alt="A before-and-after screenshot of the draft controls"
+                      />
+                    </a>
+                    <figcaption>
+                      Open this screenshot, zoom to 100%, and pan by dragging or with
+                      arrow keys. Fit or z returns to the whole image; Escape or Close
+                      returns to this link.
+                    </figcaption>
+                  </figure>
                 </section>
               </div>
             </section>
@@ -1143,10 +1158,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread.
-                Open Threads and use “Next unread”, or press <kbd>u</kbd> there, to
-                reveal the earliest unread reply, including one covered by a summary. A
-                fully exposed short reply leaves the count; scroll through a long reply
-                to read all of it. The blue rail marks each unread message without
+                Use “Next unread” in Threads, or press <kbd>g</kbd> then <kbd>u</kbd>,
+                to reveal the earliest unread reply, including one covered by a summary.
+                A fully exposed short reply leaves the count; scroll through a long
+                reply to read all of it. The blue rail marks each unread message without
                 shifting the transcript. Interactive replies clear when their visible
                 body has been shown too; replying, answering, or resolving also marks
                 the thread's current messages read. A margin control whose thread holds
@@ -1693,8 +1708,15 @@ gallery/
   data.json  +2
   media/
     after.png
+  recordings/
+    evidence/
+      rendered_first_paint_checkpoints_with_readable_path_names.json  +245 -93
 </pre>
               </lf-tree>
+              <p id="bg-tree-after">
+                At a narrow width, the nested filename and its change badges wrap. This
+                paragraph stays in place when the tree upgrades.
+              </p>
             </section>
 
             <section id="bg-neutral-comparison">
@@ -2262,6 +2284,28 @@ switch --readers checkout-api,orders-api</code></pre>
                 source="gallery-source"
                 label="feature-gallery-source.toml · lines 1–4"
                 language="toml"
+              ></lf-text-document>
+            </section>
+
+            <section id="bg-document-previews">
+              <p class="eyebrow bg-feature-elements">lf-text-document</p>
+              <h3>Rendered documents</h3>
+              <p>
+                Switch between the rendered release note and its exact source. Use the
+                arrow keys on the tabs. Reloading keeps your selected view; a new source
+                value updates both views.
+              </p>
+              <lf-text-document
+                id="bg-markdown-preview"
+                source="gallery-markdown"
+                label="release-note.md"
+                preview="markdown"
+              ></lf-text-document>
+              <lf-text-document
+                id="bg-html-preview"
+                source="gallery-html"
+                label="release-card.html"
+                preview="html"
               ></lf-text-document>
             </section>
 

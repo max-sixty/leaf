@@ -1,6 +1,7 @@
 """Click declarations and production command wiring."""
 
 import json
+import shlex
 import sys
 from pathlib import Path
 
@@ -14,18 +15,19 @@ def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
     page_dir = Path(dir_arg).expanduser().resolve()
     if must_exist and not (page_dir / EVENTS_FILE).is_file():
         sys.exit(
-            f"{page_dir} is not an initialized page; run `leaf page init` "
-            "to vendor the layer"
+            f"{page_dir} is not an initialized page; "
+            f"run `leaf page init {shlex.quote(str(page_dir))}`"
         )
     return page_dir
 
 
-def _print_records(*records: dict) -> None:
+def _print_records(*records: dict | None) -> None:
     """Print what a write appended, each record as `page events` prints it."""
     from leaf.event_log import jsonl_line
 
     for record in records:
-        print(jsonl_line(record))
+        if record is not None:
+            print(jsonl_line(record))
 
 
 def _leaf_version(ctx: click.Context, _param: click.Parameter, value: bool) -> None:
@@ -55,7 +57,33 @@ def _leaf_root(ctx: click.Context, _param: click.Parameter, value: bool) -> None
     ctx.exit()
 
 
-@click.group()
+class LeafGroup(click.Group):
+    """Present domain refusals like Click errors at the command boundary.
+
+    Domain writers also serve harnesses and raise SystemExit with their reason
+    or ReceiptRefused for delivery custody and captured-log refusals.
+    Numeric exit statuses (including a package script's status) retain their
+    meaning and output; unexpected exceptions still surface.
+    """
+
+    def invoke(self, ctx: click.Context):
+        try:
+            return super().invoke(ctx)
+        except SystemExit as error:
+            if isinstance(error.code, str):
+                raise click.ClickException(error.code) from error
+            raise
+        except click.exceptions.Exit, click.Abort:
+            raise
+        except RuntimeError as error:
+            from leaf.delivery import ReceiptRefused
+
+            if isinstance(error, ReceiptRefused):
+                raise click.ClickException(str(error)) from error
+            raise
+
+
+@click.group(cls=LeafGroup)
 @click.option(
     "--version",
     is_flag=True,
@@ -171,8 +199,8 @@ def init(dir: str, selected: tuple[str, ...], no_packages: bool, dry_run: bool) 
 
     Creates PAGE/revisions/, then vendors the widget layer.
     The author writes PAGE/index.html. Re-running preserves the page's explicit packages unless --package or
-    --no-packages replaces them, and refuses vocabulary the page log can no longer
-    read. A changed layer restarts its server at the same URL; identical initialization
+    --no-packages replaces them, and validates the current vocabulary and markup.
+    A changed layer restarts its server at the same URL; identical initialization
     leaves it running. --dry-run reports the planned change without writing it.
     A package may contain any subset of the package layout, including zero, one,
     or many widgets.
@@ -357,7 +385,7 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
     ID narrows the reading to what it names. A message, or a widget frozen into
     one, names its thread: the reading is that thread with a page of its messages,
     their frozen markup, and the state on its widgets, paged by --after and
-    --limit. A widget on the page names itself: its element, the moves and reports
+    --limit. A widget on the page names itself: its element, the actions and reports
     standing on it, its Asks, and its workflows."""
     from leaf.agent_state import cmd_page_state
 
@@ -380,8 +408,8 @@ def stamp(dir: str, text: str, completes: tuple[str, ...]) -> None:
 
     Checks the exact source first, then records it as the next public version. Repeat
     --completes for each widget whose open tasks this version completes, which ends
-    them done, citing the version. A task on a widget otherwise survives unrelated
-    versions, and a version cannot silently remove its widget.
+    them done, citing the version. A task otherwise remains open, including when a
+    revision removes its widget.
     """
     from leaf.publishing import cmd_stamp
 
@@ -506,7 +534,7 @@ def delivery() -> None:
 def delivery_read(delivery_id: str) -> None:
     """Print DELIVERY_ID with its complete batches and response requirements. Where
     a harness's hook offered it to this session as a pointer, reading it confirms
-    it, so the user's moves read Picked up."""
+    it, so the user's updates read Picked up."""
     from leaf.delivery import cmd_delivery_read
 
     cmd_delivery_read(delivery_id)
@@ -592,7 +620,7 @@ def data_set(dir: str, source: str, input_file) -> None:
 @click.argument("dir", metavar="PAGE")
 @click.argument("source", metavar="SOURCE")
 def data_clear(dir: str, source: str) -> None:
-    """Remove SOURCE's value; the id keeps the contract it was recorded with."""
+    """Remove SOURCE's current value; its next write uses the current binding."""
     from leaf.data import cmd_data_clear
 
     cmd_data_clear(resolve_dir(dir), source)
@@ -743,7 +771,7 @@ def status(dir: str, state: str, detail: str) -> None:
 
     Use waiting with DETAIL naming the answer you want from the user; waiting
     without DETAIL invites text comments. Either puts down every item you started
-    before it. Use idle when finished; unacknowledged input, unanswered user moves
+    before it. Use idle when finished; unacknowledged input, unanswered user updates
     and open tasks prevent it. Work in hand is no status: name it with
     `leaf task start`.
     """
@@ -801,22 +829,6 @@ def _title_option(command):
     )(command)
 
 
-def _name(page_dir: Path, message: str, title: str | None) -> None:
-    """Name the thread a posted message is in, unless something named it first."""
-    from leaf.thread import cmd_name
-
-    if title is None:
-        return
-    if record := cmd_name(page_dir, message, title):
-        _print_records(record)
-    else:
-        print(
-            "the thread already has a title, which stands; "
-            f"`leaf thread edit {page_dir} {message} --title` renames it",
-            file=sys.stderr,
-        )
-
-
 def _titled(page_dir: Path, title: str | None) -> None:
     """Refuse a title admission would refuse before its command posts anything.
     Past this the title can fail only with the page itself, and then the message
@@ -856,93 +868,86 @@ def thread_open(
     from leaf.thread import cmd_comment
 
     page_dir = resolve_dir(dir)
-    _titled(page_dir, title)
-    accepted = cmd_comment(page_dir, quote, section, part, text, markup)
+    accepted = cmd_comment(page_dir, quote, section, part, text, markup, title=title)
     _print_records(accepted)
-    _name(page_dir, accepted["id"], title)
 
 
-@thread.command("reply", short_help="Reply to a thread as the agent.")
-@click.argument("dir", metavar="PAGE")
-@click.argument("thread", metavar="[THREAD]", required=False)
+def _reply_options(command):
+    """The one complete author interface for addressed and proactive replies."""
+    for option in (
+        click.option("--quote", help="new passage text to move this thread onto"),
+        click.option(
+            "--section", metavar="ID", help="new element ID, or scope for --quote"
+        ),
+        click.option(
+            "--part", metavar="ID", help="new declared visual part within --section"
+        ),
+        click.option("--detach", is_flag=True, help="remove the thread's page target"),
+        click.option("--text", help="reply text (default: stdin)"),
+        click.option(
+            "--markup", default="", help="frozen widget markup after the text"
+        ),
+        click.option(
+            "--awaits", is_flag=True, help="the reply asks the user a question"
+        ),
+        click.option(
+            "--ephemeral", is_flag=True, help="one-line progress, without answering"
+        ),
+        _title_option,
+    ):
+        command = option(command)
+    return command
+
+
+@cli.group(short_help="Answer exact response references carried by a delivery.")
+def response() -> None:
+    """A response reference selects its page, input and frozen thread destination."""
+
+
+@response.command("reply", short_help="Author a complete addressed reply.")
+@click.argument("reference", metavar="REFERENCE")
 @click.option(
-    "--for",
-    "for_event",
-    metavar="EVENT_ID",
-    help="delivery event whose current reply obligation this answers",
+    "--attempt", help="retry identity (ordinary replies default to the reference)"
 )
-@click.option("--quote", help="new passage text to move this thread onto")
-@click.option("--section", metavar="ID", help="new element ID, or scope for --quote")
-@click.option("--part", metavar="ID", help="new declared visual part within --section")
-@click.option(
-    "--detach",
-    is_flag=True,
-    help="remove the current page target when its subject leaves the page",
-)
-@click.option("--text", help="reply text (default: stdin)")
-@click.option("--markup", help="widget markup to render after the text, validated here")
-@click.option(
-    "--awaits", is_flag=True, help="the reply's prose asks the user a question"
-)
-@click.option(
-    "--ephemeral",
-    is_flag=True,
-    help=(
-        "progress update; on a move you owe, one line that takes it in hand. "
-        "Folds when the next ordinary agent reply arrives"
-    ),
-)
-@_title_option
-def thread_reply(
-    dir: str,
-    thread: str | None,
-    for_event: str | None,
-    quote: str,
-    section: str,
-    part: str,
-    detach: bool,
-    text: str,
-    markup: str,
-    awaits: bool,
-    ephemeral: bool,
-    title: str | None,
+@click.option("--failure", help="failure code when no answer is coming")
+@_reply_options
+def response_reply(
+    reference: str, attempt: str | None, failure: str | None, **options
 ) -> None:
-    """Post a threaded reply as the agent (--text or stdin).
+    """Answer the exact REFERENCE printed in a delivery's answer.ref.
 
-    Answer user input with --for EVENT_ID. With exactly one outstanding reply
-    in this turn's opened delivery, omit it to select that reply. THREAD, by
-    any message in it, posts a new agent message there instead, refused while
-    that thread owes a reply.
+    Text, frozen widgets, prose questions, titles and anchor moves share this command.
+    It validates saved page edits. An active provider reservation prepares full
+    content for that turn's completed final, which activates and commits it.
+    Without that reservation, this command activates edits and commits the reply.
+    Repeating a committed reply's reference returns its earlier record;
+    --attempt names retries of progress.
+    """
+    from leaf.thread import post_response
 
-    --ephemeral posts progress without answering. On a move you owe, it also takes
-    the move in hand as `leaf task start` does, with its one line as the Working line.
+    if attempt is not None:
+        options["attempt"] = attempt
+    _print_records(post_response(reference, failure=failure, **options))
 
-    --quote, --section, and --part move the thread's current anchor; --detach
-    removes it when the subject leaves the page. The original anchor stays in
-    the log. A reply validates and activates any changed source before posting.
+
+@thread.command("reply", short_help="Add an agent-initiated reply to a thread.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("thread", metavar="THREAD")
+@_reply_options
+def thread_reply(dir: str, thread: str, **options) -> None:
+    """Post a new agent message to THREAD (--text or stdin).
+
+    A message is refused while the thread owes a response; answer its
+    delivery reference with `leaf response reply`. --ephemeral posts progress.
+    Saved page edits are validated and activated before posting.
     """
     from leaf.thread import post_reply
 
-    if thread is not None and for_event is not None:
-        raise click.UsageError("THREAD and --for cannot be used together")
-    page_dir = resolve_dir(dir)
-    _titled(page_dir, title)
-    reply, *started = post_reply(
-        page_dir,
-        thread,
-        text,
-        markup,
-        awaits,
-        for_event=for_event,
-        quote=quote,
-        section=section,
-        part=part,
-        detach=detach,
-        validate_source=True,
-        ephemeral=ephemeral,
+    _print_records(
+        post_reply(
+            resolve_dir(dir), thread, for_event=None, validate_source=True, **options
+        )
     )
-    _print_records(reply, *started)
-    _name(page_dir, reply["id"], title)
 
 
 @thread.command("edit", short_help="Edit a message's text, or its thread's title.")
@@ -994,7 +999,7 @@ def task() -> None:
     """Show the work you owe on the page, the item you have in hand, and what you
     put on the user.
 
-    An item on your queue is a user move you owe an answer, named by the move's
+    An item on your queue is a user update you owe an answer, named by the update's
     event id, or a task you opened. `leaf task start` takes one in hand for this
     turn, with the line the banner shows. A task stays on your queue through
     replies, resolutions, versions and the end of the session that opened it;
@@ -1020,7 +1025,7 @@ def task() -> None:
 def task_open(dir: str, subject: str, title: str, owner: str) -> None:
     """Open a task titled TITLE on SUBJECT: an open thread, by any message in it or a
     widget its messages carry; a page widget, which for your own task must declare
-    x-work or hold an unsettled move; any other element of the page by its id, such
+    x-work or hold an unsettled update; any other element of the page by its id, such
     as a section; or `page` for the page as a whole. With `--on user` the task is on
     the user, on anything but a thread, where a reply with `--awaits` asks them: it
     ends at their Done, and you can end it too. Its id is the printed record's `id`."""
@@ -1030,16 +1035,16 @@ def task_open(dir: str, subject: str, title: str, owner: str) -> None:
 
 
 @task.command(
-    "start", short_help="Take a move or task in hand, with the banner's line."
+    "start", short_help="Start work on an update or task, with the banner's line."
 )
 @click.argument("dir", metavar="PAGE")
 @click.argument("item", metavar="ID")
 @click.argument("text", metavar="LINE")
 def task_start(dir: str, item: str, text: str) -> None:
-    """Take ID in hand for this turn: the event id of a user move you owe, as its
+    """Take ID in hand for this turn: the event id of a user update you owe, as its
     delivery names it, or an open task's id. LINE names the work and its subject in
-    one sentence; it reads Working beside the move or task and in the banner. Your
-    answer to the move, or the task's end, ends it; left in hand after your turn
+    one sentence; it reads Working beside the update or task and in the banner. Your
+    answer to the update, or the task's end, ends it; left in hand after your turn
     ends, it reads stalled until you answer it or start it again."""
     from leaf.tasks import cmd_start
 

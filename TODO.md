@@ -74,10 +74,16 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
+- **Consider a reminder when revising decided content.** An optional `--force`
+  acknowledgment could make an agent pause over an existing decision. Revisions
+  currently remain unrestricted; decide whether such a reminder helps before
+  adding one.
+
 - **#3 — Prevent an obsolete execution from closing continued work.** A later
   `task start` records a new execution, but admission still accepts an older
   session's `task_end`. Test competing continuations and keep the delayed result
   from closing the newer work ([comparison proposal](notes/comparisons.md#concrete-follow-up-proposals-2026-10-04-revised-2026-10-05)).
+
 - **Compare Leaf authoring with plain HTML (#19).** The
   [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
   now covers the live loop, a mixed batch, an elided thread, an unfamiliar package and a
@@ -123,6 +129,18 @@ has tried; settle that before building it.
 
 ### User continuity and mobile access
 
+- **Decide when a page merits a separate phone composition.** Many pages are
+  ephemeral and authored for a user reading on a large screen, so a bespoke phone
+  animation may not repay its cost. Decide how the agent weighs the user's viewing
+  context, expected reuse, and a readable fallback against that work. Distinguish
+  those pages from maintained public examples such as `wt-merge`, where a phone
+  design can be worth exploring.
+- **Improve maintained examples through a phone-quality queue.** Keep desktop
+  as the priority and address phone composition in a dedicated stream. Start with
+  `triage-board`: at 390px only one bucket is meaningfully visible, while other
+  buckets scroll horizontally and the release rationale sits below the board.
+  Keep comparison context available during a move, preserving direct destination
+  controls and undo.
 - **Consider automatic Leaf recovery on resume.** Reuse the reconnect notice's
   eligibility checks to restore serving, ownership, and feedback delivery, while
   respecting explicit stops and transfers to another session.

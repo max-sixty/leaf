@@ -19,10 +19,12 @@ import sys
 import tempfile
 import threading
 import time
+from contextlib import ExitStack
 from dataclasses import replace
 from functools import partial
 from html import escape
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import click
 from leaf.codex import (
@@ -37,9 +39,8 @@ from leaf.codex import (
     prepare_codex_delivery,
     start_app_server_delivery,
     stop_app_server,
-    stream_reply_target,
 )
-from leaf.delivery import read_delivery
+from leaf.delivery import read_delivery, stream_reply_target
 from leaf.harness import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, scope_page_urls
@@ -70,6 +71,9 @@ from leaf.thread import (
 )
 from leaf.thread_titles import app_server_title, name_thread
 from starlette.responses import Response
+
+if TYPE_CHECKING:
+    from websockets.sync.client import ClientConnection
 
 PORT = 8080
 # The model every hosted task runs on, and the one its threads are titled with.
@@ -770,33 +774,38 @@ class WebsiteCodexHarness:
         self._stop_server(process)
         raise RuntimeError("Codex App Server did not become ready")
 
-    def _request(self, method: str, params: dict, before_close=None) -> dict:
+    def _request(
+        self, resources: ExitStack, method: str, params: dict
+    ) -> tuple[ClientConnection, dict, list[dict]]:
+        """Open a subscription whose socket the caller owns until it starts a follower."""
         socket = app_server_connect(self.endpoint)
-        followed = False
+        resources.callback(socket.close)
         pending = []
+        app_server_handshake(
+            socket,
+            self._request_id(),
+            "leaf-website",
+            "Leaf website",
+            pending.append,
+        )
+        result = self._send(socket, method, params, pending)
+        return socket, result, pending
+
+    def _follow(self, turn: HostedTurn, resources: ExitStack) -> None:
+        """Transfer the request's subscription to the turn's background follower."""
+        self.following_threads.add(turn.session_id)
         try:
-            app_server_handshake(
-                socket,
-                self._request_id(),
-                "leaf-website",
-                "Leaf website",
-                pending.append,
+            threading.Thread(
+                target=self._run_follow_turn, args=(turn,), daemon=True
+            ).start()
+        except BaseException:
+            self.following_threads.discard(turn.session_id)
+            self._withdraw_delivery(
+                turn.session_id, turn.delivery_id, turn.event_ids, turn.reply_target
             )
-            result = self._send(socket, method, params, pending)
-            if before_close is not None:
-                follow = before_close(socket, result, pending)
-                if follow is not None:
-                    self.following_threads.add(follow.session_id)
-                    threading.Thread(
-                        target=self._run_follow_turn,
-                        args=(follow,),
-                        daemon=True,
-                    ).start()
-                    followed = True
-            return result
-        finally:
-            if not followed:
-                socket.close()
+            close_session_turn(turn.session_id)
+            raise
+        resources.pop_all()
 
     def _run_follow_turn(self, turn: HostedTurn) -> None:
         """Hold one thread's delivery scheduling seat, then hand the page on.
@@ -1079,11 +1088,12 @@ class WebsiteCodexHarness:
         event_ids: tuple[str, ...],
         reply_target: dict | None,
     ) -> None:
-        """Give an offered delivery back, for a turn that never started.
+        """Retire offered input that no follower took, so the Worker can receipt it.
 
-        Nothing has picked these moves up, so they go back to being the page's
-        unanswered input: the Worker receipts them, and its receipt invites the
-        user to send again, which a delivery still holding them would swallow.
+        Interrupt any provider turn the request started, release its reserved
+        reply seat, and give the moves back as unanswered input. The Worker's
+        failure receipt then invites the user to send again; an offered delivery
+        still holding those moves would swallow the retry.
         """
         self._interrupt(thread_id, "", **agent_event_fields(event_ids))
         if reply_target is not None:
@@ -1096,24 +1106,25 @@ class WebsiteCodexHarness:
     ) -> str:
         started = time.monotonic()
 
-        def attach(socket, result: dict, pending: list[dict]) -> HostedTurn:
-            thread_id = result["thread"]["id"]
-            return self._start_turn(socket, page_dir, thread_id, process, pending)
-
-        result = self._request(
-            "thread/start",
-            {
-                "model": HOSTED_MODEL,
-                "cwd": str(page_dir),
-                "approvalPolicy": "never",
-                # The outer Cloudflare Container is the per-user VM sandbox. Its
-                # kernel does not permit Codex's nested bubblewrap namespaces.
-                "sandbox": "danger-full-access",
-                "developerInstructions": CODEX_INSTRUCTIONS,
-                "config": {**LEAF_THREAD_CONFIG, "model_reasoning_effort": "low"},
-            },
-            attach,
-        )
+        with ExitStack() as resources:
+            socket, result, pending = self._request(
+                resources,
+                "thread/start",
+                {
+                    "model": HOSTED_MODEL,
+                    "cwd": str(page_dir),
+                    "approvalPolicy": "never",
+                    # The outer Cloudflare Container is the per-user VM sandbox. Its
+                    # kernel does not permit Codex's nested bubblewrap namespaces.
+                    "sandbox": "danger-full-access",
+                    "developerInstructions": CODEX_INSTRUCTIONS,
+                    "config": {**LEAF_THREAD_CONFIG, "model_reasoning_effort": "low"},
+                },
+            )
+            turn = self._start_turn(
+                socket, page_dir, result["thread"]["id"], process, pending
+            )
+            self._follow(turn, resources)
         log_agent(
             "thread_start_completed",
             eventId=event_id,
@@ -1129,11 +1140,19 @@ class WebsiteCodexHarness:
         event_id: str,
     ) -> bool:
         started = time.monotonic()
-        resumed = False
-
-        def attach(socket, result: dict, pending: list[dict]) -> HostedTurn:
-            nonlocal resumed
-            resumed = True
+        with ExitStack() as resources:
+            try:
+                socket, result, pending = self._request(
+                    resources,
+                    "thread/resume",
+                    {
+                        "threadId": thread_id,
+                        "cwd": str(page_dir),
+                        "excludeTurns": True,
+                    },
+                )
+            except RuntimeError:
+                return False
             if result["thread"]["status"]["type"] == "active":
                 # A turn is running that this container is not following, so its
                 # answer has nowhere to go and the user is waiting behind it.
@@ -1141,28 +1160,14 @@ class WebsiteCodexHarness:
                 # says when it has, on the subscription this resume just opened.
                 self._end_unfollowed_turn(socket, thread_id, pending, event_id)
             close_session_turn(thread_id)
-            return self._start_turn(socket, page_dir, thread_id, process, pending)
-
-        try:
-            self._request(
-                "thread/resume",
-                {
-                    "threadId": thread_id,
-                    "cwd": str(page_dir),
-                    "excludeTurns": True,
-                },
-                attach,
-            )
-            log_agent(
-                "thread_resume_completed",
-                eventId=event_id,
-                durationMs=round((time.monotonic() - started) * 1000),
-            )
-            return True
-        except RuntimeError:
-            if resumed:
-                raise
-            return False
+            turn = self._start_turn(socket, page_dir, thread_id, process, pending)
+            self._follow(turn, resources)
+        log_agent(
+            "thread_resume_completed",
+            eventId=event_id,
+            durationMs=round((time.monotonic() - started) * 1000),
+        )
+        return True
 
     def attach(self, page_dir: Path, event_id: str) -> str | None:
         """Deliver a pending move, returning the owner that takes the page on.
@@ -1256,16 +1261,6 @@ class WebsiteCodexHarness:
         """
         with self.lock:
             return write_failure_receipt(page_dir, event_id, failure)
-
-
-_agent_harness: WebsiteCodexHarness | None = None
-
-
-def website_codex_harness() -> WebsiteCodexHarness:
-    global _agent_harness
-    if _agent_harness is None:
-        _agent_harness = WebsiteCodexHarness()
-    return _agent_harness
 
 
 def _agent_event(posted: dict) -> str:
@@ -1453,7 +1448,7 @@ def site_endpoint(
         site_root=root,
         pages=manifest["pages"],
         release=manifest["release"],
-        agent_harness=agent_harness or website_codex_harness(),
+        agent_harness=agent_harness or WebsiteCodexHarness(),
     )
 
 
@@ -1510,7 +1505,7 @@ def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
 def main(port: int) -> None:
     os.environ.setdefault("LEAF_AGENT", WEBSITE_AGENT)
     site_root = Path(os.environ.get("LEAF_SITE_ROOT", "/app/site"))
-    agent_harness = website_codex_harness()
+    agent_harness = WebsiteCodexHarness()
     httpd = LeafHTTPServer(("0.0.0.0", port), site_endpoint(site_root, agent_harness))
     log_agent("container_http_ready", port=httpd.server_address[1])
     close_on_signal(agent_harness)

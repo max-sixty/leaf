@@ -2538,17 +2538,6 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-tree) ul { list-style: none; margin: 0; padding-left: 0; }
 :scope:is(lf-tree) ul ul { padding-left: 18px; border-left: 1px solid var(--rule); margin-left: 5px; }
 :scope:is(lf-tree) li { margin: 3px 0; }
-/* Where the runtime runs, each line of the body stands at the pitch its rendered row will (a
- * row, and the 3px between rows), so the tree takes its height from the first paint.
- * The line's half of the gap above the first row and below the last stays inside the
- * box, as the rendered rows' outer margins leave it. */
-@scope (html[data-lf-interactive] :scope) {
-  :scope:is(lf-tree):not(.lf-rendered){ display: flow-root; }
-}
-@scope (html[data-lf-interactive] :scope) {
-  :scope:is(lf-tree):not(.lf-rendered) > pre{
-    line-height: calc(var(--code-line) + 3px); margin-block: -1.5px; }
-}
 :scope:is(lf-tree) .lf-tree-dir { font-weight: 600; }
 /* nowrap because the module appends name and badges with no whitespace between them and
  * spaces them by margin, so a line is one word to the breaker: told it may break inside
@@ -2672,7 +2661,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 @media screen {
   :scope:is(lf-text-document)[data-lf-bound] { max-block-size: none; overflow: visible;
     --lf-top: inherit; }
-  :scope:is(lf-text-document)[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
+  :scope:is(lf-text-document):not([preview])[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
     overflow: auto; --lf-bound-box: 1; --lf-top: 0px; }
 }
 /* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
@@ -2770,3 +2759,31 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 .lf-draft-delta ins { background: var(--add-tint); color: var(--ok-ink);
                       text-decoration: none; }
 .lf-draft-restore { flex: none; font-size: var(--t-6); }
+
+/* Source and preview share one inspection viewport. Its height is independent of
+   either reading's length, so switching keeps the strip and following page still. */
+:scope:is(lf-text-document)[preview] > .lf-text-document-view {
+  background: var(--paper);
+}
+:scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs {
+  margin: 0; border: 0; border-radius: 0;
+}
+:scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs > lf-tab {
+  margin: 0; padding: 0;
+}
+:scope:is(lf-text-document) div.lf-text-document-preview {
+  padding: var(--sp-4); overflow-wrap: anywhere;
+}
+:scope:is(lf-text-document) iframe.lf-text-document-preview {
+  display: block; inline-size: 100%; block-size: var(--lf-bound, 28rem); border: 0;
+  background: white;
+}
+@media screen {
+  :scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs > lf-tab:not([hidden]) {
+    block-size: var(--lf-bound, 28rem);
+    overscroll-behavior: auto;
+  }
+  :scope:is(lf-text-document) iframe.lf-text-document-preview {
+    block-size: 100%;
+  }
+}

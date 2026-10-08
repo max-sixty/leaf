@@ -1,8 +1,8 @@
 """Preview input readings and the user handoff's harness connection.
 
 `leaf-dev preview` resolves three things from wherever its source sits: the
-package layer, the media directory, and the set of paths a watcher subscribes
-to. Input tests state a directory tree and ask for those pure readings. The user
+package layer, the companion media and pinned assets, and the paths a watcher
+subscribes to. Input tests exercise those readings and shared page preparation. The user
 handoff crosses the real claim, server and delivery adapter boundaries, without
 opening a browser.
 
@@ -21,10 +21,15 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
+from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import ROOT, STATED_TIMEOUT, declare_idle, fetch, stamp, wait_for
+from leaf import cli as cli_model
 from leaf import codex_adapter, hosting, leases, server, service, session, state
-from leaf_dev import preview
+from leaf.media import media_name
+from leaf.structure import SourceDocument
+from leaf_dev import page_fixtures, preview
+from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 
 def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
@@ -234,6 +239,101 @@ def test_a_preview_source_uses_its_checkout_layer_and_media(tmp_path):
     assert str(ROOT / "uv.lock") in watched.paths
 
 
+@pytest.mark.parametrize("name", ["how-it-works", "index", "examples"])
+def test_product_previews_prepare_the_authored_layer_and_media(
+    tmp_path, monkeypatch, name
+):
+    """A product preview includes its site furniture and authored images."""
+    source = ROOT / "docs" / f"{name}.html"
+    page = tmp_path / "preview"
+    monkeypatch.chdir(ROOT)
+
+    def run_leaf(*args, input_text=None):
+        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
+        assert result.exit_code == 0, result.output
+
+    prepare_page(page, read_fixture(source), run_leaf, final_status=None)
+    assert all(
+        (page / reference.removeprefix("/")).is_file()
+        for reference in SourceDocument(source.read_text()).media_refs
+    )
+    registry = json.loads((page / "registry.json").read_text())
+    assert "nav.sitenav" in registry["$idioms"]
+    assert (ROOT / "docs" / "package" / "theme.css").read_text().rstrip() in (
+        page / "theme.css"
+    ).read_text()
+    watched = preview.watch_paths(source, ROOT, [], {})
+    assert str(ROOT / "docs" / "layer.json") in watched.paths
+
+
+@pytest.mark.parametrize("kind", ["image", "css", "inline", "stylesheet", "sample"])
+def test_fixture_media_follows_versions_draft_assets_and_live_edits(
+    tmp_path, monkeypatch, kind
+):
+    """Markup selects media for preparation and refresh, including earlier versions."""
+    source = tmp_path / "source" / "index.html"
+    source.parent.mkdir()
+    (source.parent / "layer.json").write_text("[]")
+    (source.parent / "media").mkdir()
+    (source.parent / "leaf-assets.json").write_text("{}")
+    assets = tmp_path / "draft-assets"
+    assets.mkdir()
+    previous, current, revised, unused = [
+        assets / f"{name}.png" for name in ("previous", "current", "revised", "unused")
+    ]
+    for path in (previous, current, revised, unused):
+        path.write_bytes(path.stem.encode())
+
+    def markup(path, kind=kind):
+        address = f"/media/{media_name(path.read_bytes(), path.suffix)}"
+        head = ""
+        body = f'<img src="{address}" alt="Example">'
+        if kind == "css":
+            head = f"<style>.picture {{background-image:url({address})}}</style>"
+            body = '<div class="picture">Picture</div>'
+        elif kind == "inline":
+            body = f'<div style="background-image:url({address})">Picture</div>'
+        elif kind == "stylesheet":
+            companion = source.with_suffix(".page")
+            companion.mkdir(exist_ok=True)
+            (companion / f"{path.stem}.css").write_text(
+                f".picture {{background-image:url({address})}}"
+            )
+            head = f'<link rel="stylesheet" href="/page/{path.stem}.css">'
+            body = '<div class="picture">Picture</div>'
+        elif kind == "sample":
+            body = (
+                '<lf-sample id="sample" label="Picture">'
+                f'<template data-sample id="sample-content">{body}</template></lf-sample>'
+            )
+        return (
+            f"<!doctype html><html><head><title>Media fixture</title>{head}</head>"
+            f"<body><main><h1>Media fixture</h1>{body}"
+            "</main></body></html>"
+        )
+
+    versions = source.parent / "versions"
+    versions.mkdir()
+    (versions / "index.v1.html").write_text(markup(previous))
+    source.write_text(markup(current))
+    page = tmp_path / "page"
+
+    def run_leaf(*args, input_text=None):
+        result = CliRunner().invoke(cli_model.cli, list(args), input=input_text)
+        assert result.exit_code == 0, result.output
+
+    prepare_page(page, read_fixture(source), run_leaf, assets=assets, final_status=None)
+    expected = {
+        media_name(path.read_bytes(), path.suffix) for path in (previous, current)
+    }
+    assert {path.name for path in (page / "media").iterdir()} == expected
+    source.write_text(markup(revised, kind="inline"))
+    monkeypatch.setattr(page_fixtures, "pinned_assets", lambda root: assets)
+    preview.refresh_media(source, page, run_leaf)
+    expected.add(media_name(revised.read_bytes(), revised.suffix))
+    assert {path.name for path in (page / "media").iterdir()} == expected
+
+
 def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     """A path outside the subscribed roots is never reported, so it can never refresh.
 
@@ -264,6 +364,59 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     assert [root for root in watched.roots if ".tmp" in root.parts] == []
     # The example images are a pinned copy under `.tmp`, so their pin stands in.
     assert str(ROOT / "leaf-assets.json") in watched.paths
+    assert ROOT not in watched.roots  # A single assets pin does not watch its checkout.
+
+
+class _ScriptedChanges:
+    """A controlled input stream with the subscription's root-plan boundary."""
+
+    def __init__(self, iterator, watched):
+        self.iterator = iterator
+        self.roots = preview.watch_roots(watched)
+
+    def __next__(self):
+        return next(self.iterator)
+
+    def close(self):
+        self.iterator.close()
+
+    def matches(self, roots):
+        return self.roots == roots
+
+
+def test_preview_filters_feedback_before_discovering_inputs(tmp_path, monkeypatch):
+    """Page-side writes must not rediscover the whole installed layer."""
+    source = tmp_path / "reading.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Reading</title></head>"
+        "<body><main><h1>Reading</h1></main></body></html>"
+    )
+    page = tmp_path / "preview"
+    readings = []
+    original = preview.watch_paths
+
+    def read_inputs(*args):
+        watched = original(*args)
+        readings.append(watched)
+        return watched
+
+    def changes(_watched):
+        count = len(readings)
+        for name in ("interactions.jsonl", "user-views.json", "viewed.json"):
+            yield {str(page / name)}
+            assert len(readings) == count
+        source.write_text(source.read_text().replace("Reading</h1>", "Revised</h1>"))
+        yield {str(source)}
+        assert "Revised</h1>" in (page / "index.html").read_text()
+
+    monkeypatch.setattr(preview, "watch_paths", read_inputs)
+    monkeypatch.setattr(
+        preview,
+        "watch_changes",
+        lambda watched: _ScriptedChanges(changes(watched), watched),
+    )
+    with pytest.raises(StopIteration):
+        preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)
 
 
 def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_path):
@@ -288,7 +441,8 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     def watched():
         return preview.watch_paths(source, runtime, [layer_root], {})
 
-    subscription = watched().roots
+    initial = watched()
+    subscription = initial.roots
     assert str(existing_script) in watched().paths
     assert str(source) in watched().paths
 
@@ -297,6 +451,7 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     assert str(ignored) not in watched().paths
 
     added_script = scripts / "added.py"
+    assert initial.relevant(str(added_script))
     added_script.write_text("new", encoding="utf-8")
     assert str(added_script) in watched().paths
 
@@ -306,16 +461,104 @@ def test_a_preview_reads_its_watched_inputs_from_the_files_that_exist_now(tmp_pa
     versions = source.parent / "versions"
     versions.mkdir()
     version = versions / "page.v1.html"
+    assert initial.relevant(str(version))
     version.write_text("version", encoding="utf-8")
     assert str(version) in watched().paths
 
     widget = widgets / "lf-new.js"
+    assert initial.relevant(str(widget))
     widget.write_text("export {};", encoding="utf-8")
     assert str(widget.resolve()) in watched().paths
 
     # None of those arrivals moved the subscription: each landed inside a directory
     # already watched recursively, so the open watcher kept collecting through them.
     assert watched().roots == subscription
+
+
+def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
+    """An assets pin is an exact native watch, including repeated editor renames."""
+    source = tmp_path / "pages/reading.html"
+    source.parent.mkdir()
+    source.write_text("reading")
+    (source.parent / "media").mkdir()
+    pin = tmp_path / "leaf-assets.json"
+    pin.write_text("{}")
+    scripts = tmp_path / "skills/leaf/scripts"
+    scripts.mkdir(parents=True)
+    (tmp_path / "pyproject.toml").write_text("")
+    (tmp_path / "uv.lock").write_text("")
+    watched = preview.watch_paths(source, tmp_path, [], {})
+    assert pin in watched.roots
+    assert tmp_path not in watched.roots
+    changes = preview.watch_changes(watched)
+    try:
+        for value in ("first", "second"):
+            staging = tmp_path / "pin-next.json"
+            staging.write_text(value)
+            staging.replace(pin)
+            wait_for(
+                lambda: next(changes),
+                lambda paths: str(pin) in paths,
+                failure="the preview's native file subscription lost its assets pin",
+            )
+    finally:
+        changes.close()
+
+
+def test_preview_refreshes_replaced_inputs_even_without_a_native_file_batch(
+    tmp_path, monkeypatch
+):
+    """Files can change while the old root watch is revoked before rearming."""
+    directory = tmp_path / "source"
+    directory.mkdir()
+    source = directory / "reading.html"
+    source.write_text(
+        "<!doctype html><html><head><title>Reading</title></head>"
+        "<body><main><h1>Original</h1></main></body></html>"
+    )
+    page = tmp_path / "preview"
+    batches = []
+
+    def replaced_input(_changes):
+        if not batches:
+            original = source.read_text()
+            shutil.rmtree(directory)
+            directory.mkdir()
+            source.write_text(original.replace("Original</h1>", "Revised</h1>"))
+            batches.append(True)
+            return set()  # Only the bounded lifetime wake survives the replacement.
+        assert "Revised</h1>" in (page / "index.html").read_text()
+        raise StopIteration
+
+    monkeypatch.setattr(preview.PreviewChanges, "__next__", replaced_input)
+    with pytest.raises(StopIteration):
+        preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)
+
+
+def test_preview_rearms_a_replaced_native_input_tree(tmp_path):
+    """The selected file paths can stay equal while their native root expires."""
+    tree = tmp_path / "inputs"
+    tree.mkdir()
+    module = tree / "state.py"
+    module.write_text("initial")
+    watched = preview.Watched((tree,), frozenset({str(module)}), frozenset({tree}))
+    changes = preview.watch_changes(watched)
+    try:
+        assert changes.matches(preview.watch_roots(watched))
+        shutil.rmtree(tree)
+        tree.mkdir()
+        module.write_text("replacement")
+        assert not changes.matches(preview.watch_roots(watched))
+        changes.close()
+        changes = preview.watch_changes(watched)
+        module.write_text("later authored edit")
+        wait_for(
+            lambda: next(changes),
+            lambda paths: str(module) in paths,
+            failure="the replacement preview input tree lost later authored edits",
+        )
+    finally:
+        changes.close()
 
 
 def test_preview_tracks_committed_layer_across_refused_source_edits(
@@ -352,7 +595,7 @@ def test_preview_tracks_committed_layer_across_refused_source_edits(
 
         before = layer()
         theme.write_bytes(theme.read_bytes())
-        yield {(0, str(theme))}
+        yield {str(theme)}
         assert layer()["generation"] == before["generation"]
 
         original = source.read_text()
@@ -360,29 +603,33 @@ def test_preview_tracks_committed_layer_across_refused_source_edits(
         source.write_text(
             original.replace("</main>", "<lf-undefined></lf-undefined></main>")
         )
-        yield {(0, str(theme)), (0, str(source))}
+        yield {str(theme), str(source)}
         committed = layer()
         assert committed["generation"] != before["generation"]
         assert (page / "index.html").read_text() == original
 
         source.write_bytes(source.read_bytes())
-        yield {(0, str(source))}
+        yield {str(source)}
         assert layer()["generation"] == committed["generation"]
 
         theme.unlink()
         seed.write_text("\n")
-        yield {(0, str(theme)), (0, str(seed))}
+        yield {str(theme), str(seed)}
         assert layer()["generation"] == committed["generation"]
 
         seed.write_text("")
         source.write_text(original.replace("Original", "Revised"))
-        yield {(0, str(seed)), (0, str(source))}
+        yield {str(seed), str(source)}
         after = layer()
         assert after["generation"] != committed["generation"]
         assert after["fingerprint"] != committed["fingerprint"]
         assert "Revised" in (page / "index.html").read_text()
 
-    monkeypatch.setattr(preview, "watch_changes", changes)
+    monkeypatch.setattr(
+        preview,
+        "watch_changes",
+        lambda watched: _ScriptedChanges(changes(watched), watched),
+    )
     with pytest.raises(StopIteration):
         preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)
 
@@ -419,7 +666,7 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
             source.write_text(
                 original.replace("</main>", "<lf-undefined></lf-undefined></main>")
             )
-            yield {(0, str(manifest)), (0, str(source))}
+            yield {str(manifest), str(source)}
             pytest.fail("Committed package did not rebuild the watch subscription")
         else:
             installed = json.loads((page / "registry.json").read_text())["$layer"]
@@ -430,12 +677,16 @@ def test_preview_follows_a_committed_package_after_a_source_refusal(
                 root == package or root in package.parents for root in watched.roots
             )
             theme.write_text(":root { --package-proof: 2; }")
-            yield {(0, str(theme))}
+            yield {str(theme)}
             after = json.loads((page / "registry.json").read_text())["$layer"]
             assert after["generation"] != installed["generation"]
             assert "--package-proof: 2" in (page / "theme.css").read_text()
 
-    monkeypatch.setattr(preview, "watch_changes", changes)
+    monkeypatch.setattr(
+        preview,
+        "watch_changes",
+        lambda watched: _ScriptedChanges(changes(watched), watched),
+    )
     with pytest.raises(StopIteration):
         preview.serve_preview(source, page, ROOT / "bin/leaf", ROOT, False)
     assert len(subscriptions) == 2
@@ -520,6 +771,7 @@ def test_a_preview_follows_a_nearer_media_directory_when_one_appears(tmp_path):
     assert str(inherited) in before.paths
     # The directory that does not exist yet is watched, so its arrival is a change.
     assert str(nearer_media) in before.paths
+    assert before.relevant(str(nearer_media / "nearer.png"))
 
     nearer_media.mkdir()
     nearer = nearer_media / "nearer.png"

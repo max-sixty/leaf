@@ -328,7 +328,7 @@ def trace_scores(stream: Path) -> dict:
             calls[block["id"]] = block
         elif block.get("type") == "tool_result":
             results[block["tool_use_id"]] = block
-    checks = renders = refused = writes = 0
+    checks = renders = failed_check_calls = writes = 0
     delegations = []
     for cid, call in calls.items():
         name, inp = call["name"], call.get("input", {})
@@ -348,14 +348,10 @@ def trace_scores(stream: Path) -> dict:
             if "page check" in cmd and "--help" not in cmd:
                 checks += 1
                 renders += "--render" in cmd
-                # The exit status is often masked by a pipe or a chained command, so
-                # read the check's own verdict mark. A `| tail` that cuts the mark off
-                # hides a failure, so this is a floor.
-                out = results.get(cid, {}).get("content")
-                out = (
-                    out if isinstance(out, str) else json.dumps(out, ensure_ascii=False)
-                )
-                refused += "✗" in out
+                # Observe the whole tool call, independent of CLI wording.
+                # In a compound command, an unrelated step may fail even when
+                # the check passed; this is not a count of refused page checks.
+                failed_check_calls += results.get(cid, {}).get("is_error") is True
             elif "index.html" in cmd and re.search(
                 r"-pi\b|sed -i|write_text|open\([^)]*['\"]w|>\s*\S*index\.html", cmd
             ):
@@ -374,11 +370,13 @@ def trace_scores(stream: Path) -> dict:
         "is_error": done.get("is_error"),
         "cost_usd": done.get("total_cost_usd"),
         "cost_known": done.get("total_cost_usd") is not None,
-        "minutes": round(done.get("duration_ms", 0) / 60000, 1),
+        "minutes": round(done["duration_ms"] / 60000, 1)
+        if "duration_ms" in done
+        else None,
         **token_counts(trace),
         "checks": checks,
         "renders": renders,
-        "refused": refused,
+        "failed_check_calls": failed_check_calls,
         "page_writes": writes,
         "reads": sorted(set(reads)),
         "delegation_invocations": len(delegations),

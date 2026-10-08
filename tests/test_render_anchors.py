@@ -8,7 +8,7 @@ from html import escape
 import pytest
 from axe_playwright_python.sync_playwright import Axe
 from click.testing import CliRunner
-from interact_support import append_carried_log_record, record_claim
+from interact_support import append_carried_log_record, record_claim, response_reference
 from leaf import anchor_capture as anchor_capture_model
 from leaf import cli as cli_model
 from leaf import data as data_model
@@ -3538,11 +3538,9 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
     moved = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(d),
-            "--for",
-            root["id"],
+            response_reference(d, root["id"]),
             "--section",
             "drift",
             "--quote",
@@ -3611,11 +3609,9 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
     detached = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(d),
-            "--for",
-            root["id"],
+            response_reference(d, root["id"]),
             "--detach",
             "--text",
             "I removed the section; this thread no longer has a page target.",
@@ -6513,6 +6509,49 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
         "deferred app.py",
         "current": replacement,
     }
+    result = page.evaluate(
+        """async () => {
+          const {loadDeferred} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+          const manifest = document.querySelector('#patch').manifestSnapshot;
+          const original = runtime.data;
+          const failures = [];
+          try {
+            for (const change of ['contract', 'validity']) {
+              const candidate = structuredClone(original);
+              candidate.version = change;
+              if (change === 'contract')
+                candidate.sources['review-patch'].contract = 'another-contract';
+              else {
+                delete candidate.sources['review-patch'].value;
+                candidate.sources['review-patch'].error = 'source is no longer valid';
+              }
+              acceptData(candidate, runtime.state.taken);
+              try {
+                await loadDeferred(manifest, 'app.py');
+                failures.push(null);
+              } catch (error) {
+                failures.push(error.message);
+              }
+            }
+          } finally {
+            acceptData(original, runtime.state.taken);
+            await notifyDataSubscribers();
+          }
+          return {revision: manifest.revision, failures};
+        }"""
+    )
+    assert (
+        result["failures"]
+        == [
+            (
+                f"source review-patch revision {result['revision']} changed before loading "
+                "deferred app.py"
+            )
+        ]
+        * 2
+    )
 
 
 def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):

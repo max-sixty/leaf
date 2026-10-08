@@ -34,9 +34,9 @@ import posixpath
 import re
 import tempfile
 import threading
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from functools import cached_property, lru_cache
+from functools import cached_property, lru_cache, partial
 from pathlib import Path
 from types import MappingProxyType
 from urllib.parse import unquote, urlsplit
@@ -540,14 +540,33 @@ def capture_artifact(
     *,
     declaration_sources: Mapping[str, str] | None = None,
     widget_sources: Mapping[str, str] | None = None,
+    read_resource: Callable[[str], Resource] | None = None,
 ) -> RevisionArtifact:
     """Capture the candidate's complete inputs without executing authored code.
 
     The page keeps its last capture while every input is the same: the document's
     bytes, the vocabulary and declarations, and the stamp of every mutable file a
     capture may read. A capture that must be built is built from the caller's own
-    document, which the check that asks has already parsed."""
+    document, which the check that asks has already parsed.
+
+    A fixture builder may supply a resource reader that materializes missing media
+    before reading it through `capture_local_resource`. That reader uses this same
+    dependency discovery, including samples and transitive CSS and script inputs.
+    Its inputs may live outside the page, so captures with a supplied reader are
+    not cached by page-local stamps.
+    """
     page_dir = page_dir.absolute()
+    build = partial(
+        _capture_artifact,
+        page_dir,
+        document,
+        registry,
+        declaration_sources=declaration_sources,
+        widget_sources=widget_sources,
+        read_resource=read_resource or partial(capture_local_resource, page_dir),
+    )
+    if read_resource is not None:
+        return build()
     key = (
         document.data,
         _json(registry),
@@ -555,16 +574,7 @@ def capture_artifact(
         _json(dict(widget_sources or {})) if widget_sources is not None else None,
         _capture_input_stamps(page_dir),
     )
-    return memo(page_dir, _Capture).get(
-        key,
-        lambda: _capture_artifact(
-            page_dir,
-            document,
-            registry,
-            declaration_sources=declaration_sources,
-            widget_sources=widget_sources,
-        ),
-    )
+    return memo(page_dir, _Capture).get(key, build)
 
 
 class _Capture(Slot):
@@ -603,6 +613,46 @@ def capture_local_resource(page_dir: Path, path: str) -> Resource:
     return Resource(data, mime)
 
 
+def _resource_dependencies(path: str, data: bytes, mime: str) -> tuple[str, ...]:
+    """The local dependencies of an authored module or stylesheet."""
+    edges = []
+    if mime == "application/javascript" and path.startswith("/page/"):
+        for _, _, specifier in javascript_imports(data, path):
+            edges.append(resolve_dependency(specifier, path, module=True))
+    elif mime == "text/css" and path.startswith("/page/"):
+        try:
+            css = data.decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise ArtifactError(f"{path}: CSS is not UTF-8") from error
+        for specifier in _css_dependencies(css):
+            edges.append(resolve_dependency(specifier, path))
+    return tuple(dict.fromkeys(edge for edge in edges if edge is not None))
+
+
+class _ResourceCapture:
+    """One capture's resource graph, including cycles and arbitrarily deep imports.
+
+    Record a resource before following its edges, so each path is read once. The
+    explicit worklist keeps graph depth independent of Python's call stack.
+    """
+
+    def __init__(self, read_resource: Callable[[str], Resource]) -> None:
+        self.read_resource = read_resource
+        self.resources: dict[str, Resource] = {}
+
+    def add(self, path: str) -> None:
+        pending = [path]
+        while pending:
+            path = pending.pop()
+            if path in self.resources:
+                continue
+            resource = self.read_resource(path)
+            data = resource.data
+            edges = _resource_dependencies(path, data, resource.mime)
+            self.resources[path] = Resource(data, resource.mime, tuple(sorted(edges)))
+            pending.extend(reversed(edges))
+
+
 def _capture_artifact(
     page_dir: Path,
     document: SourceDocument,
@@ -610,46 +660,27 @@ def _capture_artifact(
     *,
     declaration_sources: Mapping[str, str] | None = None,
     widget_sources: Mapping[str, str] | None = None,
+    read_resource: Callable[[str], Resource],
 ) -> RevisionArtifact:
     """Build a capture after its public wrapper has identified every input."""
-    resources = {}
-
-    def capture(path: str):
-        if path in resources:
-            return
-        resource = capture_local_resource(page_dir, path)
-        data, mime = resource.data, resource.mime
-        edges = []
-        if mime == "application/javascript" and path.startswith("/page/"):
-            for _, _, specifier in javascript_imports(data, path):
-                edges.append(resolve_dependency(specifier, path, module=True))
-        elif mime == "text/css" and path.startswith("/page/"):
-            try:
-                css = data.decode("utf-8")
-            except UnicodeDecodeError as error:
-                raise ArtifactError(f"{path}: CSS is not UTF-8") from error
-            for specifier in _css_dependencies(css):
-                edges.append(resolve_dependency(specifier, path))
-        edges = [edge for edge in edges if edge is not None]
-        resources[path] = Resource(data, mime, tuple(sorted(set(edges))))
-        for edge in edges:
-            capture(edge)
+    capture = _ResourceCapture(read_resource)
+    resources = capture.resources
 
     # The layer's own imports are trusted and include computed widget module URLs.
     # Preserve the complete selected payload rather than infer that dynamic graph.
     for name in VENDORED_FILES:
         if (page_dir / name).is_file():
-            capture("/" + name)
+            capture.add("/" + name)
     for directory in BROWSER_DIRS:
         for path in sorted((page_dir / directory).rglob("*")):
             if path.is_file() and SERVED_PATH.fullmatch(
                 "/" + path.relative_to(page_dir).as_posix()
             ):
-                capture("/" + path.relative_to(page_dir).as_posix())
+                capture.add("/" + path.relative_to(page_dir).as_posix())
     resources["/registry.json"] = Resource(_json(registry), "application/json")
     for tag, entry in registry.items():
         if tag.startswith("lf-") and (initial := entry.get("x-initial")):
-            capture(initial)
+            capture.add(initial)
 
     if widget_sources is None:
         widget_sources = {
@@ -660,7 +691,7 @@ def _capture_artifact(
             and f"/widgets/{tag}.js" in resources
         }
     for source in widget_sources.values():
-        capture("/" + source.lstrip("/"))
+        capture.add("/" + source.lstrip("/"))
 
     # Live observations and headless checks are browser code too. Capture their
     # source beside the runtime it reads, so a revision and an export have one
@@ -717,7 +748,7 @@ def _capture_artifact(
         )
     entries = [entry for entry in entries if entry is not None]
     for entry in entries:
-        capture(entry)
+        capture.add(entry)
 
     implementations = {
         tag: {

@@ -59,11 +59,6 @@
    while an unhandled Escape reaches the browser and cannot fall through. The universal
    reference is the boundary's one route through to another layer.
 
-   A covering auxiliary surface uses the same modal command floor without entering the browser's
-   top layer. Its owner makes the background DOM inert, and this dispatcher keeps only
-   scopes rooted in the auxiliary surface. A native layer opened above the auxiliary
-   surface keeps its own scopes above that floor.
-
    A popover hands focus back to whatever had it when the popover showed — not to its
    invoker, and not to `showPopover({source})`, which buys the anchor and the invoker
    relationship and nothing about focus. So a key that opens a layer runs the press from
@@ -92,7 +87,6 @@ import {
   word,
 } from "./bindings.js";
 import {
-  coveringAuxiliarySurface,
   ELEMENTS,
   pageScopes,
   textEntryScope,
@@ -108,14 +102,20 @@ import {
   scopeIdentity,
 } from "./scopes.js";
 import { nativeLayers } from "./layer-stack.js";
-import { shadowHost, under } from "../shadow.js";
+import { shadowHost, under, excludedByInert } from "../shadow.js";
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
 // reference lists a scope the page *has* and filters its rows by liveness only where the user
 // is standing in it, while the dispatcher and the line want both at once. Spelled `!x || x()`
 // in three places before, which is a rule written three times and named nowhere.
 const pageHas = (scope) => !scope.when || scope.when();
-export const userIn = (scope) => !scope.at || scope.at();
+export const userIn = (scope) => {
+  // Native modality excludes everything below its layer floor. An explicitly inert
+  // subtree can also stand inside that floor (the suspended bottom bar in Threads),
+  // and none of its latent scopes may answer a key or advertise a live command.
+  if (excludedByInert(scopeRoot(scope))) return false;
+  return !scope.at || scope.at();
+};
 // Where the user is first, and what the page has second: both are pure and the and is
 // the same either way round, but `at` is a class check and a `when` may be the whole event
 // log folded — so the walk asks the cheap question of every scope and the dear one only of
@@ -128,7 +128,8 @@ export const userIn = (scope) => !scope.at || scope.at();
 export const standing = (scope) => userIn(scope) && pageHas(scope);
 const nativeBoundary = (claims) => ({
   get rows() {
-    return [universalCommandReference()];
+    const reference = universalCommandReference();
+    return reference ? [reference] : [];
   },
   claims,
   escapeBoundary: true,
@@ -232,13 +233,8 @@ export function stack(binding = null) {
   const layers = nativeLayers();
   const modalAt = layers.findLastIndex((layer) => layer.kind === "modal");
   const visible = modalAt < 0 ? layers : layers.slice(modalAt);
-  const auxiliarySurface = coveringAuxiliarySurface();
-  // The floor is the newest modal, or a covering auxiliary surface taking modal semantics
-  // without the browser's top layer. What it makes inert is out of reach however near the
-  // user it stands, so a focused control inside a layer keeps the widget ancestors that
-  // are inside the floor too and drops the ones outside it. The layers themselves stand
-  // above the floor rather than under it, and each takes its own scopes below.
-  const floor = modalAt < 0 ? auxiliarySurface : visible[0].root;
+  // The newest native modal is the one boundary the browser makes inert behind it.
+  const floor = modalAt < 0 ? null : visible[0].root;
   const aboveFloor = (scope) => !floor || under(scopeRoot(scope), floor);
   const top = visible.at(-1) ?? null;
   // The topmost layer also holds the focused control and explicitly inner modes: they
@@ -263,12 +259,7 @@ export function stack(binding = null) {
     );
     parts.push(layer.kind === "modal" ? MODAL_BOUNDARY : POPOVER_BOUNDARY);
   }
-  if (modalAt < 0) {
-    if (auxiliarySurface) {
-      take(aboveFloor);
-      parts.push(MODAL_BOUNDARY);
-    } else parts.push(...pool);
-  }
+  if (modalAt < 0) parts.push(...pool);
   return ordered(parts);
 }
 // The ownership of every scope nearer the user than this one, accumulated as either

@@ -273,10 +273,11 @@
                   page's source id. The input follows the source's current value. An
                   optional source attribute leaves that input absent;
                   <code>watchData</code> delivers null. Several widgets may bind the
-                  same source to the same contract. Across immutable versions and
-                  widgets frozen into threads, one source cannot mean two contracts; use
-                  a new source id for a new meaning. A module subscribes by widget and
-                  input name, never by a package-owned source name.
+                  same source to the same contract. A document binds a source to one
+                  contract. Later documents may replace that binding; each captured
+                  document reads the current value against its own declared contract and
+                  reports incompatible values as source errors. A module subscribes by
+                  widget and input name, never by a package-owned source name.
                 </p>
               </details>
             </div>
@@ -794,15 +795,10 @@
                   there supersedes its predecessors, and different verbs coexist. The
                   framework composes the last surviving action per coordinate with typed
                   authored values and gives every widget its complete state through
-                  renderState, keyed by verb, and one declaration drives the POST and
-                  re-vendor contract gates, <code>page check</code>'s state gate (a
-                  version whose markup actively contradicts the fold without
-                  <code>restated</code> is refused; writing the folded state is
-                  honoring; re-emitting the previous version's state is blessed silence,
-                  except for a position whose container the version changes, which it
-                  writes), construction-linked inspection, the runtime's user- and
-                  report-origin readings, and the version diff's state half. When an
-                  action's admission makes its widget's x-awaits
+                  renderState, keyed by verb, and one declaration drives POST
+                  validation, complete-state replay, construction-linked inspection, the
+                  runtime's user- and report-origin readings, and the version diff's
+                  state half. When an action's admission makes its widget's x-awaits
                   <code>answered</code> condition hold, admission records meaning.answer
                   on it: the widget's authored <code>resolves</code> attribute, read
                   from the sending document, names the comment thread the answer closes,
@@ -1007,23 +1003,16 @@
           <section class="reference-entry" id="x-withdrawn-as">
             <h3><code>x-withdrawn-as</code></h3>
             <div class="reference-copy">
-              <p>
-                On a holder with retirable slots: the outcome an undecided Leaf element
-                stands as when a later version takes it back unanswered — a withdrawn
-                suggestion leaves the page where a <code>reject</code> outcome would —
-                which is what lets that version drop the ids inside the slots the
-                outcome retires.
-              </p>
+              <p>A declared deciding outcome that declines the proposal.</p>
               <details class="reference-more">
                 <summary aria-label="Full x-withdrawn-as contract">
                   Full contract
                 </summary>
                 <p>
-                  The same outcome chosen by the user declines the proposal, so it
-                  answers the Ask without closing the widget's
-                  <code>resolves</code> thread. Hedged, because there the author asserts
-                  a state the user never gave: only whole, and never while a thread is
-                  anchored in it.
+                  It answers the Ask without closing the widget's
+                  <code>resolves</code> thread. A revision may also remove an unanswered
+                  proposal directly, whether or not it has retirable slots; historical
+                  ids do not veto the edit.
                 </p>
               </details>
             </div>

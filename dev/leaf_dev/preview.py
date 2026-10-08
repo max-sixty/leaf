@@ -47,12 +47,13 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
 from typing import NamedTuple
 
 import click
+from leaf.file_changes import FileChanges
 
 from leaf_dev import ROOT
 from leaf_dev.example_data import capture_files, example_versions, named_source
@@ -60,6 +61,7 @@ from leaf_dev.leaf_assets import CACHE as ASSETS_CACHE
 from leaf_dev.leaf_assets import assets_lock
 from leaf_dev.page_fixtures import (
     DEFAULT_PACKAGES,
+    import_referenced_media,
     media_source,
     package_selection_args,
     prepare_page,
@@ -72,12 +74,7 @@ from leaf_dev.page_fixtures import (
 TMP = ROOT / ".tmp"
 # A slot is a directory the start discards, so its name must stay inside the root.
 SLOT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
-# The watcher's own dependency, which the root `pyproject.toml`'s dev group declares. A
-# checkout named by `--runtime` has the `--no-dev` environment `bin/leaf` syncs, so the
-# worker command overlays it there. Move this floor whenever `pyproject.toml`'s moves.
-WATCHER_PACKAGE = "watchfiles>=1.1.0"
-# The quiet gap that closes an editor's save batch (`step`), and the idle wake-up at
-# which the watcher re-reads the server's liveness (`rust_timeout`).
+# The idle wake-up at which a preview checks its server and owning session.
 WATCH_INTERVAL_MS = 250
 # A refused bind is retried without requiring the author to edit the page. Keep
 # starts apart while the port is occupied; repeat diagnostics only when they change.
@@ -167,7 +164,7 @@ def mark_preview(source: Path, page: Path, runtime: Path, user: bool) -> None:
             "example": source.stem,
             "checkout": runtime.name,
             "interaction": "user" if user else "author",
-            "started": datetime.now(timezone.utc).isoformat(),
+            "started": datetime.now(UTC).isoformat(),
             **{
                 key: producer[key]
                 for key in ("commit", "dirty", "committed", "installed")
@@ -201,7 +198,7 @@ def preview_lease(page: Path) -> Path:
     return page.with_name(f"{page.name}.lock")
 
 
-def refresh_media(source: Path, page: Path) -> None:
+def refresh_media(source: Path, page: Path, run_leaf) -> None:
     """Copy in new media. A name already copied keeps its bytes, since earlier
     revisions may reference it."""
     media = media_source(source)
@@ -217,6 +214,12 @@ def refresh_media(source: Path, page: Path) -> None:
                 f"media/{path.relative_to(media)} has different bytes in the preview; "
                 "use a new filename to preserve historical revisions"
             )
+    import_referenced_media(
+        page,
+        [version.read_text(encoding="utf-8") for version in example_versions(source)],
+        run_leaf,
+        source=source,
+    )
 
 
 def digest(path: Path) -> str | None:
@@ -446,7 +449,7 @@ def refresh_preview(
         if planned["changed"]:
             with service.replacing():
                 leaf(launcher, runtime, "page", "init", *selection_args, str(page))
-        refresh_media(source, page)
+        refresh_media(source, page, partial(leaf, launcher, runtime))
         if source_changed:
             previous = authored.read_bytes()
             authored.write_bytes(incoming)
@@ -473,13 +476,21 @@ def refresh_preview(
 class Watched(NamedTuple):
     """One filesystem subscription and what the paths it reports mean.
 
-    `roots` are watched recursively, so a path that does not exist yet still
-    arrives under the directory that will hold it. Every path in `paths` sits under
-    one of them.
+    `roots` hold individual files and recursive directories. `trees` name where
+    new inputs may arrive; existing inputs elsewhere match only their exact path.
+    A missing tree is subscribed through its existing parent, without admitting
+    unrelated writes in that parent to expensive input discovery.
     """
 
     roots: tuple[Path, ...]
     paths: frozenset[str]
+    trees: frozenset[Path]
+
+    def relevant(self, path: str) -> bool:
+        if path in self.paths:
+            return True
+        candidate = Path(path)
+        return not self.trees.isdisjoint((candidate, *candidate.parents))
 
 
 def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> Watched:
@@ -525,56 +536,67 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
             *([manifest.parent / "media"] if manifest is not None else []),
         )
     }
-    holders = sorted(
-        {
-            path
-            for path in (
-                *resolved_roots,
-                scripts,
-                runtime / "pyproject.toml",
-                runtime / "uv.lock",
-                *(path.parent for path in package),
-                *(path.parent for path in page),
-            )
-            if path.exists()
-        }
-    )
-    # Keep only the outermost roots (sorted, an ancestor comes first), so the
-    # subscription stays the same as media or prior versions arrive beneath them.
-    subscribed: list[Path] = []
+    discovering = {
+        source.parent / "versions",
+        source.parent / "media",
+        *([manifest.parent / "media"] if manifest is not None else []),
+    }
+    trees = {*resolved_roots, scripts, *(path.parent for path in package), *discovering}
+    # Discovery subscriptions stay at the parent even after a missing directory
+    # arrives, so rebuilding does not discard events collected during refresh.
+    holders = (trees - discovering) | {tree.parent for tree in discovering}
+    holders.update(Path(path) for path in layer)
+    holders.update(page)
+    existing = set()
     for path in holders:
+        while not path.exists():
+            path = path.parent
+        existing.add(path)
+    # Only directories cover descendants. A pin at the checkout root is a file
+    # subscription, never a recursive subscription to the checkout itself.
+    subscribed: list[Path] = []
+    for path in sorted(existing):
         if not any(root in path.parents for root in subscribed):
             subscribed.append(path)
     return Watched(
         tuple(subscribed),
         frozenset(layer | {str(path) for path in page}),
+        frozenset(tree.resolve() for tree in trees),
     )
 
 
-def watch_changes(watched: Watched):
-    """Subscribe to one watched set, collecting from before this returns.
+class PreviewChanges(FileChanges):
+    """Input path batches with the preview's bounded lifetime-check wake-up."""
 
-    watchfiles starts watching on the first read, so this reads once before the
-    caller prints its URL, and hands that first batch on as the caller's own.
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return self.batch(WATCH_INTERVAL_MS / 1000)
+
+
+def watch_roots(watched: Watched) -> dict[Path, bool]:
+    """Recursive input trees and shallow parents for replaceable file inputs."""
+    directories = {path for path in watched.roots if path.is_dir()}
+    roots = {path.parent: False for path in watched.roots if path not in directories}
+    roots.update(dict.fromkeys(directories, True))
+    return roots
+
+
+def watch_changes(watched: Watched) -> PreviewChanges:
+    """Install the native subscriptions before publishing the preview URL.
+
+    Single files use shallow parent watches: an editor's atomic rename changes
+    the inode, so a file watch on Linux otherwise loses later saves.
     """
-    from watchfiles import watch
+    from watchfiles import DefaultFilter
 
-    stream = watch(
-        *watched.roots,
-        step=WATCH_INTERVAL_MS,
-        rust_timeout=WATCH_INTERVAL_MS,
-        yield_on_timeout=True,
+    default_filter = DefaultFilter()
+    return PreviewChanges(
+        watch_roots(watched),
+        lambda path: default_filter(None, str(path)),
+        collect=True,
     )
-    collected = next(stream)
-
-    def watching():
-        try:
-            yield collected
-            yield from stream
-        finally:
-            stream.close()
-
-    return watching()
 
 
 def discard_preview(page: Path) -> None:
@@ -682,18 +704,30 @@ def serve_preview(
         print(url, flush=True)
         print(f"Watching {source} and {runtime}; feedback stays in {page}", flush=True)
         while True:
-            reported = {path for _, path in next(changes)}
+            reported = next(changes)
             if service.ended:
                 return  # the service was stopped, or the owning session ended
             if service.user and not service.running:
                 service.serve_again()
-            if not reported:
-                continue  # the idle wake-up that carried the check above
-            # An added input is only in the reading taken after it arrived, and a
-            # deleted one only in the reading taken while it was still there.
-            current = watch_paths(source, runtime, roots, state["seed"])
-            if not reported & (watched.paths | current.paths):
-                continue
+            replaced = not changes.matches(watch_roots(watched))
+            if replaced:
+                # Native directory watches expire when their directory is
+                # removed, even if its pathname and selected inputs return.
+                # Edits during that gap have no file batch, so this invalidates
+                # the canonical input reading as well as the subscription.
+                changes.close()
+                changes = watch_changes(watched)
+            if not replaced:
+                if not reported:
+                    continue  # lifetime and root checks need no input discovery
+                if not any(watched.relevant(path) for path in reported):
+                    continue
+                # An added input is only in the reading taken after it arrived, and a
+                # deleted one only in the reading taken while it was still there.
+                if not reported & watched.paths:
+                    current = watch_paths(source, runtime, roots, state["seed"])
+                    if not reported & current.paths:
+                        continue
             refreshed = refresh_preview(source, page, launcher, runtime, state, service)
             # Init can commit a selection even when the following source stamp
             # refuses. Follow the installed layer after every attempt, so that
@@ -702,7 +736,7 @@ def serve_preview(
                 tuple(read_json(page / "registry.json")["$layer"]["packages"])
             )
             rebuilt = watch_paths(source, runtime, roots, state["seed"])
-            if rebuilt.roots != watched.roots:
+            if not changes.matches(watch_roots(rebuilt)):
                 # A refresh can change which packages the page vendors, and a
                 # subscription is fixed for its lifetime. Holding the old one
                 # wherever the roots stand still keeps the edits made during the
@@ -725,9 +759,8 @@ def serve_preview(
 def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) -> None:
     """Become the preview, in the selected checkout's uv environment.
 
-    That environment is the one `bin/leaf` syncs, which carries no dev group, so the
-    watcher's own dependency and its `leaf_dev`, which builds the page from the
-    fixture, are overlaid onto it rather than installed into it. The selected
+    That environment is the one `bin/leaf` syncs, which carries no dev group, so
+    `leaf_dev`, which builds the page from the fixture, is overlaid onto it. The selected
     checkout owns both the worker and `leaf`, so their startup and serving contracts
     stay together when comparing versions. The launcher is replaced rather than
     kept as a parent, so whatever stops this process — Ctrl-C, or a runner's
@@ -740,8 +773,6 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
         "--no-dev",
         "--project",
         str(runtime),
-        "--with",
-        WATCHER_PACKAGE,
         "--with-editable",
         str(runtime / "dev"),
         "python",

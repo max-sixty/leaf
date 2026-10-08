@@ -842,12 +842,14 @@
 <!-- code-comparison.html authored script -->
 <script type="module">
       import {
+        cancelRender,
         keeps,
         keepsText,
         layoutChanged,
         nextRender,
         offer,
         once,
+        sizeObserver,
       } from "/runtime/widget-api.js";
 
       const DEFAULT_COMPARISON = {
@@ -863,6 +865,11 @@
           #state = clone(DEFAULT_COMPARISON);
           #notify = null;
           #change = null;
+          #watching = null;
+          #measurementFrame = 0;
+          #readerLayout = (event) => {
+            if (event.target.matches("lf-code")) this.#scheduleMeasurement();
+          };
 
           connectedCallback() {
             if (once(this)) this.#build();
@@ -871,6 +878,11 @@
 
           disconnectedCallback() {
             this.#playground?.removeEventListener("lf-playground-change", this.#change);
+            this.removeEventListener("lf-layout", this.#readerLayout);
+            this.#watching?.disconnect();
+            this.#watching = null;
+            cancelRender(this.#measurementFrame);
+            this.#measurementFrame = 0;
           }
 
           #button(label, run) {
@@ -896,7 +908,18 @@
               customElements.whenDefined("lf-playground"),
               customElements.whenDefined("lf-code"),
             ]);
-            if (!this.isConnected || this.#notify) return;
+            if (!this.isConnected || this.#watching) return;
+            if (!this.#notify) this.#initialize();
+            this.#playground.addEventListener("lf-playground-change", this.#change);
+            this.addEventListener("lf-layout", this.#readerLayout);
+            this.#watching = sizeObserver(() => this.#scheduleMeasurement());
+            for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
+              this.#watching.observe(reader);
+            }
+            this.#render();
+          }
+
+          #initialize() {
             this.#playground = this.closest("lf-playground");
             this.#notify = this.#playground.registerContributor(
               "comparison",
@@ -920,8 +943,6 @@
             this.#change = (event) => {
               if (event.target === this.#playground) this.#render();
             };
-            this.#playground.addEventListener("lf-playground-change", this.#change);
-            this.#render();
           }
 
           #toggleDensity(candidate) {
@@ -952,7 +973,14 @@
                 `${name} · ${setting.density} · ${setting.wrap ? "wrap" : "scroll"}`,
               );
             }
-            nextRender(() => {
+            this.#scheduleMeasurement();
+          }
+
+          // Reader rendering and box changes invalidate the same derived reading.
+          #scheduleMeasurement() {
+            if (!this.isConnected || this.#measurementFrame) return;
+            this.#measurementFrame = nextRender(() => {
+              this.#measurementFrame = 0;
               for (const name of ["A", "B"]) {
                 const candidate = this.querySelector(`[data-candidate="${name}"]`);
                 const pre = candidate.querySelector("lf-code pre");
@@ -1114,6 +1142,151 @@
         gap: 10px;
         align-content: start;
       }
+      lf-merge-film .film-phone,
+      lf-merge-film .film-caption,
+      lf-merge-film .film-previous,
+      lf-merge-film .film-next {
+        display: none;
+      }
+      lf-merge-film[data-phone] .film-caption {
+        display: block;
+        margin: 0;
+        min-height: 4.5em;
+        font: 16px / 1.5 var(--sans);
+        order: -2;
+      }
+      lf-merge-film[data-phone] .film-caption[data-tone="bad"] {
+        color: var(--danger-ink);
+      }
+      lf-merge-film[data-phone] .film-bar {
+        order: -1;
+      }
+      lf-merge-film .film-settings summary {
+        display: none;
+      }
+      lf-merge-film[data-phone] .film-settings {
+        order: 0;
+      }
+      lf-merge-film[data-phone] .film-settings summary {
+        display: list-item;
+        min-height: 44px;
+        padding: 10px 12px;
+        font: 14px / 1.5 var(--sans);
+        cursor: pointer;
+        border-block: 1px solid var(--rule);
+      }
+      lf-merge-film[data-phone] .film-stage {
+        order: 1;
+      }
+      lf-merge-film[data-phone] .film-previous,
+      lf-merge-film[data-phone] .film-next {
+        display: block;
+      }
+      lf-merge-film[data-phone] .film-bar {
+        grid-template-columns: 1fr 1fr 1fr auto;
+        gap: 6px;
+      }
+      lf-merge-film[data-phone] .film-scrub {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        min-height: 32px;
+      }
+      lf-merge-film[data-phone] .film-inspect-next {
+        grid-column: 1 / -1;
+        grid-row: 3;
+      }
+      lf-merge-film[data-phone] .film-bar button {
+        min-height: 44px;
+        min-width: 0;
+        padding: 6px;
+        font: 14px var(--sans);
+        color: var(--ink);
+        background: var(--card);
+        border: 1px solid var(--border-2);
+        border-radius: var(--r);
+        cursor: pointer;
+      }
+      lf-merge-film[data-phone] .film-bar button:disabled {
+        color: var(--muted);
+        cursor: default;
+      }
+      lf-merge-film .film-stage[data-phone] {
+        line-height: 1.5;
+      }
+      lf-merge-film .film-stage[data-phone] > svg {
+        display: none;
+      }
+      lf-merge-film .film-stage[data-phone] .film-phone {
+        display: block;
+      }
+      lf-merge-film .film-phone-context {
+        padding: 0 16px;
+      }
+      lf-merge-film .film-phone-tree {
+        display: grid;
+        gap: 2px;
+        padding: 10px 0;
+        border-top: 1px solid var(--rule);
+        font: 14px / 1.4 var(--sans);
+      }
+      lf-merge-film .film-phone-tree code {
+        font-size: 16px;
+      }
+      lf-merge-film .film-phone-tree[data-here="true"] {
+        color: var(--accent);
+      }
+      lf-merge-film .film-phone-tree[data-gone="true"] {
+        color: var(--muted);
+      }
+      lf-merge-film .film-phone-tree[data-gone="true"] code {
+        text-decoration: line-through;
+      }
+      lf-merge-film .film-phone-hook {
+        margin: 0;
+        padding: 10px 0;
+        font: 14px / 1.5 var(--mono);
+      }
+      lf-merge-film .film-phone-hook[data-tone="fail"] {
+        color: var(--danger-ink);
+      }
+      lf-merge-film .film-phone-latest {
+        margin: 0;
+        padding: 12px 16px;
+        font: 14px / 1.5 var(--mono);
+        color: var(--code-ink);
+        background: var(--pre-bg);
+        overflow-wrap: anywhere;
+      }
+      lf-merge-film .film-phone-terminal {
+        font: 14px / 1.5 var(--mono);
+      }
+      lf-merge-film .film-phone-terminal summary {
+        padding: 10px 16px;
+        min-height: 44px;
+        cursor: pointer;
+      }
+      lf-merge-film .film-phone-terminal > div {
+        max-height: 16rem;
+        overflow: auto;
+      }
+      lf-merge-film .film-phone-line {
+        display: block;
+        width: 100%;
+        min-height: 44px;
+        padding: 8px 16px;
+        border: 0;
+        border-top: 1px solid var(--rule);
+        background: var(--pre-bg);
+        color: var(--code-ink);
+        text-align: left;
+        font: inherit;
+        overflow-wrap: anywhere;
+        cursor: pointer;
+      }
+      lf-merge-film[data-phone] .film-flags label {
+        min-height: 44px;
+        font-size: 14px;
+      }
       #lede code {
         white-space: nowrap;
       }
@@ -1149,6 +1322,9 @@
         box-shadow: 0 8px 24px var(--shade);
         pointer-events: none;
       }
+      lf-merge-film[data-phone] .film-inspect {
+        max-width: calc(100% - 20px);
+      }
       lf-merge-film .film-inspect strong {
         font-family: var(--mono);
       }
@@ -1157,7 +1333,7 @@
       }
       lf-merge-film .film-bar {
         display: grid;
-        grid-template-columns: auto 1fr auto;
+        grid-template-columns: auto minmax(0, 1fr) auto auto;
         gap: 12px;
         align-items: center;
       }
@@ -1166,7 +1342,8 @@
         accent-color: var(--accent);
       }
       lf-merge-film .film-play,
-      lf-merge-film .film-speed {
+      lf-merge-film .film-speed,
+      lf-merge-film .film-inspect-next {
         min-width: 5.5em;
         padding: 4px 10px;
         font: inherit;
@@ -1176,6 +1353,21 @@
         background: var(--card);
         color: var(--ink);
         cursor: pointer;
+      }
+      @media (pointer: coarse) {
+        lf-merge-film .film-bar {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        lf-merge-film .film-scrub {
+          grid-column: 1 / -1;
+          grid-row: 2;
+          min-height: 44px;
+        }
+        lf-merge-film .film-play,
+        lf-merge-film .film-speed,
+        lf-merge-film .film-inspect-next {
+          min-height: 44px;
+        }
       }
       lf-merge-film .film-flags {
         display: flex;
@@ -3892,6 +4084,8 @@ max-sixty/worktrunk #3865
               >
                 <pre>
 flowchart TB
+  accTitle: Unified diff preparation
+  accDescr: A selected row chooses a preview mode. Unified diff uses PreparedDiff for committed changes and TempIndex for staged, unstaged and untracked work; working and committed tabs remain available.
   Row[Selected row] --> Mode[Preview mode]
   Mode -. old default .-> Working["− working-tree diff"]
   Mode --> Unified["+ unified diff"]
@@ -4194,9 +4388,9 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
             <p id="lede">
               Worktrunk's <code>wt merge</code> takes a finished branch to main in one
               command. The film draws each step from the flags below it, so ticking
-              <code>--no-ff</code> or a failing test re-plots the run. Hover a commit,
-              branch, worktree or hook to see what it is; Alt-click one to comment on
-              it.
+              <code>--no-ff</code> or a failing test re-plots the run. Tap or hover a
+              commit, branch, worktree or hook to read its details; Inspect cycles
+              through them. Alt-click a part to comment on it.
             </p>
             <lf-merge-steps id="merge-steps" for="merge-film">
               <ol>
@@ -4625,6 +4819,8 @@ unsafe fn merge&lt;T, F&gt;(v: &amp;mut [T], mid: usize, buf: *mut T, compare: &
         >
           <pre>
 flowchart LR
+  accTitle: Shared checkout crosses the sandbox boundary
+  accDescr: Runner setup hands its checkout to the agent, then resumes runner steps and action POSTs on the same writable tree.
   R0[Runner checkout] --> R1[Runner setup]
   R1 --> A1[Same tree handed to agent]
   A1 --> R2[Same tree returned to runner]
@@ -4771,6 +4967,8 @@ flowchart LR
           >
             <pre>
 stateDiagram-v2
+  accTitle: Sandbox execution and cleanup states
+  accDescr: A trusted runner prepares an independent agent checkout, starts setup and the agent under one supervisor, reaps the process tree and validates outputs before trusted cleanup. Failures close the gate or enter finalization.
   state "S0 · Gate passed" as S0
   state "S1 · Wᵣ prepared" as S1
   state "S2 · Wₐ imported" as S2
@@ -6625,7 +6823,7 @@ observe --cohort staff</code></pre>
               The banner also shows <strong>Threads</strong>, the
               <strong>Versions</strong> menu, <strong>Page Map</strong> (<kbd>g</kbd>
               then <kbd>Shift+M</kbd>), <strong>Command reference</strong> (<kbd>?</kbd>
-              twice), and <strong>All leaves</strong> when another Leaf page is live. A
+              twice), and <strong>All pages</strong> when another Leaf page is live. A
               quiet status line at the bottom right reports the current keyboard walk or
               a useful command result. It moves above the bottom-left shortcuts when
               room is tight.
@@ -7221,6 +7419,21 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     into its reply box to see the thumbnail Leaf keeps in the draft
                     without exposing image Markdown.
                   </p>
+                  <figure id="bg-image-preview">
+                    <a href="/media/051bee487bfb5d13.png">
+                      <img
+                        src="/media/051bee487bfb5d13.png"
+                        width="1800"
+                        height="746"
+                        alt="A before-and-after screenshot of the draft controls"
+                      />
+                    </a>
+                    <figcaption>
+                      Open this screenshot, zoom to 100%, and pan by dragging or with
+                      arrow keys. Fit or z returns to the whole image; Escape or Close
+                      returns to this link.
+                    </figcaption>
+                  </figure>
                 </section>
               </div>
             </section>
@@ -7250,10 +7463,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <p id="bg-thread-unread">
                 <strong>Unread replies.</strong> The seeded agent replies start unread.
-                Open Threads and use “Next unread”, or press <kbd>u</kbd> there, to
-                reveal the earliest unread reply, including one covered by a summary. A
-                fully exposed short reply leaves the count; scroll through a long reply
-                to read all of it. The blue rail marks each unread message without
+                Use “Next unread” in Threads, or press <kbd>g</kbd> then <kbd>u</kbd>,
+                to reveal the earliest unread reply, including one covered by a summary.
+                A fully exposed short reply leaves the count; scroll through a long
+                reply to read all of it. The blue rail marks each unread message without
                 shifting the transcript. Interactive replies clear when their visible
                 body has been shown too; replying, answering, or resolving also marks
                 the thread's current messages read. A margin control whose thread holds
@@ -7800,8 +8013,15 @@ gallery/
   data.json  +2
   media/
     after.png
+  recordings/
+    evidence/
+      rendered_first_paint_checkpoints_with_readable_path_names.json  +245 -93
 </pre>
               </lf-tree>
+              <p id="bg-tree-after">
+                At a narrow width, the nested filename and its change badges wrap. This
+                paragraph stays in place when the tree upgrades.
+              </p>
             </section>
 
             <section id="bg-neutral-comparison">
@@ -8372,6 +8592,28 @@ switch --readers checkout-api,orders-api</code></pre>
               ></lf-text-document>
             </section>
 
+            <section id="bg-document-previews">
+              <p class="eyebrow bg-feature-elements">lf-text-document</p>
+              <h3>Rendered documents</h3>
+              <p>
+                Switch between the rendered release note and its exact source. Use the
+                arrow keys on the tabs. Reloading keeps your selected view; a new source
+                value updates both views.
+              </p>
+              <lf-text-document
+                id="bg-markdown-preview"
+                source="gallery-markdown"
+                label="release-note.md"
+                preview="markdown"
+              ></lf-text-document>
+              <lf-text-document
+                id="bg-html-preview"
+                source="gallery-html"
+                label="release-card.html"
+                preview="html"
+              ></lf-text-document>
+            </section>
+
             <section id="bg-measurement-lag">
               <p class="eyebrow bg-feature-elements">lf-num</p>
               <h3>
@@ -8736,6 +8978,11 @@ switch --readers checkout-api,orders-api</code></pre>
       <details id="trace-scenarios">
         <summary>Review scenarios</summary>
         <ul>
+          <li>
+            Select Page 1 or API calls above the timeline to switch recorded sources.
+            Tab reaches the selected source; arrow keys there change the source. Return
+            to the timeline controls to step through its checkpoints.
+          </li>
           <li>
             Step through a click’s Before, Action and After checkpoints on one timeline.
             Each image and saved tree shows its own capture time.

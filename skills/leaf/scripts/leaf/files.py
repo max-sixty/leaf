@@ -7,10 +7,9 @@ import re
 import sys
 import time
 from collections.abc import Callable, Collection
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from stat import S_ISDIR, S_ISREG
-from typing import TypeVar
 
 from .locations import path_location
 from .page_memory import Slot, memo
@@ -125,10 +124,7 @@ def entry_stamps(directory: Path, ignored: Collection[str]) -> list[tuple[str, o
 LOOK_S = 0.05
 
 
-Reading = TypeVar("Reading")
-
-
-def next_reading(
+def next_reading[Reading](
     look: Callable[[], Reading], seen: Reading, timeout: float | None = None
 ) -> Reading:
     """The first reading `look` gives that differs from `seen`, looking every
@@ -309,9 +305,7 @@ def active_descriptor(page_dir: Path, events: list) -> dict | None:
         # only when the two differ. Read once here, so every consumer of the
         # active revision works from one reading of it.
         "executable": reading.manifest.get("executable"),
-        "activated_at": datetime.fromtimestamp(
-            path.stat().st_mtime, timezone.utc
-        ).isoformat(),
+        "activated_at": datetime.fromtimestamp(path.stat().st_mtime, UTC).isoformat(),
     }
 
 

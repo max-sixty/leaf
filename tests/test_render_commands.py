@@ -237,11 +237,11 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
 
     ok = gate()
     assert ok.returncode == 0, ok.stderr
-    assert "renders clean in Chrome" in ok.stdout
+    assert "render checks passed in Chrome" in ok.stdout
 
     named = gate(variable="LEAF_BROWSER_EXECUTABLE", executable=headless_shell)
     assert named.returncode == 0, named.stderr
-    assert f"renders clean in {headless_shell}" in named.stdout
+    assert f"render checks passed in {headless_shell}" in named.stdout
 
     # A vw width slips the static lint (which counts only px) and overflows only
     # in a layout engine.
@@ -506,7 +506,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
         env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
     )
     assert rendered.returncode == 0, rendered.stderr
-    assert "renders clean" in rendered.stdout
+    assert "render checks passed" in rendered.stdout
 
 
 def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
@@ -1195,7 +1195,7 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         assert run.returncode == 1, run.stdout + run.stderr
         # "needs Playwright" here would mean the shim dispatched the plain `uv run`.
         # The report names the widget and gives the renderer's reason, not the source.
-        assert "✗ page code: 1 error(s)" in run.stderr
+        assert "Error: page code reported 1 error" in run.stderr
         assert '<lf-diagram id="d-broken"> failed:' in run.stderr
         assert "is unsupported" in run.stderr
         assert "Ada,Review,3" not in run.stderr
@@ -1264,7 +1264,7 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     (d / "index.html").write_text(FILM_PAGE)
     broken = check(LEAF_BROWSER_EXECUTABLE=headless_shell)
     assert broken.returncode == 1, broken.stdout + broken.stderr
-    assert "✗ page code: 2 error(s)" in broken.stderr
+    assert "Error: page code reported 2 errors" in broken.stderr
     assert "map is not a function" in broken.stderr
     assert "/page/film.js:2)" in broken.stderr
     assert "Error: the trace never loaded" in broken.stderr
@@ -1285,9 +1285,7 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     )
     clean = check(LEAF_BROWSER_EXECUTABLE=headless_shell)
     assert clean.returncode == 0, clean.stdout + clean.stderr
-    assert f"✓ page code: runs through upgrade and first paint in {headless_shell}" in (
-        clean.stdout
-    )
+    assert f"✓ page code: no errors in {headless_shell}" in (clean.stdout)
 
 
 def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(

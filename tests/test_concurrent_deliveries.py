@@ -2,14 +2,30 @@
 
 from copy import deepcopy
 
+from interact_support import append_carried_log_record, published
 from leaf import codex as codex_model
 from leaf import codex_adapter as adapter_model
+from leaf.delivery import batch_data, freeze_delivery
+from leaf.service import PageTransaction
 from leaf.state import write_json
 
 
-def test_live_and_archived_readers_ignore_records_with_missing_fields(tmp_path):
-    page = tmp_path / "page"
-    page.mkdir()
+def test_live_and_archived_readers_ignore_records_with_missing_fields(
+    tmp_path, page_dir
+):
+    page = published(page_dir)
+    event = append_carried_log_record(
+        page,
+        {
+            "kind": "comment",
+            "id": "captured",
+            "author": "user",
+            "text": "Please revise.",
+        },
+    )
+    with PageTransaction(page) as transaction:
+        captured = batch_data(page, transaction, [event])
+    captured.update(session="concurrent-task", receipted=True)
     accepted = {
         "format": codex_model.RECORD_FORMAT,
         "state": "accepted",
@@ -20,7 +36,7 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(tmp_path):
                 "page": str(page),
                 "session": "concurrent-task",
                 "receipted": True,
-                "events": [{"id": "captured", "seq": 1}],
+                "events": [{"id": event["id"], "seq": event["seq"]}],
             }
         ],
     }
@@ -40,14 +56,7 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(tmp_path):
     collecting = deepcopy(accepted)
     collecting["state"] = "collecting"
     collecting.pop("transport")
-    collecting["batches"][0].update(
-        through_seq=1, threads=[{"id": "thread", "title": "Title"}]
-    )
-    collecting["batches"][0]["events"][0].update(
-        kind="comment",
-        threads=["thread"],
-        answer={"kind": "reply", "to": "thread", "for": "captured"},
-    )
+    collecting["batches"] = [deepcopy(captured)]
     for field in ("through_seq", "threads"):
         record = deepcopy(collecting)
         del record["batches"][0][field]
@@ -79,6 +88,7 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(tmp_path):
 
     for index, record in enumerate(unreadable):
         identity = f"{index:08x}"
+        freeze_delivery([captured], delivery_id=identity)
         live = codex_model.record_path("concurrent-task", identity)
         archived = live.parent / "history" / live.name
         archived.parent.mkdir(parents=True, exist_ok=True)
@@ -115,6 +125,11 @@ def test_live_and_archived_readers_ignore_records_with_missing_fields(tmp_path):
         )
     ) == len(unreadable)
 
+    missing_envelope = codex_model.record_path("concurrent-task", "fffffffd")
+    write_json(missing_envelope, accepted)
+    assert codex_model.read_record(missing_envelope) is None
+
+    freeze_delivery([captured], delivery_id="ffffffff")
     valid = codex_model.record_path("concurrent-task", "ffffffff")
     write_json(valid, accepted)
     assert codex_model.delivery_records("concurrent-task") == [(valid, accepted)]

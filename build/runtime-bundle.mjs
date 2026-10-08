@@ -5,16 +5,29 @@
  * whose absolute URLs resolve through the revision's import map. The generation
  * module stays native so page init can stamp it without rebuilding any chunk.
  * Website captures already carry their generation and preserve authored module
- * locations while bundling widgets. Neither path runs on a user's machine.
+ * locations while bundling widgets. Both minify the framework modules
+ * `build/browser/build.mjs` commits readable; the rest of the vendor directory ships
+ * as upstream published it. Neither path runs on a user's machine.
  */
 
-import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rm } from "node:fs/promises";
+import {
+  cp,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
-import { build } from "esbuild";
+import { build, transform } from "esbuild";
 import { parse } from "acorn";
+
+import { frameworkModules } from "./browser/build.mjs";
 
 export const runtimeEntries = [
   "leaf.js",
@@ -141,6 +154,18 @@ export async function bundleRuntime(layerRoot, entries, outputRoot, assetRoot = 
       );
     }
     await cp(staging, outputRoot, { force: true, recursive: true });
+    for (const path of frameworkModules) {
+      const { code } = await transform(await readFile(join(layerRoot, path), "utf8"), {
+        format: "esm",
+        legalComments: "eof",
+        minify: true,
+      });
+      const target = join(outputRoot, path);
+      // A captured file may be a hard link another revision shares.
+      await rm(target, { force: true });
+      await mkdir(dirname(target), { recursive: true });
+      await writeFile(target, code);
+    }
   } finally {
     await rm(staging, { force: true, recursive: true });
   }

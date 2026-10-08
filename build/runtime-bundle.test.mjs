@@ -34,6 +34,9 @@ test("prepared kernels preserve native packages, shared state, and stampable gen
     "widgets/custom.js":
       'import { state } from "/runtime/widget-api.js"; state.clicks += 1;',
     "vendor/example.js": 'export { state } from "/runtime/vendor-bridge.js";',
+    "vendor/lit.js": "export const html = (strings) => strings.join('');\n",
+    "vendor/browser-runtime.js":
+      'import { html } from "./lit.js";\n\nexport function render(value) {\n  return html([value]);\n}\n',
   };
   try {
     for (const [path, source] of Object.entries(sources)) {
@@ -62,9 +65,14 @@ test("prepared kernels preserve native packages, shared state, and stampable gen
       files.some((path) => path.startsWith("widgets/")),
       false,
     );
-    assert.equal(
-      files.some((path) => path.startsWith("vendor/")),
-      false,
+    // Upstream vendor modules stay native; the readable framework ships minified.
+    assert.deepEqual(files.filter((path) => path.startsWith("vendor/")).sort(), [
+      "vendor/browser-runtime.js",
+      "vendor/lit.js",
+    ]);
+    assert.match(
+      await readFile(join(output, "vendor/browser-runtime.js"), "utf8"),
+      /^import\{html as (\w+)\}from"\.\/lit\.js";function (\w+)\(\w+\)\{return \1\(\[\w+\]\)\}export\{\2 as render\};\n$/,
     );
     assert.match(
       await readFile(join(output, "leaf.js"), "utf8"),

@@ -8083,14 +8083,17 @@ def test_inflight_native_paging_hides_hints_until_the_scene_settles(browser, ser
         ),
     )
 
-    # Hold the browser's paging animation and the hint settle timer at the first
-    # rendering frame. The installed clock starts advancing immediately, so
-    # pause at a future instant rather than its elapsed origin. Driver-side
-    # polling can otherwise begin after the 80 ms settle window and mistake
-    # the settled map for an in-flight one.
+    # Hold the hint settle timer and arm the scroll observation before the key.
+    # PageDown returns before its first native scroll event, so pressing g right
+    # after the driver returns can instead arm a map of the old, still scene.
     page.clock.install(time=0)
-    page.clock.pause_at(page.evaluate("() => (Date.now() + 1000) / 1000"))
+    page.clock.pause_at(page.evaluate("() => (Date.now() + 100) / 1000"))
+    page.evaluate(
+        """() => { window.firstPageScroll = new Promise(resolve =>
+          document.addEventListener('scroll', resolve, {once: true, capture: true})); }"""
+    )
     page.keyboard.press("PageDown")
+    page.evaluate("() => window.firstPageScroll")
     page.keyboard.press("g")
     page.clock.run_for(20)
     expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")

@@ -93,13 +93,21 @@ Present visible and interaction changes using the proof below.
 
 ## Prove and hand off a visible change
 
-The handoff lets the user inspect the changed behavior. Judge legibility and
-layout in every visible state reached by ordinary input, in the affected color
-schemes. Pause after state changes to inspect them before continuing the journey.
+Define the user's task and each step's expected visible outcome before choosing
+the controls or their checks. A reader should be able to associate related
+labels, symbols and destinations before activating them. Exercise each route
+from the reachable states that change its effect, including when its destination
+is already open or a different selection is active. A reader completing the task
+through one route proves only that route.
+
+Open the exact preview URL in a fresh browser context and verify those outcomes
+on arrival and through ordinary input. Setup from a private probe that the user
+cannot repeat belongs in the fixture or a replay control.
+
+Judge legibility and layout in every visible state reached by ordinary input,
+in the affected color schemes. Pause after state changes to inspect them before
+continuing the journey.
 Every candidate and optional surface retained in the page belongs to that review.
-Open the exact preview URL in a fresh browser context and verify that the review
-state is visible on arrival or reached by the route the handoff names. Setup from
-a private probe that the user cannot repeat belongs in the fixture or a replay control.
 
 Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
 "Layout and motion"), and capture the viewport when fixed chrome should
@@ -158,10 +166,12 @@ Show the trace on the Leaf page in `lf-trace`, as
 importing it with that viewer URL. Keep both previews running and verify that the
 viewer URL reaches the user's browser before handing it over.
 
-For an important result, perform the input and use a Playwright expectation to
-establish the intended browser state. Review the successful expectation's After
-checkpoint; returning from the input alone does not prove an asynchronous update
-finished. Native tracing groups name those operations without adding captures.
+For an important result, perform the input and use a Playwright expectation for
+the outcome defined from the user's task. Disclosure and focus prove their own
+effects; they do not prove a change to the content the user came to inspect.
+Review the successful expectation's After checkpoint; returning from the input
+alone does not prove an asynchronous update finished. Native tracing groups name
+those operations without adding captures.
 Add `--checkpoint-images` alongside `--record` when the review needs native PNG images
 at those checkpoints. Taking them adds capture work and briefly hides the live
 caret, so omit it when ordinary motion and caret behavior are the evidence.

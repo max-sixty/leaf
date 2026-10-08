@@ -3063,6 +3063,8 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     # bounding box still fits, without changing any metadata/news geometry.
     thread.evaluate(
         "node => Promise.all(node.getAnimations({subtree: true})"
+        ".filter(animation => Number.isFinite("
+        "animation.effect.getComputedTiming().endTime))"
         ".map(animation => animation.finished))"
     )
     gutter = receipt.evaluate(

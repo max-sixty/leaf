@@ -64,10 +64,10 @@ from leaf_dev import ROOT
 from leaf_dev.arms import (
     HARNESSES,
     PAYLOAD,
-    URL,
     LiveChild,
     build_arm,
     run_directory,
+    read_page_state,
     run_leaf,
     scratch,
 )
@@ -699,7 +699,6 @@ def harness_session(browser, harness: str) -> Iterator[tuple[Session, str, dict]
     page_dir = work / "page"
     version = working_version(build_arm(None, arm))
     prepare(arm, state, page_dir)
-    found: dict[str, str] = {}
     setup_ended = threading.Event()
     with (
         LiveChild(
@@ -721,8 +720,6 @@ def harness_session(browser, harness: str) -> Iterator[tuple[Session, str, dict]
             for line in child.records():
                 stream.write(json.dumps(line) + "\n")
                 stream.flush()
-                if "url" not in found and (served := URL.search(json.dumps(line))):
-                    found["url"] = served[0]
                 if line.get("type") == "result":
                     setup_ended.set()
 
@@ -730,11 +727,10 @@ def harness_session(browser, harness: str) -> Iterator[tuple[Session, str, dict]
         reader.start()
         deadline = time.monotonic() + SETUP_LIMIT
         try:
-            while not (
-                setup_ended.is_set()
-                and "url" in found
-                and page_state(arm, state, page_dir)["listening"]
-            ):
+            while True:
+                current = read_page_state(arm, state, page_dir)
+                if setup_ended.is_set() and current["server"] and current["listening"]:
+                    break
                 check(
                     reader.is_alive() and time.monotonic() < deadline,
                     f"the {harness} session stopped or ran past {SETUP_LIMIT} s "
@@ -742,7 +738,7 @@ def harness_session(browser, harness: str) -> Iterator[tuple[Session, str, dict]
                     f"{run / 'stream.jsonl'}",
                 )
                 time.sleep(1)
-            session = local_session(browser, found["url"])
+            session = local_session(browser, current["server"]["url"])
             named = {"target": harness, "harness": harness}
             if child.transport is not None:
                 named["transport"] = child.transport
@@ -767,12 +763,6 @@ def working_version(commit: str) -> str:
         check=True,
     ).stdout
     return f"{commit}+working-tree" if changed else commit
-
-
-def page_state(arm: Path, state: Path, page_dir: Path) -> dict:
-    return json.loads(
-        run_leaf(arm, state, "page", "state", str(page_dir), check=True).stdout
-    )
 
 
 def local_session(browser, url: str) -> Session:

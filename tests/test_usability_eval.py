@@ -142,6 +142,41 @@ def test_a_thread_claim_must_be_accepted_for_the_comment_before_reply():
     assert not claimed_first([call, reply, accepted], "comment")
 
 
+def test_native_opening_requires_page_response_evidence_before_the_first_tool():
+    opening = {
+        "type": "assistant",
+        "message": {
+            "content": [
+                {"type": "text", "text": "I’ll add the dry-run duration."},
+            ]
+        },
+    }
+    tool = {
+        "type": "assistant",
+        "message": {
+            "content": [
+                {"type": "tool_use", "id": "edit", "name": "ApplyPatch", "input": {}},
+            ]
+        },
+    }
+    workflow = {
+        "input": "comment",
+        "response": {"state": "active", "has_text": True},
+    }
+    state = {"type": "eval_first_tool_state", "workflows": [workflow]}
+    assert claimed_first([opening, tool, state], "comment")
+    assert not claimed_first([opening, tool], "comment")
+    assert not claimed_first([tool, state, opening], "comment")
+    assert not claimed_first([opening, tool, state], "other-input")
+    workflow["response"]["state"] = "failed"
+    assert not claimed_first([opening, tool, state], "comment")
+    workflow["response"]["state"] = "active"
+    workflow["response"]["has_text"] = False
+    assert not claimed_first([opening, tool, state], "comment")
+    workflow["response"] = None
+    assert not claimed_first([opening, tool, state], "comment")
+
+
 @pytest.mark.parametrize("membership", ["together", "split", "missing-error"])
 def test_mixed_delivery_requires_the_admitted_native_error_in_the_same_batch(
     tmp_path, membership
@@ -365,3 +400,68 @@ assert close_session_turn("injection-observer", "actual-parent-turn")
 """,
     )
     assert observed_active_turn(run, page, child) is None
+
+
+def test_live_feedback_uses_its_page_server_despite_other_urls_in_agent_output(
+    tmp_path, monkeypatch
+):
+    """Replace only the model process; serving and comment admission are real.
+
+    A live candidate printed a neighboring probe's URL in `ps` output. The old
+    driver posted its comment to that other page before raising StopIteration.
+    """
+    from dataclasses import replace
+
+    from leaf_dev import usability_eval
+
+    run = Run("handoff", ROOT, tmp_path)
+    run.state.mkdir()
+    page = tmp_path / "page"
+    build_fixture(run, "handoff", page)
+    (tmp_path / "work-dir").write_text(str(tmp_path))
+
+    class ModelProcess:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            run.leaf("server", "start", str(page), check=True)
+            return self
+
+        def __exit__(self, *exc):
+            pass
+
+        def close(self):
+            pass
+
+        def records(self):
+            yield {
+                "type": "user",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "content": "A neighboring probe: http://127.0.0.1:9/?t=other-page",
+                        }
+                    ]
+                },
+            }
+            yield {"type": "result", "is_error": False, "result": "Ready."}
+
+    monkeypatch.setattr(usability_eval, "LiveChild", ModelProcess)
+    case = replace(CASES["handoff"], rounds=(CASES["handoff"].rounds[0],))
+    usability_eval.execute_live(run, case, tmp_path, page)
+    [comment] = [e for e in page_events(page) if e["kind"] == "comment"]
+    assert comment["attempt"] == attempt_key(0, 0)
+    assert comment["text"] == "Add how long the dry run took: 3 h 10 min."
+
+
+def test_handoff_url_must_match_the_server_observed_by_the_live_run():
+    from leaf_dev.usability_eval import handed_page_url
+
+    url = "http://127.0.0.1:42041/?t=this-page"
+    trace = [{"type": "eval_served", "url": url}]
+    assert handed_page_url(trace, f"[Dry run]({url}#dry-run)")
+    assert not handed_page_url(trace, "http://127.0.0.1:42042/?t=other-page")
+    assert not handed_page_url(trace, "http://127.0.0.1:42041/?t=this-page-other-key")
+    assert not handed_page_url([], url)

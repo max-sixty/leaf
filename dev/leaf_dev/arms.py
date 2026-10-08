@@ -547,6 +547,17 @@ class PageClient:
             ) from error
 
 
+def read_page_state(arm: Path, state: Path, page: Path) -> dict:
+    """Read this arm's canonical page, including its keyed server address.
+
+    Live drivers choose their write destination here. Agent text and tool output
+    can name other pages and remain only evidence of what the agent handed over.
+    """
+    return json.loads(
+        run_leaf(arm, state, "page", "state", str(page), check=True).stdout
+    )
+
+
 def commands(record: dict) -> list[str]:
     """What each tool call in one stream record runs, or the tool and its file."""
     content = (record.get("message") or {}).get("content")

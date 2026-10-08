@@ -34,6 +34,7 @@ from leaf_dev.arms import (
     now,
     observed_sum,
     opened_input_ids,
+    read_page_state,
     read_trace,
     run_agent,
     run_leaf,
@@ -629,6 +630,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     # The deadline for the posted round's delivery; unstarted until the first post.
     waiting = threading.Timer(DELIVERY_LIMIT, lambda: None)
     url, posted, delivered = None, 0, 0
+    observed_tool_round = 0
     pending_events: set[str] = set()
     attempts: set[str] = set()
     try:
@@ -698,8 +700,23 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                             }
                         )
                 note(record)
-                if not url and (found := URL.search(json.dumps(record))):
-                    url = found[0]
+                if delivered > observed_tool_round and any(
+                    block.get("type") == "tool_use" for block in blocks([record])
+                ):
+                    observed_tool_round = delivered
+                    note(
+                        {
+                            "type": "eval_first_tool_state",
+                            "round": delivered,
+                            "workflows": page_state(run, page)["workflows"],
+                            "received_at": now(),
+                        }
+                    )
+                if not url and record.get("type") in ("user", "result"):
+                    server = page_state(run, page)["server"]
+                    if server:
+                        url = server["url"]
+                        note({"type": "eval_served", "url": url, "received_at": now()})
                 if (
                     posted < len(case.rounds)
                     and url
@@ -940,8 +957,7 @@ def trace_scores(trace: list[dict]) -> dict:
 
 
 def page_state(run: Run, page: Path) -> dict:
-    proc = run.leaf("page", "state", str(page))
-    return json.loads(proc.stdout) if proc.returncode == 0 else {}
+    return read_page_state(run.payload, run.state, page)
 
 
 def answered_lines(reply: str) -> dict[int, str]:
@@ -1291,8 +1307,37 @@ def ran_between(trace: list[dict], start: int, end: int) -> list[str]:
 
 
 def claimed_first(trace: list[dict], thread: str) -> bool:
-    """An accepted start on this thread's comment, a progress update's included,
-    before the turn's first reply call that answers it."""
+    """An accepted command start or a native reply opened before the first tool.
+
+    Native commentary counts only when the canonical workflow confirms that
+    the exact input has an active response with text at the first-tool boundary.
+    A chat message alone cannot establish that the page showed progress.
+    """
+    first_tool = next(
+        (
+            i
+            for i, record in enumerate(trace)
+            if any(b.get("type") == "tool_use" for b in blocks([record]))
+        ),
+        len(trace),
+    )
+    opening = any(
+        b.get("type") == "text" and b.get("text")
+        for record in trace[:first_tool]
+        if record.get("type") == "assistant"
+        for b in blocks([record])
+    )
+    observation = next((r for r in trace if r["type"] == "eval_first_tool_state"), None)
+    if opening and observation is not None:
+        for workflow in observation["workflows"]:
+            response = workflow["response"]
+            if (
+                workflow["input"] == thread
+                and response is not None
+                and response["state"] == "active"
+                and response["has_text"]
+            ):
+                return True
     reply = next(
         (
             index
@@ -1318,6 +1363,12 @@ def answered(events: list[dict], event_id: str) -> list[dict]:
     ]
 
 
+def handed_page_url(trace: list[dict], reply: str) -> bool:
+    """The final message links the exact server this live run observed."""
+    served = next((r["url"] for r in trace if r["type"] == "eval_served"), None)
+    return served is not None and served in URL.findall(reply)
+
+
 def round_scores(trace: list[dict], r: dict, name: str) -> dict:
     """Confirmed input, watch ownership left to Leaf, and a waiting handover URL."""
     if r["delivery"] is None or r["end"] is None:
@@ -1329,7 +1380,7 @@ def round_scores(trace: list[dict], r: dict, name: str) -> dict:
             waits_started(d) for d in trace[r["delivery"] : r["end"]]
         ),
         f"{name}_waiting": (r["status"] or {}).get("state") == "waiting",
-        f"{name}_url": bool(URL.search(end.get("result") or "")),
+        f"{name}_url": handed_page_url(trace, end.get("result") or ""),
     }
 
 
@@ -1343,7 +1394,7 @@ def score_handoff(run: Run, trace: list[dict]) -> dict:
         next((d["status"] for d in trace if d["type"] == "eval_status"), None) or {}
     )
     out = {
-        "served": bool(URL.search(handover.get("result") or "")),
+        "served": handed_page_url(trace, handover.get("result") or ""),
         "checked": any("page check" in c for c in ran_between(trace, 0, first_end)),
         "handoff_waiting": status.get("state") == "waiting",
         "detail_names_ask": check(

@@ -11148,3 +11148,80 @@ def test_a_retained_reference_with_nothing_hidden_offers_no_disclosure(
     expect(
         card.get_by_role("button", name="Full quote", exact=True)
     ).not_to_be_visible()
+
+
+def test_a_changed_datum_keeps_its_old_words_open_when_its_label_changes(
+    browser, serve
+):
+    """Subject identity survives a rewrite; neither its label nor location is the quote."""
+    old = "The original requirement keeps a human review before release. " * 12
+    module = """
+import {projectData, html, render} from '/runtime/widget-api.js';
+customElements.define('lf-quote-subject', class extends HTMLElement {
+  connectedCallback() { window.quoteSubject = this; this.show('Old plan', this.dataset.words); }
+  show(label, words) {
+    render(html`<p>${words}</p>`, this);
+    projectData(this, [{key: 'plan', node: this.querySelector('p'), label,
+      identity: 'plan', origin: {derived: [{widget: 'subject'}]}}]);
+  }
+});
+"""
+    url = serve(
+        leaf_page(
+            "Retained subject words",
+            '<h1 id="title">Release review</h1>'
+            f'<lf-quote-subject id="subject" data-words="{old}"></lf-quote-subject>',
+        ),
+        layer_registry={
+            "lf-quote-subject": {
+                "description": "A named subject whose wording changes.",
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "data-words": {"type": "string"},
+                },
+                "required": ["id"],
+                "additionalProperties": False,
+                "x-content": "empty",
+                "x-upgrade": True,
+                "x-example": '<lf-quote-subject id="example"></lf-quote-subject>',
+            }
+        },
+        layer_widgets={"lf-quote-subject.js": module},
+    )
+    page = open_page(browser, live_url(url))
+    select_words(page, "#subject p")
+    write(
+        page.locator(".lf-composer leaf-text"), "Does the original review still apply?"
+    )
+    with sending(page, "the subject quotation"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    told(page)
+    comment = next(
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
+    )
+    page.evaluate(
+        "window.quoteSubject.show('Old plan', 'The revised requirement uses automatic review.')"
+    )
+    reading = page.evaluate(
+        """anchor => window.__lfRuntimeImport('/runtime/anchor-resolution.js')
+          .then(async ({resolveAnchor}) => {const {pageText} = await window.__lfRuntimeImport('/runtime/passages.js'); const {kind, exact, status} = resolveAnchor(anchor, pageText());
+            return {kind, exact, status};})""",
+        comment["anchor"],
+    )
+    assert reading == {"kind": "element", "exact": False, "status": "fallback"}
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{comment["id"]}"]')
+    quote = card.locator(".lf-quote")
+    expect(quote).not_to_have_attribute("title", "Jump to this passage")
+    expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
+    disclosure = card.get_by_role("button", name="Full quote", exact=True)
+    disclosure.click()
+    expect(disclosure).to_have_attribute("aria-expanded", "true")
+    page.evaluate(
+        "window.quoteSubject.show('Current plan', 'The revised requirement uses automatic review.')"
+    )
+    expect(quote).to_contain_text("Current plan")
+    expect(disclosure).to_have_attribute("aria-expanded", "true")
+    assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")

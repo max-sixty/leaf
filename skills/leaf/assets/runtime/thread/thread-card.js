@@ -66,26 +66,30 @@ function quoteReading(thread, anchors) {
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const found = !thread.detached_from && Boolean(placement);
   const outdated = anchored && placement?.status === "outdated";
+  const changed =
+    Boolean(rewritten) ||
+    Boolean(quoted?.quote && placement?.datumElement && !placement.exact);
   return Object.freeze({
     label,
+    words: quoted?.quote ?? null,
     anchored,
     found,
     outdated,
-    changed: Boolean(rewritten),
+    changed,
     // A surviving element can still be a destination after its quoted words
     // have gone (rewritten text, replaced data or a virtual datum). Only a
     // resolved passage can supply the original quote's complete reading.
-    localReading:
-      Boolean(quoted?.quote) &&
-      (!found || Boolean(rewritten) || placement.kind !== "passage"),
+    localReading: Boolean(quoted?.quote) && placement?.kind !== "passage",
     title: !anchored
       ? null
       : found
         ? outdated
           ? "This comment refers to an earlier data revision"
-          : rewritten
-            ? "These words have changed since; jump to their section"
-            : "Jump to this passage"
+          : changed
+            ? "These words have changed since; jump to their current item"
+            : quoted?.quote && placement.kind !== "passage"
+              ? "Jump to the quoted item's current location"
+              : "Jump to this passage"
         : thread.detached_from
           ? "This passage is no longer in the version you're viewing"
           : "This passage can't be identified in the version you're viewing",
@@ -576,7 +580,7 @@ export class ThreadView {
           this.#expandedSummaries.add(summary.id);
       }
     }
-    if (model.quote?.label !== prior?.quote?.label) this.#quoteExpanded = false;
+    if (model.quote?.words !== prior?.quote?.words) this.#quoteExpanded = false;
     this.#model = model;
     const reply = model.reply || replyIsEditing(model.key);
     this.#replyShown = reply;

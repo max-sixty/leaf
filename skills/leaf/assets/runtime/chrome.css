@@ -1241,8 +1241,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      names the passage in three lines and the page shows the rest: the mark is already
      on it, and the quote is what one clicks to go there. A retained quote whose
      words have gone instead opens locally, without clipping or an inner scroller.
-     The composer's copy is scrolled rather than clipped a few rules down, because it stands alone in a box
-     the user is typing into and has no thread beneath it to bury. */
+     The composer's copy is scrolled rather than clipped a few rules down: it stands
+     alone in a box the user is typing into and has no thread beneath it to bury. */
   .lf-thread .lf-quote { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
   .lf-quote.detached { border-inline-start-color: var(--border-2);
     color: var(--muted-2); cursor: default; }

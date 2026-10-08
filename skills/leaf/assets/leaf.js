@@ -951,8 +951,11 @@ if (!offlineInteractive) {
     paintStandingGeometry: standing.paintStandingGeometry,
   });
 } else {
-  // An interactive export attaches no chrome, so its standing is only what a widget's
-  // own box shows: an options group's addition field paints there as it does live.
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, chromeSheet];
+  chromeRoot.append(mediaViewer);
+  document.body.append(chromeRoot);
+  // Exports retain image inspection, but no page controls. Their other standing is
+  // what a widget's own box shows, such as an options group's addition field.
   mountRepaint({ paintStandingGeometry: inputs.paintInputs, reflectKeys });
 }
 

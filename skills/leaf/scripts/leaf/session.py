@@ -60,14 +60,14 @@ def cmd_waiting(page_dir: Path, detail: str) -> tuple[dict, list[dict]]:
     (`tasks.put_down`), and return the declaration, with the user moves still owed an
     answer, which the page goes on showing over it."""
     from .revisioning import activate_source
-    from .served_state.page import full_state
+    from .served_state.work import live_work
     from .tasks import put_down
 
     with PageTransaction(page_dir) as page:
         activate_source(page_dir, transaction=page)
         put_down(page)
         status = page.set_status("waiting", detail)
-        return status, full_state(page_dir, page.events)["activity"]["obligations"]
+        return status, live_work(page_dir, page.events).obligations
 
 
 def cmd_idle(page_dir: Path, detail: str) -> dict:
@@ -84,12 +84,13 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
     The check and the transition share the log lock, so an event arriving
     or an acknowledgement advancing the cursor orders against them."""
     from .activity import blocking_obligations, unanswered
-    from .served_state.page import full_state
-    from .tasks import owed_tasks, put_down
+    from .served_state.work import live_work
+    from .tasks import put_down
 
     with PageTransaction(page_dir) as page:
         events = page.events
-        state = full_state(page_dir, events)
+        work = live_work(page_dir, events)
+        state = {**work.presence, "activity": work.activity}
         claim = page.active_claim
         harness = claim_harness(claim) if claim is not None else None
         pending = len(unacknowledged(events, page.cursor))
@@ -115,7 +116,7 @@ def cmd_idle(page_dir: Path, detail: str) -> dict:
             )
         # A task is work the agent still owes, which closing the page would leave
         # standing on a page nobody holds.
-        if tasks := owed_tasks(events):
+        if tasks := work.durable.log.owed:
             named = "; ".join(f"{task['id']} ({task['title']})" for task in tasks)
             sys.exit(
                 f"{len(tasks)} open task{'s' if len(tasks) != 1 else ''}: {named}. "

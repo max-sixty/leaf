@@ -120,7 +120,8 @@ export function licenseNotices(title, packageRoots) {
             .map((file) => `LICENSES/${file}`)
         : []),
     ];
-    const text = (file) => readFileSync(path.join(root, file), "utf8").trim();
+    const text = (file) =>
+      readFileSync(path.join(root, file), "utf8").replaceAll("\r\n", "\n").trim();
     return [
       `===== ${manifest.name} ${manifest.version} (${manifest.license}) =====\n${text(license)}`,
       ...documents.map(

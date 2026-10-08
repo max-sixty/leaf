@@ -12524,7 +12524,7 @@ def test_a_diff_recovers_when_a_failed_manifest_file_is_repaired(browser, serve)
 def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
     browser, serve, manifest, starts_as_rename
 ):
-    """A path keeps its file controls; replaced presentation hands focus to that file."""
+    """A path keeps its controls; comment close and replaced evidence leave focus on its file."""
     rename = (
         "diff --git a/old.py b/app/handlers.py\n"
         "similarity index 100%\nrename from old.py\nrename to app/handlers.py\n"
@@ -12540,6 +12540,7 @@ def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
     if starts_as_rename:
         page.locator("lf-diff .lf-diff-file-comment").first.click()
         page.keyboard.press("Escape")
+        assert owner.evaluate("node => node === node.getRootNode().activeElement")
     else:
         page.locator("lf-diff summary").first.click()
         page.keyboard.press("ArrowRight")
@@ -12552,13 +12553,14 @@ def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
         assert owner.evaluate("node => node.isConnected")
         assert comment.evaluate("node => node.isConnected")
         assert owner.evaluate("node => node.contains(node.getRootNode().activeElement)")
+        if starts_as_rename:
+            assert owner.evaluate("node => node === node.getRootNode().activeElement")
         assert page.evaluate("() => scrollY") == before
         if patch == regular:
             expect(
                 page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
             ).to_contain_text("new first")
     if starts_as_rename:
-        assert comment.evaluate("node => node === node.getRootNode().activeElement")
         data_model.cmd_data_set(serve.page_dir, "review-patch", value(regular))
         told(page)
         rendered(page)

@@ -42,6 +42,14 @@
   --wa-form-control-value-color: var(--ink);
 }
 
+/* Options wear Leaf's control ink. The vendor also uses its activated token as
+   a solid menu fill, whereas other controls use it for an accent border or mark.
+   A menu's active row therefore takes the tinted surface, keeping the same
+   readable ink in both schemes; its checkmark still names the selected value. */
+wa-option {
+  --wa-form-control-activated-color: var(--accent-tint);
+}
+
 /* The field inside each of these is the vendor's native input or textarea, in a shadow
    root the layer's own field floor (shadow.css) does not reach, so the same floor
    is passed in as the size the vendor sets its value in: never under --entry-floor,

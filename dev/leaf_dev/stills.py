@@ -454,6 +454,23 @@ def playground_controls(page: Page) -> None:
     page.locator(".lf-playground-controls").scroll_into_view_if_needed()
 
 
+def targeting_menu(page: Page) -> None:
+    """The target-scope picker open on its selected option."""
+    targeting = page.locator("#code-comparison-targeting")
+    targeting.get_by_role("button", name="Select element").click()
+    page.locator(".reader-treatment-title").focus()
+    page.keyboard.press("Enter")
+    targeting.locator(".lf-targeting-candidate-choice").first.click()
+    control = targeting.locator("wa-select").first
+    control.evaluate("""node => {
+      node.reviewShown = new Promise(resolve => node.addEventListener(
+        'wa-after-show', () => resolve(), {once: true}));
+    }""")
+    control.get_by_role("combobox").click()
+    control.evaluate("node => node.reviewShown")
+    page.mouse.move(0, 0)
+
+
 def margin_gallery(page: Page) -> None:
     """The margin gallery's real controls and labels in a finger-sized column."""
     page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
@@ -505,6 +522,8 @@ class State:
 
 
 STATES = (
+    State("targeting-menu", "code-comparison", targeting_menu),
+    State("targeting-menu-dark", "code-comparison", targeting_menu, scheme="dark"),
     State("trace-sources", "developer/playwright-trace-gallery", trace_sources),
     State(
         "trace-source-keyboard",

@@ -17,6 +17,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import patch_manifest
+from leaf_dev.stills import targeting_menu
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ASKS_IN_ORDER,
@@ -12202,6 +12203,61 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
         ).strip()
         == "rgb(1, 2, 3)"
     ), "the package theme must outrank the lazy vendor defaults"
+
+
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
+    browser, serve, color_scheme
+):
+    """Leaf's control ink must remain readable on the library's active menu fill.
+
+    The targeting picker is a second consumer of the same theme as the trace
+    prototype that exposed dark text on a solid blue active row.
+    """
+    source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    page = open_page(browser, serve(source), color_scheme=color_scheme)
+    targeting_menu(page)
+    control = page.locator("#code-comparison-targeting wa-select").first
+    options = control.locator("wa-option")
+
+    def contrast(option):
+        colors = option.evaluate("""async node => {
+          await Promise.all(node.getAnimations().map(animation => animation.finished));
+          const canvas = document.createElement('canvas');
+          canvas.width = canvas.height = 1;
+          const ctx = canvas.getContext('2d', {willReadFrequently: true});
+          const rgb = color => {
+            ctx.clearRect(0, 0, 1, 1);
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, 1, 1);
+            return [...ctx.getImageData(0, 0, 1, 1).data];
+          };
+          const style = getComputedStyle(node);
+          return [rgb(style.color), rgb(style.backgroundColor)];
+        }""")
+        assert all(color[3] == 255 for color in colors), colors
+        luminances = [
+            sum(
+                (v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4) * weight
+                for v, weight in zip(
+                    (channel / 255 for channel in color[:3]),
+                    (0.2126, 0.7152, 0.0722),
+                    strict=True,
+                )
+            )
+            for color in colors
+        ]
+        assert (max(luminances) + 0.05) / (min(luminances) + 0.05) >= 4.5, colors
+
+    current = control.locator("wa-option:state(current)")
+    expect(current).to_be_visible()
+    contrast(current)
+    initial = current.get_attribute("value")
+    page.keyboard.press("ArrowDown")
+    expect(current).not_to_have_attribute("value", initial)
+    contrast(current)
+    options.first.hover()
+    contrast(options.first)
 
 
 def test_webawesome_theme_reaches_a_declared_shadow_stage(browser, serve):

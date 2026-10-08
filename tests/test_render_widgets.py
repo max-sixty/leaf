@@ -4044,8 +4044,10 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         "return { spine: getComputedStyle(rows, '::before').backgroundColor, "
         "lens: getComputedStyle(lens).backgroundColor, "
         "current: getComputedStyle(current, '::before').backgroundColor, "
-        "inactive: items.filter(item => item !== current).map(item => "
-        "getComputedStyle(item, '::before').backgroundColor) }; }"
+        "inactive: items.filter(item => item !== current).map(item => { "
+        "const style = getComputedStyle(item, '::before'); return { "
+        "ring: item.matches('.lf-toc-start, [data-lf-depth=\"0\"]'), "
+        "background: style.backgroundColor, border: style.borderColor }; }) }; }"
     )
     canvas = page.locator("body").evaluate(
         "node => getComputedStyle(node).backgroundColor"
@@ -4053,7 +4055,12 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
     assert forced_colors["spine"] != canvas
     assert forced_colors["lens"] == forced_colors["current"]
     assert forced_colors["lens"] != forced_colors["spine"]
-    assert all(color == forced_colors["spine"] for color in forced_colors["inactive"])
+    rings = [item for item in forced_colors["inactive"] if item["ring"]]
+    dots = [item for item in forced_colors["inactive"] if not item["ring"]]
+    assert rings and dots
+    assert all(item["background"] == canvas for item in rings)
+    assert all(item["border"] == forced_colors["spine"] for item in rings)
+    assert all(item["background"] == forced_colors["spine"] for item in dots)
 
     page.emulate_media(media="screen", forced_colors="none", reduced_motion="reduce")
     rendered(page)

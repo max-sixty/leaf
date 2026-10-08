@@ -2194,6 +2194,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   :scope:is(lf-toc) li[data-lf-depth="0"]::before {
     forced-color-adjust: none; background: CanvasText; border-color: CanvasText;
   }
+  :scope:is(lf-toc) .lf-toc-start::before,
+  :scope:is(lf-toc) li[data-lf-depth="0"]::before { background: Canvas; }
   :scope:is(lf-toc) .lf-toc-window,
   :scope:is(lf-toc) :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
     forced-color-adjust: none; background: Highlight; border-color: Highlight;

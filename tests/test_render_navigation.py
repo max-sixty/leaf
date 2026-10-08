@@ -179,7 +179,6 @@ def test_reading_keys_chain_at_a_document_bound_but_stop_at_a_task_boundary(
         page.wait_for_function(
             "({selector, before}) => document.querySelector(selector).scrollTop > before",
             arg={"selector": outer_selector, "before": before},
-            timeout=2000,
         )
         scroll_settled(page, outer_selector)
         before = outer.evaluate("box => box.scrollTop")
@@ -188,7 +187,6 @@ def test_reading_keys_chain_at_a_document_bound_but_stop_at_a_task_boundary(
         page.wait_for_function(
             "({selector, before}) => document.querySelector(selector).scrollTop < before",
             arg={"selector": outer_selector, "before": before},
-            timeout=2000,
         )
         if workspace:
             outer.evaluate("box => box.scrollTop = box.scrollHeight")

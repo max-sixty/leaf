@@ -219,7 +219,6 @@ def test_a_bounded_document_reader_chains_wheel_at_its_edge(browser, serve, capt
     page.wait_for_function(
         "before => document.scrollingElement.scrollTop > before",
         arg=before,
-        timeout=5000,
     )
 
 

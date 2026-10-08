@@ -2,7 +2,6 @@
 
 import json
 import os
-import subprocess
 from pathlib import Path
 
 import click
@@ -128,18 +127,8 @@ def test_native_codex_discovers_the_complete_arm_with_root_relative_access(
     provider = native_provider("codex", payloads["candidate"], work)
     settings = provider["config"]
     home = Path(settings["cli_env"]["CODEX_HOME"])
-    listing = subprocess.run(
-        ["rg", "--files", str(home)], capture_output=True, text=True, check=True
-    )
-    registry = next(
-        (
-            Path(name)
-            for name in listing.stdout.splitlines()
-            if name.endswith("registry.json")
-        ),
-        None,
-    )
-    assert registry is not None, listing.stdout
+    registry = next(home.rglob("registry.json"), None)
+    assert registry is not None, f"No registry installed under {home}"
     assert json.loads(registry.read_text()) == {"arm": "candidate"}
     skill = registry.parent.parent
     assert (skill / "SKILL.md").read_text() == "candidate instructions"

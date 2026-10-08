@@ -1546,17 +1546,18 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-page-map-action:focus-visible {
     outline: var(--focus-ring); --lf-focus-ring: page-map-action;
     outline-offset: calc(-1 * var(--focus-ring-w)); }
-  .lf-page-map-dialog { position: fixed; z-index: var(--lf-z-dialog); width: min(560px, calc(100vw - 24px));
-    max-height: min(720px, calc(100vh - 24px)); margin: auto; padding: 14px;
+  /* The sheet's top belongs to the window, so narrowing its list never carries the
+     search or Close under the user's aim. The same top bounds its scrolling room. */
+  .lf-page-map-dialog { --lf-page-map-top: max(10dvh, calc(var(--lf-safe-top) + 12px));
+    position: fixed; z-index: var(--lf-z-dialog); inset: var(--lf-page-map-top) 0 auto;
+    width: min(560px, calc(100vw - 24px));
+    max-height: min(720px, calc(100dvh - var(--lf-page-map-top) - var(--lf-safe-bottom) - 12px));
+    margin: 0 auto; padding: 14px;
     border: 1px solid var(--border-2); border-radius: 12px; background: var(--paper);
     color: var(--ink); box-shadow: 0 18px 54px var(--shade); }
-  /* The open sheet is a column so its one scroller takes whatever room the head and the
-     search box leave, rather than a height computed against the window: the list ran to
-     calc(100vh - 150px) while the box it sits in stops at min(720px, 100vh - 24px), so
-     on a short window the list was taller than the sheet, hung out of its rounded corner
-     and off the bottom edge, and its own focus ring was drawn outside the card. Said on
-     [open] because the author sheet would otherwise beat the UA's display:none for a
-     dialog that is shut. */
+  /* The sheet's one scroller takes the room its head and search leave inside the
+     window bounds. Said on [open] so the author sheet leaves the UA's display:none
+     intact for a dialog that is shut. */
   .lf-page-map-dialog[open] { display: flex; flex-direction: column; }
   .lf-page-map-dialog::backdrop { background: color-mix(in srgb, var(--ink) 26%, transparent); }
   .lf-page-map-search { width: 100%; margin-top: 10px; }
@@ -1796,8 +1797,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     background: var(--paper); color: var(--ink); }
   .lf-page-search-box:focus-visible { outline: var(--focus-ring);
     --lf-focus-ring: target-search; outline-offset: 1px; }
-  .lf-page-search-status { min-width: 58px; color: var(--muted);
-    font-size: var(--t-6); text-align: right; white-space: nowrap; }
+  .lf-page-search-status { min-width: 0; min-height: 1lh; width: var(--lf-reserved-width, 0px); color: var(--muted);
+    font-size: var(--t-6); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
   .lf-legend-box { position: absolute; pointer-events: none;
     box-sizing: border-box;
     border: 1px dashed color-mix(in srgb, var(--accent) 55%, transparent); }
@@ -1871,8 +1872,8 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     /* The sheet the Map opens in stands over the whole window and is sized to it, so
        its compact shape belongs to the banner overflow rather than to the rail: it asks
        the window, and this is the block that asks it. */
-    .lf-page-map-dialog { inset: auto 8px 8px; width: calc(100vw - 16px);
-      max-height: min(82vh, 720px); margin: 0;
+    .lf-page-map-dialog { inset-inline: 8px; width: calc(100vw - 16px);
+      margin-inline: 0;
       padding-bottom: max(14px, env(safe-area-inset-bottom)); }
     /* The sheet is the rail's replacement where there is no margin to draw one in, so
        its rows are touch-sized because of what the sheet is, not because of what is

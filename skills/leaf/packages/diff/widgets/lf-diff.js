@@ -2,7 +2,9 @@
  * element. Its ordinary DOM can live in Leaf's declared shadow root, so the
  * rendered lines support selection anchors. A source revision updates evidence
  * under stable file owners: reader controls, disclosure and code scrollports stay
- * connected. A changed file kind replaces only its inner presentation and hands
+ * connected. The toolbar reserves its current source's longest count label, so
+ * filtering or reviewing files leaves its field and controls in place. A changed file
+ * kind replaces only its inner presentation and hands
  * source focus to that same file; supplied thread/composer outlets keep core focus
  * ownership across replacement. Unchanged parsed files keep their rendering; changed files
  * reconcile unchanged lines by their datum coordinate, retaining selection and line threads.
@@ -37,6 +39,7 @@ import {
   projectData,
   placeThreads,
   relabel,
+  reserve,
   retainUserIntent,
   scrollBehavior,
   scrollIntoReadingBand,
@@ -1556,12 +1559,23 @@ customElements.define(
       const shown = this.fileEntries.filter((entry) => !entry.filtered);
       const reviewed = this.fileEntries.filter((entry) => entry.reviewed).length;
       const total = this.fileEntries.length;
-      const suffix = shown.length === total ? "" : ` · ${shown.length} matching`;
+      const label = (done, matching) => {
+        const count = this.reviewing()
+          ? `${done} of ${total} reviewed`
+          : `${total} file${total === 1 ? "" : "s"}`;
+        return matching === null ? count : `${count} · ${matching} matching`;
+      };
+      // Filtering and review change this count, never the field or the adjacent
+      // controls. Reserve the longest label this source can show in its actual face;
+      // a source changing its total is the only change that needs new room.
+      const room = label(total, total);
+      if (this.diffTools.progressRoom !== room) {
+        this.diffTools.progressRoom = room;
+        reserve(this.diffTools.progress, [room]);
+      }
       keepsText(
         this.diffTools.progress,
-        this.reviewing()
-          ? `${reviewed} of ${total} reviewed${suffix}`
-          : `${total} file${total === 1 ? "" : "s"}${suffix}`,
+        label(reviewed, shown.length === total ? null : shown.length),
       );
       this.diffTools.next?.toggleAttribute("disabled", this.nextReviewEntry() === null);
       paintKeys();

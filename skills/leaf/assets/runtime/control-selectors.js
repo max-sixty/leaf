@@ -31,7 +31,7 @@ export const TAB_STOP = `a[href], button, input, select, ${TEXT_BOX}, summary, [
 // land that holds content of its own: a tab stop focus rests on, a composite widget
 // whose items are the presses, an editing surface, a drag source.
 const PRESS_SELECTORS = [
-  "a",
+  "a[href]",
   "audio[controls]",
   "button",
   "img[usemap]",

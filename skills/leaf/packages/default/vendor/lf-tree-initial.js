@@ -1,6 +1,13 @@
 (() => {
   // skills/leaf/packages/default/widgets/activity-view.js
   var ACTIVITY_VIEW = "activity-reading:";
+  function refreshActivityTarget(link, row, write) {
+    const doc = link.ownerDocument;
+    const href = doc.readyState !== "loading" && doc.getElementById(row.widget) ? `#${encodeURIComponent(row.widget)}` : null;
+    if (!href) write(link, "tabindex", "-1");
+    write(link, "href", href);
+    if (href) write(link, "tabindex", null);
+  }
   function target(row, offer) {
     if (row.thread) {
       const button = offer("button", "lf-activity-target");
@@ -10,7 +17,7 @@
     }
     if (!row.widget && !row.label) return null;
     const label = row.label;
-    if (!row.available) {
+    if (!row.widget) {
       const span = document.createElement("span");
       span.className = "lf-activity-target";
       span.textContent = label;
@@ -19,7 +26,9 @@
     const link = document.createElement("a");
     link.className = "lf-activity-target";
     link.dataset.lfCarry = `row-${row.id}`;
-    link.href = `#${encodeURIComponent(row.widget)}`;
+    refreshActivityTarget(link, row, (node, name, value) => {
+      if (value !== null) node.setAttribute(name, value);
+    });
     link.textContent = label;
     return link;
   }
@@ -85,6 +94,22 @@
       list.append(item);
       rows.set(row.id, { item, key: JSON.stringify(row) });
     }
+    if (document.readyState === "loading")
+      document.addEventListener(
+        "readystatechange",
+        () => {
+          for (const row of drawn) {
+            const link = rows.get(row.id).item.querySelector("a.lf-activity-target");
+            if (link)
+              refreshActivityTarget(link, row, (node, name, value) => {
+                if (node.getAttribute(name) === value) return;
+                if (value === null) node.removeAttribute(name);
+                else node.setAttribute(name, value);
+              });
+          }
+        },
+        { once: true }
+      );
     empty.hidden = !reading.open || drawn.length > 0;
     host.replaceChildren(notice, list, empty);
     return { notice, list, empty, rows, reading, restored: saved !== null };

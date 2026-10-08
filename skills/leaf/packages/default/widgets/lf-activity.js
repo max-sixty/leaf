@@ -27,6 +27,9 @@
  * appear only when the reader opens it. Once open, HeldReading keeps visible history
  * behind that same disclosure until the reader asks to see the change or leaves it
  * off screen. Rows retain their event identity and focus while that reading stands.
+ * Targets stay live: a held row keeps its historical words and geometry, but its
+ * fragment link follows only a destination in the current document. A departed
+ * destination leaves historical text in the same node, without an active link.
  * Tab memory retains the drawn presentation through a fresh document. Its initial
  * producer draws it before first paint, then the ready authoritative reading is
  * compared through HeldReading. This never folds events or records a decision. */
@@ -54,7 +57,11 @@ import {
   keepsText,
 } from "/runtime/widget-api.js";
 
-import { ACTIVITY_VIEW, fillActivityRow } from "./activity-view.js";
+import {
+  ACTIVITY_VIEW,
+  fillActivityRow,
+  refreshActivityTarget,
+} from "./activity-view.js";
 
 const NAME = 60;
 
@@ -248,7 +255,6 @@ customElements.define(
       // Hold the complete drawn reading, including an undo or a changed title:
       // those may wrap too. The authoritative history always remains #history.
       for (const row of current) {
-        row.available = Boolean(row.widget && document.getElementById(row.widget));
         if (row.widget || row.label) row.label ??= nameOf(row.widget);
       }
       const wanted = JSON.stringify(current);
@@ -298,6 +304,10 @@ customElements.define(
           restoreFocus?.(item.querySelector(".lf-activity-target"));
           seat.key = key;
         }
+        // Holding a drawing never holds a navigation capability. The initial and
+        // live producers consult the same current-document destination rule.
+        const link = item.querySelector("a.lf-activity-target");
+        if (link) refreshActivityTarget(link, row, keeps);
         // Read synchronously, so the shared clock repaints this reading when it turns.
         const time = item.querySelector(".lf-activity-time");
         keepsText(time, ago(row.ts));

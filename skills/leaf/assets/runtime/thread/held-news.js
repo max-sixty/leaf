@@ -582,7 +582,9 @@ export class HeldNews {
  *  `reading` where it is the first, where it equals the one drawn last, or where none
  *  of the region shows in the window, since a row may change anywhere in it; otherwise
  *  the reading drawn last. What it holds shows when the user opens it
- *  (`release` or `show`), or once none of the region shows in the window. */
+ *  (`release` or `show`), or once none of the region shows in the window. Current
+ *  activation availability is not a retained presentation: callers refresh it
+ *  from its current owner even while the reading holds. */
 export class HeldReading {
   #region;
   #changed;

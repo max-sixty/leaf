@@ -1,8 +1,23 @@
 /* One activity drawing, used synchronously for retained tab-local reading and by
  * the live history subscriber. Retained rows are a presentation snapshot: no event,
  * semantic fold or application fact is reconstructed from them. The next authoritative
- * history is held/revealed by the behavior module through HeldReading. */
+ * history is held/revealed by the behavior module through HeldReading. A target's
+ * availability belongs to the current document, never that retained drawing. */
 export const ACTIVITY_VIEW = "activity-reading:";
+
+export function refreshActivityTarget(link, row, write) {
+  const doc = link.ownerDocument;
+  const href =
+    doc.readyState !== "loading" && doc.getElementById(row.widget)
+      ? `#${encodeURIComponent(row.widget)}`
+      : null;
+  // Keep a focused target in the same node when it becomes historical text. Order
+  // matters: give the text a programmatic stop before removing its native link,
+  // and restore the link before taking that stop back. It is never a Tab offer.
+  if (!href) write(link, "tabindex", "-1");
+  write(link, "href", href);
+  if (href) write(link, "tabindex", null);
+}
 
 function target(row, offer) {
   if (row.thread) {
@@ -13,7 +28,7 @@ function target(row, offer) {
   }
   if (!row.widget && !row.label) return null;
   const label = row.label;
-  if (!row.available) {
+  if (!row.widget) {
     const span = document.createElement("span");
     span.className = "lf-activity-target";
     span.textContent = label;
@@ -22,7 +37,9 @@ function target(row, offer) {
   const link = document.createElement("a");
   link.className = "lf-activity-target";
   link.dataset.lfCarry = `row-${row.id}`;
-  link.href = `#${encodeURIComponent(row.widget)}`;
+  refreshActivityTarget(link, row, (node, name, value) => {
+    if (value !== null) node.setAttribute(name, value);
+  });
   link.textContent = label;
   return link;
 }
@@ -92,6 +109,25 @@ export function initialActivity(host, { offer, tabStore }) {
     list.append(item);
     rows.set(row.id, { item, key: JSON.stringify(row) });
   }
+  // Before the parser finishes, a missing id can still be below this host. Resolve
+  // whole-document capability at interactive, before modules or their requests can
+  // delay DOMContentLoaded. Geometry is drawn now; partial markup offers no link.
+  if (document.readyState === "loading")
+    document.addEventListener(
+      "readystatechange",
+      () => {
+        for (const row of drawn) {
+          const link = rows.get(row.id).item.querySelector("a.lf-activity-target");
+          if (link)
+            refreshActivityTarget(link, row, (node, name, value) => {
+              if (node.getAttribute(name) === value) return;
+              if (value === null) node.removeAttribute(name);
+              else node.setAttribute(name, value);
+            });
+        }
+      },
+      { once: true },
+    );
   empty.hidden = !reading.open || drawn.length > 0;
   host.replaceChildren(notice, list, empty);
   return { notice, list, empty, rows, reading, restored: saved !== null };

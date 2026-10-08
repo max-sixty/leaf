@@ -10170,6 +10170,124 @@ def test_the_activity_feed_words_a_pick_in_the_document_it_was_made_in(browser, 
     expect(row).to_contain_text("chose “Fast path” in")
 
 
+@pytest.mark.parametrize(
+    ("fresh", "touch"),
+    [(False, False), (True, False), (False, True)],
+    ids=["patched", "fresh", "touch"],
+)
+def test_activity_held_targets_follow_the_current_document(
+    browser, serve, fresh, touch
+):
+    """Held history keeps its words and seat, but never a departed destination."""
+
+    def source(destination, executable=""):
+        return leaf_page(
+            "Route",
+            '<h1>Route history</h1><lf-activity id="feed"></lf-activity>' + destination,
+        ).replace("</head>", executable + "</head>")
+
+    route = """<lf-ask id="route-ask"><h2>Which route?</h2>
+      <lf-options id="route" choose>
+        <lf-option id="route-fast">Fast path</lf-option>
+        <lf-option id="route-slow">Slow path</lf-option>
+      </lf-options></lf-ask>"""
+    url = live_url(serve(source(route)))
+    if touch:
+        page = browser.new_page(
+            viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
+        )
+        page.goto(url)
+        wait_until_ready(page)
+        page.locator("#route-fast .lf-pick").tap()
+    else:
+        page = open_page(browser, url)
+        page.locator("#route-fast .lf-pick").click()
+    round_trip(page)
+    page.locator("#feed .lf-activity-news").click()
+    row = page.locator("#feed .lf-activity-row", has_text="chose")
+    target = row.locator(".lf-activity-target")
+    expect(target).to_have_attribute("href", "#route")
+    page.keyboard.press("Tab")
+    expect(target).to_be_focused()
+    before = row.bounding_box()
+    what = row.locator(".lf-activity-what").text_content()
+    label = target.text_content()
+    fragment = page.evaluate("location.hash")
+    executable = '<script type="module">void 0;</script>' if fresh else ""
+    if fresh:
+        page.add_init_script("""
+          window.activityTargetFrames = [];
+          let remaining = 180;
+          function readTarget() {
+            const target = document.querySelector('#feed a.lf-activity-target');
+            if (target) window.activityTargetFrames.push({
+              href: target.getAttribute('href'), label: target.textContent,
+              parsed: document.readyState !== 'loading'
+            });
+            if (--remaining) requestAnimationFrame(readTarget);
+          }
+          requestAnimationFrame(readTarget);
+        """)
+
+    stamp_page(serve.page_dir, source("", executable), "Remove the route")
+    wait_for_revision(page, 2)
+    wait_until_ready(page)
+    expect(row.locator(".lf-activity-what")).to_have_text(what)
+    expect(target).to_have_text(label)
+    expect(target).not_to_have_attribute("href", "#route")
+    expect(row.get_by_role("link")).to_have_count(0)
+    expect(target).to_be_focused()
+    assert row.bounding_box() == before
+    target.press("Enter")
+    assert page.evaluate("location.hash") == fragment
+    if touch:
+        target.tap()
+    else:
+        target.click()
+    assert page.evaluate("location.hash") == fragment
+    if fresh:
+        frames = page.evaluate("window.activityTargetFrames")
+        assert frames
+        assert all(
+            frame["href"] is None and frame["label"] == label for frame in frames
+        )
+
+    # A destination returning is current capability too; held labels stay historical.
+    restored = '<section id="route"><h2>A different route heading</h2></section>'
+    restored_executable = '<script type="module">void 1;</script>' if fresh else ""
+    blocked = []
+    if fresh:
+        page.route("**/leaf.js", lambda route: blocked.append(route))
+    stamp_page(
+        serve.page_dir, source(restored, restored_executable), "Restore a destination"
+    )
+    if fresh:
+        page.wait_for_function("""() => document.readyState === 'interactive' &&
+          document.querySelector('#feed a.lf-activity-target')?.getAttribute('href') === '#route'""")
+        assert blocked, "startup module must remain pending during the parsed drawing"
+        assert page.locator("body").get_attribute("data-lf-presented") is None
+        page.unroute("**/leaf.js")
+        for route in blocked:
+            route.continue_()
+    wait_for_revision(page, 3)
+    expect(target).to_have_attribute("href", "#route")
+    expect(row.locator(".lf-activity-what")).to_have_text(what)
+    expect(target).to_have_text(label)
+    expect(target).to_be_focused()
+    assert row.bounding_box() == before
+    if fresh:
+        frames = page.evaluate(
+            "window.activityTargetFrames.filter(frame => frame.parsed)"
+        )
+        assert frames
+        assert all(
+            frame["href"] == "#route" and frame["label"] == label for frame in frames
+        )
+    target.press("Enter")
+    expect(page).to_have_url(re.compile(r"#route$"))
+    expect(page.locator("#route")).to_be_in_viewport()
+
+
 @pytest.mark.parametrize("touch", [False, True], ids=["keyboard", "touch"])
 def test_activity_holds_arrivals_until_the_reader_reveals_them(browser, serve, touch):
     """News above a visible passage waits; its fixed control never dodges activation."""

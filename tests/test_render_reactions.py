@@ -1501,6 +1501,42 @@ def test_native_controls_keep_visual_gestures_they_already_own(browser, serve):
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
 
+def test_an_anchor_without_a_destination_keeps_its_picture_commentable(browser, serve):
+    """Only an actual link owns picture activation; historical anchors are content."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Historical picture",
+                """
+<h1 id="top">Historical picture</h1>
+<a id="visit" href="#after"><svg id="linked" viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg></a>
+<a id="historical"><svg id="unlinked" viewBox="0 0 20 20" width="40" height="40" role="img" aria-label="Historical illustration"><circle cx="10" cy="10" r="8" /></svg></a>
+<p id="after">Destination</p>
+""",
+            )
+        ),
+    )
+    proxies = page.locator(".lf-visual-action")
+    expect(proxies).to_have_count(1)
+    assert proxies.evaluate("node => node.lfAnchor") == {"section": "unlinked"}
+    field = page.locator(".lf-fab-input")
+    page.locator("#linked").click()
+    expect(page).to_have_url(re.compile(r"#after$"))
+    expect(field).to_be_hidden()
+    page.locator("#unlinked").click()
+    expect(page).to_have_url(re.compile(r"#after$"))
+    expect(field).to_be_hidden()
+    page.locator("#unlinked").click(modifiers=["Alt"])
+    expect(field).to_be_focused()
+    with sending(page, "the comment on a historical illustration"):
+        write(field, "Keep this historical illustration.")
+        page.keyboard.press("ControlOrMeta+Enter")
+    assert events_model.read_events(serve.page_dir)[-1]["anchor"] == {
+        "section": "unlinked"
+    }
+
+
 def test_custom_controls_keep_visual_gestures_they_already_own(browser, serve):
     """ARIA widgets are controls even when their implementation contains a picture.
     The shared interaction boundary keeps Leaf from adding a second activation target."""

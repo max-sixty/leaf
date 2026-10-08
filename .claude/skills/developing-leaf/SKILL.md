@@ -93,10 +93,13 @@ Present visible and interaction changes using the proof below.
 
 ## Prove and hand off a visible change
 
-The handoff lets the user inspect the changed behavior. Open the exact preview
-URL in a fresh browser context and verify that the review state is visible on
-arrival or reached by the route the handoff names. Setup from a private probe
-that the user cannot repeat belongs in the fixture or a replay control.
+The handoff lets the user inspect the changed behavior. Judge legibility and
+layout in every visible state reached by ordinary input, in the affected color
+schemes. Pause after state changes to inspect them before continuing the journey.
+Every candidate and optional surface retained in the page belongs to that review.
+Open the exact preview URL in a fresh browser context and verify that the review
+state is visible on arrival or reached by the route the handoff names. Setup from
+a private probe that the user cannot repeat belongs in the fixture or a replay control.
 
 Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
 "Layout and motion"), and capture the viewport when fixed chrome should

@@ -1,3 +1,10 @@
+# The compact-picker handoff in task 01a118db-fd01-7a11-a01a-d7715c192a3c
+# missed visual judgment of an open highlighted menu (2026-10-07). A replay
+# preserving only its green reports passed 0/2 on frozen HEAD; the first draft
+# passed 1/2, with the other response requiring broader open/focus review.
+# Final state-inspection wording passed one matched pair (base 0/1, final 1/1).
+# Visible-change and interaction-fix guards passed once each on both final arms.
+# These score read-only review decisions, not executed browser verification.
 # The format survey in task 01a1176d-5ba1-78a3-9d98-b7214925bfa4 (2026-10-07)
 # supplied an invented baseline, inert filters and unrelated replacement choices.
 # Review scope failed 2/2 on old guidance and passed 2/2 on the final wording;
@@ -545,3 +552,54 @@ variants:
           advertised sizes, overflow checks, or successful navigation as enough,
           or delegates this verification to Max. The treatment remains Max's
           choice. Do not require particular commands or wording.
+
+  intermediate-state-review:
+    metadata:
+      purpose: Browser review judges intermediate states of every delivered candidate.
+    vars:
+      prompt: |
+        Read the repository's developing-leaf skill at
+        `../../.claude/skills/developing-leaf/SKILL.md` relative to the leaf skill.
+
+        Max asked how to improve the Playwright package's stretched dropdown
+        and whether existing library controls could replace it. You made a
+        playground with the actual trace widget in three live samples: current
+        native selector, imported compact picker, and visible source choices.
+        Max selected visible choices. You implemented them, added before/after
+        pairs, and retained the comparison behind Your design choice so Max can
+        revisit it. The handoff URL points to the implementation; Max's open
+        browser is still at the comparison's #source-design fragment.
+
+        The independent tester reported:
+        "Final preview passes the requested user task. All three treatments
+        switch to API calls, return to Page 1, and advance the timeline. The
+        compact picker supports ArrowDown then Enter, and focus stays in the
+        combobox. All treatments fit at 390px. Light and dark screenshots are
+        readable. No remaining interaction failures or browser errors."
+        Production review covers the chosen radios at desktop and phone sizes.
+        The final fresh-reader handoff pass checks arrival at #implemented-source,
+        radio switching, Before/After toggles, and the settled choice record.
+        Static markup checks and targeted browser tests passed. Theme tokens
+        are mapped in Leaf's shared vendor bridge. The exact preview is running
+        and a claimless copy is available for browser work.
+
+        Finish review and give the closeout. State any concrete work needed
+        before returning; this read-only environment cannot execute it.
+    assert:
+    - type: javascript
+      metric: reads-maintainer-skill
+      value: file://reference-read.cjs
+      config:
+        path: \.claude/skills/developing-leaf/SKILL\.md
+    - type: llm-rubric
+      metric: reviews-intermediate-states
+      value: |
+        Pass if the agent requires inspecting the compact picker's open menu
+        while it is being used, including highlighted options after navigation,
+        before handoff, and treats its presence in the retained comparison as
+        requiring review even though radios were selected. It must judge visible
+        legibility in that intermediate state, with relevant light/dark coverage.
+        A final screenshot, correct value/focus, automated pass, or claim that the
+        library supplies themes cannot establish that review. Fail if it returns
+        based on the supplied green reviews, drops the retained comparison to
+        evade review, or asks Max to establish the missing checks himself.

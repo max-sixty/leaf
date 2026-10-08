@@ -6027,7 +6027,7 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
         page.get_by_role("button", name=f"Close {name}").click()
         expect(drawer).not_to_have_class(re.compile(r"\bopen\b"))
         expect(page.locator(door_back)).to_be_focused()
-         el.inert")=>assert not bool(page.locator("dialog:modal").count())=> el.inert")
+        assert not bool(page.locator("dialog:modal").count())
 
 
 def test_the_shared_auxiliary_scrim_marks_and_dismisses_a_covering_surface(

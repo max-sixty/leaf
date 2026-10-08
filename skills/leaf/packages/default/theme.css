@@ -2661,7 +2661,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 @media screen {
   :scope:is(lf-text-document)[data-lf-bound] { max-block-size: none; overflow: visible;
     --lf-top: inherit; }
-  :scope:is(lf-text-document)[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
+  :scope:is(lf-text-document):not([preview])[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
     overflow: auto; --lf-bound-box: 1; --lf-top: 0px; }
 }
 /* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
@@ -2759,3 +2759,31 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 .lf-draft-delta ins { background: var(--add-tint); color: var(--ok-ink);
                       text-decoration: none; }
 .lf-draft-restore { flex: none; font-size: var(--t-6); }
+
+/* Source and preview share one inspection viewport. Its height is independent of
+   either reading's length, so switching keeps the strip and following page still. */
+:scope:is(lf-text-document)[preview] > .lf-text-document-view {
+  background: var(--paper);
+}
+:scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs {
+  margin: 0; border: 0; border-radius: 0;
+}
+:scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs > lf-tab {
+  margin: 0; padding: 0;
+}
+:scope:is(lf-text-document) div.lf-text-document-preview {
+  padding: var(--sp-4); overflow-wrap: anywhere;
+}
+:scope:is(lf-text-document) iframe.lf-text-document-preview {
+  display: block; inline-size: 100%; block-size: var(--lf-bound, 28rem); border: 0;
+  background: white;
+}
+@media screen {
+  :scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs > lf-tab:not([hidden]) {
+    block-size: var(--lf-bound, 28rem);
+    overscroll-behavior: auto;
+  }
+  :scope:is(lf-text-document) iframe.lf-text-document-preview {
+    block-size: 100%;
+  }
+}

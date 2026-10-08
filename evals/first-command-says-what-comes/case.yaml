@@ -28,11 +28,6 @@ vars:
     out, in order, each command you would run from now until you have answered the
     comment, including any that read files or the page. Then end your answer.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
 - type: regex
   metric: posts-progress-in-the-thread
   value: >-

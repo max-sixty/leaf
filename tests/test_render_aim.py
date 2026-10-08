@@ -21,7 +21,7 @@ from leaf import service as service_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.served_state import context as served_context
 from leaf.validation import compatibility as validation_model
-from PIL import Image, ImageChops
+from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
@@ -1816,11 +1816,24 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     traced = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
     trace.evaluate("node => { node.style.visibility = 'hidden' }")
     untraced = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
-    center = (3, 3, traced.width - 3, traced.height - 3)
-    assert (
-        ImageChops.difference(traced.crop(center), untraced.crop(center)).getbbox()
-        is None
-    ), "the target trace paints over the status label"
+    # Toggling the trace's paint layer can change Chrome's text antialiasing
+    # without changing which surface covers the trace. Compare the solid label
+    # background at the trace's crossing instead of its glyph pixels.
+    edge = round(
+        (trace_box["x"] + trace_box["width"] - label_box["x"])
+        * untraced.width / label_box["width"]
+    )
+    background = untraced.getpixel((5, 5))
+    crossing = [
+        (x, y)
+        for x in range(max(3, edge - 3), min(untraced.width - 3, edge + 4))
+        for y in range(3, untraced.height - 3)
+        if untraced.getpixel((x, y)) == background
+    ]
+    assert crossing
+    assert all(traced.getpixel(point) == background for point in crossing), (
+        "the target trace paints over the status label"
+    )
 
 
 def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, serve):

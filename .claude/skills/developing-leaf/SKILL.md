@@ -32,6 +32,10 @@ jq 'select(has("lf-shot"))."lf-shot"' \
 
 ## Review a UI change
 
+For browser API and rendering support, maintain
+[`notes/browser-support.md`](../../../notes/browser-support.md), following its
+"Recording and assessing a gap" section.
+
 Before handing over a change to browser controls, navigation, focus, motion,
 forms or layout, read and follow `/ui-sweep` at `../ui-sweep/SKILL.md` on
 the changed surface and its dependent interactions. Its "External review"

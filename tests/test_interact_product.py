@@ -1190,8 +1190,8 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     identity. The raw log therefore keeps each original and the revision as separate
     events, while user-facing folded readings show the latest words with an edited
     marker. Exact thread event selection returns the original and edit records without
-    copying either into page state. Another agent session — and an agent looking at the
-    user's words — cannot revise speech that is not its own.
+    copying either into page state. A later agent session may revise a predecessor's
+    words, including one that recorded no session; no agent may revise the user's.
     """
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")

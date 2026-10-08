@@ -652,10 +652,27 @@ export class ThreadView {
     }
     const replySlot = reply || Boolean(this.#replyReservation);
     const panel = model.surface === "panel";
-    // A resolved panel card's title holds its one control: Reopen, or, while the thread
-    // holds news, the notice in Reopen's place, since the card has no other row to
-    // draw it in without growing.
-    const headerSettlement = panel && model.resolved && !replySlot && !model.folding;
+    const marginControls = model.surface === "margin" ? this.#marginControls : null;
+    // Where the settlement stands, decided once: the container it renders in and the
+    // face it wears both follow from it.
+    // - "title": a resolved panel card's title holds its one control, Reopen, or, while
+    //   the thread holds news, the notice in Reopen's place, since the card has no other
+    //   row to draw it in without growing.
+    // - "margin": a margin card's own controls row.
+    // - "row": a resolved page or outlet thread's own row, with room for the word.
+    // - "head": the head's controls row, which reserves the room of one icon control
+    //   (shadow.css, `--lf-thread-action-room`) beside the first message's own
+    //   controls, so whatever stands there is the check: Resolve, or the Reopen in its
+    //   place while a reply box holds a resolved card open. The word, wider, ran over
+    //   the message's pencil.
+    const settlementPlace = marginControls
+      ? "margin"
+      : model.resolved && !replySlot && !model.folding
+        ? panel
+          ? "title"
+          : "row"
+        : "head";
+    const headerSettlement = settlementPlace === "title";
     const notice = headerSettlement ? this.#titleNews : this.#news;
     if (model.news) notice.set(model.news);
     const news = model.news ? notice.node : nothing;
@@ -686,19 +703,8 @@ export class ThreadView {
     }
     const wanted = new Set(model.messages.map((message) => message.key));
     for (const [key, view] of this.#messages) if (!wanted.has(key)) view.retire();
-    // Where the settlement stands decides its face. The head's controls row reserves
-    // the room of one icon control (shadow.css, `--lf-thread-action-room`) beside the
-    // first message's own controls, so Resolve there, and the Reopen standing in its
-    // place while a reply box holds a resolved card open, is the check: the word,
-    // wider, ran over the message's pencil. The word stands where it has a row to
-    // itself, a resolved page or outlet thread's, or a margin card's controls.
-    const settlementFace = headerSettlement
-      ? "header"
-      : model.resolved && (model.surface === "margin" || !replySlot) && !model.folding
-        ? "word"
-        : "icon";
     const settlement = model.settlement
-      ? this.#settlement(model, settlementFace)
+      ? this.#settlement(model, settlementPlace)
       : null;
     // The title holds one control, Reopen or the notice in its place, and the card's
     // notice stands there or in a row of its own. Whichever takes the place of the one
@@ -713,12 +719,11 @@ export class ThreadView {
         ? successor
         : null;
     this.#titleControl = titleControl;
-    const marginControls = model.surface === "margin" ? this.#marginControls : null;
     let threadActions = null;
-    if (!model.resolved || replySlot || model.folding || marginControls) {
+    if (settlementPlace === "head" || settlementPlace === "margin") {
       const actions = marginControls
         ? [marginControls.nav, settlement, marginControls.close].filter(Boolean)
-        : [headerSettlement ? null : settlement].filter(Boolean);
+        : [settlement].filter(Boolean);
       for (const child of [...this.#actions.children])
         if (!actions.includes(child)) child.remove();
       actions.forEach((control, index) => {
@@ -870,7 +875,7 @@ export class ThreadView {
         ${replySlot ? (this.#continuity?.gap ?? nothing) : nothing}
         ${reply ? this.#reply.node : (this.#replyReservation ?? nothing)}
         ${
-          model.resolved && !replySlot && !model.folding && !marginControls && !panel
+          settlementPlace === "row"
             ? html`<div class="lf-page-thread-resolved lf-ui">
                 <span
                   >${
@@ -1091,8 +1096,9 @@ export class ThreadView {
   #settlement(model, place) {
     const state = model.settlement;
     const reopen = state.kind === "unresolve";
-    const header = place === "header";
-    const icon = place === "icon";
+    const header = place === "title";
+    // A margin card's controls row draws Resolve as the check and Reopen as the word.
+    const icon = place === "head" || (place === "margin" && !model.resolved);
     const face = `${state.kind} ${place}`;
     let button = this.#settlements.get(face);
     if (!button) {

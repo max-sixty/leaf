@@ -842,12 +842,14 @@
 <!-- code-comparison.html authored script -->
 <script type="module">
       import {
+        cancelRender,
         keeps,
         keepsText,
         layoutChanged,
         nextRender,
         offer,
         once,
+        sizeObserver,
       } from "/runtime/widget-api.js";
 
       const DEFAULT_COMPARISON = {
@@ -863,6 +865,11 @@
           #state = clone(DEFAULT_COMPARISON);
           #notify = null;
           #change = null;
+          #watching = null;
+          #measurementFrame = 0;
+          #readerLayout = (event) => {
+            if (event.target.matches("lf-code")) this.#scheduleMeasurement();
+          };
 
           connectedCallback() {
             if (once(this)) this.#build();
@@ -871,6 +878,11 @@
 
           disconnectedCallback() {
             this.#playground?.removeEventListener("lf-playground-change", this.#change);
+            this.removeEventListener("lf-layout", this.#readerLayout);
+            this.#watching?.disconnect();
+            this.#watching = null;
+            cancelRender(this.#measurementFrame);
+            this.#measurementFrame = 0;
           }
 
           #button(label, run) {
@@ -896,7 +908,18 @@
               customElements.whenDefined("lf-playground"),
               customElements.whenDefined("lf-code"),
             ]);
-            if (!this.isConnected || this.#notify) return;
+            if (!this.isConnected || this.#watching) return;
+            if (!this.#notify) this.#initialize();
+            this.#playground.addEventListener("lf-playground-change", this.#change);
+            this.addEventListener("lf-layout", this.#readerLayout);
+            this.#watching = sizeObserver(() => this.#scheduleMeasurement());
+            for (const reader of this.querySelectorAll(".code-candidate lf-code")) {
+              this.#watching.observe(reader);
+            }
+            this.#render();
+          }
+
+          #initialize() {
             this.#playground = this.closest("lf-playground");
             this.#notify = this.#playground.registerContributor(
               "comparison",
@@ -920,8 +943,6 @@
             this.#change = (event) => {
               if (event.target === this.#playground) this.#render();
             };
-            this.#playground.addEventListener("lf-playground-change", this.#change);
-            this.#render();
           }
 
           #toggleDensity(candidate) {
@@ -952,7 +973,14 @@
                 `${name} · ${setting.density} · ${setting.wrap ? "wrap" : "scroll"}`,
               );
             }
-            nextRender(() => {
+            this.#scheduleMeasurement();
+          }
+
+          // Reader rendering and box changes invalidate the same derived reading.
+          #scheduleMeasurement() {
+            if (!this.isConnected || this.#measurementFrame) return;
+            this.#measurementFrame = nextRender(() => {
+              this.#measurementFrame = 0;
               for (const name of ["A", "B"]) {
                 const candidate = this.querySelector(`[data-candidate="${name}"]`);
                 const pre = candidate.querySelector("lf-code pre");

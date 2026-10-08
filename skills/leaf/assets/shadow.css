@@ -874,7 +874,7 @@ button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--f
 /* Every composition input renders the same attachment shelf, including inputs seated
    in widget shadow trees. Surfaces set its allocation and thumbnail size; the shelf
    owns its controls, image inspection face, and drawing paint here. */
-:is(.lf-thread-reply, .lf-general, .lf-say):has(> .lf-composer-media:not([hidden])) {
+:is(.lf-thread-reply, .lf-say):has(> .lf-composer-media:not([hidden])) {
   flex-wrap: wrap; }
 .lf-composer-media {
   display: flex; flex: 1 0 100%; gap: 6px; min-width: 0; overflow-x: auto;

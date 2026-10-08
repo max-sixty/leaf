@@ -5620,6 +5620,7 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
 def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
     browser, serve
 ):
+    """Candidate measurements follow rendered readers through sizing and reconnection."""
     source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
     page = open_page(browser, serve(source), context=context)
@@ -5628,6 +5629,33 @@ def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
     candidate_b = page.locator('[data-candidate="B"]')
 
     expect(page.locator("lf-code.lf-rendered")).to_have_count(3)
+
+    def measurements_match_readers():
+        rendered(page)
+        readings = page.locator("#code-reader-comparison .code-candidate").evaluate_all("""candidates =>
+          candidates.map(candidate => {
+            const pre = candidate.querySelector('lf-code pre');
+            return {
+              actual: candidate.querySelector('.code-measurement').textContent,
+              expected: `${Math.round(pre.getBoundingClientRect().height)}px tall · ${pre.scrollWidth}px source width`
+            };
+          })""")
+        assert len(readings) == 2, readings
+        assert all(reading["actual"] == reading["expected"] for reading in readings), (
+            readings
+        )
+
+    measurements_match_readers()
+    initial_viewport = page.viewport_size
+    resized(page, 390, 844)
+    measurements_match_readers()
+    page.locator("#code-reader-comparison").evaluate("""owner => {
+      const parent = owner.parentNode, next = owner.nextSibling;
+      owner.remove();
+      parent.insertBefore(owner, next);
+    }""")
+    resized(page, initial_viewport["width"], initial_viewport["height"])
+    measurements_match_readers()
     assert playground.evaluate("root => root.values") == {
         "chosen": "A",
         "comparison": {
@@ -5652,6 +5680,7 @@ def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
     assert playground.evaluate("root => root.values.width") == 320
 
     page.get_by_role("button", name="Toggle A density").click()
+    measurements_match_readers()
     assert playground.evaluate("root => root.values.comparison") == {
         "candidateA": {"density": "comfortable", "wrap": False},
         "candidateB": {"density": "comfortable", "wrap": True},
@@ -5677,6 +5706,7 @@ def test_built_code_comparison_drives_both_candidates_and_composes_targeting(
     }
     page.get_by_role("button", name="Toggle B density").click()
     page.get_by_role("button", name="Copy B to A").click()
+    measurements_match_readers()
     assert playground.evaluate("root => root.values.comparison") == {
         "candidateA": {"density": "compact", "wrap": False},
         "candidateB": {"density": "compact", "wrap": False},

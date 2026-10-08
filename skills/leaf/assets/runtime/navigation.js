@@ -6,11 +6,12 @@ import { clampedRow } from "./keyboard/bindings.js";
 import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
 import { pageScroller } from "./scrolling.js";
-import { landingBand } from "./geometry.js";
+import { landingBand, shownRect } from "./geometry.js";
 import {
   effectiveScroller,
   userReadingRegion,
   readingRegionFor,
+  scrollerFor,
   scrollersOf,
 } from "./reading-regions.js";
 import { walkOrigin, heldAsk, placeOf } from "./standing-target.js";
@@ -159,7 +160,7 @@ export function placeThreadEdge(thread, edge) {
 // own gesture outranks a key's. Under reduced motion the step is a jump, the answer the
 // rest of the runtime's motion already gives (scrollBehavior()).
 //
-// The page the step measures is the one the user can see: the scroller's landing band.
+// The page the step measures is the visible part of the scroller's landing band.
 // The document's box lends its top edge to the fixed banner and its bottom edge to the
 // bottom bar, and its scroll-padding — read exactly so by scrollToElement — is where the
 // box already says how much of itself stands covered, so a reading-page step is 60% of
@@ -181,20 +182,52 @@ const seenScroller = (coveringAuxiliaryScroller) =>
 // `d` after a click in a pane scrolls that pane as PageDown does. Focus can put them in
 // a panel or anchored thread beside the page. Inside a covering surface the user's
 // region still wins where it is in that surface; its own scrollport may be nested
-// there. The covering scrollport catches everything else.
+// there. The covering scrollport catches everything else. Focus on a region's
+// apparatus follows its actual containing scrollport while that box overflows;
+// otherwise the region's reading body takes the step. A preferred box outside the
+// visible band yields to its nearest visible enclosing region. Neither fallback
+// changes which region the user is reading.
+const readingStep = (box, clips) => {
+  const shown = shownRect(box, clips);
+  const band = shown && landingBand(box);
+  if (!band) return null;
+  const top = Math.max(shown.top, band.top);
+  const bottom = Math.min(shown.bottom, band.bottom);
+  return bottom > top ? { box, height: bottom - top } : null;
+};
 const stepScroller = (coveringAuxiliaryScroller) => {
   const covering = coveringAuxiliaryScroller();
   const region = userReadingRegion();
-  if (covering && !(region && under(region.host, coveringAuxiliarySurface())))
-    return covering;
-  return effectiveScroller(region);
+  const preferred =
+    covering && !(region && under(region.host, coveringAuxiliarySurface()))
+      ? covering
+      : effectiveScroller(region);
+  const clips = new Map();
+  const at = focused();
+  if (region && under(at, region.host) && !under(at, region.body)) {
+    const containing = scrollerFor(at);
+    if (
+      containing.scrollHeight > containing.clientHeight &&
+      (!covering || under(containing, coveringAuxiliarySurface()))
+    ) {
+      const step = readingStep(containing, clips);
+      if (step) return step;
+    }
+  }
+  const step = readingStep(preferred, clips);
+  if (step) return step;
+  for (const box of scrollersOf(preferred)) {
+    if (box === preferred) continue;
+    const step = readingStep(box, clips);
+    if (step) return step;
+  }
+  return null;
 };
 function stepReading(amount, unit, coveringAuxiliaryScroller) {
-  const box = stepScroller(coveringAuxiliaryScroller);
-  if (unit === "page") {
-    const band = landingBand(box);
-    amount *= band.bottom - band.top;
-  }
+  const step = stepScroller(coveringAuxiliaryScroller);
+  if (!step) return;
+  const { box, height } = step;
+  if (unit === "page") amount *= height;
   const from = holding(box) ? glide.goal : box.scrollTop;
   glideTo(box, from + amount);
 }

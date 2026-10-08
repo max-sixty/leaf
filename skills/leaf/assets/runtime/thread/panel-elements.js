@@ -2,7 +2,7 @@
  * supplies its elements to the controllers that read them; creating a second panel
  * never aliases the first panel's DOM or reading region. */
 import { focused } from "../keyboard/scopes.js";
-import { registerReadingRegion } from "../reading-regions.js";
+import { compoundReadingRegionId, registerReadingRegion } from "../reading-regions.js";
 import { closeControl, el } from "../widget-elements.js";
 import { createThreadListView } from "./thread-list-view.js";
 import { createThreadNarrowingView } from "./narrowing-view.js";
@@ -49,7 +49,11 @@ export function createThreadPanelElements({
   generalRow.append(generalInput, generalSend);
   const panelFoot = el("div", "lf-thread-panel-foot");
   panelFoot.append(generalRow);
-  panel.append(panelHead, narrowingView, threadsFrame, panelFoot);
+  // The body can scroll when its controls alone exhaust the window. The resize
+  // grip belongs to the outer panel, so that fallback never clips its hit box.
+  const panelBody = el("div", "lf-thread-panel-body");
+  panelBody.append(panelHead, narrowingView, threadsFrame, panelFoot);
+  panel.append(panelBody);
   let stopOccluding = null;
   const mountOverlay = () => {
     stopOccluding ??= declareOccluder(panel);
@@ -60,7 +64,27 @@ export function createThreadPanelElements({
   };
   let stopReadingRegion = null;
   const mountReadingRegion = () => {
-    stopReadingRegion ??= registerReadingRegion({ id, host: panel, body: threadsBox });
+    if (!stopReadingRegion) {
+      const stops = [
+        registerReadingRegion({
+          id: compoundReadingRegionId(panel, "body"),
+          host: panel,
+          body: panelBody,
+        }),
+        // Header and View keep selecting the list. Its outer region also owns the
+        // scroll that brings the list into view when the panel body is exhausted.
+        registerReadingRegion({ id, host: panelBody, body: threadsBox }),
+        registerReadingRegion({
+          id: compoundReadingRegionId(panel, "composer"),
+          host: panelFoot,
+          body: panelFoot,
+          apparatusFor: id,
+        }),
+      ];
+      stopReadingRegion = () => {
+        for (const stop of stops) stop();
+      };
+    }
     return () => {
       stopReadingRegion?.();
       stopReadingRegion = null;

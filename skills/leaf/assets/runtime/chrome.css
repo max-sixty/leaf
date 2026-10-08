@@ -1462,6 +1462,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     padding: max(10px, var(--lf-safe-top)) max(12px, var(--lf-safe-right)) 10px max(12px, var(--lf-safe-left));
     border-bottom: 1px solid var(--rule); }
   .lf-media-viewer-actions { display: flex; align-items: center; gap: 12px; }
+  .lf-media-viewer-original { display: inline-flex; align-items: center; justify-content: center; }
   .lf-media-viewer-zoom { min-width: 4em; }
   .lf-media-viewer-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden;
     display: grid; place-items: center; background: var(--paper); }

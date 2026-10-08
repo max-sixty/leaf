@@ -51,6 +51,7 @@ from render_harness import (
     primed,
     resized,
     scroll_settled,
+    select,
     shortcut_bar_text,
 )
 
@@ -507,6 +508,47 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     )
     assert rendered.returncode == 0, rendered.stderr
     assert "render checks passed" in rendered.stdout
+
+
+@pytest.mark.parametrize("touch", [False, True])
+def test_shot_captions_have_disjoint_targets_inside_their_rail(browser, serve, touch):
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=touch
+    )
+    page = open_page(
+        browser,
+        serve(SHOT_PAGE, media={SHOT_SRC[n]: d for n, d in SHOTS.items()}),
+        context=context,
+    )
+    rail = page.locator("lf-shot .lf-shotrail")
+    caps = rail.locator(".lf-shotcap")
+    rail.scroll_into_view_if_needed()
+    floor = 44 if touch else 24
+    boxes = [cap.bounding_box() for cap in caps.all()]
+    bounds = rail.bounding_box()
+    assert len(boxes) == 2
+    for box in boxes:
+        assert min(box["width"], box["height"]) >= floor - 0.5, box
+        assert box["y"] >= bounds["y"]
+        assert box["y"] + box["height"] <= bounds["y"] + bounds["height"]
+    assert boxes[0]["x"] + boxes[0]["width"] <= boxes[1]["x"]
+    for index, position in [(0, "100"), (1, "0")]:
+        cap = caps.nth(index)
+        cap.click()
+        expect(page.locator("lf-shot wa-comparison")).to_have_attribute(
+            "position", position
+        )
+        assert cap.bounding_box() == boxes[index]
+    # The captions remain selectable words, rather than native buttons that swallow a drag.
+    box = boxes[0]
+    select(
+        page,
+        (box["x"] + 5, box["y"] + box["height"] / 2),
+        (box["x"] + box["width"] - 5, box["y"] + box["height"] / 2),
+    )
+    assert "before" in page.evaluate("getSelection().toString()").lower()
+    expect(page.locator("lf-shot wa-comparison")).to_have_attribute("position", "0")
+    context.close()
 
 
 def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):

@@ -29,6 +29,7 @@ import argparse
 import json
 import shutil
 import subprocess
+import sys
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -295,13 +296,22 @@ def build_webawesome(work: Path) -> list[Path]:
             f"Web Awesome's declared Lit range excludes lit {version('lit')}"
         )
     source = ROOT / "build/webawesome"
-    for name in ("entry.mjs", "chrome.mjs", "build.mjs", "leaf-theme.css"):
+    for name in (
+        "entry.mjs",
+        "chrome.mjs",
+        "build.mjs",
+        "leaf-theme.css",
+        "theme.py",
+        "transitions.mjs",
+        "transition-patch.mjs",
+    ):
         shutil.copyfile(source / name, work / name)
     run(
         "node",
         "build.mjs",
         str(work / "bundle"),
         version("@awesome.me/webawesome"),
+        sys.executable,
         cwd=work,
     )
     shared = ASSETS / "vendor/webawesome"

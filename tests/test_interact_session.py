@@ -2151,10 +2151,8 @@ def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
     ]
 
 
-def test_a_widget_task_outlives_its_seat_but_not_its_widget(page_dir):
-    """A widget's `x-work` admits a task on it; once open, the task stands beside the
-    widget even when a later layer of the page drops that seat, and a version that
-    removes the widget itself is refused until it completes the task."""
+def test_a_widget_task_outlives_its_seat_and_its_widget(page_dir):
+    """An admitted task stays open when its widget or work seat disappears."""
     work_page = PAGE.replace(
         '<lf-diagram id="flow">',
         '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
@@ -2199,9 +2197,10 @@ def test_a_widget_task_outlives_its_seat_but_not_its_widget(page_dir):
     )
     (page_dir / "index.html").write_text(without_target)
     dropped = stamp(page_dir, "Removed")
-    assert dropped.exit_code == 1
-    assert "would remove the target of the open task on 'rollout-card'" in (
-        dropped.output
+    assert dropped.exit_code == 0, dropped.output
+    assert [item["id"] for item in state_json(page_dir)["tasks"]] == [task["id"]]
+    (page_dir / "index.html").write_text(
+        without_target.replace("<title>t</title>", "<title>t · completed</title>")
     )
     finished = stamp(page_dir, "Removed", completes=("rollout-card",))
     assert finished.exit_code == 0, finished.output
@@ -4750,7 +4749,7 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
     assert projected["state"] == "active"
 
 
-def _observer() -> "codex_adapter_model.TaskConnection":
+def _observer() -> codex_adapter_model.TaskConnection:
     """An observer that has not connected, so a test feeds it notifications itself."""
     connection = codex_adapter_model.TaskConnection("ws://127.0.0.1:1", "codex-thread")
     connection.connected.set()
@@ -8714,14 +8713,14 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
 
 
 def test_a_refused_revendor_leaves_the_running_server_alone(page_dir):
-    """A re-vendor the page's log refuses is refused before the server goes down.
+    """A malformed incoming registry is refused before the server goes down.
 
     A restart after the refusal would put this Leaf's server over the layer the
     page keeps, so a page vendored by another Leaf would be served by code its
     runtime does not speak. The same process answers at the same URL before and
     after, which is what `Leaf-Server`, the server's incarnation, says."""
-    # A page made under a registry where lf-draft declared `decide`: the log keeps
-    # a decision the incoming layer no longer speaks.
+    # Original decision evidence can outlive its declaration. The malformed
+    # incoming registry, rather than that history, causes this refusal.
     version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
@@ -8760,10 +8759,15 @@ def test_a_refused_revendor_leaves_the_running_server_alone(page_dir):
 
     before = incarnation()
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir()
+    (overlay / "registry.json").write_text("{broken")
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page_dir)]
+    )
 
     assert result.exit_code == 1
-    assert "no longer speaks" in result.output
+    assert "invalid JSON" in result.output
     assert server_model.running_server(page_dir)["url"] == url
     assert incarnation() == before
 
@@ -10387,6 +10391,21 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
         path.is_file() and not leases_model.lock_is_held(path) for path in coordination
     )
     assert [path.name for path in kept.rglob("*.json")] == ["eeeeeeee.json"]
+
+
+def test_an_adapter_observer_that_cannot_start_releases_its_leases(monkeypatch):
+    """Acquisition failure keeps the original error and releases both listening proofs."""
+    harness = harness_model.CodexHarness(session="codex-thread", agent="Codex")
+    monkeypatch.setattr(codex_adapter_model, "session_harness", lambda: harness)
+
+    def refuse_start(_thread):
+        raise OSError("no thread resources")
+
+    monkeypatch.setattr(threading.Thread, "start", refuse_start)
+    with pytest.raises(OSError, match="no thread resources"):
+        codex_adapter_model.run_adapter("codex", app_server="ws://127.0.0.1:1")
+    assert not leases_model.adapter_is_live(harness.session)
+    assert not leases_model.wait_is_live(None, harness.session)
 
 
 def test_an_uncertain_app_server_start_recovers_by_delivery_identity(

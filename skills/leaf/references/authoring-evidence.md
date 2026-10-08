@@ -109,7 +109,7 @@ decision. Use a unified-patch capture with
 and gives each source line a stable comment coordinate. `lf-diff` and the
 `unified-diff` contract travel in the `diff` package: initialize such a page with
 `leaf page init --package diff <page>`. First add a data binding so Leaf can give the
-source its page-lifetime contract:
+source its current contract:
 
 ```html
 <lf-text-document id="skill-source" source="leaf-skill" label="SKILL.md" language="markdown"></lf-text-document>

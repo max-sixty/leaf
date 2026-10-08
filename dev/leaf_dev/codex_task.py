@@ -20,7 +20,9 @@ QUIET = 10
 class Task:
     """The task's terminal: one App Server connection that opens the task, types the
     user's turns, and hears every turn the task runs, Leaf's included, since every
-    client of a thread receives what it says."""
+    client of a thread receives what it says. Final-answer identities are retained
+    separately from turn completion: verification checks delivery before the answer,
+    while evals also wait for the turn to complete."""
 
     def __init__(
         self, endpoint: str, on_message: Callable[[dict], None] | None = None
@@ -31,6 +33,7 @@ class Task:
         self.thread = ""
         self.started: list[str] = []
         self.running: set[str] = set()
+        self.final_answers: set[str] = set()
         self.commands: list[str] = []
         self.hooks: list[dict] = []
         self.running_commands: dict[str, str] = {}
@@ -70,9 +73,10 @@ class Task:
                 method == "item/completed"
                 and item["type"] == "agentMessage"
                 and item.get("phase") == "final_answer"
-                and self.on_final is not None
             ):
-                self.on_final(params["turnId"])
+                self.final_answers.add(params["turnId"])
+                if self.on_final is not None:
+                    self.on_final(params["turnId"])
 
     def request(self, method: str, params: dict) -> dict:
         return app_server_request(

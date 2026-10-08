@@ -152,7 +152,6 @@ if (validationEntry) {
 import { overflowMenu } from "./runtime/banner-toolbar.js";
 import {
   leavesOffered,
-  othersLinks,
   presentLeaves,
   renderOthers,
   declareLeavesKeys,
@@ -602,8 +601,6 @@ panelKeys = createThreadPanelKeys({
   setPanel: (...args) => threadPanelController.setPanel(...args),
   panelIsOpen,
   stepThread: (...args) => navigation.stepThread(...args),
-  firstUnread: () => app.read.firstUnread(),
-  unreadCount: () => app.read.unreadCount(),
 });
 pageComment = createPageComment({
   wireInput: inputs.wireInput,
@@ -697,7 +694,7 @@ reactions = createReactionController({
   hideComposer: selectionComposer.hideComposer,
   syncResponseOptions: selectionComposer.syncResponseOptions,
   fabAnchorAt: responseSurface.fabAnchorAt,
-  fabReturnTo: responseSurface.fabReturnTo,
+  fabReturnPlaces: responseSurface.fabReturnPlaces,
   fabTargetAt: responseSurface.fabTargetAt,
   hasPageSelectionTarget: responseSurface.hasPageSelectionTarget,
   showFab: responseSurface.showFab,
@@ -812,19 +809,17 @@ const writingResume = createWritingResume({
 });
 goToSequence = createGoToSequence({
   panelIsOpen,
-  elements: { banner, toggleBtn, threadsBox },
+  elements: { banner, toggleBtn },
   hintChrome,
   directDestinations: () => [
     version.PICKER,
     writingResume,
     passageSelection.command,
     navigation.alignTop,
+    app.read.firstUnreadCommand,
   ],
-  setPanel: threadPanelController.setPanel,
-  setOpenDrawer: drawers.setOpenDrawer,
   scrollToElement: anchorTravel.scrollToElement,
   leavesOffered,
-  othersLinks,
   activateMarginEntry: app.overlay?.activateMarginEntry,
   marginEntryKind: app.overlay?.marginEntryKind,
   visibleMarginEntries: app.overlay?.visibleMarginEntries,
@@ -833,9 +828,6 @@ goToSequence = createGoToSequence({
   seenScroller: navigation.seenScroller,
   stopGlide,
   coveringAuxiliarySurface: auxiliarySurfaces.coveringSurface,
-  enterPageMap: pageMapDialog.enterPageMap,
-  leavePageMap: pageMapDialog.leavePageMap,
-  pageMapIsActive: pageMapDialog.pageMapIsActive,
 });
 const standing = createStanding({
   markHere: asks.markHere,

@@ -27,16 +27,17 @@ from .schema import (
 
 
 def named_package(name: str) -> Path | None:
-    """The one directory a bare package name selects, installed or bundled.
+    """Select one installed snapshot or the bundled package with this name.
 
-    `package install` refuses a name a bundled package already answers to, so the
-    roots collide only where a later Leaf release ships a name someone installed
-    before it existed. The installed copy wins there, because the pages selecting
-    that name were written against it. Nothing downstream asks which root
-    answered: an installed package is the same directory contract elsewhere.
+    Installed names are atomically replaced symlinks into immutable snapshots. Resolve
+    the link once, so a reader keeps one complete package even when another install
+    publishes that name. An installed package deliberately overrides a bundled one.
     """
-    roots = (package_store(), BUNDLED_PACKAGES)
-    return next((root / name for root in roots if (root / name).is_dir()), None)
+    installed = package_store() / "names" / name
+    if installed.is_symlink():
+        return installed.resolve(strict=True)
+    bundled = BUNDLED_PACKAGES / name
+    return bundled if bundled.is_dir() else None
 
 
 def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
@@ -50,15 +51,14 @@ def resolve_packages(selected: tuple[str, ...]) -> list[Path]:
     packages = []
     for value in selected:
         if re.fullmatch(HTML_NAME, value):
-            if value == DEFAULT_PACKAGE.name:
-                sys.exit("package 'default' is already included in every page")
             named = named_package(value)
             if named is None:
                 sys.exit(
                     f"unknown package {value!r}; run `leaf package install` to add "
                     f"it, or use './{value}' for a project-relative package path"
                 )
-            packages.append(named)
+            if named != DEFAULT_PACKAGE:
+                packages.append(named)
             continue
         package_path = Path(value)
         if package_path.is_absolute():

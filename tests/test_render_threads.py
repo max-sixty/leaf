@@ -2186,6 +2186,38 @@ def test_comment_on_the_page_starts_a_thread_from_a_card_under_the_banner(
     )
     assert [round(edge) for edge in hung] == [0, 0], hung
 
+    # A crowded toolbar can put the anchor left of the space the card needs.
+    # Native placement then uses the window, and returns to the anchor when it fits.
+    original_viewport = page.viewport_size
+    resized(page, 500, original_viewport["height"])
+    assert control.evaluate("""el => el.getBoundingClientRect().right <
+      document.querySelector('.lf-page-comment-card').getBoundingClientRect().width""")
+    bounds = card.bounding_box()
+    assert bounds["x"] >= 8 and bounds["x"] + bounds["width"] <= 500 - 8, bounds
+    resized(page, original_viewport["width"], original_viewport["height"])
+    assert card.evaluate("""el => Math.abs(el.getBoundingClientRect().right -
+      document.querySelector('.lf-page-comment').getBoundingClientRect().right) < 1""")
+
+    # Both axes stay usable when a real attachment and draft share a short window.
+    draft = "\n".join(f"Page draft line {n}" for n in range(20))
+    write(box, draft)
+    paste_image(box, (example_media() / "051bee487bfb5d13.png").read_bytes())
+    resized(page, 500, 240)
+    bounds = card.bounding_box()
+    assert bounds["x"] >= 0 and bounds["x"] + bounds["width"] <= 500, bounds
+    assert bounds["y"] + bounds["height"] <= 240, bounds
+    resized(page, 500, 180)
+    box.press("Tab")
+    send_button = card.locator(".lf-compose-submit")
+    expect(send_button).to_be_focused()
+    assert send_button.evaluate("""el => {
+      const b = el.getBoundingClientRect();
+      return el.contains(document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2));
+    }""")
+    expect(box).to_have_js_property("value", draft)
+    resized(page, original_viewport["width"], original_viewport["height"])
+    card.get_by_role("button", name="Remove pasted image 1", exact=True).click()
+
     count = toggle.get_attribute("data-lf-count")
     write(box, "Does the plan cover the self-hosted runners?")
     with sending(page, "the page comment"):
@@ -10592,6 +10624,99 @@ def test_actual_mode_switch_carries_native_composer(browser, serve, initial, nex
         "el=>[el.value,el.selectionStart,el.selectionEnd,el.selectionDirection]"
     ) == ["", 0, 0, "none"]
     assert page.locator(".lf-margin-projection").count() == (next_mode == "overlay")
+
+
+@pytest.mark.parametrize("touch", [False, True])
+def test_a_short_thread_panel_keeps_its_draft_and_send_reachable(browser, serve, touch):
+    """Panel controls take their room before the list and editor share what remains.
+
+    View and a long general draft once exhausted the panel together, putting Send
+    below the window. Attachments need the same allocation, and an exhausted window
+    needs a native scroll route without clipping the panel's separate resize grip.
+    """
+    context = browser.new_context(
+        has_touch=touch, viewport={"width": 1200, "height": 600}
+    )
+    page = open_page(browser, serve(LONG_PAGE, comments=12), context=context)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    grip = page.locator(".lf-thread-panel > .lf-edge")
+    assert grip.evaluate("""el => {
+      const b = el.getBoundingClientRect();
+      return [b.left + 1, b.right - 1].every(x =>
+        el.contains(document.elementFromPoint(x, b.top + b.height / 2)));
+    }"""), "the panel's scrolling body clipped its resize grip"
+
+    field = page.locator(".lf-general leaf-text")
+    send = page.locator(".lf-general .lf-compose-submit")
+    write(field, "A short general comment")
+    field.press("Tab")
+    expect(send).to_be_focused()
+    assert page.locator(".lf-thread-panel-foot").evaluate(
+        "el => el.scrollHeight === el.clientHeight"
+    )
+    assert page.locator(".lf-threads").evaluate(
+        "el => el.scrollHeight > el.clientHeight"
+    )
+    page.keyboard.press("d")
+    page.wait_for_function("document.querySelector('.lf-threads').scrollTop > 0")
+
+    resized(page, 390, 600)
+    page.get_by_role("button", name="View", exact=True).click()
+    draft = "\n".join(f"Draft line {n}" for n in range(1, 21))
+    write(field, draft)
+    retained = field.element_handle()
+    caret = field.evaluate("el => [el.selectionStart, el.selectionEnd]")
+    rendered(page)
+    assert field.evaluate("el => el.scrollHeight > el.clientHeight")
+    assert page.locator(".lf-threads").evaluate("el => el.clientHeight > 30")
+    assert send.evaluate("""el => {
+      const b = el.getBoundingClientRect();
+      return b.bottom <= innerHeight &&
+        el.contains(document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2));
+    }"""), "View and the draft put Send outside the window"
+
+    page.get_by_role("button", name="View", exact=True).click()
+    resized(page, 390, 280)
+    field.press("Tab")
+    expect(send).to_be_focused()
+    expect(field).to_have_js_property("value", draft)
+    assert field.evaluate("(el, retained) => el === retained", retained)
+    assert field.evaluate("el => [el.selectionStart, el.selectionEnd]") == caret
+    assert send.evaluate("""el => {
+      const b = el.getBoundingClientRect();
+      return el.contains(document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2));
+    }"""), "keyboard arrival could not reveal Send in the short panel"
+
+    # The list may lie below the viewport while View is open. Reading keys must
+    # then move its visible containing body, and reverse that same move.
+    page.get_by_role("button", name="View", exact=True).click()
+    body = page.locator(".lf-thread-panel-body")
+    before = body.evaluate("el => el.scrollTop")
+    page.keyboard.press("d")
+    page.wait_for_function(
+        "before => document.querySelector('.lf-thread-panel-body').scrollTop > before",
+        arg=before,
+    )
+    after = body.evaluate("el => el.scrollTop")
+    page.keyboard.press("u")
+    page.wait_for_function(
+        "after => document.querySelector('.lf-thread-panel-body').scrollTop < after",
+        arg=after,
+    )
+    page.get_by_role("button", name="View", exact=True).click()
+    resized(page, 390, 600)
+    page.get_by_role("button", name="View", exact=True).click()
+    field.click()
+    paste_image(field, (example_media() / "051bee487bfb5d13.png").read_bytes())
+    expect(page.locator(".lf-general .lf-composer-media img")).to_be_visible()
+    rendered(page)
+    assert field.evaluate("el => el.scrollHeight > el.clientHeight")
+    field.press("Tab")
+    expect(send).to_be_focused()
+    with sending(page, "the general draft and its attachment"):
+        send.click()
+    expect(field).to_have_js_property("value", "")
 
 
 def test_a_short_window_keeps_media_choices_and_send_around_the_scrolling_draft(

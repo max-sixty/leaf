@@ -7,6 +7,10 @@
    declares presentation-time arrival, so its rendering and covering boundary wait for
    that reading.
 
+   Selecting a surface ordinarily keeps the user's place beside it. A navigation
+   activation requests `focus` and enters the surface's declared destination; the
+   surface owner supplies that place once for both covering and beside postures.
+
    A surface either always covers the page or declares that it may stand `beside` it,
    leaving the page live. One that may stand beside covers the page only where it would
    leave less than a usable page beside it, and the stylesheet states that once for every
@@ -194,7 +198,7 @@ export function createAuxiliarySurfaces({
 
   function select(
     key,
-    { remember = true, returnFocus = true, phase = "gesture" } = {},
+    { remember = true, returnFocus = true, focus = false, phase = "gesture" } = {},
   ) {
     if (key !== null && !controllers.has(key))
       throw new Error(`leaf: unknown auxiliary surface ${key}`);
@@ -220,6 +224,7 @@ export function createAuxiliarySurfaces({
     sync();
     syncLayout();
     afterChange();
+    if (focus && selected && !arriving) place(selected.focus() ?? selected.surface);
     if (remember) userStore.set(AUXILIARY_SURFACE_KEY, key ?? "");
   }
 

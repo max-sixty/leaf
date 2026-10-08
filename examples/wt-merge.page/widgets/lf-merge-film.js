@@ -2,9 +2,12 @@
 //
 // The stage is a Leaf visual with parts, not a control, so it is neither an offer nor a
 // tab stop. Hovering a commit, ref, worktree or hook shows what it is and lights a
-// commit's ancestry. A click on a part pauses the film so it holds still; Leaf's own
-// target gestures (Alt-click, or `s` after pointing) comment on it. Terminal lines are
-// SVG links, so a click on one seeks to the moment it printed.
+// commit's ancestry. A click or tap on a part pauses the film and reads its details;
+// Inspect and `i` cycle through parts when the drawing is too small to aim at. A tap
+// on empty stage or Escape closes inspection. Leaf's own target gestures (Alt-click,
+// or `s` after pointing) comment on a part. Terminal lines seek to their printed moment.
+// A narrow stage reads the same frame as vertical history, worktree rows and a
+// terminal disclosure, with step buttons holding each outcome.
 //
 // The film opens paused on its poster, the fully drawn branch just before `wt merge`
 // runs, so a first look (or a capture) reads the setup at once; Play runs it from the
@@ -20,10 +23,18 @@ import {
   offer,
   once,
   registerVisualParts,
+  scrollIntoReadingBand,
+  sizeObserver,
 } from "/runtime/widget-api.js";
 import { DEFAULT_FLAGS, EXAMPLE, Painter, compile, frame } from "../film.js";
 
+import { PhonePainter } from "../phone.js";
+
 const SVG = "http://www.w3.org/2000/svg";
+const chapterEnd = (film, key) => {
+  const last = film.scenes.findLast((scene) => scene.chapter === key);
+  return last.start + last.dur;
+};
 
 const FLAG_CONTROLS = [
   ["moved", "main moved on", false],
@@ -51,10 +62,12 @@ customElements.define(
 
     connectedCallback() {
       if (once(this)) this.#build();
+      this.sizing.observe(this.stage);
       this.#paint();
     }
 
     disconnectedCallback() {
+      this.sizing.disconnect();
       cancelAnimationFrame(this.#raf);
       this.#playing = false;
     }
@@ -66,7 +79,10 @@ customElements.define(
       this.svg.setAttribute("role", "img");
       this.svg.setAttribute("aria-label", "wt merge, animated");
       stage.append(this.svg);
-      this.painter = new Painter(this.svg);
+      this.desktopPainter = new Painter(this.svg);
+      this.phonePainter = new PhonePainter(stage);
+      this.painter = this.desktopPainter;
+      this.sizing = sizeObserver(() => this.#paint());
       this.inspector = document.createElement("div");
       this.inspector.className = "film-inspect";
       this.inspector.hidden = true;
@@ -77,9 +93,8 @@ customElements.define(
       stage.append(this.inspector);
       stage.addEventListener("click", (e) => this.#click(e));
       stage.addEventListener("pointermove", (e) => this.#hover(e));
-      stage.addEventListener("pointerleave", () => {
-        this.#inspect(null);
-        this.#setFocus(null);
+      stage.addEventListener("pointerleave", (e) => {
+        if (e.pointerType !== "touch") this.#inspect(null);
       });
       this.addEventListener("keydown", (e) => this.#key(e));
 
@@ -104,6 +119,7 @@ customElements.define(
       this.scrub.addEventListener("input", () => {
         this.#pause();
         this.#t = Number(this.scrub.value);
+        this.#inspect(null);
         this.#paint();
       });
       this.speedBtn = offer("button", "film-speed", "1×");
@@ -112,7 +128,33 @@ customElements.define(
         this.#speed = this.#speed === 1 ? 2 : this.#speed === 2 ? 0.5 : 1;
         this.speedBtn.textContent = `${this.#speed}×`;
       });
-      bar.append(this.playBtn, this.scrub, this.speedBtn);
+      this.previous = offer("button", "film-previous", "Previous");
+      this.next = offer("button", "film-next", "Next");
+      this.previous.setAttribute("aria-label", "Previous step");
+      this.next.setAttribute("aria-label", "Next step");
+      for (const [button, direction] of [
+        [this.previous, -1],
+        [this.next, 1],
+      ])
+        button.addEventListener("click", () => {
+          this.#pause();
+          this.#holdChapter(direction);
+          this.#paint();
+        });
+      const inspectBtn = offer("button", "film-inspect-next", "Inspect");
+      inspectBtn.setAttribute("aria-label", "Inspect next element");
+      inspectBtn.setAttribute("aria-keyshortcuts", "i");
+      inspectBtn.addEventListener("click", () => this.#cycle());
+      bar.append(
+        this.playBtn,
+        this.previous,
+        this.scrub,
+        this.next,
+        this.speedBtn,
+        inspectBtn,
+      );
+      this.caption = document.createElement("p");
+      this.caption.className = "film-caption";
 
       const flags = offer("fieldset", "film-flags");
       const legend = document.createElement("legend");
@@ -133,7 +175,12 @@ customElements.define(
         flags.append(wrap);
       }
 
-      this.append(stage, bar, flags);
+      this.settings = document.createElement("details");
+      this.settings.className = "film-settings";
+      const settingsTitle = document.createElement("summary");
+      settingsTitle.textContent = "Change the run";
+      this.settings.append(settingsTitle, flags);
+      this.append(this.caption, stage, bar, this.settings);
       this.stage = stage;
       this.scrub.max = this.#film.total;
     }
@@ -145,8 +192,10 @@ customElements.define(
 
     seek(t) {
       this.#pause();
+      this.#inspect(null);
       this.#t = Math.max(0, Math.min(this.#film.total, t));
       this.#paint();
+      this.#reveal();
     }
 
     seekChapter(key) {
@@ -157,6 +206,14 @@ customElements.define(
       this.#t = at;
       this.#paint();
       if (!this.#playing) this.#play();
+      this.#reveal();
+    }
+
+    #reveal() {
+      if (this.hasAttribute("data-phone")) {
+        if (this.settings.open) this.settings.open = false;
+        scrollIntoReadingBand(this, this, "start", "smooth");
+      }
     }
 
     // The last moment before the first step: every commit, ref and worktree drawn.
@@ -166,17 +223,22 @@ customElements.define(
 
     #recompile() {
       const chapter = frame(this.#film, this.#t).chapter;
+      const start = this.#film.starts[chapter];
+      const progress = (this.#t - start) / (chapterEnd(this.#film, chapter) - start);
       this.#film = compile(this.#flags, EXAMPLE);
       this.#t = this.#fresh
         ? this.#poster()
-        : (this.#film.starts[chapter] ?? Math.min(this.#t, this.#film.total));
+        : this.#film.starts[chapter] !== undefined
+          ? this.#film.starts[chapter] +
+            progress * (chapterEnd(this.#film, chapter) - this.#film.starts[chapter])
+          : Math.min(this.#t, this.#film.total);
       keeps(this.scrub, "max", this.#film.total);
       this.#inspect(null);
       this.#paint();
     }
 
     #partAt(target) {
-      const g = target.closest?.("g[data-label]");
+      const g = target.closest?.("[data-label]");
       if (!g) return null;
       return this.painter.parts().find((p) => p.element === g) ?? null;
     }
@@ -185,27 +247,31 @@ customElements.define(
       const line = e.target.closest?.("[data-at]");
       if (line) {
         this.#pause();
+        this.#inspect(null);
         this.#t = Number(line.dataset.at);
         this.#paint();
-      } else if (this.#partAt(e.target)) this.#pause();
+      } else {
+        const part = this.#partAt(e.target);
+        if (part) this.#pause();
+        // Alt-click belongs to Leaf's visual comment route.
+        if (!e.altKey) this.#inspect(part?.id ?? null);
+      }
     }
 
     #hover(e) {
+      if (e.pointerType === "touch") return;
       const part = this.#partAt(e.target);
       this.stage.classList.toggle("film-seekable", !!e.target.closest?.("[data-at]"));
       this.#inspect(part?.id ?? null);
-      this.#setFocus(part?.id.startsWith("commit:") ? part.id.slice(7) : null);
-    }
-
-    #setFocus(id) {
-      if (id === this.#focus) return;
-      this.#focus = id;
-      if (!this.#playing) this.#paint();
     }
 
     #inspect(id) {
       this.#inspected = id;
-      this.#placeInspector();
+      const focus = id?.startsWith("commit:") ? id.slice(7) : null;
+      if (focus !== this.#focus) {
+        this.#focus = focus;
+        this.#paint();
+      } else this.#placeInspector();
     }
 
     // The inspector sits beside its part, in stage pixels, and follows it while the
@@ -217,6 +283,7 @@ customElements.define(
         p.element.classList.toggle("film-picked", p === part);
       if (!part) {
         keepsHidden(this.inspector, true);
+        if (this.#inspected) this.#inspect(null);
         return;
       }
       const box = part.element.getBoundingClientRect();
@@ -228,12 +295,18 @@ customElements.define(
         box.right - stage.left + 10,
         stage.width - this.inspector.offsetWidth - 10,
       );
+      const bottom = this.hasAttribute("data-phone")
+        ? Math.min(stage.bottom, window.innerHeight)
+        : stage.bottom;
       const top = Math.min(
         box.top - stage.top,
-        stage.height - this.inspector.offsetHeight - 10,
+        bottom - stage.top - this.inspector.offsetHeight - 10,
       );
       this.inspector.style.left = `${Math.max(10, left)}px`;
-      this.inspector.style.top = `${Math.max(10, top)}px`;
+      const visibleTop = this.hasAttribute("data-phone")
+        ? Math.max(10, 10 - stage.top)
+        : 10;
+      this.inspector.style.top = `${Math.max(visibleTop, top)}px`;
     }
 
     // Film keys work from any of the film's controls. Keys a focused control already
@@ -257,18 +330,22 @@ customElements.define(
       e.preventDefault();
       e.stopPropagation();
       if (e.key !== "k") this.#fresh = false;
+      if (["Home", "j", "l"].includes(e.key)) this.#inspect(null);
       handled();
       this.#paint();
     }
 
     #cycle() {
       this.#pause();
+      if (this.hasAttribute("data-phone")) {
+        this.settings.open = false;
+        scrollIntoReadingBand(this.playBtn.parentElement, this, "start", "instant");
+      }
       const parts = this.painter.parts();
       if (!parts.length) return;
       const at = parts.findIndex((p) => p.id === this.#inspected);
       const next = parts[(at + 1) % parts.length];
       this.#inspect(next.id);
-      this.#setFocus(next.id.startsWith("commit:") ? next.id.slice(7) : null);
     }
 
     #stepChapter(dir) {
@@ -280,6 +357,16 @@ customElements.define(
         dir > 0
           ? (starts.find((s) => s > this.#t + 0.05) ?? this.#t)
           : (starts.findLast((s) => s < this.#t - 0.6) ?? 0);
+    }
+
+    // The phone's step buttons hold the outcome, rather than the first frame of a
+    // transition. Playback and the keyboard's timeline keys retain their own routes.
+    #holdChapter(direction) {
+      this.#inspect(null);
+      const keys = Object.keys(this.#film.starts);
+      const current = keys.indexOf(frame(this.#film, this.#t).chapter);
+      const chapter = keys[Math.max(0, Math.min(keys.length - 1, current + direction))];
+      this.#t = chapterEnd(this.#film, chapter) - 0.01;
     }
 
     #toggle() {
@@ -315,9 +402,23 @@ customElements.define(
 
     #paint() {
       const fr = frame(this.#film, this.#t);
-      this.painter.paint(this.#film, fr, this.#focus);
+      const width = this.stage.clientWidth;
+      const narrow = width < 560;
+      if (this.hasAttribute("data-phone") !== narrow) this.settings.open = !narrow;
+      else if (!narrow && !this.settings.open) this.settings.open = true;
+      this.stage.toggleAttribute("data-phone", narrow);
+      this.toggleAttribute("data-phone", narrow);
+      this.painter = narrow ? this.phonePainter : this.desktopPainter;
+      if (narrow) this.painter.paint(this.#film, fr, width);
+      else this.painter.paint(this.#film, fr, this.#focus);
+      keepsText(this.caption, fr.caption);
+      keeps(this.caption, "data-tone", fr.captionTone);
+      const first = fr.chapter === "setup";
+      const last = fr.chapter === "end";
+      if (this.previous.disabled !== first) this.previous.disabled = first;
+      if (this.next.disabled !== last) this.next.disabled = last;
       this.scrub.value = this.#t;
-      if (this.#inspected) this.#placeInspector();
+      this.#placeInspector();
       // Every paint can move a part, so Leaf re-reads the inventory and its geometry.
       this.parts.update();
       this.dispatchEvent(

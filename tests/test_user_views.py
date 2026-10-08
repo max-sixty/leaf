@@ -1,7 +1,7 @@
 """User-view context remains separate for each document and each check's basis."""
 
 from copy import deepcopy
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from leaf import user_views
@@ -51,7 +51,7 @@ def report(session="a" * 32, sequence=1, revision=1):
 def test_each_document_retains_its_view_and_hidden_reports_cannot_be_reordered(
     tmp_path, monkeypatch
 ):
-    instant = datetime(2026, 10, 2, tzinfo=timezone.utc)
+    instant = datetime(2026, 10, 2, tzinfo=UTC)
     monkeypatch.setattr(user_views, "_now", lambda: instant)
     first = report()
     second = report(session="b" * 32, revision=2)
@@ -79,7 +79,7 @@ def test_each_document_retains_its_view_and_hidden_reports_cannot_be_reordered(
 
 
 def test_check_receipt_and_basis_do_not_follow_fresh_context(tmp_path, monkeypatch):
-    instant = datetime(2026, 10, 2, tzinfo=timezone.utc)
+    instant = datetime(2026, 10, 2, tzinfo=UTC)
     monkeypatch.setattr(user_views, "_now", lambda: instant)
     original = report()
     user_views.observe_user_view(tmp_path, original)
@@ -132,7 +132,7 @@ def test_ingress_refuses_invalid_context_and_check_provenance(tmp_path):
 def test_obsolete_records_are_absent_and_inactive_documents_are_pruned_on_write(
     tmp_path, monkeypatch
 ):
-    instant = datetime(2026, 10, 2, tzinfo=timezone.utc)
+    instant = datetime(2026, 10, 2, tzinfo=UTC)
     monkeypatch.setattr(user_views, "_now", lambda: instant)
     path = tmp_path / user_views.USER_VIEWS_FILE
     write_json(path, {"format": "earlier", "sessions": {"obsolete": {}}})

@@ -2641,6 +2641,9 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
     )
     assert shown == editing >= 16, (shown, editing)
     page.keyboard.press("Escape")
+    # Close returns focus to the persistent Edit control. Complete that handoff
+    # before installing the next native selection, which WebKit focus collapses.
+    expect(note.get_by_role("button", name="Edit", exact=True)).to_be_focused()
 
     page.locator("#p6").evaluate("""paragraph => {
       const box = paragraph.getBoundingClientRect();
@@ -2810,16 +2813,10 @@ def test_message_markdown_reads_a_link_scheme_as_the_attribute_resolves_it(
 ):
     """The web-protocol guard reads the href the document will resolve, not its source.
 
-    marked hands a renderer the authored destination with its character references
-    undecoded, and an href attribute decodes them when that markup lands. A guard
-    reading the authored text sees `javascript&#58;` as a relative path, admits it,
-    and the user gets a live script link out of ordinary message prose. Reading the
-    destination as the document will refuses that link, and the same reading is what
-    keeps an ordinary `&amp;` reaching the query it names rather than landing in it.
-
-    Marked owns each field's rendering, including flattened inline alt text, titles,
-    and the literal character references in autolinks. Page-media inspection must use
-    that same image alt for its accessible name.
+    Character references in destinations must be interpreted before scheme
+    admission. The parser's normalized attributes and flattened image alt are
+    shared by message rendering and media inspection, including titles and
+    autolink destinations. A refused destination retains its visible label.
     """
     url = serve(LONG_PAGE)
     pixels = io.BytesIO()
@@ -2879,7 +2876,7 @@ FACES = {
     "inline code": ("p code", "code"),
     "strong": ("strong", "strong"),
     "emphasis": ("em", "em"),
-    "strikethrough": ("del", "del"),
+    "strikethrough": ("s", "s"),
     "link": ("a", ".lf-md-link"),
     "quote": ("blockquote", ".lf-md-quote"),
     "heading": ("h2", ".lf-md-heading"),

@@ -774,6 +774,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-others-head { display: contents; }
   .lf-others-title { min-width: 0; white-space: nowrap; overflow: hidden;
     text-overflow: ellipsis; }
+  .lf-others-current { color: var(--muted); font-size: var(--t-6); white-space: nowrap; }
   /* Title and activity share one grid track, whatever size the status mark takes.
      A detail growing repaints its own words and moves nothing. */
   .lf-others-line { grid-column: 2 / -1; color: var(--ink-2); white-space: nowrap;

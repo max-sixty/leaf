@@ -386,7 +386,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     const editor = offer('input');
     editor.setAttribute('aria-label', 'Practice note');
     this.makeControl();
-    this.append(this.control, editor, this.result);
+    this.append(this.seat, editor, this.result);
     const disable = offer('button', '', 'Toggle disabled');
     disable.onclick = () => {
       this.disabled = !this.disabled;
@@ -401,9 +401,9 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     guard.onclick = () => { this.allowed = !this.allowed; paintKeys(); };
     const replace = offer('button', '', 'Replace action control');
     replace.onclick = () => {
-      const prior = this.control;
+      const prior = this.seat;
       this.makeControl();
-      prior.replaceWith(this.control);
+      prior.replaceWith(this.seat);
       paintKeys();
     };
     const quiet = offer('button', '', 'Quiet action');
@@ -434,7 +434,10 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     this.control = offer('button', '', 'Apply');
     this.badge = offer('kbd', 'lf-key-badge');
     this.badge.setAttribute('aria-hidden', 'true');
-    this.control.prepend(this.badge);
+    this.seat = offer('span');
+    this.seat.style.cssText = 'display: inline-block; position: relative; margin-left: 24px';
+    this.badge.style.cssText = 'right: calc(100% + 4px); top: 0';
+    this.seat.append(this.badge, this.control);
   }
 });
 """
@@ -481,10 +484,18 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     result = widget.locator("output")
     action = widget.get_by_role("button", name="Apply", exact=True)
 
+    # A badge reveal must leave both the labeled control and its neighbours fixed.
+    def control_boxes():
+        return widget.locator("button, input").evaluate_all(
+            "nodes => nodes.slice(0, 2).map(node => { const b = node.getBoundingClientRect(); "
+            "return [b.x, b.y, b.width, b.height]; })"
+        )
+
     # No scope stands while focus is outside, so an empty seat advertises nothing.
     page.locator("#outside").focus()
     rendered(page)
     expect(badge).to_be_hidden()
+    unfocused_boxes = control_boxes()
     page.keyboard.press("x")
     rendered(page)
     expect(result).to_have_text("0")
@@ -495,12 +506,14 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     expect(badge).to_be_visible()
     expect(badge).to_have_text("1")
     expect(active_hints).to_have_count(1)
+    assert control_boxes() == unfocused_boxes
     page.keyboard.press("1")
     expect(result).to_have_text("1")
 
     page.keyboard.press("Tab")
     expect(action).to_be_focused()
     expect(badge).to_be_visible()
+    assert control_boxes() == unfocused_boxes
     expect(active_hints).to_have_count(1)
     page.keyboard.press("x")
     expect(result).to_have_text("2")
@@ -512,6 +525,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     expect(editor).to_be_focused()
     rendered(page)
     expect(badge).to_have_text("x")
+    assert control_boxes() == unfocused_boxes
     page.keyboard.type("1")
     expect(editor).to_have_value("1")
     expect(result).to_have_text("2")
@@ -566,11 +580,23 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     rendered(page)
     expect(result).to_have_text("4")
 
+    assert control_boxes() == unfocused_boxes
+    if hint_seat == "widget":
+        expect(widget.locator("kbd")).to_have_class(re.compile(r"\blf-binding-seat\b"))
+        assert (
+            widget.locator("kbd").evaluate("badge => getComputedStyle(badge).position")
+            == "absolute"
+        )
+        expect(action.locator("kbd")).to_have_count(0)
+
     # Native pointer, Enter and Space use the command's callback once each. The
     # owner's private availability also disables a real pointer press, then restores
     # the same retained button without adding another activation listener.
-    action.click()
+    box = action.bounding_box()
+    page.mouse.click(box["x"] + 1, box["y"] + box["height"] / 2)
     expect(result).to_have_text("5")
+    rendered(page)
+    assert control_boxes() == unfocused_boxes
     page.keyboard.press("Enter")
     expect(result).to_have_text("6")
     page.keyboard.press("Space")
@@ -581,8 +607,88 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     expect(result).to_have_text("7")
     widget.get_by_role("button", name="Toggle availability").click()
-    action.click()
+    page.locator("#outside").focus()
+    rendered(page)
+    assert control_boxes() == unfocused_boxes
+    page.mouse.click(box["x"] + box["width"] - 1, box["y"] + box["height"] / 2)
     expect(result).to_have_text("8")
+
+
+def test_lent_shortcut_seats_follow_rendered_slot_ancestry(browser, serve):
+    """A slotted badge belongs to its rendered control, not its authored parent.
+
+    Real slot assignment is a browser boundary; happy-dom does not implement it.
+    One and two shadow-host projections must reject button-contained badges, while
+    an external named slot admits the same badge without changing passage ancestry.
+    """
+    page = open_page(
+        browser,
+        serve(leaf_page("Rendered shortcut seats", "<h1>Rendered shortcut seats</h1>")),
+    )
+    result = page.evaluate(
+        """async () => {
+          const resources = performance.getEntriesByType('resource').map(r => r.name);
+          const loaded = path => resources.find(url => url.includes(path));
+          const {createCommandHints} = await import(loaded('/keyboard/command-hints.js'));
+          const {keys, reflectFirstScopes} = await import(loaded('/keyboard/scopes.js'));
+          const owner = document.createElement('section');
+          const host = document.createElement('span');
+          const badge = document.createElement('kbd');
+          badge.className = 'lf-key-badge';
+          const root = host.attachShadow({mode: 'open'});
+          root.innerHTML = '<slot name="external"></slot><button>Apply <slot></slot></button>';
+          const control = root.querySelector('button');
+          host.append(badge);
+          owner.append(host);
+          document.querySelector('main').append(owner);
+          keys(owner, 'Slotted seat', [{
+            id: 'probe.slotted', title: 'Apply', keys: ['x'], control,
+            bindingBadge: badge, run: () => {},
+          }]);
+          reflectFirstScopes();
+          control.focus();
+          const hints = createCommandHints({presentedControl: () => null});
+          const read = () => {
+            try { hints.paint(); return null; }
+            catch (error) { return {name: error.name, message: error.message}; }
+          };
+          try {
+            const assigned = badge.assignedSlot === root.querySelector('button slot');
+            const slotted = read();
+            const inner = document.createElement('span');
+            inner.attachShadow({mode: 'open'}).innerHTML = '<span><slot></slot></span>';
+            host.append(inner);
+            inner.append(badge);
+            const nestedAssigned = Boolean(badge.assignedSlot && inner.assignedSlot);
+            const nested = read();
+            host.append(badge);
+            inner.remove();
+            badge.slot = 'external';
+            const externalAssigned = badge.assignedSlot === root.querySelector('slot[name]');
+            const external = read();
+            // Let the painted projection stand before test-owned cleanup withdraws it.
+            await Promise.resolve();
+            return {assigned, slotted, nestedAssigned, nested, externalAssigned,
+              external, marked: badge.classList.contains('lf-binding-seat')};
+          } finally {
+            hints.destroy();
+            owner.remove();
+          }
+        }"""
+    )
+    rejected = {
+        "name": "TypeError",
+        "message": "leaf: probe.slotted binding badge must be outside native buttons",
+    }
+    assert result == {
+        "assigned": True,
+        "slotted": rejected,
+        "nestedAssigned": True,
+        "nested": rejected,
+        "externalAssigned": True,
+        "external": None,
+        "marked": True,
+    }
 
 
 @pytest.mark.parametrize("annotation_mode", ["overlay", "page"])
@@ -650,11 +756,17 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     const firstHint = offer('kbd', 'lf-key-badge');
     const secondHint = offer('kbd', 'lf-key-badge');
     for (const badge of [firstHint, secondHint]) badge.setAttribute('aria-hidden', 'true');
-    first.prepend(firstHint);
-    second.prepend(secondHint);
+    const firstSeat = offer('span');
+    const secondSeat = offer('span');
+    for (const seat of [firstSeat, secondSeat])
+      seat.style.cssText = 'display: inline-block; position: relative; margin-left: 24px';
+    for (const badge of [firstHint, secondHint])
+      badge.style.cssText = 'right: calc(100% + 4px); top: 0';
+    firstSeat.append(firstHint, first);
+    secondSeat.append(secondHint, second);
     const firstUnavailable = DISABLE_FIRST
     const apply = (binding) => keepsText(result, binding === '1' ? 'First applied' : 'Second applied');
-    this.append(first, second, result);
+    this.append(firstSeat, secondSeat, result);
     commands(this, 'In parameterized actions', [{
       id: 'probe.apply', keys: ['1', '2'], title: 'Apply an action', line: 'apply',
       routes: [
@@ -709,9 +821,9 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
     second.focus()
     rendered(page)
     expect(first).to_be_disabled()
-    expect(first.locator("kbd")).to_be_hidden()
-    expect(second.locator("kbd")).to_be_visible()
-    expect(second.locator("kbd")).to_have_text("2")
+    expect(page.locator("#probe kbd").nth(0)).to_be_hidden()
+    expect(page.locator("#probe kbd").nth(1)).to_be_visible()
+    expect(page.locator("#probe kbd").nth(1)).to_have_text("2")
     expect(page.locator("#probe")).to_have_attribute("aria-keyshortcuts", "2")
     offered = page.locator(
         '.lf-shortcut-bar .lf-shortcut[data-lf-command-ids~="probe.second"]'
@@ -727,7 +839,7 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
     expect(result).to_have_text("No action")
     page.keyboard.press("2")
     expect(result).to_have_text("Second applied")
-    expect(second.locator("kbd")).to_be_visible()
+    expect(page.locator("#probe kbd").nth(1)).to_be_visible()
     page.keyboard.press("1")
     rendered(page)
     expect(result).to_have_text("Second applied")
@@ -4912,7 +5024,7 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     # This page heads the list, marked and never a link: the panel reads as the
     # whole machine, and this page is where the user already is.
     self_row = others_panel.locator(".lf-others-self")
-    expect(self_row.locator(".lf-outline-chip")).to_have_text("this page")
+    expect(self_row.get_by_text("this page", exact=True)).to_be_visible()
     expect(self_row.locator(".lf-others-title")).to_have_text("long")
     link = others_panel.locator("a.lf-others-row")
     expect(link.locator(".lf-others-title")).to_have_text("The other leaf")

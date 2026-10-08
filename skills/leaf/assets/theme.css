@@ -741,7 +741,11 @@ body {
  * placeholder words, which the drawing replaces with the log's. A reading with no
  * runtime gets no drawing, so the room goes with it. */
 [data-lf-prepaint] { visibility: hidden; }
-html:not([data-lf-interactive]) [data-lf-prepaint] { display: none; }
+/* Declared Markdown is the readable first paint, with its exact authored pre
+   retained for semantic capture until the formatter adopts these same nodes. */
+.lf-markdown-body[data-lf-prepaint] { visibility: visible; }
+:has(> .lf-markdown-body[data-lf-prepaint]) > pre { display: none; }
+html:not([data-lf-interactive]) [data-lf-prepaint]:not(.lf-markdown-body) { display: none; }
 /* Authored HTML is the page's useful initial condition, so it paints from stylesheet
  * parse while JavaScript upgrades widgets and reads the standing log. Generated page
  * interface joins it as soon as widget and page-interface upgrade gives that apparatus

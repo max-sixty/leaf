@@ -2013,8 +2013,12 @@ def suggestion_owner(suggestion_id: str) -> str:
 
 
 def draft_control(scope, key: str, draft_id: str, *, visible=True):
-    """The draft `draft_id`'s margin entry `key` (edit, save, cancel)."""
-    return margin_control(scope, draft_owner(draft_id), key, visible=visible)
+    """A draft's local command button (edit, save, cancel, close or retry)."""
+    action = "save" if key == "retry" else key
+    return scope.locator(
+        f'lf-draft[id="{draft_id}"] [data-lf-draft-action="{action}"]'
+        + (":visible" if visible else "")
+    )
 
 
 def suggestion_control(scope, suggestion_id: str, key=None, *, visible=True):
@@ -2032,11 +2036,13 @@ def any_owner_entry(kind: str, key: str | None = None) -> str:
 
 
 def any_draft_control(scope, key: str | None = None, *, visible=True):
-    """Any draft's margin entry `key` on the page, for the same reason `any_owner_entry`
+    """Any draft's local control `key` on the page, for the same reason `any_owner_entry`
     exists rather than `draft_control`."""
-    return scope.locator(
-        any_owner_entry("draft", key) + (":visible" if visible else "")
-    )
+    action = "save" if key == "retry" else key
+    selector = "lf-draft [data-lf-draft-action]"
+    if action is not None:
+        selector += f'[data-lf-draft-action="{action}"]'
+    return scope.locator(selector + (":visible" if visible else ""))
 
 
 def any_suggestion_control(scope, key: str | None = None, *, visible=True):

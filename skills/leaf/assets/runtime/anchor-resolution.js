@@ -238,7 +238,19 @@ export function addressableAt(node) {
   return null;
 }
 
-export const annotationAt = (node) => blockAt(node) ?? addressableAt(node);
+// Markdown block structure is reading geometry, not authored annotation identity.
+// A whole-body formatter replaces one authored data record with paragraphs/lists;
+// its declared host remains the seat that comments and reactions can name durably.
+export function annotationAt(node) {
+  const formatted = tagsDeclaring(
+    (entry) => entry["x-text-format"] === "markdown",
+  ).join(",");
+  return (
+    (formatted && closestAcross(node, formatted)) ||
+    blockAt(node) ||
+    addressableAt(node)
+  );
+}
 
 const HTML_WORDS = {
   input: "control",

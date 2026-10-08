@@ -407,9 +407,9 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve, recon
         viewport={"width": 1200, "height": 900}, color_scheme="light"
     )
     held = []
-    page.route("**/vendor/marked.esm.js", lambda route: held.append(route))
+    page.route("**/vendor/markdown-it.esm.js", lambda route: held.append(route))
     try:
-        with page.expect_request("**/vendor/marked.esm.js"):
+        with page.expect_request("**/vendor/markdown-it.esm.js"):
             page.goto(url, wait_until="load")
         page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
         assert held, "the positive control did not hold the lazy Markdown import"
@@ -7761,7 +7761,7 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
             },
             "layer_widgets": {
                 f"{tag}.js": """
-import {once, widgetController} from '/runtime/widget-api.js';
+import {once, widgetController, keepsText} from '/runtime/widget-api.js';
 customElements.define('lf-delayed-body', class extends HTMLElement {
   #controller = widgetController(this);
   #stop;
@@ -7775,7 +7775,7 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
     this.#stop ??= this.#controller.subscribe(() => {});
   }
   disconnectedCallback() { this.#stop?.(); this.#stop = null; }
-  renderState(state) { this.querySelector('pre').textContent = state.edit.value; }
+  renderState(state) { keepsText(this.querySelector('pre'), state.edit.value); }
 });
 """
             },
@@ -7807,8 +7807,8 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
     widget = page.locator("#reply-body")
     original = widget.element_handle()
     body = widget.locator("pre" if asynchronous else ".lf-draft-body")
-    assert body.text_content() == (
-        "Presentation-only rewrite." if asynchronous else "First line.\nSecond line."
+    expect(body).to_have_text(
+        "Presentation-only rewrite." if asynchronous else "First line. Second line."
     )
     response = post_event(
         page,
@@ -7825,7 +7825,13 @@ customElements.define('lf-delayed-body', class extends HTMLElement {
     told(page)
     assert body.text_content() == "User's exact words.\n"
     undo(page)
-    assert body.text_content() == "First line.\nSecond line."
+    expect(body).to_have_text("First line. Second line.")
+    if asynchronous:
+        assert body.text_content() == "    First line.\n    Second line.\n"
+    else:
+        expect(body).to_have_attribute(
+            "data-lf-source-words", "    First line.\n    Second line.\n"
+        )
     assert original.evaluate("node => node === document.getElementById('reply-body')")
 
 
@@ -7946,7 +7952,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     assert page.evaluate(frozen_reading) == {
         "descriptor": True,
         "authored": True,
-        "body": "First line.\nSecond line.",
+        "body": "    First line.\n    Second line.\n",
         "mounted": True,
     }
     page.locator(".lf-threads-toggle").click()
@@ -7954,14 +7960,20 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     widget = page.locator("#crossed-draft")
     original = widget.element_handle()
     body = widget.locator(".lf-draft-body")
-    assert body.text_content() == "First line.\nSecond line."
+    expect(body).to_have_text("First line. Second line.")
+    expect(body).to_have_attribute(
+        "data-lf-source-words", "    First line.\n    Second line.\n"
+    )
     widget.locator(".lf-draft-body").click()
     write(widget.locator("leaf-text"), "A user's exact words.\n")
     draft_control(page, "save", "crossed-draft").click()
     round_trip(page)
     assert body.text_content() == "A user's exact words.\n"
     undo(page)
-    assert body.text_content() == "First line.\nSecond line."
+    expect(body).to_have_text("First line. Second line.")
+    expect(body).to_have_attribute(
+        "data-lf-source-words", "    First line.\n    Second line.\n"
+    )
     assert original.evaluate(
         "node => node === document.getElementById('crossed-draft')"
     )

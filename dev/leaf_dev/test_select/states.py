@@ -113,7 +113,7 @@ def provenance(before, after, changed, regeneration_proof=None):
             unknown.append(
                 {
                     "path": path,
-                    "reason": "generated change lacks hash-verified manifest lineage to changed tracked inputs",
+                    "reason": "generated change lacks manifest lineage to changed tracked inputs",
                     "forced_selection": "all-tests",
                     "before_sha256": digest(before.source(path))
                     if path in before.paths

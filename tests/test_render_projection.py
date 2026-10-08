@@ -2044,7 +2044,7 @@ def test_the_live_page_adopts_a_revision_and_stamps_it_without_replacing_main(
         f"the passage moved from {before}px to {after}px in the viewport"
     )
     version = page.locator(".lf-version")
-    expect(version).to_have_text("Draft")
+    expect(version).to_have_text("Showing Draft")
     expect(version).to_have_attribute("title", re.compile(r"^Draft after v1:"))
     expect(version).to_have_attribute("aria-label", "Draft after v1: open versions")
     banner_control(page, ".lf-version").click()
@@ -3255,7 +3255,7 @@ def test_a_revision_retires_every_declared_identity_it_removes(browser, serve):
 
     stamp_page(serve.page_dir, second, "remove the question")
     wait_for_revision(page, 2)
-    expect_banner_control_offered(page.locator(".lf-queue"), offered=False)
+    expect(page.locator(".lf-queue")).to_have_text("Questions: 0")
     descriptors = page.evaluate(
         """async () => {
           const {readApplication} = await window.__lfRuntimeImport(
@@ -3367,7 +3367,7 @@ customElements.define("lf-conditional", class extends HTMLElement {
             layer_widgets={"lf-conditional.js": module},
         ),
     )
-    expect_banner_control_offered(page.locator(".lf-queue"), offered=False)
+    expect(page.locator(".lf-queue")).to_have_text("Questions: 0")
 
     for phase, count in (("open", 1), ("closed", 0)):
         append_command(
@@ -4068,7 +4068,7 @@ def test_a_stamped_url_stays_pinned_while_the_live_root_follows_a_draft(browser,
     told(pinned)
 
     expect(live).to_have_title("Live second")
-    expect(live.locator(".lf-version")).to_have_text("Draft")
+    expect(live.locator(".lf-version")).to_have_text("Showing Draft")
     expect(live.locator(".lf-version")).to_have_attribute(
         "title", re.compile(r"^Draft after v1:")
     )
@@ -5211,9 +5211,8 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     page = open_page(browser, live_url(url))
     fraction = page.locator("#t-feeders > .lf-chips")
     expect(fraction).to_contain_text("1/2 done")
-    expect_banner_control_offered(
-        page.locator(".lf-queue"), offered=False
-    )  # nothing waits on the user
+    # Nothing waits on the user.
+    expect(page.locator(".lf-queue")).to_have_text("Questions: 0")
 
     sent = CliRunner().invoke(
         cli_model.cli,
@@ -5236,7 +5235,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # The marker is paint, so the word beside it (x-paints) has to move with the
     # attribute or a user listening is told what the page said a poll ago.
     assert "review" in task.aria_snapshot()
-    expect_banner_control_offered(page.locator(".lf-queue"), offered=False)
+    expect(page.locator(".lf-queue")).to_have_text("Questions: 0")
 
     # A second report supersedes the first — absolute values fold — and the
     # fraction chip recounts across the tree.
@@ -5250,7 +5249,7 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     said = task.aria_snapshot()
     assert "done" in said and "review" not in said, said
     expect(fraction).to_contain_text("2/2 done")
-    expect_banner_control_offered(page.locator(".lf-queue"), offered=False)
+    expect(page.locator(".lf-queue")).to_have_text("Questions: 0")
 
     # The overruling version: its markup keeps `active` and publishes typed report
     # settlements resolved from `overruled`, so replay stops them
@@ -5333,7 +5332,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
             held[0][2] = True
         holding(page, requests, 2, "the retried comparison view")
         assert len(requests) >= 2, "the stale comparison view was not retried"
-        expect(page.locator(".lf-version")).to_have_text("v2")
+        expect(page.locator(".lf-version")).to_have_text("Showing v2")
         expect(page.locator(".lf-version")).to_have_class(re.compile(r"\bon\b"))
         expect(page.locator("#new-copy")).to_have_class(re.compile(r"lf-ins-block"))
         expect(page.locator("#t-parser")).not_to_have_class(re.compile(r"lf-ins-block"))
@@ -8448,7 +8447,7 @@ def test_closing_a_thread_withdraws_the_question_in_it(browser, serve):
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": "c-which"}
     )
     told(page)
-    expect_banner_control_offered(page.locator(".lf-queue"), offered=False)
+    expect(page.locator(".lf-queue")).to_have_text("Questions: 0")
     page.locator(".lf-threads-toggle").click()
     panel_settled(page, True)
     page.locator(".lf-thread-filter-toggle").click()
@@ -8688,7 +8687,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     draft_control(page, "save", "ledger-cargo").click()
     round_trip(page)
     expect_asks_answered(page, "1/5")
-    expect_banner_control_offered(page.locator(".lf-queue"))
+    expect(page.locator(".lf-queue")).not_to_have_text("Questions: 0")
 
     honoring = re.sub(
         r'<lf-draft id="ledger-cargo" needed>.*?</lf-draft>',
@@ -8701,7 +8700,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     # The saved answer remains in the reviewable Ask inventory after the source
     # drops `needed`; it is completed, not newly owed to the user.
     expect_asks_answered(page, "1/5")
-    expect_banner_control_offered(page.locator(".lf-queue"))
+    expect(page.locator(".lf-queue")).not_to_have_text("Questions: 0")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")
     expect(page.locator("#ledger-fixture > .lf-task-meta")).not_to_contain_text(
@@ -8724,7 +8723,7 @@ def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, se
     expect(head).to_contain_text("1 quiet")
     expect(head).to_contain_text("5 stopped")
     expect_asks_answered(page, "0/5")
-    expect_banner_control_offered(page.locator(".lf-queue"))
+    expect(page.locator(".lf-queue")).not_to_have_text("Questions: 0")
     expect(page.locator("#hub-readings > .lf-fleet-view")).to_contain_text(
         "Fleet · 5 live workers"
     )
@@ -9227,7 +9226,7 @@ def test_command_hub_keeps_a_real_request_outside_a_quoted_decision(browser, ser
     )
     page = open_page(browser, serve(html))
     expect_asks_answered(page, "0/1")
-    expect_banner_control_offered(page.locator(".lf-queue"))
+    expect(page.locator(".lf-queue")).not_to_have_text("Questions: 0")
     expect(page.locator("#hub-readings > .lf-command-head")).to_contain_text(
         "1 stopped"
     )
@@ -9947,7 +9946,7 @@ customElements.define(\"lf-area\", class extends HTMLElement {
         page.locator("#hub > lf-command-readings > .lf-stopped-view")
     ).to_contain_text("Custom project goal")
     expect_asks_answered(page, "0/1")
-    expect_banner_control_offered(page.locator(".lf-queue"))
+    expect(page.locator(".lf-queue")).not_to_have_text("Questions: 0")
 
 
 def test_a_spent_press_and_a_static_badge_say_so_before_the_press(browser, serve):

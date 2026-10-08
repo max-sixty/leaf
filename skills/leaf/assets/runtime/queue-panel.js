@@ -137,7 +137,7 @@ export function createQueuePanel({ arriveAtItem, endTask, next, announce }) {
     keeps(
       queueBtn,
       "aria-label",
-      count === null ? "Questions" : `Questions waiting on you: ${count}`,
+      count === null ? "Questions" : `Questions: ${count} waiting on you`,
     );
     keeps(
       queueBtn,

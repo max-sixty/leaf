@@ -1341,6 +1341,19 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
                     "unit": "sug-rewrite",
                     "depends": ["sug-rewrite"],
                     "answer": None,
+                    "state": {
+                        "origin": "lf-suggestion",
+                        "unit": "widget",
+                        "record": None,
+                        "creates": None,
+                        "update": False,
+                        "detail": {
+                            "type": "object",
+                            "properties": {"outcome": {"enum": ["accept", "reject"]}},
+                            "required": ["outcome"],
+                            "additionalProperties": False,
+                        },
+                    },
                 },
             }
         ],

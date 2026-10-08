@@ -145,6 +145,25 @@ ACTION_ON_ASK = {
         "unit": "bracket",
         "depends": ["br-steel", "bracket"],
         "answer": None,
+        "state": {
+            "origin": "lf-options",
+            "unit": "widget",
+            "record": {"kind": "attribute", "attr": "chosen"},
+            "creates": None,
+            "update": False,
+            "detail": {
+                "type": "object",
+                "properties": {
+                    "value": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "uniqueItems": True,
+                    }
+                },
+                "required": ["value"],
+                "additionalProperties": False,
+            },
+        },
     },
 }
 RECEIPT_PHASES = {

@@ -1374,7 +1374,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
 
     page.goto(live_url(newest))
     rendered(page)
-    expect(page.locator(".lf-version")).to_have_text("v2")
+    expect(page.locator(".lf-version")).to_have_text("Showing v2")
     expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
     expect(page.locator("#review-billing-legacy")).to_have_attribute("chosen", "")
     expect(page.locator("#review-cache")).to_contain_text(
@@ -1525,7 +1525,7 @@ def test_comparison_choice_replays_and_is_applied_by_the_next_revision(browser, 
 
     page.goto(live_url(newest))
     rendered(page)
-    expect(page.locator(".lf-version")).to_have_text("v2")
+    expect(page.locator(".lf-version")).to_have_text("Showing v2")
     expect(page.locator("#comparison-policy-shared")).to_have_attribute("chosen", "")
     expect(page.locator("#comparison-proposed > header")).to_contain_text("selected")
     expect(page.locator("#comparison-rollout")).to_contain_text(
@@ -3576,7 +3576,7 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
     def counts(you, agent):
         expect(questions).to_have_text(f"Questions: {you}")
         expect(questions).to_have_attribute(
-            "aria-label", f"Questions waiting on you: {you}"
+            "aria-label", f"Questions: {you} waiting on you"
         )
         expect(status).to_have_text(f"Tasks: {agent}")
 

@@ -1425,9 +1425,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* A suggestion renders verbatim — its characters are what the next version
      carries (see msgNode) — so this is where they keep their own line breaks. */
   .lf-live { position: fixed; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  .lf-command-reference { position: fixed; z-index: var(--lf-z-dialog); top: 50%; left: 50%; transform: translate(-50%, -50%);
+  /* Anchor the top to the window: filtering may shrink results, never move the search.
+     The height limit uses that same edge to keep results inside a short window. */
+  .lf-command-reference { --lf-command-reference-top: max(10dvh, calc(var(--lf-safe-top) + 16px));
+    position: fixed; z-index: var(--lf-z-dialog); top: var(--lf-command-reference-top); left: 50%; transform: translateX(-50%);
     width: min(520px, calc(100vw - 32px - var(--lf-safe-left) - var(--lf-safe-right)));
-    max-height: min(80dvh, calc(100dvh - var(--lf-safe-top) - var(--lf-safe-bottom) - 32px));
+    max-height: min(80dvh, calc(100dvh - var(--lf-command-reference-top) - var(--lf-safe-bottom) - 16px));
     overflow: hidden; display: none; margin: 0;
     background: var(--card); border: 1px solid var(--border-2); border-radius: var(--r);
     box-shadow: 0 12px 32px var(--shade); padding: 14px 18px; }

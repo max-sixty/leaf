@@ -11932,7 +11932,6 @@ def test_a_tree_draws_its_wrapped_hierarchy_before_runtime_upgrade(browser, serv
             for route in boot:
                 route.continue_()
             page.unroute_all(behavior="wait")
-            context.close()
 
 
 def test_a_chart_body_is_plot_code_that_reads_the_width_it_is_drawn_at(browser, serve):

@@ -189,6 +189,39 @@ def test_bounded_text_document_keeps_its_caption_above_the_scrolling_source(
     )
 
 
+@pytest.mark.parametrize("captured", [False, True], ids=["block", "text-document"])
+def test_a_bounded_document_reader_chains_wheel_at_its_edge(browser, serve, captured):
+    """A bound inside a document keeps its own reading position but lets the user
+    continue down the document once its last line is reached."""
+    content = (
+        '<lf-text-document id="reader" source="capture" label="Run log" '
+        'data-bound="start"></lf-text-document>'
+        if captured
+        else '<div id="reader" data-bound="start">'
+        + "<p>Run log line</p>" * 100
+        + "</div>"
+    )
+    url = serve(
+        leaf_page(
+            "Bounded reader in a document",
+            "<h1>Run log</h1>" + content + '<div style="height:1500px"></div>',
+        )
+    )
+    if captured:
+        data_model.cmd_data_set(serve.page_dir, "capture", "Run log line\n" * 100)
+    page = open_page(browser, url)
+    reader = page.locator("#reader pre" if captured else "#reader")
+    assert reader.evaluate("el => el.scrollHeight > el.clientHeight")
+    reader.evaluate("el => el.scrollTop = el.scrollHeight")
+    reader.hover()
+    before = page.evaluate("document.scrollingElement.scrollTop")
+    page.mouse.wheel(0, 400)
+    page.wait_for_function(
+        "before => document.scrollingElement.scrollTop > before",
+        arg=before,
+    )
+
+
 def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fit(
     browser, serve
 ):

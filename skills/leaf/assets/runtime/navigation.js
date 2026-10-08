@@ -6,7 +6,7 @@ import { scrollGlides } from "./arrivals.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
-import { pageScroller } from "./scrolling.js";
+import { atScrollEnd, pageScroller } from "./scrolling.js";
 import { landingBand } from "./geometry.js";
 import {
   effectiveScroller,
@@ -138,7 +138,9 @@ export function placeThreadEdge(thread, edge) {
 
 // j/k take small pixel steps; d/u move 60% of the visible reading page. Both follow
 // the active region and share one glide, so mixed or repeated presses add up from
-// the pending goal. Space, Home/End and PageUp/Down stay the browser's own keys.
+// the pending goal. At a region's edge they follow its CSS scroll chain, stopping at
+// the same task or modal boundary as native input. Space, Home/End and PageUp/Down
+// stay the browser's own keys.
 //
 // They move the region the user is reading. The thread list is that region when
 // focus stands on its frame; a nested region keeps its own scrollport. Scrolling a
@@ -196,13 +198,17 @@ const stepScroller = (coveringAuxiliaryScroller) => {
   return effectiveScroller(region);
 };
 function stepReading(amount, unit, coveringAuxiliaryScroller) {
-  const box = stepScroller(coveringAuxiliaryScroller);
-  if (unit === "page") {
-    const band = landingBand(box);
-    amount *= band.bottom - band.top;
+  for (const box of scrollersOf(stepScroller(coveringAuxiliaryScroller))) {
+    const canMove = amount > 0 ? !atScrollEnd(box) : box.scrollTop > 0;
+    if (canMove) {
+      const band = unit === "page" && landingBand(box);
+      const distance = band ? amount * (band.bottom - band.top) : amount;
+      const from = holding(box) ? glide.goal : box.scrollTop;
+      glideTo(box, from + distance);
+      return;
+    }
+    if (getComputedStyle(box).overscrollBehaviorY !== "auto") return;
   }
-  const from = holding(box) ? glide.goal : box.scrollTop;
-  glideTo(box, from + amount);
 }
 // One eased travel to a goal, shared by the reading-page step and the sequence's edges. The
 // goal is clamped here, so a step pressed on at the foot banks no debt for u to press

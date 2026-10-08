@@ -710,31 +710,44 @@ export function holdFocus(scope, { key = null } = {}) {
   const like =
     control.localName +
     [...control.classList].map((name) => `.${CSS.escape(name)}`).join("");
-  // The drawn item keyed so, where a hidden copy of it stands too. One key may mark
-  // several nodes of one place, as a diff line's text and its gutter's Comment: the one
-  // like the control the user stood on, or holding one, comes first.
-  const find = (value) => {
-    const found = items().filter(
-      (each) => each.getAttribute(key) === value && drawn(each),
-    );
-    return (
-      (like && found.find((each) => each.matches(like))) ??
-      (like && found.map((each) => each.querySelector(like)).find(Boolean)) ??
-      found[0] ??
-      null
-    );
-  };
-  // The item keyed the same is the same place, so the caret goes with the user; a
-  // neighbour is another place, which this hold lands on with no caret.
-  const neighbour = (value) => () => {
-    const place = find(value);
-    if (!place || !drawn(place)) return null;
-    focusDestination(place, "return");
-    return landedOn(place);
-  };
   const [same, ...rest] = order;
-  return (...standIns) =>
-    restore(() => find(same), ...rest.map(neighbour), ...standIns);
+  return (...standIns) => {
+    // The items now standing, by key, read once for the whole restore: a list whose keys
+    // all changed tries every held key against it.
+    let byKey = null;
+    const keyed = (value) => {
+      if (!byKey) {
+        byKey = new Map();
+        for (const each of items()) {
+          const at = each.getAttribute(key);
+          if (!byKey.has(at)) byKey.set(at, []);
+          byKey.get(at).push(each);
+        }
+      }
+      return byKey.get(value) ?? [];
+    };
+    // The drawn item keyed so, where a hidden copy of it stands too. One key may mark
+    // several nodes of one place, as a diff line's text and its gutter's Comment: the one
+    // like the control the user stood on, or holding one, comes first.
+    const find = (value) => {
+      const found = keyed(value).filter(drawn);
+      return (
+        (like && found.find((each) => each.matches(like))) ??
+        (like && found.map((each) => each.querySelector(like)).find(Boolean)) ??
+        found[0] ??
+        null
+      );
+    };
+    // The item keyed the same is the same place, so the caret goes with the user; a
+    // neighbour is another place, which this hold lands on with no caret.
+    const neighbour = (value) => () => {
+      const place = find(value);
+      if (!place || !drawn(place)) return null;
+      focusDestination(place, "return");
+      return landedOn(place);
+    };
+    return restore(() => find(same), ...rest.map(neighbour), ...standIns);
+  };
 }
 const heldIn = (scope) => {
   const held = heldByLabel();

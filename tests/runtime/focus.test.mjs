@@ -234,6 +234,30 @@ test("a keyed hold lands on the row keyed the same, or the nearest that survived
   assert.equal(focused().dataset.row, "c");
 });
 
+test("a keyed hold reads the rows once however many held keys have gone", () => {
+  scene();
+  const list = document.createElement("ul");
+  const rows = (prefix) =>
+    Array.from({ length: 50 }, (_, at) => {
+      const item = document.createElement("button");
+      item.dataset.row = `${prefix}${at}`;
+      return item;
+    });
+  list.append(...rows("old"));
+  document.body.append(list);
+  focusDestination(list.children[25], "move");
+  const held = holdFocus(list, { key: "data-row" });
+  list.replaceChildren(...rows("new"));
+  let reads = 0;
+  const read = list.querySelectorAll.bind(list);
+  list.querySelectorAll = (selector) => (reads++, read(selector));
+  const outside = document.createElement("button");
+  document.body.append(outside);
+  held(outside);
+  assert.equal(focused(), outside);
+  assert.equal(reads, 1);
+});
+
 test("closing a layer tells the readers only where the user ends up", () => {
   const { box, first, other } = scene();
   focusDestination(first, "move");

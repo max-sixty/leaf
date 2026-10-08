@@ -47,7 +47,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
 from typing import NamedTuple
@@ -168,7 +168,7 @@ def mark_preview(source: Path, page: Path, runtime: Path, user: bool) -> None:
             "example": source.stem,
             "checkout": runtime.name,
             "interaction": "user" if user else "author",
-            "started": datetime.now(timezone.utc).isoformat(),
+            "started": datetime.now(UTC).isoformat(),
             **{
                 key: producer[key]
                 for key in ("commit", "dirty", "committed", "installed")

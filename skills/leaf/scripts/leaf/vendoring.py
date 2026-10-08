@@ -171,7 +171,7 @@ class _PagePlan(NamedTuple):
     the page, the stamped layer, and the directories that layer needs."""
 
     fresh: bool
-    layer: "_VendoredLayer"
+    layer: _VendoredLayer
     directories: set[Path]
     changed: bool
 
@@ -275,7 +275,7 @@ def _refuse_vocabulary_drift(
         return
     try:
         document = SourceDocument((page_dir / "index.html").read_text(encoding="utf-8"))
-    except (FileNotFoundError, UnicodeDecodeError):
+    except FileNotFoundError, UnicodeDecodeError:
         # An unreadable candidate cannot activate, but re-vendoring must still
         # preserve the active page until the source is repaired.
         document = read_revision(page_dir, revision).document

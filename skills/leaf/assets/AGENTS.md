@@ -331,8 +331,9 @@ value. The corpus holds each rule, in
 
 Stylesheets apply in layers. `theme.css` holds page tokens, element styles,
 idioms, and CSS-only widgets, and each package theme follows it; shared shadow
-rules compose into `/shadow.css`, whose shared `.lf-ui` face comes before
-component rules. In the document all of these, and each widget module's adopted
+rules compose into `/shadow.css`, whose shared native `.lf-ui-face` defaults come
+before component rules. Custom-element hosts own their appearance; `.lf-ui`
+marks apparatus without imposing a face. In the document all of these, and each widget module's adopted
 sheet, share the `lf-base` cascade layer; `layouts.css` is `lf-layouts` above it,
 and `state.css` is `lf-state` above both so semantic retirement wins over package
 defaults and Layouts. The page's own CSS stays unlayered above those tiers,
@@ -342,8 +343,9 @@ shadow rules use `lf-shadow` above adopted widget defaults in `lf-base`, and
 package's rules reach only its own widgets (`layer.py`, `widget_confinement`), so a rule
 several packages' widgets need is the kernel's. The page's rules skip the chrome and
 every `.lf-ui` control unless they name a widget or the layer's vocabulary
-(`runtime/page-sheets.js`), and the chrome's root and `.lf-ui` state the whole face they
-would otherwise inherit from the page.
+(`runtime/page-sheets.js`). The chrome's root and native `.lf-ui-face` defaults
+state the face they would otherwise inherit from the page; imported components
+receive theme variables, preserving their own state presentation.
 `runtime/chrome.css` and `runtime/marks.css` stay unlayered, apart from
 `chrome.css`'s form-control reset in `lf-reset`, below every layer that chooses a face.
 Their paint lies over the page, so they are adopted after page and package sheets and win by their

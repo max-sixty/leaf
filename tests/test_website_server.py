@@ -3305,22 +3305,33 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
     assert website_server.PageTransaction(page_dir).status["state"] == "waiting"
 
 
+@pytest.mark.parametrize("phase", ["queued", "opened", "failed"])
+@pytest.mark.parametrize("owed_move", [_page_pick, _message])
 def test_a_harness_receipt_does_not_answer_input_an_agent_turn_already_claimed(
     page_dir,
+    phase,
+    owed_move,
 ):
-    comment = append_event(
-        page_dir,
-        {"kind": "comment", "author": "user", "text": "edit the page"},
-    )
+    from leaf.delivery import record_pickup
+    from leaf.service import PageTransaction
+
+    move = owed_move(page_dir)
     harness = website_server.website_harness("hosted-thread", os.getpid())
     website_server.prepare_codex_delivery(page_dir, harness)
-    accept_in_turn("hosted-thread")
+    with PageTransaction(page_dir) as page:
+        record_pickup(
+            page,
+            [move],
+            phase=phase,
+            session="hosted-thread",
+            failure="delivery_failed" if phase == "failed" else None,
+        )
+    before = read_events(page_dir)
 
-    reply = website_server.write_failure_receipt(
-        page_dir, comment["id"], "startup_failed"
-    )
+    reply = website_server.write_failure_receipt(page_dir, move["id"], "startup_failed")
 
     assert reply is None
+    assert read_events(page_dir) == before
 
 
 def test_a_harness_receipt_survives_an_invalid_candidate_source(page_dir):

@@ -53,6 +53,7 @@ from pathlib import Path
 import click
 import psutil
 from leaf.codex import private_app_server
+from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.events import build_threads
 from leaf.leases import adapter_is_live, lock_is_held, titles_log
@@ -353,11 +354,10 @@ def journey(
         posted_id = comment_id(page, "mid-turn")
         require(
             any(
-                event["kind"] == "pickup"
-                and event["phase"] == "opened"
-                and event["turn"] == user_turn
-                and posted_id in event["events"]
-                for event in read_events(page)
+                event["turn"] == user_turn
+                for event in pickup_receipts(
+                    read_events(page), phase="opened", input_id=posted_id
+                )
             ),
             f"the active hook did not deliver the comment into turn {user_turn}",
         )
@@ -426,11 +426,10 @@ def journey(
         posted_id = comment_id(page, "escape")
         require(
             any(
-                event["kind"] == "pickup"
-                and event["phase"] == "opened"
-                and event["turn"] == resumed
-                and posted_id in event["events"]
-                for event in read_events(page)
+                event["turn"] == resumed
+                for event in pickup_receipts(
+                    read_events(page), phase="opened", input_id=posted_id
+                )
             ),
             "the comment did not enter the empty-input resumed turn",
         )

@@ -39,6 +39,7 @@ from typing import Self
 
 import click
 from leaf.codex import APP_SERVER_ENV
+from leaf.delivery import opened_input_ids
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 from leaf.tasks import start_reading
 from leaf.thread import successful_replies
@@ -658,16 +659,6 @@ def inputs_received(events: list[dict], attempts: set[str]) -> bool:
     posted = [e for e in events if e.get("attempt") in attempts]
     inputs = {e["id"] for e in posted if e["attention"]}
     return len(posted) == len(attempts) and inputs <= opened_input_ids(events)
-
-
-def opened_input_ids(events: list[dict]) -> set[str]:
-    """The admitted attention inputs whose reader recorded an opened pickup."""
-    return {
-        ident
-        for e in events
-        if e["kind"] == "pickup" and e["phase"] == "opened"
-        for ident in e["events"]
-    }
 
 
 def read_trace(stream: Path) -> list[dict]:

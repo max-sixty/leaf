@@ -371,33 +371,18 @@ def cmd_comment(
         return append_admitted(page, event)
 
 
-def response_replies(events: list[dict], for_event: str) -> list[dict]:
-    """Admitted replies to this exact input, including harness failure receipts.
-
-    ``parent`` seats a message in a thread; ``responds`` names the input it answers.
-    Progress and user messages carry no response address and are not outcomes.
-    """
-    return [
-        event
-        for event in events
-        if event["kind"] == "reply" and event.get("responds") == for_event
-    ]
-
-
-def successful_replies(events: list[dict], for_event: str) -> list[dict]:
-    """Successful exact answers, in log order; failure receipts are not answers."""
-    return [
-        event for event in response_replies(events, for_event) if "failure" not in event
-    ]
-
-
 def answered_by_reply(events: list[dict], for_event: str) -> bool:
     """A successful exact reply wins over every later delivery completion.
 
     Failure receipts and user settlement do not assert a provider answer, so a
     recovered final message may still answer that original delivered address.
     """
-    return bool(successful_replies(events, for_event))
+    return any(
+        event["kind"] == "reply"
+        and event.get("responds") == for_event
+        and "failure" not in event
+        for event in events
+    )
 
 
 @contract_writer

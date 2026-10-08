@@ -57,7 +57,6 @@ from urllib.parse import urljoin, urlsplit
 
 import click
 from leaf.harness import ClaudeCodeHarness, CodexHarness
-from leaf.thread import response_replies, successful_replies
 from playwright.sync_api import BrowserContext, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -208,7 +207,7 @@ def recorded_steps(events: list[dict], comment: dict, published: dict) -> dict:
     )
     replies = [e for e in events if e["kind"] == "reply" and e.get("parent") == thread]
     progress = next((e["ts"] for e in replies if e.get("ephemeral")), None)
-    replied = next(iter(successful_replies(events, comment["id"])), None)
+    replied = deployment_answer(replies)
     return {
         step: None if at is None else round(instant(at) - admitted, 3)
         for step, at in (
@@ -307,6 +306,19 @@ def startup_failed(replies: list[dict]) -> bool:
 def turn_failed(replies: list[dict]) -> bool:
     """Whether the harness closed the turn with one of its failure receipts."""
     return any("failure" in reply for reply in replies)
+
+
+def deployment_answer(replies: list[dict]) -> dict | None:
+    """Return the agent's answer, rather than a progress update or a
+    harness-generated failure receipt."""
+    return next(
+        (
+            reply
+            for reply in replies
+            if "failure" not in reply and not reply.get("ephemeral")
+        ),
+        None,
+    )
 
 
 def check_turn_answered(
@@ -419,8 +431,12 @@ def await_turn(
     while True:
         current = read_state(session)
         profile.observe(current)
-        replies = response_replies(current["events"], comment["id"])
-        answer = next(iter(successful_replies(replies, comment["id"])), None)
+        replies = [
+            event
+            for event in current.get("events", [])
+            if event.get("kind") == "reply" and event.get("parent") == comment["id"]
+        ]
+        answer = deployment_answer(replies)
         active = current["active"]
         if published is None and active["revision"] > revision:
             # The turn may publish a checkpoint first, so read the document for the

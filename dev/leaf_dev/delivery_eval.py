@@ -16,7 +16,6 @@ from pathlib import Path
 
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
-from leaf.thread import successful_replies
 
 from leaf_dev.arms import (
     accepted_starts,
@@ -110,7 +109,10 @@ def score(run: Path) -> list[dict]:
         )
         replies = [
             datetime.fromisoformat(e["ts"]).timestamp()
-            for e in successful_replies(events, comment["id"])
+            for e in events
+            if e["kind"] == "reply"
+            and e.get("parent") == comment["id"]
+            and not e.get("ephemeral")
         ]
         # From the post to the turn's end: what carried the comment in, what the
         # agent ran before claiming its work, and the claim.

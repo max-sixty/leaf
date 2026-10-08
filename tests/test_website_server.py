@@ -3731,7 +3731,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         ]
         assert [event["id"] for event in failures] == [reply["id"]]
         assert journey.startup_failed(failures)
-        assert not journey.successful_replies(failures, comment["id"])
+        assert journey.deployment_answer(failures) is None
         repeated, _ = post(
             f"{root}/examples/decision/_leaf/agent/fail",
             {"event": comment["id"], "failure": "startup_failed"},
@@ -4327,7 +4327,7 @@ def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir, failure):
     assert event_record_error(contract, replies[0]) is None
     assert journey.turn_failed(replies)
     assert journey.startup_failed(replies) == (failure == "startup_failed")
-    assert not journey.successful_replies(replies, comment["id"])
+    assert journey.deployment_answer(replies) is None
     assert not state["activity"]["obligations"]
     assert harness.attach(page_dir, comment["id"]) is None
 
@@ -4436,7 +4436,6 @@ class _FailedFirstTurn:
 
     def post(self, url: str, data: dict, **kwargs) -> _Read:
         comment = {
-            "kind": "comment",
             "id": f"comment-{len(self.comments) + 1}",
             "attempt": data["attempt"],
             "revision": data["revision"],
@@ -4460,7 +4459,6 @@ class _FailedFirstTurn:
             {
                 "kind": "reply",
                 "parent": "comment-1",
-                "responds": "comment-1",
                 "text": "The harness could not start this task.",
                 "failure": self.failure,
             },
@@ -4472,12 +4470,7 @@ class _FailedFirstTurn:
                 "events": events,
             }
         events.append(
-            {
-                "kind": "reply",
-                "parent": "comment-2",
-                "responds": "comment-2",
-                "text": "deployment verified",
-            }
+            {"kind": "reply", "parent": "comment-2", "text": "deployment verified"}
         )
         return {
             "active": {"revision": 2, "url": "revisions/2.html"},
@@ -4525,12 +4518,12 @@ def test_the_deploy_gate_reads_outcomes_independently_of_reply_wording():
         "I finished without posting a reply. Please send a new message to try again.",
         "This public demo is busy right now. Please wait a minute, then send a new message.",
     ):
-        answer = {"kind": "reply", "responds": "input", "text": text}
-        assert journey.successful_replies([answer], "input") == [answer]
+        answer = {"text": text}
+        assert journey.deployment_answer([answer]) is answer
         assert not journey.turn_failed([answer])
         for failure in ("startup_failed", "rate_limited"):
-            receipt = {**answer, "failure": failure}
-            assert not journey.successful_replies([receipt], "input")
+            receipt = {"text": text, "failure": failure}
+            assert journey.deployment_answer([receipt]) is None
             assert journey.turn_failed([receipt])
 
 
@@ -4716,7 +4709,6 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
             {
                 "kind": "reply",
                 "parent": "comment-id",
-                "responds": "comment-id",
                 "text": "A newly worded harness failure.",
                 "failure": failure,
             }
@@ -4793,8 +4785,8 @@ def test_a_progress_update_is_timed_apart_from_the_answer():
         "ephemeral": True,
         "ts": "2026-10-04T12:00:03.000-07:00",
     }
-    assert not journey.successful_replies([progress], comment["id"])
-    assert journey.successful_replies([progress, reply], comment["id"]) == [reply]
+    assert journey.deployment_answer([progress]) is None
+    assert journey.deployment_answer([progress, reply]) is reply
     published = {"activated_at": "2026-10-04T19:00:12+00:00"}
     assert journey.recorded_steps([comment, progress, reply], comment, published) == {
         "titled": None,
@@ -5228,7 +5220,6 @@ TURN_LOG = [
     {
         "kind": "reply",
         "parent": "test-comment",
-        "responds": "test-comment",
         "text": "deployment verified",
         "ts": "2026-10-04T12:00:12.500-07:00",
     },

@@ -19,7 +19,6 @@ from pathlib import Path
 import click
 from leaf.harness import ClaudeCodeHarness
 from leaf.service import requires_agent_attention
-from leaf.thread import successful_replies
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -1122,7 +1121,12 @@ def score_resume(run: Run, replies: list[str]) -> dict:
             for s in state.get("state", [])
         ),
         "no_restated": "restated" not in html,
-        "replied": bool(successful_replies(events, batch_comment)),
+        "replied": any(
+            e.get("kind") == "reply"
+            and e.get("author") == "agent"
+            and e.get("parent") == batch_comment
+            for e in events
+        ),
         "date_final": (
             re.search(r'id="cutover-date"[^>]*>(.*?)</p>', html, re.DOTALL)
             or [None, ""]
@@ -1297,6 +1301,17 @@ def claimed_first(trace: list[dict], thread: str) -> bool:
     return any(index < reply for index in accepted_starts(trace, thread).values())
 
 
+def answered(events: list[dict], event_id: str) -> list[dict]:
+    """The agent's replies to one event."""
+    return [
+        e
+        for e in events
+        if e["kind"] == "reply"
+        and e["author"] == "agent"
+        and event_id in (e.get("parent"), e.get("responds"))
+    ]
+
+
 def round_scores(trace: list[dict], r: dict, name: str) -> dict:
     """Confirmed input, watch ownership left to Leaf, and a waiting handover URL."""
     if r["delivery"] is None or r["end"] is None:
@@ -1342,12 +1357,12 @@ def score_handoff(run: Run, trace: list[dict]) -> dict:
             "edit_claimed": r["delivery"] is not None
             and r["end"] is not None
             and claimed_first(trace[r["delivery"] : r["end"]], comment["id"]),
-            "edit_replied": bool(successful_replies(events, comment["id"])),
+            "edit_replied": bool(answered(events, comment["id"])),
             "edit_done": check(DRY_RUN_DONE, element_text(html, "dry-run")),
         }
     if len(rounds) > 1:
         question = posted_event(run.work / "page", attempt_key(1, 0))
-        replies = successful_replies(events, question["id"])
+        replies = answered(events, question["id"])
         out |= round_scores(trace, rounds[1], "question") | {
             "question_answered": any(
                 check(r"snapshot", e.get("text", ""))
@@ -1388,7 +1403,7 @@ def score_mixed(run: Run, trace: list[dict]) -> dict:
         "comment_claimed": r["delivery"] is not None
         and r["end"] is not None
         and claimed_first(trace[r["delivery"] : r["end"]], comment["id"]),
-        "comment_replied": bool(successful_replies(events, comment["id"])),
+        "comment_replied": bool(answered(events, comment["id"])),
         "comment_done": check(DRY_RUN_DONE, element_text(html, "dry-run")),
         "stamped": len(state.get("versions", [])) >= 2,
         # Leaf's own reading: the pick owes nothing more, and the user still sees it,
@@ -1427,7 +1442,7 @@ def score_mixed(run: Run, trace: list[dict]) -> dict:
             )
             or f'resolves="{reaction["id"]}"' in html
         ),
-        "reaction_unreplied": not successful_replies(events, reaction["id"]),
+        "reaction_unreplied": not answered(events, reaction["id"]),
         "undo_kept": "card-lag-alert" in column_cards(html, "col-open")
         and column_cards(html, "col-done") == [],
         # Every regular expression the page's script passes to replaceAll is global.
@@ -1488,7 +1503,7 @@ def score_elided(run: Run, trace: list[dict]) -> dict:
         ),
         None,
     )
-    replies = successful_replies(events, question["id"])
+    replies = answered(events, question["id"])
     return out | {
         # Validity: the delivery shortened the thread, as the case assumes.
         "shown_elided": any(

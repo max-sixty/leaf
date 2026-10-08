@@ -15,7 +15,6 @@ import click
 from leaf.event_log import read_events
 from leaf.server import running_server
 from leaf.service import page_claim
-from leaf.thread import successful_replies
 
 from leaf_dev import ROOT
 from leaf_dev.arms import PageClient, run_leaf
@@ -69,7 +68,13 @@ def comment_id(page: Path, step: str) -> str:
 def answers(page: Path, step: str) -> list[dict]:
     """The replies that answer one posted comment; a failure receipt is not one."""
     posted = comment_id(page, step)
-    return successful_replies(read_events(page), posted)
+    return [
+        event
+        for event in read_events(page)
+        if event["kind"] == "reply"
+        and event.get("responds") == posted
+        and "failure" not in event
+    ]
 
 
 def settled(page: Path, session: str, posted: list[str]) -> dict:

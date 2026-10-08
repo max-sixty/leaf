@@ -10,6 +10,7 @@ import json
 import os
 import re
 import select
+import shlex
 import shutil
 import socket
 import subprocess
@@ -48,6 +49,8 @@ from interact_support import (
     publish,
     read_page_data,
     record_claim,
+    release_codex_command,
+    retire_test_services,
     running_http_server,
     spawn_probe,
     thread_records,
@@ -56,6 +59,7 @@ from interact_support import (
 )
 from leaf import activity as activity_model
 from leaf import cli as cli_model
+from leaf import codex_adapter as codex_adapter_model
 from leaf import data as data_model
 from leaf import detached as detached_model
 from leaf import document_reading as document_reading_model
@@ -285,7 +289,11 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     assert f'data-lf-page-root="{child.removeprefix(server)}"'.encode() in document
     served = structure_model.SourceDocument(document.decode()).tree
     assert "inert" in served.find("body").attrs
+    trace = page_dir / interaction_model.INTERACTIONS_FILE
+    before_housekeeping = trace.read_bytes()
+    assert fetch(child + "/api/news")[0] == 200
     assert fetch(child + "/theme.css") == (200, captured_theme)
+    assert trace.read_bytes() == before_housekeeping
     [module_path] = re.findall(rb'src="([^"]+/page/sample.js)"', document)
     assert module_path == f"{root}/page/sample.js".encode()
     assert fetch(server + module_path.decode()) == (200, module)
@@ -313,6 +321,7 @@ def test_samples_use_captured_resources_and_independent_event_logs(server, page_
     _, raw = fetch(child + "/api/state")
     assert len(json.loads(raw)["events"]) == 1
     assert event_model.read_events(page_dir) == parent_before
+
     status, answer = fetch(
         child + "/api/event",
         layer=generation,
@@ -3335,7 +3344,7 @@ def test_unchanged_presence_observation_is_shared_and_file_changes_refresh_it(
     )
     refreshed = presence_model.presence_reading(page_dir)
     assert refreshed == first
-    assert calls == 2
+    assert calls == 1
 
 
 def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
@@ -3382,7 +3391,7 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
     assert row["activity"] == expected
     assert row["activity"]["counts"]["pending"] == 1
     assert row["session_cwd"] == "/work/neighbor"
-    assert reads == [neighbor / "service.json", publisher.path]
+    assert reads == [neighbor / "service.json"]
     cleanup_model.write_json(neighbor / "status.json", {"state": "idle"})
     assert presence_model.other_leaves(page_dir) == [row]
     # Shared-home records from an incompatible producer stay absent, including
@@ -3399,6 +3408,76 @@ def test_neighbors_read_only_compact_canonical_output(page_dir, monkeypatch):
         neighbor / "service.json", {**service, "server_id": "replacement"}
     )
     assert presence_model.other_leaves(page_dir) == []
+
+
+def test_a_pages_own_row_publications_do_not_rescan_its_neighbors(
+    page_dir, monkeypatch
+):
+    """A local writer publishes its row, which is not this page's neighbor input.
+
+    The real producer changes compact activity after status transitions. Twenty
+    own publications must reuse the neighbor observation; another producer's
+    changed row must invalidate it immediately and preserve its new content.
+    """
+    neighbor = machine_model.state_home() / "pages" / "row-neighbor"
+    neighbour_page(neighbor, title="Neighbor")
+    own = server_rows_model.RowPublisher(page_dir, "own-server")
+    own.refresh()
+    calls = []
+    read = presence_model.other_leaves
+
+    def observe(page):
+        calls.append(page)
+        return read(page)
+
+    monkeypatch.setattr(presence_model, "other_leaves", observe)
+    presence_model._neighbor_reading(page_dir)
+    for n in range(20):
+        cleanup_model.write_json(
+            page_dir / "status.json",
+            {"state": "waiting", "detail": str(n), "ts": cleanup_model.now_iso()},
+        )
+        own.refresh()
+        record = files_model.read_json(own.path)
+        # Give every pass a concrete changed canonical producer publication,
+        # even when waiting's detail is absent from the compact activity fold.
+        cleanup_model.write_json(
+            own.path, {**record, "row": {**record["row"], "title": f"Own {n}"}}
+        )
+        presence_model._neighbor_reading(page_dir)
+    assert len(calls) == 1
+    changed = server_rows_model.row_path(neighbor)
+    record = files_model.read_json(changed)
+    cleanup_model.write_json(
+        changed, {**record, "row": {**record["row"], "title": "Changed neighbor"}}
+    )
+    [row] = presence_model._neighbor_reading(page_dir)
+    assert row["title"] == "Changed neighbor"
+    assert len(calls) == 2
+
+
+def test_neighbor_subscription_follows_a_row_directory_created_after_startup(
+    page_dir, tmp_path
+):
+    """A missing rows/ starts with its parent subscription, then subscribes rows/.
+
+    The second publication's exact path proves delivery from the new directory,
+    rather than the synchronous stamp fallback finding it during a later read.
+    """
+    rows = machine_model.state_home() / "rows"
+    assert not rows.exists()
+    assert presence_model.neighbor_candidates() == ()
+    neighbor = tmp_path / "new-neighbor"
+    neighbour_page(neighbor, title="New neighbor")
+    assert presence_model.neighbor_candidates()
+    published = rows / "second.json"
+    cleanup_model.write_json(published, {"page": str(tmp_path / "second")})
+    paths = set()
+    wait_for(
+        lambda: paths.update(presence_model._row_subscription.batch(0)) or paths,
+        lambda delivered: str(published) in delivered,
+        failure="the rows subscription did not receive the second publication",
+    )
 
 
 def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
@@ -4383,22 +4462,25 @@ def test_a_page_reading_moves_for_a_second_write_in_one_clock_tick(
     assert served_reading.page_reading(page_dir) != before
 
 
-def test_neighbour_discovery_sees_a_page_made_in_one_clock_tick(page_dir, monkeypatch):
-    """A page made in the state home's pages/ after a scan taken in the write clock's
+def test_neighbour_discovery_sees_a_row_made_in_one_clock_tick(page_dir, monkeypatch):
+    """A publication made in rows/ after a scan taken in the write clock's
     tick of the change before it, leaving the directory's size unchanged, is still
     discovered: the scan is keyed on the directory's stamp, and a stamp the second
     change left in place would hide the new page until some later write moved it."""
     written = _coarse_write_clock(monkeypatch)
-    pages = machine_model.state_home() / "pages"
-    (pages / "first").mkdir(parents=True)
-    (pages / "placeholder").write_text("")
-    written(pages)
+    rows = machine_model.state_home() / "rows"
+    rows.mkdir(parents=True, exist_ok=True)
+    cleanup_model.write_json(rows / "first.json", {"page": str(page_dir / "first")})
+    (rows / "placeholder").write_text("")
+    written(rows)
     before = presence_model.neighbor_candidates()
-    (pages / "placeholder").unlink()
-    (pages / "second").mkdir()
-    written(pages)
-    assert (pages / "second").resolve() not in before
-    assert (pages / "second").resolve() in presence_model.neighbor_candidates()
+    (rows / "placeholder").unlink()
+    cleanup_model.write_json(rows / "second.json", {"page": str(page_dir / "second")})
+    written(rows)
+    assert page_dir / "second" not in [page for page, _record in before]
+    assert page_dir / "second" in [
+        page for page, _record in presence_model.neighbor_candidates()
+    ]
 
 
 def test_a_snapshot_holds_declared_data_media_with_the_current_value(
@@ -5948,3 +6030,38 @@ def test_nested_sample_fixtures_resolve_in_the_immediate_parent_document(
         event["text"] for event in json.loads(fetch(inner + "api/state")[1])["events"]
     ] == ["Nested fixture"]
     assert event_model.read_events(page_dir) == parent_before
+
+
+def test_test_teardown_ends_detached_delivery_before_removing_state(
+    codex_claimed_page, under_codex, codex_env, codex_queue, tmp_path, isolated_session
+):
+    """Stopping the page alone leaves delivery watching its still-owned claim.
+
+    Teardown ends the synthetic harness while coordination files remain, so
+    its detached adapter releases its leases before temporary state disappears.
+    """
+    page = codex_claimed_page
+    program = Path(codex_queue["PATH"].split(os.pathsep)[0]) / "codex"
+    finished = tmp_path / "codex-start-finished"
+    started = under_codex(
+        shlex.join(
+            [*LEAF_COMMAND, "codex", "start", str(page), "--codex-path", str(program)]
+        ),
+        codex_env | codex_queue | {"CODEX_THREAD_ID": "codex-thread"},
+        finished=finished,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    release_codex_command(page, started, finished)
+    out, err = started.communicate(timeout=STATED_TIMEOUT)
+    assert started.returncode == 0, f"{out}{err}"
+    assert codex_adapter_model.adapter_is_live("codex-thread")
+
+    hosting_model.cmd_stop(page)
+    assert not server_model.running_server(page)
+    assert codex_adapter_model.adapter_is_live("codex-thread")
+
+    retire_test_services(tmp_path, isolated_session)
+    assert cleanup_model.session_record("codex-thread")["ended"] is not None
+    assert not codex_adapter_model.adapter_is_live("codex-thread")

@@ -116,6 +116,10 @@ Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
 appear. A Playwright screenshot of an element taller than the viewport draws
 fixed overlays in the wrong place; crop a viewport capture instead.
 
+Close a browser session you created for a review when its final reading is
+finished. The user's review preview and a browser borrowed from another owner
+keep their own lifetimes.
+
 Before declaring a visible change complete, derive its required visual relationships
 from the reader's task, rather than treating the implementation's passing checks as
 the complete target. For each ordinary input, state which content and controls the
@@ -365,10 +369,12 @@ case nearly fits, extend it with an assertion, a criterion, or context in its pr
 Add a new case only where the change needs measuring and no existing case can carry
 the behavior. What the suite holds then scores later edits, whether fixes or cuts,
 against the behaviors earlier edits had to produce. Keep a case small: one prompt
-carrying only the context the behavior needs, and a few assertions. Measure with
-whatever scenarios and guardrails the change needs, and keep what you add whether or
-not it separated the arms. The leading comment says
-whether the case told two wordings apart or has only guarded.
+carrying only the context the behavior needs, and a few assertions. Explore whatever
+scenarios the change needs, then retain only cases that cover distinct failures or
+necessary controls. Internal maintainer evals stay small and
+sparse; exploratory variants and their evidence stay in the run directory. Remove
+contexts another retained case already covers. The leading comment records the
+case's origin and whether it distinguished the instructions.
 
 The prompt never states the behavior under test. A prompt pointing at a file beyond
 the references names that file from the skill's base directory. Grade a fixed form
@@ -378,8 +384,9 @@ states the passing reading without requiring particular wording.
 Run cold, a case that states the situation plainly usually passes on both arms: the
 failing session had its own earlier turns or a competing instruction pulling the
 other way, so paste those into the prompt. A rule that loses only to a long
-session's context needs a replay of that session instead. Keep a task's diagnostic
-contexts until its complete workflow detects their original failures.
+session's context needs a replay of that session instead. Retain the smallest replay
+that detects the failure; a diagnostic does not need a complete workflow to earn or
+retire its place.
 
 ## Refresh the public catalog stills
 

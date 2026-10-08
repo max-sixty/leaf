@@ -721,10 +721,15 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      not an available strip above it. Its shared scrim therefore stands above the banner
      and below the active surface. Chrome-owned targeting and native top-layer dialogs
      keep their higher planes so a command inside the auxiliary surface can still show its aim. */
+  .lf-auxiliary-envelope { position: absolute; inset: 0 auto auto 0; width: 100vw; height: 100vh;
+    max-width: none; max-height: none; margin: 0; padding: 0; border: 0; overflow: visible;
+    background: transparent; color: inherit; pointer-events: none; }
+  .lf-auxiliary-envelope::backdrop { background: transparent; }
+  .lf-auxiliary-envelope > :is(.lf-drawer-panel, .lf-thread-panel, [popover], dialog) { pointer-events: auto; }
   .lf-auxiliary-scrim { position: fixed; inset: 0;
-    z-index: var(--lf-z-scrim); background: color-mix(in srgb, var(--ink) 24%, transparent); }
+    z-index: var(--lf-z-scrim); background: color-mix(in srgb, var(--ink) 24%, transparent); pointer-events: auto; }
   .lf-auxiliary-scrim[hidden] { display: none; }
-  :is(.lf-drawer-panel, .lf-thread-panel)[aria-modal="true"] { z-index: var(--lf-z-covering-surface); }
+  :is(.lf-drawer-panel, .lf-thread-panel)[data-lf-covered] { z-index: var(--lf-z-covering-surface); }
   /* The rows scroll in a box of their own rather than in the drawer, which is the comment
      panel's shape (.lf-threads) reflected, and here it is what lets the edge exist at
      all: a scroll container clips to its padding box, so an edge straddling the border
@@ -811,24 +816,13 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     z-index: var(--lf-z-surface); color: var(--ink); font: inherit;
     background: var(--card); border: 0; border-left: 1px solid var(--rule); display: none;
     flex-direction: column;
-    /* Written as the shorthand, and for the same reason margin and border above it are:
-       a <dialog> arrives wearing the UA's own box, and a rule that states one side
-       leaves the rest of it standing. padding: 1em stayed on the top and the left, which
-       is 14px of the sheet that belongs to nothing inside it — the head sat 14px in from
-       a rule that had already placed it, and a finger landing in the strip down the left
-       edge, which is where a thumb holding a phone lands, met the dialog rather than the
-       list and scrolled nothing. It was invisible while the reserved gutter hung the
-       whole panel a bar's width off the left of the window (see the root's rule above,
-       and #121), which put the list back under that strip by accident. The safe-area
-       sides are the drawer's, mirrored: this sheet takes the right inset and that one the
-       left, and both take the bottom. */
+    /* The mirrored drawer takes the left safe inset, this panel the right. */
     padding: 0 var(--lf-safe-right) var(--lf-safe-bottom) 0; }
-  .lf-thread-panel[open] { display: flex; }
+  .lf-thread-panel.open { display: flex; }
   /* The panel stands over the page and takes no room from it (theme.css, at
      `--lf-auxiliary-beside`). It shares the auxiliary scrim only where it leaves less than
      a usable page and covers it; elsewhere the page beside it stays live and no scrim
-     shows. The dialog is shown non-modally either way, so it
-     needs no ::backdrop of its own. */
+     shows. The shared native envelope owns the dialog posture. */
   /* Panels resize through one visible, compact grip on their inner border. Its
      focus ring marks that control rather than outlining the whole panel seam.
      The grip stays put as focus and hover change its paint; pointer capture keeps
@@ -1666,9 +1660,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      whose height syncLayout states. A walk's position stays off it: standing there it
      took a strip from the bottom of the thread the user was reading, to say what the
      open card and its pinned title already show. */
-  :scope > .lf-thread-panel[aria-modal="true"] ~ .lf-bottom-status {
+  .lf-auxiliary-envelope > .lf-thread-panel[data-lf-covered] ~ .lf-bottom-status {
     bottom: calc(var(--lf-panel-foot-h, 0px) + 14px + var(--lf-safe-bottom)); translate: none; }
-  :scope > .lf-thread-panel[aria-modal="true"]
+  .lf-auxiliary-envelope > .lf-thread-panel[data-lf-covered]
     ~ .lf-bottom-status:not(:has(> .lf-go-to-status:not([hidden]), > .lf-notice.show)) {
     display: none; }
   .lf-shortcut-bar .lf-shortcut { display: inline-flex; gap: 5px; align-items: baseline; }
@@ -1747,7 +1741,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-page-search-match { position: absolute; box-sizing: border-box; pointer-events: none;
     background: color-mix(in srgb, var(--accent) 17%, transparent);
     box-shadow: inset 0 -2px color-mix(in srgb, var(--accent) 72%, transparent); }
-  .lf-page-search { position: fixed; z-index: var(--lf-z-page-search);
+  .lf-page-search { position: fixed; z-index: var(--lf-z-page-search); pointer-events: auto;
     top: calc(var(--lf-banner-h) + 10px); left: 50%; transform: translateX(-50%);
     width: min(390px, calc(100vw - 28px)); box-sizing: border-box;
     display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;

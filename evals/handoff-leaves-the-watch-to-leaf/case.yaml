@@ -24,16 +24,6 @@ vars:
     order, each command you would run before your closing message, then give the
     closing message itself.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-claude-code-harness
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/harness-claude-code\.md
 - type: llm-rubric
   metric: judgment
   value: |

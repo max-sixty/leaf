@@ -462,10 +462,10 @@ def canonical_activity(
 
     `bindings` are the stream's reply bindings. A reply address whose binding
     stands (`reply_binding_stands`) is the claimant's App Server turn to write,
-    with its own opening and final messages, so its workflow's answer reads as a
-    `turn` under the binding's attempt: every consumer that holds the agent to an
-    answer, or refuses a second writer, reads that answer rather than the
-    binding."""
+    with its own opening and final messages. Its workflow keeps the `reply`
+    answer kind and adds `writer: "turn"` and the binding's attempt. Every
+    consumer that holds the agent to an answer, or refuses a second writer,
+    reads that answer rather than the binding."""
     from .tasks import TaskReading
 
     log = task_reading or TaskReading(events)

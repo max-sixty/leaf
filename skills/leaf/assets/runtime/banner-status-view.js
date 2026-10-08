@@ -24,14 +24,14 @@ import { keeps, keepsText } from "./keeps.js";
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
 const TAG = "leaf-banner-status";
 const website = document.querySelector("script[data-lf-server][data-lf-release]");
-const connecting = website ? "Starting website agent…" : "Connecting…";
+const connecting = website ? "Connecting to the Leaf website…" : "Connecting…";
 const INITIAL = Object.freeze({
   tone: "",
   summary: connecting,
   queues: "",
   queuesWidest: "",
   explanation: website
-    ? "Starting the agent for this website page. Website examples can take longer to connect than a usual Leaf page."
+    ? "Loading this website page. Website examples can take longer to connect than a usual Leaf page."
     : connecting,
   publication: null,
 });

@@ -22,6 +22,7 @@ from .leases import wait_is_live
 from .page_view import PageView
 from .presence import claimant_reading
 from .registry.contract import RegistryError
+from .registry.schema import json_value
 from .service import PageTransaction, requires_agent_attention
 from .thread_titles import name_admitted_thread
 
@@ -95,7 +96,9 @@ def accept_event(
     )
     kind = event.get("kind")
     if not isinstance(kind, str) or kind not in browser_kinds:
-        return event_rejection(event, f"kind must be one of {browser_kinds}")
+        return event_rejection(
+            event, f"kind must be one of {json_value(browser_kinds)}"
+        )
     # The server owns the record envelope and agent identity. Removing client
     # copies before validation prevents them from entering attempt identity too.
     for field in ("id", "author", "agent", "session", "ts", "seq", "attention"):

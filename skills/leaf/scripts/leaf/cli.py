@@ -813,22 +813,6 @@ def _title_option(command):
     )(command)
 
 
-def _name(page_dir: Path, message: str, title: str | None) -> None:
-    """Name the thread a posted message is in, unless something named it first."""
-    from leaf.thread import cmd_name
-
-    if title is None:
-        return
-    if record := cmd_name(page_dir, message, title):
-        _print_records(record)
-    else:
-        print(
-            "the thread already has a title, which stands; "
-            f"`leaf thread edit {page_dir} {message} --title` renames it",
-            file=sys.stderr,
-        )
-
-
 def _titled(page_dir: Path, title: str | None) -> None:
     """Refuse a title admission would refuse before its command posts anything.
     Past this the title can fail only with the page itself, and then the message
@@ -868,93 +852,86 @@ def thread_open(
     from leaf.thread import cmd_comment
 
     page_dir = resolve_dir(dir)
-    _titled(page_dir, title)
-    accepted = cmd_comment(page_dir, quote, section, part, text, markup)
+    accepted = cmd_comment(page_dir, quote, section, part, text, markup, title=title)
     _print_records(accepted)
-    _name(page_dir, accepted["id"], title)
 
 
-@thread.command("reply", short_help="Reply to a thread as the agent.")
-@click.argument("dir", metavar="PAGE")
-@click.argument("thread", metavar="[THREAD]", required=False)
+def _reply_options(command):
+    """The one complete author interface for addressed and proactive replies."""
+    for option in (
+        click.option("--quote", help="new passage text to move this thread onto"),
+        click.option(
+            "--section", metavar="ID", help="new element ID, or scope for --quote"
+        ),
+        click.option(
+            "--part", metavar="ID", help="new declared visual part within --section"
+        ),
+        click.option("--detach", is_flag=True, help="remove the thread's page target"),
+        click.option("--text", help="reply text (default: stdin)"),
+        click.option(
+            "--markup", default="", help="frozen widget markup after the text"
+        ),
+        click.option(
+            "--awaits", is_flag=True, help="the reply asks the user a question"
+        ),
+        click.option(
+            "--ephemeral", is_flag=True, help="one-line progress, without answering"
+        ),
+        _title_option,
+    ):
+        command = option(command)
+    return command
+
+
+@cli.group(short_help="Answer exact response references carried by a delivery.")
+def response() -> None:
+    """A response reference selects its page, input and frozen thread destination."""
+
+
+@response.command("reply", short_help="Author a complete addressed reply.")
+@click.argument("reference", metavar="REFERENCE")
 @click.option(
-    "--for",
-    "for_event",
-    metavar="EVENT_ID",
-    help="delivery event whose current reply obligation this answers",
+    "--attempt", help="retry identity (ordinary replies default to the reference)"
 )
-@click.option("--quote", help="new passage text to move this thread onto")
-@click.option("--section", metavar="ID", help="new element ID, or scope for --quote")
-@click.option("--part", metavar="ID", help="new declared visual part within --section")
-@click.option(
-    "--detach",
-    is_flag=True,
-    help="remove the current page target when its subject leaves the page",
-)
-@click.option("--text", help="reply text (default: stdin)")
-@click.option("--markup", help="widget markup to render after the text, validated here")
-@click.option(
-    "--awaits", is_flag=True, help="the reply's prose asks the user a question"
-)
-@click.option(
-    "--ephemeral",
-    is_flag=True,
-    help=(
-        "progress update; on an update you owe, one line that takes it in hand. "
-        "Folds when the next ordinary agent reply arrives"
-    ),
-)
-@_title_option
-def thread_reply(
-    dir: str,
-    thread: str | None,
-    for_event: str | None,
-    quote: str,
-    section: str,
-    part: str,
-    detach: bool,
-    text: str,
-    markup: str,
-    awaits: bool,
-    ephemeral: bool,
-    title: str | None,
+@click.option("--failure", help="failure code when no answer is coming")
+@_reply_options
+def response_reply(
+    reference: str, attempt: str | None, failure: str | None, **options
 ) -> None:
-    """Post a threaded reply as the agent (--text or stdin).
+    """Answer the exact REFERENCE printed in a delivery's answer.ref.
 
-    Answer user input with --for EVENT_ID. With exactly one outstanding reply
-    in this turn's opened delivery, omit it to select that reply. THREAD, by
-    any message in it, posts a new agent message there instead, refused while
-    that thread owes a reply.
+    Text, frozen widgets, prose questions, titles and anchor moves share this command.
+    It validates saved page edits. An active provider reservation prepares full
+    content for that turn's completed final, which activates and commits it.
+    Without that reservation, this command activates edits and commits the reply.
+    Repeating a committed reply's reference returns its earlier record;
+    --attempt names retries of progress.
+    """
+    from leaf.thread import post_response
 
-    --ephemeral posts progress without answering. On an update you owe, it also takes
-    the update in hand as `leaf task start` does, with its one line as the Working line.
+    if attempt is not None:
+        options["attempt"] = attempt
+    _print_records(*post_response(reference, failure=failure, **options))
 
-    --quote, --section, and --part move the thread's current anchor; --detach
-    removes it when the subject leaves the page. The original anchor stays in
-    the log. A reply validates and activates any changed source before posting.
+
+@thread.command("reply", short_help="Add an agent-initiated reply to a thread.")
+@click.argument("dir", metavar="PAGE")
+@click.argument("thread", metavar="THREAD")
+@_reply_options
+def thread_reply(dir: str, thread: str, **options) -> None:
+    """Post a new agent message to THREAD (--text or stdin).
+
+    A message is refused while the thread owes a response; answer its
+    delivery reference with `leaf response reply`. --ephemeral posts progress.
+    Saved page edits are validated and activated before posting.
     """
     from leaf.thread import post_reply
 
-    if thread is not None and for_event is not None:
-        raise click.UsageError("THREAD and --for cannot be used together")
-    page_dir = resolve_dir(dir)
-    _titled(page_dir, title)
-    reply, *started = post_reply(
-        page_dir,
-        thread,
-        text,
-        markup,
-        awaits,
-        for_event=for_event,
-        quote=quote,
-        section=section,
-        part=part,
-        detach=detach,
-        validate_source=True,
-        ephemeral=ephemeral,
+    _print_records(
+        *post_reply(
+            resolve_dir(dir), thread, for_event=None, validate_source=True, **options
+        )
     )
-    _print_records(reply, *started)
-    _name(page_dir, reply["id"], title)
 
 
 @thread.command("edit", short_help="Edit a message's text, or its thread's title.")

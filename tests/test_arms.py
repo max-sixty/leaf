@@ -46,10 +46,17 @@ def test_codex_command_and_turn_success_are_observed_harness_results():
 
 
 def test_a_progress_update_on_an_owed_move_is_an_accepted_start():
-    """An ephemeral reply to a move takes it in hand and prints that start, so it
-    counts; a read of the log printing the same start record does not."""
+    """Addressed progress takes a move in hand in its reply record; reading that
+    record from the log does not count as a new start."""
     start = json.dumps({"kind": "start", "item": "comment", "text": "editing"})
-    reply = json.dumps({"kind": "reply", "ephemeral": True, "text": "editing"})
+    reply = json.dumps(
+        {
+            "kind": "reply",
+            "ephemeral": True,
+            "text": "editing",
+            "start": {"item": "comment"},
+        }
+    )
 
     def call(identity, command, output):
         return [
@@ -83,9 +90,9 @@ def test_a_progress_update_on_an_owed_move_is_an_accepted_start():
 
     trace = call(
         "progress",
-        "leaf thread reply page --for comment \\\n  --ephemeral --text editing",
-        f"{reply}\n{start}",
-    ) + call("read", "leaf page events page", start)
+        "leaf response reply delivery:0:comment \\\n  --ephemeral --text editing",
+        reply,
+    ) + call("read", "leaf page events page", f"{reply}\n{start}")
     assert accepted_starts(trace, "comment") == {"progress": 1}
 
 

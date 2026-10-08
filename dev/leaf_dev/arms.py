@@ -38,6 +38,7 @@ from typing import Self
 
 import click
 from leaf.codex import APP_SERVER_ENV
+from leaf.tasks import start_reading
 from leaf.harness import IDENTITY_VARIABLES, ClaudeCodeHarness, CodexHarness
 
 from leaf_dev import ROOT
@@ -669,10 +670,10 @@ def token_counts(trace: list[dict]) -> dict[str, int | None]:
 
 def accepted_starts(trace: list[dict], item: str) -> dict[str, int]:
     """Bash call ids whose successful result takes ITEM in hand: a `leaf task start`,
-    or a `leaf thread reply --ephemeral` on a move owed, which writes the same start.
+    or addressed `leaf response reply --ephemeral`, whose record includes the start.
 
     A start prints the record it appended as one JSON line. Compound Bash output may
-    contain other lines; only a `start` record naming ITEM counts, never an attempted
+    contain other lines; only a canonical start reading naming ITEM counts, never an attempted
     command, and only from a command that writes one, so a read of the log printing
     an old start does not. Values are the result's trace index.
     """
@@ -682,7 +683,7 @@ def accepted_starts(trace: list[dict], item: str) -> dict[str, int]:
         if block.get("type") == "tool_use"
         and block["name"] == "Bash"
         and re.search(
-            r"\btask\s+start\b|\bthread\s+reply\b(?:[^\n]|\\\n)*--ephemeral\b",
+            r"\btask\s+start\b|\b(?:thread|response)\s+reply\b(?:[^\n]|\\\n)*--ephemeral\b",
             block["input"].get("command", ""),
         )
     }
@@ -710,8 +711,8 @@ def accepted_starts(trace: list[dict], item: str) -> dict[str, int]:
                     continue
                 if (
                     isinstance(written, dict)
-                    and written.get("kind") == "start"
-                    and written.get("item") == item
+                    and (start := start_reading(written)) is not None
+                    and start["item"] == item
                 ):
                     accepted[block["tool_use_id"]] = index
     return accepted

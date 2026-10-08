@@ -636,9 +636,24 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
     page, and a task on the user on no Ask, which already is one; an outcome ends a
     task still open as its `ends` allows; a start names an open task or a move the
     agent owes (`tasks.task_error`)."""
-    if event["kind"] not in {"task", "task_end", "start"}:
+    from leaf.tasks import start_reading
+
+    progress_parent = (
+        event["parent"] if event["kind"] == "reply" and "start" in event else None
+    )
+    if start := start_reading(event):
+        event = start
+    elif event["kind"] not in {"task", "task_end"}:
         return None
     workflows = admission_workflows(readings)[0] if event["kind"] != "task_end" else []
+    if progress_parent is not None and not any(
+        item["input"] == event["item"]
+        and item["next_actor"] == "agent"
+        and item["answer"]["kind"] == "reply"
+        and item["answer"]["to"] == progress_parent
+        for item in workflows
+    ):
+        return "progress must take in hand the reply input addressed by its parent"
     threads = (
         build_threads(events, view.within, withdrawn=taken_back(events))
         if event["kind"] == "task"

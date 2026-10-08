@@ -55,7 +55,7 @@ const NOUNS = Object.freeze({ widget: "ask", reply: "question" });
 export const taskNoun = (item) =>
   item.kind === "task"
     ? (NOUNS[item.ends] ?? "task")
-    : item.kind === "answer" && ["reply", "turn"].includes(item.answer?.kind)
+    : item.kind === "answer" && item.answer?.kind === "reply"
       ? "reply"
       : item.kind;
 

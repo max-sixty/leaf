@@ -21,7 +21,7 @@ Every transport into your context presents an immutable object of the same shape
 
 ```json
 {
-  "format": "leaf-delivery-v3",
+  "format": "leaf-delivery-v4",
   "id": "a1b2c3d4",
   "created_at": 0,
   "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; …",
@@ -48,9 +48,10 @@ once how to confirm receipt and how to answer:
   context. Follow that instruction. When it is `null`, your harness confirms
   receipt; run no separate acknowledgement command. Your harness contract explains
   its mechanism.
-- A thread reply's `answer` is `turn` where the delivery arrives in a turn Leaf
-  started over Codex App Server, which writes it with its own messages, and
-  `reply`, for `leaf thread reply`, everywhere else.
+- Each `answer` has a complete immutable `ref`. For `kind: "reply"`,
+  `leaf response reply <answer.ref>` authors it. Its `writer` records custody at
+  capture, with the `agent` command or provider `turn`; the selected harness
+  contract describes that turn's opening and completion.
 
 Each event retains its stored identity, fields and order, less the browser's
 retry key `attempt`, then adds these delivery readings:
@@ -70,16 +71,19 @@ retry key `attempt`, then adds these delivery readings:
 - `threads` lists every thread the event belongs to. Membership is
   many-to-many: it provides context and never partitions or duplicates the event.
 - `answer`, when present, freezes the answer the event owed at capture: its
-  `kind` (`reply`, `turn` or `markup`) with the address it is written
-  under, the same object `leaf page state` lists for the move's workflow. The
+  `kind` (`reply` or `markup`) with its immutable response reference.
+  `leaf page state` lists the current move's obligation; the delivered reference
+  retains the exact captured page and input. The
   event's `handling` clauses say how to write it. Until the answer is written,
   `leaf status idle` refuses, and the Stop hook holds the turn open unless that turn
   started the move (`references/conversation-loop.md`, "Long-running work").
   Re-read current state before writing because later evidence may already have
-  settled the requirement. A `reply` or `turn` answer carries both `to`, the thread
-  address to write under, and `for`, the exact event whose answer the write must
-  still satisfy; a `turn` answer also names the reply `attempt` its turn commits
-  under, and `leaf thread reply` refuses it. An event without one owes nothing of its own:
+  settled the requirement. A `reply` carries `to`, the captured thread address,
+  and `for`, the exact input; its `writer` records custody at capture.
+  [Threads](threads.md) owns rich authoring on the reference, including preparation
+  for a provider's final. A `markup` answer names the page revision operation its
+  `handling` requires; a conversation reply cannot replace that operation.
+  An event without an answer owes nothing of its own:
   a page action that answers no Ask, a pick before the Done its Ask waits for, or a
   message a newer one in its thread answers through.
 - `handling`, when present, lists clause ids in the batch's `handling` object,

@@ -50,7 +50,6 @@ from .codex_state import (
     hook_turn,
 )
 from .delivery import (
-    DELIVERY_FORMAT,
     DeliveryIdConflict,
     ReceiptRefused,
     batch_data,
@@ -59,7 +58,10 @@ from .delivery import (
     freeze_delivery,
     new_delivery_id,
     pages_gone,
+    read_delivery,
+    readable_delivery,
     receive_batch,
+    stream_reply_target,
     record_pickup,
     validate_delivery_id,
 )
@@ -118,7 +120,7 @@ LEAF_THREAD_CONFIG = {
 # A collecting record holds captured events in the delivery's own shape, so the
 # version moves with it; a record of another version is ignored, and the events
 # its page has not acknowledged are captured afresh.
-RECORD_FORMAT = "leaf-codex-delivery-v2"
+RECORD_FORMAT = "leaf-codex-delivery-v3"
 STREAM_UPDATE_INTERVAL = 0.2
 STREAM_TEXT_METHODS = {"item/reasoning/summaryTextDelta"}
 STREAM_MESSAGE_METHOD = "item/agentMessage/delta"
@@ -441,8 +443,8 @@ def app_server_delivery_id(message: dict) -> str | None:
                 continue
             if (
                 isinstance(payload, dict)
-                and payload.get("format") == DELIVERY_FORMAT
                 and isinstance(payload.get("id"), str)
+                and readable_delivery(payload, payload["id"])
             ):
                 add(payload["id"])
             continue
@@ -1298,6 +1300,13 @@ def read_record(path: Path) -> dict | None:
         or not record["batches"]
     ):
         return None
+    if record["state"] in {"offering", "accepted"}:
+        try:
+            payload = read_json(delivery_path(path.stem))
+        except (ValueError, OSError):
+            return None
+        if not readable_delivery(payload, path.stem):
+            return None
     transport = record.get("transport")
     if (record["state"] == "accepted" or "transport" in record) and (
         not isinstance(transport, dict)
@@ -1353,10 +1362,11 @@ def read_record(path: Path) -> dict | None:
                     return None
                 fields = {
                     "reply": ("to", "for"),
-                    "turn": ("to", "for", "attempt"),
                     "markup": ("action",),
-                }.get(answer["kind"], ())
-                if any(not isinstance(answer.get(key), str) for key in fields):
+                }.get(answer["kind"])
+                if fields is None or any(
+                    not isinstance(answer.get(key), str) for key in fields
+                ):
                     return None
     return record
 
@@ -1429,10 +1439,6 @@ def delivery_records(session_id: str) -> list[tuple[Path, dict]]:
         if pages_gone(record["batches"]):
             path.unlink()
             continue
-        if record["state"] == "offering":
-            payload = read_json(delivery_path(path.stem))
-            if payload is None or payload.get("format") != DELIVERY_FORMAT:
-                continue
         records.append((path, record))
     return sorted(records, key=lambda item: (item[1]["created_at"], item[0].name))
 
@@ -1490,10 +1496,7 @@ def offer_delivery(path: Path, record: dict, *, turn_replies: bool) -> PreparedD
     A record already offering keeps the payload it froze: its pointer may have
     reached the task, and a delivery never changes under its id."""
     if record["state"] == "offering":
-        payload_path = delivery_path(path.stem)
-        payload = read_json(payload_path)
-        if payload is None:
-            raise RuntimeError("the Codex delivery payload is missing")
+        payload = read_delivery(path.stem)
         return PreparedDelivery(
             delivery_pointer_prompt(path.stem), payload, record_path=path
         )
@@ -1799,41 +1802,13 @@ def delivery_owed_moves(payload: dict) -> list[dict]:
     ]
 
 
-def stream_reply_target(payload: dict) -> dict | None:
-    """The one reply address a delivery's turn writes with its own messages.
-
-    It is the delivery's `turn` answer, which only a delivery frozen for App
-    Server holds: a pointer queued for `leaf thread reply` names a plain reply even when
-    a turn Leaf observes picks it up. A move's response address is not the move: a
-    widget gesture inside a frozen thread is answered on the thread
-    that holds it. Reading both halves from the delivery keeps every writer — the
-    provider's own final answer and a harness receipt written when there will be no
-    final answer — addressing the same place.
-    """
-    targets = [
-        {
-            "page": batch["page"],
-            "reply_to": event["answer"]["to"],
-            "responds": event["answer"]["for"],
-        }
-        for batch in payload["batches"]
-        for event in batch["events"]
-        if "answer" in event and event["answer"]["kind"] == "turn"
-    ]
-    return targets[0] if len(targets) == 1 else None
-
-
 def delivery_stream_reply_target(session_id: str, delivery_id: str) -> dict | None:
     """Resolve one task-owned delivery identity to the reply its turn writes."""
     path = record_path(session_id, delivery_id)
     records = (path, path.parent / "history" / path.name)
     if not any(read_record(record) is not None for record in records):
         return None
-    try:
-        payload = read_json(delivery_path(delivery_id))
-    except ValueError:
-        return None
-    return stream_reply_target(payload) if payload is not None else None
+    return stream_reply_target(read_delivery(delivery_id))
 
 
 def delivery_record_state(session_id: str, delivery_id: str) -> str | None:

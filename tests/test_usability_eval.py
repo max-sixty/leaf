@@ -126,7 +126,7 @@ def test_a_thread_claim_must_be_accepted_for_the_comment_before_reply():
     }
     reply = {"type": "assistant", "message": {"content": [{
         "type": "tool_use", "id": "reply", "name": "Bash",
-        "input": {"command": "leaf thread reply page --for comment --text Done"},
+        "input": {"command": "leaf response reply delivery:0:comment --text Done"},
     }]}}  # fmt: skip
 
     def result(thread, refused=False):

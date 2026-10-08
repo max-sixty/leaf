@@ -1,6 +1,6 @@
 # Session lifetime, pickup, and work in hand
 
-`status.json` and the log's `start` events are declarations, not current agent
+`status.json` and the log's work starts are declarations, not current agent
 state. The current state is `activity`, one server projection over those
 declarations and the page's stronger evidence: claim and turn identity, watcher lifetime, exact pickup transitions,
 and unsettled user moves. `/api/state` and agent-facing page state carry this
@@ -12,9 +12,9 @@ second fold.
 | Fact | Where | Writer | Stops being believed |
 | --- | --- | --- | --- |
 | page declaration: `waiting` or `idle`, detail | `status.json` | `leaf status`, which first writes a `put_down` to the log when a start stands | stands until the next declaration, and its age dates the page's other readings |
-| the item in hand: a move's event id or an open task's id, the line, and the claimant turn that wrote it, or none for another session's | a `start` event in `events.jsonl` (`tasks.py`) | `leaf task start`, or `leaf thread reply --ephemeral` on a move owed, from a turn of the session driving the page | the item ending: a move's answer, or a task's end; a later `put_down` event, which `leaf status waiting` and `idle` write; and as a belief, a short grace after the turn that wrote it closes, about a quarter of an hour with no renewal, or at once when the claimant's lifetime has ended |
+| the item in hand: a move's event id or an open task's id, the line, and the claimant turn that wrote it, or none for another session's | an explicit `start` or an addressed progress reply's `start` metadata in `events.jsonl`, read by `tasks.start_reading` | `leaf task start`, or `leaf response reply --ephemeral` on a move owed, from a turn of the session driving the page | the item ending: a move's answer, or a task's end; a later `put_down` event, which `leaf status waiting` and `idle` write; and as a belief, a short grace after the turn that wrote it closes, about a quarter of an hour with no renewal, or at once when the claimant's lifetime has ended |
 | live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's task connection | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
-| live App Server reply: one displayed draft plus delivery attempt bindings by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's plain reply | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding names the claim turn it belongs to (the delivery's turn once its reply opens, the turn standing at reservation before then), clears after durable commit or terminal failure, and survives a lost connection; it stands only while that is still the claim's turn and the turn is open (`activity.reply_binding_stands`), and a turn's answer committed after its binding lapsed yields to a reply another writer already gave |
+| live App Server reply: one displayed reply plus delivery attempt bindings and full authored content by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's reply; `response reply` prepares full author content on the active binding | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding names the claim turn it belongs to (the delivery's turn once its reply opens, the turn standing at reservation before then), clears after durable commit or terminal failure, and survives a lost connection; it stands only while that is still the claim's turn and the turn is open (`activity.reply_binding_stands`), and a turn's answer committed after its binding lapsed yields to a reply another writer already gave |
 | turn identity, when it last opened or took a prompt, and open or closed state | the session lifecycle record | a prompt, a direct delivery, or an App Server client following a provider turn opens `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the id is the harness's where it names one (Codex's hooks and App Server name the same turn) and one Leaf mints otherwise; the Stop hook stamps `turn_closed` on whatever turn is open, and an App Server client on the turn it follows | the next opening of another id; the next closing stamps it, and a closed id never reopens |
 | the harness's own word on the claimant's session: `idle`, `waiting` on a dialog, or `busy`, dated by its last change | the harness's record, read at each state read (`Harness.live_turn`): for Claude Code, the `status` of the session's newest registry record whose process runs | the harness | read live, so it moves with the harness; absent where the harness publishes nothing, as for a background job whose worker has retired |
 | the turn ending this page nudged its session after | `messaged_ending` in the page's claim record: the turn id and its close stamp, or for an interrupted turn its last opening | browser-event admission, once the harness's nudge lands | a later ending, a close under a new id or an interrupt after a new prompt renewed the same one, differs |
@@ -94,7 +94,7 @@ states, is what the agent owes it: a reply, a version for a thread that asked
 for one, a version whose markup records a user's answer to a page Ask, or null. Only owed answers enter activity counts. `leaf status idle`
 refuses over one set of them, `activity.blocking_obligations`: the acknowledged
 moves nothing else is set to answer. A move still `queued` is answered by the
-later turn that opens it, and a `turn` answer the open turn has finished is
+later turn that opens it, and a reply whose provider final the open turn has finished is
 committed by the claimant's App Server client while the session's watcher is live. The Stop hook holds
 the claimant's turn over those the turn has not started, which
 `activity.turn_obligations` selects. A start the open turn wrote since the move's
@@ -242,10 +242,14 @@ page acquired before its first tool hook. Stale provider callbacks are rejected
 before planning or printing context, and a newer prompt protects its generation
 and turn.
 The App Server adapter presents at most one thread reply in each turn's
-chronological delivery slice, frozen as a `turn` answer; once the turn binds it, its
-workflow's `answer` reads `turn` too. Its completed final-answer item finishes that
+chronological delivery slice, with an exact response reference and `writer: "turn"`;
+once the turn binds it, its workflow keeps the same reply operation and records
+that writer custody too. Its completed final-answer item finishes that
 exact response; the hook lets the provider turn close, and the observer commits the
-same text through the canonical reply writer when the terminal notification arrives.
+prepared full authored content, or the provider text when no content was prepared,
+through the canonical reply writer when the terminal notification arrives. Preparation
+is held only on the exact response attempt binding, survives reconnect for that binding,
+and is discarded when the provider fails or releases it. It never settles input by itself.
 When the prompt hook opens a turn, it records a new `opened` transition for its
 acknowledged, unanswered moves. A plugin-free embedded harness records the same
 transition from the queued turn's App Server `turn/started` notification. A

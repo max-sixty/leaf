@@ -3952,7 +3952,16 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
     on_page = {"scope": "page"}
 
     def owes(kind):
-        return {"answer": {"kind": kind}}
+        return {
+            "answer": {
+                "kind": "reply" if kind == "turn" else kind,
+                **(
+                    {"writer": "turn" if kind == "turn" else "agent"}
+                    if kind in {"reply", "turn"}
+                    else {}
+                ),
+            }
+        }
 
     untitled = {"thread": {"title": None}}
     titled = {"thread": {"title": "Tuesday backfill"}}
@@ -5232,9 +5241,9 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
         f"the reply door froze a picture the page has not got into the log:\n"
         f"{posted.output}"
     )
-    assert "/media/0000000000000001.png isn't in the page directory" in posted.output, (
-        posted.output
-    )
+    assert (
+        "/media/0000000000000001.png isn't in the page directory" in posted.output
+    ), posted.output
     assert not [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
 
 

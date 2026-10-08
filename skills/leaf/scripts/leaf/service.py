@@ -495,6 +495,10 @@ class PageTransaction:
         status = dict(self.status)
         stream = dict(status.get("stream") or {})
         standing = stream.get("reply") or {}
+        binding = (stream.get("reply_bindings") or {}).get(responds)
+        authored = (
+            binding.get("authored") if _held_by(binding, session_id, attempt) else None
+        )
         timestamp = (
             standing.get("ts")
             if standing.get("session") == session_id and standing.get("turn") == turn_id
@@ -508,7 +512,7 @@ class PageTransaction:
             "reply_to": reply_to,
             "responds": responds,
             "item": item_id,
-            "text": text,
+            "text": authored["text"] if authored is not None else text,
             "state": state,
             "settles": settles,
             # The claimant's name: a stream reply is the task that holds the page
@@ -522,6 +526,44 @@ class PageTransaction:
             return
         stream["reply"] = reply
         stream["reply_bindings"] = bindings
+        status["stream"] = stream
+        write_json(self.page_dir / STATUS_FILE, status)
+
+    def author_bound_reply(
+        self, session_id: str, responds: str, attempt: str, content: dict
+    ) -> None:
+        """Prepare full author content under the exact active response reservation.
+
+        The owning thread writer validates it. The binding retains content through
+        reconnect and newer displayed replies until its provider commits or yields.
+        Displayed text derives from this content; preparation never settles input.
+        """
+        from leaf.activity import reply_binding_stands
+
+        status = dict(self.status)
+        stream = dict(status.get("stream") or {})
+        bindings = dict(stream.get("reply_bindings") or {})
+        binding = bindings.get(responds)
+        claim = self.active_claim
+        if (
+            claim is None
+            or claim["id"] != session_id
+            or not reply_binding_stands(
+                binding, claim["id"], claim["turn"], claim["turn_closed"]
+            )
+            or not _held_by(binding, session_id, attempt)
+        ):
+            raise RuntimeError("response is not reserved by this active provider turn")
+        bindings[responds] = {**binding, "authored": content}
+        stream["reply_bindings"] = bindings
+        reply = stream.get("reply") or {}
+        if _held_by(reply, session_id, attempt):
+            stream["reply"] = {
+                **reply,
+                "text": content["text"],
+                "settles": False,
+                "updated_at": now_iso(),
+            }
         status["stream"] = stream
         write_json(self.page_dir / STATUS_FILE, status)
 
@@ -571,6 +613,7 @@ class PageTransaction:
                 f"response {responds!r} is already bound to another delivery"
             )
         bindings[responds] = {
+            **(standing if _held_by(standing, session_id, attempt) else {}),
             "session": session_id,
             "attempt": attempt,
             "turn": turn_id,
@@ -595,10 +638,14 @@ class PageTransaction:
             or reply.get("attempt") != attempt
         ):
             return False
+        binding = (stream.get("reply_bindings") or {}).get(reply["responds"])
+        authored = (
+            binding.get("authored") if _held_by(binding, session_id, attempt) else None
+        )
         finished = {
             **reply,
             "item": None,
-            "text": text,
+            "text": authored["text"] if authored is not None else text,
             "state": state,
             "settles": False,
             "updated_at": now_iso(),

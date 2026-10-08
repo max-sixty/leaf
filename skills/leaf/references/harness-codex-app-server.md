@@ -22,17 +22,22 @@ delivers to this task over App Server.
 
 ## Replies
 
-Each slice contains at most one thread reply, delivered as a `turn` answer, and
-your turn's first message and final message write it. Before your first tool call,
-open with a short message to the user: the answer, or what you are about to do. Leaf streams it into the addressed thread at
-once, so the user reads it while you work. Later working messages stay in Codex. Your
-final message completes the reply, and Leaf commits the opening and the final message
-together through the same reply contract as `leaf thread reply`. Do not run `leaf thread reply` for
-that response, which refuses it. The final message cannot move or detach its
-thread, so the thread keeps its anchor. Leaf titles an untitled thread the reply
-answers from its opening message, so it needs no title from you. If the user
-resolves the thread before the turn completes, the reply still posts and reopens
-it. A later plain reply remains pending for the next slice.
+Each slice contains at most one thread reply, with `kind: "reply"` and
+`writer: "turn"`. Before your first tool call, open with a short message to the
+user: the answer or what you are about to do. Leaf streams it into the captured
+thread at once. Later working messages stay in Codex. Your completed final
+commits the reply through the same durable writer as `leaf response reply`.
+
+For a reply needing widgets, a prose question awaiting the user, a title or a
+changed anchor, author it with `leaf response reply <answer.ref>` and the rich
+options in [threads](threads.md). The command prepares the full reply on this
+turn's reservation; your completed final commits that content, including its
+text. Without preparation, Leaf commits your opening and final text. A failed
+or interrupted turn leaves no durable prepared answer. Leaf may title an
+untitled thread from its opening before your reply arrives; that name stands.
+
+If the user resolves the thread before completion, a successful reply still posts
+and reopens it. A prepared failure posts only while that input still needs an answer. A later reply remains pending for the next slice.
 
 Other answers in the slice take the operations their delivered `handling`
 clauses name.
@@ -43,7 +48,7 @@ after the model's turn has ended, when it can no longer correct the edit.
 
 A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a
 user message. Read it with `leaf delivery read <id>`: it was frozen for the queue, so
-its reply is a plain `reply` for `leaf thread reply`, as `references/harness-codex.md`
+its reply has `writer: "agent"` for `leaf response reply <answer.ref>`, as `references/harness-codex.md`
 describes.
 
 ## Activity
@@ -93,7 +98,7 @@ than the one that adapter holds.
 
 A `leaf wait` this task already runs, or a watcher task, carries input without the
 adapter, as `references/harness-codex.md`, "Routes without the adapter", describes; on those routes there is no App Server turn to bind, so
-answer with `leaf thread reply`.
+answer with `leaf response reply <answer.ref>`.
 
 If serving refuses to connect delivery, fix its diagnostic before handing the
 page over. Serving honors an existing direct `leaf wait`; an explicit

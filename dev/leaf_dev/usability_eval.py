@@ -410,11 +410,22 @@ def build_resume(run: Run, page: Path) -> None:
         "page", "stamp", str(page), "--text",
         "Rehearsal rerun after the mapping change; ask how traffic moves", check=True,
     )  # fmt: skip
-    run.leaf(
-        "thread", "reply", str(page), "--for", rerun, "--text",
+    arm_python(
+        run,
+        "import sys\nfrom pathlib import Path\n"
+        "from leaf.delivery import batch_data, freeze_delivery\n"
+        "from leaf.service import PageTransaction\n"
+        "from leaf.thread import post_response\n"
+        "page = Path(sys.argv[1])\n"
+        "with PageTransaction(page) as transaction:\n"
+        "    event = next(e for e in transaction.events if e['id'] == sys.argv[2])\n"
+        "    batch = batch_data(page, transaction, [event])\n"
+        "payload = freeze_delivery([batch])\n"
+        "post_response(payload['batches'][0]['events'][0]['answer']['ref'], sys.argv[3])",
+        str(page),
+        rerun,
         "Reran it on 18 September after the mapping change: 4.3 million documents in 3 h 05 min. The page shows the new figure.",
-        check=True,
-    )  # fmt: skip
+    )
     run.leaf(
         "status", str(page), "waiting", "Pick how traffic moves to the new index",
         check=True,
@@ -871,7 +882,7 @@ BASH_KINDS = {
     "transcript": r"\btranscript\b",
     "page check": r"\bpage check\b",
     "page stamp": r"\bpage stamp\b",
-    "thread reply": r"\bthread reply\b",
+    "thread reply": r"\b(?:thread|response) reply\b",
     "server": r"\bserver (start|run)\b",
     "wait": r"\bleaf wait\b",
     "registry": r"registry\.json",
@@ -1343,7 +1354,8 @@ def claimed_first(trace: list[dict], thread: str) -> bool:
             index
             for index, record in enumerate(trace)
             if any(
-                re.search(r"\bthread reply\b", c) and "--ephemeral" not in c
+                re.search(r"\b(?:thread|response) reply\b", c)
+                and "--ephemeral" not in c
                 for c in commands(record)
             )
         ),
@@ -1543,7 +1555,10 @@ def score_elided(run: Run, trace: list[dict]) -> dict:
         (
             i
             for i in range(r["delivery"], len(trace))
-            if any("thread reply" in c for c in commands(trace[i]))
+            if any(
+                re.search(r"\b(?:thread|response) reply\b", c)
+                for c in commands(trace[i])
+            )
         ),
         len(trace),
     )
@@ -1578,7 +1593,8 @@ def score_elided(run: Run, trace: list[dict]) -> dict:
             check(r"\b22[:.]?00\b|\b10\s*p\.?m\b", e.get("text", "")) for e in replies
         ),
         "titled": any(
-            e["kind"] == "thread_title" and e.get("thread") == thread for e in events
+            item["id"] == thread and item["title"] is not None
+            for item in page_state(run, page)["threads"]
         ),
         "summarized": any(
             e["kind"] == "summary" and e.get("thread") == thread for e in events

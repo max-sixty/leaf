@@ -408,7 +408,8 @@ def test_the_website_harness_delivers_into_the_existing_codex_thread(
                             {
                                 "id": "user-event",
                                 "answer": {
-                                    "kind": "turn",
+                                    "kind": "reply",
+                                    "writer": "turn",
                                     "to": "user-event",
                                     "for": "user-event",
                                     "attempt": "leaf-delivery-1",
@@ -978,7 +979,7 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
     payload = json.loads(outgoing["turn/start"]["toolOutput"]["output"])
     [delivered] = payload["batches"][0]["events"]
     # Frozen for App Server, a reply is the turn's to write with its messages.
-    assert delivered["answer"]["kind"] == "turn"
+    assert delivered["answer"]["writer"] == "turn"
     replacements = {
         str(page_dir): "/page",
         event["id"]: "user-event",
@@ -1477,13 +1478,13 @@ def test_duplicate_attaches_share_one_delivery_start(page_dir, monkeypatch):
 
     second = threading.Thread(target=attach_second)
     first.start()
-    assert started.wait(timeout=STATED_TIMEOUT), (
-        "the first attach never started its turn"
-    )
+    assert started.wait(
+        timeout=STATED_TIMEOUT
+    ), "the first attach never started its turn"
     second.start()
-    assert second_called.wait(timeout=STATED_TIMEOUT), (
-        "the second attach was never called"
-    )
+    assert second_called.wait(
+        timeout=STATED_TIMEOUT
+    ), "the second attach was never called"
     release.set()
     first.join(timeout=STATED_TIMEOUT)
     assert not first.is_alive(), "the first attach never returned"
@@ -1518,20 +1519,20 @@ def test_the_website_harness_prewarms_app_server_and_leaf_cli_in_the_background(
 
     thread = harness.prewarm()
 
-    assert app_started.wait(timeout=STATED_TIMEOUT), (
-        "the prewarm never began starting the app server"
-    )
-    assert leaf_started.wait(timeout=STATED_TIMEOUT), (
-        "the prewarm never began warming the leaf CLI"
-    )
+    assert app_started.wait(
+        timeout=STATED_TIMEOUT
+    ), "the prewarm never began starting the app server"
+    assert leaf_started.wait(
+        timeout=STATED_TIMEOUT
+    ), "the prewarm never began warming the leaf CLI"
     assert thread.is_alive()
     release_app.set()
     thread.join(timeout=STATED_TIMEOUT)
     assert not thread.is_alive()
     release_leaf.set()
-    assert leaf_finished.wait(timeout=STATED_TIMEOUT), (
-        "the leaf CLI warm-up never finished"
-    )
+    assert leaf_finished.wait(
+        timeout=STATED_TIMEOUT
+    ), "the leaf CLI warm-up never finished"
 
 
 def test_the_leaf_cli_prewarm_runs_the_installed_command(monkeypatch):
@@ -1663,9 +1664,9 @@ module.main(["--port", "0"])
     assert adapter.wait(timeout=STATED_TIMEOUT) == -signal.SIGTERM
     deadline = time.monotonic() + STATED_TIMEOUT
     while pid_alive(app_server):
-        assert time.monotonic() < deadline, (
-            "the App Server outlived the adapter that started it"
-        )
+        assert (
+            time.monotonic() < deadline
+        ), "the App Server outlived the adapter that started it"
         time.sleep(0.05)
     assert not (socket_dir / "app-server.sock").exists()
 
@@ -2633,6 +2634,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                 "page": str(page_dir),
                 "reply_to": comment["id"],
                 "responds": comment["id"],
+                "ref": prepared.payload["batches"][0]["events"][0]["answer"]["ref"],
             },
         ),
         ("Deployment verified.", True),
@@ -3313,9 +3315,9 @@ def test_a_receipt_waits_for_external_turn_acceptance_to_be_recorded(
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         attached = pool.submit(harness.attach, page_dir, comment["id"])
-        assert turn_started.wait(timeout=STATED_TIMEOUT), (
-            "the attach never started its turn"
-        )
+        assert turn_started.wait(
+            timeout=STATED_TIMEOUT
+        ), "the attach never started its turn"
         settled = pool.submit(
             harness.failure_receipt,
             page_dir,
@@ -3323,9 +3325,9 @@ def test_a_receipt_waits_for_external_turn_acceptance_to_be_recorded(
             "startup_failed",
         )
 
-        assert receipt_waiting.wait(timeout=STATED_TIMEOUT), (
-            "the receipt never waited on the harness lock"
-        )
+        assert receipt_waiting.wait(
+            timeout=STATED_TIMEOUT
+        ), "the receipt never waited on the harness lock"
         record_acceptance.set()
         assert attached.result(timeout=STATED_TIMEOUT) == "hosted-thread"
         assert settled.result(timeout=STATED_TIMEOUT) is None
@@ -4750,8 +4752,20 @@ def test_a_title_written_after_the_reply_is_still_timed():
     after the reply that ended the turn's wait; the journey reads on for it rather
     than reporting the title as never written."""
     comment, title, reply = TURN_LOG
-    answered = {"active": {"revision": 2}, "events": [comment, reply]}
-    context = _StateReads([{**answered, "events": [comment, reply, title]}])
+    answered = {
+        "active": {"revision": 2},
+        "events": [comment, reply],
+        "thread": {"threads": [{"id": comment["id"], "title": None}]},
+    }
+    context = _StateReads(
+        [
+            {
+                **answered,
+                "events": [comment, reply, title],
+                "thread": {"threads": [{"id": comment["id"], "title": title["title"]}]},
+            }
+        ]
+    )
     session = journey.Session(
         context,
         None,
@@ -4780,6 +4794,7 @@ def test_a_progress_update_is_timed_apart_from_the_answer():
     comment, _title, reply = TURN_LOG
     progress = {
         "kind": "reply",
+        "id": "test-progress",
         "parent": comment["id"],
         "text": "Recording the release on the board.",
         "ephemeral": True,
@@ -4837,7 +4852,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
         result(5.0, "start"),
         call(7.0, ("edit", "leaf page check .")),
         result(8.0, "edit"),
-        call(12.0, ("reply", "leaf thread reply . --for test-comment")),
+        call(12.0, ("reply", "leaf response reply 62af9e31:0:test-comment")),
     ]
     assert journey.turn_phases(stream, comment["ts"], reply["ts"]) == [
         {"phase": "delivery", "startMs": 0, "ms": 500},
@@ -4855,7 +4870,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
             "phase": "tool",
             "startMs": 12000,
             "ms": 500,
-            "calls": ["leaf thread reply . --for test-comment"],
+            "calls": ["leaf response reply 62af9e31:0:test-comment"],
         },
     ]
 
@@ -5213,12 +5228,14 @@ TURN_LOG = [
     {"kind": "comment", "id": "test-comment", "ts": "2026-10-04T12:00:00.000-07:00"},
     {
         "kind": "thread_title",
+        "id": "test-title",
         "thread": "test-comment",
         "title": "Deployment heading",
         "ts": "2026-10-04T12:00:02.250-07:00",
     },
     {
         "kind": "reply",
+        "id": "test-answer",
         "parent": "test-comment",
         "text": "deployment verified",
         "ts": "2026-10-04T12:00:12.500-07:00",
@@ -5279,6 +5296,11 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                     "activity": {"kind": "away"},
                     "source_error": None,
                     "events": TURN_LOG,
+                    "thread": {
+                        "threads": [
+                            {"id": "test-comment", "title": "Deployment heading"}
+                        ]
+                    },
                 },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
@@ -5442,6 +5464,11 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
                     "activity": {"kind": "away"},
                     "source_error": None,
                     "events": TURN_LOG,
+                    "thread": {
+                        "threads": [
+                            {"id": "test-comment", "title": "Deployment heading"}
+                        ]
+                    },
                 },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
@@ -5583,3 +5610,43 @@ def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
         assert website_server.PageTransaction(page_dir).status == winner["status"]
     finally:
         harness.close()
+
+
+def test_journey_reads_and_times_inline_message_title():
+    comment, _title, reply = TURN_LOG
+    titled_reply = {**reply, "title": "Release recorded"}
+    threads = list(journey.build_threads([comment, titled_reply], {}).values())
+    assert journey.titled({"thread": {"threads": threads}}, comment["id"])
+    assert (
+        journey.recorded_steps(
+            [comment, titled_reply], comment, {"activated_at": reply["ts"]}
+        )["titled"]
+        == 12.5
+    )
+    titled_comment = {**comment, "title": "Initial release"}
+    assert (
+        journey.recorded_steps(
+            [titled_comment, titled_reply],
+            titled_comment,
+            {"activated_at": reply["ts"]},
+        )["titled"]
+        == 0
+    )
+
+
+def test_journey_title_timing_accepts_admitted_action_dependencies():
+    comment, _title, reply = TURN_LOG
+    action = {
+        "kind": "action",
+        "id": "test-pick",
+        "widget": "options",
+        "action": "choose",
+        "revision": 1,
+        "ts": "2026-10-04T12:00:01.000-07:00",
+        "meaning": {"unit": "options", "depends": ["child"], "scope": "page"},
+    }
+    events = [comment, action, {**reply, "title": "Release recorded"}]
+    assert (
+        journey.recorded_steps(events, comment, {"activated_at": reply["ts"]})["titled"]
+        == 12.5
+    )

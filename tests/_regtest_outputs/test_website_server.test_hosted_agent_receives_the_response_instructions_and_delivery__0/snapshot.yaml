@@ -32,17 +32,22 @@ thread/start:
 
     ## Replies
 
-    Each slice contains at most one thread reply, delivered as a `turn` answer, and
-    your turn's first message and final message write it. Before your first tool call,
-    open with a short message to the user: the answer, or what you are about to do. Leaf streams it into the addressed thread at
-    once, so the user reads it while you work. Later working messages stay in Codex. Your
-    final message completes the reply, and Leaf commits the opening and the final message
-    together through the same reply contract as `leaf thread reply`. Do not run `leaf thread reply` for
-    that response, which refuses it. The final message cannot move or detach its
-    thread, so the thread keeps its anchor. Leaf titles an untitled thread the reply
-    answers from its opening message, so it needs no title from you. If the user
-    resolves the thread before the turn completes, the reply still posts and reopens
-    it. A later plain reply remains pending for the next slice.
+    Each slice contains at most one thread reply, with `kind: "reply"` and
+    `writer: "turn"`. Before your first tool call, open with a short message to the
+    user: the answer or what you are about to do. Leaf streams it into the captured
+    thread at once. Later working messages stay in Codex. Your completed final
+    commits the reply through the same durable writer as `leaf response reply`.
+
+    For a reply needing widgets, a prose question awaiting the user, a title or a
+    changed anchor, author it with `leaf response reply <answer.ref>` and the rich
+    options in [threads](threads.md). The command prepares the full reply on this
+    turn's reservation; your completed final commits that content, including its
+    text. Without preparation, Leaf commits your opening and final text. A failed
+    or interrupted turn leaves no durable prepared answer. Leaf may title an
+    untitled thread from its opening before your reply arrives; that name stands.
+
+    If the user resolves the thread before completion, a successful reply still posts
+    and reopens it. A prepared failure posts only while that input still needs an answer. A later reply remains pending for the next slice.
 
     Other answers in the slice take the operations their delivered `handling`
     clauses name.
@@ -53,7 +58,7 @@ thread/start:
 
     A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a
     user message. Read it with `leaf delivery read <id>`: it was frozen for the queue, so
-    its reply is a plain `reply` for `leaf thread reply`, as `references/harness-codex.md`
+    its reply has `writer: "agent"` for `leaf response reply <answer.ref>`, as `references/harness-codex.md`
     describes.
 
     ## Activity
@@ -103,7 +108,7 @@ thread/start:
 
     A `leaf wait` this task already runs, or a watcher task, carries input without the
     adapter, as `references/harness-codex.md`, "Routes without the adapter", describes; on those routes there is no App Server turn to bind, so
-    answer with `leaf thread reply`.
+    answer with `leaf response reply <answer.ref>`.
 
     If serving refuses to connect delivery, fix its diagnostic before handing the
     page over. Serving honors an existing direct `leaf wait`; an explicit
@@ -157,14 +162,17 @@ turn/start:
   input: []
   toolOutput:
     name: leaf_delivery
-    output: '{"format":"leaf-delivery-v3","id":"00000001","created_at":1790096400.0,"acknowledge":null,"batches":[{"page":"/page","through_seq":1,"threads":[{"id":"user-event","title":null,"anchor":null,"detached_from":null,"resolved":null,"elided":{"messages":0,"actions":0},"messages":[],"summaries":[],"actions":[]}],"handling":{"h1":"Your
-      turn''s first and final messages are the reply, and `leaf thread reply` refuses
-      this event. Before your first tool call, open with a short message to the
-      user: the answer, or what you are about to do. Leaf streams it into the thread
-      at once, and later working messages stay in Codex. Finish the reply in your
-      final message: the answer, or what changed and where it appears. The reply
-      leaves the thread on its anchor.","h2":"Your reply renders as Markdown in
-      a narrow column: give each point its own short paragraph or list item, link
-      a page section as `[its name](#section-id)`, and fence code or markup."},"events":[{"attention":true,"kind":"comment","author":"user","text":"Use
-      backfill first.","id":"user-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"thread","id":"user-event"},"threads":["user-event"],"handling":["h1","h2"],"answer":{"kind":"turn","to":"user-event","for":"user-event","attempt":"leaf-delivery-ae5ce162888ee3ebe974976cac5ab94a"}}]}]}'
+    output: '{"format":"leaf-delivery-v4","id":"00000001","created_at":1790096400.0,"acknowledge":null,"batches":[{"page":"/page","through_seq":1,"threads":[{"id":"user-event","title":null,"anchor":null,"detached_from":null,"resolved":null,"elided":{"messages":0,"actions":0},"messages":[],"summaries":[],"actions":[]}],"handling":{"h1":"This
+      reply belongs to your provider turn''s final commitment. Before your first
+      tool call, open with a short message to the user: the answer, or what you
+      are about to do. Leaf streams it into the thread at once, and later working
+      messages stay in Codex. Finish with the answer or what changed and where it
+      appears. For widgets, a question awaiting the user, a title or relocation,
+      prepare the complete reply with `leaf response reply <answer.ref>` and the
+      rich options in `references/threads.md`; your completed final commits that
+      prepared content, including its text. Without preparation, your opening and
+      final text become the reply.","h2":"Your reply renders as Markdown in a narrow
+      column: give each point its own short paragraph or list item, link a page
+      section as `[its name](#section-id)`, and fence code or markup."},"events":[{"attention":true,"kind":"comment","author":"user","text":"Use
+      backfill first.","id":"user-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"thread","id":"user-event"},"threads":["user-event"],"handling":["h1","h2"],"answer":{"kind":"reply","to":"user-event","for":"user-event","ref":"00000001:0:user-event","writer":"turn"}}]}]}'
   turnTrigger: leaf

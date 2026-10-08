@@ -57,6 +57,7 @@ from urllib.parse import urljoin, urlsplit
 
 import click
 from leaf.harness import ClaudeCodeHarness, CodexHarness
+from leaf.events import build_threads
 from playwright.sync_api import BrowserContext, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -199,9 +200,10 @@ def recorded_steps(events: list[dict], comment: dict, published: dict) -> dict:
     thread = comment["id"]
     titled = next(
         (
-            e["ts"]
-            for e in events
-            if e["kind"] == "thread_title" and e["thread"] == thread
+            event["ts"]
+            for index, event in enumerate(events)
+            if build_threads(events[: index + 1], {}).get(thread, {}).get("title")
+            is not None
         ),
         None,
     )
@@ -461,8 +463,12 @@ def await_turn(
     return TurnReading(current, published, replies, answer)
 
 
-def titled(events: list[dict], thread: str) -> bool:
-    return any(e["kind"] == "thread_title" and e["thread"] == thread for e in events)
+def titled(state: dict, thread: str) -> bool:
+    """Read the thread's title from the canonical browser projection."""
+    return any(
+        item["id"] == thread and item["title"] is not None
+        for item in state["thread"]["threads"]
+    )
 
 
 def await_title(session: Session, thread: str, state: dict) -> dict:
@@ -470,7 +476,7 @@ def await_title(session: Session, thread: str, state: dict) -> dict:
     last reading. The page server names a thread beside the agent's turn rather than
     within it, so the title can land after the reply that ended the turn."""
     deadline = time.monotonic() + TITLE_PATIENCE
-    while not titled(state["events"], thread) and time.monotonic() < deadline:
+    while not titled(state, thread) and time.monotonic() < deadline:
         time.sleep(1)
         state = read_state(session)
     return state

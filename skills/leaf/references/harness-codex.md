@@ -40,7 +40,7 @@ acknowledges queued delivery once Codex's queue accepts it, so do not run `leaf 
 uncertain queue response, which is the retry `references/event-batches.md` describes.
 
 Answer every obligation with the operation its delivered `handling` clause names,
-`leaf thread reply` for a plain reply. Your final message stays in the Codex
+`leaf response reply <answer.ref>` for a reply. Your final message stays in the Codex
 chat and never reaches the page. Leaf does not observe the task's turns either, so
 the banner shows only the items you start and the status you declare.
 
@@ -55,7 +55,7 @@ that wait holds the task's single wait lease.
 
 ## Routes without the adapter
 
-Two routes carry input without the adapter, and both answer with `leaf thread reply` as
+Two routes carry input without the adapter, and both answer with `leaf response reply <answer.ref>` as
 above.
 
 - This task runs `leaf wait` in unified exec, polls it with `write_stdin`, and

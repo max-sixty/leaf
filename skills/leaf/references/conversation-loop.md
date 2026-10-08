@@ -11,7 +11,7 @@ The user follows your work on the page:
 | Surface | What it shows | Written by |
 | --- | --- | --- |
 | Banner | one sentence for the whole page: the line of the item you have in hand, or what you want back | `leaf task start`, `leaf status <page> waiting "<detail>"` |
-| Beside a thread or widget | **Working** and your line, above the message or on the control the work answers | `leaf thread reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
+| Beside a thread or widget | **Working** and your line, above the message or on the control the work answers | `leaf response reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
 | Thread | what you will do, your progress, and your answer to the user's message | the response operation named by delivered `handling` |
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
 
@@ -73,7 +73,7 @@ starts with your first message, as the selected harness's "Replies" describes.
 For a command-written reply, your first command after delivery is:
 
 ```bash
-leaf thread reply <page> --for <event-id> --ephemeral --text "<what you will do, in a line>"
+leaf response reply <answer.ref> --ephemeral --text "<what you will do, in a line>"
 ```
 
 The user reads it at once, and it takes the move in hand: the move reads

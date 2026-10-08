@@ -15,6 +15,7 @@ from interact_support import (
     declare_work,
     end_work,
     record_claim,
+    response_reference,
     wait_for,
     working,
 )
@@ -2496,11 +2497,9 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(d),
-            "--for",
-            "c-store",
+            response_reference(d, "c-store"),
             "--text",
             "Depends what you want to keep:",
             "--markup",

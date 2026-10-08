@@ -248,12 +248,12 @@ leaf server start ./review</code></pre>
               </p>
               <pre
                 id="response-commands"
-              ><code class="language-bash">leaf thread reply ./review --for &lt;event-id&gt; --ephemeral --text "Checking the importer's queue policy."
+              ><code class="language-bash">leaf response reply &lt;answer.ref&gt; --ephemeral --text "Checking the importer's queue policy."
 leaf page state ./review
 leaf page state ./review &lt;thread-id&gt;
 # Revise ./review/index.html.
 leaf page check ./review
-leaf thread reply ./review --for &lt;event-id&gt; --text "The importer policy is updated."
+leaf response reply &lt;answer.ref&gt; --text "The importer policy is updated."
 leaf status ./review waiting "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment receives a thread reply. A page can also contain an
@@ -379,7 +379,7 @@ leaf page stamp ./review --text "Queue policy: drop oldest"</code></pre>
                   <pre id="handling-json"><code class="language-json">{
   "handling": {
     "c1": "Read the thread context before answering.",
-    "c2": "Write the answer in the thread with leaf thread reply."
+    "c2": "Write the answer with leaf response reply using its answer.ref."
   },
   "events": [
     {
@@ -389,7 +389,9 @@ leaf page stamp ./review --text "Queue policy: drop oldest"</code></pre>
       "answer": {
         "kind": "reply",
         "to": "9d41b20f",
-        "for": "9d41b20f"
+        "for": "9d41b20f",
+        "ref": "6ba31df0:0:9d41b20f",
+        "writer": "agent"
       }
     }
   ]
@@ -579,7 +581,8 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                       summarize a range of messages.
                     </td>
                     <td>
-                      <code>leaf thread open</code><br /><code>leaf thread reply</code
+                      <code>leaf thread open</code><br /><code>leaf response reply</code
+                      ><br /><code>leaf thread reply</code
                       ><br /><code>leaf thread edit</code><br /><code
                         >leaf thread resolve</code
                       ><br /><code>leaf thread summarize</code>
@@ -714,7 +717,7 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                         >Claude Code, Pi, Codex, or a
                         <code>leaf wait</code> loop.</strong
                       >
-                      The agent replied with <code>leaf thread reply --for</code>, or
+                      The agent replied with <code>leaf response reply &lt;answer.ref&gt;</code>, or
                       published a version whose markup records the move.
                     </p>
                     <p>
@@ -813,7 +816,7 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                     Harness hooks supply feedback when a turn starts or ends and wake
                     the session between turns. The hook confirms an inline delivery;
                     reading a delivery pointer confirms receipt instead. The agent
-                    answers with <code>leaf thread reply</code>.
+                    answers with <code>leaf response reply &lt;answer.ref&gt;</code>.
                   </td>
                 </tr>
                 <tr>
@@ -823,7 +826,7 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                     can supply one during work. The adapter confirms queued receipt. For
                     a tool-hook delivery, reading the id confirms receipt. The agent
                     posts its answer with
-                    <code>leaf thread reply</code>.
+                    <code>leaf response reply &lt;answer.ref&gt;</code>.
                   </td>
                 </tr>
                 <tr>
@@ -831,7 +834,7 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                   <td>
                     Leaf starts an agent turn with the feedback and confirms receipt.
                     That turn's opening and final messages become the thread reply.
-                    Feedback from a tool hook uses <code>leaf thread reply</code>.
+                    Feedback from a tool hook uses <code>leaf response reply &lt;answer.ref&gt;</code>.
                   </td>
                 </tr>
                 <tr>
@@ -840,7 +843,7 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                     Without a hook integration, <code>leaf wait</code> prints the
                     delivery in the current turn. The next
                     <code>leaf wait --ack</code> confirms receipt and waits again; the
-                    agent uses <code>leaf thread reply</code>.
+                    agent uses <code>leaf response reply &lt;answer.ref&gt;</code>.
                   </td>
                 </tr>
               </tbody>
@@ -892,7 +895,8 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
               <summary>Transport details and automatic calls</summary>
               <p id="host-authority">
                 The envelope's <code>acknowledge</code> and each event's
-                <code>answer.kind</code> determine the operations for that delivery. An
+                <code>answer.kind</code> name receipt and answer operations;
+                <code>answer.writer</code> guides initial reply handling. An
                 App Server task can still receive a queued delivery with a plain
                 <code>reply</code> answer. A direct wait is refused while an adapter
                 holds the task's watch. An open page proves the server is reachable; the
@@ -900,11 +904,11 @@ leaf task end ./review &lt;task-id&gt; done "The load check is recorded on the p
                 Unconfirmed input remains available for a later delivery.
               </p>
               <p id="host-turn-replies">
-                For a <code>turn</code> answer, Leaf streams the agent's first
+                For a reply with <code>writer: "turn"</code>, Leaf streams the agent's first
                 user-facing message into the addressed thread, then commits that opening
                 together with the final message. On the Claude Code and Codex queue
                 routes, chat messages stay in the harness; the agent writes the page
-                answer with <code>leaf thread reply</code>.
+                answer with <code>leaf response reply &lt;answer.ref&gt;</code>.
               </p>
               <p id="automatic-commands">
                 The integration runs the hook commands above automatically. Its private
@@ -1252,7 +1256,7 @@ flowchart TD
                 <strong>The work is named</strong> Before doing the work, the agent
                 replies in your thread with what it will do,
                 <code
-                  >leaf thread reply … --ephemeral --text "Cutting the lede to two
+                  >leaf response reply &lt;answer.ref&gt; --ephemeral --text "Cutting the lede to two
                   sentences."</code
                 >, which also puts that line in the banner, and your comment reads
                 Working.
@@ -1285,7 +1289,7 @@ flowchart TD
               <pre>
 flowchart LR
   subgraph Sources["Who writes it"]
-    Reply["agent: leaf thread reply · leaf thread open"]
+    Reply["agent: leaf response reply · proactive leaf thread reply · leaf thread open"]
     Awaits["agent: leaf thread reply --awaits · leaf task open --on user"]
     Stamp["agent: leaf page stamp"]
     Report["agent: leaf page report"]
@@ -1318,7 +1322,7 @@ flowchart LR
             <h3 id="updates-written-heading">Written by the agent</h3>
             <ul id="updates-written">
               <li id="updates-written-progress">
-                <strong><code>leaf thread reply --for … --ephemeral</code></strong> What
+                <strong><code>leaf response reply &lt;answer.ref&gt; --ephemeral</code></strong> What
                 it is about to do, in your thread, before it reads or edits anything.
                 The line also stands in the banner, your comment reads Working, and the
                 update folds under <em>Previous updates</em> once the answer arrives.
@@ -1346,7 +1350,7 @@ flowchart LR
                 has no answer, or a task the agent opened is still open.
               </li>
               <li id="updates-written-reply">
-                <strong><code>leaf thread reply --for …</code></strong> An answer in
+                <strong><code>leaf response reply &lt;answer.ref&gt;</code></strong> An answer in
                 your thread, which clears the label beside your comment.
               </li>
               <li id="updates-written-followup">

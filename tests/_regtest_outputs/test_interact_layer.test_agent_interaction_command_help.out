@@ -96,37 +96,51 @@ Options:
   --help         Show this message and exit.
 
 ## leaf thread reply --help
-Usage: leaf thread reply [OPTIONS] PAGE [THREAD]
+Usage: leaf thread reply [OPTIONS] PAGE THREAD
 
-  Post a threaded reply as the agent (--text or stdin).
+  Post a new agent message to THREAD (--text or stdin).
 
-  Answer user input with --for EVENT_ID. With exactly one outstanding reply in
-  this turn's opened delivery, omit it to select that reply. THREAD, by any
-  message in it, posts a new agent message there instead, refused while that
-  thread owes a reply.
-
-  --ephemeral posts progress without answering. On an update you owe, it also
-  takes the update in hand as `leaf task start` does, with its one line as the
-  Working line.
-
-  --quote, --section, and --part move the thread's current anchor; --detach
-  removes it when the subject leaves the page. The original anchor stays in the
-  log. A reply validates and activates any changed source before posting.
+  An ordinary message is refused while the thread owes a response; answer its
+  delivery reference with `leaf response reply`. --ephemeral posts progress.
+  Saved page edits are validated and activated before posting.
 
 Options:
-  --for EVENT_ID  delivery event whose current reply obligation this answers
-  --quote TEXT    new passage text to move this thread onto
-  --section ID    new element ID, or scope for --quote
-  --part ID       new declared visual part within --section
-  --detach        remove the current page target when its subject leaves the
-                  page
-  --text TEXT     reply text (default: stdin)
-  --markup TEXT   widget markup to render after the text, validated here
-  --awaits        the reply's prose asks the user a question
-  --ephemeral     progress update; on an update you owe, one line that takes it
-                  in hand. Folds when the next ordinary agent reply arrives
+  --title TEXT   name the thread for the panel unless it has a name: a few
+                 words, at most 80 characters
+  --ephemeral    one-line progress, without answering
+  --awaits       the reply asks the user a question
+  --markup TEXT  frozen widget markup after the text
+  --text TEXT    reply text (default: stdin)
+  --detach       remove the thread's page target
+  --part ID      new declared visual part within --section
+  --section ID   new element ID, or scope for --quote
+  --quote TEXT   new passage text to move this thread onto
+  --help         Show this message and exit.
+
+## leaf response reply --help
+Usage: leaf response reply [OPTIONS] REFERENCE
+
+  Answer the exact REFERENCE printed in a delivery's answer.ref.
+
+  Text, frozen widgets, prose questions, titles and anchor moves share this
+  command. It validates and activates saved page edits before posting. A stale
+  input or a reply reserved for a provider final is refused. Repeating an
+  ordinary reply's reference returns its earlier record; --attempt names retries
+  of progress.
+
+Options:
+  --attempt TEXT  retry identity (ordinary replies default to the reference)
+  --failure TEXT  failure code when no answer is coming
   --title TEXT    name the thread for the panel unless it has a name: a few
                   words, at most 80 characters
+  --ephemeral     one-line progress, without answering
+  --awaits        the reply asks the user a question
+  --markup TEXT   frozen widget markup after the text
+  --text TEXT     reply text (default: stdin)
+  --detach        remove the thread's page target
+  --part ID       new declared visual part within --section
+  --section ID    new element ID, or scope for --quote
+  --quote TEXT    new passage text to move this thread onto
   --help          Show this message and exit.
 
 ## leaf thread edit --help

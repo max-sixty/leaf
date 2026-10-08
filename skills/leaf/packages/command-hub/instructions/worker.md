@@ -17,11 +17,11 @@ working grace, about a quarter of an hour. Both `state` and
 - A completed handoff moves the task to `review` and the agent to `waiting`.
 - The coordinator records `done` only after review or landing.
 
-A routed user comment arrives with its event id as `EVENT`. Reply to it under your
+A routed user comment arrives with its captured `answer.ref` as `RESPONSE`. Reply to it under your
 name, then report any resulting state change:
 
 ```bash
-LEAF_AGENT="$WORKER" "$LEAF" thread reply "$PAGE" --for "$EVENT" <<'EOF'
+LEAF_AGENT="$WORKER" "$LEAF" response reply "$RESPONSE" <<'EOF'
 The reconnect drops the queue, so the retry sends against a closed socket.
 
 - the handler clears `pending` before it awaits the write

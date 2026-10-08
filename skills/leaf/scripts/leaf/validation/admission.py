@@ -50,7 +50,7 @@ def thread_obligation(events: list, responses: dict, message: str) -> dict | Non
     A thread's response is owed by the thread rather than by the message inside it
     that happens to carry it, so a message with nothing against its own id can still
     sit in a thread waiting on one. Every writer that asks "may a new message
-    go to this one without `--for`?" asks this, because two readings of the same
+    go to this one as a proactive message?" asks this, because two readings of the same
     question drift: a refusal that sent an agent to name a thread for a message owed
     nothing sent it to a writer refusing it on the thread's obligation, which is the
     dead end a refusal is supposed to end.
@@ -80,10 +80,10 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     it goes instead.
 
     Where it goes is what the log still owes, which is `current_responses`: a
-    user's press is answered through `--for` until it is answered and not after, and
+    user's press is answered through its delivery reference until it is answered and not after, and
     a resolve or an undo is owed nothing at all. A
     message is the one id whose writer turns on its thread rather than on
-    itself — naming the thread without `--for` is refused while the thread owes a
+    itself — naming the thread for a proactive message is refused while the thread owes a
     response, whichever of its messages is owed it — so it is read through
     `thread_obligation`, the same reading `cmd_reply`'s guard refuses on.
 

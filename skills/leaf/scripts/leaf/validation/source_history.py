@@ -152,8 +152,13 @@ def quote_reanchors(
             ),
             None,
         )
-        address = f"--for {answer['for']}" if answer else identity
-        command = f"leaf thread reply <page> {address} --section <replacement-id> --quote <new-passage>"
+        operation = (
+            "leaf response reply <answer.ref>"
+            if answer
+            else f"leaf thread reply <page> {identity}"
+        )
+        command = f"{operation} --section <replacement-id> --quote <new-passage>"
+        subject = f" for input {answer['for']}" if answer else ""
         if (
             section
             and section in current_passages.enclosing
@@ -162,11 +167,11 @@ def quote_reanchors(
         ):
             moves[identity] = {"section": section}
             advice.append(
-                f"open thread {identity} quote {anchor['quote']!r} no longer resolves; activation will move it to section {section!r}. To choose its replacement passage: {command}; detach only if its subject left the page"
+                f"open thread {identity} quote {anchor['quote']!r} no longer resolves; activation will move it to section {section!r}. To choose its replacement passage{subject}: {command}; detach only if its subject left the page"
             )
         else:
             errors.append(
-                f"open thread {identity} quote {anchor['quote']!r} no longer resolves and has no surviving section; move it with {command}, or --detach if its subject left the page"
+                f"open thread {identity} quote {anchor['quote']!r} no longer resolves and has no surviving section; move it{subject} with {command}, or --detach if its subject left the page"
             )
     return moves, errors, advice
 

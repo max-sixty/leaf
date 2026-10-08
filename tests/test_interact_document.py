@@ -44,6 +44,7 @@ from interact_support import (
     model_layer,
     publish,
     read_page_data,
+    response_reference,
     stamp,
     state_json,
     suggest,
@@ -2015,11 +2016,9 @@ def test_reply_refuses_a_suggestion(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--text",
             "Fixed:",
             "--markup",
@@ -2030,7 +2029,7 @@ def test_reply_refuses_a_suggestion(page_dir):
     assert "frozen in the log" in result.output
 
 
-def test_reply_infers_one_obligation_and_activates_the_current_source(page_dir):
+def test_response_addresses_one_obligation_and_activates_the_current_source(page_dir):
     initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     comment = append_carried_log_record(
@@ -2051,7 +2050,7 @@ def test_reply_infers_one_obligation_and_activates_the_current_source(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--text", "Updated."],
+        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
     )
 
     assert result.exit_code == 0, result.output
@@ -2081,7 +2080,7 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--text", "Updated."],
+        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
     )
 
     assert result.exit_code != 0
@@ -2091,7 +2090,7 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
     )
 
 
-def test_reply_uses_for_to_select_one_of_several_obligations(page_dir):
+def test_response_reference_selects_one_of_several_obligations(page_dir):
     initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     comments = []
@@ -2121,15 +2120,15 @@ def test_reply_uses_for_to_select_one_of_several_obligations(page_dir):
 
     ambiguous = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--text", "Updated."],
+        ["response", "reply", "--text", "Updated."],
     )
     assert ambiguous.exit_code != 0
-    assert "use --for EVENT_ID" in ambiguous.output
+    assert "Missing argument" in ambiguous.output
     assert files_model.list_revisions(page_dir) == [1]
 
     selected = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--for", "c2", "--text", "Updated."],
+        ["response", "reply", response_reference(page_dir, "c2"), "--text", "Updated."],
     )
 
     assert selected.exit_code == 0, selected.output
@@ -2139,7 +2138,7 @@ def test_reply_uses_for_to_select_one_of_several_obligations(page_dir):
     assert reply["responds"] == "c2"
 
 
-def test_inferred_reply_never_settles_a_newer_undelivered_correction(page_dir):
+def test_response_never_settles_a_newer_undelivered_correction(page_dir):
     delivered = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "make it blue"},
@@ -2153,6 +2152,7 @@ def test_inferred_reply_never_settles_a_newer_undelivered_correction(page_dir):
             session=claim["id"],
             turn=claim["turn"],
         )
+    reference = response_reference(page_dir, delivered)
     append_carried_log_record(
         page_dir,
         {
@@ -2166,18 +2166,18 @@ def test_inferred_reply_never_settles_a_newer_undelivered_correction(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--text", "Made it blue."],
+        ["response", "reply", reference, "--text", "Made it blue."],
     )
 
     assert result.exit_code != 0
-    assert "this turn's opened delivery holds 0 reply obligations" in result.output
+    assert "no longer requires a reply" in result.output
     assert not any(
         event["kind"] == "reply" and event["author"] == "agent"
         for event in events_model.read_events(page_dir)
     )
 
 
-def test_inferred_reply_belongs_to_the_session_with_the_opened_delivery(
+def test_response_belongs_to_the_session_with_the_opened_delivery(
     page_dir, monkeypatch
 ):
     comment = append_carried_log_record(
@@ -2197,14 +2197,14 @@ def test_inferred_reply_belongs_to_the_session_with_the_opened_delivery(
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--text", "Updated."],
+        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
     )
 
     assert result.exit_code != 0
-    assert "this turn's opened delivery holds 0 reply obligations" in result.output
+    assert "claimed by another session" in str(result.exception)
 
 
-def test_inferred_reply_cannot_borrow_a_closed_turns_delivery(page_dir):
+def test_response_address_survives_its_delivery_turn_closing(page_dir):
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
@@ -2222,11 +2222,11 @@ def test_inferred_reply_cannot_borrow_a_closed_turns_delivery(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--text", "Updated."],
+        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
     )
 
-    assert result.exit_code != 0
-    assert "this turn's opened delivery holds 0 reply obligations" in result.output
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["responds"] == comment["id"]
 
 
 def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
@@ -2269,7 +2269,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
     ]
 
 
-def test_inferred_reply_attempt_is_idempotent(page_dir):
+def test_response_attempt_is_idempotent(page_dir):
     """An attempt is an opaque durable key, and the append door holds every
     writer to the record contract's shape for one — the delivery transports mint
     theirs from a digest, so a short hand-written label is not a retry key."""
@@ -2288,22 +2288,9 @@ def test_inferred_reply_attempt_is_idempotent(page_dir):
             turn=claim["turn"],
         )
 
-    first = thread_model.cmd_reply(
-        page_dir,
-        None,
-        "Updated.",
-        "",
-        for_event=None,
-        attempt=attempt,
-    )
-    retried = thread_model.cmd_reply(
-        page_dir,
-        None,
-        "Updated.",
-        "",
-        for_event=None,
-        attempt=attempt,
-    )
+    reference = response_reference(page_dir, comment)
+    [first] = thread_model.post_response(reference, "Updated.", attempt=attempt)
+    [retried] = thread_model.post_response(reference, "Updated.", attempt=attempt)
 
     assert retried["id"] == first["id"]
     assert (
@@ -2323,24 +2310,24 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
     )
-    thread_model.cmd_reply(
-        page_dir,
-        "c1",
-        "Updated.",
-        "",
-        for_event="c1",
-    )
+    reference = response_reference(page_dir, "c1")
+    thread_model.post_response(reference, "Updated.")
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--for", "c1", "--text", "Again."],
+        [
+            "response",
+            "reply",
+            reference,
+            "--attempt",
+            "distinct-retry-attempt",
+            "--text",
+            "Again.",
+        ],
     )
 
     assert result.exit_code != 0
-    assert (
-        "event 'c1' takes no reply; c1 is a comment in this page's log, and nothing is "
-        "owed for it — `leaf thread reply <page> c1` replies to it"
-    ) in result.output
+    assert "no longer requires a reply" in result.output
 
 
 @pytest.mark.parametrize(
@@ -3143,9 +3130,9 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     def held_append_record(page, event):
         if event.get("kind") == "note" and event.get("version") == 2:
             at_commit.set()
-            assert resume.wait(timeout=STATED_TIMEOUT), (
-                "the report did not enter the publish gap"
-            )
+            assert resume.wait(
+                timeout=STATED_TIMEOUT
+            ), "the report did not enter the publish gap"
         return original_append_record(page, event)
 
     monkeypatch.setattr(
@@ -3153,9 +3140,9 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     )
     with ThreadPoolExecutor(max_workers=2) as executor:
         publishing = executor.submit(publishing_model.cmd_stamp, page_dir, "absorb")
-        assert at_commit.wait(timeout=STATED_TIMEOUT), (
-            "publish never reached its note commit"
-        )
+        assert at_commit.wait(
+            timeout=STATED_TIMEOUT
+        ), "publish never reached its note commit"
         serialized = leases_model.lock_is_held(page_dir / "events.jsonl")
         reporting = executor.submit(
             thread_model.cmd_report,
@@ -3279,9 +3266,9 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
 
     # The moved card written where the user put it, an untouched card rewritten.
     write([("card-y", "", "Wire the importer and its backfill")], [X])
-    assert check(page_dir).exit_code == 0, (
-        "an untouched card is not the gate's business"
-    )
+    assert (
+        check(page_dir).exit_code == 0
+    ), "an untouched card is not the gate's business"
 
     # The moved card left where the previous version had it: the move's column is
     # authored as before, so the move still lands where the user dropped it.
@@ -3300,9 +3287,9 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
     result = check(page_dir)
     assert result.exit_code == 1
     assert "card-x" in result.output and "move on r1" in result.output
-    assert "card-y" not in result.output, (
-        "the gate named a card nobody had decided about"
-    )
+    assert (
+        "card-y" not in result.output
+    ), "the gate named a card nobody had decided about"
 
     write([("card-x", " restated", "Guard the delete behind the flag"), Y], [])
     assert check(page_dir).exit_code == 0
@@ -5287,9 +5274,9 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
 
     for scheme, half in (("light", 0), ("dark", 1)):
         steps, paper = _palette(theme, half)
-        assert len(steps) == declared, (
-            f"{scheme} paints {len(steps)} series and $series.steps says {declared}"
-        )
+        assert (
+            len(steps) == declared
+        ), f"{scheme} paints {len(steps)} series and $series.steps says {declared}"
         faint = [c for c in steps if _contrast(c, paper) < 3.0]
         assert not faint, f"{scheme}: {faint} under 3:1 against {paper}"
         pairs = [(a, b) for i, a in enumerate(steps) for b in steps[i + 1 :]]
@@ -5297,13 +5284,13 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
             (min(_apart(a, b, "protan"), _apart(a, b, "deutan")), a, b)
             for a, b in pairs
         )
-        assert blind[0] >= 8.0, (
-            f"{scheme}: {blind[1]} and {blind[2]} are {blind[0]:.1f} apart to a dichromat"
-        )
+        assert (
+            blind[0] >= 8.0
+        ), f"{scheme}: {blind[1]} and {blind[2]} are {blind[0]:.1f} apart to a dichromat"
         seen = min((_apart(a, b), a, b) for a, b in pairs)
-        assert seen[0] >= 15.0, (
-            f"{scheme}: {seen[1]} and {seen[2]} are {seen[0]:.1f} apart"
-        )
+        assert (
+            seen[0] >= 15.0
+        ), f"{scheme}: {seen[1]} and {seen[2]} are {seen[0]:.1f} apart"
 
 
 def test_page_inspection_places_cards_among_identified_siblings(page_dir):

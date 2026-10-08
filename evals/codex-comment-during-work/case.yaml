@@ -18,7 +18,8 @@ vars:
 
     Reading it will show one user comment, id 7c41d0e2, in thread 9b52c1a3:
     "Keep the existing layout; only change the cache behavior."
-    Its handling clause calls for a plain `leaf thread reply`.
+    Its answer is {kind: reply, to: 9b52c1a3, for: 7c41d0e2,
+    ref: "3fa1c2d9:0:7c41d0e2", writer: agent}.
     The returned envelope has `acknowledge: null`.
 
     Read whatever instructions you need. Only Skill and Read run here, so write the
@@ -41,11 +42,8 @@ assert:
   metric: judgment
   value: |
     Pass only if the reply reads the pointer with `leaf delivery read 3fa1c2d9`
-    and writes an explicit `leaf thread reply` to the page's thread, addressing
-    event 7c41d0e2 and confirming the layout will be kept, before finishing the
-    current implementation turn. Omitting both `--for` and an explicit thread
-    address is valid when this is the only reply owed: Leaf infers the same
-    response address. Replying after the requested
+    and writes `leaf response reply 3fa1c2d9:0:7c41d0e2`, confirming the layout
+    will be kept, before finishing the current implementation turn. Replying after the requested
     implementation is finished is valid if it happens before the current turn's
     final chat response. Fail if it waits for another turn, starts
     `leaf wait`, runs any delivery acknowledgement command, queues or forwards

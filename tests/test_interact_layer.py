@@ -472,14 +472,20 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert "thread_title event is invalid" in unnamed.output
     assert events_model.read_events(page_dir) == before
 
-    for command in (
-        ["thread", "reply", str(page_dir), root, "--text", "x", "--title", "a\nb"],
-        ["thread", "edit", str(page_dir), root, "--text", "y", "--title", " "],
+    for command, rejected_kind in (
+        (
+            ["thread", "reply", str(page_dir), root, "--text", "x", "--title", "a\nb"],
+            "reply",
+        ),
+        (
+            ["thread", "edit", str(page_dir), root, "--text", "y", "--title", " "],
+            "thread_title",
+        ),
     ):
         refused = runner.invoke(cli_model.cli, command)
         assert refused.exit_code != 0
-        assert "thread_title event is invalid" in refused.output
-    assert events_model.read_events(page_dir) == before
+        assert f"{rejected_kind} event is invalid" in refused.output
+        assert events_model.read_events(page_dir) == before
 
     # A reply's --title names only a thread nothing has named, so a name the harness
     # gave the thread while the agent worked stands; edit renames one.

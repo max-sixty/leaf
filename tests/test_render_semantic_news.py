@@ -25,7 +25,7 @@ def test_new_reply_and_user_question_share_one_notice_without_moving_focus(
     expect(toggle).to_be_focused()
     expect(page.locator(".lf-notice")).to_be_hidden()
 
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         serve.page_dir,
         root,
         "I changed the route. Does this answer your question?",
@@ -64,7 +64,7 @@ def test_terminal_failure_is_a_response_notice_not_an_agent_reply(browser, serve
     page = open_page(browser, url)
     expect(page.locator(".lf-notice")).to_be_hidden()
 
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         serve.page_dir,
         root,
         "The agent turn ended before completion.",
@@ -133,7 +133,7 @@ def test_deferred_notice_describes_only_the_current_message_version(browser, ser
 def test_initial_history_and_repeated_stage_readings_are_quiet(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What changed?")
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         serve.page_dir, root, "The initial historical answer.", None, for_event=root
     )
     page = open_page(browser, url)

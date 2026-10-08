@@ -633,6 +633,6 @@ function reactionPlace(event) {
 export const undoSentence = (undoable) => {
   const event = undoable();
   return event?.token
-    ? `Take back: ${event.token} on ${reactionPlace(event)}`
-    : "Take back the last change you made here";
+    ? `Undo: ${event.token} reaction on ${reactionPlace(event)}`
+    : "Undo your latest update";
 };

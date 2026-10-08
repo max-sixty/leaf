@@ -28,14 +28,17 @@ def _check(page_dir: Path, render: bool, events_override: list | None) -> int:
     events = read_events(page_dir) if events_override is None else events_override
     result = check_source(page_dir, events)
     if result.errors:
-        print(f"✗ index.html: {len(result.errors)} issue(s)", file=sys.stderr)
+        print(
+            f"Error: index.html has {len(result.errors)} validation issue{'s' if len(result.errors) != 1 else ''}",
+            file=sys.stderr,
+        )
         for error in result.errors:
             print(f"  - {error}", file=sys.stderr)
         for line in result.advice:
             print(f"  · {line}", file=sys.stderr)
         return 1
     print(
-        "✓ index.html: parses, widgets, authored scripts, and styles validate",
+        "✓ index.html: valid",
         # Ahead of any browser gate's stderr, which a piped reader gets unbuffered.
         flush=True,
     )

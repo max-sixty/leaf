@@ -1,8 +1,11 @@
 """Product controls really render ordinary HTML; judges read real screenshots."""
 
 import json
+import shlex
+import subprocess
 from pathlib import Path
 
+from interact_support import LEAF_COMMAND, published
 from leaf_dev import ROOT, arrangement_plain
 from leaf_dev.arrangement_eval import WIDTHS, first_prompt
 
@@ -193,7 +196,7 @@ def test_completed_record_has_a_render_correction_loop_without_a_seeded_decision
     assert not any(key.startswith("choice-") for key in response["metadata"]["checks"])
     for phase in response["metadata"]["diagnostics"]["phases"].values():
         assert phase["trace"]["renders"] == 2
-        assert phase["trace"]["refused"] == 1
+        assert phase["trace"]["failed_check_calls"] == 1
         assert phase["captures"]["short"]
         assert all(Path(path).is_file() for path in phase["captures"]["short"])
 
@@ -217,3 +220,78 @@ def test_reader_calibration_shows_the_judge_its_page_at_every_width(tmp_path):
     ]
     assert listed and all(path.is_file() for path in listed)
     assert 'value="8"' in (tmp_path / "source.html").read_text()
+
+
+def test_check_failure_diagnostics_use_the_tool_outcome(tmp_path, page_dir):
+    """Failure is a tool fact; prose containing old or current marks is not one."""
+    from leaf_dev.arrangement_eval import trace_scores
+
+    check = "leaf page check page --render"
+    compound = (
+        shlex.join([*LEAF_COMMAND, "page", "check", str(published(page_dir))])
+        + " && false"
+    )
+    failed = subprocess.run(
+        ["sh", "-c", compound], capture_output=True, text=True, check=False
+    )
+    assert failed.returncode == 1
+    assert "✓ index.html: valid" in failed.stdout
+    stream = tmp_path / "stream.jsonl"
+    for index, (command, returned, expected) in enumerate(
+        [
+            (
+                check,
+                {
+                    "content": "Error: index.html has 1 validation issue",
+                    "is_error": True,
+                },
+                1,
+            ),
+            (
+                check,
+                {"content": "✗ quoted example; check passed", "is_error": False},
+                0,
+            ),
+            (
+                check,
+                {"content": "Error: quoted example; check passed", "is_error": False},
+                0,
+            ),
+            (check, {"content": "No tool outcome was recorded"}, 0),
+            (check, None, 0),
+            (compound, {"content": failed.stdout + failed.stderr, "is_error": True}, 1),
+        ]
+    ):
+        identity = f"check-{index}"
+        trace = []
+        trace.append(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": identity,
+                            "name": "Bash",
+                            "input": {"command": command},
+                        }
+                    ]
+                },
+            }
+        )
+        if returned is not None:
+            trace.append(
+                {
+                    "type": "user",
+                    "message": {
+                        "content": [
+                            {"type": "tool_result", "tool_use_id": identity, **returned}
+                        ]
+                    },
+                }
+            )
+        stream.write_text("\n".join(json.dumps(record) for record in trace))
+        scores = trace_scores(stream)
+        assert scores["checks"] == 1
+        assert scores["renders"] == ("--render" in command)
+        assert scores["failed_check_calls"] == expected

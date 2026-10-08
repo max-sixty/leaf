@@ -3710,12 +3710,12 @@ def test_the_queue_panel_lists_both_queues_and_what_is_done(browser, serve):
     page.keyboard.press("Shift+q")
     expect(panel).to_be_visible()
     rows = page.evaluate(QUEUE_ROW_SAYS)
-    assert [(row["list"], row["kind"], row["title"]) for row in rows] == [
-        ("you", "ask", "Which channel first?"),
-        ("you", "question", "Weekly?"),
-        ("agent", "answer", "Tighten this."),
-        ("agent", "task", "Rebuild the notes"),
-        ("done", "task", "Retitle the release"),
+    assert [(row["list"], row["word"], row["title"]) for row in rows] == [
+        ("you", "Ask", "Which channel first?"),
+        ("you", "Question", "Weekly?"),
+        ("agent", "Reply", "Tighten this."),
+        ("agent", "Task", "Rebuild the notes"),
+        ("done", "Task", "Retitle the release"),
     ], rows
     assert rows[1]["where"].startswith("§ Release"), rows
     assert rows[-1]["where"].startswith("Done"), rows
@@ -7684,12 +7684,12 @@ def test_a_drawer_reached_from_another_drawer_leaves_both_of_them_shut(browser, 
 
 
 def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
-    """All leaves is the second drawer destination and follows the same focus contract."""
+    """All pages is the second drawer destination and follows the same focus contract."""
     live_leaf("second", "A second leaf")
     page = open_page(browser, serve(ADDRESSED_PAGE))
 
     page.keyboard.press("g")
-    expect(page.locator(".lf-shortcut-bar")).to_contain_text("Leaves drawer")
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("Pages drawer")
     expect(
         page.locator(
             '.lf-go-to-hints [data-lf-go-to-command="navigation.drawer.leaves"]'
@@ -7703,7 +7703,7 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     # destination remains operable even though the fixed More seat has no target overlay.
     live_leaf("third", "A third leaf")
     round_trip(page)
-    expect(page.locator(".lf-others")).to_contain_text("All leaves (3)")
+    expect(page.locator(".lf-others")).to_contain_text("All pages (3)")
     expect(threads_hint).to_be_visible()
     page.keyboard.press("Shift+l")
 
@@ -8083,14 +8083,20 @@ def test_inflight_native_paging_hides_hints_until_the_scene_settles(browser, ser
         ),
     )
 
-    # Hold the browser's paging animation and the hint settle timer at the first
-    # rendering frame. The installed clock starts advancing immediately, so
-    # pause at a future instant rather than its elapsed origin. Driver-side
-    # polling can otherwise begin after the 80 ms settle window and mistake
-    # the settled map for an in-flight one.
+    # Hold the hint settle timer and arm the scroll observation before the key.
+    # PageDown returns before its first native scroll event, so pressing g right
+    # after the driver returns can instead arm a map of the old, still scene.
     page.clock.install(time=0)
-    page.clock.pause_at(page.evaluate("() => (Date.now() + 1000) / 1000"))
+    page.clock.pause_at(page.evaluate("() => (Date.now() + 100) / 1000"))
+    page.evaluate(
+        """() => {
+          window.firstPageScroll = false;
+          document.addEventListener('scroll', () => { window.firstPageScroll = true; },
+            {once: true, capture: true});
+        }"""
+    )
     page.keyboard.press("PageDown")
+    page.wait_for_function("() => window.firstPageScroll", polling=20)
     page.keyboard.press("g")
     page.clock.run_for(20)
     expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
@@ -9456,7 +9462,7 @@ def test_named_go_to_addresses_toggle_their_auxiliary_surfaces(
         (
             "Shift+l",
             "navigation.drawer.leaves",
-            "Leaves drawer",
+            "Pages drawer",
             ".lf-others-panel",
             ".lf-others",
             True,
@@ -10634,7 +10640,7 @@ def test_signoff_uses_its_visible_button_and_g_l_never_falls_through(browser, se
     approve = page.locator(".lf-signoff")
     expect(approve).not_to_have_attribute("aria-keyshortcuts", re.compile(".+"))
 
-    # All leaves is conditional. With no neighbouring leaf, its sequence must not be
+    # All pages is conditional. With no neighbouring leaf, its sequence must not be
     # reinterpreted as a page action carrying the same final key.
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
@@ -14627,9 +14633,9 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     expect(page.locator('.lf-queue-row[data-lf-at="shape-decision"]')).to_have_count(0)
     expect(page.locator('.lf-queue-row[data-lf-at="picked-decision"]')).to_have_count(1)
     expect(page.locator('.lf-queue-row[data-lf-at="sug-window"]')).to_have_count(1)
-    expect(
-        page.locator("[data-lf-queue='agent'] .lf-queue-row[data-lf-kind='answer']")
-    ).to_have_count(1)
+    agent_rows = page.locator("[data-lf-queue='agent'] .lf-queue-row")
+    expect(agent_rows).to_have_count(1)
+    expect(agent_rows).to_contain_text("Steel, unless the sealing is quick?")
 
     # The user is standing in it all the same, first with the panel still open.
     page.locator("#shape .lf-settle").focus()
@@ -15811,13 +15817,14 @@ def test_a_command_button_owns_activation_and_the_native_form_default(browser, s
           two.textContent = 'Second route';
           one.form.append(two);
           commandForm.routes = [];
+          commandForm.firstRouteAvailable = false;
           commands(one.form, 'Routed form', [{
             id: 'test.form-routes', keys: ['1', '2'], title: 'Apply route', control: one,
-            routes: [{id: 'test.form-one', title: 'First', binding: '1'},
+            routes: [{id: 'test.form-one', title: 'First', binding: '1',
+              when: () => commandForm.firstRouteAvailable},
               {id: 'test.form-two', title: 'Second', binding: '2', control: two}],
             run: binding => commandForm.routes.push(binding),
           }]);
-          one.setAttribute('aria-disabled', 'true');
           commandForm.invalidate();
         }"""
     )

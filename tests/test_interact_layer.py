@@ -8,13 +8,13 @@ import shutil
 import subprocess
 import sys
 import threading
+import tomllib
 from datetime import datetime
 from pathlib import Path
 
 import playwright
 import pytest
 import tinycss2
-import tomllib
 import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool, _retire
@@ -97,6 +97,7 @@ def test_cli_help_groups_commands_with_complete_summaries(regtest):
         "page": ["page", "--help"],
         "server": ["server", "--help"],
         "thread": ["thread", "--help"],
+        "response": ["response", "--help"],
     }
     outputs = []
 
@@ -146,6 +147,7 @@ def test_agent_interaction_command_help(regtest):
         "status",
         "thread open",
         "thread reply",
+        "response reply",
         "thread edit",
         "thread resolve",
         "page report",
@@ -170,6 +172,7 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     runner = CliRunner()
     ids = []
     outputs = []
+    references = []
 
     def record(args, code):
         result = runner.invoke(cli_model.cli, args, prog_name="leaf")
@@ -183,11 +186,13 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
             )
         text = f"$ leaf {' '.join(args)}\nexit: {code}\n{output}"
         text = text.replace(str(page), "/page")
+        for ref in references:
+            text = text.replace(ref, "response-ref")
         for number, event_id in enumerate(ids, 1):
             text = text.replace(event_id, f"user-{number}")
         outputs.append(text)
 
-    record(["thread", "reply", str(page), "--text", "Answer"], 1)
+    record(["thread", "reply", str(page), "--text", "Answer"], 2)
     for text in ("Why this plan?", "What will it cost?"):
         code, response = fetch(
             f"{server}/api/event",
@@ -200,10 +205,16 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     assert "has new input" in woke.output
     [batch] = consume_pending_input("s1")["batches"]
     assert len(batch["events"]) == 2
-    record(["thread", "reply", str(page), "--text", "Answer"], 1)
+    record(["thread", "reply", str(page), "--text", "Answer"], 2)
     record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
-    record(["thread", "reply", str(page), "--for", ids[0], "--text", "Answer"], 0)
-    record(["thread", "reply", str(page), "--for", ids[0], "--text", "Answer"], 1)
+    reference = batch["events"][0]["answer"]["ref"]
+    references.append(reference)
+
+    def response_args(*extra):
+        return ["response", "reply", reference, "--text", "Answer", *extra]
+
+    record(response_args(), 0)
+    record(response_args(), 0)
     record(["thread", "reply", str(page), ids[0], "--text", "Follow-up"], 0)
     # A page reaction can close without an answer: it never owed a reply.
     code, response = fetch(
@@ -212,8 +223,14 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     )
     assert code == 200, response
     ids.append(events_model.read_events(page)[-1]["id"])
-    record(["thread", "reply", str(page), "--for", ids[-1], "--text", "Answer"], 1)
+    record(["response", "reply", "not-a-response-ref", "--text", "Answer"], 1)
     record(["thread", "resolve", str(page), ids[-1]], 0)
+    # The title harness stand-in runs asynchronously; retain this fixture until
+    # its jobs have reported, before the page/state home are retired.
+    for worker in threading.enumerate():
+        if worker.name == "leaf-thread-title":
+            worker.join(timeout=STATED_TIMEOUT)
+            assert not worker.is_alive(), "the title stand-in outlived its page fixture"
     regtest.write("\n".join(outputs).encode("ascii", "backslashreplace").decode())
 
 
@@ -430,7 +447,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     assert (waiting["state"], waiting["detail"]) == ("waiting", "pick a storage engine")
 
     # The comment's id is the thread's; --title names it in the same command.
-    opened, title = written(
+    [opened] = written(
         [
             "thread",
             "open",
@@ -443,11 +460,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
     )
     root = opened["id"]
     assert opened == logged(opened)
-    assert (title["kind"], title["thread"], title["title"]) == (
-        "thread_title",
-        root,
-        "Storage",
-    )
+    assert opened["title"] == "Storage"
 
     # A refused title refuses the whole command, so no message goes up unnamed.
     before = events_model.read_events(page_dir)
@@ -484,7 +497,6 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
         ],
     )
     assert followed.exit_code == 0, followed.output
-    assert "already has a title" in followed.stderr
     [followed] = [json.loads(line) for line in followed.stdout.splitlines()]
     assert followed == logged(followed)
     assert followed["parent"] == root
@@ -492,7 +504,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
         event["title"]
         for event in events_model.read_events(page_dir)
         if event["kind"] == "thread_title"
-    ] == ["Storage"]
+    ] == []
     later = followed["id"]
 
     # Every command naming a thread takes any message in it, as reply does.
@@ -508,7 +520,7 @@ def test_a_write_prints_the_records_it_appended(tmp_path, monkeypatch):
         ["thread", "reply", str(page_dir), root, "--for", root, "--text", "x"],
     )
     assert both.exit_code == 2
-    assert "THREAD and --for cannot be used together" in both.output
+    assert "No such option '--for'" in both.output
 
     [task] = written(["task", "open", str(page_dir), later, "Trace the store"])
     assert task["subject"] == {"kind": "thread", "id": root}
@@ -724,8 +736,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
     # payload naming one — in the project file, or in a `uv.toml` beside it —
     # so that is what this forbids. Read off the lines rather than a parsed
     # table because a comment is free to discuss an index where a setting is
-    # not, and the project's own floor is 3.10, with no `tomllib` to parse
-    # with. The nightly test below drives the same claim through a real
+    # not. The nightly test below drives the same claim through a real
     # resolve against a closed port; this is the half every run sees.
     configured = [
         line
@@ -2875,7 +2886,7 @@ def test_init_reads_the_complete_layer_before_revendoring(tmp_path, monkeypatch)
 def test_a_rejected_init_leaves_a_precreated_directory_empty(tmp_path, monkeypatch):
     """A directory the caller prepared is not page state until init succeeds."""
     monkeypatch.chdir(tmp_path)
-    page = tmp_path / "prepared-page"
+    page = tmp_path / "prepared page"
     page.mkdir()
     layer = tmp_path / ".leaf"
     layer.mkdir()
@@ -2892,13 +2903,14 @@ def test_a_rejected_init_leaves_a_precreated_directory_empty(tmp_path, monkeypat
 
 def test_page_commands_do_not_mint_the_successful_init_marker(tmp_path):
     """An existing directory becomes a page only through a completed page init."""
-    page = tmp_path / "prepared-page"
+    page = tmp_path / "prepared page"
     page.mkdir()
 
     result = CliRunner().invoke(cli_model.cli, ["server", "stop", str(page)])
 
     assert result.exit_code != 0
-    assert "page init" in result.output
+    assert result.stderr.startswith("Error: ")
+    assert f"leaf page init '{page}'" in result.stderr
     assert list(page.iterdir()) == []
 
 
@@ -5262,7 +5274,7 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
     assert json.loads(failed.stdout) == {"args": ["--fail"], "lines": 2}
     assert missing.returncode == 1
     assert missing.stderr == (
-        "package 'tally' has no script 'total.py'; available: count.py\n"
+        "Error: package 'tally' has no script 'total.py'; available: count.py\n"
     )
     assert unknown.returncode == 1
     assert "unknown package 'tallies'" in unknown.stderr
@@ -5313,7 +5325,7 @@ def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(
     installed = CliRunner().invoke(cli_model.cli, ["package", "install", str(source)])
 
     assert checked.exit_code == 1
-    assert checked.output.startswith(str(script))
+    assert checked.output.startswith(f"Error: {script}")
     assert message in checked.output
     assert installed.exit_code == 1
     assert message in installed.output

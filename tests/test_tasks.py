@@ -11,6 +11,7 @@ from interact_support import (
     append_command,
     asks_on_you,
     publish,
+    response_reference,
     stamp,
     state_json,
 )
@@ -57,11 +58,9 @@ def test_a_task_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     assert task["subject"] == {"kind": "thread", "id": comment["id"]}
     written(
         leaf(
-            "thread",
+            "response",
             "reply",
-            page_dir,
-            "--for",
-            comment["id"],
+            response_reference(page_dir, comment["id"]),
             "--text",
             "Building it now.",
         )
@@ -182,11 +181,9 @@ def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir):
     )
     question = written(
         leaf(
-            "thread",
+            "response",
             "reply",
-            page_dir,
-            "--for",
-            comment["id"],
+            response_reference(page_dir, comment["id"]),
             "--text",
             "Warm or cool?",
             "--awaits",
@@ -241,11 +238,9 @@ def test_a_question_ends_at_the_reaction_that_settles_it(page_dir):
     )
     question = written(
         leaf(
-            "thread",
+            "response",
             "reply",
-            page_dir,
-            "--for",
-            comment["id"],
+            response_reference(page_dir, comment["id"]),
             "--text",
             "Warm or cool?",
             "--awaits",
@@ -330,7 +325,10 @@ def test_working_names_a_move_until_its_answer_and_a_task_until_its_end(page_dir
     )
     refused = leaf("task", "start", page_dir, "no-such-move", "Reading it")
     assert refused.exit_code != 0
-    assert "neither an open task of yours nor a move you owe" in refused.output
+    assert (
+        "neither an open task of yours nor an update you owe an answer to"
+        in refused.output
+    )
 
     start = written(
         leaf("task", "start", page_dir, comment["id"], "Tightening the plan section")
@@ -347,7 +345,13 @@ def test_working_names_a_move_until_its_answer_and_a_task_until_its_end(page_dir
 
     # The reply that answers the move ends its start: nothing is in hand.
     written(
-        leaf("thread", "reply", page_dir, "--for", comment["id"], "--text", "Done.")
+        leaf(
+            "response",
+            "reply",
+            response_reference(page_dir, comment["id"]),
+            "--text",
+            "Done.",
+        )
     )
     state = state_json(page_dir)
     assert state["workflows"] == []
@@ -382,7 +386,13 @@ def test_a_thread_task_runs_under_its_start_line(page_dir):
     )
     task = written(leaf("task", "open", page_dir, comment["id"], "Rebuild the chart"))
     written(
-        leaf("thread", "reply", page_dir, "--for", comment["id"], "--text", "On it.")
+        leaf(
+            "response",
+            "reply",
+            response_reference(page_dir, comment["id"]),
+            "--text",
+            "On it.",
+        )
     )
     written(leaf("task", "start", page_dir, task["id"], "Waiting on the build"))
     [thread] = state_json(page_dir)["threads"]
@@ -647,11 +657,9 @@ def test_a_question_is_the_task_on_the_user_a_thread_takes(page_dir):
     )
     question = written(
         leaf(
-            "thread",
+            "response",
             "reply",
-            page_dir,
-            "--for",
-            comment["id"],
+            response_reference(page_dir, comment["id"]),
             "--text",
             "Is the rollback plan enough?",
             "--awaits",
@@ -661,7 +669,7 @@ def test_a_question_is_the_task_on_the_user_a_thread_takes(page_dir):
         "task", "open", page_dir, comment["id"], "Is it enough?", "--on", "user"
     )
     assert refused.exit_code != 0
-    assert "ask it there with `leaf thread reply --awaits`" in refused.output
+    assert "question: ask it there" in refused.output
 
     status, answer = done(page_dir, question["id"])
     assert status == 400, answer
@@ -710,11 +718,9 @@ def test_an_asks_task_ends_only_at_its_answer_and_a_questions_at_the_agents_end(
     )
     question = written(
         leaf(
-            "thread",
+            "response",
             "reply",
-            page_dir,
-            "--for",
-            comment["id"],
+            response_reference(page_dir, comment["id"]),
             "--text",
             "Warm or cool?",
             "--awaits",

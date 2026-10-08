@@ -8,6 +8,8 @@ import click
 
 from leaf.files import read_json
 
+from .schema import json_value
+
 
 def prepaint_markup(registry, tag: str) -> str | None:
     """The markup a widget's first paint shows (`x-prepaint`): its own, or that of the
@@ -94,7 +96,7 @@ class VisualParts:
     def __str__(self) -> str:
         if self.prefixes:
             return f"ids starting with {' or '.join(map(repr, self.prefixes))}"
-        return f"known: {list(self.tokens)}"
+        return f"known: {json_value(self.tokens)}"
 
 
 def visual_parts(record: dict, registry: dict) -> VisualParts:
@@ -136,7 +138,9 @@ def reference_relation_error(
         for target, declaration in relation.items()
     ):
         return None
-    expected = ", ".join(f"{key}={value!r}" for key, value in predicate.items())
+    expected = ", ".join(
+        f"{key}={json_value(value)}" for key, value in predicate.items()
+    )
     return f"requires {via} where {expected}, but no declared widget matches"
 
 
@@ -146,14 +150,8 @@ class RegistryError(click.ClickException):
     answer, and `sys.exit` inside its request handler killed the connection mid-POST
     while every other rejection beside it returned a 400 — so a page whose vendored
     stamp had fallen behind the running layer met the user's click with a dead socket
-    and no words. Click renders an escaped one bare, at whichever command reached it, so
-    a refusal from here reads like every other refusal this CLI writes."""
-
-    def show(self, file=None) -> None:
-        if file is None:
-            click.echo(self.message, err=True)
-        else:
-            click.echo(self.message, file=file)
+    and no words. Click renders the exception with its standard Error prefix, while
+    the server can catch the same rejection and answer the request."""
 
 
 def read_registry_declarations(path: Path):
@@ -179,7 +177,7 @@ def read_registry_declarations(path: Path):
     ]
     if non_objects:
         raise RegistryError(
-            f"{path}: registry declarations must be objects: {non_objects}"
+            f"{path}: registry declarations must be objects: {json_value(non_objects)}"
         )
     return registry
 

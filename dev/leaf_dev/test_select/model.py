@@ -31,7 +31,7 @@ class Classification:
     context_refusals: dict[str, dict]
 
     @classmethod
-    def combine(cls, parts: Iterable["Classification"]) -> "Classification":
+    def combine(cls, parts: Iterable[Classification]) -> Classification:
         answers, refusals = {}, {}
         for part in parts:
             answers.update(part.answers)
@@ -199,7 +199,7 @@ class Client:
                     raise ValueError(
                         f"Jev HTTP {error.code}; full-suite fallback"
                     ) from error
-            except (URLError, HTTPException, OSError):
+            except URLError, HTTPException, OSError:
                 if attempt == 3:
                     raise ValueError(
                         "Jev network failure; full-suite fallback"

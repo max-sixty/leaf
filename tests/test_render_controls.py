@@ -4556,8 +4556,9 @@ def test_the_status_press_grows_into_free_room_and_moves_nothing(
 def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve):
     """Just wider than a phone held upright, the banner's status sentence has the first
     row, and the agent's Tasks count leads the second, under the sentence's start, where
-    the run leaves it room whole. A finger's search steps share that row, and the count
-    stands whole beside them without cutting a step, where it stood once the search
+    the run leaves it room whole. A finger's search steps share that row: the count
+    stands whole beside them where the font leaves it room, or gives way to them, never
+    cutting a step or standing cut itself, and comes back where it stood once the search
     closes."""
     context = browser.new_context(
         viewport={"width": 490, "height": 800}, has_touch=True, is_mobile=True
@@ -4582,9 +4583,12 @@ def test_the_counts_lead_the_second_row_where_the_run_leaves_room(browser, serve
     ).to_be_visible()
     page_at_rest(page)
     searching = page.evaluate(STATUS_COUNTS)
-    # "Tasks: 1" is short enough to stand whole beside the steps, touching none of them.
-    assert searching["drawn"] and not searching["inert"], searching
-    assert searching["inBanner"] and not searching["overlaps"], searching
+    # Whether "Tasks: 1" fits beside the steps is the font's to say: macOS's leaves it
+    # room at this width and Linux's does not. Either way it is drawn whole and live, or
+    # gone and out of reach.
+    assert searching["drawn"] != searching["inert"], searching
+    if searching["drawn"]:
+        assert searching["inBanner"] and not searching["overlaps"], searching
     clipped = page.evaluate(BANNER_ROWS)["clipped"]
     assert not clipped, f"the search steps were cut off: {clipped}"
 

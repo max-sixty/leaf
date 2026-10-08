@@ -4598,9 +4598,8 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
     stamp_page(d, JOURNEY_V2, "v2")
 
     page = open_page(browser, url.replace("v1.html", "v2.html"))
-    page.wait_for_function(
-        "t => document.querySelector('#draft-ops .lf-draft-body').textContent === t",
-        arg=DRAFT_EDITED,
+    expect(page.locator("#draft-ops .lf-draft-body")).to_have_attribute(
+        "data-lf-source-words", DRAFT_EDITED
     )
     expect(page.locator("#col-done #card-x")).to_have_count(1)
 

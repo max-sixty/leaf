@@ -441,7 +441,47 @@ def build_sortable(work: Path) -> list[Path]:
     return outputs
 
 
+def build_trace_library(work: Path, library: str) -> list[Path]:
+    """Framework-free recording inspection, loaded only by the Playwright widget.
+
+    Named Timeline exports remove Graph2d. Separate image and timeline bundles
+    stay below the repository's payload limit. Scoped CSS travels with each module
+    so offline exports use the same library rendering as served pages.
+    """
+    out = package_vendor("playwright") / f"{library}.esm.js"
+    out.parent.mkdir(exist_ok=True)
+    entry = (
+        'export { Timeline } from "vis-timeline/esnext/esm/vis-timeline-graph2d.js";\n'
+        'export { default as css } from "vis-timeline/styles/vis-timeline-graph2d.css";\n'
+        if library == "timeline"
+        else 'export { default as Viewer } from "viewerjs/dist/viewer.esm.js";\n'
+        'export { default as css } from "viewerjs/dist/viewer.css";\n'
+    )
+    (work / "entry.mjs").write_text(entry, encoding="utf-8")
+    esbuild(
+        "entry.mjs",
+        "--bundle",
+        "--format=esm",
+        "--minify",
+        "--legal-comments=inline",
+        "--loader:.css=text",
+        f"--outfile={out}",
+        cwd=work,
+    )
+    return [out]
+
+
+def build_trace_timeline(work: Path) -> list[Path]:
+    return build_trace_library(work, "timeline")
+
+
+def build_trace_images(work: Path) -> list[Path]:
+    return build_trace_library(work, "images")
+
+
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
+    "trace-timeline": build_trace_timeline,
+    "trace-images": build_trace_images,
     "markdown": build_markdown,
     "photoswipe": build_photoswipe,
     "sortable": build_sortable,

@@ -177,15 +177,16 @@
    widget wears. The chrome holds itself out instead, from inside its own scope. */
 body:is(.lf-aiming, [data-lf-design-mode]) { cursor: default; }
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item { cursor: pointer; }
-/* Every non-chrome point on the page accepts a drawing press. The crosshair therefore
-   belongs to the whole document plane; an aim box adds semantic context where one is
-   available but no longer decides whether the drag can begin. */
+/* Page words accept drawing presses; runtime surfaces and widget offers keep their
+   controls usable. An aim box adds semantic context where one is available. */
 html[data-lf-draw-mode],
 html[data-lf-draw-mode] body { cursor: crosshair; touch-action: none; }
 html[data-lf-draw-mode] main,
 html[data-lf-draw-mode] main * { cursor: crosshair !important; }
 html[data-lf-draw-mode] main [data-lf-runtime],
-html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
+html[data-lf-draw-mode] main [data-lf-runtime] *,
+html[data-lf-draw-mode] main [data-lf-offer],
+html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
 /* The glyphs of the reactions standing on a target — a margin entry per reaction,
    revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }
@@ -279,13 +280,15 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   @media print { :scope { display: none; } }
   /* The details shelf rests where its notes' focused faces stand. It stands after the
      whole page, so a note focused while it rested in flow would scroll the page to the
-     chrome's end; fixed, focus moves nothing. */
-  .lf-details-shelf { position: fixed; top: calc(var(--lf-banner-h) + 6px); left: 8px; }
+     chrome's end; fixed, focus moves nothing. Its stacking context owns the escaped
+     controls' layer so page headers cannot cover a focused face inside it. */
+  .lf-details-shelf { position: fixed; z-index: var(--lf-z-escaped-control);
+    top: calc(var(--lf-banner-h) + 6px); left: 8px; }
   /* A picture's response proxies stand on the details shelf rather than as a role written
      onto the provider's drawing. Resting, each is a conventional clipped control; focus
      gives it a skip-link-style face under the banner. */
   .lf-visual-action { pointer-events: none; }
-  .lf-visual-action:focus-visible { position: fixed; z-index: var(--lf-z-escaped-control);
+  .lf-visual-action:focus-visible { position: fixed;
     top: calc(var(--lf-banner-h) + 6px); left: 8px;
     width: auto; height: auto; max-width: calc(100vw - 16px); padding: 6px 10px;
     overflow: visible; clip-path: none; pointer-events: auto; white-space: normal;

@@ -63,6 +63,11 @@
     // as they update, and restate what their own shadow trees hold.
     /^[\w-]+ on wa-/,
     / in shadow of wa-[\w-]+/,
+    // Vis Timeline reuses axis labels and grid nodes but restates their classes
+    // and contents during redraw. Viewer.js similarly reapplies image/canvas
+    // classes and magnifier visibility when an inspected image changes. These
+    // are upstream-owned renderers; Leaf's adapter controls remain watched.
+    /^(?:class|style|title|aria-hidden|children|text) (?:on|of) (?:div|img)\.(?:vis-|viewer-)/,
     // The contents map decides which face it needs, roomy, compact or an open outline,
     // by measuring its labels in each; a label's height is where it wraps in that face.
     /^data-lf-(compact|outline) on lf-toc/,

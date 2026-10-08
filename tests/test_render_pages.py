@@ -80,11 +80,14 @@ from render_harness import (
     open_page,
     page_registry,
     panel_settled,
+    primed,
     refuse,
     resized,
     root_overflow,
+    scroll_settled,
     sending,
     stamp_page,
+    take_browser_errors,
     told,
     wait_for_revision,
     write,
@@ -3163,7 +3166,8 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve):
     )
 
 
-def test_a_note_hangs_in_the_margin_where_the_room_holds_it(browser, serve):
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_note_hangs_in_the_margin_where_the_room_holds_it(browser, serve, direction):
     """A sidenote claims nothing from the column: it hangs in the room beside it where
     the room either side of the column, together, holds the note's 384px, the column
     moving left by what the right side lacks, and stands in the flow as a small indented
@@ -3172,7 +3176,8 @@ def test_a_note_hangs_in_the_margin_where_the_room_holds_it(browser, serve):
 
     Every reading is against the page's box rather than the window, the two being the
     same width only where a scrollbar takes no room."""
-    page = open_page(browser, serve(NOTE_AND_WIDE_PAGE))
+    source = NOTE_AND_WIDE_PAGE.replace("<html", f'<html dir="{direction}"', 1)
+    page = open_page(browser, serve(source))
     for width, hangs, centred in (
         (1100, False, True),
         (1190, True, False),
@@ -3522,14 +3527,13 @@ def test_authored_residency_runs_without_annotation_geometry(browser, serve, rai
             body="""<!doctype html><html><head><style>
 body { margin: 0 }
 main { width: 720px; margin: auto; position: relative;
- inset-inline-start: var(--lf-shift, 0px);
  --rail: 100px; --sidebar: 150px; --note: 80px }
 aside { --lf-resident: sidebar }
 aside.note { --lf-resident: note; display: none }
-</style></head><body><main><h1>Neutral authored layout</h1>
+</style></head><body data-annotations="ANNOTATION_MODE"><main><h1>Neutral authored layout</h1>
 <aside>Sidebar</aside><aside class="note">Hidden until resident note</aside>
 <details><summary>More</summary><aside class="note">Disclosed note</aside></details>
-</main></body></html>""",
+</main></body></html>""".replace("ANNOTATION_MODE", "overlay" if rail else "page"),
         ),
     )
     page.set_viewport_size({"width": 950, "height": 800})
@@ -3546,8 +3550,8 @@ aside.note { --lf-resident: note; display: none }
       owner.scheduleResidency();
       await new Promise(requestAnimationFrame);
       const main = document.querySelector('main');
-      const inert = !owner.residencyStarted() && !main.hasAttribute('data-lf-margin');
-      owner.openResidency({rail, onRead: changed => window.completed.push(changed)});
+      const inert = !owner.residencyStarted();
+      owner.openResidency({onRead: changed => window.completed.push(changed)});
       return {inert, tokens: main.getAttribute('data-lf-margin'),
               shift: main.style.getPropertyValue('--lf-shift')};
     }""",
@@ -3555,8 +3559,8 @@ aside.note { --lf-resident: note; display: none }
     )
     expected = {
         "inert": True,
-        "tokens": "rail note" if rail else "sidebar note",
-        "shift": "" if rail else "35px",
+        "tokens": "rail note" if rail else "note",
+        "shift": "",
     }
     assert reading == expected
     page.evaluate("document.documentElement.dir='rtl'; residency.scheduleResidency()")
@@ -3875,3 +3879,326 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
     assert schema_model.NO_KEY in page.locator("body").inner_text()
     # The refusal is the subject: a user without the key is answered 401.
     consume_browser_errors(page, "401")
+
+
+@pytest.mark.parametrize(
+    "authored_css", ["", "main.layout-column { max-width: 600px; --note: 260px; }"]
+)
+def test_margin_residents_keep_their_first_painted_posture(
+    browser, serve, authored_css
+):
+    """Delaying modules must not first paint notes inline and shift the reading axis."""
+    source = leaf_page(
+        "First-painted notes",
+        '<h1 id="title">Migration</h1>'
+        '<aside class="sidenote" id="note">Keep old readers until checks pass.</aside>'
+        '<p id="passage">Advance one cohort at a time while keeping earlier readers available.</p>',
+    )
+    source = source.replace("</head>", f"<style>{authored_css}</style></head>")
+    source = source.replace("<body", '<body style="--authored: initial"', 1)
+    held = []
+    controlled = primed(
+        browser, lambda page: page.route("**/leaf.js", lambda route: held.append(route))
+    )
+    page = controlled.new_page(viewport={"width": 1440, "height": 900})
+    # This boundary deliberately precedes the module-owned banner/readiness stamp.
+    page.goto(live_url(serve(source)), wait_until="commit")
+    expect(page.locator("#note")).to_have_css("float", "right")
+    page.wait_for_function(
+        "performance.getEntriesByType('paint').some(p => p.name === 'first-contentful-paint')"
+    )
+    before = page.locator("#passage").bounding_box()
+    assert held
+    assert not page.locator("body").get_attribute("data-lf-presented")
+    for route in held:
+        route.continue_()
+    page.unroute("**/leaf.js")
+    wait_until_ready(page)
+    assert page.locator("#passage").bounding_box() == before
+    initial_shift = page.evaluate(
+        "document.body.style.getPropertyValue('--lf-column-shift')"
+    )
+    assert page.evaluate("""() => {
+      const source = document.documentElement.lfInitial.authoredCopy(document.querySelector('main'));
+      return [source.getAttribute('style'), source.getAttribute('data-lf-margin')];
+    }""") == [None, None]
+    assert page.evaluate("""() => {
+      const source = document.documentElement.lfInitial.authoredShell(document.body);
+      return [source.getAttribute('style'), source.hasAttribute('data-lf-column-shell')];
+    }""") == ["--authored: initial", False]
+    page.evaluate("window.originalPassage = document.querySelector('#passage')")
+    stamp_page(
+        serve.page_dir,
+        source.replace("Advance one cohort", "Advance two cohorts"),
+        "next cohort",
+    )
+    wait_for_revision(page, 2)
+    expect(page.locator("#passage")).to_contain_text("Advance two cohorts")
+    assert page.evaluate("originalPassage === document.querySelector('#passage')")
+    for revision, resident in ((3, False), (4, True)):
+        next_source = source.replace(
+            "--authored: initial", f"--authored: revision{revision}"
+        )
+        if not resident:
+            next_source = next_source.replace('class="sidenote"', 'class="ordinary"')
+        stamp_page(serve.page_dir, next_source, f"resident {resident}")
+        wait_for_revision(page, revision)
+        expect(page.locator("#note")).to_have_css(
+            "float", "right" if resident else "none"
+        )
+        assert (
+            page.evaluate("document.body.style.getPropertyValue('--authored')")
+            == f"revision{revision}"
+        )
+        assert page.evaluate(
+            "document.body.style.getPropertyValue('--lf-column-shift')"
+        ) == (initial_shift if resident else "")
+    assert page.evaluate("""async () => {
+      const {runtimeRootState} = await window.__lfRuntimeImport('/runtime/root-state.js');
+      return runtimeRootState(document.body).attributes.has('data-lf-column-shell');
+    }""")
+    for revision, layout in ((5, "wide"), (6, "column")):
+        next_source = source.replace(
+            "--authored: initial", f"--authored: revision{revision}"
+        )
+        next_source = next_source.replace("layout-column", f"layout-{layout}")
+        stamp_page(serve.page_dir, next_source, f"shell {layout}")
+        wait_for_revision(page, revision)
+        expect(page.locator("body")).to_have_css(
+            "display", "grid" if layout == "column" else "block"
+        )
+        assert page.locator("body").get_attribute("data-lf-column-shell") == (
+            "" if layout == "column" else None
+        )
+        assert (
+            page.evaluate("document.body.style.getPropertyValue('--authored')")
+            == f"revision{revision}"
+        )
+        assert page.evaluate(
+            "document.body.style.getPropertyValue('--lf-column-shift')"
+        ) == (initial_shift if layout == "column" else "")
+    # Authored pages require one direct main. Its temporary absence while replacing
+    # nodes must still withdraw the old shell before any missing-column early return.
+    page.evaluate("""() => {
+      window.column = document.querySelector('main');
+      column.remove();
+      document.documentElement.lfInitial.residency();
+    }""")
+    expect(page.locator("body")).to_have_css("display", "block")
+    assert page.locator("body").get_attribute("data-lf-column-shell") is None
+    assert (
+        page.evaluate("document.body.style.getPropertyValue('--lf-column-shift')") == ""
+    )
+    page.evaluate("""() => {
+      document.body.append(column);
+      document.documentElement.lfInitial.residency();
+    }""")
+    expect(page.locator("body")).to_have_css("display", "grid")
+    expect(page.locator("#note")).to_have_css("float", "right")
+    assert (
+        page.evaluate("document.body.style.getPropertyValue('--lf-column-shift')")
+        == initial_shift
+    )
+
+
+@pytest.mark.parametrize(
+    "notes,local_region",
+    [(True, None), (False, None), (True, "bounded"), (True, "flow")],
+)
+def test_document_reading_survives_width_reflow(browser, serve, notes, local_region):
+    """The implicit document keeps its passage as notes enter flow, just as panes do."""
+    body = '<h1 id="title">Migration</h1><a href="#passage3">Read phase 3</a>'
+    for number in range(1, 9):
+        note = (
+            f'<aside class="sidenote" id="note{number}">Qualification {number}. '
+            "Keep the old readers until the new cohort passes its checks.</aside>"
+            if notes
+            else ""
+        )
+        body += (
+            f'<h2 id="heading{number}">Phase {number}</h2>{note}'
+            f'<p id="passage{number}">Phase {number} begins here. Advance one cohort at a time '
+            "and keep earlier readers available. The qualification explains this phase.</p>"
+            "<p>The next phase follows a separate approval. Read the supporting material before deciding.</p>"
+        )
+        if number == 4 and local_region:
+            body += (
+                (
+                    '<section id="local-region" style="height: 180px; overflow: auto">'
+                    if local_region == "bounded"
+                    else '<section id="local-region">'
+                )
+                + '<button id="local-control">Local control</button>'
+                + (
+                    "<p>Independent supporting material inside a local reading region.</p>"
+                    * 12
+                )
+                + "</section>"
+            )
+    page = open_page(browser, serve(leaf_page("Reading through reflow", body)))
+    if local_region:
+        page.evaluate("""async () => {
+          const {registerReadingRegion} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const body = document.querySelector('#local-region');
+          registerReadingRegion({id: body.id, host: body, body});
+        }""")
+    resized(page, 1440, 900)
+    page.get_by_role("link", name="Read phase 3", exact=True).click()
+    page.keyboard.press("Escape")
+    page.mouse.wheel(0, 160)
+    scroll_settled(page)
+    reading = """async () => {
+      const entry = new URL(document.querySelector('script[data-lf-entry]').dataset.lfEntry, location);
+      const {capturePlace} = await import(new URL('runtime/reading-place.js', entry));
+      return capturePlace();
+    }"""
+    if local_region == "bounded":
+        page.get_by_role("button", name="Local control", exact=True).click()
+        page.keyboard.press("Escape")
+    before = page.evaluate(reading)
+    assert before["quote"]
+    for width in (390, 1440):
+        resized(page, width, 900)
+        after = page.evaluate(reading)
+        assert after["quote"] == before["quote"]
+        # Wrapping changes the line's height and its location within the passage.
+        # Native anchoring keeps the reading, and a round trip restores its location.
+        if width == 1440:
+            assert after["quoteTop"] == pytest.approx(before["quoteTop"], abs=1)
+
+
+@pytest.mark.parametrize("display", ["block", "flex"])
+def test_an_authored_shell_admits_only_margin_room_it_can_supply(
+    browser, serve, display
+):
+    source = leaf_page(
+        "Authored shell",
+        '<h1>Migration</h1><aside class="sidenote" id="note">Keep earlier readers.</aside>'
+        '<p id="passage">Advance one cohort at a time.</p>',
+    ).replace(
+        "</head>",
+        f"<style>body {{ display: {display}; flex-direction: column; }}"
+        "main { position: relative; left: 60px; }</style></head>",
+    )
+    page = open_page(browser, serve(source))
+    for width, hanging in ((1600, False), (1800, True), (1440, False)):
+        resized(page, width, 900)
+        expect(page.locator("#note")).to_have_css(
+            "float", "right" if hanging else "none"
+        )
+        main = page.locator("main").bounding_box()
+        assert main["x"] == pytest.approx((width - main["width"]) / 2 + 60, abs=1)
+        assert root_overflow(page) == 0
+
+
+@pytest.mark.parametrize("tracks", ["1fr 1fr", "0px 1fr 0px"])
+def test_margin_residency_verifies_authored_tracks_and_retries_changed_css(
+    browser, serve, tracks
+):
+    source = leaf_page(
+        "Authored tracks",
+        '<h1>Migration</h1><aside class="sidenote" id="note">Keep earlier readers.</aside>'
+        "<p>Advance one cohort at a time.</p>",
+    ).replace(
+        "</head>",
+        f'<style id="author-grid">body {{ grid-template-columns: {tracks}; }}</style></head>',
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    expect(page.locator("#note")).to_have_css("float", "none")
+    assert root_overflow(page) == 0
+    for active in (True, False, True, False):
+        page.evaluate(
+            """active => {
+          const sheet = document.querySelector('#author-grid').sheet;
+          sheet.disabled = active;
+          document.documentElement.lfInitial.residency();
+        }""",
+            active,
+        )
+        expect(page.locator("#note")).to_have_css(
+            "float", "right" if active else "none"
+        )
+        assert root_overflow(page) == 0
+    assert page.evaluate("""async () => {
+      let writes = 0;
+      const observer = new MutationObserver(records => writes += records.length);
+      observer.observe(document.body, {attributes: true, attributeFilter: ['style']});
+      const owner = document.documentElement.lfInitial;
+      const changed = owner.residency() || owner.residency();
+      await new Promise(requestAnimationFrame);
+      observer.disconnect();
+      return {changed, writes};
+    }""") == {"changed": False, "writes": 0}
+
+
+@pytest.mark.parametrize("bad_write", ["restatement", "other-cycle", "priority-cycle"])
+def test_the_write_gate_allows_only_the_column_measurement_property(
+    browser, serve, bad_write
+):
+    source = leaf_page("Style gate", "<h1>Migration</h1>").replace(
+        "<body", '<body style="--probe-stable: 1;"', 1
+    )
+    page = open_page(browser, serve(source))
+    page.evaluate("""() => {
+      document.body.style.setProperty('--lf-column-shift', '1px');
+      document.body.style.removeProperty('--lf-column-shift');
+    }""")
+    assert take_browser_errors(page) == []
+    page.evaluate(
+        """kind => {
+      const body = document.body;
+      if (kind === 'restatement') {
+        body.setAttribute('style', body.getAttribute('style'));
+        body.setAttribute('style', body.getAttribute('style'));
+      } else if (kind === 'other-cycle') {
+        body.style.setProperty('color', 'red');
+        body.style.removeProperty('color');
+      } else {
+        body.style.setProperty('--probe-stable', '1', 'important');
+        body.style.setProperty('--probe-stable', '1');
+      }
+    }""",
+        bad_write,
+    )
+    failures = consume_browser_errors(page, "unchanged write:")
+    assert len(failures) == 1
+    assert "style on body" in failures[0]
+
+
+def test_margin_residency_ignores_concealed_ancestors(browser, serve):
+    """An own hidden note can reserve a margin, but skipped ancestors cannot."""
+    cases = [
+        (
+            '<details><summary>More</summary><aside class="sidenote" style="display:none">Concealed note.</aside></details>',
+            False,
+        ),
+        (
+            '<div style="content-visibility:hidden"><aside class="sidenote" style="display:none">Skipped note.</aside></div>',
+            False,
+        ),
+        (
+            '<div style="display:none"><aside class="sidenote">Concealed note.</aside></div>',
+            False,
+        ),
+        (
+            '<div style="display:contents"><aside class="sidenote">Visible note.</aside></div>',
+            True,
+        ),
+        ('<aside class="sidenote" style="display:none">Own hidden note.</aside>', True),
+        (
+            '<aside class="sidenote" style="display:contents">Boxless note.</aside>',
+            False,
+        ),
+    ]
+    for contents, admitted in cases:
+        source = leaf_page(
+            "Concealed residents",
+            "<h1>Migration</h1>" + contents + "<p>Advance one cohort at a time.</p>",
+        )
+        page = open_page(browser, serve(source))
+        resized(page, 1440, 900)
+        assert (
+            "note"
+            in (page.locator("main").get_attribute("data-lf-margin") or "").split()
+        ) is admitted

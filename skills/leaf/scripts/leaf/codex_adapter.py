@@ -85,7 +85,6 @@ from .leases import (
 )
 from .machine import state_home
 from .service import (
-    PageTransaction,
     claim_page,
     owned_pages,
 )
@@ -97,10 +96,7 @@ from .state import (
     session_record,
     start_session_turn,
 )
-from .thread import (
-    answered_by_reply,
-    delivery_reply_reserved,
-)
+from .thread import delivery_reply_reserved
 
 QUEUE_TIMEOUT = 20
 
@@ -389,14 +385,8 @@ class TaskConnection:
             if (record.get("transport") or {}).get("turn") in hydrated:
                 continue
             target = delivery_stream_reply_target(self.thread_id, path.stem)
-            if target is not None:
-                try:
-                    with PageTransaction(Path(target["page"])) as page:
-                        answered = answered_by_reply(page.events, target["responds"])
-                except FileNotFoundError:
-                    continue
-                if not answered:
-                    unresolved.add(path.stem)
+            if target is not None and codex.reply_target_answered(target) is False:
+                unresolved.add(path.stem)
         if not (pending or known or unresolved):
             return
         cursor = None

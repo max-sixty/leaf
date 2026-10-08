@@ -662,7 +662,7 @@ def test_a_comment_box_opens_where_a_panel_beside_the_page_leaves_it_in_sight(
     page.locator(".lf-threads-toggle").click()
     expect(panel).to_be_visible()
     page_at_rest(page)
-    edge = panel.locator(".lf-edge").first.bounding_box()
+    edge = page.locator(".lf-thread-panel > .lf-edge").bounding_box()
     middle = edge["y"] + edge["height"] / 2
     page.mouse.move(edge["x"] + edge["width"] / 2, middle)
     page.mouse.down()
@@ -3677,7 +3677,8 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
 def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
     """The Questions panel lists the queues the `q` walk and the banner's counts read,
     the user's first and then the agent's, and folds what is done at the foot: here a
-    task the agent ended. A row arrives where `q` would, and a reply the user sends moves its
+    task the agent ended. The prose question is an agent opening comment, which
+    asks implicitly. A row arrives where `q` would, and a reply the user sends moves its
     thread from the user's list to the agent's in the turn it is sent."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
@@ -3690,15 +3691,7 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
             d, {"author": author, "revision": 1, **agent, **event}
         )
 
-    asked = said("user", kind="comment", text="Weekly?", anchor={"section": "cadence"})
-    said(
-        "agent",
-        kind="reply",
-        parent=asked["id"],
-        responds=asked["id"],
-        text="Weekly or daily?",
-        awaits=True,
-    )
+    asked = said("agent", kind="comment", text="Weekly?", anchor={"section": "cadence"})
     owed = said(
         "user", kind="comment", text="Tighten this.", anchor={"section": "notes"}
     )
@@ -9082,7 +9075,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     edit = page.locator('.lf-command-reference-command[data-lf-command="draft.edit"]')
-    expect(edit).to_have_text("Edit…")
+    expect(edit).to_have_text("Edit")
     edit.click()
     expect(page.locator("#note leaf-text")).to_be_focused()
 
@@ -9091,9 +9084,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     expect(save).to_be_focused()
     page.keyboard.press("?")
     assert active_digit_bindings(page) == "1–2"
-    expect(save).to_have_attribute(
-        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter Escape 1"
-    )
+    expect(save).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter 1")
     page.keyboard.press("?")
     cancel = page.locator(
         '.lf-command-reference-command[data-lf-command="draft.cancel"]'
@@ -14093,7 +14084,7 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
 
 
 def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser, serve):
-    """Every durable editor inserts a newline with Shift+Enter and submits with Enter."""
+    """The composer sends with Enter; the draft saves with its advertised Mod+Enter."""
     html = TARGETS_PAGE.replace(
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
@@ -14134,8 +14125,11 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     expect(editor).to_have_js_property(
         "value", "Save through the visible control.\nKeep the second line."
     )
+    expect(editor).to_have_attribute(
+        "aria-keyshortcuts", "Meta+Enter Control+Enter Escape"
+    )
     with sending(page, "the draft shortcut"):
-        page.keyboard.press("Enter")
+        page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator("#plan .lf-draft-body")).to_contain_text(
         "Keep the second line."
     )

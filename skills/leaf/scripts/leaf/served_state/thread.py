@@ -4,7 +4,6 @@ from ..events import (
     active_summaries,
     awaits_agent,
     bare_reaction,
-    conversation_turns,
     seat_root,
     unanswered_agent_turn,
 )
@@ -49,13 +48,12 @@ def browser_thread(
     summaries_for = active_summaries(events, threads)
     rendered_threads = []
     for thread_id, thread in threads.items():
-        awaits_user, user_prompt = work.questions[thread_id]
+        questions = work.questions[thread_id]
         protected = set()
-        turns = conversation_turns(thread)
         if awaits_agent(thread):
             protected.add(unanswered_agent_turn(thread)["id"])
-        if awaits_user and turns:
-            protected.add(turns[-1]["id"])
+        if questions.prompt is not None:
+            protected.add(questions.prompt["message"])
         ask_sources = {
             ask["source"] for ask in asks["unanswered"] if ask["thread"] == thread_id
         }
@@ -78,7 +76,7 @@ def browser_thread(
                     if message["id"] == thread["root"]["id"]
                 ),
                 "resolved": thread["resolved"] and _named(thread["resolved"]),
-                "user_prompt": user_prompt,
+                "user_prompt": questions.prompt,
                 "bare_reaction": bare_reaction(thread),
                 "seat": seat_root(thread),
                 "summaries": summaries,

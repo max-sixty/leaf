@@ -29,6 +29,18 @@ DRIVER = Path(__file__).with_name("claude_code_driver.mjs")
 PLUGIN_ROOT = DRIVER.parents[1]
 
 
+def test_the_shared_watch_owner_serializes_host_endings(spawn):
+    """Both host adapters share the lifecycle exercised with held termination."""
+    run = spawn(
+        ["node", "--test", str(DRIVER.with_name("watch_owner.test.mjs"))],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    output, _ = run.communicate(timeout=STATED_TIMEOUT)
+    assert run.returncode == 0, output
+
+
 class ClaudeCode:
     """One driven Claude Code process and the session its module serves."""
 
@@ -241,6 +253,70 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
     assert claude_code.message()["submitted"].startswith(
         f"Leaf: {page_dir} has new input"
     )
+
+
+@pytest.mark.parametrize("claude_code", [{"abortLagMs": 250}], indirect=True)
+def test_concurrent_interrupt_endings_keep_one_watch(claude_code):
+    """Two endings during cancellation cannot start before the old lease exits."""
+    assert (
+        claude_code.watches.get(timeout=STATED_TIMEOUT)["previous_active_watches"] == 0
+    )
+    claude_code.start_turn()
+    claude_code.end_turn(interrupted=True)
+    claude_code.end_turn(interrupted=True)
+    replacement = claude_code.watches.get(timeout=STATED_TIMEOUT)
+    assert replacement["hook_event_name"] == "Interrupt"
+    assert replacement["previous_active_watches"] == 0
+
+
+@pytest.mark.parametrize("claude_code", [{"abortLagMs": 250}], indirect=True)
+def test_shutdown_during_watch_replacement_waits_for_exit(claude_code):
+    """SessionEnd waits for cancellation already in flight and starts no successor."""
+    claude_code.watches.get(timeout=STATED_TIMEOUT)
+    claude_code.start_turn()
+    claude_code.end_turn(interrupted=True)
+    claude_code.quit()
+    assert not leases_model.wait_is_live(None, claude_code.session)
+    assert claude_code.watches.empty()
+
+
+def test_clear_keeps_the_module_able_to_watch_the_next_session(claude_code):
+    """Claude emits session.start once per process; /clear emits only session.end."""
+    claude_code.watches.get(timeout=STATED_TIMEOUT)
+    claude_code.emit(
+        "session.end", {"reason": "clear", "sessionId": claude_code.session}
+    )
+    claude_code.start_turn()
+    claude_code.end_turn()
+    assert (
+        claude_code.watches.get(timeout=STATED_TIMEOUT)["previous_active_watches"] == 0
+    )
+
+
+@pytest.mark.parametrize("claude_code", [{"holdPromptHook": True}], indirect=True)
+@pytest.mark.parametrize("cleared", [False, True])
+def test_confirmed_input_wakes_only_its_own_session(page_dir, claude_code, cleared):
+    """A confirmed handover survives a watch replacement, but not /clear."""
+    claude_code.start_turn()
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "during turn"}
+    )
+    assert claude_code.read() == {"holding_hook": "UserPromptSubmit"}
+    if cleared:
+        claude_code.emit(
+            "session.end", {"reason": "clear", "sessionId": claude_code.session}
+        )
+    else:
+        claude_code.end_turn()
+    claude_code.send({"release_hook": True})
+    claude_code.send({"flush": True})
+    assert claude_code.read() == {
+        "submissions": int(not cleared),
+        "appends": int(not cleared),
+    }
+    if not cleared:
+        assert "appended" in claude_code.message()
+        assert "submitted" in claude_code.message()
 
 
 @pytest.mark.parametrize("claude_code", [{"abortLagMs": 250}], indirect=True)

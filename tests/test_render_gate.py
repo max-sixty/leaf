@@ -3311,6 +3311,17 @@ def surface_findings(page):
             rendered(page)
         return reader_state(page)
 
+    def settled_state(reading):
+        # The live region retains the last spoken command. A panel can mark a
+        # message read after Go-to announces its routes, so its next announcement
+        # correctly has different words even though the closed page is unchanged.
+        # The announcement is still part of the opening check above.
+        stable = reading.copy()
+        for line in page.locator(".lf-live").aria_snapshot(boxes=True).splitlines():
+            if line in stable:
+                stable.remove(line)
+        return stable
+
     findings = []
     left = reader_state(page)
     for surface, (keys, door) in SURFACES.items():
@@ -3318,7 +3329,7 @@ def surface_findings(page):
             continue
         press(keys)
         opened = reader_state(page) != left
-        first = left = unwind()
+        first = settled_state(left := unwind())
         if not opened:
             findings.append(f"{'+'.join(keys)} opened no {surface}")
             continue
@@ -3327,14 +3338,16 @@ def surface_findings(page):
             press(keys)
             left = unwind()
             trips.append(live_counts(page))
-            if changes := state_changes(first, left):
+            if changes := state_changes(first, settled_state(left)):
                 findings.append(
                     f"the {surface} closed again leaving\n" + "\n".join(changes[:12])
                 )
                 break
         for what in trips[0]:
             held = [trip[what] for trip in trips]
-            if all(later > earlier for earlier, later in itertools.pairwise(held)):
+            if len(trips) == AGAIN + 1 and all(
+                later > earlier for earlier, later in itertools.pairwise(held)
+            ):
                 findings.append(
                     f"the {surface} leaks {what}: {held} after each round trip"
                 )
@@ -4060,7 +4073,7 @@ def test_a_widget_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar
             '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
             '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
         ),
-        packages=("pr-review", "diff"),
+        packages=("diff",),
     )
     wide = "_".join(["argument"] * 40)
     data_model.cmd_data_set(
@@ -4097,6 +4110,10 @@ FRAMED_TABLES_PAGE = leaf_page(
     """
 <h1 id="t">Checks</h1>
 <table id="bare"><tr><th scope="row">Error rate</th><td><code>0.11%</code></td></tr></table>
+<table id="allocated" data-width="wide"><tr><th>Session</th><td>9:00</td></tr></table>
+<figure data-width="available">
+<table id="figure-table"><tr><th>Session</th><td>9:00</td></tr></table>
+</figure>
 <section class="panel" id="checks">
 <h2>Checks</h2>
 <table id="framed"><thead><tr><th>Check</th><th>Observed</th></tr></thead>
@@ -4110,12 +4127,14 @@ FRAMED_TABLES_PAGE = leaf_page(
 )
 
 
-def test_a_table_in_a_drawn_frame_fills_it_and_a_bare_one_keeps_to_its_content(
+def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its_content(
     browser, serve
 ):
     """A table directly in a panel runs its rules to the panel's inner edge, where they
-    used to stop short and read as a table cut off; the same table in the column keeps
-    to what its columns hold. A table too wide for the panel still scrolls inside it.
+    used to stop short and read as a table cut off. An explicit allocation, on the
+    table or its figure, also sizes the painted rows, not just their scrollport.
+    The same table with no allocation keeps to what its columns hold. A table too
+    wide for the panel still scrolls inside it.
     Code in a cell is set relative to the cell's text rather than at the chip size."""
     url = serve(FRAMED_TABLES_PAGE)
     page = open_page(browser, url)
@@ -4129,7 +4148,12 @@ def test_a_table_in_a_drawn_frame_fills_it_and_a_bare_one_keeps_to_its_content(
         const bare = document.querySelector('#bare'), framed = document.querySelector('#framed');
         const wide = document.querySelector('#wide-framed');
         const cell = framed.querySelector('td'), code = cell.querySelector('code');
+        const allocated = ['allocated', 'figure-table'].map(id => {
+            const table = document.getElementById(id);
+            return Math.round(inner(table) - rowEnd(table));
+        });
         return {
+            allocated,
             framedShort: Math.round(inner(framed.parentElement) - rowEnd(framed)),
             bareShort: Math.round(inner(bare.parentElement) - rowEnd(bare)),
             wideScrolls: wide.scrollWidth - wide.clientWidth,
@@ -4140,6 +4164,7 @@ def test_a_table_in_a_drawn_frame_fills_it_and_a_bare_one_keeps_to_its_content(
     }"""
     )
     assert abs(measured["framedShort"]) <= 1, measured
+    assert all(abs(short) <= 1 for short in measured["allocated"]), measured
     assert measured["bareShort"] > 100, "the bare table fills its column"
     assert measured["wideScrolls"] > 0 and measured["wideInside"] >= 0, measured
     assert measured["codeRatio"] == pytest.approx(0.9, abs=0.01), measured

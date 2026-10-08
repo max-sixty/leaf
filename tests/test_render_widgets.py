@@ -392,6 +392,7 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     tabs = page.locator("#root-tabs")
     plan = tabs.get_by_role("tab", name="Plan", exact=True)
     evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
+    summary = tabs.get_by_role("tab", name="Summary", exact=True)
 
     def switch(tab):
         # Locator.click would scroll a sticky tab back to its static-flow box.
@@ -426,11 +427,16 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     expect(plan).to_have_attribute("aria-selected", "true")
     assert settled() == 0
     # With the header on screen, a switch leaves it there.
+    assert switch(summary) == 0
     assert switch(evidence) == 0
     assert page.url.endswith("#evidence-tab")
     # Read Evidence past its start; Plan, never read, opens at its start under the
     # stuck strip rather than at the top of the page.
     evidence_read = read_at(450)
+    # Even a view shorter than the window keeps enough page below the sticky strip
+    # for the browser to land its start without pulling the strip downward.
+    assert 0 < switch(summary) < evidence_read
+    stuck_at_start("#summary-tab")
     plan_start = switch(plan)
     assert 0 < plan_start < evidence_read
     stuck_at_start("#plan-tab")
@@ -2937,7 +2943,9 @@ def test_live_widget_subscription_releases_and_reconnects(browser, serve):
 """,
     )
     page = open_page(browser, serve(source))
-    before = page.locator("#watched").evaluate("section => section.innerHTML")
+    before = page.locator("#watched-draft .lf-draft-body").get_attribute(
+        "data-lf-source-words"
+    )
     page.evaluate(
         """() => {
           window.__lfWatchedSection = document.querySelector('#watched');
@@ -2956,7 +2964,17 @@ def test_live_widget_subscription_releases_and_reconnects(browser, serve):
         },
     )
     told(page)
-    assert page.evaluate("window.__lfWatchedSection.innerHTML") == before
+    assert (
+        page.evaluate("""() => window.__lfWatchedSection
+      .querySelector('#watched-draft .lf-draft-body')
+      .getAttribute('data-lf-source-words')""")
+        == before
+    )
+    assert (
+        page.evaluate("""() => window.__lfWatchedSection
+      .querySelector('.lf-draft-history > summary')""")
+        is None
+    )
 
     page.evaluate("document.querySelector('main').append(window.__lfWatchedSection)")
     expect(page.locator("#watched-draft .lf-draft-history > summary")).to_have_text(
@@ -8227,14 +8245,17 @@ def test_composer_grows_caps_and_shrinks_with_its_text(browser, serve):
     grown = state()
     write(box, "x " * 900)  # far past the ceiling
     capped = state()
+    expect(page.locator(".lf-threads")).to_be_visible()
     write(box, "short again")
     shrunk = state()
 
     assert grown["h"] > empty["h"], "the box must grow with its content"
     assert not grown["scrollable"], "a box that fits its text must not be scrollable"
-    # The ceiling is 50vh — the viewport's share, not a count of lines — measured
-    # here in the suite's 900px-tall window.
-    assert capped["h"] == 450, f"the box must stop at its ceiling, got {capped['h']}px"
+    # The panel foot yields room to the thread list, so its available share can
+    # cap the editor before the viewport's 50vh ceiling does.
+    assert grown["h"] < capped["h"] <= page.viewport_size["height"] / 2, (
+        f"the box must grow within the panel's available share, got {capped['h']}px"
+    )
     assert capped["scrollable"], (
         "past the ceiling the scrollbar is real and belongs there"
     )
@@ -12521,7 +12542,7 @@ def test_a_diff_recovers_when_a_failed_manifest_file_is_repaired(browser, serve)
 def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
     browser, serve, manifest, starts_as_rename
 ):
-    """A path keeps its file controls; replaced presentation hands focus to that file."""
+    """A path keeps its controls; comment close and replaced evidence leave focus on its file."""
     rename = (
         "diff --git a/old.py b/app/handlers.py\n"
         "similarity index 100%\nrename from old.py\nrename to app/handlers.py\n"
@@ -12537,6 +12558,7 @@ def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
     if starts_as_rename:
         page.locator("lf-diff .lf-diff-file-comment").first.click()
         page.keyboard.press("Escape")
+        assert owner.evaluate("node => node === node.getRootNode().activeElement")
     else:
         page.locator("lf-diff summary").first.click()
         page.keyboard.press("ArrowRight")
@@ -12549,13 +12571,14 @@ def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
         assert owner.evaluate("node => node.isConnected")
         assert comment.evaluate("node => node.isConnected")
         assert owner.evaluate("node => node.contains(node.getRootNode().activeElement)")
+        if starts_as_rename:
+            assert owner.evaluate("node => node === node.getRootNode().activeElement")
         assert page.evaluate("() => scrollY") == before
         if patch == regular:
             expect(
                 page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
             ).to_contain_text("new first")
     if starts_as_rename:
-        assert comment.evaluate("node => node === node.getRootNode().activeElement")
         data_model.cmd_data_set(serve.page_dir, "review-patch", value(regular))
         told(page)
         rendered(page)
@@ -14234,13 +14257,24 @@ def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
     expect(line).to_have_css("white-space", "pre")
 
 
-def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, serve):
+@pytest.mark.parametrize("renamed", [False, True])
+def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(
+    iphone, serve, renamed
+):
     """The space reserved above a landed row clears its sticky file header. The
     basename remains readable on a phone; the title retains the complete path, and
     WebKit draws the whole path a row says while the keyboard stands on it."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config.md"
+    previous = (
+        "legacy/worktrunk/skills/worktrunk/reference/original.md" if renamed else path
+    )
+    rename = (
+        f"similarity index 50%\nrename from {previous}\nrename to {path}\n"
+        if renamed
+        else ""
+    )
     patch = (
-        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        f"diff --git a/{previous} b/{path}\n{rename}--- a/{previous}\n+++ b/{path}\n"
         "@@ -1 +1 @@\n-old\n+new\n"
     )
     page = open_page(
@@ -14261,15 +14295,18 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, s
         const head = document.querySelector('lf-diff').shadowRoot
             .querySelector('summary');
         const path = head.querySelector('.lf-diff-path');
-        const base = path.querySelector('.lf-diff-base');
+        const bases = [...path.querySelectorAll('.lf-diff-base')];
         const reading = {
             height: head.getBoundingClientRect().height,
             reserved: parseFloat(getComputedStyle(
                 head.parentElement.querySelector('[data-line]')
             ).scrollMarginTop),
             title: path.title,
-            base: base.textContent,
-            baseCut: base.scrollWidth > base.clientWidth,
+            bases: bases.map(base => ({text: base.textContent,
+                cut: base.scrollWidth > base.clientWidth,
+                width: base.getBoundingClientRect().width})),
+            arrow: path.querySelector('.lf-diff-arrow')?.getBoundingClientRect().toJSON(),
+            path: path.getBoundingClientRect().toJSON(),
             room: parseFloat(getComputedStyle(head).paddingRight),
             bar: head.closest('.lf-diff-file')
                 .querySelector('.lf-diff-file-actions').getBoundingClientRect().width,
@@ -14286,12 +14323,115 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, s
     }"""
     )
     assert head["height"] == pytest.approx(head["reserved"], abs=0.5), head
-    assert head["base"] == "config.md" and not head["baseCut"], head
+    assert [base["text"] for base in head["bases"]] == (
+        ["original.md", "config.md"] if renamed else ["config.md"]
+    ), head
+    if renamed:
+        # Each basename has room before the stable arrow, even where two names
+        # cannot fit in full beside the statistics and review action.
+        assert all(base["width"] > 40 for base in head["bases"]), head
+        assert head["arrow"]["width"] > 0, head
+        assert head["path"]["x"] < head["arrow"]["x"], head
+        assert head["arrow"]["right"] < head["path"]["right"], head
+    else:
+        assert not head["bases"][0]["cut"], head
     # An inline patch's file has its review press and no comment press, and its row
     # holds open the bar's width and 14px beside it, inside its 10px padding.
     assert head["room"] == pytest.approx(10 + head["bar"] + 14, abs=0.5), head
-    assert head["title"] == path, head
+    assert head["title"] == (f"{previous} → {path}" if renamed else path), head
     assert path in said[0] and said[1] > 0, said
+
+
+@pytest.mark.parametrize("webkit", [False, True], ids=["chromium", "webkit"])
+def test_a_narrow_rename_header_reserves_basenames_before_folders(
+    request, serve, webkit
+):
+    """A rename shares its available width before either path elides a basename."""
+    previous = "legacy/worktrunk/skills/worktrunk/reference/original.py"
+    path = "plugins/worktrunk/skills/worktrunk/reference/config.py"
+    url = serve(
+        leaf_page(
+            "Rename allocation",
+            '<h1 id="title">Review</h1><lf-diff id="patch" source="patch-data" review>'
+            "<pre></pre></lf-diff>",
+            layout=None,
+        ),
+        packages=("diff",),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        f"diff --git a/{previous} b/{path}\nsimilarity index 50%\n"
+        f"rename from {previous}\nrename to {path}\n--- a/{previous}\n+++ b/{path}\n"
+        "@@ -1 +1 @@\n-old()\n+new()\n",
+    )
+    browser = request.getfixturevalue("iphone" if webkit else "browser")
+    page = open_page(None, url, context=browser) if webkit else open_page(browser, url)
+    head = page.locator("#patch .lf-diff-head")
+    file = page.locator("#patch .lf-diff-file")
+    identity = file.get_attribute("data-lf-datum")
+    reading = """head => {
+      const width = node => {
+        const range = new Range(); range.selectNodeContents(node);
+        return range.getBoundingClientRect().width;
+      };
+      const path = head.querySelector('.lf-diff-path');
+      return {
+        path: path.getBoundingClientRect().width,
+        bases: [...path.querySelectorAll('.lf-diff-base')].map(base => ({
+          text: base.textContent, natural: width(base), allocated: base.getBoundingClientRect().width,
+          box: base.getBoundingClientRect().toJSON(),
+        })),
+        directories: [...path.querySelectorAll('.lf-diff-dir')].map(dir => {
+          return {allocated: dir.getBoundingClientRect().width,
+            ellipsis: parseFloat(getComputedStyle(dir, '::before').width),
+            visible: getComputedStyle(dir).opacity !== '0'};
+        }),
+        arrow: path.querySelector('.lf-diff-arrow').getBoundingClientRect().toJSON(),
+        arrowMargins: parseFloat(getComputedStyle(path.querySelector('.lf-diff-arrow')).marginLeft)
+          + parseFloat(getComputedStyle(path.querySelector('.lf-diff-arrow')).marginRight),
+        actions: head.closest('.lf-diff-file').querySelector('.lf-diff-file-actions').children.length,
+      };
+    }"""
+    folder_states = set()
+    for width in (390, 470, 800, 1400, 390):
+        resized(page, width, 900)
+        rendered(page)
+        result = head.evaluate(reading)
+        assert result["actions"] == 2, result
+        assert [base["text"] for base in result["bases"]] == [
+            "original.py",
+            "config.py",
+        ]
+        names_fit = (
+            sum(base["natural"] for base in result["bases"])
+            + result["arrow"]["width"]
+            + result["arrowMargins"]
+            <= result["path"]
+        )
+        if names_fit:
+            assert all(
+                base["allocated"] >= base["natural"] - 0.5 for base in result["bases"]
+            ), result
+        else:
+            assert all(base["allocated"] > 0 for base in result["bases"]), result
+            assert all(
+                directory["allocated"] == 0 for directory in result["directories"]
+            ), result
+        assert result["arrow"]["left"] > result["bases"][0]["box"]["right"], result
+        assert result["bases"][1]["box"]["left"] > result["arrow"]["right"], result
+        for directory in result["directories"]:
+            assert directory["visible"] == (
+                directory["allocated"] >= directory["ellipsis"]
+            ), result
+            folder_states.add(directory["visible"])
+        assert file.get_attribute("data-lf-datum") == identity
+        assert "legacy/" in head.aria_snapshot() and "plugins/" in head.aria_snapshot()
+    assert folder_states == {False, True}
+    page.get_by_role("button", name=f"Comment on {path}", exact=True).click()
+    expect(page.locator("#lf-composer-quote")).to_contain_text(path)
+    expect(page.locator(".lf-fab-input")).to_be_focused()
+    page.keyboard.press("Escape")
 
 
 def test_a_file_row_says_its_whole_path_to_the_keyboard_and_a_held_finger(

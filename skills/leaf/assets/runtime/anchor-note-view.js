@@ -13,7 +13,7 @@
  * A keyboard reaches a block's threads from the block itself (`c`, `t`) and through its
  * margin row. Focus on the note shows it in the skip link's face (chrome.css).
  */
-import { addressableAt } from "./anchor-resolution.js";
+import { aimTargetAt } from "./anchor-resolution.js";
 import { shelve, unshelve } from "./details-shelf.js";
 import { spokenSubject } from "./contribution-model.js";
 import { offer } from "./widget-elements.js";
@@ -50,12 +50,12 @@ export function createAnchorNoteProjection({ openThread, labelAnchor }) {
       shelve(holder, record.note);
       record.firstThreadId = threadIds[0];
       const count = label(threadIds.length);
-      const on = addressableAt(holder)?.id;
+      const anchor = aimTargetAt(holder)?.anchor;
       keepsText(record.note, count);
       keeps(
         record.note,
         "aria-label",
-        on ? `${count} on ${spokenSubject(labelAnchor({ section: on }))}` : count,
+        anchor ? `${count} on ${spokenSubject(labelAnchor(anchor))}` : count,
       );
     }
   }

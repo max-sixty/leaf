@@ -6,13 +6,12 @@ import { scrollGlides } from "./arrivals.js";
 import { clampedRow } from "./keyboard/bindings.js";
 import { coveringAuxiliarySurface, pageCommand } from "./keyboard/register.js";
 import { reducedMotion, scrollBehavior } from "./motion.js";
-import { pageScroller } from "./scrolling.js";
+import { atScrollEnd, pageScroller } from "./scrolling.js";
 import { landingBand, shownRect } from "./geometry.js";
 import {
   effectiveScroller,
   userReadingRegion,
   readingRegionFor,
-  scrollerFor,
   scrollersOf,
 } from "./reading-regions.js";
 import { walkOrigin, heldAsk, placeOf } from "./standing-target.js";
@@ -139,7 +138,9 @@ export function placeThreadEdge(thread, edge) {
 
 // j/k take small pixel steps; d/u move 60% of the visible reading page. Both follow
 // the active region and share one glide, so mixed or repeated presses add up from
-// the pending goal. Space, Home/End and PageUp/Down stay the browser's own keys.
+// the pending goal. At a region's edge they follow its CSS scroll chain, stopping at
+// the same task or modal boundary as native input. Space, Home/End and PageUp/Down
+// stay the browser's own keys.
 //
 // They move the region the user is reading. The thread list is that region when
 // focus stands on its frame; a nested region keeps its own scrollport. Scrolling a
@@ -189,10 +190,10 @@ const seenScroller = (coveringAuxiliaryScroller) =>
 // a panel or anchored thread beside the page. Inside a covering surface the user's
 // region still wins where it is in that surface; its own scrollport may be nested
 // there. The covering scrollport catches everything else. Focus on a region's
-// apparatus follows its actual containing scrollport while that box overflows;
-// otherwise the region's reading body takes the step. A preferred box outside the
-// visible band yields to its nearest visible enclosing region. Neither fallback
-// changes which region the user is reading.
+// apparatus follows its actual containing scrollport within the region while that
+// box overflows; otherwise the region's reading body takes the step. A preferred box
+// outside the visible band yields to its nearest visible enclosing region. Neither
+// fallback changes which region the user is reading.
 const readingStep = (box, clips) => {
   const shown = shownRect(box, clips);
   const band = shown && landingBand(box);
@@ -211,8 +212,10 @@ const stepScroller = (coveringAuxiliaryScroller) => {
   const clips = new Map();
   const at = focused();
   if (region && under(at, region.host) && !under(at, region.body)) {
-    const containing = scrollerFor(at);
+    const containing = scrollersOf(at).next().value;
     if (
+      containing &&
+      under(containing, region.host) &&
       containing.scrollHeight > containing.clientHeight &&
       (!covering || under(containing, coveringAuxiliarySurface()))
     ) {
@@ -230,12 +233,20 @@ const stepScroller = (coveringAuxiliaryScroller) => {
   return null;
 };
 function stepReading(amount, unit, coveringAuxiliaryScroller) {
-  const step = stepScroller(coveringAuxiliaryScroller);
-  if (!step) return;
-  const { box, height } = step;
-  if (unit === "page") amount *= height;
-  const from = holding(box) ? glide.goal : box.scrollTop;
-  glideTo(box, from + amount);
+  const first = stepScroller(coveringAuxiliaryScroller);
+  if (!first) return;
+  const clips = new Map();
+  for (const box of scrollersOf(first.box)) {
+    const step = box === first.box ? first : readingStep(box, clips);
+    const canMove = amount > 0 ? !atScrollEnd(box) : box.scrollTop > 0;
+    if (step && canMove) {
+      const distance = unit === "page" ? amount * step.height : amount;
+      const from = holding(box) ? glide.goal : box.scrollTop;
+      glideTo(box, from + distance);
+      return;
+    }
+    if (getComputedStyle(box).overscrollBehaviorY !== "auto") return;
+  }
 }
 // One eased travel to a goal, shared by the reading-page step and the sequence's edges. The
 // goal is clamped here, so a step pressed on at the foot banks no debt for u to press

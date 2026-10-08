@@ -145,10 +145,81 @@ READING_REGIONS_PAGE = leaf_page(
 )
 
 
-def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
-    browser, serve
+@pytest.mark.parametrize(("down", "up"), [("d", "u"), ("j", "k")])
+def test_reading_keys_chain_at_a_document_bound_but_stop_at_a_task_boundary(
+    browser, serve, down, up
 ):
-    page = open_page(browser, serve(READING_REGIONS_PAGE))
+    """Reading steps follow the browser's scroll chain, including nested bounds,
+    but a workspace pane keeps its task's boundary."""
+    content = (
+        '<div id="reader" data-bound="start">'
+        + "<p>Run log line.</p>" * 100
+        + '</div><div style="height:1500px"></div>'
+    )
+    for workspace in (False, True):
+        source = (
+            leaf_page(
+                "A bounded task",
+                '<header><h1>Task</h1></header><lf-pane id="task" label="Task">'
+                "<div>" + content + "</div></lf-pane>",
+                layout="workspace",
+            )
+            if workspace
+            else leaf_page("A bounded document reader", "<h1>Reader</h1>" + content)
+        )
+        page = open_page(browser, serve(source))
+        reader = page.locator("#reader")
+        outer_selector = "#task > :not(header, footer)" if workspace else "html"
+        outer = page.locator(outer_selector)
+        assert reader.evaluate("box => box.scrollHeight > box.clientHeight")
+        reader.focus()
+        reader.evaluate("box => box.scrollTop = box.scrollHeight")
+        before = outer.evaluate("box => box.scrollTop")
+        page.keyboard.press(down)
+        page.wait_for_function(
+            "({selector, before}) => document.querySelector(selector).scrollTop > before",
+            arg={"selector": outer_selector, "before": before},
+        )
+        scroll_settled(page, outer_selector)
+        before = outer.evaluate("box => box.scrollTop")
+        reader.evaluate("box => box.scrollTop = 0")
+        page.keyboard.press(up)
+        page.wait_for_function(
+            "({selector, before}) => document.querySelector(selector).scrollTop < before",
+            arg={"selector": outer_selector, "before": before},
+        )
+        if workspace:
+            outer.evaluate("box => box.scrollTop = box.scrollHeight")
+            reader.evaluate("box => box.scrollTop = box.scrollHeight")
+            page.keyboard.press(down)
+            scroll_settled(page, outer_selector)
+            assert page.evaluate("document.scrollingElement.scrollTop") == 0
+
+
+@pytest.mark.parametrize("workspace", [True, False])
+def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
+    browser, serve, workspace
+):
+    source = READING_REGIONS_PAGE
+    if not workspace:
+        # A bounded pane in document flow keeps its reading body even when the
+        # document could carry its header or footer by scrolling instead.
+        source = (
+            source.replace('class="layout-workspace"', 'class="layout-column"')
+            .replace(
+                "</head>",
+                "<style>#reading-split lf-pane { block-size: 300px; }"
+                " #reading-split lf-pane > :not(header, footer)"
+                " { min-block-size: 0; overflow: auto; overscroll-behavior: contain; }"
+                "</style></head>",
+            )
+            .replace("</main>", '<div style="height:1500px"></div></main>')
+        )
+    page = open_page(browser, serve(source))
+    if not workspace:
+        assert page.evaluate(
+            "document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight"
+        )
     left = page.locator("#left-reading > :not(header, footer)")
     right = page.locator("#right-reading > :not(header, footer)")
     ranges = page.evaluate(
@@ -166,6 +237,7 @@ def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
     )
     page.wait_for_timeout(250)
     assert right.evaluate("el => el.scrollTop") == 0
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
     left_position = left.evaluate("el => el.scrollTop")
 
     page.locator("#right-head").focus()
@@ -175,14 +247,16 @@ def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
     )
     page.wait_for_timeout(250)
     assert left.evaluate("el => el.scrollTop") == left_position
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
 
     # Footer focus still names the pane for reading keys; the footer itself does not
     # become content inside the body scroller.
     page.locator("#left-foot").focus()
-    page.keyboard.press("u")
+    page.keyboard.press("u" if workspace else "k")
     page.wait_for_function(
         f"() => document.querySelector('#left-reading > :not(header, footer)').scrollTop < {left_position}"
     )
+    assert page.evaluate("document.scrollingElement.scrollTop") == 0
 
 
 def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
@@ -381,6 +455,59 @@ def test_a_pane_bodys_ring_is_drawn_whole_against_the_workspace_edges(browser, s
     drawn = rings_drawn(page)
     assert drawn, "the focused pane body wears no ring"
     assert not ring_faults(drawn, "the focused pane body")
+
+
+def test_reading_keys_scroll_drawers_without_moving_the_document(
+    browser, serve, live_leaf
+):
+    """Drawer reading follows its list in covering and beside postures, including
+    focus in its header; neither end spills scrolling into the document."""
+    live_leaf("second", "A second leaf")
+    page = open_page(browser, serve(ASKS_PAGE))
+    for width in (390, 1280):
+        resized(page, width, 700)
+        for key, selector in (
+            ("Shift+l", ".lf-others-panel"),
+            ("Shift+q", ".lf-queue-panel"),
+        ):
+            page.keyboard.press("g")
+            page.keyboard.press(key)
+            panel = page.locator(selector)
+            expect(panel).to_be_visible()
+            box = panel.locator(".lf-drawer-list")
+            # Make the real drawer overflow without starting dozens of neighboring
+            # page servers. Its normal rows and navigation remain in place.
+            box.evaluate(
+                "box => { const filler = document.createElement('div'); "
+                "filler.style.height = '2200px'; box.append(filler); }"
+            )
+            assert box.evaluate("box => box.scrollHeight > box.clientHeight")
+            panel.get_by_role("button", name=re.compile("^Close ")).focus()
+            document_position = page.evaluate("document.scrollingElement.scrollTop")
+            for down, up in (("d", "u"), ("j", "k")):
+                box.evaluate("box => box.scrollTop = 0")
+                page.keyboard.press(down)
+                page.wait_for_function(
+                    "selector => document.querySelector(selector).scrollTop > 0",
+                    arg=selector + " .lf-drawer-list",
+                )
+                scroll_settled(page, selector + " .lf-drawer-list")
+                before = box.evaluate("box => box.scrollTop")
+                page.keyboard.press(up)
+                page.wait_for_function(
+                    "({selector, before}) => document.querySelector(selector).scrollTop < before",
+                    arg={"selector": selector + " .lf-drawer-list", "before": before},
+                )
+                scroll_settled(page, selector + " .lf-drawer-list")
+                box.evaluate("box => box.scrollTop = box.scrollHeight")
+                page.keyboard.press(down)
+                scroll_settled(page, selector + " .lf-drawer-list")
+                assert (
+                    page.evaluate("document.scrollingElement.scrollTop")
+                    == document_position
+                )
+            page.keyboard.press("Escape")
+            expect(panel).to_be_hidden()
 
 
 def test_covering_panel_keeps_focus_on_a_nested_reading_region(browser, serve):

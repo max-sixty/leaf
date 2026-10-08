@@ -2190,7 +2190,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 }
 @media (forced-colors: active) {
   :scope:is(lf-toc) .lf-toc-rows::before,
-  :scope:is(lf-toc) .lf-toc-start::before, :scope:is(lf-toc) li::before {
+  :scope:is(lf-toc) .lf-toc-start::before, :scope:is(lf-toc) li::before,
+  :scope:is(lf-toc) li[data-lf-depth="0"]::before {
     forced-color-adjust: none; background: CanvasText; border-color: CanvasText;
   }
   :scope:is(lf-toc) .lf-toc-window,

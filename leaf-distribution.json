@@ -1,7 +1,7 @@
 {
   "producer": {
-    "commit": "69f9c642d10d",
-    "committed": "2026-10-07T17:59:42-07:00",
+    "commit": "30e0cab04581",
+    "committed": "2026-10-07T18:18:46-07:00",
     "dirty": false
   },
   "runtime_paths": [
@@ -90,6 +90,7 @@
     "interaction-log.js",
     "keeps.js",
     "keyboard/bindings.js",
+    "keyboard/chip-seats.js",
     "keyboard/command-hints.js",
     "keyboard/command-reference.js",
     "keyboard/control-keys.js",

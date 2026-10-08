@@ -1801,7 +1801,6 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
         assert page.locator("main").evaluate(
             "main => getComputedStyle(main).getPropertyValue('--lf-full-height')"
         ) == ("1" if fills else ""), source
-        page.close()
 
 
 ZONE_PACKAGE = {

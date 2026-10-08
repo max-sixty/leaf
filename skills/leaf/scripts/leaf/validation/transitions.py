@@ -12,6 +12,7 @@ from leaf.projection import (
     recorded_state,
 )
 from leaf.registry.contract import created_child
+from leaf.registry.schema import json_value
 
 from .markup import at
 
@@ -152,7 +153,7 @@ def restatement_errors(
             continue
         errors.append(
             f"{where}: its state changed under the user's decision — the markup "
-            f"shows {f_cur!r} where {made} left {f_fold!r}. Their decision is what "
+            f"shows {json_value(f_cur)} where {made} left {json_value(f_fold)}. Their decision is what "
             f"the page shows, so this state would never reach them — add "
             f"`restated` to retract it and ask again, or leave it as r{prev_num} "
             f"had it."
@@ -290,8 +291,8 @@ def report_errors(
         who = e.get("agent", "a worker")
         errors.append(
             f"{where}: its markup contradicts a standing report — it shows "
-            f"{f_cur!r} where {who}'s {e['action']} (report {e['id']}, on "
-            f"r{e['revision']}) left {f_rep!r}. Adjudicate it: write the reported "
+            f"{json_value(f_cur)} where {who}'s {e['action']} (report {e['id']}, on "
+            f"r{e['revision']}) left {json_value(f_rep)}. Adjudicate it: write the reported "
             f"state to absorb the report, or add `overruled` to keep this state "
             f"and retire it (say why in the note)."
         )

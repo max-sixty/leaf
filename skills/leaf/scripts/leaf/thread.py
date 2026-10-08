@@ -23,6 +23,7 @@ from leaf.projection import (
     retirement_outcomes,
     rewritten_bodies,
 )
+from leaf.registry.schema import json_value
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.schema import MESSAGE_KINDS, THREAD_ANSWER_KINDS
 from leaf.service import PageTransaction, delivery_reply_attempt
@@ -45,7 +46,7 @@ def _unknown_message(page_dir: Path, events: list, name: str) -> None:
     sys.exit(
         f"unknown comment id {name!r}"
         + (f"; {held}" if held else "")
-        + f"; known: {sorted(_messages(events))}"
+        + f"; known: {json_value(sorted(_messages(events)))}"
     )
 
 

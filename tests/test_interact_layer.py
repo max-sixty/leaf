@@ -2794,7 +2794,7 @@ def test_init_reads_the_complete_layer_before_revendoring(tmp_path, monkeypatch)
 def test_a_rejected_init_leaves_a_precreated_directory_empty(tmp_path, monkeypatch):
     """A directory the caller prepared is not page state until init succeeds."""
     monkeypatch.chdir(tmp_path)
-    page = tmp_path / "prepared-page"
+    page = tmp_path / "prepared page"
     page.mkdir()
     layer = tmp_path / ".leaf"
     layer.mkdir()
@@ -2811,13 +2811,14 @@ def test_a_rejected_init_leaves_a_precreated_directory_empty(tmp_path, monkeypat
 
 def test_page_commands_do_not_mint_the_successful_init_marker(tmp_path):
     """An existing directory becomes a page only through a completed page init."""
-    page = tmp_path / "prepared-page"
+    page = tmp_path / "prepared page"
     page.mkdir()
 
     result = CliRunner().invoke(cli_model.cli, ["server", "stop", str(page)])
 
     assert result.exit_code != 0
-    assert "page init" in result.output
+    assert result.stderr.startswith("Error: ")
+    assert f"leaf page init '{page}'" in result.stderr
     assert list(page.iterdir()) == []
 
 

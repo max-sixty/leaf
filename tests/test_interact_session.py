@@ -2044,7 +2044,7 @@ def test_a_start_is_one_log_record_read_at_the_banner_and_the_move(
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "why?"}
     )
-    assert "neither an open task of yours nor a move you owe" in (
+    assert "neither an open task of yours nor an update you owe an answer to" in (
         _start(page_dir, "nope", "reading the traces").output
     )
     assert _start(page_dir, "c1", "").exit_code != 0
@@ -5141,8 +5141,18 @@ def test_a_busy_codex_task_keeps_its_delivery_for_a_later_turn(
     )
 
 
+@pytest.mark.parametrize(
+    "refusal",
+    [
+        {"message": "the active turn cannot be steered"},
+        {
+            "code": -32000,
+            "data": {"state": None, "allowed": [True, "needs,reply", "é"]},
+        },
+    ],
+)
 def test_a_refused_turn_gives_up_the_seat_it_reserved(
-    page_dir, app_server, task_connection
+    page_dir, app_server, task_connection, refusal
 ):
     """A provider that refuses before executing has started nothing.
 
@@ -5159,7 +5169,7 @@ def test_a_refused_turn_gives_up_the_seat_it_reserved(
                 lambda request: json.dumps(
                     {
                         "id": request["id"],
-                        "error": {"message": "the active turn cannot be steered"},
+                        "error": refusal,
                     }
                 ),
                 lambda request: json.dumps(
@@ -5170,8 +5180,12 @@ def test_a_refused_turn_gives_up_the_seat_it_reserved(
     )
 
     connection = task_connection(endpoint)
-    with pytest.raises(codex_model.AppServerRequestRejected):
+    with pytest.raises(codex_model.AppServerRequestRejected) as rejected:
         connection.start_delivery(prepared.payload)
+    if "message" in refusal:
+        assert str(rejected.value) == refusal["message"]
+    else:
+        assert json.loads(str(rejected.value)) == refusal
 
     assert not thread_model.delivery_reply_reserved(
         "codex-thread", prepared.payload["id"], target
@@ -7110,7 +7124,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     blocked = json.loads(capsys.readouterr().out)
     assert "decision" not in blocked
-    assert "1 acknowledged user move with no answer" in continued(blocked)
+    assert "1 acknowledged user update with no answer" in continued(blocked)
     assert answered["id"] in continued(blocked)
 
     append_carried_log_record(
@@ -8360,7 +8374,7 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     out, err = acknowledging.communicate(timeout=STATED_TIMEOUT)
     assert (acknowledging.returncode, out) == (2, ""), err
     assert f"stopped watching {page_dir}: this session no longer owns it" in err
-    assert "the leaf ended" not in err
+    assert "the page closed" not in err
     assert service_model.page_claim(page_dir)["id"] == "successor"
 
     snapshot.check(
@@ -8439,7 +8453,7 @@ def test_a_wait_watches_a_stopped_server_until_its_page_ends(
     declare_idle(page_dir)
     capsys.readouterr()
     assert session_model.cmd_wait(page_dir) == 2
-    assert "the leaf ended" in capsys.readouterr().err
+    assert "the page closed" in capsys.readouterr().err
 
 
 @pytest.mark.parametrize("revival", ["refused", "died again"])
@@ -9013,7 +9027,7 @@ def test_wait_revival_cannot_take_a_page_back_after_claim_transfer(
     first_out, first_err = first.communicate(timeout=STATED_TIMEOUT)
     assert (first.returncode, first_out) == (2, ""), first_err
     assert "no longer owns it" in first_err
-    assert "the leaf ended" not in first_err
+    assert "the page closed" not in first_err
     session = service_model.page_claim(page)
     assert session["id"] == "replacement"
     assert server_model.running_server(page) is None
@@ -11225,7 +11239,7 @@ def test_codex_delivery_outlives_the_starting_command_and_acknowledges(
             "codex", {"hook_event_name": "Stop", "session_id": "codex-thread"}
         )
         reason = json.loads(capsys.readouterr().out)["reason"]
-        assert "1 acknowledged user move with no answer" in reason
+        assert "1 acknowledged user update with no answer" in reason
 
         for text in ("second click", "third click"):
             append_carried_log_record(
@@ -13274,7 +13288,7 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
     reason = continued(capsys.readouterr().out)
 
     assert str(claimed) in reason and str(second) in reason
-    assert reason.count("acknowledged user move with no answer") == 2
+    assert reason.count("acknowledged user update with no answer") == 2
     assert reason.count(schema_model.ANSWER_ASK_INSTRUCTION) == 1
     # The lines stand together, so the user reaches every page before the
     # first protocol rather than one page per protocol.
@@ -13352,7 +13366,7 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(claimed, capsys):
     consume_pending_input("s1")
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     reason = continued(capsys.readouterr().out)
-    assert f"{claimed}: 1 acknowledged user move with no answer" in reason
+    assert f"{claimed}: 1 acknowledged user update with no answer" in reason
     assert "no watcher" not in reason
 
 
@@ -13467,7 +13481,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(claimed, capsys)
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
     assert "decision" not in answer
-    assert "1 acknowledged user move with no answer" in continued(answer)
+    assert "1 acknowledged user update with no answer" in continued(answer)
     assert asked["id"] in continued(answer)
     assert service_model.page_claim(claimed)["turn_closed"] is None
     # An id is all this can name, to a session that may no longer hold a word of
@@ -14659,7 +14673,7 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
     assert json.loads(early.stdout)["detail"] == "pick one"
     assert early.stderr.splitlines() == [
         (
-            f"1 user move with no answer (`leaf thread reply <page> --for {comment}`); "
+            f"1 user update with no answer (`leaf thread reply <page> --for {comment}`); "
             "the page reads waiting once each has one"
         )
     ]
@@ -14729,7 +14743,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
     assert consume_pending_input("s1")
     refused = CliRunner().invoke(cli_model.cli, ["status", str(claimed), "idle"])
     assert refused.exit_code == 1
-    assert "1 acknowledged user move with no answer" in refused.output
+    assert "1 acknowledged user update with no answer" in refused.output
     assert service_model.read_status(claimed)["state"] != "idle"
 
     comment = events_model.read_events(claimed)[0]["id"]
@@ -14824,8 +14838,8 @@ def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(claimed, capsys
 
     pickup("opened")
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
-    assert "1 acknowledged user move with no answer" in capsys.readouterr().out
-    assert "1 acknowledged user move with no answer" in idle()
+    assert "1 acknowledged user update with no answer" in capsys.readouterr().out
+    assert "1 acknowledged user update with no answer" in idle()
 
 
 def test_idle_cannot_race_past_an_event_arriving_after_its_pending_check(
@@ -16333,13 +16347,13 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, capsys):
     receive_through(claimed, last_deliverable_seq(claimed))
     # A page task's start names no move, so the move is still not started.
     working(claimed, "sketching both")
-    assert "1 acknowledged user move with no answer" in _stop(capsys)
+    assert "1 acknowledged user update with no answer" in _stop(capsys)
     assert service_model.page_claim(claimed)["turn_closed"] is None
 
     assert _start(claimed, asked["id"], "sketching both").exit_code == 0
     assert _stop(capsys) is None
     assert service_model.page_claim(claimed)["turn_closed"]
-    assert "1 acknowledged user move with no answer" in _idle(claimed).output
+    assert "1 acknowledged user update with no answer" in _idle(claimed).output
 
     # A worker's result wakes the next turn, whose prompt and Stop name the start
     # an earlier turn wrote, and offer starting it again only because it had one.

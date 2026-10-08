@@ -128,7 +128,7 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
     )
     source.write_text(dropped)
     refused = revisioning_model.activate_source(page_dir)
-    assert refused.revision == 1 and "'flow'" in refused.error
+    assert refused.revision == 1 and '"flow"' in refused.error
     append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
     )
@@ -335,8 +335,8 @@ def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
     errors = reference_errors(parser.lf_elements, registry, parser.ids, parser.by_id)
 
     assert len(errors) == 2
-    assert "$command.widgets widget where role='readings'" in errors[0]
-    assert "$command.widgets widget where role='goal'" in errors[1]
+    assert '$command.widgets widget where role="readings"' in errors[0]
+    assert '$command.widgets widget where role="goal"' in errors[1]
 
 
 def test_a_readings_seat_answers_to_one_command(page_dir):
@@ -397,7 +397,7 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(
     (page_dir / "index.html").write_text(PAGE)
     assert checking_command.cmd_check(page_dir) == 0
     assert (
-        "ids dropped from revision r1: ['opt-a', 'opt-b', 'pick', 'pick-decision']"
+        'ids dropped from revision r1: ["opt-a", "opt-b", "pick", "pick-decision"]'
         in (capsys.readouterr().out)
     )
 
@@ -738,7 +738,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
 
     swapped = reply('<lf-command id="quoted" readings="goal"></lf-command>')
     assert swapped.exit_code != 0
-    assert "where role='readings'" in swapped.output
+    assert 'where role="readings"' in swapped.output
 
     borrowed = reply('<lf-command id="quoted" readings="seat"></lf-command>')
     assert borrowed.exit_code != 0
@@ -891,7 +891,7 @@ def test_agent_messages_preserve_a_single_space(page_dir):
         cli_model.cli, ["thread", "open", str(page_dir), "--text", ""]
     )
     assert empty.exit_code != 0
-    assert empty.output == "empty text (pass --text or pipe via stdin)\n"
+    assert empty.output == "Error: empty text (pass --text or pipe via stdin)\n"
 
     opened = comment(page_dir, "--text", " ")
     assert opened.exit_code == 0, opened.output
@@ -1492,10 +1492,12 @@ def test_export_prints_threads_and_versions(page_dir):
     assert "- v1: first cut" in result.output
     # The user's direct edits are outcomes of the exchange, not just events.
     assert "### Edits" in result.output
-    assert "- `b`: move unit=card-x value=col-done rank=0i (on v1)" in result.output
+    assert (
+        '- `b`: move unit="card-x" value="col-done" rank="0i" (on v1)' in result.output
+    )
     # A choice says what was chosen in the words of the version it was made on.
     assert (
-        "- `plan-options`: choose value=['backfill-first'] — “effort: med risk: low "
+        '- `plan-options`: choose value=["backfill-first"] — “effort: med risk: low '
         "Backfill first Verify, then flip. My take: do this first.” (on v1)"
     ) in result.output
 
@@ -1508,7 +1510,7 @@ def test_export_prints_threads_and_versions(page_dir):
     result = CliRunner().invoke(cli_model.cli, ["page", "transcript", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert (
-        "- `b`: move unit=card-x value=col-done rank=0i (on v1) — taken back"
+        '- `b`: move unit="card-x" value="col-done" rank="0i" (on v1) — taken back'
         in result.output
     )
     assert "> “flip reads”  — resolved" in result.output

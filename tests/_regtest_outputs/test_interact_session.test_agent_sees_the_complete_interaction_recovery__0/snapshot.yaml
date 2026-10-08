@@ -87,14 +87,14 @@ acknowledged at stop:
     hookEventName: Stop
     additionalContext: |-
       Leaf needs attention:
-      - <page>: 1 acknowledged user move with no answer (`leaf thread reply <page> --for event-2`).
+      - <page>: 1 acknowledged user update with no answer (`leaf thread reply <page> --for event-2`).
 
       Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
 
 idle before answer:
   exit: 1
   output: |
-    1 acknowledged user move with no answer (`leaf thread reply <page> --for event-2`); answer before idling. Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
+    1 acknowledged user update with no answer (`leaf thread reply <page> --for event-2`); answer before idling. Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
 
 answer:
   kind: reply

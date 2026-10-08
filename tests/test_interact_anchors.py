@@ -451,7 +451,7 @@ def test_a_comment_may_name_a_declared_visual_part(page_dir):
         "x",
     )
     assert unknown.exit_code != 0
-    assert "known: ['node:A', 'node:B']" in unknown.output
+    assert 'known: ["node:A", "node:B"]' in unknown.output
 
     unseated = comment(page_dir, "--part", "node:A", "--text", "x")
     assert unseated.exit_code != 0

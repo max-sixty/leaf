@@ -330,7 +330,10 @@ def test_working_names_a_move_until_its_answer_and_a_task_until_its_end(page_dir
     )
     refused = leaf("task", "start", page_dir, "no-such-move", "Reading it")
     assert refused.exit_code != 0
-    assert "neither an open task of yours nor a move you owe" in refused.output
+    assert (
+        "neither an open task of yours nor an update you owe an answer to"
+        in refused.output
+    )
 
     start = written(
         leaf("task", "start", page_dir, comment["id"], "Tightening the plan section")

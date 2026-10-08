@@ -159,9 +159,9 @@ def unanswered(obligations: list[dict], of: str = "") -> str:
     """Say how many user moves have no answer and name what answers each. `of`
     narrows which moves these are, such as the acknowledged ones."""
     commands = "; ".join(answer_command(item["answer"]) for item in obligations)
-    moves = f"user move{'s' if len(obligations) != 1 else ''}"
+    updates = f"user update{'s' if len(obligations) != 1 else ''}"
     return (
-        f"{len(obligations)} {of + ' ' if of else ''}{moves} with no answer "
+        f"{len(obligations)} {of + ' ' if of else ''}{updates} with no answer "
         f"({commands})"
     )
 

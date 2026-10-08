@@ -3,7 +3,7 @@ import { clocked } from "./presence.js";
 import { pagePresented } from "./presentation.js";
 import { liveLeavesList, drawerIsOpen, othersPanel } from "./drawers.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
-import { activityFacts, countMoves } from "./banner.js";
+import { activityFacts, countAnswers } from "./banner.js";
 import { rowWalk } from "./walk-position.js";
 
 let others = [];
@@ -12,7 +12,7 @@ let rows = Object.freeze([]);
 // The drawer's one offer: something to show, or the drawer already standing — the key that
 // opened it must still close it, and its button must still be pressable. The button's
 // visibility and the key both ask the drawer's own predicate, so the two surfaces cannot
-// disagree about whether there is a drawer to open. A leaves drawer of one — the page the
+// disagree about whether there is a drawer to open. A pages drawer of one — the page the
 // user is already on — is not worth a control.
 export const leavesOffered = () =>
   pagePresented() && (others.length > 0 || drawerIsOpen("leaves"));
@@ -22,7 +22,7 @@ export const leavesOffered = () =>
 const presentationModel = () =>
   Object.freeze({
     offered: leavesOffered(),
-    label: `All leaves (${rows.length})`,
+    label: `All pages (${rows.length})`,
     rows,
   });
 export const presentLeaves = () => liveLeavesList.present(presentationModel());
@@ -38,8 +38,8 @@ export const othersLinks = () => [...othersPanel.querySelectorAll("a.lf-others-r
 export function declareLeavesKeys() {
   keys(
     othersPanel,
-    "In the leaves drawer",
-    rowWalk({ id: "leaf", noun: "Leaf", plural: "leaves", rows: othersLinks }),
+    "In the pages drawer",
+    rowWalk({ id: "leaf", noun: "Page", plural: "pages", rows: othersLinks }),
     () => othersLinks().length > 0,
   );
 }
@@ -56,7 +56,7 @@ function rowPresence(entry) {
   // first is the whole question the panel was opened to answer.
   const stated = (word) => word + (detail ? " — " + detail : "");
   // The banner's two silences, dated the same way and worded for a row.
-  const silence = `${facts.left ? "Left" : "Quiet"} (${facts.silentSince})`;
+  const silence = `${facts.left ? "Left" : "Quiet"}${facts.silentSince ? ` (${facts.silentSince})` : ""}`;
   const work = facts.work.replace(/^./, (letter) => letter.toUpperCase());
   const primary =
     kind === "working"
@@ -72,7 +72,7 @@ function rowPresence(entry) {
               ? silence
               : "Away"
             : kind === "unheld"
-              ? "Unheld"
+              ? "No session"
               : "Closed";
   const line = facts.waiting.length
     ? `${primary} · ${facts.waiting.join(" · ")}`
@@ -94,12 +94,17 @@ function rowPresence(entry) {
 // part of the account they can already read.
 const activityAccount = ({ counts }) => {
   const parts = [];
-  if (counts.active) parts.push(`${countMoves(counts.active)} active`);
-  if (counts.handling) parts.push(`${countMoves(counts.handling)} being handled`);
-  if (counts.queued) parts.push(`${countMoves(counts.queued)} queued`);
+  if (counts.active) parts.push(`${countAnswers(counts.active)} being worked on`);
+  if (counts.handling)
+    parts.push(`${countAnswers(counts.handling)} owed on picked-up updates`);
+  if (counts.queued)
+    parts.push(`${countAnswers(counts.queued)} owed on queued updates`);
   if (counts.picked_up)
-    parts.push(`${countMoves(counts.picked_up)} picked up; turn ended`);
-  if (counts.pending) parts.push(`${countMoves(counts.pending)} waiting`);
+    parts.push(
+      `${countAnswers(counts.picked_up)} owed on picked-up updates; no current turn observed`,
+    );
+  if (counts.pending)
+    parts.push(`${countAnswers(counts.pending)} owed on updates awaiting delivery`);
   return parts.length ? parts.join("; ") : null;
 };
 

@@ -836,7 +836,7 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(invalid).encode())
     assert status == 400
-    assert b"known: ['node:A', 'node:B']" in body
+    assert 'known: ["node:A", "node:B"]' in json.loads(body)["error"]
 
 
 def test_a_datum_comment_names_the_source_revision_its_section_displayed(
@@ -1034,17 +1034,20 @@ def test_deferred_data_sends_a_manifest_then_serves_one_exact_payload(server, pa
     )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None
-    with pytest.raises(data_model.DataError, match="record keys must be unique"):
+    with pytest.raises(
+        data_model.DataError, match="record keys must be unique"
+    ) as repeated:
         data_model.cmd_data_set(
             page_dir,
             "review-patch",
             {
                 "files": [
-                    {"key": "src/a.py", "path": "first", "patch": "one"},
-                    {"key": "src/a.py", "path": "second", "patch": "two"},
+                    {"key": key, "path": "file", "patch": "diff"}
+                    for key in ["a,b", "a", "b", "a,b", "a", "b"]
                 ]
             },
         )
+    assert 'repeated ["a", "a,b", "b"]' in str(repeated.value)
     data_model.cmd_data_set(
         page_dir,
         "review-patch",

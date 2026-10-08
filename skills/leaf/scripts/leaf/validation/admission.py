@@ -7,6 +7,7 @@ from leaf.activity import answer_command
 from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
 from leaf.files import list_revisions
+from leaf.registry.schema import json_value
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
 from leaf.schema import MESSAGE_KINDS, THREAD_ANSWER_KINDS
@@ -252,7 +253,7 @@ def message_markup_error(
     thread = thread_structure(events)
     clash = sorted(frag.ids & (prior_ids | page.ids | thread.ids))
     if clash:
-        return f"{kind} widget ids already taken by the page or an earlier message: {clash}"
+        return f"{kind} widget ids already taken by the page or an earlier message: {json_value(clash)}"
     if reference_errs := reference_errors(
         frag.lf_elements,
         registry,

@@ -1298,7 +1298,7 @@ flowchart LR
     Queue["the Queue panel"]
     Versions["the page and its versions menu"]
     Widget["the widget"]
-    Banner["the banner, tab icon and Leaves drawer"]
+    Banner["the banner, tab icon and Pages drawer"]
     Beside["the label beside your comment or widget"]
   end
   Reply --&gt; Thread
@@ -1329,7 +1329,7 @@ flowchart LR
                 <em>Claude working — running the browser suite</em>. The id names the
                 user move being answered or an open task. The same line appears beside
                 its thread or widget until the move is answered or the task ends. The
-                tab icon takes the banner's colour, and the page's row in the Leaves
+                tab icon takes the banner's colour, and the page's row in the Pages
                 drawer repeats the line.
               </li>
               <li id="updates-written-waiting">
@@ -1341,7 +1341,7 @@ flowchart LR
               </li>
               <li id="updates-written-idle">
                 <strong><code>leaf status … idle</code></strong> The agent has finished
-                with the page, and the banner reads <em>Leaf closed</em>. Leaf refuses
+                with the page, and the banner reads <em>Page closed</em>. Leaf refuses
                 it while a move of yours has not been picked up, a picked-up move still
                 has no answer, or a task the agent opened is still open.
               </li>
@@ -1445,7 +1445,7 @@ flowchart LR
               activity: whether the session is running, whether a turn is active, and
               whether an integration is watching for feedback. The server computes this
               activity, so browser tabs and <code>leaf page state</code> report the same
-              result. The Leaves drawer lists other pages using the activity summaries
+              result. The Pages drawer lists other pages using the activity summaries
               their servers publish.
             </p>
             <ul id="updates-facts">
@@ -1478,7 +1478,7 @@ flowchart LR
               <pre>
 flowchart TD
   Idle(["status idle?"]) -- no --&gt; Alive(["session running?"])
-  Idle -- yes --&gt; Closed["Leaf closed"]
+  Idle -- yes --&gt; Closed["Page closed"]
   Alive -- no --&gt; Unheld["No session"]
   Alive -- yes --&gt; Believed(["work still active?"])
   Believed -- yes --&gt; Working["Claude working"]
@@ -1569,7 +1569,7 @@ flowchart TD
                   </td>
                 </tr>
                 <tr id="updates-reading-closed">
-                  <td>Leaf closed</td>
+                  <td>Page closed</td>
                   <td>The agent wrote <code>leaf status … idle</code>.</td>
                 </tr>
               </tbody>

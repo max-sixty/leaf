@@ -19,6 +19,7 @@ from leaf.projection import (
     state_projection,
 )
 from leaf.registry.contract import visual_parts
+from leaf.registry.schema import json_value
 from leaf.revision_artifact import RevisionArtifact, read_revision
 from leaf.structure import SourceDocument
 from leaf.validation.transitions import report_errors, restatement_errors
@@ -235,7 +236,7 @@ def continuity_errors(
     if dropped_parts:
         errors.append(
             "visual parts an open thread anchors on, present in revision "
-            f"r{revision.predecessor} but dropped in index.html: {dropped_parts} — "
+            f"r{revision.predecessor} but dropped in index.html: {json_value(dropped_parts)} — "
             "move, detach, or resolve those threads first"
         )
     previous_projection = state_projection(
@@ -290,12 +291,12 @@ def continuity_errors(
     for why in sorted(held):
         errors.append(
             f"protected ids present in revision r{revision.predecessor} but "
-            f"dropped in index.html: {held[why]} — {PROTECTED_REMEDIES[why]}"
+            f"dropped in index.html: {json_value(held[why])} — {PROTECTED_REMEDIES[why]}"
         )
     if misplaced:
         errors.append(
             "authored user-generated ids must be direct children of their "
-            f"sending widgets with the declared child tag: {misplaced}"
+            f"sending widgets with the declared child tag: {json_value(misplaced)}"
         )
     return errors, dropped_advice
 

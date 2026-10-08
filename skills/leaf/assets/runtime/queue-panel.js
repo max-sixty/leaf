@@ -74,8 +74,9 @@ const WORDS = Object.freeze({
   ask: "Ask",
   question: "Question",
   recovery: "Resend",
-  answer: "Reply",
-  work: "Working",
+  answer: "Answer",
+  reply: "Reply",
+  work: "Work started",
   task: "Task",
 });
 const OUTCOMES = Object.freeze({ done: "Done", failed: "Failed", dropped: "Dropped" });
@@ -169,7 +170,10 @@ export function createQueuePanel({ arriveAtItem, endTask, announce }) {
     if (taskNoun(item) === "question")
       return thread && shortAgo(threadSummary(thread).latest);
     if (item.kind === "answer") return workflowLabel(workflowOf(item.id));
-    if (item.kind === "work") return shortAgo(workflowOf(item.id)?.ts);
+    if (item.kind === "work")
+      return [workflowLabel(workflowOf(item.id)), shortAgo(workflowOf(item.id)?.ts)]
+        .filter(Boolean)
+        .join(" · ");
     // A task the agent has in hand says the line its start gave, as a move in hand does.
     if (item.kind === "task" && item.running)
       return [item.running.text, shortAgo(item.running.ts)].filter(Boolean).join(" · ");

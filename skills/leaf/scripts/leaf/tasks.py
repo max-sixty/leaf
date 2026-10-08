@@ -422,8 +422,8 @@ def task_error(
         if item in owed or any(task["id"] == item for task in owed_tasks(events)):
             return None
         return (
-            f"{item!r} is neither an open task of yours nor a move you owe; start the "
-            "id a delivered move or `leaf task open` gave you"
+            f"{item!r} is neither an open task of yours nor an update you owe an answer to; start the "
+            "id a delivered update or `leaf task open` gave you"
         )
     if kind != "task_end":
         return None

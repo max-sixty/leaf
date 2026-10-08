@@ -66,6 +66,7 @@ from .delivery import (
 from .files import read_json
 from .harness import Harness
 from .leases import sessions_home
+from .registry.schema import json_value
 from .schema import THREAD_ANSWER_KINDS
 from .service import (
     PageTransaction,
@@ -308,7 +309,9 @@ def app_server_request(
         message = json.loads(socket.recv(timeout=START_TIMEOUT))
         if message.get("id") == request_id and "method" not in message:
             if error := message.get("error"):
-                raise AppServerRequestRejected(error.get("message") or str(error))
+                raise AppServerRequestRejected(
+                    error.get("message") or json_value(error)
+                )
             return message.get("result") or {}
         if on_notification is not None:
             on_notification(message)

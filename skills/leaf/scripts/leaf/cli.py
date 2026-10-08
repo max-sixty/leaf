@@ -1,6 +1,7 @@
 """Click declarations and production command wiring."""
 
 import json
+import shlex
 import sys
 from pathlib import Path
 
@@ -14,8 +15,8 @@ def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
     page_dir = Path(dir_arg).expanduser().resolve()
     if must_exist and not (page_dir / EVENTS_FILE).is_file():
         sys.exit(
-            f"{page_dir} is not an initialized page; run `leaf page init` "
-            "to vendor the layer"
+            f"{page_dir} is not an initialized page; "
+            f"run `leaf page init {shlex.quote(str(page_dir))}`"
         )
     return page_dir
 
@@ -55,7 +56,24 @@ def _leaf_root(ctx: click.Context, _param: click.Parameter, value: bool) -> None
     ctx.exit()
 
 
-@click.group()
+class LeafGroup(click.Group):
+    """Present domain refusals like Click errors at the command boundary.
+
+    Domain writers also serve harnesses and raise SystemExit with their reason.
+    Only a textual exit is a refusal; numeric statuses (including a package
+    script's status) retain their meaning and output.
+    """
+
+    def invoke(self, ctx: click.Context):
+        try:
+            return super().invoke(ctx)
+        except SystemExit as error:
+            if isinstance(error.code, str):
+                raise click.ClickException(error.code) from error
+            raise
+
+
+@click.group(cls=LeafGroup)
 @click.option(
     "--version",
     is_flag=True,
@@ -351,7 +369,7 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
     ID narrows the reading to what it names. A message, or a widget frozen into
     one, names its thread: the reading is that thread with a page of its messages,
     their frozen markup, and the state on its widgets, paged by --after and
-    --limit. A widget on the page names itself: its element, the moves and reports
+    --limit. A widget on the page names itself: its element, the actions and reports
     standing on it, its Asks, and its workflows."""
     from leaf.agent_state import cmd_page_state
 
@@ -500,7 +518,7 @@ def delivery() -> None:
 def delivery_read(delivery_id: str) -> None:
     """Print DELIVERY_ID with its complete batches and response requirements. Where
     a harness's hook offered it to this session as a pointer, reading it confirms
-    it, so the user's moves read Picked up."""
+    it, so the user's updates read Picked up."""
     from leaf.delivery import cmd_delivery_read
 
     cmd_delivery_read(delivery_id)
@@ -737,7 +755,7 @@ def status(dir: str, state: str, detail: str) -> None:
 
     Use waiting with DETAIL naming the answer you want from the user; waiting
     without DETAIL invites text comments. Either puts down every item you started
-    before it. Use idle when finished; unacknowledged input, unanswered user moves
+    before it. Use idle when finished; unacknowledged input, unanswered user updates
     and open tasks prevent it. Work in hand is no status: name it with
     `leaf task start`.
     """
@@ -882,7 +900,7 @@ def thread_open(
     "--ephemeral",
     is_flag=True,
     help=(
-        "progress update; on a move you owe, one line that takes it in hand. "
+        "progress update; on an update you owe, one line that takes it in hand. "
         "Folds when the next ordinary agent reply arrives"
     ),
 )
@@ -908,8 +926,8 @@ def thread_reply(
     any message in it, posts a new agent message there instead, refused while
     that thread owes a reply.
 
-    --ephemeral posts progress without answering. On a move you owe, it also takes
-    the move in hand as `leaf task start` does, with its one line as the Working line.
+    --ephemeral posts progress without answering. On an update you owe, it also takes
+    the update in hand as `leaf task start` does, with its one line as the Working line.
 
     --quote, --section, and --part move the thread's current anchor; --detach
     removes it when the subject leaves the page. The original anchor stays in
@@ -988,7 +1006,7 @@ def task() -> None:
     """Show the work you owe on the page, the item you have in hand, and what you
     put on the user.
 
-    An item on your queue is a user move you owe an answer, named by the move's
+    An item on your queue is a user update you owe an answer, named by the update's
     event id, or a task you opened. `leaf task start` takes one in hand for this
     turn, with the line the banner shows. A task stays on your queue through
     replies, resolutions, versions and the end of the session that opened it;
@@ -1014,7 +1032,7 @@ def task() -> None:
 def task_open(dir: str, subject: str, title: str, owner: str) -> None:
     """Open a task titled TITLE on SUBJECT: an open thread, by any message in it or a
     widget its messages carry; a page widget, which for your own task must declare
-    x-work or hold an unsettled move; any other element of the page by its id, such
+    x-work or hold an unsettled update; any other element of the page by its id, such
     as a section; or `page` for the page as a whole. With `--on user` the task is on
     the user, on anything but a thread, where a reply with `--awaits` asks them: it
     ends at their Done, and you can end it too. Its id is the printed record's `id`."""
@@ -1024,16 +1042,16 @@ def task_open(dir: str, subject: str, title: str, owner: str) -> None:
 
 
 @task.command(
-    "start", short_help="Take a move or task in hand, with the banner's line."
+    "start", short_help="Start work on an update or task, with the banner's line."
 )
 @click.argument("dir", metavar="PAGE")
 @click.argument("item", metavar="ID")
 @click.argument("text", metavar="LINE")
 def task_start(dir: str, item: str, text: str) -> None:
-    """Take ID in hand for this turn: the event id of a user move you owe, as its
+    """Take ID in hand for this turn: the event id of a user update you owe, as its
     delivery names it, or an open task's id. LINE names the work and its subject in
-    one sentence; it reads Working beside the move or task and in the banner. Your
-    answer to the move, or the task's end, ends it; left in hand after your turn
+    one sentence; it reads Working beside the update or task and in the banner. Your
+    answer to the update, or the task's end, ends it; left in hand after your turn
     ends, it reads stalled until you answer it or start it again."""
     from leaf.tasks import cmd_start
 

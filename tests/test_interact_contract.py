@@ -308,7 +308,7 @@ def test_a_pick_names_only_options_its_group_holds():
 
     with pytest.raises(events_model.EventRefused) as refused:
         admit(STATED_LOG, pick)
-    assert "['live-mine'] name no member of 'live-pick'" in str(refused.value)
+    assert "live-mine name no member of 'live-pick'" in str(refused.value)
 
     add = admit(
         STATED_LOG,
@@ -2651,6 +2651,9 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
     result = check(page_dir)
     assert result.exit_code == exit_code, result.output
     assert not isinstance(result.exception, AttributeError)
+    if subschema is False:
+        assert "schema does not allow" in result.output, result.output
+        assert "None" not in result.output
 
 
 @pytest.mark.parametrize(
@@ -2797,7 +2800,7 @@ def test_check_refuses_a_widget_name_that_cannot_form_a_selector(page_dir, tag):
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert f"invalid element declaration names ['{tag}']" in result.output
+    assert f'invalid element declaration names ["{tag}"]' in result.output
     assert "an element name is `lf-` followed by" in result.output
 
 
@@ -3423,7 +3426,7 @@ def test_a_layers_own_widget_withdraws_as_its_entry_declares(trial_page):
     )
     assert "log-daily" in issues
     assert "log-hourly" not in issues
-    assert "ids dropped from revision r1: ['log-hourly', 'trial-log']" in result.output
+    assert 'ids dropped from revision r1: ["log-hourly", "trial-log"]' in result.output
 
 
 def test_a_widget_declaring_no_withdrawal_holds_its_ids_until_it_is_answered(
@@ -3693,7 +3696,7 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert f"<{tag}> {key} names undeclared attributes ['{missing}']" in result.output
+    assert f'<{tag}> {key} names undeclared attributes ["{missing}"]' in result.output
 
 
 @pytest.mark.parametrize(
@@ -4421,7 +4424,7 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
         ],
     )
     assert result.exit_code != 0
-    assert "unadmitted ['x-nope']" in result.output
+    assert 'unadmitted ["x-nope"]' in result.output
 
     (overlay / "registry.json").write_text(
         json.dumps({"$keys": {"x-space": "wider, in this project"}})
@@ -4520,7 +4523,7 @@ def test_check_requires_the_vendored_layer(tmp_path):
     (d / "index.html").write_text(PAGE)
     result = check(d)
     assert result.exit_code == 1
-    assert "run `leaf page init` to vendor the layer" in result.output
+    assert f"run `leaf page init {d}`" in result.output
 
 
 def test_check_advises_page_css_that_scrolls_a_box_and_leaves_arrangement_alone(
@@ -4583,7 +4586,7 @@ def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
     result = check(page_dir)
     assert result.exit_code == 1
     assert (
-        "data-bound='bottom'> (line 9) has an invalid value; expected one of start, "
+        'data-bound="bottom"> (line 9) has an invalid value; expected one of start, '
         in (result.output)
     )
     assert "x-reading-role pane must contain exactly one direct body" in result.output
@@ -4599,7 +4602,7 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
     result = check(page_dir)
     assert result.exit_code == 1
     assert (
-        "<table data-width='full'> (line 9) has an invalid value; expected one of "
+        '<table data-width="full"> (line 9) has an invalid value; expected one of '
         "column, wide, available" in result.output
     )
 
@@ -4626,7 +4629,7 @@ def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(pa
     result = check(page_dir)
     assert result.exit_code == 1
     assert (
-        "data-height='240px'> (line 9) has an invalid value; expected a whole number "
+        'data-height="240px"> (line 9) has an invalid value; expected a whole number '
         "of CSS pixels" in result.output
     )
     assert "<table data-height> (line 9) states the height of a widget" in (
@@ -4676,7 +4679,7 @@ def test_check_takes_a_rail_only_on_body_and_only_by_name(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "data-rail='left'> (line" in result.output
+    assert 'data-rail="left"> (line' in result.output
     assert "expected one of right, none" in result.output
     assert "data-rail> (line" in result.output
     assert result.output.count("belongs on <body>") == 2
@@ -5008,7 +5011,7 @@ def test_sample_checks_available_history_beside_forward_thread_references(
     result = check(page_dir)
     assert result.exit_code != 0
     assert (
-        "ids already taken by widget markup in a reply: ['duplicate']" in result.output
+        'ids already taken by widget markup in a reply: ["duplicate"]' in result.output
     )
 
 
@@ -5177,7 +5180,7 @@ def test_x_awaits_names_the_verbs_that_answer_it(page_dir):
     result = check(page_dir)
 
     assert result.exit_code == 1
-    assert "x-awaits answers with verbs ['missing'], which are not x-state" in (
+    assert 'x-awaits answers with verbs ["missing"], which are not x-state' in (
         result.output
     )
 
@@ -5390,9 +5393,9 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
         ),
         (
             {"kind": "comment", "revision": 1, "token": "keep", "text": "and"},
-            "valid under each of",
+            "must match exactly one of",
         ),
-        ({"kind": "comment", "revision": 1}, "not valid under any"),
+        ({"kind": "comment", "revision": 1}, "must match exactly one of"),
         (
             {"kind": "comment", "revision": 1, "token": "keep", "suggestion": True},
             "suggestion",

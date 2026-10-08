@@ -20,6 +20,8 @@ The journey, in order:
   answered before it settles, with no run after it;
 - `escape`: Escape during a shell command closes the turn and leaves Pi idle, and a
   comment posted afterwards starts a run that answers it;
+- `held-escape`: input held during a shell command remains unreceived before Escape,
+  then enters a fresh run and is answered automatically;
 - `quit`: closing Pi's stdin ends the session, so its claim on the page is inactive
   and its watch has ended.
 
@@ -77,6 +79,12 @@ class Pi:
     run the session makes on stdout, including those Leaf's extension starts."""
 
     def __init__(self, executable: Path, cwd: Path, log: Path) -> None:
+        native_env = dict(os.environ)
+        observer = ROOT / "dev" / "leaf_dev" / "pi_watch_observer.mjs"
+        native_env["NODE_OPTIONS"] = (
+            native_env.get("NODE_OPTIONS", "")
+            + f" --import {json.dumps(str(observer))}"
+        ).strip()
         with log.open("w") as stderr:
             self.process = subprocess.Popen(
                 [executable, "--mode", "rpc", "--no-context-files", "--model", MODEL],
@@ -84,6 +92,7 @@ class Pi:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=stderr,
+                env=native_env,
             )
         # Pi's records split only on LF, as a binary pipe's lines do.
         self.records: queue.Queue[dict] = queue.Queue()
@@ -93,6 +102,7 @@ class Pi:
         # have settled.
         self.running = False
         self.settled = 0
+        self.closed_watches = 0
         self.commands: list[str] = []
         self.running_commands: dict[str, str] = {}
         self.session = self.request("get_state")["sessionId"]
@@ -103,7 +113,9 @@ class Pi:
 
     def _hear(self, record: dict) -> None:
         kind = record["type"]
-        if kind == "agent_start":
+        if kind == "leaf_watch_closed" and record["code"] == 0:
+            self.closed_watches += 1
+        elif kind == "agent_start":
             self.running = True
         elif kind == "agent_settled":
             self.running = False
@@ -267,6 +279,56 @@ def journey(pi: Pi, page: Path) -> None:
     )
     check(["idle", "mid-turn", "escape"])
     step("escape", started)
+
+    started = time.monotonic()
+    pi.say(USER_TURN)
+    pi.await_command("sleep 20")
+    interrupted_turn = page_claim(page)["turn"]
+    closed_watches = pi.closed_watches
+    post(page, "held-escape")
+    # Pi's watch hears during the tool, but `turn_end` has not put that input
+    # into context yet. Escape clears the queued handoff, so the replacement
+    # watch must deliver it into a fresh run, not mistake a log look for pickup.
+    deadline = time.monotonic() + STEP_LIMIT
+    while wait_is_live(None, pi.session):
+        pi.listen(0.1)
+        require(time.monotonic() < deadline, "the watch did not hear held input")
+    while pi.closed_watches == closed_watches:
+        pi.listen(0.5)
+        require(
+            time.monotonic() < deadline,
+            "Leaf did not complete the held-input watch notification",
+        )
+    posted = comment_id(page, "held-escape")
+    require(
+        pi.running
+        and any("sleep 20" in command for command in pi.running_commands.values()),
+        "the held-input tool ended before Escape",
+    )
+    require(
+        not any(
+            event["kind"] == "pickup" and posted in event["events"]
+            for event in read_events(page)
+        ),
+        "the held input already entered the run before Escape",
+    )
+    pi.escape()
+    pi.settle(
+        lambda: bool(answers(page, "held-escape")),
+        "held input was stranded after Escape",
+    )
+    require(
+        any(
+            event["kind"] == "pickup"
+            and event["phase"] == "opened"
+            and posted in event["events"]
+            and event["turn"] != interrupted_turn
+            for event in read_events(page)
+        ),
+        "held input did not enter a fresh turn after Escape",
+    )
+    check(["idle", "mid-turn", "escape", "held-escape"])
+    step("held-escape", started)
 
     started = time.monotonic()
     pi.process.stdin.close()

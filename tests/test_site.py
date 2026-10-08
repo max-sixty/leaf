@@ -610,7 +610,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
         for version, revision in sorted(mappings.items())
     ]
     page = open_page(browser, url)
-    expect(page.locator(".lf-version")).to_have_text("v2")
+    expect(page.locator(".lf-version")).to_have_text("Showing v2")
     current = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert current["active"]["revision"] == mappings[2]
     assert current["active"]["version"] == 2
@@ -632,7 +632,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
     )
     wait_until_ready(page)
 
-    expect(page.locator(".lf-version")).to_have_text("v1")
+    expect(page.locator(".lf-version")).to_have_text("Showing v1")
     expect(page.locator("#ret-cost-keep")).to_have_count(0)
     markup = page.evaluate(
         "() => fetch('../versions/v1.html').then(response => response.text())"
@@ -657,7 +657,7 @@ def test_a_nested_page_keeps_one_draft_across_its_version_addresses(
     write(page.locator(".lf-general leaf-text"), "Kept across addresses")
 
     opened(page, f"{url}versions/v1.html")
-    expect(page.locator(".lf-version")).to_have_text("v1")
+    expect(page.locator(".lf-version")).to_have_text("Showing v1")
     # The open panel is the user's standing arrangement, so it is open here too.
     expect(page.locator(".lf-general leaf-text")).to_have_js_property(
         "value", "Kept across addresses"
@@ -1068,6 +1068,7 @@ def test_the_product_diagram_fits_without_its_own_scroll(hosted, browser):
     page = browser.new_page()
     page.set_viewport_size({"width": 1200, "height": 900})
     page.goto(product_url(hosted, "how-it-works.html"), wait_until="load")
+    wait_until_ready(page)
     diagram = page.locator("#arch")
     expect(diagram).to_be_visible()
     width = diagram.evaluate(
@@ -2012,7 +2013,9 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
             _, url = served_example(source.stem)
             opened(page, url)
         newest = len(example_versions(source))
-        expect(page.locator(".lf-banner-menu > .lf-version")).to_have_text(f"v{newest}")
+        expect(page.locator(".lf-banner-menu > .lf-version")).to_have_text(
+            f"Showing v{newest}"
+        )
         expect(page.locator(".lf-status-text")).to_have_text(
             "This is an example on the Leaf website. The agent replies and "
             "revises this private copy. Other examples Install Leaf"

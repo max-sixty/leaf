@@ -14,7 +14,7 @@ readings on a claimed page, and the durable records a delivery passes through.
 A delivery record under the state home is the handoff between Leaf capturing a
 user's moves and a transport taking them. One record is offered once, accepted once,
 and receipted per page batch, whichever transport carried it — an App Server turn or
-the `codex queue` command, or the tool hook — so preparing, accepting, opening
+the `codex queue` command, or a tool or Stop hook — so preparing, accepting, opening
 and abandoning one live here rather than beside either client. The immutable
 payload itself belongs to `delivery`; what this module keeps is which task holds it and how far it has got.
 
@@ -24,8 +24,8 @@ left a turn running. Which delivery is offered, when, and what an uncertain star
 means for the turn it may have made are each client's own policy: the adapter's offer
 loop and the website's turn follower each keep theirs.
 
-Codex's tool hook imports this module after every tool call of a task holding a page
-(`offer_hook_delivery`), so `thread`, which brings the page model and its validators,
+Codex's hooks import this module between steps and before Stop for a task holding
+a page (`offer_hook_delivery`), so `thread`, which brings the page model and its validators,
 is imported inside the functions that write a reply or a failure onto a thread
 rather than here.
 """
@@ -1601,7 +1601,7 @@ def append_batch(
 
 
 def offer_hook_delivery(session_id: str, turn_id: str) -> str | None:
-    """Offer one plain-reply pointer through the tool hook, without receipt.
+    """Offer one plain-reply pointer through a tool or Stop hook, without receipt.
 
     The agent's actual `delivery read` proves this pointer entered a turn. If the
     hook output arrives after the turn ends, the adapter queues the same frozen
@@ -1891,7 +1891,7 @@ def accept_codex_delivery(
             or hook_observation["turn"] != turn
             or (
                 record["state"] == "offering"
-                and record.get("transport", {}).get("phase") != "hook"
+                and record.get("transport") != {"phase": "hook", "turn": turn}
             )
             or (
                 record["state"] == "accepted"

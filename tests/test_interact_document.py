@@ -41,6 +41,7 @@ from interact_support import (
     decide,
     declare_data_input,
     fresh_process,
+    lock_contention,
     model_layer,
     publish,
     read_page_data,
@@ -97,6 +98,88 @@ def test_check_accepts_authored_module_scripts(page_dir):
     result = check(page_dir)
 
     assert result.exit_code == 0, result.output
+
+
+def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
+    page_dir, tmp_path, monkeypatch
+):
+    """HTTP activation cannot capture a partially installed replacement.
+
+    Hold a valid first module write while another reader reaches the actual page
+    transaction. A later missing dependency refuses stamp; the reader must see the
+    previous complete input set after rollback, with no intermediate revision.
+    """
+    authored = page_dir / "page"
+    authored.mkdir(exist_ok=True)
+    (authored / "a.js").write_text("export const a = 1;")
+    (authored / "b.js").write_text("export const b = 1;")
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</head>",
+            '<script type="module" src="/page/a.js"></script>'
+            '<script type="module" src="/page/b.js"></script></head>',
+        )
+    )
+    publishing_model.cmd_stamp(page_dir, "Original")
+    previous = publishing_model.authored_files(page_dir / "index.html", authored)
+    expected = publishing_model.authored_digest(previous)
+    first = files_model.latest_revision(page_dir)
+    log = (page_dir / "events.jsonl").read_bytes()
+    candidate = tmp_path / "candidate"
+    (candidate / "page").mkdir(parents=True)
+    publishing_model.write_authored_files(candidate, previous, {})
+    (candidate / "page/a.js").write_text("export const a = 2;")
+    (candidate / "page/b.js").write_text("import './missing.js';")
+    reached = threading.Event()
+    release = threading.Event()
+    original_write = Path.write_bytes
+
+    def hold_first_write(path, data):
+        result = original_write(path, data)
+        if path == authored / "a.js" and data == b"export const a = 2;":
+            reached.set()
+            assert release.wait(timeout=STATED_TIMEOUT)
+        return result
+
+    monkeypatch.setattr(Path, "write_bytes", hold_first_write)
+    blocked = lock_contention(monkeypatch, page_dir / "events.jsonl")
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        replacing = executor.submit(
+            publishing_model.cmd_stamp,
+            page_dir,
+            "Candidate",
+            from_directory=candidate,
+            if_source=expected,
+        )
+        try:
+            assert reached.wait(timeout=STATED_TIMEOUT)
+            activating = executor.submit(revisioning_model.activate_source, page_dir)
+            assert blocked.wait(timeout=STATED_TIMEOUT), (
+                "source activation did not wait for the complete replacement"
+            )
+        finally:
+            release.set()
+        with pytest.raises(SystemExit, match="missing.js"):
+            replacing.result(timeout=STATED_TIMEOUT)
+        activated = activating.result(timeout=STATED_TIMEOUT)
+    assert activated.revision == first and not activated.created
+    assert (
+        publishing_model.authored_files(page_dir / "index.html", authored) == previous
+    )
+    assert (page_dir / "events.jsonl").read_bytes() == log
+
+    (candidate / "page/b.js").write_text("export const b = 2;")
+    publishing_model.cmd_stamp(
+        page_dir, "Complete", from_directory=candidate, if_source=expected
+    )
+    assert files_model.latest_revision(page_dir) > first
+    assert artifact_model.read_artifact(page_dir, first).resources[
+        "/page/a.js"
+    ].data == (b"export const a = 1;")
+    with pytest.raises(SystemExit, match="authored inputs changed"):
+        publishing_model.cmd_stamp(
+            page_dir, "Stale", from_directory=candidate, if_source=expected
+        )
 
 
 def test_a_revision_captures_the_complete_dependency_graph(page_dir):
@@ -628,6 +711,35 @@ def test_option_markdown_file_words_match_browser_cases(case):
         source, {"lf-option": {"x-text-format": "inline-markdown"}}
     )
     assert passages.text == case["words"]
+
+
+def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
+    """Authored and replayed Markdown share anchors without losing their source value."""
+    registry = {
+        "lf-draft": {
+            "x-content": "data",
+            "x-upgrade": True,
+            "x-verbatim": True,
+            "x-text-format": "markdown",
+        }
+    }
+    source = "**Keep** `--dry-run`.\n\n- First\n- [Second](https://example.com)"
+    doc = structure_model.SourceDocument(
+        f'<main><lf-draft id="note"><pre>{source}</pre></lf-draft></main>'
+    )
+    reading = passages_model.SourceReading(doc, registry)
+    assert reading.spoken["note"].words == "Keep --dry-run. First Second"
+    spec = {"record": {"kind": "body"}}
+    assert (
+        projection_model.markup_value("note", spec, doc.by_id, reading.spoken, registry)
+        == source
+    )
+    edited = "**Changed** `--dry-run`.\n\n- First\n- [Second](https://example.com)"
+    projected = passages_model.page_passages(
+        doc, registry, rewrites={"note": ("edit", edited)}
+    )
+    assert projected.text == "Changed --dry-run. First Second"
+    assert projected.verbatim == {("page", None, 0): [{"text": projected.text}]}
 
 
 def test_structural_errors_distinguish_recovery_from_ambiguous_source():
@@ -5010,6 +5122,62 @@ def test_a_unified_diff_capture_refuses_a_line_range(tmp_path):
     with pytest.raises(ValueError, match="takes the whole patch"):
         captured_value(source, {"format": "unified-diff", "lines": "1:2"})
     assert captured_value(source, {"lines": "2:3"}) == "two\nthree\n"
+
+
+@pytest.mark.parametrize(
+    "case", json.loads((Path(__file__).parent / "markdown_body_cases.json").read_text())
+)
+def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
+    from html import escape
+
+    document = structure_model.SourceDocument(
+        f'<main><lf-draft id="note"><pre>{escape(case["source"])}</pre></lf-draft></main>'
+    )
+    registry = {
+        "lf-draft": {
+            "x-content": "data",
+            "x-text-format": "markdown",
+            "x-verbatim": True,
+        }
+    }
+    assert passages_model.page_passages(document, registry).text == case["words"]
+
+
+@pytest.mark.parametrize("source", ["    code", "A ", "A\n", "A  \nB", "\nA"])
+def test_exact_markdown_body_retains_saved_whitespace_across_revision(page_dir, source):
+    """Pre indentation and edge whitespace are content, including code and hard breaks."""
+
+    def write(words):
+        # HTML pre removes one opening newline, so encode an intended first newline twice.
+        encoded = ("\n" + words) if words.startswith("\n") else words
+        (page_dir / "index.html").write_text(
+            PAGE.replace(
+                "<h2>Plan</h2>",
+                f'<h2>Plan</h2><lf-draft id="exact"><pre>{encoded}</pre></lf-draft>',
+            )
+        )
+
+    write("Original.")
+    publish(page_dir)
+    append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": files_model.latest_revision(page_dir),
+            "widget": "exact",
+            "action": "edit",
+            "detail": {"value": source},
+        },
+    )
+    write(source)
+    errors = check_source(page_dir, events_model.read_events(page_dir)).errors
+    assert errors == []
+    assert stamp(page_dir, "take in exact Markdown source").exit_code == 0
+    [edit] = [
+        item for item in state_json(page_dir)["state"] if item["action"] == "edit"
+    ]
+    assert edit["detail"] == {"value": source}
 
 
 def test_revisions_change_decision_words_labels_and_defaults_without_retracting(

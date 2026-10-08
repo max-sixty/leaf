@@ -34,7 +34,7 @@ test("locked source reproduces the complete committed output", async () => {
   // The page's one Lit: the framework imports it rather than carrying a copy.
   assert.match(
     outputs.get(`${outputRoot}/browser-runtime.js`).toString(),
-    /^import\{[^}]*\}from"\.\/lit\.js"/,
+    /^import \{[^}]*\} from "\.\/lit\.js";$/m,
   );
   assert.ok(
     !outputs.get(`${outputRoot}/browser-runtime.js`).includes("litHtmlVersions"),
@@ -45,12 +45,8 @@ test("locked source reproduces the complete committed output", async () => {
   assert.ok(
     !outputs.get(`${outputRoot}/browser-runtime.js`).includes("sourceMappingURL"),
   );
-  assert.ok(!outputs.has(`${outputRoot}/browser-runtime.js.map`));
   assert.ok(!outputs.has(`${outputRoot}/browser-runtime.manifest.json`));
-  const map = JSON.parse(outputs.get(`${diagnosticsRoot}/browser-runtime.js.map`));
-  assert.ok(map.sources.includes("../snapshot.ts"));
-  assert.equal(map.sources.length, map.sourcesContent.length);
-  assert.ok(map.sources.every((name) => !path.isAbsolute(name)));
+  assert.ok(manifest.sourceInputs.includes("build/browser/snapshot.ts"));
 });
 
 test("checking stale output refuses it without changing any bytes", async (context) => {

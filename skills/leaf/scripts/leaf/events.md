@@ -273,7 +273,8 @@ An open structural Ask anywhere in an unresolved thread keeps it awaiting the
 user after later prose or a settling reaction. Without one, the latest spoken
 turn determines the prose obligation described above. A user reaction on that
 latest request whose token declares `settles` clears the prose obligation without
-resolving the thread. `served_state/thread.py` owns this precedence.
+resolving the thread. `asks.thread_awaits_user` owns this precedence, shared by
+`work_reading.WorkReading.questions` across admission and serving.
 
 What each thread command does for its user, and when an agent uses it, is
 `../../references/threads.md`. The door and the fold hold these rules behind

@@ -10,7 +10,11 @@ from leaf.events import (
     retractions,
     taken_back,
 )
-from leaf.passages import EMPTY, SourceReading, collapse, enclosing_of
+from leaf.passages import (
+    EMPTY,
+    SourceReading,
+    enclosing_of,
+)
 from leaf.registry.contract import (
     WRITERS,
     decides,
@@ -244,6 +248,8 @@ def state_projection(
     registry: dict,
     upto,
     floors: dict | None = None,
+    *,
+    withdrawn: set | None = None,
 ) -> StateProjection:
     """Project user actions and agent reports onto owner-unit-verb coordinates.
 
@@ -264,7 +270,8 @@ def state_projection(
     different record or constructor."""
     if floors is None:
         floors = retractions(events, upto)
-    withdrawn = taken_back(events)
+    if withdrawn is None:
+        withdrawn = taken_back(events)
     settled = report_settlements(events, upto)
     actions = {}
     standing = set()
@@ -347,7 +354,9 @@ def with_action(
     )
 
 
-def frozen_thread_reading(events: list, registry: dict) -> FrozenThreadReading:
+def frozen_thread_reading(
+    events: list, registry: dict, *, withdrawn: set | None = None
+) -> FrozenThreadReading:
     """Project every frozen message fragment through one shared reading."""
     structure = thread_structure(events)
     by_name = thread_names(events)
@@ -360,7 +369,9 @@ def frozen_thread_reading(events: list, registry: dict) -> FrozenThreadReading:
         spk,
         by_name,
         by_widget,
-        state_projection(events, structure.by_id, spk, registry, None, floors={}),
+        state_projection(
+            events, structure.by_id, spk, registry, None, floors={}, withdrawn=withdrawn
+        ),
     )
 
 
@@ -399,7 +410,8 @@ def markup_value(unit: str, spec: dict, byid: dict, spk: dict, registry: dict):
     if record["kind"] == "value":
         rec = byid.get(unit)
         return rec["attrs"].get(record["attr"]) if rec else None
-    return collapse(spk.get(unit, EMPTY).words)  # "body"
+    rec = byid.get(unit)
+    return rec["body"] if rec else ""  # "body"
 
 
 def authored_positions(
@@ -535,21 +547,23 @@ def recorded_state(
 
 
 def folded_value(e: dict, spec: dict):
-    """The state the folded action left in detail.value,
-    collapsed the way `spoken` collapses where it compares against words, and
-    sorted where it compares against a set of marked elements."""
+    """The exact state left in detail.value, sorted only for unordered id sets.
+
+    Body source includes Markdown syntax and meaningful whitespace. Visible passage
+    words are a separate reading and never determine semantic equality.
+    """
     record = spec.get("record")
     if not record:
         return NO_RECORD
     value = e["detail"]["value"]
-    if record["kind"] == "body":
-        return collapse(value)
     if record["kind"] == "attribute":
         return sorted(value)
     return value
 
 
-def page_reading(reading: SourceReading, events: list, revision: int) -> PageReading:
+def page_reading(
+    reading: SourceReading, events: list, revision: int, *, withdrawn: set | None = None
+) -> PageReading:
     """Read one page's markup and log window through one construction.
 
     Document inspection and the passage readings used by `leaf thread open` and
@@ -567,6 +581,7 @@ def page_reading(reading: SourceReading, events: list, revision: int) -> PageRea
             reading.spoken,
             reading.registry,
             revision,
+            withdrawn=withdrawn,
         ),
     )
 

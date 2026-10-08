@@ -4,10 +4,8 @@ from datetime import timedelta
 from pathlib import Path
 from typing import NamedTuple
 
-from ..activity import WORKING_GRACE, canonical_activity, canonical_stream_reply
+from ..activity import WORKING_GRACE
 from ..data import browser_data_from
-from ..events import build_threads
-from ..workflows import canonical_workflows
 from .browser import BrowserReading, project_browser_state
 from .context import PageRead, read_page
 
@@ -32,23 +30,9 @@ def project_activity(
     """Project activity even before the page has an active document."""
     if browser is not None:
         return browser.pop("activity")
-    # No active document means no page containment; thread obligations remain.
-    threads = build_threads(context.events, {})
-    evidence = canonical_workflows(threads, None, events=context.events)
-    activity = canonical_activity(
-        context.presence,
-        evidence,
-        context.events,
-        context.now,
-        (context.live_stream or {}).get("activity"),
-        canonical_stream_reply(
-            context.presence, context.now, (context.live_stream or {}).get("reply")
-        ),
-        (context.live_stream or {}).get("reply_bindings"),
-    )
-    # Tasks are served with the page's threads, which need its document.
-    activity.pop("tasks")
-    return activity
+    return {
+        key: value for key, value in context.work.activity.items() if key != "tasks"
+    }
 
 
 def full_state(

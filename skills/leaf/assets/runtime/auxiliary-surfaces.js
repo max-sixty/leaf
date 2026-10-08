@@ -2,6 +2,8 @@
 
    Registered surfaces retain their own rendering and scrollports. Selecting one closes
    the previous surface before opening it; there is no per-surface visibility state.
+   Each declares the window `edge` it stands on, and one selected in place of another on
+   the same edge swaps with it where it stands rather than sliding.
    Every surface stands over the page and takes no room from it, so selecting one never
    changes the page's geometry. A surface whose rows need the first server reading
    declares presentation-time arrival, so its rendering and covering boundary wait for
@@ -37,6 +39,8 @@
    Native modality owns background pointer and programmatic-focus exclusion. This owner
    keeps the existing Tab wrap, because native forward Tab can leave for browser chrome,
    and suppresses native opening focus while a restored sample has no document focus.
+   Boundary focus returns to the retained surface, so delegated focus keeps its reading
+   position. Explicit navigation still enters the surface's declared destination.
    Entering the covering boundary dismisses pre-existing outside popovers. Native dialogs
    and popovers opened inside the foreground then join the browser's own layer order. */
 
@@ -129,13 +133,14 @@ export function createAuxiliarySurfaces({
       !restored &&
       !document.activeElement?.closest(":popover-open")
     )
-      focusDestination(landingIn(next), "move");
+      focusDestination(landingIn(next), "return");
   }
 
   function registerAuxiliarySurface({
     key,
     surface,
     scroller,
+    edge,
     beside = false,
     underBand = false,
     landing,
@@ -151,12 +156,13 @@ export function createAuxiliarySurfaces({
         surface.hasAttribute("aria-label") || surface.hasAttribute("aria-labelledby")
       ) ||
       !scroller ||
+      !edge ||
       !landing ||
       !show ||
       !hide
     )
       throw new Error(
-        "leaf: an auxiliary surface needs a key, an id and an accessible name, a scroller, a focus destination, and visibility callbacks",
+        "leaf: an auxiliary surface needs a key, an id and an accessible name, a scroller, an edge, a focus destination, and visibility callbacks",
       );
     if (controllers.has(key))
       throw new Error(`leaf: duplicate auxiliary surface ${key}`);
@@ -164,6 +170,7 @@ export function createAuxiliarySurfaces({
       key,
       surface,
       scroller,
+      edge,
       covers: () => !beside || !standsBeside(),
       underBand,
       landing,
@@ -224,8 +231,12 @@ export function createAuxiliarySurfaces({
     // The native boundary lifts before the previous surface hides, so the focus it
     // hands back lands on a live page. The selected surface takes the boundary at sync.
     if (!selected || arriving || Boolean(active) !== selected.covers()) seat(null);
-    previous?.hide({ returnFocus });
-    if (selected && !arriving) selected.show({ phase });
+    // Two surfaces on one edge, as Threads and Questions share the right, are two views
+    // of one side panel: selecting one in the other's place swaps them where they stand,
+    // with no slide for either (`swap`).
+    const swap = Boolean(previous && selected && previous.edge === selected.edge);
+    previous?.hide({ returnFocus, swap });
+    if (selected && !arriving) selected.show({ phase: swap ? "swap" : phase });
     sync();
     syncLayout();
     afterChange();

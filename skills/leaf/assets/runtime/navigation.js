@@ -28,9 +28,17 @@ import { focusThread } from "./thread/focus.js";
 import { landWalkedThread } from "./thread/landing.js";
 import { beginWalk, listWalkPosition, walkPositionLabel } from "./walk-position.js";
 
-const walkableThreads = (panelIsOpen, { threadsBox, openThreads }) =>
-  (panelIsOpen() ? threadsBox.navigationThreads() : null) ??
-  openThreads({ visibleOnly: panelIsOpen() });
+// The walk's reading supplies both its destinations and their visible scope. A panel
+// may show resolved threads too; only the closed-panel page walk promises open threads.
+const threadWalk = (panelIsOpen, { threadsBox, openThreads }) => {
+  const inPanel = panelIsOpen();
+  return {
+    threads:
+      (inPanel ? threadsBox.navigationThreads() : null) ??
+      openThreads({ visibleOnly: inPanel }),
+    scope: inPanel ? "shown" : "open",
+  };
+};
 
 // The walk's place: the list thread holding focus, or the thread the user is at from
 // its target (`threadHere`), in the list or beside the page.
@@ -41,11 +49,11 @@ const currentThread = (threads, threadHere) => {
 };
 
 const threadPosition = (threadHere, panelIsOpen, narrowing, list) => {
-  const threads = walkableThreads(panelIsOpen, list);
+  const { threads, scope } = threadWalk(panelIsOpen, list);
   const current = currentThread(threads, threadHere);
   return listWalkPosition(threads, current, {
     identity: (thread) => thread.dataset.id,
-    qualifier: panelIsOpen() && narrowing.narrowed() ? "shown" : "",
+    qualifier: panelIsOpen() && narrowing.narrowed() ? scope : "",
   });
 };
 
@@ -69,7 +77,7 @@ function threadFrom(threads, place, dir, threadTarget) {
     : (reach.at(-1)?.thread ?? threads[0]);
 }
 
-// Arrive at one open thread a walk chose, `next` its list card: the one arrival both
+// Arrive at one thread a walk chose, `next` its list card: the one arrival both
 // the t/T walk and the queue walk (queue-walk.js) make. With the panel shut it opens the
 // thread at its inline destination: a declared widget outlet first, then the thread
 // margin entry's card; a thread with no page destination is indexed only by Threads, so
@@ -98,13 +106,13 @@ async function arriveAtThread(next, destinations, panelIsOpen, threadsBox, inten
   return true;
 }
 
-// t/T walk open threads. A closed panel walks them in page order; once the panel is
+// t/T walk threads. A closed panel walks open threads in page order; once the panel is
 // open, the walk stays in its list, in whichever order the list shows. Both paths are
 // clamped, not wrapped.
 function stepThread(dir, destinations, panelIsOpen, narrowing, list) {
   const { threadsBox } = list;
   const { threadHere, threadAtStanding, threadTarget } = destinations;
-  const threads = walkableThreads(panelIsOpen, list);
+  const { threads } = threadWalk(panelIsOpen, list);
   const current = currentThread(threads, threadHere);
   const targetId = !current && threadAtStanding();
   const atTarget = targetId && threads.find((thread) => thread.dataset.id === targetId);
@@ -296,12 +304,10 @@ export function createNavigation({
     },
   };
   const inPanel = () => panelFocusIsInside(panelIsOpen);
+  const threadList = { threadsBox, openThreads };
   const move = (amount, unit) => stepReading(amount, unit, coveringAuxiliaryScroller);
   const walkThreads = (dir) =>
-    stepThread(dir, threadDestinations, panelIsOpen, narrowing, {
-      threadsBox,
-      openThreads,
-    });
+    stepThread(dir, threadDestinations, panelIsOpen, narrowing, threadList);
 
   // Travel's own page keys. All three remain reachable inside a covering auxiliary
   // surface: the surface replaces the page the user is reading rather than ending the
@@ -313,15 +319,23 @@ export function createNavigation({
     // share one compact, repeatable grammar.
     keys: ["t", "Shift+t"],
     routes: [
-      { id: "thread.next", binding: "t", title: "Next open thread" },
-      { id: "thread.previous", binding: "Shift+t", title: "Previous open thread" },
+      {
+        id: "thread.next",
+        binding: "t",
+        title: () => `Next ${threadWalk(panelIsOpen, threadList).scope} thread`,
+      },
+      {
+        id: "thread.previous",
+        binding: "Shift+t",
+        title: () => `Previous ${threadWalk(panelIsOpen, threadList).scope} thread`,
+      },
     ],
     title: "threads",
     covering: true,
-    // Once textual search owns the panel, n/N are the canonical walk there. Keep t/T as
-    // the page's open-thread walk without leaving two spellings for the same panel action.
+    // Once textual search owns the panel, n/N are the canonical walk there. Keep t/T
+    // in other contexts without leaving two spellings for the same panel search action.
     when: () =>
-      openThreads({ visibleOnly: panelIsOpen() }).length > 0 &&
+      threadWalk(panelIsOpen, threadList).threads.length > 0 &&
       (!coveringAuxiliarySurface() || inPanel()) &&
       !(narrowing.threadSearchActive() && inPanel()),
     repeat: true,

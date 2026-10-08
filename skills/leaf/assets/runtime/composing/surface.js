@@ -174,7 +174,6 @@ export function createResponseSurface({
 
   // ---------- selection → comment ----------
   let fabAnchor = null;
-  let fabOrigin = null;
   // The row inside the target the gesture that opened this bar pointed at, which the bar
   // stands level with (pointed-place.js).
   let fabPoint = null;
@@ -342,29 +341,23 @@ export function createResponseSurface({
       scrollToElement,
       scrollToRange,
     }) ?? null;
-  // Where a bar on this anchor hands the user back: the control the gesture stood them
-  // on, or the visual proxy for the same anchor where that control has gone, found
-  // by identity so a repaint cannot strand it. A bar no gesture stood them on has nowhere
-  // of its own and the user lands on the page — the element the bar is about is not a
-  // landing merely for being named, an ⌥-aimed press having never stood them on it.
-  const returnDestination = (anchor, origin) =>
-    anchor && !anchor.quote && origin
-      ? origin.isConnected
-        ? origin
-        : visualActionAnchor(anchor)
-      : null;
+  // An element response exits to its subject, or the declared proxy representing it.
+  // Resolve that structural parent from the current anchor, so c from an Ask and an
+  // aimed press on the same Ask unwind alike. There is no saved pre-command focus:
+  // standing on an option comments on its Ask, and closing returns to the Ask itself.
+  // A quoted selection clears to the page; a removed subject has no parent to land on.
+  const returnPlaces = (anchor) =>
+    anchor && !anchor.quote ? [visualActionAnchor(anchor), anchorTargetAt(anchor)] : [];
   function showFab(
     anchor,
-    { returnFocus = "target", origin = null, place = true, point = undefined } = {},
+    { returnFocus = "target", place = true, point = undefined } = {},
   ) {
     const previous = fabAnchor;
-    const previousOrigin = fabOrigin;
     const previousFloating = usesPlacement;
     const leavingBar = !anchor && fabBar.contains(fabFocused());
     const returnToPanel = leavingBar && panelIsOpen() && !(placement?.fits() ?? true);
-    const returnTarget = leavingBar
-      ? returnDestination(previous, previousOrigin)
-      : null;
+    const returnTargets =
+      leavingBar || (!anchor && returnFocus === "page") ? returnPlaces(previous) : [];
     const keptInline = Boolean(
       fabInlineOutlet?.isConnected &&
       anchor &&
@@ -396,17 +389,6 @@ export function createResponseSurface({
       stopFabPositioning({ reset: true });
     fabAnchor = anchor;
     usesPlacement = Boolean(placement) && (!fabAnchor || (place && !keptInline));
-    // A call that names the anchor already standing and supplies no control is the same
-    // bar being re-placed — the other-responses toggle, leaving react mode, a scroll —
-    // rather than a fresh gesture that stood the user nowhere. It keeps the control the
-    // opening gesture stood them on; otherwise the way out of a bar the user opened
-    // from a proxy would depend on what they did inside it.
-    fabOrigin =
-      fabAnchor && origin?.isConnected
-        ? origin
-        : fabAnchor && previous && sameAnchor(previous, fabAnchor)
-          ? previousOrigin
-          : null;
     fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
     fabBar.style.display = fabAnchor
       ? "var(--lf-response-display, inline-flex)"
@@ -434,7 +416,6 @@ export function createResponseSurface({
           placement?.withhold();
         else {
           fabAnchor = null;
-          fabOrigin = null;
           placement?.release();
           stopFabPositioning({ reset: true });
           resetResponseOptions();
@@ -456,13 +437,12 @@ export function createResponseSurface({
     repaint(); // the c row names this anchor, so the line is one more rendering of it
     if (!fabAnchor && returnFocus !== "none") {
       if (returnToPanel) threadsBox.focus({ preventScroll: true });
-      // The proxy may have gone hidden since the gesture opened the box — a fold that
-      // closed under it, a row that re-rendered — and the page is the landing then, as it
-      // is for a box that had no proxy to begin with.
-      else if (leavingBar && returnFocus === "target") handBack(returnTarget);
+      // The shared return tests each representative: a hidden or rebuilt proxy cannot
+      // skip a subject that still takes focus. If none remains, it lands on the page.
+      else if (leavingBar && returnFocus === "target") handBack(...returnTargets);
       else if (
         leavingBar ||
-        (returnFocus === "page" && document.activeElement === previousOrigin)
+        (returnFocus === "page" && returnTargets.includes(document.activeElement))
       )
         letGo();
     }
@@ -517,7 +497,7 @@ export function createResponseSurface({
     (anchor?.quote && targetRange(resolveAnchor(anchor, pageText()))) ||
     anchorTargetAt(anchor);
   const fabTargetAt = () => anchorTargetAt(fabAnchor);
-  const fabReturnTo = () => returnDestination(fabAnchor, fabOrigin);
+  const fabReturnPlaces = () => returnPlaces(fabAnchor);
 
   // Opening Comment is an overlay gesture. Any visible part of its subject is
   // enough to open it: the physical presenter owns its attachment and measure.
@@ -531,11 +511,8 @@ export function createResponseSurface({
   // Every explicit target gesture ends here. The gesture has already resolved its stable
   // authored anchor; this command owns the one transition from that target into Comment.
   // Focusing the field drops any older browser selection, and an unsent draft follows the
-  // deliberate move. A visual proxy supplies its origin so Escape can return to it.
-  function commentOnTarget(
-    { anchor, element = null, point = null },
-    { origin = null } = {},
-  ) {
+  // deliberate move. Escape resolves the same structural parent for every entry route.
+  function commentOnTarget({ anchor, element = null, point = null }) {
     cancelRender(selectionUpdate);
     selectionUpdate = null;
     bringForward(element);
@@ -543,7 +520,6 @@ export function createResponseSurface({
     const selection = getSelection();
     if (selection?.rangeCount) selection.removeAllRanges();
     openComment(anchor, "", { carry: true, point });
-    if (origin) showFab(anchor, { origin });
     setTimeout(() => {
       targetActivation = false;
       // A browser command or touch handle can replace the visual target while its
@@ -1387,7 +1363,7 @@ export function createResponseSurface({
     anchorTargetAt,
     anchorTravelAt,
     fabTargetAt,
-    fabReturnTo,
+    fabReturnPlaces,
     bringForward,
     commentOnTarget,
     focusFabComment,

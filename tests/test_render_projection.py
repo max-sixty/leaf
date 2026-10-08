@@ -5941,18 +5941,12 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     )
 
 
-def test_render_reports_markup_the_log_replays_over(browser, serve):
-    """The static gate refuses a version that rewords what a decision rests on,
-    but `chosen` and its kind say nothing a text diff can see — a version asserting
-    one against the log used to lose silently, replay painting the user's state back
-    over the author's intent. The render gate reports exactly that: an id the author
-    changed since the previous version and replay then wrote. Silence (carrying the
-    old markup forward) and honor (authoring the decided state) both stay clean,
-    because silence changes no id and honor makes the replay a no-op.
+def test_render_allows_authored_state_the_log_replays_over(browser, serve):
+    """A revision may change its baseline while the recorded decision still paints.
 
-    A move is not that case. Any later revision absorbs it and places the card
-    itself, so replay never writes a card over a version; the static gate is what
-    holds the version to where the move put it."""
+    Historical state is a complete-state fold, not permission to edit. Placement
+    belongs to the new authored container when its contents change.
+    """
     url = serve(REPLAYED_PAGE)
     d = serve.page_dir
     for widget, action, detail in [
@@ -5989,8 +5983,8 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     honored = moved.replace('id="opt-shim"', 'id="opt-shim" chosen')
     assert render_gate_model.render_version(browser, stamp(3, honored)).failures == []
 
-    # v4 asserts the other option and reorders the moved card's column: replay
-    # overrides the pick, so the author must hear; the order is v4's own.
+    # v4 changes the baseline pick and the card's column order. Rendering remains
+    # valid: the user's choice paints over the baseline; the new order is authored.
     contradicted = honored.replace('id="opt-shim" chosen', 'id="opt-shim"')
     contradicted = contradicted.replace(
         'id="opt-stage"', 'id="opt-stage" chosen'
@@ -5998,9 +5992,10 @@ def test_render_reports_markup_the_log_replays_over(browser, serve):
     contradicted = contradicted.replace(
         "</lf-card></lf-column>", f"</lf-card>{IMPORTER_CARD}</lf-column>"
     )
-    failures = preview(contradicted)
-    assert len(failures) == 1, failures
-    assert "id=approach" in failures[0] and "opt-stage" in failures[0], failures
+    assert preview(contradicted) == []
+    page = open_page(browser, stamp(4, contradicted))
+    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
 
 
 @pytest.mark.parametrize(
@@ -6106,14 +6101,14 @@ customElements.define("lf-pair", class extends HTMLElement {
         ).failures
         == []
     )
-    # The same older verb really is contradicted when its own record changes.
+    # Changing the older verb's authored baseline is allowed too.
     with preview_server(
         d,
         structure_model.SourceDocument(current.replace('first="a"', 'first="b"')),
         3,
     ) as preview_url:
         failures = render_gate_model.render_version(browser, preview_url).failures
-    assert len(failures) == 1 and "id=pair" in failures[0], failures
+    assert failures == []
 
 
 def test_the_render_gate_applies_every_standing_action_a_second_time(browser, serve):

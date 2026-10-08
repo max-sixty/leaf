@@ -1166,7 +1166,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     assert replies[2]["awaits"] is True
 
 
-def test_an_agent_edits_its_own_messages_without_rewriting_history(
+def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     page_dir, monkeypatch
 ):
     """An edit changes what the thread says, not what the log said before it.
@@ -1282,8 +1282,11 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         cli_model.cli,
         ["thread", "edit", str(page_dir), root["id"], "--text", "Taken over."],
     )
-    assert foreign.exit_code != 0
-    assert "belongs to agent session 'worker-1'" in foreign.output
+    assert foreign.exit_code == 0, foreign.output
+    replacement = json.loads(foreign.output)
+    assert replacement["session"] == "worker-2"
+    assert replacement["message"] == root["id"]
+    before = events_model.read_events(page_dir)
     user_edit = CliRunner().invoke(
         cli_model.cli,
         ["thread", "edit", str(page_dir), user["id"], "--text", "Changed."],
@@ -1301,7 +1304,6 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         },
     )
     before_unidentified_edit = events_model.read_events(page_dir)
-    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
     unidentified = CliRunner().invoke(
         cli_model.cli,
         [
@@ -1313,10 +1315,9 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
             "Changed.",
         ],
     )
-    assert unidentified.exit_code != 0
-    assert "has no agent session identity" in unidentified.output
+    assert unidentified.exit_code == 0, unidentified.output
     assert before_unidentified_edit[-1]["id"] == sessionless["id"]
-    assert events_model.read_events(page_dir) == before_unidentified_edit
+    assert json.loads(unidentified.output)["message"] == sessionless["id"]
 
 
 def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(

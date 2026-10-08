@@ -7,14 +7,7 @@ import sys
 from pathlib import Path
 from typing import NamedTuple
 
-from .data_contracts import (
-    data_contract_transition_errors,
-    merge_data_document_readings,
-    page_data_document_readings,
-    working_data_document_readings,
-)
-from .event_log import read_events
-from .files import latest_revision, read_json, replace_files
+from .files import replace_files
 from .hosting import restarting_server
 from .layer import (
     LayerComposition,
@@ -28,9 +21,7 @@ from .layer import (
 )
 from .leases import lock_is_held, page_locked
 from .locations import located, locations_overlap, path_is_within, path_location
-from .projection import page_reading
-from .registry.storage import compose_candidate, layer_packages, widget_paths
-from .revision_artifact import read_revision
+from .registry.storage import layer_packages
 from .schema import (
     CURSOR_FILE,
     LAYER_PLACEHOLDER,
@@ -41,11 +32,7 @@ from .schema import (
 )
 from .service import PageTransaction, claim_path
 from .state import EVENTS_FILE, json_bytes
-from .structure import SourceDocument
-from .tasks import log_tasks_open
-from .validation.compatibility import candidate_vocabulary_gaps
 from .validation.source import check_source
-from .work import tasks_without_targets
 
 
 def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:
@@ -70,7 +57,7 @@ def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:
         page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     if (page_dir / EVENTS_FILE).is_file():
         with page_locked(page_dir):
-            _plan_page(page_dir, selected, read_events(page_dir))
+            _plan_page(page_dir, selected, fresh=False)
     with restarting_server(page_dir), page_locked(page_dir):
         try:
             _init_page(page_dir, selected)
@@ -117,19 +104,19 @@ def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
     # keeps the caller's chosen mode, takes no PageTransaction yet, and a failed
     # validation leaves it untouched.
     if not (page_dir / EVENTS_FILE).is_file():
-        _commit_layer(page_dir, _plan_page(page_dir, selected, None))
+        _commit_layer(page_dir, _plan_page(page_dir, selected, fresh=True))
         return
     # The page lock serializes this operation with other inits; an existing
-    # page also has its ordinary transaction, which gives the vocabulary check
-    # and contract commit one order against every browser append. No path takes
+    # page also has its ordinary transaction, which gives the layer commit
+    # one order against every browser append. No path takes
     # the page transaction and then the page lock, so this order cannot invert.
     with PageTransaction(page_dir) as page:
-        _commit_layer(page_dir, _plan_page(page_dir, selected, page.events))
+        _commit_layer(page_dir, _plan_page(page_dir, selected, fresh=False))
         events = page.events
     # The re-vendored layer is in place, but the page shows it only once index.html
     # activates, which runs the same check `page check` does. Say now what would
     # hold it back, rather than leave the next read to refuse it unseen.
-    check = check_source(page_dir, events, allow_transition=False)
+    check = check_source(page_dir, events)
     if check.errors:
         print(
             f"re-vendored {page_dir}, but index.html will not activate until "
@@ -150,12 +137,9 @@ class _PagePlan(NamedTuple):
 
 
 def _plan_page(
-    page_dir: Path, selected: tuple[str, ...] | None, events: list[dict] | None
+    page_dir: Path, selected: tuple[str, ...] | None, *, fresh: bool
 ) -> _PagePlan:
-    """Resolve, compose, and check the incoming layer against the page, or refuse,
-    writing nothing. `events` is the page's log, or None for a page this init
-    starts."""
-    fresh = events is None
+    """Validate incoming declarations and file destinations before writing."""
     if selected is None and fresh:
         selected = ()
     elif selected is None:
@@ -168,10 +152,6 @@ def _plan_page(
     # A bad late package must not leave the registry newer than the theme or its
     # modules.
     composition = compose_layer(roots)
-    if not fresh:
-        _validate_page_transition(
-            page_dir, events, _effective_registry(page_dir, composition)
-        )
     layer = _stamp_layer(composition, selected)
     return _PagePlan(fresh, layer, _checked_destinations(page_dir, layer))
 
@@ -201,122 +181,6 @@ def _refuse_input_destination_overlap(roots: list[Path], page_target: Path) -> N
             f"package {package} overlaps page destination "
             f"{destination}; package and page paths must be separate"
         )
-
-
-def _refuse_vocabulary_drift(
-    page_dir: Path, events: list[dict], incoming: dict
-) -> None:
-    revision = latest_revision(page_dir)
-    if revision is None:
-        return
-    try:
-        document = SourceDocument((page_dir / "index.html").read_text(encoding="utf-8"))
-    except (FileNotFoundError, UnicodeDecodeError):
-        # An unreadable candidate cannot activate, but re-vendoring must still
-        # preserve the active page until the source is repaired.
-        document = read_revision(page_dir, revision).document
-    gaps = candidate_vocabulary_gaps(
-        page_dir,
-        events,
-        document,
-        incoming,
-        revision,
-    )
-    if gaps:
-        sys.exit(
-            "this page's log holds vocabulary the incoming layer no longer speaks:\n"
-            + "\n".join(f"  - {g}" for g in gaps)
-            + "\nre-vendoring would silently stop these replaying — the user's"
-            " recorded decisions among them."
-        )
-
-
-def _refuse_data_contract_drift(
-    page_dir: Path, events: list[dict], incoming: dict
-) -> None:
-    # The outgoing registry is historical input, not a contract arriving at the
-    # current code's boundary. It may legitimately predate a new kernel invariant;
-    # validating it with today's rules would prevent `page init` from replacing the
-    # exact older layer it exists to migrate. Binding discovery only reads x-data.
-    if current := read_json(page_dir / "registry.json"):
-        # Both layers interpret the same inventory, including an edit whose first
-        # revision has not yet activated.
-        history = page_data_document_readings(page_dir, events, current)
-        try:
-            documents = working_data_document_readings(
-                page_dir, current, events, history=history
-            )
-        except UnicodeDecodeError:
-            # An unreadable edit cannot activate or introduce a binding. Its source
-            # error belongs to page check; the active history still constrains the layer.
-            documents = history
-        standing_bindings, standing_errors = merge_data_document_readings(documents)
-        incoming_bindings, incoming_errors = merge_data_document_readings(
-            documents, incoming
-        )
-        binding_errors = list(dict.fromkeys(standing_errors + incoming_errors))
-        binding_changes = [
-            (
-                f"source {source!r} loses its contract {contract!r}"
-                if source not in incoming_bindings
-                else f"source {source!r} changes from contract {contract!r} to "
-                f"{incoming_bindings[source]!r}"
-            )
-            for source, contract in standing_bindings.items()
-            if incoming_bindings.get(source) != contract
-        ]
-        contract_changes = data_contract_transition_errors(documents, incoming)
-        if binding_errors or binding_changes or contract_changes:
-            sys.exit(
-                "this page's documents do not keep one meaning for each "
-                "data source:\n"
-                + "\n".join(
-                    f"  - {error}"
-                    for error in binding_errors + binding_changes + contract_changes
-                )
-                + "\npreserve those bindings in the incoming registry before "
-                "re-vendoring."
-            )
-
-
-def _refuse_untargeted_work(page_dir: Path, events: list[dict], incoming: dict) -> None:
-    revision = latest_revision(page_dir)
-    if revision is None:
-        return
-    page = page_reading(
-        read_revision(page_dir, revision).under(incoming), events, revision
-    )
-    document = page.document
-    untargeted = tasks_without_targets(
-        document, page.projection, log_tasks_open(events), incoming
-    )
-    if untargeted:
-        sys.exit(
-            "the incoming layer would remove the target of the open task on "
-            + ", ".join(repr(widget) for widget in untargeted)
-            + "; end that task, or stamp a later version with --completes for it, "
-            "before re-vendoring"
-        )
-
-
-def _validate_page_transition(
-    page_dir: Path, events: list[dict], incoming: dict
-) -> None:
-    _refuse_vocabulary_drift(page_dir, events, incoming)
-    _refuse_data_contract_drift(page_dir, events, incoming)
-    _refuse_untargeted_work(page_dir, events, incoming)
-
-
-def _effective_registry(page_dir: Path, composition: LayerComposition) -> dict:
-    """The candidate's vocabulary over the incoming layer."""
-    return compose_candidate(
-        page_dir,
-        composition.registry,
-        [
-            *(f"widgets/{name}" for name in composition.directory_files["widgets"]),
-            *widget_paths(page_dir, "page/widgets"),
-        ],
-    ).registry
 
 
 def _stamp_layer(

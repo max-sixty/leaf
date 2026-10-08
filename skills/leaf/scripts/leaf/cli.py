@@ -166,8 +166,8 @@ def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
 
     Creates PAGE/revisions/, then vendors the widget layer.
     The author writes PAGE/index.html. Re-running preserves the page's explicit packages unless --package or
-    --no-packages replaces them, and refuses vocabulary the page log can no longer
-    read. A served page's server restarts around the re-vendor, at the same URL.
+    --no-packages replaces them, and validates the current vocabulary and markup.
+    A served page's server restarts around the re-vendor, at the same URL.
     A package may contain any subset of the package layout, including zero, one,
     or many widgets.
     """
@@ -374,8 +374,8 @@ def stamp(dir: str, text: str, completes: tuple[str, ...]) -> None:
 
     Checks the exact source first, then records it as the next public version. Repeat
     --completes for each widget whose open tasks this version completes, which ends
-    them done, citing the version. A task on a widget otherwise survives unrelated
-    versions, and a version cannot silently remove its widget.
+    them done, citing the version. A task otherwise remains open, including when a
+    revision removes its widget.
     """
     from leaf.publishing import cmd_stamp
 
@@ -586,7 +586,7 @@ def data_set(dir: str, source: str, input_file) -> None:
 @click.argument("dir", metavar="PAGE")
 @click.argument("source", metavar="SOURCE")
 def data_clear(dir: str, source: str) -> None:
-    """Remove SOURCE's value; the id keeps the contract it was recorded with."""
+    """Remove SOURCE's current value; its next write uses the current binding."""
     from leaf.data import cmd_data_clear
 
     cmd_data_clear(resolve_dir(dir), source)

@@ -70,6 +70,11 @@ has tried; settle that before building it.
 
 ### Agent and author experience
 
+- **Consider a reminder when revising decided content.** An optional `--force`
+  acknowledgment could make an agent pause over an existing decision. Revisions
+  currently remain unrestricted; decide whether such a reminder helps before
+  adding one.
+
 - **Compare Leaf authoring with plain HTML (#19).** The
   [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
   now covers the live loop, a mixed batch, an elided thread, an unfamiliar package and a

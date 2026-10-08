@@ -10,7 +10,11 @@
    encounter with the message's visible surface, not exhaustive inspection.
    Each observation pass batches newly completed versions into one `read` event, which
    the application sends outside the gesture queue (delivery.js). A refused receipt
-   leaves the message unread and is retried only on a new visit. */
+   leaves the message unread and is retried only on a new visit.
+
+   The first unread destination belongs to this reading too. Its Go-to route (`g u`)
+   and the panel's visible control share the same exact-message arrival. Ordinary
+   `u` remains paired with `d` in whichever reading region the user stands in. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { seenRect, shownBand } from "../geometry.js";
 import { SLIDE_END } from "../motion.js";
@@ -159,6 +163,18 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     if (target) void showThread(target.item.message, { focus: "message" });
   }
 
+  const firstUnreadCommand = {
+    id: "thread.unread.first",
+    keys: ["u"],
+    description: "Go to the first unread message",
+    title: "first unread",
+    touch: false,
+    covering: true,
+    control: () => firstUnreadBtn,
+    when: () => actionableUnread().length > 0,
+    run: firstUnread,
+  };
+
   function scan() {
     if (!presented || document.visibilityState !== "visible" || !document.hasFocus())
       return;
@@ -230,7 +246,6 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
   }
 
   function mount() {
-    firstUnreadBtn.onclick = firstUnread;
     addEventListener("scroll", scheduleScan, true);
     addEventListener("resize", scheduleScan);
     addEventListener("focus", scheduleScan);
@@ -342,7 +357,6 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     present,
     observeBody,
     forgetBody,
-    firstUnread,
-    unreadCount: () => actionableUnread().length,
+    firstUnreadCommand,
   };
 }

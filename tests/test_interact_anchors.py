@@ -33,6 +33,7 @@ from leaf import hook_transport as hook_transport_model
 from leaf import passages as passages_model
 from leaf import structure as structure_model
 from leaf.delivery import current_responses
+from leaf.events import build_threads
 from leaf.registry import storage as registry_storage
 
 
@@ -754,7 +755,7 @@ def test_reply_replacement_precedes_automatic_fallback_for_other_threads(page_di
     assert [e["thread"] for e in moves] == [roots[1]["id"]]
 
 
-def test_a_quote_without_a_section_requires_the_authors_replacement(page_dir):
+def test_a_quote_without_a_section_detaches_when_its_words_disappear(page_dir):
     original = PAGE.replace("</main>", "<p>Alpha</p></main>")
     (page_dir / "index.html").write_text(original)
     publish(page_dir)
@@ -766,9 +767,11 @@ def test_a_quote_without_a_section_requires_the_authors_replacement(page_dir):
     assert root["anchor"]["section"] is None
     (page_dir / "index.html").write_text(original.replace("Alpha", "Beta"))
     checked = check(page_dir)
-    assert checked.exit_code == 1
-    assert root["id"] in checked.output and "no surviving section" in checked.output
-    assert files_model.latest_revision(page_dir) == 1
+    assert checked.exit_code == 0, checked.output
+    assert stamp(page_dir, "Revised the unsectioned passage").exit_code == 0
+    thread = build_threads(events_model.read_events(page_dir), {})[root["id"]]
+    assert thread["anchor"] is None
+    assert thread["detached_from"] == root["anchor"]
     moved = CliRunner().invoke(
         cli_model.cli,
         [
@@ -1325,15 +1328,8 @@ def drop_node_a(page_dir):
     return check(page_dir)
 
 
-def test_a_version_keeps_the_visual_parts_a_thread_anchors_on(page_dir):
-    """A declared part is held by the threads pointing at it, not by having
-    once been declared. The picture a diagram draws changes, so a part no thread
-    holds is dropped like an element id no thread holds; one a thread still names
-    is refused by the same check that protects the id, and by that one alone —
-    naming the moves that release it, rather than repeating the refusal as a
-    vocabulary the layer no longer speaks."""
+def test_a_removed_visual_part_moves_its_thread_to_the_surviving_section(page_dir):
     assert drop_node_a(parted(page_dir)).exit_code == 0
-
     (page_dir / "index.html").write_text(PARTED)
     root = json.loads(
         comment(
@@ -1341,12 +1337,14 @@ def test_a_version_keeps_the_visual_parts_a_thread_anchors_on(page_dir):
         ).output
     )
     assert root["anchor"] == {"section": "flow", "visual": "node:A"}
-    refused = drop_node_a(page_dir)
-    assert refused.exit_code != 0
-    assert "visual parts an open thread anchors on" in refused.output
-    assert "flow · node:A" in refused.output
-    assert "move, detach, or resolve those threads first" in refused.output
-    assert "1 issue(s)" in refused.output
+    result = drop_node_a(page_dir)
+    assert result.exit_code == 0, result.output
+    assert stamp(page_dir, "Removed the node").exit_code == 0
+    events = events_model.read_events(page_dir)
+    thread = build_threads(events, {})[root["id"]]
+    assert thread["anchor"] == {"section": "flow"}
+    assert thread["rewritten_from"] == root["anchor"]
+    assert next(e for e in events if e["id"] == root["id"])["anchor"] == root["anchor"]
 
 
 def test_a_detached_thread_releases_the_visual_part_it_left(page_dir):

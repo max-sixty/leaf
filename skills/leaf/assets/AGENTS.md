@@ -466,7 +466,6 @@ changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme
 | `undeclaredAttrs` | modules write no undeclared author-namespace state |
 | `retiredSlots` | settlement marks agree with the projection |
 | `trappedMargins`, `splitEdges` | suite only: the theme's frame trim reaches Leaf's own boxes |
-| `replayOverrides` | the log, not conflicting markup, determines projected state |
 | `relativeReplays` | rendering a complete widget state twice changes nothing |
 | `shrunkLabels` | advice only |
 

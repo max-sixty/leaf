@@ -106,6 +106,12 @@ const PAGE_COMMANDS = [
   "page.move",
   "scroll.move",
   "reading.align.top",
+  "thread.unread.first",
+  "navigation.panel.threads",
+  "navigation.drawer.queue",
+  "navigation.drawer.leaves",
+  "navigation.page-map",
+  "version.open",
   "history.undo",
   // Below the walks that reach one list at a time, because `g` opens a door to all of
   // them: on a narrow window the sequence hides a second way to somewhere the user can

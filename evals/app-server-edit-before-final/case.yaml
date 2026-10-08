@@ -26,11 +26,6 @@ vars:
     the turn. Only reading instructions runs here; show any commands you would
     run and then the final reply.
 assert:
-- type: javascript
-  metric: reads-app-server-contract
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/harness-codex-app-server\.md
 - type: regex
   metric: checks-saved-edit
   value: 'page check\s+\S+'

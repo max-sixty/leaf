@@ -42,9 +42,11 @@ import {
   scrollIntoReadingBand,
   setChildren,
   shadowStage,
+  sizeObserver,
   notice,
   widgetController,
   watchData,
+  watchOwner,
 } from "/runtime/widget-api.js";
 import "../vendor/webawesome.esm.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
@@ -153,8 +155,12 @@ const fileDatum = (entry, origin = null) => ({
   node: fileNode(entry),
   ...(origin ? { origin } : {}),
 });
-const datumKey = (record) => (record.file ? fileKey(record) : lineKey(record));
-const datumLabel = (record) => (record.file ? fileLabel(record) : lineLabel(record));
+const projectionDatum = (record) => ({
+  node: record.node,
+  key: record.file ? fileKey(record) : lineKey(record),
+  label: record.file ? fileLabel(record) : lineLabel(record),
+  ...(record.origin ? { origin: record.origin } : {}),
+});
 
 function renderedLines(file, rendered) {
   const records = sourceLines(file);
@@ -184,16 +190,13 @@ function renderedLines(file, rendered) {
 }
 
 // A path is its folders and then the file's own name, each a span, so a row too narrow
-// for the whole path gives way from the folders and keeps the name (shadow.css). Where
+// for the whole path gives way from the folders before the name (shadow.css). Where
 // a path wraps, as in a rename's row, it breaks after its slashes before anywhere else:
 // with no break in it but the one the stylesheet forces, a narrow row cut names mid-word
 // ("skills/wor|ktrunk", "preview.|rs"). The text is unchanged; a <wbr> adds only the
-// opportunity, and the title holds the whole path wherever the row cuts it.
+// opportunity.
 function pathNode(className, path) {
-  const node = Object.assign(document.createElement("span"), {
-    className,
-    title: path,
-  });
+  const node = Object.assign(document.createElement("span"), { className });
   const parts = path.split("/");
   const base = parts.pop();
   if (parts.length) {
@@ -212,14 +215,53 @@ function pathNode(className, path) {
   return node;
 }
 
+// While a file's row cuts its path short, the row wears `data-path-cut`, which draws the
+// whole path for the keyboard and a held press (shadow.css), and the path's title holds
+// it for a pointer resting there. A path the row shows whole has neither, since each
+// would repeat it. Whether the row cuts the path changes only with the width of a part
+// of it, the folders or the name (at a new window width, face or press beside it), so
+// each part's size is watched rather than polled. A part is cut where its words run
+// past its box, measured by a Range to the layout unit: `scrollWidth` rounds to whole
+// pixels, and the ellipsis is drawn for a fraction of one.
+//
+// One observer watches every file's row, so a delivery reads every row it names before
+// writing any. A row is watched from when it becomes its file's row (`fileRow`,
+// `replaceFileRendering`) until another replaces it; a fresh rendering whose content
+// goes into the kept row (`replaceFileContent`) brings a row that is never watched. A
+// row that leaves the page with its file or its diff is not unwatched: an observer
+// holds what it watches weakly, so the row is collected with its observation.
+const runsPast = (part) => {
+  const words = new Range();
+  words.selectNodeContents(part);
+  return words.getBoundingClientRect().width > part.getBoundingClientRect().width;
+};
+const pathParts = (details) =>
+  details?.matches("details")
+    ? [...details.firstElementChild.querySelector(".lf-diff-path").children]
+    : [];
+const pathSizes = sizeObserver((entries) => {
+  const paths = new Set(entries.map(({ target }) => target.parentElement));
+  const readings = [...paths].map((path) => [path, [...path.children].some(runsPast)]);
+  for (const [path, cut] of readings) {
+    path.parentElement.toggleAttribute("data-path-cut", cut);
+    keeps(path, "title", cut ? path.textContent : null);
+  }
+});
+function watchPathCut(details) {
+  for (const part of pathParts(details)) pathSizes.observe(part);
+}
+function unwatchPathCut(details) {
+  for (const part of pathParts(details)) pathSizes.unobserve(part);
+}
+
 function summaryNode(file, open) {
   const details = document.createElement("details");
   details.className = "lf-diff-fold";
   details.open = open;
-  // The row's path gives way from its folders, and its title reaches only a pointer
-  // resting on it, so the row says the whole path while the keyboard stands on it or a
-  // press is held on it (held-word.js, shadow.css). It says `data-path`: the path with a
-  // zero-width space after each slash, since generated content takes no <wbr>.
+  // The row's path gives way from its folders, so a row that cuts it short says the
+  // whole path (`watchPathCut`), and a press held on the row reads it as the keyboard
+  // standing there does (held-word.js). It says `data-path`: the path with a zero-width
+  // space after each slash, since generated content takes no <wbr>.
   const summary = document.createElement("summary");
   summary.className = `lf-diff-head ${HOLDS_WORD}`;
   const path = file.name || "(unnamed file)";
@@ -258,6 +300,7 @@ function fileRow(row) {
   actions.className = "lf-diff-file-actions lf-ui";
   actions.dataset.lfGen = "1";
   file.append(actions, row);
+  watchPathCut(row);
   return file;
 }
 
@@ -309,8 +352,10 @@ function holdFileFocus(entry, outlets) {
 
 function replaceFileRendering(entry, rendered, outlets) {
   const restore = holdFileFocus(entry, outlets);
+  unwatchPathCut(entry.details);
   setChildren(entry.node, [entry.node.firstElementChild, rendered.node]);
   entry.details = rendered.node.matches("details") ? rendered.node : null;
+  watchPathCut(entry.details);
   entry.lines = rendered.lines;
   entry.renderKey = null;
   return () => restore?.(entry.details?.firstElementChild, entry.node);
@@ -661,7 +706,17 @@ customElements.define(
 
     connectedCallback() {
       this.addEventListener("lf-reveal", this.revealPassage);
-      if (once(this)) this.controller.subscribe(this.paintReviewAvailability);
+      const firstConnection = once(this);
+      if (firstConnection) {
+        this.controller.subscribe(this.paintReviewAvailability);
+        watchOwner(this, {
+          disconnect: () => {
+            this.rendering = (this.rendering ?? 0) + 1;
+            this.manifestEntries = null;
+            this.manifestSnapshot = null;
+          },
+        });
+      }
       if (!this.threadSurface)
         this.threadSurface = placeThreads(this, (targets) => {
           this.beginThreadSurface();
@@ -669,7 +724,6 @@ customElements.define(
           this.endThreadSurface();
           return outlets;
         });
-      if (this.stopWatching) return;
       // A page diff's file header pins at `--lf-top`, the top of the page's box that
       // scrolls it; one an agent sent in a reply scrolls inside the panel's own list,
       // which declares no such edge. The theme cannot ask that question from inside a shadow tree, so
@@ -795,20 +849,16 @@ customElements.define(
         this.present(this.render(this.inlineSource));
         return;
       }
-      this.stopWatching = watchData(this, "document", (snapshot) => {
-        const rendering = this.render(snapshot?.value ?? null, snapshot);
-        this.sourceRendering = rendering;
-        return rendering;
-      });
+      if (firstConnection)
+        watchData(this, "document", (snapshot) => {
+          const rendering = this.render(snapshot?.value ?? null, snapshot);
+          this.sourceRendering = rendering;
+          return rendering;
+        });
     }
 
     disconnectedCallback() {
       this.removeEventListener("lf-reveal", this.revealPassage);
-      this.rendering = (this.rendering ?? 0) + 1;
-      this.stopWatching?.();
-      this.stopWatching = null;
-      this.manifestEntries = null;
-      this.manifestSnapshot = null;
       this.threadSurface?.unregister();
       this.threadSurface = null;
       this.threadOutlets = null;
@@ -828,13 +878,7 @@ customElements.define(
           this.manifestBody = null;
           this.replaceChildren();
           shadowStage(this, []);
-          projectData(
-            this,
-            [],
-            () => "",
-            () => null,
-            { nested: true, snapshot },
-          );
+          projectData(this, [], { snapshot });
           this.classList.toggle("lf-rendered", false);
           return;
         }
@@ -915,10 +959,10 @@ customElements.define(
           if (bound)
             projectData(
               this,
-              entries.flatMap((entry) => [fileDatum(entry), ...entry.lines]),
-              datumKey,
-              ({ node }) => node,
-              { nested: true, labelOf: datumLabel, snapshot },
+              entries
+                .flatMap((entry) => [fileDatum(entry), ...entry.lines])
+                .map(projectionDatum),
+              { snapshot },
             );
           this.classList.toggle("lf-rendered", true);
           this.filterFiles(this.diffTools.search.value);
@@ -936,14 +980,7 @@ customElements.define(
         this.classList.toggle("lf-rendered", false);
         failSoft(this, err, source);
         if (this.shadowRoot) shadowStage(this, [...this.childNodes]);
-        if (bound)
-          projectData(
-            this,
-            [],
-            () => "",
-            () => null,
-            { nested: true, snapshot },
-          );
+        if (bound) projectData(this, [], { snapshot });
       }
     }
 
@@ -1129,27 +1166,22 @@ customElements.define(
     projectManifest() {
       projectData(
         this,
-        (this.manifestEntries ?? []).flatMap((entry, index) => [
-          fileDatum(entry, {
-            ...this.manifestSnapshot.origin,
-            path: ["files", index, "path"],
-          }),
-          ...(entry.loaded ? entry.lines : []).map((line) => ({
-            ...line,
-            origin: {
+        (this.manifestEntries ?? [])
+          .flatMap((entry, index) => [
+            fileDatum(entry, {
               ...this.manifestSnapshot.origin,
-              path: ["files", index, "patch"],
-            },
-          })),
-        ]),
-        datumKey,
-        ({ node }) => node,
-        {
-          nested: true,
-          labelOf: datumLabel,
-          snapshot: this.manifestSnapshot,
-          originOf: ({ origin }) => origin,
-        },
+              path: ["files", index, "path"],
+            }),
+            ...(entry.loaded ? entry.lines : []).map((line) => ({
+              ...line,
+              origin: {
+                ...this.manifestSnapshot.origin,
+                path: ["files", index, "patch"],
+              },
+            })),
+          ])
+          .map(projectionDatum),
+        { snapshot: this.manifestSnapshot },
       );
     }
 

@@ -2,10 +2,11 @@
 
 The standalone SessionEnd entry runs on system Python 3.9 without a managed
 Leaf environment. One atomic record owns harness lifetime, generation, turn identity
-and dated opening/ending evidence. Claims reference its generation; an ending
-invalidates them without page discovery, page locks or claim rewrites.
+and dated opening/ending evidence. Claims reference its generation; ending the
+generation invalidates them without page discovery, page locks or claim rewrites.
+Desktop instance unloading closes observations while retaining chat ownership.
 
-The session lock also serializes Codex delivery route reservation, making its
+The session lock also serializes Codex transport reservation, making its
 revision a compare-and-swap token for observations. Lock order is page then
 session. Session transitions never acquire page locks or call an external harness;
 only short state publications and reservations run under the session lock.
@@ -395,14 +396,26 @@ def prompt_turn(session_id: str, turn_id: str | None = None) -> dict | None:
 
 
 def close_session_turn(
-    session_id: str, turn_id: str | None = None, *, expected: dict | None | object = ...
+    session_id: str,
+    turn_id: str | None = None,
+    *,
+    expected: dict | None | object = ...,
+    ended_at: float | None = None,
 ) -> bool:
+    """Close the session's turn. `ended_at` is when the harness saw the turn end, in
+    POSIX seconds, for a close that reaches here later: a turn a prompt opened or
+    renewed since then is a newer one, which an unnamed close must not end."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if (
             record is None
             or record["ended"] is not None
             or (expected is not ... and record != expected)
+            or (
+                ended_at is not None
+                and record["turn_opened"] is not None
+                and datetime.fromisoformat(record["turn_opened"]).timestamp() > ended_at
+            )
         ):
             return False
         return advance_turn(session_id, turn_id, running=False) is not None
@@ -420,18 +433,43 @@ def end_session(session_id: str) -> None:
     if not session_id:
         return
     with flocked(session_lock_path(session_id)):
-        record = session_record(session_id) or new_session(session_id, {})
-        ended = now_iso()
-        write_session({**record, "ended": ended, "turn_closed": ended})
-        for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, CLAIMED_SUFFIX, TITLES_SUFFIX):
-            session_file(session_id, suffix).unlink(missing_ok=True)
+        _end_session(session_id)
+
+
+def _end_session(session_id: str) -> None:
+    """Publish the ending while the caller holds the session lock."""
+    record = session_record(session_id) or new_session(session_id, {})
+    ended = now_iso()
+    write_session({**record, "ended": ended, "turn_closed": ended})
+    for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX, CLAIMED_SUFFIX, TITLES_SUFFIX):
+        session_file(session_id, suffix).unlink(missing_ok=True)
+
+
+def end_harness_instance(session_id: str) -> None:
+    """End a process-backed session, or suspend a multiplexed desktop instance.
+
+    Desktop unloads an idle Codex instance while its chat remains available to
+    resume or receive queued input. Its activity-backed claims keep their generation
+    and expire from page use; unloading closes only turn and hook observations.
+    """
+    if not session_id:
+        return
+    with flocked(session_lock_path(session_id)):
+        record = session_record(session_id)
+        if record and record["lifetime"] == {"activity": "multiplexed"}:
+            if record["ended"] is None and record["turn_closed"] is None:
+                advance_turn(session_id, record["turn"], running=False)
+            for suffix in (HOOKS_SUFFIX, STEP_HOOK_SUFFIX):
+                session_file(session_id, suffix).unlink(missing_ok=True)
+            return
+        _end_session(session_id)
 
 
 def hook_needed(payload: dict) -> bool:
     """Whether a Codex hook has anything to do for its payload. Every hook but
     the tool hook does. The tool hook offers input between steps, which only a
     session that has claimed a page this generation can have; the mark
-    (`service.PageTransaction.publishing_claim`) stands until SessionEnd, a
+    (`service.PageTransaction.publishing_claim`) stands until the generation ends, a
     superset of the sessions holding one now.
 
     Codex runs the hook synchronously after every tool call of every task the
@@ -450,7 +488,7 @@ def main() -> None:
         # 3 alone says "nothing to do": a failure here must not skip the hook.
         sys.exit(0 if hook_needed(payload) else 3)
     if payload.get("hook_event_name") == "SessionEnd":
-        end_session(payload.get("session_id") or "")
+        end_harness_instance(payload.get("session_id") or "")
 
 
 if __name__ == "__main__":

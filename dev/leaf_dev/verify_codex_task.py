@@ -185,8 +185,8 @@ def journey(
         )
         task.say(
             "I wrote a Leaf source at ./source.html. "
-            f"Run `{command}` as a long-running shell command and leave it running "
-            "so I can review it. The command connects feedback automatically. "
+            f"Run `{command}` so I can review it. "
+            "Keep its preview available; feedback connects automatically. "
             "Handle the comments I leave on the page."
         )
     else:
@@ -364,7 +364,7 @@ def journey(
 
 def task_codex(root: Path, executable: str, transport: str) -> str:
     """Route the queue to the private server without exposing Leaf's observed
-    App Server transport to the task. Both routes use the real Codex executable."""
+    App Server transport to the task. Both transports use the real Codex executable."""
     directory = root / "bin"
     directory.mkdir()
     wrapper = directory / "codex"

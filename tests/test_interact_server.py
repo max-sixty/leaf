@@ -1132,8 +1132,9 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     ]["generation"]
 
     # Re-vendoring changes the active layer epoch while preserving the data contract.
+    theme = page_dir / "theme.css"
+    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
     vendoring_model.cmd_init(page_dir)
-    (page_dir / "index.html").write_text(source.replace("<h1>A</h1>", "<h1>B</h1>"))
     second = revisioning_model.activate_source(page_dir)
     assert second.error is None and second.revision != first.revision
     second_layer = artifact_model.read_revision(page_dir, second.revision).registry[
@@ -1264,7 +1265,7 @@ def test_a_stamped_restatement_remains_the_valid_live_source(server, page_dir):
             "revision": first_revision,
             "widget": "decision",
             "action": "edit",
-            "detail": {"text": "Backfill first."},
+            "detail": {"value": "Backfill first."},
         },
     )
 
@@ -1338,8 +1339,7 @@ def test_server_round_trip(server, page_dir):
     status, _ = fetch(f"{server}/versions/v1.html")
     assert status == 404
     stamped = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "stamp", str(page_dir), "--text", "cut"],
+        cli_model.cli, ["page", "stamp", str(page_dir), "--text", "cut"]
     )
     assert stamped.exit_code == 0, stamped.output
     # The handover address is the live page, not a pinned revision address.
@@ -1451,13 +1451,13 @@ def test_server_round_trip(server, page_dir):
                 "revision": newest,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+                "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             }
         ).encode(),
     )
     assert status == 200
     moved = event_model.read_events(page_dir)[-1]
-    assert moved["author"] == "user" and moved["detail"]["to"] == "col-doing"
+    assert moved["author"] == "user" and moved["detail"]["value"] == "col-doing"
     # A design comment names the control the press landed on beside the widget it is
     # about. The door takes its design intent as posted, and the transcript says which
     # kind of comment it was.
@@ -1503,15 +1503,6 @@ def test_server_round_trip(server, page_dir):
     drawn = event_model.read_events(page_dir)[-1]
     assert drawn["drawing"] == drawing
     assert "text" not in drawn
-    status, _ = fetch(
-        f"{server}/api/event",
-        data=json.dumps(
-            {"kind": "comment", "revision": 2, "drawing": drawing}
-        ).encode(),
-    )
-    assert status == 200
-    page_drawing = event_model.read_events(page_dir)[-1]
-    assert "anchor" not in page_drawing and page_drawing["drawing"] == drawing
     transcript = CliRunner().invoke(
         cli_model.cli, ["page", "transcript", str(page_dir)]
     )
@@ -1656,10 +1647,12 @@ def test_server_round_trip(server, page_dir):
             "anchor": {"section": "feeder-board"},
             "drawing": {**drawing, "strokes": [[[float("nan"), 0.2], [0.5, 0.2]]]},
         },
+        # Every drawing stands on an element, whose box its offsets are measured in.
+        {"kind": "comment", "revision": 2, "drawing": drawing},
         # The box and the window are sizes, the words are bounded and the scheme is one
         # of two: all come off the rendered page, so their shape is all the door can
-        # hold them to. The window is always recorded, since the agent's picture of the
-        # drawing is laid out in it.
+        # hold them to. The box and the window are always recorded, since the agent
+        # reads the strokes against the one and its picture is laid out in the other.
         *(
             {
                 "kind": "comment",
@@ -1690,7 +1683,7 @@ def test_server_round_trip(server, page_dir):
                     key: value for key, value in drawing.items() if key != missing
                 },
             }
-            for missing in ("viewport", "scheme")
+            for missing in ("box", "viewport", "scheme")
         ),
         # Design is the field's only subject: the retired ownership alias and a browser
         # inventing a second subject are both refused at the door.
@@ -1720,7 +1713,7 @@ def test_server_round_trip(server, page_dir):
             "kind": "report",
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+            "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             "revision": 2,
         },
         # Message revisions are agent-authored too. The browser cannot turn the
@@ -1951,7 +1944,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
                 "revision": 2,
                 "widget": "choice",
                 "action": "choose",
-                "detail": {"options": ["flag-first"]},
+                "detail": {"value": ["flag-first"]},
             }
         ).encode(),
     )
@@ -2004,7 +1997,7 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
                 "revision": 2,
                 "widget": "thread-approval",
                 "action": "choose",
-                "detail": {"options": ["thread-approval-a"]},
+                "detail": {"value": ["thread-approval-a"]},
             }
         ).encode(),
     )
@@ -2282,7 +2275,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
         "revision": 1,
         "widget": "delivery",
         "action": "choose",
-        "detail": {"options": ["delivery-now"]},
+        "detail": {"value": ["delivery-now"]},
         "attempt": "attempt-browser-view-1",
     }
 
@@ -2334,7 +2327,7 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
                     "revision": 1,
                     "widget": "delivery",
                     "action": "choose",
-                    "detail": {"options": [option]},
+                    "detail": {"value": [option]},
                     "attempt": attempt,
                 }
             ).encode(),
@@ -2343,7 +2336,7 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
 
     latest = json.loads(body)["state"]["browser"]["views"]["1"]["undo"][0]
     assert latest["event"]["id"] == json.loads(body)["state"]["events"][-1]["id"]
-    assert latest["event"]["detail"] == {"options": ["delivery-later"]}
+    assert latest["event"]["detail"] == {"value": ["delivery-later"]}
 
 
 def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
@@ -2383,7 +2376,7 @@ def test_undo_offer_keeps_the_doors_active_page_containment(page_dir):
             "revision": 1,
             "widget": "picks",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
             "meaning": {
                 "scope": "page",
                 "unit": "picks",
@@ -2554,7 +2547,7 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
                 "revision": 1,
                 "widget": widget,
                 "action": "choose",
-                "detail": {"options": [option]},
+                "detail": {"value": [option]},
                 "meaning": {"scope": "page", "unit": widget, "depends": [widget]},
             },
         )
@@ -2683,7 +2676,7 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
                     "revision": 1,
                     "widget": "delivery",
                     "action": "choose",
-                    "detail": {"options": [option]},
+                    "detail": {"value": [option]},
                     "attempt": attempt,
                 }
             ).encode(),
@@ -2874,7 +2867,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 1,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+                "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             },
             "unknown action widget",
         ),
@@ -2884,7 +2877,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 2,
                 "widget": "flow",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+                "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             },
             "<lf-diagram> does not declare action verb",
         ),
@@ -2894,7 +2887,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 2,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "rank": 0},
+                "detail": {"unit": "card-baffle", "value": "col-doing", "rank": 0},
             },
             "detail is invalid",
         ),
@@ -2904,7 +2897,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                 "revision": 2,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "10"},
+                "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "10"},
             },
             "rank '10' is not a rank key",
         ),
@@ -2923,7 +2916,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
         "revision": 2,
         "widget": "feeder-board",
         "action": "move",
-        "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+        "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
     }
     assert fetch(f"{server}/api/event", data=json.dumps(valid).encode())[0] == 200
 
@@ -2957,7 +2950,7 @@ def test_server_preserves_the_active_vocabulary_when_candidate_registry_is_broke
                 "revision": 1,
                 "widget": "feeder-board",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+                "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
             }
         ).encode(),
     )
@@ -3020,7 +3013,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
         "kind": "action",
         "revision": 1,
         "action": "choose",
-        "detail": {"options": ["thread-a"]},
+        "detail": {"value": ["thread-a"]},
     }
     status, _ = fetch(
         f"{server}/api/event",
@@ -3033,7 +3026,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
             {
                 **choose,
                 "widget": "exhibited-pick",
-                "detail": {"options": ["exhibited-a"]},
+                "detail": {"value": ["exhibited-a"]},
             }
         ).encode(),
     )
@@ -3121,7 +3114,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
                 "revision": files_model.latest_revision(page_dir),
                 "widget": "local-draft",
                 "action": "edit",
-                "detail": {"text": "New words."},
+                "detail": {"value": "New words."},
             }
         ).encode(),
     )
@@ -3129,7 +3122,7 @@ def test_server_admits_an_action_using_its_captured_vocabulary_after_revendoring
     assert status == 200, body
     event = json.loads(body)["state"]["events"][-1]
     assert event["widget"] == "local-draft"
-    assert event["detail"] == {"text": "New words."}
+    assert event["detail"] == {"value": "New words."}
 
 
 def test_concurrent_posts_never_tear_the_log(server, page_dir):
@@ -3190,7 +3183,7 @@ def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
                 "revision": 1,
                 "widget": "worker",
                 "action": "choose",
-                "detail": {"options": ["worker-restart"]},
+                "detail": {"value": ["worker-restart"]},
             }
         ).encode(),
     )
@@ -4287,7 +4280,7 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
             "revision": 1,
             "widget": "picks",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
         },
     )
     (page_dir / "index.html").write_text(
@@ -5627,7 +5620,7 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
         "revision": 2,
         "widget": "choice",
         "action": "choose",
-        "detail": {"options": ["flag-first"]},
+        "detail": {"value": ["flag-first"]},
     }
     publisher = threading.Thread(target=run_stamp)
     publisher.start()
@@ -5848,7 +5841,7 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
             "kind": "action",
             "widget": "route",
             "action": "choose",
-            "detail": {"options": ["fast"]},
+            "detail": {"value": ["fast"]},
             "revision": 27,
         },
     ]

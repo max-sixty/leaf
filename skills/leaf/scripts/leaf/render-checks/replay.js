@@ -1,5 +1,5 @@
 import { inChrome, shallowSigs } from "/runtime/widget-api.js";
-import { validationWidgetStates } from "/runtime/validation.js";
+import { validationWidgetStates } from "/runtime/check-api.js";
 import { at } from "./locate.js";
 
 // Measure the state painted by surviving decisions made before this revision.

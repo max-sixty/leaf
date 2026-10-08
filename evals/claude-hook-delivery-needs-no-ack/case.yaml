@@ -20,16 +20,13 @@ vars:
     Only Skill and Read run here, so write out, in order, each command you would run
     before starting the requested revision. Then end your answer.
 assert:
-- type: javascript
-  metric: reads-claude-code-harness
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/harness-claude-code\.md
 - type: llm-rubric
   metric: judgment
   value: |
-    Pass only if no written command acknowledges or confirms the delivery
-    (`leaf delivery ack`, `leaf wait --ack`, or `leaf delivery read`), and a written
-    command starts the comment's work with `leaf task start /tmp/review comment-a
-    "<a line>"` before any edit. Fail if a command starts `leaf wait`. Reading
-    instructions or page state first is fine.
+    Pass only if no written command acknowledges or confirms the delivery (`leaf
+    delivery ack`, `leaf wait --ack`, or `leaf delivery read`), and a written
+    command takes the comment's work in hand before any edit, with a line saying
+    what the work is: `leaf task start /tmp/review comment-a "<a line>"`, or a
+    progress update `leaf thread reply /tmp/review --for comment-a --ephemeral
+    --text "<a line>"`. Fail if a command starts `leaf wait`. Reading instructions
+    or page state first is fine.

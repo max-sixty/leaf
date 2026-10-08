@@ -35,7 +35,14 @@
    whose thread stands for the element it is about (`landSent`). */
 import { landingBand, seenRect, shownBox, shownWindow } from "../geometry.js";
 import { documentFocused, focused } from "../keyboard/scopes.js";
-import { focusDestination, restoringFocus, takesLetters, whenLeft } from "../focus.js";
+import {
+  focusDestination,
+  handingBack,
+  onStanding,
+  takesLetters,
+  whenLeft,
+} from "../focus.js";
+import { under } from "../shadow.js";
 import { scrollBehavior } from "../motion.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { closestAcross } from "../passages.js";
@@ -154,11 +161,15 @@ function backFromBox() {
   return route?.target?.isConnected ? route : null;
 }
 // Whether the box the user is typing in has somewhere to hand them back: the
-// thread it belongs to, or the panel's list where it is the chrome's own box. The
-// page's standing scope asks the same question, since a box with nowhere to go back to
-// is a control the user is standing on, theirs to let go of.
-export const boxHandsBack = () =>
+// thread it belongs to, or the panel's list where it is the chrome's own box.
+const boxHandsBack = () =>
   Boolean(backFromBox()) || Boolean(documentFocused()?.closest?.(".lf-thread-panel"));
+// The box, or the reply's composition row around it, which takes its Send control too.
+const inBox = () => takesLetters(focused()) || replyDraftContext(focused()) !== null;
+// Whether Escape here leaves a box for the place it hands back to. The page's let-go
+// defers to it from the box and from every control in its row; a box with nowhere to
+// hand back to is a control the user stands on, theirs to let go of.
+export const leavesBox = () => inBox() && boxHandsBack();
 
 // A box words are typed into takes character keys and the keys that edit it: Enter,
 // deletion, caret movement, Home/End, and page movement, including their modified forms.
@@ -174,7 +185,7 @@ export const boxHandsBack = () =>
 pageScope("text entry", {
   title: "In a text box",
   root: focused,
-  at: () => takesLetters(focused()) || replyDraftContext(focused()) !== null,
+  at: inBox,
   claims: (binding) => takesLetters(focused()) && TEXT_ENTRY(binding),
   rows: [
     {
@@ -185,7 +196,7 @@ pageScope("text entry", {
       // The thread the box belongs to, or the panel's list where it is the chrome's
       // own box. A page text box that is neither leaves the row dead and the page's rung
       // standing, which is the honest answer: nothing there to go back to.
-      when: boxHandsBack,
+      when: leavesBox,
       run: () => {
         const back = backFromBox();
         dismissReplyAt(focused());
@@ -207,12 +218,7 @@ pageScope("text entry", {
 // landing its title would take the user away from the turn they were answering.
 export function standOnThread(thread) {
   if (fitsWhole(thread)) return focusThread(thread);
-  keepingPlace = true;
-  try {
-    focusThread(thread, { preventScroll: true });
-  } finally {
-    keepingPlace = false;
-  }
+  handingBack(() => focusThread(thread, { preventScroll: true }));
 }
 
 // A thread's own keys, live wherever the user stands in one: the card, the message a
@@ -298,7 +304,6 @@ export const retainPanelLanding = (source, panelIsOpen, threadsBox) =>
 // costs a variable rather than buying one, and the walk's own end-of-clamp press is
 // the same shape one scope out.
 const standing = () => closestAcross(focused(), ".lf-thread");
-let keepingPlace = false;
 const land = (thread, behavior, threadsBox, arriving = false) => {
   if (!thread || !threadsBox.contains(thread)) return;
   if (takesLetters(focused())) return;
@@ -400,9 +405,12 @@ export function wireThreadLanding(threadsBox) {
         thread: event.target.closest?.(".lf-thread") ?? null,
       };
   });
-  threadsBox.addEventListener("focusin", () => {
+  // A press held in the list lands when the hand comes up (`finishPress`), and a return
+  // puts the user back in a place the list already showed them: neither lands here.
+  onStanding((node, cause) => {
+    if (!node || !under(node, threadsBox)) return;
     nextRender(readVisibleTitle);
-    if (pressedPointer !== null || keepingPlace || restoringFocus()) return;
+    if (pressedPointer !== null || cause === "return") return;
     const thread = standing();
     // Native focus and reply entry reveal their own writing area. Re-landing the
     // thread here would turn that focus move into a second navigation gesture.

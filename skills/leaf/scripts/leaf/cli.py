@@ -78,7 +78,7 @@ def cli() -> None:
 
 @cli.group(short_help="Launch Codex and connect Leaf pages to its tasks.")
 def codex() -> None:
-    """Launch Codex or run Leaf's detached delivery carrier."""
+    """Launch Codex or run Leaf's delivery adapter."""
 
 
 @codex.command("launch", short_help="Launch an experimental streaming Codex terminal.")
@@ -109,7 +109,7 @@ def codex_start(
     codex_path: str | None,
     app_server: str | None,
 ) -> None:
-    """Start one task-wide delivery carrier and claim PAGE for it."""
+    """Start one task-wide delivery adapter and claim PAGE for it."""
     from leaf.codex_adapter import cmd_codex_start
 
     try:
@@ -127,7 +127,7 @@ def codex_run(
     handshake: int | None,
     app_server: str | None,
 ) -> None:
-    """Run the detached carrier child."""
+    """Run the detached adapter child."""
     from contextlib import nullcontext
 
     from leaf.codex_adapter import run_adapter
@@ -136,7 +136,7 @@ def codex_run(
 
     release_on_termination()
 
-    # Tests run the carrier in the foreground, where nobody waits on a handshake.
+    # Tests run the adapter in the foreground, where nobody waits on a handshake.
     with Handshake(handshake) if handshake is not None else nullcontext() as answer:
         sys.exit(run_adapter(codex_path, answer, app_server))
 
@@ -161,13 +161,19 @@ def page() -> None:
     is_flag=True,
     help="remove all explicit packages from an existing page",
 )
-def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="report whether re-vendoring would change an initialized page",
+)
+def init(dir: str, selected: tuple[str, ...], no_packages: bool, dry_run: bool) -> None:
     """Create or re-vendor a page directory.
 
     Creates PAGE/revisions/, then vendors the widget layer.
     The author writes PAGE/index.html. Re-running preserves the page's explicit packages unless --package or
     --no-packages replaces them, and refuses vocabulary the page log can no longer
-    read. A served page's server restarts around the re-vendor, at the same URL.
+    read. A changed layer restarts its server at the same URL; identical initialization
+    leaves it running. --dry-run reports the planned change without writing it.
     A package may contain any subset of the package layout, including zero, one,
     or many widgets.
     """
@@ -180,7 +186,7 @@ def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
     if len(set(selected)) != len(selected):
         raise click.UsageError("each --package selection may appear only once")
     selections = () if no_packages else selected or None
-    cmd_init(resolve_dir(dir, must_exist=False), selections)
+    cmd_init(resolve_dir(dir, must_exist=False), selections, dry_run=dry_run)
 
 
 @cli.group(short_help="Create, check, install, and run packages.")
@@ -434,8 +440,8 @@ def report(dir: str, widget: str, verb: str, fields: tuple) -> None:
     """Report a state change onto a page widget, as a worker.
 
     The verb and its fields are the widget's own agent-written x-state verb —
-    `leaf page report <page> t-parser status status=review` moves a
-    task. The page paints the report live as provisional news; it stands until a
+    `leaf page report <page> t-parser status value=review text="Ready for review"`
+    moves a task. The page paints the report live as provisional news; it stands until a
     version absorbs or overrules it, and the page's watcher wakes to fold it in.
     """
     from leaf.thread import cmd_report
@@ -626,11 +632,11 @@ def serve_flags(command):
 def start(dir: str, host: str | None, standing: bool) -> None:
     """Start a page's server and print its URL.
 
-    Returns once the server and this harness's feedback route are ready; the server itself keeps running in a
-    session of its own. `leaf server stop` takes one down, and a session server
-    goes down with the session that claimed it besides. A page already served
-    reconnects delivery and prints that server's URL. `--standing` claims no
-    page and prepares no agent delivery.
+    Returns once the server and this harness's watcher are ready; the server
+    itself keeps running in a session of its own. `leaf server stop` takes one
+    down, and a session server goes down with the session that claimed it
+    besides. A page already served reconnects delivery and prints that server's
+    URL. `--standing` claims no page and prepares no agent delivery.
     """
     from leaf.hosting import claim_and_start
 
@@ -881,7 +887,10 @@ def thread_open(
 @click.option(
     "--ephemeral",
     is_flag=True,
-    help="progress update; folds when the next ordinary agent reply arrives",
+    help=(
+        "progress update; on a move you owe, one line that takes it in hand. "
+        "Folds when the next ordinary agent reply arrives"
+    ),
 )
 @_title_option
 def thread_reply(
@@ -905,17 +914,20 @@ def thread_reply(
     any message in it, posts a new agent message there instead, refused while
     that thread owes a reply.
 
+    --ephemeral posts progress without answering. On a move you owe, it also takes
+    the move in hand as `leaf task start` does, with its one line as the Working line.
+
     --quote, --section, and --part move the thread's current anchor; --detach
     removes it when the subject leaves the page. The original anchor stays in
     the log. A reply validates and activates any changed source before posting.
     """
-    from leaf.thread import cmd_reply
+    from leaf.thread import post_reply
 
     if thread is not None and for_event is not None:
         raise click.UsageError("THREAD and --for cannot be used together")
     page_dir = resolve_dir(dir)
     _titled(page_dir, title)
-    accepted = cmd_reply(
+    reply, *started = post_reply(
         page_dir,
         thread,
         text,
@@ -929,8 +941,8 @@ def thread_reply(
         validate_source=True,
         ephemeral=ephemeral,
     )
-    _print_records(accepted)
-    _name(page_dir, accepted["id"], title)
+    _print_records(reply, *started)
+    _name(page_dir, reply["id"], title)
 
 
 @thread.command("edit", short_help="Edit a message's text, or its thread's title.")

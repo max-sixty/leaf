@@ -155,12 +155,12 @@ function goalView(goal, open, read) {
     .filter((worker) => !worker.retired);
   const role = commandRole(goal, "goal");
   const state = roleState(goal, "goal", read);
-  const [reportVerb, reportSpec] = stateReport(goal, "goal");
+  const [reportVerb] = stateReport(goal, "goal");
   const reports = reportVerb ? reportUpdates(goal, reportVerb) : [];
   const latestReport = reports.at(-1);
   const reportedStoppedAt =
     latestReport?.disposition === "effective" &&
-    role.stopped.includes(latestReport.detail[reportSpec.record.value])
+    role.stopped.includes(latestReport.detail.value)
       ? latestReport.ts
       : null;
   const nested = interventions(goal, open);

@@ -56,9 +56,12 @@ from render_harness import (
     BOARD_PAGE,
     EXAMPLES,
     FEATURE_GALLERY,
+    FOLLOWER_MARK,
     RELEASE_FOCUS,
+    SUBJECT_MARK,
     _traffic,
     _until,
+    assert_follows_in_every_frame,
     comment_note,
     compare_with,
     consume_browser_errors,
@@ -136,7 +139,7 @@ ACTION_ON_ASK = {
     "revision": 1,
     "widget": "bracket",
     "action": "choose",
-    "detail": {"options": ["br-steel"]},
+    "detail": {"value": ["br-steel"]},
     "meaning": {
         "scope": "page",
         "unit": "bracket",
@@ -730,6 +733,86 @@ def test_an_unchanged_compact_margin_keeps_the_user_at_the_document_end(browser,
     assert position["after"] == position["before"]
 
 
+@pytest.mark.parametrize("annotations", ["overlay", "page"])
+def test_an_inline_contribution_name_needs_no_physical_margin(
+    browser, serve, annotations
+):
+    """The shared control's native name remains readable when a page owns annotations."""
+    source = leaf_page("Inline names", '<button id="inline">Read</button>').replace(
+        "<body>", f'<body data-annotations="{annotations}">'
+    )
+    page = open_page(browser, serve(source))
+    page.evaluate(
+        """async () => {
+          const {contributionEntry, presentContributionEntry} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          presentContributionEntry(document.getElementById('inline'),
+            contributionEntry({key: 'inline', icon: 'dot', label: 'Read inline name'}));
+        }"""
+    )
+    control = page.get_by_role("button", name="Read inline name", exact=True)
+    control.focus()
+    expect(control.locator(".lf-margin-entry-label")).to_be_visible()
+    page.mouse.move(0, 0)
+    page.keyboard.press("Tab")
+    expect(control.locator(".lf-margin-entry-label")).to_be_hidden()
+
+
+def test_a_margin_entry_label_starts_at_its_settled_place(browser, serve):
+    """A name has one visible position from its first reveal, whatever its border
+    or whether its control stands in the rail or as a pin."""
+    page = open_page(
+        browser,
+        serve(leaf_page("Steady margin names", '<p id="target">Read this target.</p>')),
+    )
+    page.evaluate(
+        """async () => {
+          const {contributionEntry, registerContribution} =
+            await window.__lfRuntimeImport('/runtime/widget-api.js');
+          registerContribution({key: 'names', target: document.getElementById('target'),
+            read: () => ({entries: ['action', 'disclosure'].map(behavior =>
+              contributionEntry({key: behavior, behavior, icon: 'dot',
+                label: `Read ${behavior}`}))}), activate: () => {}});
+        }"""
+    )
+    for width in (1440, 390):
+        resized(page, width, 900)
+        for behavior in ("action", "disclosure"):
+            control = page.get_by_role("button", name=f"Read {behavior}", exact=True)
+            expect(control).to_be_visible()
+            page.wait_for_function(
+                "document.querySelector('script[data-lf-entry]').lfRenderingSettled()"
+            )
+            reading = control.evaluate(
+                """async control => {
+                  const label = control.querySelector('.lf-margin-entry-label');
+                  const frames = [];
+                  const read = () => {
+                    const style = getComputedStyle(label);
+                    if (style.visibility !== 'visible' || Number(style.opacity) === 0)
+                      return;
+                    const box = label.getBoundingClientRect();
+                    frames.push({x: box.x, y: box.y});
+                  };
+                  control.focus();
+                  read();
+                  for (let n = 0; n < 8; n++) {
+                    await new Promise(requestAnimationFrame);
+                    read();
+                  }
+                  const posture = control.closest('.lf-margin-cluster').dataset.lfPlace;
+                  control.blur();
+                  await new Promise(requestAnimationFrame);
+                  return {frames, posture};
+                }"""
+            )
+            assert len(reading["frames"]) >= 2, reading
+            assert all(frame == reading["frames"][0] for frame in reading["frames"]), (
+                reading
+            )
+            assert reading["posture"] == ("rail" if width == 1440 else "pin")
+
+
 def test_a_transient_margin_entry_label_avoids_the_next_margin_entry(browser, serve):
     """A tooltip moves rather than covering a neighboring margin entry."""
     fixture = leaf_page(
@@ -1215,7 +1298,7 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
     page.keyboard.press("a")
     expect(page.locator("#bg-replace")).to_be_focused()
     expect(
-        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_text(["1", "2"])
     geometry = page.evaluate(
         """() => {
@@ -1243,7 +1326,7 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
               node => node.getBoundingClientRect().top
             )),
             chips: boxes([...document.querySelectorAll(
-              '.lf-command-binding-badges > .lf-command-binding-badge'
+              '.lf-command-binding-badges .lf-command-binding-badge'
             )]),
           };
         }"""
@@ -3830,7 +3913,7 @@ def test_page_map_only_origins_do_not_count_as_margin_entries(browser, serve):
             str(serve.page_dir),
             "t-mounts",
             "status",
-            "status=active",
+            "value=active",
         ],
     )
     assert sent.exit_code == 0, sent.output
@@ -5243,7 +5326,9 @@ def test_a_thread_uses_a_free_margin_and_tracks_its_source(browser, serve):
           };
           const placed = () => new Promise(resolve => requestAnimationFrame(
             () => requestAnimationFrame(resolve)));
-          scrollBy(0, 250);
+          // Keep the first two positions below the banner's 8px boundary, so
+          // these readings exercise following the words rather than clamping.
+          scrollBy(0, 180);
           await placed();
           const high = positions();
           scrollBy(0, 40);
@@ -7962,7 +8047,7 @@ def test_an_agent_reply_into_an_open_card_cues_only_its_own_words(browser, serve
     rendered(page)
     cued = """preview => [...preview.querySelectorAll('.lf-msg')].filter(message =>
       message.getAnimations().some(animation =>
-        animation.effect.getKeyframes().some(frame => frame.backgroundColor)))
+        animation.effect.getKeyframes().some(frame => frame['--lf-msg-arrival'])))
       .map(message => message.textContent.includes('arriving') ? 'reply' : 'root')"""
     assert preview.evaluate(cued) == []
     # Pause the cue at its first frame, before driver latency can let it finish.
@@ -7974,7 +8059,7 @@ def test_an_agent_reply_into_an_open_card_cues_only_its_own_words(browser, serve
               node.textContent.includes('arriving'));
             if (!message) return;
             const cue = message.getAnimations().find(animation =>
-              animation.effect.getKeyframes().some(frame => frame.backgroundColor));
+              animation.effect.getKeyframes().some(frame => frame['--lf-msg-arrival']));
             if (cue) { cue.pause(); cue.currentTime = 0; }
             window.__arrival = Boolean(cue);
             observer.disconnect();
@@ -9129,8 +9214,8 @@ def test_a_card_an_outer_panes_edge_holds_stands_in_that_panes_plane(browser, se
 
 def test_the_paint_over_a_target_in_panes_rides_each_panes_scroll(browser, serve):
     """The trace and the mark drawn over an element inside nested scrolling panes stand
-    in frames cut to each pane's band, each moved by the scroll of the pane holding it
-    (target-paint-geometry.js, `paintStand`). A scroll of either pane writes nothing to
+    in frames cut to each pane's band, each carried by the scrolls around the pane holding
+    it (target-paint-geometry.js, `paintStand`). A scroll of either pane writes nothing to
     them and leaves them over the element. Drawn in the document's plane from the
     element's box as the panes cut it, they were rewritten on every scroll step, a frame
     behind the words."""
@@ -9974,6 +10059,54 @@ def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, ser
     expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
     page.locator("#pin-pane > div").evaluate("body => { body.scrollTop = 0; }")
     expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
+
+
+def test_a_pin_in_a_pane_paints_in_the_frame_its_target_scrolls(browser, serve):
+    """Every frame Chrome draws while a pane scrolls shows the pin level with its
+    target, since the browser carries both through the same scroll."""
+    marks = (
+        f"<style>#pane-top {{ background:{SUBJECT_MARK}; }}"
+        f' [data-lf-margin-for="pane-top"] {{ outline:6px solid {FOLLOWER_MARK}'
+        " !important; }</style></head>"
+    )
+    page = open_page(
+        browser,
+        serve(
+            PANE_PIN_PAGE.replace("</head>", marks), events=[_comment_on("pane-top")]
+        ),
+    )
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    margins_laid_out(page)
+    target = page.locator("#pane-top").bounding_box()
+    page.mouse.move(target["x"] + 40, target["y"] + 5)
+    assert_follows_in_every_frame(page, "#pin-pane > div")
+
+
+@pytest.mark.parametrize(
+    "wrapper", ["", "overflow: hidden; border-radius: 8px", "overflow-x: auto"]
+)
+def test_a_pin_in_a_pane_rides_an_anchored_carrier_through_boxes_that_scroll_nothing(
+    browser, serve, wrapper
+):
+    """A pin whose target stands in a pane stands in a carrier anchored to what the
+    pane's scroll carries, rather than a scroll-driven layer, which can paint a frame
+    off its scroll. A box between the target and the pane that clips but scrolls
+    nothing, as a rounded wrapper or a table wrapper that fits, leaves it there."""
+    source = PANE_PIN_PAGE.replace(
+        '<p id="pane-top">The first finding, commented on.</p>',
+        f'<div style="{wrapper}"><p id="pane-top">The first finding, commented on.</p>'
+        "</div>",
+    )
+    page = open_page(browser, serve(source, events=[_comment_on("pane-top")]))
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#pin-pane"), "bounded")
+    margins_laid_out(page)
+    row = page.locator('[data-lf-margin-for="pane-top"]')
+    expect(row).to_have_attribute("data-lf-place", "pin")
+    assert row.evaluate(
+        "row => row.parentElement.classList.contains('lf-margin-carrier')"
+    ), wrapper
 
 
 @pytest.mark.parametrize("change", ["size", "layout"])
@@ -11024,6 +11157,46 @@ def page_annotation_action_source():
     ).replace("<body>", '<body data-annotations="page">')
 
 
+def test_rail_reading_keys_follow_its_scroll_box_after_reconnection(browser, serve):
+    """Paging in an allocated annotation region moves its rows, and reconnecting
+    the retained rail keeps its scroll position and reading route."""
+    choices = "".join(
+        f'<lf-ask id="question-{i}"><h2>Decision {i}</h2>'
+        f'<lf-options id="options-{i}" choose>'
+        f'<lf-option id="choice-{i}">Keep sample {i}</lf-option>'
+        "</lf-options></lf-ask>"
+        for i in range(30)
+    )
+    source = page_annotation_rail_source().replace("<textarea", choices + "<textarea")
+    page = open_page(browser, serve(source))
+    rail = page.locator("#annotations")
+    assert rail.evaluate("el => el.scrollHeight > el.clientHeight")
+    rail.locator(".lf-ar-item").first.focus()
+    document_before = page.evaluate("scrollY")
+    for _ in range(2):
+        before = rail.evaluate("el => el.scrollTop")
+        page.keyboard.press("d")
+        page.wait_for_function(
+            "before => document.querySelector('#annotations').scrollTop > before.rail"
+            " || scrollY !== before.document",
+            arg={"rail": before, "document": document_before},
+        )
+        scroll_settled(page, "#annotations")
+        after = rail.evaluate("el => el.scrollTop")
+        assert after > before
+        assert page.evaluate("scrollY") == document_before
+        rail.evaluate("""async el => {
+          const {preserveReadingRegions} = await __lfRuntimeImport('/runtime/reading-regions.js');
+          const parent = el.parentNode, next = el.nextSibling;
+          await preserveReadingRegions(parent, () => {
+            el.remove();
+            parent.insertBefore(el, next);
+          });
+        }""")
+        rendered(page)
+        assert rail.evaluate("el => el.scrollTop") == after
+
+
 def test_rail_ask_draft_and_optimistic_undo(browser, serve):
     page = open_page(browser, serve(page_annotation_action_source()))
     rail = page.locator("lf-annotation-rail")
@@ -11072,7 +11245,11 @@ def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
     expect(page.locator(".lf-drawing-pending")).to_have_count(0)
 
 
-def test_rail_holds_foreign_thread_layout_before_existing_actions(browser, serve):
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("reveal", ["button", "return"])
+def test_rail_holds_foreign_thread_layout_before_existing_actions(
+    browser, serve, reveal
+):
     """A new conversation cannot push the rail's existing Ask out from under a reader."""
     page = open_page(browser, serve(page_annotation_action_source()))
     rail = page.locator("lf-annotation-rail")
@@ -11097,9 +11274,48 @@ def test_rail_holds_foreign_thread_layout_before_existing_actions(browser, serve
         rail.get_by_role("button", name="Show updated annotations", exact=True)
     ).to_be_enabled()
     assert ask.bounding_box() == before
-    rail.get_by_role("button", name="Show updated annotations", exact=True).click()
+    if reveal == "button":
+        rail.get_by_role("button", name="Show updated annotations", exact=True).click()
+    else:
+        page.evaluate("""() => {
+          window.__lfTestVisibility = 'hidden';
+          Object.defineProperty(document, 'visibilityState', {
+            configurable: true, get: () => window.__lfTestVisibility,
+          });
+          document.dispatchEvent(new Event('visibilitychange'));
+        }""")
+        with page.expect_request("**/api/news"):
+            page.evaluate("""() => {
+              window.__lfTestVisibility = 'visible';
+              document.dispatchEvent(new Event('visibilitychange'));
+            }""")
+        told(page)
+        rendered(page)
     expect(rail.locator(".lf-page-thread")).to_have_count(1)
     expect(rail).to_contain_text("A new thought about the source")
+    if reveal == "return":
+        page.wait_for_function("""async () => {
+          const { readingIsContinuous } = await window.__lfRuntimeImport(
+            '/runtime/reading-continuity.js');
+          return readingIsContinuous();
+        }""")
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "agent",
+                "agent": "Codex",
+                "session": "pytest-rail-news",
+                "revision": 1,
+                "text": "News after returning to the source",
+                "anchor": {"section": "subject"},
+            },
+        )
+        told(page)
+        expect(rail.locator(".lf-page-thread")).to_have_count(1)
+        expect(
+            rail.get_by_role("button", name="Show updated annotations", exact=True)
+        ).to_be_enabled()
 
 
 def test_rail_holds_source_group_changes_before_existing_actions(browser, serve):

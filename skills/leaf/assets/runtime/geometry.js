@@ -108,46 +108,6 @@ export function documentPoint(left, top) {
   };
 }
 
-// A positioned chip stands on whole pixels. The inline style keeps a length to six
-// significant digits, so a fractional place reads back as a nearby one, and a pass that
-// computes from what it reads writes a value that differs from what stands while saying
-// the same thing. A whole pixel reads back as itself.
-//
-// A chip stands in the plane of what holds it: its layer's, where the scroll that carries
-// the layer carries it, or the window's (`held`), where the window's edge or the banner
-// holds it in, so that a scroll leaves it standing. A held chip in a layer the document
-// carries would otherwise be carried by each scroll frame and placed back. Its `left`
-// and `top` are in its layer's coordinates either way.
-export function placeChip(chip, left, top, held = false) {
-  const origin = held ? chip.parentElement.getBoundingClientRect() : null;
-  if (held) chip.style.position = "fixed";
-  else chip.style.removeProperty("position");
-  chip.style.left = `${Math.round(left + (origin?.left ?? 0))}px`;
-  chip.style.top = `${Math.round(top + (origin?.top ?? 0))}px`;
-}
-
-// Where a chip's inline `left` and `top` are measured from, in its layer's coordinates.
-const chipOrigin = (chip) =>
-  chip.style.position === "fixed"
-    ? chip.parentElement.getBoundingClientRect()
-    : { left: 0, top: 0 };
-
-// The box a positioned chip would take at `at`, a `left` and `top` in its layer's
-// coordinates, read off where it stands now. A placement pass measures a chip at its
-// anchor this way rather than moving it there to look, so the chip is written once, to
-// where the pass seats it; one not yet placed is put at `at` to be read.
-export function boxAt(chip, at) {
-  if (!chip.style.left || !chip.style.top) placeChip(chip, at.left, at.top);
-  const now = chip.getBoundingClientRect();
-  const origin = chipOrigin(chip);
-  return new DOMRect(
-    now.left + at.left - (parseFloat(chip.style.left) - origin.left),
-    now.top + at.top - (parseFloat(chip.style.top) - origin.top),
-    now.width,
-    now.height,
-  );
-}
-
 // One local scroll pixel's viewport displacement. Scroll offsets are in layout pixels;
 // a scaled or rotated scrollport carries its contents along transformed axes. Browser
 // matrices compose through the same rendered ancestry used by clipping, across slots
@@ -283,10 +243,17 @@ export function shownBand(el) {
 // It clears what stands over the whole scroller (the banner, a page tab strip); a header
 // over part of it, a diff's file header, is cleared by the `scroll-margin` of the rows
 // it stands over.
-const scrolls = (el) => {
-  const { overflowX, overflowY } = getComputedStyle(el);
-  return /auto|scroll|hidden/.test(`${overflowX} ${overflowY}`);
-};
+//
+// A box scrolls, for these readings, when its computed overflow makes it a scroll
+// container: `auto` and `scroll`, and `hidden` too, which a script or a landing can
+// scroll though the user cannot, and which is the scroller a sticky box inside it sticks
+// in. The runtime marks every such box from the same predicate (reach.js, `paintSlot`),
+// and asks it of what a motion scrolls and which boxes scroll what they hold
+// (scroll-motion.js, `scrollContainer` and `scrollsContent`).
+export const scrollport = (overflow) => /^(auto|scroll|hidden)$/.test(overflow);
+export const scrollsBy = ({ overflowX, overflowY }) =>
+  scrollport(overflowX) || scrollport(overflowY);
+const scrolls = (el) => scrollsBy(getComputedStyle(el));
 // How far below the top of `scroller`'s band the view of `el` starts, past the sticky
 // headers stuck over it. Each header adds its stated height to `--lf-top` for what it
 // stands over (theme.css), so where the `--lf-top` computed at `el` exceeds the
@@ -517,22 +484,30 @@ export const clippedRect = (box, item, clips) => clipped(box, item, clips, false
 // clip around it, and the page's otherwise, which the root scroll carries. `bands` are
 // the boxes between it and the item whose bands cut it, outermost first, each band less
 // the headers stuck over the item's view of it (`headerInset`); each stands in the plane
-// of the box that holds it. `window` is what the window leaves the paint, in the
+// of the box that holds it, kept where they cut the box whole. `window` is what the
+// window leaves the paint, in the
 // window's plane: the room below a header stuck over the root's top, cut, for paint
 // stacked `aboveSurfaces`, at the edge of each declared occluder standing over what the
 // bands leave of the box, on the side `occluded` keeps, or null where neither cuts it,
 // and empty where a cut hides the box whole. Paint stacked under the surfaces is hidden
 // by them where they stand. The window's own edges cut nothing in the page's plane, since paint past them
-// is not drawn anyway, and cutting it there would move the cut with every scroll.
-export function paintClips(item, box, clips, aboveSurfaces) {
-  const walk = clipWalk(item, clips, false);
+// is not drawn anyway, and cutting it there would move the cut with every scroll. Paint
+// over what `item` holds (`held`), as words inside it, is cut by its own band too.
+export function paintClips(item, box, clips, aboveSurfaces, held = false) {
+  const walk = clipWalk(item, clips, held);
   const plane = walk.fixed ? "window" : "page";
   const root = item.ownerDocument.scrollingElement;
   const hidden = { plane, window: { left: 0, top: 0, right: 0, bottom: 0 }, bands: [] };
-  let shown = cutBy(box, walk.cuts, root, false);
-  if (!shown) return hidden;
   // The root's band is the window's, which cuts only below a header stuck over it.
   let window = walk.cuts.find(({ box: cut, covered }) => cut === root && covered)?.band;
+  const bands = walk.cuts.filter(({ box: cut }) => cut !== root).reverse();
+  let shown = cutBy(box, walk.cuts, root, false);
+  // Cut away by the bands, the box keeps them, which a scroll may bring it into; under
+  // headers that cover a band whole, it has none to keep.
+  if (!shown)
+    return walk.cuts.some(({ band }) => !band)
+      ? hidden
+      : { plane, window: window ?? null, bands };
   for (const { surface, box: over, level } of aboveSurfaces
     ? standingOccluders(clips)
     : []) {
@@ -551,11 +526,7 @@ export function paintClips(item, box, clips, aboveSurfaces) {
     };
     shown = left;
   }
-  return {
-    plane,
-    window: window ?? null,
-    bands: walk.cuts.filter(({ box: cut }) => cut !== root).reverse(),
-  };
+  return { plane, window: window ?? null, bands };
 }
 // The same walk for a box drawn in the document plane, which a root scroll carries with
 // the page: the page's own boxes cut it, and the window does not, so a box scrolled off
@@ -750,7 +721,7 @@ export const placeHolder = (where) =>
     : where;
 // Where a box stacks among the page's root-level layers: the z-index of its outermost
 // positioned ancestor that sets one, and above all of them in the top layer.
-function stackLevel(node) {
+export function stackLevel(node) {
   let level = 0;
   for (let a = node; a; a = upFrom(a)) {
     if (a.matches(":popover-open, dialog:modal")) return Infinity;

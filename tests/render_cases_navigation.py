@@ -265,7 +265,7 @@ session.</p></details>
 )
 # Generated go-to hints, painted in their own transient layer. The code is metadata on the
 # chip because its visible text also carries the ellipsis marking a sequence in progress.
-CHIPS = ".lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]"
+CHIPS = ".lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]"
 
 
 def address_codes(page):
@@ -998,7 +998,7 @@ DATA_PROJECTION_PAGE = leaf_page(
 )
 
 DATA_PROJECTION_MODULE = """
-import {offer, projectData, watchData} from '/runtime/widget-api.js';
+import {offer, projectData, watchData, setChildren} from '/runtime/widget-api.js';
 customElements.define('lf-feed', class extends HTMLElement {
   connectedCallback() {
     if (!this.stopWatching)
@@ -1013,14 +1013,13 @@ customElements.define('lf-feed', class extends HTMLElement {
     this.stopWatching = null;
   }
   show(snapshot) {
-    projectData(this, snapshot?.value ?? [], row => row.key, ({value}) => {
+    const datums = (snapshot?.value ?? []).map(({key, value}, index) => {
       const row = document.createElement('p');
       row.append(value, offer('button', 'inspect', 'Inspect'));
-      return row;
-    }, {
-      snapshot,
-      originOf: (_row, index) => ({...snapshot.origin, path: [index, 'value']}),
+      return {node: row, key, origin: {...snapshot.origin, path: [index, 'value']}};
     });
+    setChildren(this, datums.map(({node}) => node));
+    projectData(this, datums, {snapshot});
   }
 });
 """

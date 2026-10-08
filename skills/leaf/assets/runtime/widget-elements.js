@@ -45,6 +45,7 @@ import { pressIsKeyboardActivation } from "./pointer.js";
 import { iconElement } from "./icons.js";
 import { upFrom } from "./shadow.js";
 import { keeps, keepsText } from "./keeps.js";
+import { Directive, PartType, directive, nothing } from "../vendor/lit.js";
 
 // A scroll target can sit inside a collapsed container — a closed <details>, an
 // inactive tab. Opening what the platform owns (details) and letting a container
@@ -104,7 +105,8 @@ export function el(tag, cls, text) {
 // content-visibility, and the theme's display:block outranks the boolean
 // [hidden] rule) — without beforematch, fall back to plain boolean hidden,
 // which the theme hides itself; the widget still collapses and reopens, ⌘F
-// just can't see in.
+// just can't see in. content-visibility skips only what the element holds: one
+// that is itself a tab stop stays one while hidden, so its widget withdraws it.
 export const HIDDEN = "onbeforematch" in document.body ? "until-found" : "";
 
 // The user's hand on a widget, in the layer's own word: a drag the log has not taken
@@ -292,25 +294,29 @@ export function worksInside(node, container) {
 // registers its widget-specific keys. An input supplies its type here so the type and the
 // pressability marker cannot disagree. Custom controls opt in when their host exposes
 // the complete activation method that the go-to sequence can call.
-export function offer(tag, cls, label, inputType, pressable = false) {
-  const node = document.createElement(tag);
-  if (node instanceof HTMLButtonElement) node.type = "button";
-  if (inputType !== undefined) {
-    if (tag !== "input")
-      throw new TypeError("only an input offer can declare an input type");
-    node.type = inputType;
-  }
-  node.className = cls ? `${cls} lf-ui` : "lf-ui";
-  node.dataset.lfGen = "1";
-  node.dataset.lfOffer = pressable
-    ? tag
-    : node instanceof HTMLButtonElement ||
-        (tag === "input" && ["checkbox", "radio"].includes(node.type))
-      ? node.type
-      : "";
-  if (label !== undefined) node.textContent = label;
-  return node;
-}
+export const offer = (...args) => document.documentElement.lfInitial.offer(...args);
+export const offerElement = (...args) =>
+  document.documentElement.lfInitial.offerElement(...args);
+
+// The template form of `offer`: `<button ${offered("lf-btn")}>`. It owns the
+// element's class and generated-control markers; attributes, values and handlers
+// remain ordinary Lit bindings. Both forms use the same chrome anatomy.
+export const offered = directive(
+  class extends Directive {
+    constructor(part) {
+      super(part);
+      if (part.type !== PartType.ELEMENT)
+        throw new TypeError("offered belongs in a template's element part");
+    }
+    render() {
+      return nothing;
+    }
+    update(part, [cls, pressable = false]) {
+      offerElement(part.element, cls, pressable);
+      return nothing;
+    }
+  },
+);
 
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a
 // settled decision. Chromium does not begin text selection inside a form control, so those
@@ -555,4 +561,13 @@ export function responseAction(
   labelNode.textContent = label;
   control.replaceChildren(glyphNode, spaceNode, labelNode);
   return control;
+}
+
+// Motion carries the card's label, never a second live widget tree. Native chrome
+// avoids copied form groups, widget lifetimes and iframe browsing contexts.
+export function motionPreview(label) {
+  const preview = offer("div", "lf-motion-preview", label);
+  preview.inert = true;
+  preview.setAttribute("aria-hidden", "true");
+  return preview;
 }

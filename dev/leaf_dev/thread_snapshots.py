@@ -23,8 +23,10 @@ leaf_assets.stage / publish and updates the thread-expectations pin, leaving med
 revision untouched. Acceptance never occurs in normal tests. CI retains failed run
 evidence. Small antialias noise is excluded by Pixelmatch's AA handling and
 calibrated 0.01 perceptual tolerance; every other mismatched pixel fails, with no
-whole-image allowance. Independently compare viewport geometry so a translated crop
-cannot conceal placement changes.
+whole-image allowance. Compare the padded response frame below the banner's canonical
+painted edge, retaining frame shadows and the editor at the viewport foot, where the
+thread panel paints over the bottom bar. Keep full captures for review. Independently
+compare viewport geometry so a translated crop cannot conceal placement changes.
 
 First insertion has an immediate words/busy/opacity observer before stabilized
 screenshots. Refusal's exact feedback and native visibility are observed at mutation;
@@ -38,6 +40,7 @@ they do not claim all thread states. Existing news/storage tests remain separate
 import hashlib
 import io
 import json
+import math
 import platform
 import shutil
 import subprocess
@@ -99,6 +102,23 @@ def render_profile(browser_version: str) -> str:
     return (
         f"darwin-{platform.mac_ver()[0]}-{platform.machine()}"
         f"-chromium-{browser_version}"
+    )
+
+
+def visible_capture(image: Image.Image, clip: dict, window: dict) -> Image.Image:
+    """Keep captured pixels inside the response window, including frame halos.
+
+    Both approved and actual images retain their full padded capture separately.
+    Crop at whole pixels inside the window so no partial banner pixel enters the
+    response oracle. The independently compared region still owns placement.
+    """
+    return image.crop(
+        (
+            math.ceil(window["left"] - clip["x"]),
+            math.ceil(window["top"] - clip["y"]),
+            math.floor(window["right"] - clip["x"]),
+            math.floor(window["bottom"] - clip["y"]),
+        )
     )
 
 
@@ -187,13 +207,24 @@ class SnapshotRun:
             "height": min(viewport["height"], region["y"] + region["height"] + 16)
             - top,
         }
+        window = page.evaluate(
+            """async clip => {
+              const {bannerFoot} = await window.__lfRuntimeImport('/runtime/geometry.js');
+              return {left: clip.x, top: Math.max(clip.y, bannerFoot()),
+                right: clip.x + clip.width, bottom: clip.y + clip.height};
+            }""",
+            clip,
+        )
         with hidden_editor_carets(page):
             png = page.screenshot(
                 caret="hide", scale="css", clip=clip, animations="disabled"
             )
         actual = self.output / f"{stage}.actual.png"
         actual.write_bytes(png)
-        self.observations[stage] = reading
+        self.observations[stage] = reading | {
+            "capture_clip": clip,
+            "capture_window": window,
+        }
         if not COMPARED:
             return
         baseline = self.store / self.profile / f"{self.case.name}-{stage}.png"
@@ -208,8 +239,7 @@ class SnapshotRun:
                 f"{stage}: thread geometry changed: expected {geometry.read_text().strip()}, "
                 f"actual {reading['region']}"
             )
-        expected = baseline if self.updating else self.output / f"{stage}.expected.png"
-        expected.parent.mkdir(parents=True, exist_ok=True)
+        expected = self.output / f"{stage}.expected.png"
         if not self.updating and baseline.is_file():
             shutil.copyfile(baseline, expected)
         # A profile without this case's images still runs the whole journey, so a
@@ -217,15 +247,26 @@ class SnapshotRun:
         if not self.updating and not baseline.is_file():
             self.failures.append(f"{stage}: missing approved image: {baseline}")
             return
+        if self.updating:
+            baseline.parent.mkdir(parents=True, exist_ok=True)
+            self.compare(Image.open(io.BytesIO(png)), baseline, threshold=0.01)
+            return
+        compared_actual = self.output / f"{stage}.compared.actual.png"
+        compared_expected = self.output / f"{stage}.compared.expected.png"
+        current = visible_capture(Image.open(io.BytesIO(png)), clip, window)
+        current.save(compared_actual)
+        with Image.open(expected) as approved:
+            visible_capture(approved, clip, window).save(compared_expected)
         try:
             # Pixelmatch ignores antialias edges and small perceptual color changes.
             # Every remaining mismatch fails; there is no whole-image allowance.
-            self.compare(Image.open(io.BytesIO(png)), expected, threshold=0.01)
+            self.compare(current, compared_expected, threshold=0.01)
         except ImageMismatchError:
             self.failures.append(
                 f"{stage}: appearance changed\n"
-                f"Expected: {expected}\nActual: {actual}\n"
-                f"Diff: {expected.with_suffix('.diff.png')}"
+                f"Expected: {compared_expected}\nActual: {compared_actual}\n"
+                f"Diff: {compared_expected.with_suffix('.diff.png')}\n"
+                f"Full captures: {expected}, {actual}"
             )
 
     def finish(self) -> None:

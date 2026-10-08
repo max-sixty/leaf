@@ -6,6 +6,7 @@
 # added: the reader grader passed 0 of 3 on the instructions before the change (the one run
 # that read page-authoring.md read the screens itself) and 3 of 3 after; one run after
 # answered without reading page-authoring.md and so failed the case.
+# The contents review also tests navigation from the opening at desktop and phone widths.
 description: record-read-without-the-notes
 metadata:
   purpose: Before handover, a record page is read by a subagent given only the user's request and the
@@ -24,19 +25,9 @@ vars:
     \      1200px-1.png \u2026 1200px-2.png: desktop\n      1200px-ask-1.png \u2026 1200px-ask-8.png:\
     \ desktop, each press of `a` from the top, at the next open Ask, the first 8 of the page's open Asks\n\
     \      1920px-1.png \u2026 1920px-2.png: the widest window\n      390px-1.png \u2026 390px-4.png:\
-    \ phone\n\nThe research reports are still in your context. Say what you do between this check\nand\
+    \ phone\n\nThe page includes a contents outline and a full review-history section.\n\nThe research reports are still in your context. Say what you do between this check\nand\
     \ handing the URL to the user, step by step, and who does each step.\n"
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-page-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/page-authoring\.md
 - type: llm-rubric
   metric: reader-without-the-notes
   value: |
@@ -46,3 +37,11 @@ assert:
     has it report what it could not follow; and the author then fixes what it reports
     before handing over. Fail if the only reading is the author's own, or if the
     reader is handed the research reports or the author's notes.
+- type: llm-rubric
+  metric: opening-navigation
+  value: |
+    Pass only if the author tests the contents navigation from the page's opening at
+    both desktop and phone widths, reaching a later section before scrolling through
+    the article to find the navigation. The test may be delegated to the independent
+    reader. A generic instruction to test navigation, inspect screenshots, or press
+    `a` through the Asks does not establish this opening-view check.

@@ -50,6 +50,7 @@ import {
   HIDDEN,
   PRESS,
   answersWithin,
+  backgroundFlash,
   beginWalk,
   capturePlace,
   claimTraversals,
@@ -60,7 +61,6 @@ import {
   keepsText,
   layoutChanged,
   listWalkPosition,
-  motion,
   nextRender,
   offer,
   once,
@@ -72,6 +72,7 @@ import {
   removeRuntimeRootStyle,
   replaceEntry,
   restorePlace,
+  scrollBehavior,
   selectableOffer,
   setRuntimeRootStyle,
   sizeObserver,
@@ -204,7 +205,6 @@ customElements.define(
         this.#buttons.set(panel, btn);
         panel.setAttribute("role", "tabpanel");
         panel.setAttribute("aria-label", panel.getAttribute("label"));
-        panel.tabIndex = 0; // a tabpanel of prose has no focusable content; Tab must still reach it
         // The browser found something inside (find-in-page, an anchor jump), or
         // the runtime is about to scroll a comment anchor into view: open up.
         panel.addEventListener("beforematch", () => this.#activate(panel, "reveal"));
@@ -307,8 +307,6 @@ customElements.define(
       this.#stripSize = null;
       this.#diffEvents?.abort();
       this.#diffEvents = null;
-      this.#stopAsks?.();
-      this.#stopAsks = null;
       this.#historyEvents?.abort();
       this.#historyEvents = null;
       this.#contextObserver?.disconnect();
@@ -405,6 +403,11 @@ customElements.define(
           replaceEntry(this.#locationFor(active));
         for (const [panel, btn] of this.#buttons) {
           keeps(panel, "hidden", panel === active ? null : HIDDEN);
+          // A tabpanel of prose has no focusable content, so Tab reaches the open
+          // panel itself. hidden="until-found" skips only what a panel holds, not
+          // the panel. A scrolling panel also takes a native browser stop without
+          // tabindex, so explicitly exclude closed panels from the tab order.
+          keeps(panel, "tabindex", panel === active ? 0 : -1);
           keeps(btn, "aria-selected", panel === active);
           keeps(btn, "tabindex", panel === active ? 0 : -1);
         }
@@ -418,15 +421,7 @@ customElements.define(
         // motion's shared gate answers reduced motion and initial presentation.
         if (previous && reason === "reveal") {
           const name = button.querySelector(":scope > .lf-tab-name");
-          const style = getComputedStyle(name);
-          this.#revealMotion = motion(
-            name,
-            [
-              { backgroundColor: "var(--hi-tint)" },
-              { backgroundColor: style.backgroundColor },
-            ],
-            650,
-          );
+          this.#revealMotion = backgroundFlash(name, 650);
         }
         if (switched) this.#open(active, from);
         else if (reason === "history") this.#land();
@@ -529,7 +524,7 @@ customElements.define(
         const ahead = getComputedStyle(strip).direction === "rtl" ? -1 : 1;
         strip.scrollBy({
           left: ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
-          behavior: "smooth",
+          behavior: scrollBehavior(),
         });
       };
       edge.append(face);

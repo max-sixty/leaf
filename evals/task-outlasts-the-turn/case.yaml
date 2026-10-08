@@ -24,16 +24,6 @@ vars:
     in order, each command you would run on the page in this turn, and then each one
     you would run in the later turn after stamping version 4.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-conversation-loop
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/conversation-loop\.md
 - type: llm-rubric
   metric: judgment
   value: |

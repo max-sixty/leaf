@@ -11,7 +11,7 @@ import {
   annotationMode,
 } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
-import { chromeRoot } from "./runtime/chrome.js";
+import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
 import { landingPlace } from "./runtime/reading-place.js";
 import { mountHistory } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
@@ -86,7 +86,8 @@ import {
   standingThread,
   wireThreadLanding,
 } from "./runtime/thread/landing.js";
-import { createPanelComposer } from "./runtime/thread/panel.js";
+import { createThreadPanelKeys } from "./runtime/thread/panel.js";
+import { createPageComment } from "./runtime/thread/page-comment.js";
 import { standingThreadId } from "./runtime/thread/focus.js";
 import { createThreadListController } from "./runtime/thread/thread-list.js";
 import { createThreadNarrowing } from "./runtime/thread/narrowing.js";
@@ -245,15 +246,22 @@ let layout;
 let landing;
 let pageMapDialog;
 let asks;
-let panelComposer;
+let panelKeys;
+let pageComment;
 let selectionComposer;
 let responseSurface;
 let drawing;
+// A draft's drawing put in place, null taking it off, and the page's ink repainted.
+const replaceDrawing = (anchor, drawn) => {
+  selectionComposer.setDraftDrawing(anchor, drawn);
+  drawingPaint.paint();
+};
 // A composer's own controls for the drawing its draft holds, which the drawing
-// controller answers.
+// controller answers, and its history's way of putting one back.
 const drawingEdits = {
   undoStroke: (anchor) => drawing.undoStroke(anchor),
   remove: (anchor) => drawing.removeDrawing(anchor),
+  replace: replaceDrawing,
 };
 let aim;
 let targets;
@@ -262,7 +270,7 @@ let pageGeometry;
 let goToSequence;
 
 const auxiliarySurfaces = createAuxiliarySurfaces({
-  chromeRoot,
+  envelope: chromeForeground,
   band: shortcutBarEl,
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
@@ -271,9 +279,10 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
     repaint();
     anchorPaint?.refreshHover();
   },
-  // A comment box seated where a surface now stands, or in its home in a surface now
-  // gone, moves to the seat the user can reach: presenting the page again seats it.
+  // Auxiliary reach changes exposure without moving the retained message bodies.
+  // A comment box displaced by that reading also asks presentation for its new seat.
   reachChanged: () => {
+    app.read.exposureChanged();
     if (responseSurface.fabAnchorAt()) void app.invalidateDom();
   },
 });
@@ -327,7 +336,7 @@ const designMode = createDesignMode({
     refreshAim: () => pageGeometry.refreshAim(),
     pageShifted: () => pageGeometry.pageShifted(),
   },
-  syncGeneral: () => panelComposer.syncGeneral(),
+  syncGeneral: () => pageComment.sync(),
   composer: {
     showFab: (...args) => responseSurface.showFab(...args),
     openComposer: (...args) => selectionComposer.openComposer(...args),
@@ -362,6 +371,7 @@ pageGeometry = createPageGeometry({
   visualMarkPaint,
   shiftDrawings: drawingPaint.shifted,
   queueLegend: designMode.queueLegend,
+  legendScrolled: designMode.legendScrolled,
   activeActionAnchor: () => responseSurface.fabAnchorAt(),
   refreshActionBar: () => responseSurface.refreshFab(),
 });
@@ -404,7 +414,6 @@ const version = createVersionController({
   midComposition: () => app.midComposition(),
   hasPending: () => app.hasPending(),
   readAndApply: (...args) => app.readAndApply(...args),
-  forgetAuthoredOwners: (...args) => app.forgetAuthoredOwners(...args),
   retireProjectionCoverage: () => app.retireProjectionCoverage(),
   syncLayout: () => layout.syncLayout(),
   captureRetainedStanding: () => app?.overlay?.captureStanding() ?? null,
@@ -586,19 +595,26 @@ const standingTarget = createStandingTarget({
   standingIn: asks.standingIn,
 });
 
-panelComposer = createPanelComposer({
+panelKeys = createThreadPanelKeys({
   elements: panelElements,
   openThreads: threadListController.openThreads,
   narrowing,
-  designModeActive: designMode.active,
-  wireInput: inputs.wireInput,
-  createPageComment: app.createPageComment,
-  showThread: landing.showThread,
   setPanel: (...args) => threadPanelController.setPanel(...args),
   panelIsOpen,
   stepThread: (...args) => navigation.stepThread(...args),
   firstUnread: () => app.read.firstUnread(),
   unreadCount: () => app.read.unreadCount(),
+});
+pageComment = createPageComment({
+  wireInput: inputs.wireInput,
+  createPageComment: app.createPageComment,
+  designModeActive: designMode.active,
+  panelIsOpen,
+  setPanel: (...args) => threadPanelController.setPanel(...args),
+  panelBox: panelElements.generalInput,
+  panelSend: panelElements.generalSend,
+  showThread: landing.showThread,
+  threadsToggle: toggleBtn,
 });
 selectionComposer = createSelectionComposer({
   panelIsOpen,
@@ -633,7 +649,6 @@ responseSurface = createResponseSurface({
   panelElements,
   panelIsOpen,
   landIn: landing.landIn,
-  setPanel: (...args) => threadPanelController.setPanel(...args),
   threadHere: () => app.threadDestinations.threadHere(),
   threadAtStanding: () => app.threadDestinations.threadAtStanding(),
   replyThreadAtStanding: () => app.threadDestinations.replyThreadAtStanding(),
@@ -666,6 +681,7 @@ responseSurface = createResponseSurface({
   drawModeActive: () => drawing.drawModeActive(),
   refreshThread: app.refreshThread,
   dismissThreadView: () => app.overlay?.inlineThreadView.dismiss(),
+  pageComment,
   responseHome: overlaySelected ? chromeRoot : panelFoot,
   revealResponseHome: overlaySelected
     ? null
@@ -710,10 +726,7 @@ drawing = createDrawingController({
   draftKey: selectionComposer.draftKey,
   openAnchoredDrawing: (anchor, drawing) =>
     selectionComposer.openComposer(anchor, "", { carry: true, drawing }),
-  replaceDrawing: (anchor, drawing) => {
-    selectionComposer.setDraftDrawing(anchor, drawing);
-    drawingPaint.paint();
-  },
+  replaceDrawing,
   setDesignMode: designMode.setActive,
   closeTargetPicker: targets.closeTargetPicker,
   closeReactionMode: () => reactions.setReact(false),
@@ -752,8 +765,12 @@ threadPanelController = createThreadPanelController({
   showThread: landing.showThread,
   refreshThread: app.refreshThread,
   closeReactionMode: () => reactions.setReact(false),
-  closePreview: app.overlay?.closePreview,
-  syncGeneral: panelComposer.syncGeneral,
+  // A surface opening puts away the floating cards it would stand beside.
+  closePreview: (...args) => {
+    pageComment.close();
+    app.overlay?.closePreview(...args);
+  },
+  syncGeneral: pageComment.sync,
 });
 // The sample host binds to this child's owners, rather than importing another
 // window's runtime. This capability is ready before the child presents.
@@ -857,30 +874,31 @@ if (!offlineInteractive) {
     chromeSheet,
     marksSheet,
   ];
-  chromeRoot.append(
-    banner,
+  // One permanent home for auxiliary surfaces and their permitted foreground. Native
+  // modality changes at this ancestor; none of these live descendants is reparented.
+  chromeForeground.append(
     overflowMenu,
     versionMenu,
     othersPanel,
     queuePanel,
     panel,
-    legendRoot,
-    goToHintLayer,
-    commandHintLayer,
-    targetPickerHintLayer,
     pageSearchSurface,
-    ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
-    drawingPaint.layer,
     targetPaint.targetTraceLayer,
     targetPaint.aimLayer,
-    fabBar,
     liveEl,
     mediaViewer,
     commandReferenceDialog,
-    auxiliarySurfaces.scrim,
     bottomStatusEl,
     shortcutBarEl,
     inspectEl,
+  );
+  chromeRoot.append(
+    banner,
+    legendRoot,
+    ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
+    drawingPaint.layer,
+    fabBar,
+    chromeForeground,
   );
   document.body.prepend(skipToChrome);
   document.body.append(chromeRoot);
@@ -895,7 +913,8 @@ if (!offlineInteractive) {
   // Connect the search field before mount awaits its rendered input: Lit does not
   // resolve updateComplete until connection, and keyboard registration needs that input.
   narrowing.mount();
-  await panelComposer.mount();
+  await panelKeys.mount();
+  pageComment.mount(chromeForeground);
   selectionComposer.mount();
   responseSurface.mount();
   holdToRead();
@@ -907,13 +926,16 @@ if (!offlineInteractive) {
   anchorPaint?.mount();
   anchorControls.mount();
   pageGeometry.mount();
-  pageMapDialog.mount(chromeRoot);
+  pageMapDialog.mount(chromeForeground);
   asks.mount();
   queueWalk.mount();
   queue.mount();
   commandHints.mount();
   app.mountAnnotations();
   app.overlay?.mount();
+  // Margin rows insert before the permanent foreground home, so these chips are laid
+  // out after every target they name while retaining their native modal ancestor.
+  chromeForeground.append(goToHintLayer, commandHintLayer, targetPickerHintLayer);
   app.mountThread();
   app.mountRead();
   wireThreadLanding(threadsBox);
@@ -924,12 +946,6 @@ if (!offlineInteractive) {
   mountShortcutBar({
     placeBottomStatus: layout.syncBottomStatus,
     setGoToSequence: goToSequence.setGoToSequence,
-    setReact: reactions.setReact,
-  });
-  mountKeyboard({
-    goToSequenceActive: goToSequence.goToSequenceActive,
-    setGoToSequence: goToSequence.setGoToSequence,
-    reactArmed: reactions.isReactArmed,
     setReact: reactions.setReact,
   });
   declareLeavesKeys();
@@ -947,6 +963,15 @@ if (!offlineInteractive) {
   // own box shows: an options group's addition field paints there as it does live.
   mountRepaint({ paintStandingGeometry: inputs.paintInputs, reflectKeys });
 }
+
+// Widget commands belong to interactive documents, including offline exports.
+// The register admits page and chrome commands only in a live document.
+mountKeyboard({
+  goToSequenceActive: goToSequence.goToSequenceActive,
+  setGoToSequence: goToSequence.setGoToSequence,
+  reactArmed: reactions.isReactArmed,
+  setReact: reactions.setReact,
+});
 
 const replayReady = passiveSample
   ? import("./runtime/interaction-gallery-frame.js").then(({ mountReplay }) =>

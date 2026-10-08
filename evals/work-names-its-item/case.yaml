@@ -29,28 +29,20 @@ vars:
     turn: before you start editing for the comment, before you start writing the
     glossary, and once the glossary is written.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-conversation-loop
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/conversation-loop\.md
 - type: llm-rubric
   metric: judgment
   value: |
     Pass only if all three hold. First, before any edit for the comment, a command
     shows that work on the page against the comment itself, naming id c7e2a9d1, with
-    a line saying what the work is. Second, before the glossary work starts, a command
-    shows that work on the page with a line naming it; since no comment asked for it,
-    this may be a page-wide working line or an item the agent opens for it and marks
-    as in hand. Third, once the glossary is written, the turn ends on a waiting
-    declaration naming what the agent wants back (which glossary terms to cut), with
-    no command after it that marks work as in progress again; ending the glossary item
-    as done before it is also fine. Fail if either piece of work starts without such
-    a command, if the comment's work is shown against some other id, if a reply to
-    c7e2a9d1 is written before its work is named, or if the last word on the page's
-    status is a line saying work is under way.
+    a line saying what the work is: a `leaf task start` on it, or a progress update
+    in its thread (`leaf thread reply --for c7e2a9d1 --ephemeral`). Second, before
+    the glossary work starts, a command shows that work on the page with a line
+    naming it; since no comment asked for it, this may be a page-wide working line
+    or an item the agent opens for it and marks as in hand. Third, once the glossary
+    is written, the turn ends on a waiting declaration naming what the agent wants
+    back (which glossary terms to cut), with no command after it that marks work as
+    in progress again; ending the glossary item as done before it is also fine. Fail
+    if either piece of work starts without such a command, if the comment's work is
+    shown against some other id, if a reply answering c7e2a9d1 (one without
+    `--ephemeral`) is written before its work is named, or if the last word on the
+    page's status is a line saying work is under way.

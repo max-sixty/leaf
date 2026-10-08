@@ -111,8 +111,9 @@ import {
 } from "./capture.js";
 import { repaint } from "../repaint.js";
 import { drawn, handBack, holdFocus, letGo, takesLetters } from "../focus.js";
-import { focused } from "../keyboard/scopes.js";
+import { commandScope, focused, projectCommandScope } from "../keyboard/scopes.js";
 import { shadowHost, under } from "../shadow.js";
+import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldAsk } from "../standing-target.js";
 
 import { coarsePointer, pointerAt } from "../pointer.js";
@@ -126,11 +127,10 @@ import { keeps } from "../keeps.js";
 import { retainUserIntent, restrictUserIntent } from "../user-intent.js";
 
 export function createResponseSurface({
-  panelElements: { generalInput, panel, threadsBox, inPanel },
+  panelElements: { panel, threadsBox, inPanel },
   panelIsOpen,
   rememberSelection,
   landIn,
-  setPanel,
   threadHere,
   threadAtStanding,
   replyThreadAtStanding,
@@ -163,6 +163,7 @@ export function createResponseSurface({
   drawModeActive,
   refreshThread,
   dismissThreadView,
+  pageComment,
   responseHome,
   revealResponseHome = null,
   createPlacement = null,
@@ -848,7 +849,7 @@ export function createResponseSurface({
     // Opening or acting in chrome is a route away from the page, not a new selection
     // gesture. Keep the already-captured touch passage verbatim while focus moves
     // through the banner, its sibling popovers, and their controls.
-    if (offeredSelectionAnchor && inChrome(ev.target)) {
+    if (offeredSelectionAnchor && inChrome(ev.composedPath()[0])) {
       primaryPointerPressed = false;
       pointerSelecting = false;
       selectionGestureClaimed = false;
@@ -895,6 +896,8 @@ export function createResponseSurface({
   // through a click all the more — a drawer any press removes cannot be watched while
   // working, which is the drawer's point. Each closes by its own button, its key, or Esc.
   function standDown(target) {
+    // A native modal owns its press; the composer behind it remains inert.
+    if (nativeLayers().some((layer) => layer.kind === "modal")) return;
     const visual = visualAt(target);
     const sameVisual =
       visual &&
@@ -951,10 +954,13 @@ export function createResponseSurface({
       "pointerdown",
       (ev) => {
         if (drawModeActive()) return;
+        // Admission reads the press's origin across widget shadow roots. The host
+        // also contains runtime editors and controls, which are not page prose.
+        const target = ev.composedPath()[0];
         primaryPointerPressed = ev.isPrimary && ev.button === 0;
-        pointerSelecting = primaryPointerPressed && pageWords(ev.target);
+        pointerSelecting = primaryPointerPressed && pageWords(target);
         selectionPressIntent = pointerSelecting
-          ? retainUserIntent({ source: ev.target })
+          ? retainUserIntent({ source: target })
           : null;
         selectionDragged = false;
         selectionRangeDuringPress = null;
@@ -968,12 +974,12 @@ export function createResponseSurface({
         selectionStood = Boolean(stood);
         wordsAtPress = stood ? stood.toString() : "";
         const selection = pointerSelecting ? stood : null;
-        if (selection && pageRange(selection).intersectsNode(ev.target))
+        if (selection && pageRange(selection).intersectsNode(target))
           rememberPointerSelection();
         actionPress =
-          (offeredSelectionAnchor && inChrome(ev.target)) ||
-          ev.target === selectionComment ||
-          Boolean(ev.target.closest?.(".lf-react-surface, .lf-composer"));
+          (offeredSelectionAnchor && inChrome(target)) ||
+          target === selectionComment ||
+          Boolean(target.closest?.(".lf-react-surface, .lf-composer"));
       },
       true,
     );
@@ -994,7 +1000,7 @@ export function createResponseSurface({
       // The native touch event follows pointerdown and is the same selecting press.
       // Capture its input generation at that producer, before handles can adjust it.
       if (primaryPointerPressed && pointerSelecting)
-        selectionPressIntent = retainUserIntent({ source: ev.target });
+        selectionPressIntent = retainUserIntent({ source: ev.composedPath()[0] });
     });
     document.addEventListener("pointerup", finishPointerSelection);
     document.addEventListener("pointercancel", finishPointerSelection);
@@ -1010,7 +1016,7 @@ export function createResponseSurface({
       // Focus and action handoffs own the captured target while the browser collapses
       // its selection. Outside those handoffs, observe the browser's live passage;
       // only the completed page gesture above/below may replace the composer.
-      if (takesLetters(document.activeElement)) {
+      if (takesLetters(focused())) {
         offerSelection(null);
         return;
       }
@@ -1081,8 +1087,9 @@ export function createResponseSurface({
         if (ev.key === "Escape") return;
       }
       if (isReactArmed()) return;
-      if (takesLetters(ev.target) || inChrome(ev.target)) return;
-      if (!pageWords(ev.target) && !pageSelection()) return;
+      const target = ev.composedPath()[0];
+      if (takesLetters(target) || inChrome(target)) return;
+      if (!pageWords(target) && !pageSelection()) return;
       if (
         (ev.shiftKey &&
           [
@@ -1106,7 +1113,8 @@ export function createResponseSurface({
     });
     document.addEventListener("click", (ev) => {
       if (drawModeActive()) return;
-      if (!pageWords(ev.target)) return;
+      const target = ev.composedPath()[0];
+      if (!pageWords(target)) return;
       // A press that ends holding words it did not begin with took them, and is that
       // selection's mouseup rather than a click on whatever lies under it: the user was
       // reaching for the words, and the 💬 is already up on them (updateFab, on the same
@@ -1134,8 +1142,8 @@ export function createResponseSurface({
       // at a widget host, since a Leaf surface the widget seats in its shadow tree answers
       // for itself (design.js).
       if (designModeActive()) {
-        const target = designTarget(ev.composedPath()[0]);
-        if (target) openOnDesign(target);
+        const design = designTarget(target);
+        if (design) openOnDesign(design);
         return;
       }
       // The record rather than this event's own coordinates, for the reason the record is
@@ -1264,15 +1272,13 @@ export function createResponseSurface({
         box: fabInput,
         go: () => commentOnTarget(here),
       };
+    // The banner's Comment on the page goes to the same box: the card it hangs from
+    // itself, or Threads' general box while Threads is open
+    // (thread/page-comment.js).
     return {
       ...commenting("page"),
-      box: generalInput,
-      // Two steps down and two back: the box hands the user to the list it belongs
-      // to, and the panel hands them to the page.
-      go: () => {
-        setPanel(true);
-        generalInput.focus({ preventScroll: true });
-      },
+      box: pageComment.box(),
+      go: pageComment.open,
     };
   }
 
@@ -1287,8 +1293,9 @@ export function createResponseSurface({
   // c goes where commenting happens: a live selection gets the composer (what the floating
   // button does), an element click's pending 💬 gets that, an open thread the user is
   // standing in gets its own reply box, the item they are standing in gets the box
-  // belonging to it, and otherwise the page's general box. That box lives in Threads, but c
-  // names and focuses the box directly; g T independently names the list. Never the panel's
+  // belonging to it, and otherwise the page's general box: the card under the banner's
+  // Comment on the page, or Threads' own box while Threads is open. c names and focuses
+  // the box directly; g T independently names the list. Never the panel's
   // collapse: c doubled as the toggle once, so with the panel standing open the key that
   // promised “comment” answered “close”. Backing out is whatever the box is standing in.
   //
@@ -1321,20 +1328,26 @@ export function createResponseSurface({
     },
   });
 
+  // Tab opens responses from the editor, while attachments keep native traversal.
+  // Project this alongside the input owner's submit scope rather than replacing it.
+  const composerOptions = commandScope("In the composer", [
+    {
+      id: "comment.options",
+      keys: ["Tab"],
+      description: "Show other responses",
+      title: "other responses",
+      when: () => fabOptionsAvailable() && !responseOptionsAreOpen(),
+      run: () => showFabOptions(),
+    },
+  ]);
+  projectCommandScope(fabInput, composerOptions, composerOptions);
+
   // The composer's own rung is its own scope rather than the box's, because the box may not
   // have focus — the user clicked away and the composer still stands, holding their draft.
   pageScope("composer", {
     title: "In the composer",
     at: () => composerOpen && !placement?.withheld(),
     rows: [
-      {
-        id: "comment.options",
-        keys: ["Tab"],
-        description: "Show other responses",
-        title: "other responses",
-        when: () => fabOptionsAvailable() && !responseOptionsAreOpen(),
-        run: () => showFabOptions(),
-      },
       {
         id: "composer.close",
         keys: ["Escape"],

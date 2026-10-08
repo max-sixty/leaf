@@ -84,15 +84,18 @@ file.
 
 Re-vendor a served page with `leaf page init <page>` alone. It checks the
 incoming layer against the page first, so a refused re-vendor leaves the running
-server as it was. An admitted one takes the server down, re-vendors, and starts
+server as it was. An admitted change takes the server down, re-vendors, and starts
 the server again at the recorded URL under its recorded lifetime, and a `leaf wait`
 watching the page carries on through the restart. A page whose server was stopped
 stays stopped, and so does one that `leaf server stop` stops during the re-vendor.
 If the server cannot start again, init says why and leaves the service enabled:
 a `leaf wait` tries it once more, as it would a server that died. Re-vendor a session's page from the session that holds it: init
-refuses a page that another live session serves. A page whose session has ended
+refuses to change a page that another live session serves. A page whose session has ended
 stays stopped after init, and `leaf server start` then serves it for this session.
-Initialization preserves the page status and writes a new layer epoch, so an open
+Initialization preserves the page status. An unchanged layer and serving payload
+preserve every installed file and the running server; repeated initialization does
+not reload an open tab. A layer change, server-code or dependency change, package
+selection change, or installed-file repair writes a new layer epoch, so an open
 tab reloads onto the new layer rather than posting into it.
 
 A page is served only by a Leaf whose browser runtime it carries. The server is
@@ -112,11 +115,12 @@ over today, and give the user the new URL.
 
 ## Page lifetime
 
-Serving from an agent session claims the page and prepares the harness's feedback
-route before returning its URL. In Codex, this starts or joins the task's delivery
-adapter, or honors a direct wait already running. Re-serving restores delivery
-even when the existing server needs no restart. The harness-specific references
-describe how incoming comments reach your turn.
+Serving from an agent session claims the page and prepares the harness's watcher,
+which brings comments to your turns, before returning its URL. In Codex, this
+starts or joins the task's delivery adapter, or honors a direct wait already
+running. Re-serving restores delivery even when the existing server needs no
+restart. The harness-specific references describe how incoming comments reach
+your turn.
 
 On a page with no recorded lifetime, a normal `server start` from an agent
 session chooses a session lifetime. Its process retires when no live session
@@ -125,6 +129,12 @@ enabled page revives its server under the recorded lifetime and exact URL if the
 process dies, and ends if that revival does not hold. Only `leaf server stop
 <page>` disables a service, and a `leaf wait` goes on watching a stopped page until
 it is idle.
+
+Desktop Codex can unload the chat's idle running instance while the app and chat
+remain open. Leaf keeps that chat's ownership, server and feedback route across
+the unload. Its pages retire after four hours without page use; a visible page
+or agent revision renews that activity. Process-backed terminal sessions still
+release ownership when their harness ends.
 
 `server start --standing`, or a serve started from the user's own shell, chooses
 a standing lifetime and prepares no agent delivery. Its process ignores session claims and remains live between

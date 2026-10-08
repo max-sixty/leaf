@@ -1,7 +1,8 @@
 /* lf-board: the one widget the user edits directly, with every move sharing one send
  * path and one gesture gate. Dragging is wired via the vendored SortableJS
  * (pointer-driven `forceFallback` mode, so the follower is stylable — native HTML5 DnD
- * is not used). Phones show each card's other columns as direct move buttons instead;
+ * is not used). A short label follows the pointer; native state stays in the real
+ * card. Phones show each card's other columns as direct move buttons instead;
  * a horizontal board cannot expose a distant drop target while the pointer is held.
  * The grip is a press (`offer`), so the keyboard path needs no pointer: Enter grabs,
  * arrows restate the card's placement (announced through the live region), Enter drops,
@@ -37,6 +38,7 @@ import {
   dragging,
   holdFocus,
   motion,
+  motionPreview,
   scrollerFor,
   PRESS,
   onMotionPreferenceChange,
@@ -310,9 +312,8 @@ customElements.define(
     #grip(card) {
       const grip = offer("button", "lf-grip", "⠿");
       this.#rows.set(grip, this.#keys(card, grip));
-      // Leaving the grip drops the grab: restore the origin. Arrow moves reparent
-      // the grip (which blurs it) and synchronously refocus, so by the time this
-      // settles only a real departure still lacks focus.
+      // Leaving the grip drops the grab: restore the origin. Native moves retain
+      // focus, so only a real departure still lacks focus when this settles.
       grip.addEventListener("blur", () => {
         if (this.#grabbed?.grip !== grip) return;
         setTimeout(() => {
@@ -462,9 +463,9 @@ customElements.define(
         });
       const first = card.getBoundingClientRect();
       const rest = this.#cards(col).filter((c) => c !== card);
-      col.insertBefore(card, rest[index] ?? null);
+      col.moveBefore(card, rest[index] ?? null);
       if (grip) {
-        grip.focus({ preventScroll: true }); // reparenting blurred it (Chromium)
+        grip.focus({ preventScroll: true });
         card.scrollIntoView({
           behavior: scrollBehavior(),
           block: "nearest",
@@ -493,8 +494,8 @@ customElements.define(
         kind: "action",
         verb: "move",
         detail: {
-          card: card.id,
-          to: to.id,
+          unit: card.id,
+          value: to.id,
           rank: rankAt(
             this.#controller.read().state.move,
             to.id,
@@ -531,7 +532,8 @@ customElements.define(
         // while one in the page is scrolled by the browser root. Sortable cannot infer
         // that product boundary from the board alone.
         scroll: scrollerFor(this),
-        forceFallback: true, // pointer-driven: stylable follower, touch, no native ghost
+        forceFallback: true, // pointer-driven label preview, including touch
+        cloneElement: (card) => motionPreview(this.#title(card)),
         fallbackTolerance: 4, // a click on the grip stays a click
         delay: 120,
         delayOnTouchOnly: true, // touch arms by press-hold so scrolling stays free
@@ -612,7 +614,7 @@ customElements.define(
         order.forEach((id, index) => {
           const card = cards.find((candidate) => candidate.id === id);
           if (card && this.#cards(column)[index] !== card)
-            column.insertBefore(card, this.#cards(column)[index] ?? null);
+            column.moveBefore(card, this.#cards(column)[index] ?? null);
         });
       }
       restoreFocus?.();

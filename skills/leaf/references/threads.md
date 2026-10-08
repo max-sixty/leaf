@@ -150,8 +150,12 @@ Use `--ephemeral` for an interim update that is useful while work is underway:
 leaf thread reply <page> --for <event-id> --ephemeral --text "Checking the keyboard route."
 ```
 
-This posts progress without answering the input or ending its start. You can
-also name the thread to post progress there. The updates stay visible until the
+This posts progress without answering the input. Progress on a move you owe also
+takes that move in hand, as `leaf task start` does, with the update as its
+**Working** line beside the thread and in the banner, so it is one line.
+[Conversation handoff](conversation-loop.md#when-to-write), "When to write", makes
+the first one your first command after a delivery. You can also name the thread to
+post progress there. The updates stay visible until the
 next non-ephemeral agent reply in that thread, then fold under “Previous updates”
 without summary prose. The original messages remain available to expand and edit.
 Intervening user messages remain visible; separate runs of updates fold separately.
@@ -203,9 +207,15 @@ not read yet needs no follow-up from you, and a read one is not an answer.
 
 ## Summarize a long discussion
 
-New input in a long thread may carry a suggested range to summarize. Choose whether
-and when a summary would help the user navigate the discussion; the suggestion adds
-no response obligation. Read the original messages with
+Keep the current topic easy to find as a thread grows. Summarize earlier discussion
+when the topic has moved on or settled detail obscures the current exchange. Do this
+as part of answering new input, without waiting for the user to ask. Keep messages
+whose individual wording or reasoning still matters to the current exchange directly
+readable.
+
+New input in a long thread may carry `summary_hint`, a suggested range. Use it to
+review the earlier discussion, choosing endpoints that fit the topic. Read the
+original messages with
 `leaf page state <page> <thread-id>` and select a contiguous range whose endpoints are spoken
 messages rather than reactions. Summarize its decisions,
 reasoning, and remaining questions. Keep the current exchange outside the range

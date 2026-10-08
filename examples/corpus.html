@@ -1028,8 +1028,8 @@
     </style>
 <!-- pr-walkthrough.html authored styles -->
 <style>
-      /* The rail runs the body's full height, so the contents at its foot can stay in
-         view while the review scrolls past. */
+      /* Navigation starts the stacked reading order; the stretched side track keeps
+         it beside the review on a wide window. Supporting history stays in the body. */
       #pr-rail {
         align-self: stretch;
       }
@@ -1037,7 +1037,6 @@
       #pr-contents-panel {
         position: sticky;
         top: calc(var(--lf-top) + var(--sp-4));
-        margin-top: var(--sp-4);
       }
 
       .pr-review-gesture {
@@ -1747,8 +1746,8 @@
 
       .interaction-frame {
         display: none;
-        width: var(--interaction-viewport-size, 200%);
-        height: var(--interaction-viewport-size, 200%);
+        width: calc(100% / var(--interaction-page-scale, 0.5));
+        height: calc(100% / var(--interaction-page-scale, 0.5));
         border: 0;
         opacity: 0;
         pointer-events: none;
@@ -1757,17 +1756,14 @@
       }
 
       .interaction-gallery[data-interaction-viewport="1"] {
-        --interaction-viewport-size: 100%;
         --interaction-page-scale: 1;
       }
 
       .interaction-gallery[data-interaction-viewport="2"] {
-        --interaction-viewport-size: 200%;
         --interaction-page-scale: 0.5;
       }
 
       .interaction-gallery[data-interaction-viewport="4"] {
-        --interaction-viewport-size: 400%;
         --interaction-page-scale: 0.25;
       }
 
@@ -1856,6 +1852,17 @@
       ]
     </script>
 <!-- feature-gallery.html authored script -->
+<script id="bg-title-sheen-history" type="application/json">
+      [
+        {
+          "id": "bg-title-sheen-question",
+          "kind": "comment",
+          "author": "user",
+          "text": "Can we schedule the workshop lunch?"
+        }
+      ]
+    </script>
+<!-- feature-gallery.html authored script -->
 <script type="module">
       import { afterPresentation, commands } from "/runtime/widget-api.js";
 
@@ -1906,6 +1913,23 @@
         });
 
       await customElements.whenDefined("lf-sample");
+
+      const titleSample = document.querySelector("#bg-title-sheen-sample");
+      let titleRequested = false;
+      let shownTitleRevision = null;
+      const showPendingTitle = () => {
+        const ready = titleSample.ready;
+        if (!titleRequested || !ready || shownTitleRevision === ready) return;
+        shownTitleRevision = ready;
+        void titleSample.showThread("bg-title-sheen-question", { surface: "panel" });
+      };
+      document.querySelector("#bg-title-sheen-show").addEventListener("click", () => {
+        titleRequested = true;
+        shownTitleRevision = null;
+        showPendingTitle();
+      });
+      titleSample.addEventListener("lf-sample-ready", showPendingTitle);
+      void titleSample.ready.then(showPendingTitle);
 
       const sample = document.querySelector("#bg-panel-sample");
       let selected = null;
@@ -3686,6 +3710,9 @@ export const summarize = checks =>
         </p>
       </header>
 
+      <aside id="pr-rail">
+      </aside>
+
       <div id="pr-body">
         <aside class="callout ok" id="pr-verdict">
           <p>
@@ -3909,7 +3936,7 @@ flowchart TB
             This exact hunk from <code>src/summary.rs</code> replaces direct Git
             argument assembly with the repository’s <code>PreparedDiff</code> API.
           </p>
-          <lf-diff id="pr-key-hunk" data-height="524" review>
+          <lf-diff id="pr-key-hunk" data-height="539" review>
             <pre>
 diff --git a/src/summary.rs b/src/summary.rs
 --- a/src/summary.rs
@@ -4091,14 +4118,16 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
             <pre></pre>
           </lf-diff>
         </section>
-      </div>
 
-      <aside id="pr-rail">
-        <lf-pull-request
-          id="pr-reviewed-request"
-          data-height="1321"
-          source="pr-review-facts"
-        ></lf-pull-request>
+        <section class="panel" id="pr-source-facts">
+          <h2>Captured pull request</h2>
+          <lf-pull-request
+            id="pr-reviewed-request"
+            data-height="959"
+            source="pr-review-facts"
+          ></lf-pull-request>
+        </section>
+
         <section class="panel" id="pr-history">
           <h2>Review history</h2>
           <lf-chronology id="pr-review-chronology">
@@ -4148,7 +4177,7 @@ assert!(offscreen_worktree_preview.is_demand_loaded());
             </lf-chronology-entry>
           </lf-chronology>
         </section>
-      </aside>
+      </div>
 </lf-tab>
 
 <lf-tab id="corpus-wt-merge" label="Merge film">
@@ -6521,8 +6550,9 @@ observe --cohort staff</code></pre>
       <p id="bg-start">
         Choose a view below. Its contents spine and Page Map lead to each feature. The
         top link brings the eyebrow and heading together; the first dot sits at the
-        spine’s origin. Each sample’s eyebrow names the <code>lf-*</code> elements it
-        exercises.
+        spine’s origin. The title has the largest ring, section rings are smaller, and
+        deeper headings use small dots. The current destination fills its marker. Each
+        sample’s eyebrow names the <code>lf-*</code> elements it exercises.
       </p>
 
       <lf-tabs id="bg-gallery-tabs">
@@ -6760,6 +6790,25 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
             </section>
 
+            <section id="bg-page-comment-card">
+              <h3>
+                <strong>Comment on the page</strong
+                ><span class="bg-feature-detail"
+                  >: start a page thread from the banner</span
+                >
+              </h3>
+              <p id="bg-page-comment-card-guide">
+                With Threads shut, press the comment symbol beside Threads on the
+                banner, or press <kbd>c</kbd> with nothing selected. A card hangs from
+                the symbol; write a sentence and send it. The card goes away and Threads
+                flashes yellow, its count one higher, while the panel stays shut; the
+                new thread is in Threads. <kbd>Escape</kbd> or a click elsewhere also
+                puts the card away, keeping what you wrote for the next time it opens.
+                With Threads open, the same press goes to its own “Comment on the page”
+                box. On a phone, “Comment on the page” is in “More page controls”.
+              </p>
+            </section>
+
             <section id="bg-design-comments">
               <h3>
                 <strong>Design mode</strong
@@ -6785,10 +6834,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 empty space belongs to the nearest element on screen. Every further
                 stroke joins the same drawing, wherever it starts. Send the drawing
                 alone or add words first. The comment box shows the drawing beside Undo
-                last stroke and Remove drawing; <kbd>⌘Z</kbd> in the box takes back a
-                stroke until you type. <kbd>Escape</kbd> puts the box away and leaves
-                the drawing on the page, dashed, and the next stroke brings the box
-                back; <kbd>z</kbd> takes back a stroke while it is away. A second
+                last stroke and Remove drawing; in the box, <kbd>⌘Z</kbd> and
+                <kbd>⌘⇧Z</kbd> undo and redo strokes and words in the order you made
+                them. <kbd>Escape</kbd> puts the box away and leaves the drawing on the
+                page, dashed, and the next stroke brings the box back;
+                <kbd>z</kbd> takes back a stroke while it is away. A second
                 <kbd>Escape</kbd> leaves Draw mode with the drawing still showing. Press
                 <kbd>w</kbd> again and start over this guide: the stroke joins the kept
                 drawing rather than replacing it. On a touch screen, “Draw mode” is in
@@ -7022,7 +7072,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               the agent; open one to read the full messages beneath it. Reply follows a
               short conversation directly; in a long conversation it stays visible while
               you scroll. While you write in a short thread, an arriving reply waits
-              behind “new reply” until you open it.
+              behind “new reply” until you open it. Switch to another browser tab, have
+              the agent add a reply, then return: held replies and the first refreshed
+              reply appear automatically with the usual arrival tint. Your draft and
+              caret stay in the same editor. Leave this page visible beside another
+              window and focus that window: new replies still wait behind the notice.
             </p>
             <p id="bg-thread-notices">
               <strong>New information.</strong> Have the agent add a message after the
@@ -7110,6 +7164,32 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </p>
             <section id="bg-thread-state-titles">
               <h3>Thread title</h3>
+              <section id="bg-title-sheen">
+                <p id="bg-title-sheen-guide">
+                  Open the sample thread to see a pending title highlighted across its
+                  lettering. Reset starts a fresh untitled thread. Reduced motion shows
+                  solid muted text.
+                </p>
+                <button id="bg-title-sheen-show" type="button">
+                  Open sample thread
+                </button>
+                <lf-sample
+                  id="bg-title-sheen-sample"
+                  label="Pending thread title"
+                  window
+                >
+                  <template
+                    id="bg-title-sheen-page"
+                    data-sample
+                    data-sample-events="bg-title-sheen-history"
+                  >
+                    <h1>Workshop schedule</h1>
+                    <p id="bg-title-sheen-copy">
+                      Lunch is the remaining question for the workshop.
+                    </p>
+                  </template>
+                </lf-sample>
+              </section>
               <div id="bg-thread-title-pair">
                 <section id="bg-thread-title-before">
                   <p class="eyebrow">Before · untitled</p>
@@ -7117,8 +7197,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     <strong>An untitled thread.</strong> The workshop schedule leaves
                     lunch open. Open Threads to view it. The agent asked without naming
                     the thread, so its row reads the question itself. A thread you open
-                    reads <code>Generating title</code> in muted text until the agent
-                    gives it a short name.
+                    reads <code>Generating title</code> with a highlight sweeping across
+                    the lettering until the agent gives it a short name. With reduced
+                    motion, the text stays a solid muted color.
                   </p>
                 </section>
                 <section id="bg-thread-title-after">
@@ -7683,12 +7764,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   id="bg-gloss"
                   tip="A narrow end-to-end path through the real system."
                   >walking skeleton</lf-gloss
-                >. Code adds line numbers and Notes, and quotes an excerpt under its
-                file's own numbers with an elided row where it skips; Tree shows file
-                structure. Use “Copy code” on the right of either block below, or
-                <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard keeps the
-                code's whitespace and leaves out line numbers and Notes. Bash separates
-                commands, arguments, and flags with the same syntax colors as a diff.
+                >. Hover the term, then move into its explanation; the card stays open
+                while you read it. Code adds line numbers and Notes, and quotes an
+                excerpt under its file's own numbers with an elided row where it skips;
+                Tree shows file structure. Use “Copy code” on the right of either block
+                below, or <kbd>Tab</kbd> to it and press <kbd>Enter</kbd>. The clipboard
+                keeps the code's whitespace and leaves out line numbers and Notes. Bash
+                separates commands, arguments, and flags with the same syntax colors as
+                a diff.
               </p>
               <pre
                 id="bg-plain-code"
@@ -7874,6 +7957,8 @@ gallery/
                 selected panel after reload. At page level, scroll a view and switch
                 away and back: each selection reaches the panel’s beginning below the
                 tab strip. Browser Back and Forward return to the corresponding views.
+                Narrow the window until the gallery’s own tab names overflow, then page
+                them with the edge arrows. Reduced motion makes that move immediate.
               </p>
               <lf-tabs id="bg-tabs">
                 <lf-tab id="bg-tab-current" label="Current">
@@ -8284,6 +8369,28 @@ switch --readers checkout-api,orders-api</code></pre>
                 source="gallery-source"
                 label="feature-gallery-source.toml · lines 1–4"
                 language="toml"
+              ></lf-text-document>
+            </section>
+
+            <section id="bg-document-previews">
+              <p class="eyebrow bg-feature-elements">lf-text-document</p>
+              <h3>Rendered documents</h3>
+              <p>
+                Switch between the rendered release note and its exact source. Use the
+                arrow keys on the tabs. Reloading keeps your selected view; a new source
+                value updates both views.
+              </p>
+              <lf-text-document
+                id="bg-markdown-preview"
+                source="gallery-markdown"
+                label="release-note.md"
+                preview="markdown"
+              ></lf-text-document>
+              <lf-text-document
+                id="bg-html-preview"
+                source="gallery-html"
+                label="release-card.html"
+                preview="html"
               ></lf-text-document>
             </section>
 

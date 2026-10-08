@@ -30,7 +30,7 @@ reaches a module by importing it from this package, never through `sys.path`,
   an A/B's pair of them, whose base defaults to the merge base with `main`
   (`base_ref`); pages served from an authored source on an arm; the machine's load
   average a timed command prints; the isolated `claude -p` children evals run; and
-  the throwaway Codex and Pi homes a Codex or Pi child runs under.
+  the throwaway Claude Code, Codex and Pi homes a child of each runs under.
 - `page_fixtures.py` builds a page directory from an authored source;
   `example_data.py` reads the catalog, names, and each page's companions.
 - `browser.py` launches Chrome, and opens and settles a tab, the same way for every
@@ -52,7 +52,8 @@ reaches a module by importing it from this package, never through `sys.path`,
   Plain recording inserts no pauses. `--actions` is for demonstrations: Playwright
   waits 500 ms before each annotated input. Native video holds its final frame for
   at least one second. Read the timeline, filmstrip, DOM snapshots,
-  console and network with `uv run playwright show-trace DIR/worktree/trace.zip`.
+  console and network with `uv run leaf-dev trace-server DIR/worktree/trace.zip`.
+  The server prints its viewer URL without opening a browser; link it for the user.
   `recording.py` owns capture and GIF encoding, including the demo's encoder;
   its `recording(page, directory)` context works in any Playwright script.
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states, at rest and
@@ -101,6 +102,13 @@ reaches a module by importing it from this package, never through `sys.path`,
 
 ## Website and demo
 
+`leaf-dev distribution --output NEW-DIRECTORY` builds the prepared Git payload.
+`publish-distribution DIRECTORY` advances the `prepared` branch with a verified
+payload from current main, retaining source ancestry and using a normal push.
+The `prepared-install` workflow owns publication. Never merge that generated
+branch into a development branch. Source checkouts remain directly runnable;
+consumer installs and custom packages require no browser compiler.
+
 CI, `worker/`'s npm scripts and `.config/wt.toml` run these. The images they
 write live in `max-sixty/leaf-assets`, so outside `.tmp/` they write only the pin
 in `leaf-assets.json` and the README's image URLs that name it.
@@ -117,14 +125,16 @@ in `leaf-assets.json` and the README's image URLs that name it.
   diagnostics and the failure contract.
 - `leaf-dev journey TARGET` runs one user's journey, a request through Threads to
   record that a release passed its checks, answered with a revision and a reply, on
-  any harness: `cc` or `codex`
+  any harness: `claude-code` or `codex`
   on this working tree, `local` for the website's adapter, `wrangler`, or a website
   origin. It prints one JSON sample: the title, published revision and reply timed
   on the page server's clock from the comment's admission, and what only the browser
-  sees from the send; on `cc` or `codex`, also the agent's turn split into delivery,
+  sees from the send; on `claude-code` or `codex`, also the agent's turn split into delivery,
   model and tool phases. Each sample is also appended to
-  `$XDG_STATE_HOME/leaf-dev/journey.jsonl` on the machine that ran it.
-  `publish-site` runs it against each release.
+  `$XDG_STATE_HOME/leaf-dev/journey.jsonl` on the machine that ran it, and
+  `leaf-dev journey-chart` prints an `lf-chart` of those samples, for the latest
+  version each target ran, to put on a page. `publish-site` runs it against each
+  release.
 - `worker/deploy-dev.sh` (`npm run deploy:dev --prefix worker`) deploys the checkout
   to the standing `leaf-website-dev` environment and verifies it. Production deploys
   only through `.github/workflows/publish-site.yaml`.
@@ -136,6 +146,20 @@ in `leaf-assets.json` and the README's image URLs that name it.
   card under its `demo/`, and publishes them the same way.
 - `leaf-dev publish-media FILE...` adds media the example pages show under its
   `examples/media/`, and moves the pin.
+
+## Claude Code
+
+- `leaf-dev verify-claude-code-task` runs a real interactive Claude Code session, in a
+  tmux pane, with this working tree as its plugin under a throwaway home holding only
+  the host's login. It posts comments while the session is idle, during a shell
+  command, after an Escape, and after an Escape that stopped a turn the watch had
+  woken, and fails when a comment is not answered exactly once, a comment posted
+  during a turn is not picked up in it, or quitting leaves the session's claim
+  active. `--hooks-module` turns the plugin's hooks module on, and then also fails
+  when Escape leaves the turn open or nothing watching. Each step prints when its
+  comments were picked up and answered and whether the page nudged the session,
+  the reading that compares the two watchers. It spends the host's Claude Code
+  login, so CI does not run it.
 
 ## Codex
 

@@ -312,6 +312,23 @@ def checked_layer_inputs(inputs: list[Path]) -> list[Path]:
     return roots
 
 
+def kernel_runtime_paths() -> set[str]:
+    """Private kernel paths packages cannot replace, before or after compilation.
+
+    CI records the source paths in its prepared payload because compiled chunks no
+    longer have those names. Both representations enforce the same package boundary.
+    """
+    manifest = PLUGIN_ROOT / "leaf-distribution.json"
+    paths = {
+        path.relative_to(root / "runtime").as_posix()
+        for root in (ASSETS, DEFAULT_PACKAGE)
+        for path in (root / "runtime").rglob("*.js")
+    }
+    if manifest.is_file():
+        paths.update(json.loads(manifest.read_text())["runtime_paths"])
+    return paths
+
+
 class LayerComposition(NamedTuple):
     registry: dict
     top_files: dict[str, bytes]
@@ -372,6 +389,28 @@ def payload_runtime_fingerprint() -> str:
     )
 
 
+def payload_server_inputs(root: Path) -> list[Path]:
+    """The serving code and dependency manifests an init must restart to adopt."""
+    return [
+        *sorted((root / "skills/leaf/scripts").rglob("*.py")),
+        root / "pyproject.toml",
+        root / "uv.lock",
+    ]
+
+
+def payload_server_fingerprint() -> str:
+    """Identify the serving inputs and interpreter independently of a Git commit."""
+    return files_identity(
+        {
+            "$python": sys.version.encode(),
+            **{
+                path.relative_to(PLUGIN_ROOT).as_posix(): path.read_bytes()
+                for path in payload_server_inputs(PLUGIN_ROOT)
+            },
+        }
+    )
+
+
 def foreign_runtime(page_dir: Path, layer: dict) -> str | None:
     """Why this Leaf cannot serve a page, given its recorded `$layer`: the page's
     runtime came from another Leaf. None when the page carries this Leaf's own.
@@ -408,6 +447,11 @@ def payload_provenance(*, include_path: bool = False) -> dict:
     an offset.
     """
     provenance = {"path": str(PLUGIN_ROOT)} if include_path else {}
+    distribution = PLUGIN_ROOT / "leaf-distribution.json"
+    if distribution.is_file():
+        published = json.loads(distribution.read_text())
+        provenance.update(published["producer"])
+        return provenance
     # Claude Code copies a marketplace plugin without its .git directory into a cache
     # whose final component is the resolved plugin version. Leaf leaves its manifest
     # version unset, so that component is the source commit SHA. PLUGIN_ROOT comes from
@@ -494,8 +538,51 @@ def provenance_label(provenance: dict) -> str:
 
 def compose_layer(roots: list[Path]) -> LayerComposition:
     """Read and validate the complete layer produced by checked inputs."""
+    from .revision_artifact import (
+        JAVASCRIPT_SUFFIXES,
+        ArtifactError,
+        dependency_path,
+        javascript_imports,
+    )
     from .validation.compatibility import incoming_registry
 
+    protected = kernel_runtime_paths()
+    private_modules = {"/leaf.js", *(f"/runtime/{name}" for name in protected)} - {
+        "/runtime/widget-api.js"
+    }
+    for root in roots:
+        if root.resolve() in {ASSETS.resolve(), DEFAULT_PACKAGE.resolve()}:
+            continue
+        replacements = [
+            f"runtime/{path.relative_to(root / 'runtime').as_posix()}"
+            for path in (root / "runtime").rglob("*.js")
+            if path.relative_to(root / "runtime").as_posix() in protected
+        ]
+        if (root / "leaf.js").exists():
+            replacements.append("leaf.js")
+        if replacements:
+            sys.exit(
+                f"package {root} replaces private kernel modules: "
+                + ", ".join(sorted(replacements))
+                + "; use /runtime/widget-api.js and package-owned modules"
+            )
+        for sub in BROWSER_DIRS:
+            for module in (root / sub).rglob("*"):
+                if not module.is_file() or module.suffix not in JAVASCRIPT_SUFFIXES:
+                    continue
+                path = "/" + module.relative_to(root).as_posix()
+                try:
+                    for _, _, specifier in javascript_imports(
+                        module.read_bytes(), path
+                    ):
+                        dependency = dependency_path(specifier, path, module=True)
+                        if dependency in private_modules:
+                            sys.exit(
+                                f"{module} imports private kernel module {specifier!r}; "
+                                "use /runtime/widget-api.js"
+                            )
+                except ArtifactError as error:
+                    sys.exit(str(error))
     incoming = incoming_registry(roots)
     directory_sources = {sub: composed_dir_files(roots, sub) for sub in BROWSER_DIRS}
     missing_modules = sorted(
@@ -529,10 +616,10 @@ def compose_layer(roots: list[Path]) -> LayerComposition:
         }
         for sub in BROWSER_DIRS
     }
-    client = directory_files["runtime"].get("layer-client.js", b"")
+    client = directory_files["runtime"].get("layer-generation.js", b"")
     if client.count(LAYER_PLACEHOLDER) != 1:
         sys.exit(
-            "the incoming runtime/layer-client.js must contain exactly one "
+            "the incoming runtime/layer-generation.js must contain exactly one "
             "layer-generation placeholder"
         )
     directory_files[INSTRUCTIONS_DIR] = composed_instructions(roots)

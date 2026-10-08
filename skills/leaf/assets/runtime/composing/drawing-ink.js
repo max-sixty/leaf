@@ -6,20 +6,21 @@
  * unsent drafts. Optional saved ink joins the same reading without another layer,
  * cache or observer; a page without that producer still draws its live gestures.
  *
- * Fixed, CSS-anchored marks follow their source through scroll without extending the
- * document's overflow. Equal complete descriptions retain the actual SVG node.
+ * Each mark stands in the frames that cut its target, anchored to it (paint stands,
+ * target-paint-geometry.js), so every scroll that moves the target carries it without
+ * extending the document's overflow, and a pane scrolling its target away cuts it at
+ * its edge. Ink still being drawn is cut by nothing, since the pen goes where the
+ * user puts it. Equal complete descriptions retain the actual SVG node.
  *
- * An anchored mark is drawn at its target's current size (`strokesIn`), so it stays on
- * its element in a narrower window. It scales with the element's box only, so text that
- * reflows moves under the mark and a circled word can leave its circle.
+ * A mark is drawn at its target's current size (`strokesIn`), so it stays on its element
+ * in a narrower window. It scales with the element's box only, so text that reflows
+ * moves under the mark and a circled word can leave its circle.
  */
 
 import { cancelRender, nextRender, sizeObserver } from "../rendering.js";
-import { setChildren } from "../dom-children.js";
 import { shownBox } from "../geometry.js";
-import { atLayoutPrecision } from "../keeps.js";
 import { el } from "../widget-elements.js";
-import { anchorElement, anchorName } from "../anchor-names.js";
+import { paintSet } from "../target-paint-geometry.js";
 import { strokesIn, validDrawing } from "./drawing-record.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -74,8 +75,9 @@ export function drawingThumbnail(drawing) {
 
 export function createDrawingInk({ drawings }) {
   // The draft or ordinary Thread is the accessible representation of its ink.
-  const layer = el("div", "lf-ui lf-drawings lf-page-paint");
+  const layer = el("div", "lf-ui lf-drawings");
   layer.setAttribute("aria-hidden", "true");
+  const ink = paintSet(layer);
   let paintFrame = 0;
   let mounted = new Map();
   let mounting = new Map();
@@ -86,57 +88,38 @@ export function createDrawingInk({ drawings }) {
   // still consume distinct prior nodes in order.
   function mark(drawing, target, className, id = "") {
     if (!validDrawing(drawing)) return null;
-    const box = target ? shownBox(target) : { left: -scrollX, top: -scrollY };
-    if (target && (!box?.width || !box?.height)) return null;
-    const strokes = strokesIn(drawing, target && box);
+    const box = shownBox(target);
+    if (!box?.width || !box?.height) return null;
+    const strokes = strokesIn(drawing, box);
     const frame = drawingFrame(strokes);
     const { width, height } = frame;
     if (!width || !height) return null;
-    const holder = target
-      ? anchorElement(target)
-      : (document.querySelector("main") ?? document.body);
-    const at = holder.getBoundingClientRect();
-    const anchor = anchorName(holder);
-    const left = atLayoutPrecision(box.left + frame.x - at.left);
-    const top = atLayoutPrecision(box.top + frame.y - at.top);
+    const rect = {
+      left: box.left + frame.x,
+      top: box.top + frame.y,
+      right: box.left + frame.x + width,
+      bottom: box.top + frame.y + height,
+    };
     const data = pathData(strokes);
-    const described = JSON.stringify([
-      className,
-      id,
-      anchor,
-      left,
-      top,
-      width,
-      height,
-      frame.x,
-      frame.y,
-      data,
-    ]);
+    const described = JSON.stringify([className, id, frame, data]);
+    const item = {
+      target,
+      rect,
+      cut: className !== "lf-drawing-active",
+    };
     const standing = mounted.get(described)?.shift();
-    if (standing) {
-      const next = mounting.get(described) ?? [];
-      next.push(standing);
-      mounting.set(described, next);
-      return standing;
-    }
-    const svg = document.createElementNS(SVG_NS, "svg");
+    const svg = standing ?? document.createElementNS(SVG_NS, "svg");
+    const next = mounting.get(described) ?? [];
+    next.push(svg);
+    mounting.set(described, next);
+    if (standing) return { ...item, node: svg };
     svg.classList.add("lf-drawing-mark", className);
     if (id) svg.dataset.thread = id;
     svg.setAttribute("viewBox", `${frame.x} ${frame.y} ${frame.width} ${frame.height}`);
     svg.setAttribute("preserveAspectRatio", "none");
     svg.setAttribute("aria-hidden", "true");
-    Object.assign(svg.style, {
-      positionAnchor: anchor,
-      left: `calc(anchor(left) + ${left}px)`,
-      top: `calc(anchor(top) + ${top}px)`,
-      width: `${width}px`,
-      height: `${height}px`,
-    });
     svg.append(pathFor(data));
-    const next = mounting.get(described) ?? [];
-    next.push(svg);
-    mounting.set(described, next);
-    return svg;
+    return { ...item, node: svg };
   }
 
   function paint() {
@@ -147,12 +130,12 @@ export function createDrawingInk({ drawings }) {
       const painted = mark(drawing, target, className, id);
       if (painted) {
         marks.push(painted);
-        if (target) nextObserved.add(target);
+        nextObserved.add(target);
       }
     }
 
-    // Reconciliation leaves unchanged ink and anything holding it in the document.
-    setChildren(layer, marks);
+    // Unchanged ink keeps its node, and the set writes only where it moved.
+    ink.place(marks);
     mounted = mounting;
     for (const target of observed)
       if (!nextObserved.has(target)) {
@@ -181,7 +164,7 @@ export function createDrawingInk({ drawings }) {
     observed.clear();
     mounted.clear();
     mounting.clear();
-    layer.replaceChildren();
+    ink.clear();
   }
 
   return { layer, paint, shifted, destroy };

@@ -697,6 +697,8 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
         expect(page.locator(".lf-bottom-status")).to_be_hidden()
     edges = card.evaluate(
         """async card => {
+          const {notice} = await window.__lfRuntimeImport('/runtime/notifications.js');
+          notice('Keep feedback clear while reading', {announce: false});
           const list = card.parentElement;
           list.scrollTop = card.offsetTop + (card.offsetHeight - list.clientHeight) / 2;
           const port = list.getBoundingClientRect();
@@ -721,10 +723,13 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
           // Every row passes under the title: nothing it holds at rest, such as a
           // reaction trigger raised over its message, paints through it.
           const through = new Set();
+          const feedback = document.querySelector('.lf-bottom-status');
+          const feedbackTops = new Set();
           const start = list.scrollTop;
           for (let y = card.offsetTop; y < card.offsetTop + card.offsetHeight; y += 6) {
             list.scrollTop = y;
             await new Promise(requestAnimationFrame);
+            if (feedback.checkVisibility()) feedbackTops.add(feedback.getBoundingClientRect().top);
             const box = title.getBoundingClientRect();
             for (let x = box.left + 2; x < box.right; x += 4) {
               const hit = document.elementFromPoint(x, box.top + box.height / 2);
@@ -732,7 +737,7 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
             }
           }
           list.scrollTop = start;
-          return {...reading, through: [...through]};
+          return {...reading, through: [...through], feedbackTops: [...feedbackTops]};
         }"""
     )
     assert edges["inside"], edges
@@ -742,6 +747,7 @@ def test_reading_inside_a_long_thread_keeps_its_title_and_reply_row_on_the_lists
     assert edges["bottom"] - 20 < edges["reply"] <= edges["bottom"], edges
     assert edges["atTop"] and edges["atBottom"], edges
     assert edges["through"] == [], edges
+    assert len(edges["feedbackTops"]) == 1, edges
     # What the user is reading stops at both pinned rows: the runtime's reading of what
     # is on screen, which read acknowledgement takes, leaves out the band under each
     # (geometry.js), so a turn half under Reply has not been seen there.
@@ -2214,7 +2220,8 @@ def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, ser
     expect(approval).to_have_attribute("aria-disabled", "true")
     expect(approval).to_have_attribute("aria-description", reason)
     expect(approval).to_be_disabled()
-    page.locator(".lf-threads-toggle").focus()
+    # On the desk row Approval stands just before Comment on the page.
+    page.locator(".lf-page-comment").focus()
     page.keyboard.press("Shift+Tab")
     expect(approval).to_be_focused()
     before = events_model.read_events(serve.page_dir)
@@ -2226,7 +2233,8 @@ def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, ser
 
 def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
     """The fixed menu and primary row keep one reading order at every desk width, and
-    a phone reads the same order with Approval moved to the head of More."""
+    a phone reads the same order with Approval and Comment on the page, which stand
+    before Threads on a desk, moved to the head of More."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -2246,10 +2254,10 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         resized(page, width, 900)
         orders[width] = page.evaluate(BANNER_ORDER)
     phone = orders.pop(390)
-    assert phone[0] == "Approve version", phone
-    approval_last = [name for name in phone[1:] if name != "Approve version"]
-    approval_last.insert(-1, "Approve version")
-    assert approval_last == orders[800], (phone, orders[800])
+    moved = ["Approve version", "Comment on the page"]
+    assert phone[: len(moved)] == moved, phone
+    rest = phone[len(moved) :]
+    assert rest[:-1] + moved + rest[-1:] == orders[800], (phone, orders[800])
 
     first = {}
     for width, order in orders.items():
@@ -2397,10 +2405,52 @@ def test_approval_capability_changes_keep_banner_targets(
         expect(more).to_be_focused()
 
 
+@pytest.mark.parametrize("width", [320, 1440])
+def test_more_menu_stays_put_when_the_layer_age_gains_a_digit(browser, serve, width):
+    """A clock tick can change a menu label without moving its other controls."""
+    page = open_page(browser, serve(LONG_PAGE))
+    resized(page, width, 844)
+    page.locator(".lf-banner-more").click()
+    menu = page.locator(".lf-banner-menu")
+    expect(menu).to_be_visible()
+    version = menu.locator(".lf-layer-reference")
+    expect(version).to_be_visible()
+
+    def age_at(minutes):
+        page.evaluate(
+            """async minutes => {
+              const {observeServerNow, tickClock} = await window.__lfRuntimeImport(
+                '/runtime/presence.js');
+              const title = document.querySelector('.lf-layer-reference').title;
+              const stamp = title.match(/(?:committed|installed): ([^\\n]+)/)?.[1];
+              if (!stamp) throw new Error(`Layer has no dated provenance: ${title}`);
+              observeServerNow(new Date(Date.parse(stamp) + minutes * 60000).toISOString());
+              await tickClock(error => { throw new Error(error); });
+            }""",
+            minutes,
+        )
+        rendered(page)
+
+    age_at(9)
+    expect(version).to_contain_text("9m ago")
+    before = menu.bounding_box()
+    control = menu.locator(".lf-version")
+    control_before = control.bounding_box()
+    age_at(10)
+    expect(version).to_contain_text("10m ago")
+    assert menu.bounding_box()["x"] == pytest.approx(before["x"], abs=0.5)
+    assert control.bounding_box()["x"] == pytest.approx(control_before["x"], abs=0.5)
+
+
 def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
     """A notice keeps the page's right corner through panel and viewport changes."""
     page = open_page(browser, serve(LONG_PAGE))
     notice = page.locator(".lf-notice")
+    # The panel normally has the same card ground as the notice. Give it a contrasting
+    # ground so the pixel reading also detects the panel covering the feedback.
+    page.locator(".lf-thread-panel").evaluate(
+        "panel => { panel.style.background = 'rgb(255, 0, 255)'; }"
+    )
     for width, panel_open in [
         (1200, False),
         (1200, True),
@@ -2466,20 +2516,6 @@ def test_notices_stay_at_the_visible_pages_right_edge(browser, serve):
             )
             == ground
         ), (width, panel_open, "the notice is covered by a scrim")
-        # The panel's ground is the same card token, so the pixel alone cannot see the
-        # panel over the notice, and the covered page is inert, so a hit test skips the
-        # notice either way. The two stand in one stacking context, where the order is
-        # their z-index.
-        order = page.evaluate(
-            """() => {
-              const status = document.querySelector('.lf-bottom-status');
-              const panel = document.querySelector('.lf-thread-panel');
-              const z = (el) => Number(getComputedStyle(el).zIndex);
-              return {shared: status.parentElement === panel.parentElement,
-                      above: z(status) > z(panel)};
-            }"""
-        )
-        assert order == {"shared": True, "above": True}, (width, panel_open, order)
 
 
 PHONE_PAGE = leaf_page(
@@ -3114,8 +3150,7 @@ def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
     assert (box["x"] if surface == "queue" else box["x"] + box["width"]) == (
         pytest.approx(edge, abs=1)
     )
-    assert not page.locator("main").evaluate("el => el.inert")
-    expect(region).not_to_have_attribute("aria-modal", "true")
+    assert not region.evaluate("el => el.closest('dialog').matches(':modal')")
 
     toggle_surface(page, surface, open=False)
     assert page.evaluate(shape) == pytest.approx(before, abs=0.5)
@@ -3130,8 +3165,18 @@ def test_the_panel_covers_a_wide_page_where_it_would_leave_no_usable_page(
     resized(page, 700, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
-    assert page.locator("main").evaluate("el => el.inert")
+    assert page.locator(".lf-thread-panel").evaluate(
+        "el => el.closest('dialog').matches(':modal')"
+    )
+    assert page.locator("main").evaluate(
+        """el => {
+          const focused = document.activeElement;
+          el.tabIndex = -1;
+          el.focus();
+          el.removeAttribute('tabindex');
+          return document.activeElement === focused;
+        }"""
+    )
 
 
 def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
@@ -3220,6 +3265,63 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     # Completion is the reading rendered waited on. A later slide-end scan can
     # queue new work, so a second reading need not still be settled.
     expect(page.locator(".lf-thread-panel")).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+def test_auxiliary_posture_keeps_live_browser_state(engine, request, serve):
+    """A native boundary changes posture without disconnecting any live descendant.
+
+    Focus/caret restoration cannot repair an iframe's destroyed browsing context. The
+    actual draft and a small embedded document distinguish retention from replacing
+    nodes or removing and reinserting them, in both engines.
+    """
+    page = open_page(request.getfixturevalue(engine), serve(LONG_PAGE, comments=1))
+    resized(page, 1200, 800)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(".lf-thread[open]").first
+    field = thread.locator(":scope > .lf-thread-reply leaf-text")
+    write(field, "Keep this live draft")
+    field.evaluate("field => field.setSelectionRange(2, 6)")
+    page.locator(".lf-thread-panel").evaluate("""async panel => {
+      const frame = document.createElement('iframe');
+      frame.id = 'retained-browsing-context';
+      frame.style.cssText = 'position:absolute;left:0;top:0;width:80px;height:80px';
+      frame.srcdoc = '<details open><summary>Kept disclosure</summary><input>' +
+        '<div id="reading" style="height:20px;overflow:auto"><div style="height:200px">Reading</div></div></details>';
+      const loaded = new Promise(resolve => frame.onload = resolve);
+      panel.append(frame);
+      await loaded;
+      const embedded = frame.contentDocument;
+      embedded.querySelector('input').value = 'Kept embedded edit';
+      embedded.querySelector('#reading').scrollTop = 40;
+      frame.contentWindow.retainedIdentity = {};
+      window.heldAuxiliaryFrame = frame;
+      window.heldAuxiliaryIdentity = frame.contentWindow.retainedIdentity;
+    }""")
+    field.focus()
+    before = field.evaluate(
+        "field => [field.value, field.selectionStart, field.selectionEnd]"
+    )
+    for width in (390, 1200):
+        resized(page, width, 800)
+        panel_settled(page)
+        expect(field).to_be_focused()
+        assert (
+            field.evaluate(
+                "field => [field.value, field.selectionStart, field.selectionEnd]"
+            )
+            == before
+        )
+        kept = page.evaluate("""() => {
+          const frame = document.querySelector('#retained-browsing-context');
+          return frame === heldAuxiliaryFrame &&
+            frame.contentWindow.retainedIdentity === heldAuxiliaryIdentity &&
+            frame.contentDocument.querySelector('details').open &&
+            frame.contentDocument.querySelector('input').value === 'Kept embedded edit' &&
+            frame.contentDocument.querySelector('#reading').scrollTop === 40;
+        }""")
+        assert kept, width
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])

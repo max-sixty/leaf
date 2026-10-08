@@ -121,7 +121,8 @@ install the tracked tree whole.
 - `skills/leaf/references/`: contracts for page authors, package authors, and harnesses;
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary;
 - `hooks/`: each harness's registrations of the `leaf hook` entry: `hooks.json`
-  for Claude Code, `codex.json` for Codex, and `pi.ts`, the Pi extension;
+  for Claude Code, with `claude-code.ts`, the opt-in hooks module that keeps its
+  watch, `codex.json` for Codex, and `pi.ts`, the Pi extension;
 - `evals/`: cases a headless agent answers, scoring the shipped instructions;
 - `examples/`: the authored pages the site publishes and the render corpus;
 - `tests/`: the file, CLI, browser, and published-site boundaries, and in
@@ -164,6 +165,11 @@ that reverses one rewrites that record and says so in its commit. A workflow for
 kind of task goes in `/developing-leaf`.
 
 ### The install runs this tree
+
+Consumer installers follow the CI-built `prepared` Git branch. The browser kernel
+is compiled there; development branches keep its source modules. Installation,
+page authoring, custom packages, and export require no browser build or npm command.
+`dev/leaf_dev/distribution.py` owns preparation and publication.
 
 An install is the tracked tree copied into a harness's plugin cache, and nothing is
 built at install time: `bin/leaf` is `uv run --no-dev` on the tree, so the
@@ -305,8 +311,9 @@ Before finishing a feature:
   `skills/leaf/SKILL.md` or the one routed reference that owns the workflow;
   other references point at that section by name. Shipped instructions set goals
   for the user's experience and name the surface they read on; they leave
-  format and phrasing to the agent. Score the change with `evals/` before and
-  after (`/developing-leaf`, "Score an instruction change").
+  format and phrasing to the agent. Where an agent could read the change more
+  than one way, score it with `evals/` before and after (`/developing-leaf`,
+  "Score an instruction change").
 
 Before handing over, run the tests that hold what the change touches; the broad
 selection, `uv run pytest tests`, and `npm run test:runtime` run at landing

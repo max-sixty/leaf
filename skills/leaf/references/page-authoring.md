@@ -142,8 +142,12 @@ and the margin", below).
 
 Long scrolling documents include a contents outline. It gives the reader a
 persistent route between sections and shows where they are in the document. A short
-document that can be read at a glance needs no outline. Put an empty `lf-toc` with a
-stable id in an `aside.sidebar`, directly inside `main` near the opening:
+document that can be read at a glance needs no outline. Keep navigation available at
+the desktop opening and while the document scrolls; in a narrow window, place it
+before the substantive reading.
+
+Write an empty `lf-toc` with a stable id. On a column page, put it in an
+`aside.sidebar`, directly inside `main` near the opening:
 
 ```html
 <aside class="sidebar" id="contents-sidebar">
@@ -151,9 +155,12 @@ stable id in an `aside.sidebar`, directly inside `main` near the opening:
 </aside>
 ```
 
-On a column page with room in the desktop margin, Leaf presents it as the contents
+With room in the desktop margin, Leaf presents the column's outline as the contents
 spine; in a narrow window it is an open outline in the page's flow ("The rail and the
-margin"). Workspaces and root page tabs use their own navigation.
+margin"). On a sidebar page, keep the outline and short verdict or status available
+in the opening overview inside the Layout's `aside` ("A wide page"). Keep that
+overview short enough to fit the window, with detailed evidence and history in the
+body or behind a disclosure. Workspaces and root page tabs use their own navigation.
 
 ### Layouts
 
@@ -202,8 +209,13 @@ both:
 ```html
 <main class="layout-sidebar">
   <header><h1>…</h1><p class="lede">…</p></header>
-  <div id="body">…</div>        <!-- what the reader works through -->
-  <aside id="status">…</aside>  <!-- what they keep an eye on -->
+  <aside id="status">
+    <div class="overview">
+      <lf-toc id="contents"></lf-toc>
+      <p>…</p>                 <!-- short verdict or status -->
+    </div>
+  </aside>
+  <div id="body">…</div>        <!-- document and supporting evidence -->
 </main>
 ```
 
@@ -222,6 +234,8 @@ changes and questions it asks beside the document it judges; that panel is the
 `aside`, and sticks (below). Stack each
 track's regions inside it, so every region stands on the same two vertical lines, rather
 than a new split per row whose edges land somewhere new each time.
+
+"Contents navigation" sets where the overview's outline goes at each width.
 
 A track shorter than the window can stay in view while the body scrolls beside it:
 give the `aside` `align-self: stretch`, so it runs the body's height, and the block it
@@ -293,15 +307,19 @@ such as a source file or log, can keep its scrolling and the advisory finding.
 
 ### Bounds and widths
 
-A log, feed, or long listing bounds its own height with `data-bound`, naming the end
-its newest entry is at. Put the entries in the order the reader needs, then bound
-that order. A list that grows downward takes `data-bound="end"`, which opens it on
-its last line, keeps that line in view while the user is at the end, and leaves them
-where they scrolled back to otherwise. A newest-first list takes
-`data-bound="start"`, which opens it at the top, as the page's own activity feed
-does. Some widgets bound themselves by default. Don't make a box scroll vertically with page
-CSS: Leaf keeps no reading position in a scroller it did not make, and `page
-check` advises against one.
+Prefer one document scroll: let reading content and evidence grow in flow, with
+disclosures for supporting detail. Internal vertical scrolling needs a task that
+benefits from keeping a region in view while its contents move, as in a workspace,
+or a live stream whose newest entry the reader follows. Length alone is no reason
+to bound a listing or an inspection widget.
+
+For a live stream that needs a bounded reading region, use `data-bound`, naming
+the end its newest entry is at. A list that grows downward takes
+`data-bound="end"`, which follows its last line while the user is at the end and
+leaves them where they scrolled back to otherwise. A newest-first list takes
+`data-bound="start"`, which opens at the top, as the page's activity feed does.
+Don't make a box scroll vertically with page CSS: Leaf keeps no reading position
+in a scroller it did not make, and `page check` advises against one.
 
 An individual block or section may request a responsive allocation with
 `data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
@@ -391,10 +409,11 @@ styles and geometry. Exact comments, Asks, decisions, Undo, live revisions and
 drawing capture still use the shared Leaf mechanisms. Changing the selection
 replaces the document through the ordinary revision lifetime.
 
-Place one empty `<lf-annotation-rail id="annotations"></lf-annotation-rail>`
-where the reader should find conversations and actions. Allocate its width and
-height in the page's CSS; it scrolls inside that box. At narrow widths, give it a
-place the user can reach by touch and keyboard. Leaf supplies native disclosures,
+When the task needs conversations and actions kept in an independent region
+("Bounds and widths"), place one empty
+`<lf-annotation-rail id="annotations"></lf-annotation-rail>` there. Allocate its
+width and height in the page's CSS; it scrolls inside that box. At narrow widths,
+give it a place the user can reach by touch and keyboard. Leaf supplies native disclosures,
 reply editors, action controls and retained reading; the page supplies their layout.
 Widget-local conversations keep their exact seats before the page rail takes
 remaining targets. The Threads panel remains the complete conversation index.
@@ -737,7 +756,9 @@ findings, claims have evidence, decisions have controls, drawings add
 information, and visible prose is needed by the user. Draw any subject the page
 currently explains only in words when a picture would convey it.
 
-Follow the page's links and operate its navigation with pointer and keyboard.
+For a page with contents, start at its opening at desktop and phone widths and
+jump to a later section without first scrolling through the article to find the
+navigation. Follow the page's links and operate its navigation with pointer and keyboard.
 At each destination, check that the visible content and focus leave the user
 oriented and able to continue; compare equivalent moves across the page's views.
 

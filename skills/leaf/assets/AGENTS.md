@@ -17,7 +17,7 @@ desktop viewport.
 The page owns its arrangement: a shipped Layout class (`layouts.css`, `@layer
 lf-layouts`) or its own CSS. Leaf owns what pages and widgets coordinate through: the
 bands, the reading measure as typography, and each widget's contract to fill the box
-it is given, declare the minimum it needs, and never let its content size its holder.
+it is given, declare the minimum it needs, and never let its content widen its holder.
 
 Three things shape a page, and none of them reads another:
 
@@ -80,10 +80,14 @@ stylesheet's, a Layout's or the page's, which the runtime reads rather than deci
 The Queue panel is experimental and expected to change a lot: it replaced the Asks
 drawer to try one place for both queues (`runtime/queue-panel.js`).
 
-Ordinary content grows in flow. A bounded inspection object may scroll inside the
-document and chain into it at its edges; isolate scrolling only at a bounded task
-or modal boundary, and add no vertical scroller without an inspection need. Wheel
-and touch keep their navigation meaning; deliberate controls enter pan and zoom.
+Widgets in ordinary document flow grow with their content by default. Internal
+vertical scrolling needs a task that benefits from keeping a region in view while
+its contents move, or a live stream whose newest entry the reader follows; being
+an inspection object is not enough. Page-authoring choices live in
+`../references/page-authoring.md`, "Bounds and widths". A necessary scroller chains
+into the document at its edges; isolate scrolling only at a bounded task or modal
+boundary. Wheel and touch keep their navigation meaning; deliberate controls enter
+pan and zoom.
 Every necessary scroller has a keyboard route, visible bounds, and visible focus.
 Allocate room before shrinking evidence, and keep narrow screens' access to
 two-dimensional evidence deliberate. Expanding content keeps the allocation its
@@ -112,6 +116,12 @@ takes the growth into what they scrolled past, or below it. A short thread's rep
 box follows its last message; a long panel thread pins the
 box at its scroller's foot. News that would move a reply in flow waits behind the
 thread's existing notice; a pinned reply lets the transcript grow above it.
+These holds protect continuous reading. A hidden tab ends it; returning reveals
+the held reading and the first refreshed reading before protection resumes
+(`reading-continuity.js`, closed by `state-feed.js` after presentation). Keyboard
+blur alone does not end reading: the page may remain visible beside another window.
+Returning uses the ordinary arrival tint and thread transitions, and keeps a native
+editor the user was composing in, including its focus and caret.
 Where news would move what the reader is reading, it waits behind a control of fixed size:
 in a seat in the page's flow or an open panel card, whatever the thread would draw
 differently (an agent's reply, a reaction from another tab, the thread resolved or
@@ -205,8 +215,11 @@ never moves the user.
 
 ### Motion
 
-Use restrained, finite animations to acknowledge state changes. Do not animate
-continuously while a state remains unchanged.
+Use restrained, finite animations to acknowledge state changes. An untitled
+thread awaiting the agent uses a sheen sweeping across “Generating title”.
+It stops when the title arrives or the thread stops awaiting the agent, and
+is static under reduced motion. Other unchanged states
+do not animate continuously.
 
 Nothing the user must read, press, or decide waits on a clock. Motion runs from a
 state that is already true, and motion that must finish before the result can be
@@ -289,15 +302,21 @@ lint refuses the browser's own.
 
 The browser moves what a scroll moves. A box that follows page content stands where
 CSS puts it, by an anchor, a sticky offset, or a scroll timeline, and no scroll handler
-writes its position, which would trail the scroll by a frame. Every write says only
+writes its position, which would trail the scroll by a frame. Paint over the page's
+targets, whether a box, a chip, a mark or ink, stands in a paint set
+(`target-paint-geometry.js`, `paintSet`); what a scroll changes about it, such as which
+chip the banner holds in, is read once the scroll settles (`arrivals.js`,
+`watchScrollEnds`). Every write says only
 what changed (`runtime/keeps.js`): while a highlight holds a range, Chrome repaints the
 whole document for any write, so a write per scroll event makes every page with a
 quoted comment judder. One place has one writer: two owners that each set it in turn
 rewrite it every time either paints. A paint that more than one step of a script asks
 for waits for the script to end (`rendering.js`, `afterScript`), rather than painting
 the step between. The browser fixture fails a write that changes
-nothing in any test (`tests/write_watch.js`), and `test_page_fixture_renders`
-fails a place a scroll writes on every step (`scroll_findings`).
+nothing in any test (`tests/write_watch.js`), `test_page_fixture_renders`
+fails a place a scroll writes on every step (`scroll_findings`), and
+`test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled` fails paint
+a mode writes on a scroll gesture's frames.
 
 What a page says follows from where it stands now, not from how it got there. The one
 history its arrangement keeps is the order its margin rows came in, since a row that
@@ -351,7 +370,7 @@ selects from:
 | unresolved browser work | the publisher's one ordered ledger |
 | thread, workflow, attention, Asks, tasks, activity, unread | the server's folds; the browser adds only its own unresolved sends and the versions it is marking read |
 | what is waiting on the user and on the agent | `queues.js`'s selection from those readings, the browser's side of `agent_state.queues` |
-| what the DOM represents | controller presentation tickets and projection commits |
+| what the DOM represents | the presentation coordinator's renderer tickets and preparation regions |
 | when a document-wide renderer paints | the publication that opened the epoch, in the order `runtime/semantic-state.js` declares |
 | where each thread's passage lands | `anchor-placement.js`'s resolution of its anchor in this version |
 | the row inside a target a comment stands by | `pointed-place.js`: the line a pointing gesture landed on, held by the composer until sent, then under the thread's key with the words that find it again; where it stands now is `anchor-placement.js`'s placement record (`point`, `pointRow`), written in its read, the only writer, which takes in what a send hands over; presentation only, and only the pointed threads' row, card and travel follow it |

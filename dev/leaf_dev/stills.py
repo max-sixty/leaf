@@ -313,14 +313,8 @@ def code_copy_by_keyboard(page: Page) -> None:
 
 def diff_path_by_keyboard(page: Page) -> None:
     """A folded diff file's row under the keyboard, saying the whole path its row cuts
-    short at the folders."""
-    heads = page.locator("#pr-exact-patch .lf-diff-head")
-    cut = heads.evaluate_all(
-        "heads => heads.findIndex((head) => {"
-        " const dir = head.querySelector('.lf-diff-dir');"
-        " return dir && dir.scrollWidth > dir.clientWidth; })"
-    )
-    head = heads.nth(cut)
+    short."""
+    head = page.locator("#pr-exact-patch .lf-diff-head[data-path-cut]").first
     head.scroll_into_view_if_needed()
     page.keyboard.press("Shift")
     head.focus()
@@ -387,6 +381,12 @@ def go_to(page: Page) -> None:
     page.wait_for_function("() => document.body.hasAttribute('data-lf-go-to-active')")
 
 
+def contents_by_keyboard(page: Page) -> None:
+    """Reveal the contents map with focus on its first section link."""
+    page.keyboard.press("Tab")
+    page.locator("lf-toc li a").first.focus()
+
+
 def widget_inline_hints(page: Page) -> None:
     """A standalone command scope with an active inline hint, outside an Ask."""
     page.locator("#bg-widget-shortcut-hints").scroll_into_view_if_needed()
@@ -443,11 +443,32 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         more_menu,
         versions_menu,
         go_to,
+        contents_by_keyboard,
         widget_inline_hints,
         draft_edit,
         hub_workers,
     )
 }
+
+
+def playground_controls(page: Page) -> None:
+    """The playground's controls and instruction, with keyboard focus on its range."""
+    page.keyboard.press("Tab")
+    control = page.get_by_role("slider", name="Concurrent release events")
+    control.focus()
+    control.press("ArrowRight")
+    page.locator(".lf-playground-controls").scroll_into_view_if_needed()
+
+
+def margin_gallery(page: Page) -> None:
+    """The margin gallery's real controls and labels in a finger-sized column."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Page & layout", exact=True
+    ).click()
+    settle(page)
+    page.locator(
+        "#bg-margin-controls-samples .margin-entry-gallery-group"
+    ).first.evaluate("group => group.scrollIntoView({block: 'start'})")
 
 
 @dataclass(frozen=True)
@@ -461,6 +482,29 @@ class State:
 
 
 STATES = (
+    State("contents-spine", "developer/feature-gallery", at_rest),
+    State("contents-spine-keyboard", "developer/feature-gallery", contents_by_keyboard),
+    State(
+        "contents-spine-dark",
+        "developer/feature-gallery",
+        contents_by_keyboard,
+        scheme="dark",
+    ),
+    State("playground-controls", "notification-playground", playground_controls),
+    State(
+        "playground-controls-phone",
+        "notification-playground",
+        playground_controls,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State(
+        "margin-gallery-phone",
+        "developer/feature-gallery",
+        margin_gallery,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("release-draft", "release-notes", draft_edit),
     State(
         "release-draft-phone",

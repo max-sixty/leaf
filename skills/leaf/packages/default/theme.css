@@ -34,7 +34,10 @@
     cursor: help;
   }
 }
+/* The phrase takes the pointer; this one-pixel carrier supplies its keyboard route.
+   Keep its declared box independent of the floor for standalone offered controls. */
 .lf-gloss-mark {
+  min-width: 0; min-height: 0;
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
   opacity: 0; pointer-events: none;
 }

@@ -37,6 +37,8 @@
    Native modality owns background pointer and programmatic-focus exclusion. This owner
    keeps the existing Tab wrap, because native forward Tab can leave for browser chrome,
    and suppresses native opening focus while a restored sample has no document focus.
+   Boundary focus returns to the retained surface, so delegated focus keeps its reading
+   position. Explicit navigation still enters the surface's declared destination.
    Entering the covering boundary dismisses pre-existing outside popovers. Native dialogs
    and popovers opened inside the foreground then join the browser's own layer order. */
 
@@ -124,7 +126,7 @@ export function createAuxiliarySurfaces({
       !restored &&
       !document.activeElement?.closest(":popover-open")
     )
-      place(next.focus() ?? next.surface);
+      returningFocus(() => place(next.focus() ?? next.surface));
   }
 
   function registerAuxiliarySurface({

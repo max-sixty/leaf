@@ -121,6 +121,7 @@
   const drawings = new WeakMap();
   const sources = new WeakMap();
   const sourceScopes = new WeakSet();
+  const sourceShells = new WeakMap();
   const origins = new WeakMap();
   const parents = new WeakMap();
   const keepsAttribute = (node, name, value) => {
@@ -167,7 +168,7 @@
     const copy =
       source.nodeType === Node.DOCUMENT_NODE
         ? target
-        : target.importNode(source, false);
+        : target.importNode(sourceShells.get(source) ?? source, false);
     origins.set(copy, origins.get(source) ?? node);
     copy.removeAttribute?.("data-lf-opening");
     const held = source.localName === "template" ? source.content : source;
@@ -184,7 +185,115 @@
     const held = source.localName === "template" ? source.content : source;
     for (const child of held.childNodes) rememberSource(child);
   };
+  // Margin residency is initial document geometry, not a widget upgrade. The parser
+  // observer seats authored residents before a frame can paint them in another
+  // posture; content-layout adopts this same computation for subsequent changes.
+  // The body's authored annotation declaration is the same executable fact the
+  // module graph reads, so rail admission needs no second delivery configuration.
+  const POSTURES = {
+    sidebar: ["left", "--sidebar"],
+    map: ["left", "--map"],
+    note: ["right", "--note"],
+  };
+  // The nearest painted ancestor distinguishes skipped contents from a box the page
+  // hides itself. Geometry adopts this same reading with its composed-parent walk.
+  const skipped = (element, parent = (node) => node.parentElement) => {
+    if (element.checkVisibility()) return false;
+    let child = element;
+    let box = parent(element);
+    while (box && !box.checkVisibility()) {
+      child = box;
+      box = parent(box);
+    }
+    if (!box) return false;
+    if (box.localName === "details") return !box.open && child.localName !== "summary";
+    return getComputedStyle(box).contentVisibility === "hidden";
+  };
+  const residency = () => {
+    const main = document.querySelector("main");
+    if (!main) return false;
+    const style = getComputedStyle(main);
+    const need = (token) => parseFloat(style.getPropertyValue(token)) || 0;
+    // The offset the column stands at, which is the written shift only where the Layout
+    // applies it: page CSS may override the offset, and under `dir="rtl"` it is `right`.
+    const shifted =
+      style.position === "relative"
+        ? parseFloat(style.left) || -parseFloat(style.right) || 0
+        : 0;
+    const written = parseFloat(main.style.getPropertyValue("--lf-shift")) || 0;
+    const column = main.getBoundingClientRect();
+    const shell = document.body.getBoundingClientRect();
+    const room = {
+      left: column.left - shifted - shell.left,
+      right: shell.right - column.right + shifted,
+    };
+    const taken = { left: 0, right: 0 };
+    const standing = [];
+    if (
+      (document.body.dataset.annotations ?? "overlay") === "overlay" &&
+      document.body.getAttribute("data-rail") !== "none" &&
+      room.right >= need("--rail")
+    ) {
+      standing.push("rail");
+      taken.right = need("--rail");
+    }
+    const declared = new Map();
+    // A resident a box around it hides (a closed disclosure, a tab not chosen) needs no
+    // room. One the page hides itself stays a resident, since a page may hide it until it
+    // stands in the margin.
+    for (const aside of main.querySelectorAll("aside")) {
+      if (skipped(aside)) continue;
+      const own = getComputedStyle(aside);
+      const hiddenItself =
+        own.display === "none" && aside.parentElement.checkVisibility();
+      if (!aside.checkVisibility() && !hiddenItself) continue;
+      const postures = own
+        .getPropertyValue("--lf-resident")
+        .split(" ")
+        .filter((posture) => posture in POSTURES);
+      if (postures.length) declared.set(postures.join(" "), postures);
+    }
+    const side = (postures) => POSTURES[postures[0]][0];
+    for (const postures of [...declared.values()].sort(
+      (a, b) => (side(a) === "left" ? 0 : 1) - (side(b) === "left" ? 0 : 1),
+    ))
+      for (const posture of postures) {
+        const [at, token] = POSTURES[posture];
+        const wants = { ...taken, [at]: Math.max(taken[at], need(token)) };
+        if (wants.left + wants.right > room.left + room.right + 0.5) continue;
+        standing.push(posture);
+        Object.assign(taken, wants);
+        break;
+      }
+    const shift = Math.round(
+      taken.left > room.left
+        ? taken.left - room.left
+        : taken.right > room.right
+          ? room.right - taken.right
+          : 0,
+    );
+    const tokens = standing.join(" ");
+    const seated = (main.getAttribute("data-lf-margin") ?? "") !== tokens;
+    if (!seated && shift === written) return false;
+    // Source copies keep the authored shell before initial geometry writes to it;
+    // children still follow their original routes as the parser continues.
+    if (!sourceShells.has(main)) sourceShells.set(main, main.cloneNode(false));
+    if (seated) {
+      if (tokens) main.setAttribute("data-lf-margin", tokens);
+      else main.removeAttribute("data-lf-margin");
+    }
+    // Module-time adoption announces changed seats to reading-region discovery;
+    // before upgrade the same attributes already provide the final authored box.
+    if (shift !== written) {
+      if (shift) main.style.setProperty("--lf-shift", `${shift}px`);
+      else main.style.removeProperty("--lf-shift");
+    }
+    return true;
+  };
+
   root.lfInitial = {
+    residency,
+    skipped,
     register(tag, render) {
       // The widget loader imports unregistered producers for later revisions and
       // thread markup that were absent from the initially delivered document.
@@ -282,12 +391,16 @@
           member.toggleAttribute(OPENING, member === open);
     }
   };
-  const parsing = new MutationObserver(mark);
+  const initialLayout = () => {
+    mark();
+    residency();
+  };
+  const parsing = new MutationObserver(initialLayout);
   parsing.observe(root, { childList: true, subtree: true });
   document.addEventListener(
     "readystatechange",
     () => {
-      mark();
+      initialLayout();
       parsing.disconnect();
     },
     { once: true },

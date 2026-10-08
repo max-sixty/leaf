@@ -80,9 +80,11 @@ from render_harness import (
     open_page,
     page_registry,
     panel_settled,
+    primed,
     refuse,
     resized,
     root_overflow,
+    scroll_settled,
     sending,
     stamp_page,
     told,
@@ -3526,10 +3528,10 @@ main { width: 720px; margin: auto; position: relative;
  --rail: 100px; --sidebar: 150px; --note: 80px }
 aside { --lf-resident: sidebar }
 aside.note { --lf-resident: note; display: none }
-</style></head><body><main><h1>Neutral authored layout</h1>
+</style></head><body data-annotations="ANNOTATION_MODE"><main><h1>Neutral authored layout</h1>
 <aside>Sidebar</aside><aside class="note">Hidden until resident note</aside>
 <details><summary>More</summary><aside class="note">Disclosed note</aside></details>
-</main></body></html>""",
+</main></body></html>""".replace("ANNOTATION_MODE", "overlay" if rail else "page"),
         ),
     )
     page.set_viewport_size({"width": 950, "height": 800})
@@ -3546,8 +3548,8 @@ aside.note { --lf-resident: note; display: none }
       owner.scheduleResidency();
       await new Promise(requestAnimationFrame);
       const main = document.querySelector('main');
-      const inert = !owner.residencyStarted() && !main.hasAttribute('data-lf-margin');
-      owner.openResidency({rail, onRead: changed => window.completed.push(changed)});
+      const inert = !owner.residencyStarted();
+      owner.openResidency({onRead: changed => window.completed.push(changed)});
       return {inert, tokens: main.getAttribute('data-lf-margin'),
               shift: main.style.getPropertyValue('--lf-shift')};
     }""",
@@ -3875,3 +3877,149 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
     assert schema_model.NO_KEY in page.locator("body").inner_text()
     # The refusal is the subject: a user without the key is answered 401.
     consume_browser_errors(page, "401")
+
+
+@pytest.mark.parametrize(
+    "authored_css", ["", "main.layout-column { max-width: 600px; --note: 260px; }"]
+)
+def test_margin_residents_keep_their_first_painted_posture(
+    browser, serve, authored_css
+):
+    """Delaying modules must not first paint notes inline and shift the reading axis."""
+    source = leaf_page(
+        "First-painted notes",
+        '<h1 id="title">Migration</h1>'
+        '<aside class="sidenote" id="note">Keep old readers until checks pass.</aside>'
+        '<p id="passage">Advance one cohort at a time while keeping earlier readers available.</p>',
+    )
+    source = source.replace("</head>", f"<style>{authored_css}</style></head>")
+    held = []
+    controlled = primed(
+        browser, lambda page: page.route("**/leaf.js", lambda route: held.append(route))
+    )
+    page = controlled.new_page(viewport={"width": 1440, "height": 900})
+    # This boundary deliberately precedes the module-owned banner/readiness stamp.
+    page.goto(live_url(serve(source)), wait_until="commit")
+    expect(page.locator("#note")).to_have_css("float", "right")
+    page.wait_for_function(
+        "performance.getEntriesByType('paint').some(p => p.name === 'first-contentful-paint')"
+    )
+    before = page.locator("#passage").bounding_box()
+    assert held
+    assert not page.locator("body").get_attribute("data-lf-presented")
+    for route in held:
+        route.continue_()
+    page.unroute("**/leaf.js")
+    wait_until_ready(page)
+    assert page.locator("#passage").bounding_box() == before
+    assert page.evaluate("""() => {
+      const source = document.documentElement.lfInitial.authoredCopy(document.querySelector('main'));
+      return [source.getAttribute('style'), source.getAttribute('data-lf-margin')];
+    }""") == [None, None]
+    page.evaluate("window.originalPassage = document.querySelector('#passage')")
+    stamp_page(
+        serve.page_dir,
+        source.replace("Advance one cohort", "Advance two cohorts"),
+        "next cohort",
+    )
+    wait_for_revision(page, 2)
+    expect(page.locator("#passage")).to_contain_text("Advance two cohorts")
+    assert page.evaluate("originalPassage === document.querySelector('#passage')")
+
+
+@pytest.mark.parametrize(
+    "notes,local_region",
+    [(True, None), (False, None), (True, "bounded"), (True, "flow")],
+)
+def test_document_reading_survives_width_reflow(browser, serve, notes, local_region):
+    """The implicit document keeps its passage as notes enter flow, just as panes do."""
+    body = '<h1 id="title">Migration</h1><a href="#passage3">Read phase 3</a>'
+    for number in range(1, 9):
+        note = (
+            f'<aside class="sidenote" id="note{number}">Qualification {number}. '
+            "Keep the old readers until the new cohort passes its checks.</aside>"
+            if notes
+            else ""
+        )
+        body += (
+            f'<h2 id="heading{number}">Phase {number}</h2>{note}'
+            f'<p id="passage{number}">Phase {number} begins here. Advance one cohort at a time '
+            "and keep earlier readers available. The qualification explains this phase.</p>"
+            "<p>The next phase follows a separate approval. Read the supporting material before deciding.</p>"
+        )
+        if number == 4 and local_region:
+            body += (
+                (
+                    '<section id="local-region" style="height: 180px; overflow: auto">'
+                    if local_region == "bounded"
+                    else '<section id="local-region">'
+                )
+                + (
+                    "<p>Independent supporting material inside a local reading region.</p>"
+                    * 12
+                )
+                + "</section>"
+            )
+    page = open_page(browser, serve(leaf_page("Reading through reflow", body)))
+    if local_region:
+        page.evaluate("""async () => {
+          const {registerReadingRegion} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const body = document.querySelector('#local-region');
+          registerReadingRegion({id: body.id, host: body, body});
+        }""")
+    resized(page, 1440, 900)
+    page.get_by_role("link", name="Read phase 3", exact=True).click()
+    page.keyboard.press("Escape")
+    page.mouse.wheel(0, 160)
+    scroll_settled(page)
+    reading = """async () => {
+      const entry = new URL(document.querySelector('script[data-lf-entry]').dataset.lfEntry, location);
+      const {capturePlace} = await import(new URL('runtime/reading-place.js', entry));
+      return capturePlace();
+    }"""
+    before = page.evaluate(reading)
+    assert before["quote"]
+    for width in (390, 1440):
+        resized(page, width, 900)
+        after = page.evaluate(reading)
+        assert after["quote"] == before["quote"]
+        assert after["quoteTop"] == pytest.approx(before["quoteTop"], abs=1)
+
+
+def test_margin_residency_ignores_concealed_ancestors(browser, serve):
+    """An own hidden note can reserve a margin, but skipped ancestors cannot."""
+    cases = [
+        (
+            '<details><summary>More</summary><aside class="sidenote" style="display:none">Concealed note.</aside></details>',
+            False,
+        ),
+        (
+            '<div style="content-visibility:hidden"><aside class="sidenote" style="display:none">Skipped note.</aside></div>',
+            False,
+        ),
+        (
+            '<div style="display:none"><aside class="sidenote">Concealed note.</aside></div>',
+            False,
+        ),
+        (
+            '<div style="display:contents"><aside class="sidenote">Visible note.</aside></div>',
+            True,
+        ),
+        ('<aside class="sidenote" style="display:none">Own hidden note.</aside>', True),
+        (
+            '<aside class="sidenote" style="display:contents">Boxless note.</aside>',
+            False,
+        ),
+    ]
+    for contents, admitted in cases:
+        source = leaf_page(
+            "Concealed residents",
+            "<h1>Migration</h1>" + contents + "<p>Advance one cohort at a time.</p>",
+        )
+        page = open_page(browser, serve(source))
+        resized(page, 1440, 900)
+        assert (
+            "note"
+            in (page.locator("main").get_attribute("data-lf-margin") or "").split()
+        ) is admitted
+        page.close()

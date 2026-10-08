@@ -3311,6 +3311,17 @@ def surface_findings(page):
             rendered(page)
         return reader_state(page)
 
+    def settled_state(reading):
+        # The live region retains the last spoken command. A panel can mark a
+        # message read after Go-to announces its routes, so its next announcement
+        # correctly has different words even though the closed page is unchanged.
+        # The announcement is still part of the opening check above.
+        stable = reading.copy()
+        for line in page.locator(".lf-live").aria_snapshot(boxes=True).splitlines():
+            if line in stable:
+                stable.remove(line)
+        return stable
+
     findings = []
     left = reader_state(page)
     for surface, (keys, door) in SURFACES.items():
@@ -3318,7 +3329,7 @@ def surface_findings(page):
             continue
         press(keys)
         opened = reader_state(page) != left
-        first = left = unwind()
+        first = settled_state(left := unwind())
         if not opened:
             findings.append(f"{'+'.join(keys)} opened no {surface}")
             continue
@@ -3327,14 +3338,16 @@ def surface_findings(page):
             press(keys)
             left = unwind()
             trips.append(live_counts(page))
-            if changes := state_changes(first, left):
+            if changes := state_changes(first, settled_state(left)):
                 findings.append(
                     f"the {surface} closed again leaving\n" + "\n".join(changes[:12])
                 )
                 break
         for what in trips[0]:
             held = [trip[what] for trip in trips]
-            if all(later > earlier for earlier, later in itertools.pairwise(held)):
+            if len(trips) == AGAIN + 1 and all(
+                later > earlier for earlier, later in itertools.pairwise(held)
+            ):
                 findings.append(
                     f"the {surface} leaks {what}: {held} after each round trip"
                 )

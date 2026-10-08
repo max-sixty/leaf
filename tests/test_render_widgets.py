@@ -8227,14 +8227,17 @@ def test_composer_grows_caps_and_shrinks_with_its_text(browser, serve):
     grown = state()
     write(box, "x " * 900)  # far past the ceiling
     capped = state()
+    expect(page.locator(".lf-threads")).to_be_visible()
     write(box, "short again")
     shrunk = state()
 
     assert grown["h"] > empty["h"], "the box must grow with its content"
     assert not grown["scrollable"], "a box that fits its text must not be scrollable"
-    # The ceiling is 50vh — the viewport's share, not a count of lines — measured
-    # here in the suite's 900px-tall window.
-    assert capped["h"] == 450, f"the box must stop at its ceiling, got {capped['h']}px"
+    # The panel foot yields room to the thread list, so its available share can
+    # cap the editor before the viewport's 50vh ceiling does.
+    assert grown["h"] < capped["h"] <= page.viewport_size["height"] / 2, (
+        f"the box must grow within the panel's available share, got {capped['h']}px"
+    )
     assert capped["scrollable"], (
         "past the ceiling the scrollbar is real and belongs there"
     )
@@ -12521,7 +12524,7 @@ def test_a_diff_recovers_when_a_failed_manifest_file_is_repaired(browser, serve)
 def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
     browser, serve, manifest, starts_as_rename
 ):
-    """A path keeps its file controls; replaced presentation hands focus to that file."""
+    """A path keeps its controls; comment close and replaced evidence leave focus on its file."""
     rename = (
         "diff --git a/old.py b/app/handlers.py\n"
         "similarity index 100%\nrename from old.py\nrename to app/handlers.py\n"
@@ -12537,6 +12540,7 @@ def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
     if starts_as_rename:
         page.locator("lf-diff .lf-diff-file-comment").first.click()
         page.keyboard.press("Escape")
+        assert owner.evaluate("node => node === node.getRootNode().activeElement")
     else:
         page.locator("lf-diff summary").first.click()
         page.keyboard.press("ArrowRight")
@@ -12549,13 +12553,14 @@ def test_a_diff_file_keeps_focus_when_its_evidence_changes_kind(
         assert owner.evaluate("node => node.isConnected")
         assert comment.evaluate("node => node.isConnected")
         assert owner.evaluate("node => node.contains(node.getRootNode().activeElement)")
+        if starts_as_rename:
+            assert owner.evaluate("node => node === node.getRootNode().activeElement")
         assert page.evaluate("() => scrollY") == before
         if patch == regular:
             expect(
                 page.locator('lf-diff [data-lf-datum=\'["app/handlers.py","new",2]\']')
             ).to_contain_text("new first")
     if starts_as_rename:
-        assert comment.evaluate("node => node === node.getRootNode().activeElement")
         data_model.cmd_data_set(serve.page_dir, "review-patch", value(regular))
         told(page)
         rendered(page)

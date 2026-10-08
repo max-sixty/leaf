@@ -392,6 +392,7 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     tabs = page.locator("#root-tabs")
     plan = tabs.get_by_role("tab", name="Plan", exact=True)
     evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
+    summary = tabs.get_by_role("tab", name="Summary", exact=True)
 
     def switch(tab):
         # Locator.click would scroll a sticky tab back to its static-flow box.
@@ -426,11 +427,16 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     expect(plan).to_have_attribute("aria-selected", "true")
     assert settled() == 0
     # With the header on screen, a switch leaves it there.
+    assert switch(summary) == 0
     assert switch(evidence) == 0
     assert page.url.endswith("#evidence-tab")
     # Read Evidence past its start; Plan, never read, opens at its start under the
     # stuck strip rather than at the top of the page.
     evidence_read = read_at(450)
+    # Even a view shorter than the window keeps enough page below the sticky strip
+    # for the browser to land its start without pulling the strip downward.
+    assert 0 < switch(summary) < evidence_read
+    stuck_at_start("#summary-tab")
     plan_start = switch(plan)
     assert 0 < plan_start < evidence_read
     stuck_at_start("#plan-tab")

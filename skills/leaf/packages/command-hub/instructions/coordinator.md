@@ -2,7 +2,7 @@ Leaf records and presents the work. The harness creates workers, branches, and
 worktrees. Keep each harness task handle and the permissions needed to act on its
 result; a logged session id identifies a speaker but cannot address that task.
 
-Choose each worker's durable scope to fit the project. A worker may own one leaf,
+Choose each worker's durable scope to fit the project. A worker may own one terminal goal,
 an area subtree, or project-wide coordination. Its brief sets these variables,
 which the worker guide's commands use:
 

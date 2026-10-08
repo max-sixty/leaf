@@ -1,5 +1,20 @@
 # Delivered event batches
 
+## Handle the input
+
+Process every event in every batch. Read a delivery pointer with
+`leaf delivery read <id>` before working, so the complete envelope is in context.
+Follow its `acknowledge` instruction, then read each event's named `handling`
+clauses from the batch's `handling` object, in their listed order. These clauses
+name the response the event needs; an event without an `answer` owes none of its own.
+
+Before work, follow [conversation handoff, "When to write"](conversation-loop.md#when-to-write).
+Read [threads](threads.md) for messages and replies, or
+[authoring revisions](authoring-revisions.md) for an answer recorded in markup.
+Re-read current page state before answering, since later input may already have
+settled the obligation. Treat a page-and-sequence pair already handled in this
+task as a retry. The selected harness contract owns waiting and receipt.
+
 ## One envelope on every transport
 
 Every transport into your context presents an immutable object of the same shape:
@@ -36,8 +51,6 @@ once how to confirm receipt and how to answer:
 - A thread reply's `answer` is `turn` where the delivery arrives in a turn Leaf
   started over Codex App Server, which writes it with its own messages, and
   `reply`, for `leaf thread reply`, everywhere else.
-
-Process every batch and every event.
 
 Each event retains its stored identity, fields and order, less the browser's
 retry key `attempt`, then adds these delivery readings:

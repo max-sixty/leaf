@@ -24,10 +24,10 @@ assert:
   config:
     path: skills/leaf/SKILL\.md
 - type: javascript
-  metric: reads-app-server-harness
+  metric: reads-terminal-setup
   value: file://reference-read.cjs
   config:
-    path: skills/leaf/references/harness-codex-app-server\.md
+    path: skills/leaf/references/(?:harness-codex-app-server|codex-setup)\.md
 - type: llm-rubric
   metric: independent-transports
   value: |

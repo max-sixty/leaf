@@ -1,12 +1,8 @@
 # Codex handoff and delivery
 
-This contract is for a Codex task that Leaf reaches through Codex's durable queue:
-the desktop app, an IDE extension, or a terminal CLI started the ordinary way. A task
-whose environment sets `LEAF_CODEX_APP_SERVER`, as a `leaf codex launch` terminal
-does, or whose App Server endpoint the user gave you, is one Leaf reaches over Codex
-App Server instead, and follows `references/harness-codex-app-server.md`. The desktop
-app runs an App Server of its own, but Leaf cannot connect to it, so a desktop task
-follows this contract.
+Use this contract when the main skill's "Harness selection" selects ordinary
+Codex. Leaf carries user input back to this task through Codex's durable queue,
+including in the desktop app, IDE, and an ordinary terminal session.
 
 ## Full Leaf handoff
 
@@ -17,8 +13,7 @@ This runs Leaf's theme, package widgets, anchored comments, versions, and state
 stream unchanged.
 
 Serving connects delivery before returning the URL, including when the page's
-server is already running. Set the page to `waiting`, then finish the turn with
-the URL and a concrete gesture. The browser pane is the presentation; the adapter
+server is already running. Follow `references/conversation-loop.md`, "Status and handoff". The browser pane is the presentation; the adapter
 below carries input back to this same task.
 
 ## Delivery

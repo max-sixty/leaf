@@ -1,14 +1,10 @@
 # Codex App Server handoff and delivery
 
-This contract is for a Codex task Leaf reaches over Codex App Server
-(`codex app-server`), the JSON-RPC server Codex's clients drive a task through. Leaf
-is a client of the task's server: it starts the turns that carry user input and takes
-each turn's opening and final messages as its reply. A terminal task is on App Server when its
-environment sets `LEAF_CODEX_APP_SERVER`, as a `leaf codex launch` terminal does, or
-when the user gave you the task's App Server endpoint; it hands its own page over, as
-"Hand a page over from a terminal" describes. A harness that starts the task itself, as
-leaf.page does, says so in its own instructions and has already handed the page over.
-Any other Codex task, the desktop app's included, follows `references/harness-codex.md`.
+Use this contract when the main skill's "Harness selection" selects Codex App
+Server. Leaf starts the turns that deliver user input and writes each turn's
+opening and final messages to its addressed thread. A harness that starts the
+task, such as leaf.page, has already handed the page over. A terminal task hands
+its page over as "Hand a page over from a terminal" describes.
 
 ## Delivery
 
@@ -67,47 +63,15 @@ serving leaves running: it connects to the task's server as a second
 client, watches the task's own turns, and starts a delivery's turn once the task is
 idle. This route is experimental.
 
-### Start the terminal
+If the user supplied an endpoint and `LEAF_CODEX_APP_SERVER` is absent, bind it
+before serving starts an adapter on another route:
 
-The normal entry point starts a private Unix-socket App Server and runs the terminal
-client against it:
-
-```sh
-leaf codex launch
+```bash
+leaf codex start <page> --app-server <supplied-endpoint>
 ```
 
-The launcher exports its endpoint to the task as `LEAF_CODEX_APP_SERVER` and owns
-both processes. Exiting the terminal stops its App Server, so each terminal is
-independent and no fixed port or separate server tab remains. Observed activity ends
-with that server.
-
-To run the two processes separately, create a private socket directory and print
-its endpoint before starting App Server:
-
-```sh
-socket_dir=$(mktemp -d /tmp/leaf-codex.XXXXXX)
-endpoint="unix://$socket_dir/app-server.sock"
-printf '%s\n' "$endpoint"
-codex app-server --listen "$endpoint"
-```
-
-In the terminal client's shell, copy that printed endpoint:
-
-```sh
-export LEAF_CODEX_APP_SERVER="<printed endpoint>"
-codex --remote "$LEAF_CODEX_APP_SERVER"
-```
-
-The task inherits the endpoint, so `leaf codex start` connects to that App Server.
-Each pair of processes has its own socket; parallel versions need no port assignment.
-
-Only `unix://<absolute path>` sockets and unauthenticated loopback `ws://` endpoints
-are accepted; keep a socket you supply in a directory only you can reach, as
-`leaf codex launch` does. The loopback WebSocket listener is experimental; do not
-expose it on a network. Keep the CLI open because it is still the interactive client for
-approvals and user input. The task is still stored in Codex's task history and can be
-resumed later from the CLI or desktop app after the standalone server releases its
-writer; the desktop app is not a live client of this separately started server.
+If an adapter already holds a different endpoint, follow the conflict diagnostic.
+Terminal launch and independent-shell setup are in `references/codex-setup.md`.
 
 ### Full Leaf handoff
 
@@ -117,8 +81,8 @@ theme, package widgets, anchored comments, versions, and state stream unchanged.
 
 Serving starts or joins the task's delivery adapter before returning the URL,
 using `LEAF_CODEX_APP_SERVER` as its endpoint. Re-serving restores an adapter that
-stopped, including when the page server is already running. Set the page to
-`waiting`, then finish the turn with the URL and a concrete gesture. The adapter
+stopped, including when the page server is already running. Follow
+`references/conversation-loop.md`, "Status and handoff". The adapter
 watches every page this task owns, and a completed turn does not stop it.
 
 `leaf codex start <page>` connects delivery explicitly when claiming without

@@ -1,5 +1,9 @@
 # Conversation handoff
 
+Keep the user informed on the page, and answer delivered updates there using
+each event's `handling` instructions. A chat response alone does not revise the
+page's content.
+
 ## What the user sees
 
 The user follows your work on the page:
@@ -8,14 +12,13 @@ The user follows your work on the page:
 | --- | --- | --- |
 | Banner | one sentence for the whole page: the line of the item you have in hand, or what you want back | `leaf task start`, `leaf status <page> waiting "<detail>"` |
 | Beside a thread or widget | **Working** and your line, above the message or on the control the work answers | `leaf thread reply --ephemeral`, `leaf task start <page> <id> "<line>"` |
-| Thread | what you will do, your progress, and your answer to the user's message | `leaf thread reply` |
+| Thread | what you will do, your progress, and your answer to the user's message | the response operation named by delivered `handling` |
 | Page | the revised content in place, and a stamp's changelog | saving `index.html`, `leaf page stamp` |
 
 Leaf itself marks each user move **Sent**, **Queued**, and **Picked up**, including
 a move that owes you nothing, such as a moved card. A pick before the Done its Ask
 waits for is marked with that Done. Your harness
-contract may add its own current step to the banner. Chat stays in the harness and never
-reaches the page.
+contract may add its own current step to the banner.
 
 Readings in `leaf page state <page>` describe the user's side between their
 moves. `viewed` says whether they are there: the last time a browser tab had the page
@@ -64,9 +67,10 @@ an answer, named by the move's event id as its delivery gives it, or a task you
 opened. Take the item in hand before starting its work, with one line saying what
 you are doing.
 
-When the item is a message in a thread that asks for work, your first command
-after its delivery, before you read or edit anything, says in its thread what you
-are about to do:
+When a thread message asks for work, make your intended work visible there
+before reading or editing. Follow the event's `handling`: a turn-written reply
+starts with your first message, as the selected harness's "Replies" describes.
+For a command-written reply, your first command after delivery is:
 
 ```bash
 leaf thread reply <page> --for <event-id> --ephemeral --text "<what you will do, in a line>"
@@ -89,9 +93,9 @@ only the line, and folding it into the command that begins the step costs no ext
 tool call. Name the operation and its subject in one sentence; "Working on it"
 tells the user nothing the banner's dot does not already say.
 
-Work no user move asked for, such as a request made in the terminal or a revision
-you begin yourself, gets an item too: open a task for it on the page, or on the
-widget it concerns, and start that task:
+Work requested in chat or begun by you gets an item too. After initializing a
+new page, open and start its task before authoring. On an existing page, open it
+on the widget it concerns, or on `page`:
 
 ```bash
 leaf task open <page> page "Add a glossary"
@@ -131,8 +135,14 @@ leaf status <page> waiting "<what you want back>"
 
 The detail names the concrete answer or decision, not the fact that you are
 waiting. For an informational page with no concrete ask, leave it empty; the
-banner then invites the user to select text to comment. Finish the turn by the
-handoff route in the main skill, "Operate". A `waiting` puts down every item you
+banner then invites the user to select text to comment. Name the gesture available
+to the user and hand over by the selected harness contract. From the first handoff
+on, include
+the exact page URL in every turn's final response; intermediate progress updates
+do not repeat it. An export hands over its file URL, and a harness that already
+presents the page uses its own handoff surface.
+
+A `waiting` puts down every item you
 started before it, so the banner shows what you want back; a task stays open on
 you until you end it.
 

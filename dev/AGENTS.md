@@ -151,9 +151,10 @@ the host's login. TARGET is `claude-code` (interactive, in a tmux pane),
 the desktop app's and IDE extension's), or `pi` (the version `dev/pi/package.json`
 pins, in RPC mode, on a copy of the host's Codex login). `journey.py` owns what the
 harnesses share: the isolation and its evidence under `.tmp/journey/`, the
-`Terminal` every wait hears the session through, and the `User` who comments by
-selecting passages in Threads, so each step is timed as the release ask is, with
-the agent's work on each comment split into delivery, model and tool phases.
+`Terminal` every wait hears the session through, and the `User` who selects
+passages on the page to comment on them, so each step is timed as the release ask
+is, with the agent's work on each comment split into delivery, model and tool
+phases.
 Between steps the journey fails unless every comment so far has one reply and a
 pickup and the page's claim names the session with its turn closed; what else each
 target checks is its harness's promise, which its module lists with its steps

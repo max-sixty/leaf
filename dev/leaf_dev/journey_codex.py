@@ -29,7 +29,7 @@ The steps, in order:
   its own;
 - `resume`, on `codex-queue`: a turn interrupted during its shell command is resumed
   with empty input, as the desktop app resumes one, and a comment sent while the
-  resumed turn runs enters it, starting no turn of its own;
+  resumed turn reruns that command enters it, starting no turn of its own;
 - `restart`: with the adapter killed, the user's next turn ends with the agent having
   started it again, and a comment sent afterwards is answered.
 
@@ -92,10 +92,12 @@ from leaf_dev.review_scenario import (
 )
 
 RESTART_TURN = "Reply with the single word OK."
+# A resumed turn reruns the command it was interrupted in, so it is still running
+# when the comment sent during it is admitted.
 RESUME_TURN = (
     f"Run `python3 -c 'import time; {SLEEP}'` in the shell, then in a separate tool "
     "call run `printf 'verified\\n'`, then say done. If interrupted and resumed, "
-    "skip the remaining shell command and report the interruption."
+    "run the same `python3` command again first, then continue."
 )
 # Where the queue wrapper finds the private App Server the task's `codex queue` reaches.
 ENDPOINT = "LEAF_JOURNEY_CODEX_ENDPOINT"
@@ -386,9 +388,7 @@ def steps(
         codex.until(
             lambda: resumed in task.started, "the empty-input resume did not start"
         )
-        require(resumed in task.running, "the empty-input resume already ended")
-        # Resume can continue tools or simply report the interruption. Send while
-        # that native turn is open, before its first delivery hook.
+        codex.await_command(SLEEP, "the resumed turn did not rerun its command")
         during = user.comment("resume")
         codex.settle(
             lambda: user.answered("resume"),

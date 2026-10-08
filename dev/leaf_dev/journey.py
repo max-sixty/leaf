@@ -42,13 +42,15 @@ admitted a comment, titled its thread, activated the published revision and
 admitted the reply; `sinceAdmissionMs` reads those from the comment's admission, so
 every target is timed on one clock, the page server's. The browser alone sees the
 POST's answer and the reply showing in Threads, which the page records itself
-(`reply_shown`); `sinceSendMs` reads those from the send. Where the journey runs the
+(`shown_reply`); `sinceSendMs` reads those from the send. Where the journey runs the
 agent itself, its record of the session (Claude Code's transcript, Codex's App
 Server notifications, Pi's RPC events) also splits the agent's work from the
 comment's admission to its reply into delivery (until it is picked up), model and
-tool phases (`turn`), so a slow reply shows where it went. The JSON on stdout carries all of it: `comment`
-for the release ask, `steps` for each step's duration and its comments' timings,
-and the code version the journey ran.
+tool phases (`turn`), so a slow reply shows where it went. The JSON on stdout carries
+all of it: `comment` for the release ask, `steps` for each step's duration and its
+comments' timings, and the code version the journey ran. A comment whose step held a
+permission prompt the user answered says so (`approved`), since the prompt held the
+session for as long as it stood.
 
 A `startup_failed` receipt gets one more ask; any other failure receipt fails on
 the first (`worker/README.md` owns that contract).
@@ -72,7 +74,6 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from time import perf_counter
 from typing import NamedTuple
 from urllib.parse import urljoin, urlsplit
 
@@ -189,10 +190,16 @@ class AgentProfile:
         self.visible_reply_started_ms: float | None = None
         self.acknowledged: list[float] = []
         self.visible_reply_s: float | None = None
+        self.visible_reply_by: str | None = None
         self.activities: list[tuple[float, str, str]] = []
         self.ask_count = 0
         self.reference: str | None = None
         self.event_ids: list[str] = []
+
+    def show(self, shown: dict) -> None:
+        """Time the reply to the page's reading of when and how it showed it."""
+        self.visible_reply_s = (shown["at"] - self.visible_reply_started_ms) / 1000
+        self.visible_reply_by = shown["by"]
 
     def acknowledge(self) -> None:
         self.acknowledged.append(time.monotonic() - self.started)
@@ -355,6 +362,7 @@ def agent_profile(profile: AgentProfile, steps: dict) -> dict:
             "acknowledged": [ms(at) for at in profile.acknowledged],
             "responseVisible": ms(profile.visible_reply_s),
         },
+        "responseShownBy": profile.visible_reply_by,
         "activity": [
             {"atMs": at * 1000, "kind": kind, "detail": detail}
             for at, kind, detail in profile.activities
@@ -437,12 +445,9 @@ def ask_to_record(
 def select_passage(page: Page, passage: str) -> None:
     """Triple-click the words of the element `passage` selects, where a user aims:
     the first of its drawn words that nothing covers, which its box's centre may not
-    be. Where Threads stands over all of them, the user shuts it first."""
+    be."""
     page.locator(passage).scroll_into_view_if_needed()
     point = uncovered_word(page, passage)
-    if point is None and page.locator(".lf-general leaf-text").is_visible():
-        page.locator(".lf-threads-toggle").click()
-        point = uncovered_word(page, passage)
     check(point is not None, f"no word of {passage} is uncovered to select")
     page.mouse.click(*point, click_count=3)
 
@@ -616,54 +621,38 @@ def ask_until_answered(session: Session, marker: str) -> AgentAsks:
         )
 
 
-def wait_for_visible_reply(page, parent: str, answer_id: str) -> bool:
-    """Open held news until the admitted reply is seen within one bounded wait.
-
-    The browser may hold a stream update when the server has already admitted its
-    final answer. Opening that notice before the final reading arrives can leave a
-    second notice for the answer, so one click does not settle the observation.
-    """
-    deadline = perf_counter() + VISIBLE_REPLY_PATIENCE / 1000
-    while True:
-        remaining = max(1, round((deadline - perf_counter()) * 1000))
-        if perf_counter() >= deadline:
-            return False
-        try:
-            page.wait_for_function(
-                """({parent, id}) => window.__leafVerifier.visibleReplyRecorded(id) ||
-                  [...document.querySelectorAll('.lf-threads > .lf-thread')].some(
-                    thread => thread.dataset.id === parent &&
-                      [...thread.querySelectorAll('.lf-thread-news')].some(
-                        notice => notice.checkVisibility()))""",
-                arg={"parent": parent, "id": answer_id},
-                timeout=remaining,
-            )
-            if page.evaluate(
-                "id => window.__leafVerifier.visibleReplyRecorded(id)", answer_id
-            ):
-                return True
-            page.locator(
-                f'.lf-threads > .lf-thread[data-id="{parent}"] .lf-thread-news'
-            ).click(timeout=remaining)
-        except PlaywrightTimeout:
-            return False
+def open_news(page: Page, thread: str) -> None:
+    """Open the news `thread` holds back, if it shows any, as a reader waiting on it
+    does. The page times what it then shows, so when this runs changes no reading."""
+    news = page.locator(f'.lf-thread[data-id="{thread}"] .lf-thread-news')
+    if news.count() and news.first.is_visible():
+        news.first.click()
 
 
-def reply_shown(page: Page, answer: dict, started_ms: float) -> float:
-    """Seconds after `started_ms` at which the page first showed the user `answer`,
-    as the page itself recorded it, however the journey was occupied then
-    (`verify_site_browser.js`)."""
-    at = page.evaluate(
+def shown_reply(page: Page, answer: dict) -> dict | None:
+    """When the page first showed the user `answer`, and by which sign, as the page
+    itself recorded it however the journey was occupied then
+    (`verify_site_browser.js`), or None where it has not."""
+    return page.evaluate(
         "window.__leafVerifier.replyShownAt",
         {"thread": answer["parent"], "id": answer["id"], "ts": answer["ts"]},
     )
-    if at is None:
-        debug = page.evaluate("window.__leafVerifier.visibleReplyDebug")
-        raise RuntimeError(
-            f"the reply {answer['id']} never showed in Threads; the page reports "
-            f"{json.dumps(debug)}"
-        )
-    return (at - started_ms) / 1000
+
+
+def await_reply_shown(session: Session, answer: dict) -> dict:
+    """Hear the session until the page shows the user `answer`, opening any news its
+    thread holds back, within `VISIBLE_REPLY_PATIENCE`; return when and how."""
+    deadline = time.monotonic() + VISIBLE_REPLY_PATIENCE / 1000
+    while (shown := shown_reply(session.page, answer)) is None:
+        if time.monotonic() >= deadline:
+            debug = session.page.evaluate("window.__leafVerifier.visibleReplyDebug")
+            raise RuntimeError(
+                f"{session.url} reply {answer['id']} never showed in Threads, its "
+                f"news opened; the page reports {json.dumps(debug)}"
+            )
+        open_news(session.page, answer["parent"])
+        session.pause(0.5)
+    return shown
 
 
 def run_journey(session: Session, version: str) -> dict:
@@ -686,11 +675,7 @@ def run_journey(session: Session, version: str) -> dict:
     )
     events = await_title(session, answer["parent"], turn.state)["events"]
     steps = recorded_steps(events, answered_comment, published)
-    reply_visible = wait_for_visible_reply(page, answer["parent"], answer["id"])
-    if reply_visible:
-        profile.visible_reply_s = reply_shown(
-            page, answer, profile.visible_reply_started_ms
-        )
+    profile.show(await_reply_shown(session, answer))
     comment = agent_profile(profile, steps)
     if session.records is not None:
         comment["turn"] = turn_phases(
@@ -700,13 +685,6 @@ def run_journey(session: Session, version: str) -> dict:
             answer["ts"],
         )
     print(json.dumps(comment, indent=2), file=sys.stderr)
-    if not reply_visible:
-        debug = page.evaluate("window.__leafVerifier.visibleReplyDebug")
-        raise RuntimeError(
-            f"{url} reply never became visible in Threads after opening its "
-            f"held news; the answer was read out of "
-            f"{turn.state['reading']}, and the page reports {json.dumps(debug)}"
-        )
     reloaded = page.reload(wait_until="load", timeout=120_000)
     check(
         reloaded is not None and reloaded.ok,
@@ -797,13 +775,12 @@ class Terminal:
     whichever wait meets it, and a session that has gone fails the wait. `records`
     is the session's tool and turn record, stamped `received_at`, which a harness
     that reports it as it goes keeps in `trace`; `approved` holds the
-    permission prompts answered since the last step, each with how long it held the
-    session up; `running_commands` and `commands` are the shell commands it is
+    permission prompts answered since the last step; `running_commands` and `commands` are the shell commands it is
     running and has run, where the harness reports them."""
 
     def __init__(self) -> None:
         self.trace: list[dict] = []
-        self.approved: list[dict] = []
+        self.approved: list[str] = []
         self.running_commands: dict[str, str] = {}
         self.commands: list[str] = []
 
@@ -988,23 +965,19 @@ class User:
         """Whether the agent has answered step `name`'s comment. Waiting on it, the
         user opens any news its thread holds back, as a reader does; the page times
         what it shows them, so when they open it changes no reading."""
-        news = self.session.page.locator(
-            f'.lf-thread[data-id="{self.ids[name]}"] .lf-thread-news'
-        )
-        if news.count() and news.first.is_visible():
-            news.first.click()
+        open_news(self.session.page, self.ids[name])
         return deployment_answer(self.events(), self.ids[name]) is not None
 
     def passed(self, name: str, started: float, *details: str) -> None:
         """Record step `name`, begun at `started`, with the comments sent during it
-        and the permission prompts answered, whose time it does not count, and print
-        it with `details`."""
+        and the permission prompts the user answered, and print it with `details`. A
+        prompt holds the session for as long as it stands, so a step's readings with
+        one are not like those without, and say so (`sample`)."""
         approved = self.terminal.approved if self.terminal is not None else []
-        held = sum(approval["seconds"] for approval in approved)
-        seconds = time.monotonic() - started - held
+        seconds = time.monotonic() - started
         step = {"step": name, "seconds": round(seconds, 1), "comments": self.sent}
         if approved:
-            step["approved"] = [approval["prompt"] for approval in approved]
+            step["approved"] = list(approved)
             approved.clear()
         self.steps.append(step)
         timings = [self.timing(sent) for sent in self.sent]
@@ -1035,17 +1008,17 @@ class User:
 
     def sample(self) -> dict:
         """The journey's reading: the release ask's, and each step's duration and
-        the timings of the comments it sent. Each reply must have shown in
-        Threads."""
+        the timings of the comments it sent, each marked with the permission prompts
+        answered during its step. Each reply must have shown in Threads."""
         events = self.events() if self.profiles else []
         comments = {}
         for name, profile in self.profiles.items():
             comment = next(e for e in events if e["id"] == self.ids[name])
             answer = deployment_answer(events, comment["id"])
             check(answer is not None, f"`{name}` has no answer")
-            profile.visible_reply_s = reply_shown(
-                self.session.page, answer, profile.visible_reply_started_ms
-            )
+            shown = shown_reply(self.session.page, answer)
+            check(shown is not None, f"the reply to `{name}` never showed in Threads")
+            profile.show(shown)
             reading = agent_profile(profile, recorded_steps(events, comment, None))
             if self.session.records is not None:
                 reading["turn"] = turn_phases(
@@ -1055,11 +1028,21 @@ class User:
                     answer["ts"],
                 )
             comments[name] = reading
+        release = self.release_reading
+        for step in self.steps:
+            for name in step["comments"]:
+                if "approved" in step:
+                    comments[name]["approved"] = step["approved"]
+            if step["step"] == "release" and "approved" in step:
+                release = {
+                    **release,
+                    "comment": {**release["comment"], "approved": step["approved"]},
+                }
         steps = [
             {**step, "comments": {name: comments[name] for name in step["comments"]}}
             for step in self.steps
         ]
-        return {**self.release_reading, "steps": steps}
+        return {**release, "steps": steps}
 
 
 def checkout_version() -> str:
@@ -1230,11 +1213,14 @@ LABEL_PX = 5.5
 
 
 def chart_target(sample: dict) -> str:
-    """What a chart row names: the target, with the options it ran under."""
+    """What a chart row names: the target, with the options it ran under, and
+    whether the user answered a permission prompt during its release ask."""
     return (
         TARGET_NAMES.get(sample["target"], sample["target"])
         + (" with the hooks module" if sample.get("hooksModule") else "")
         + (" through a preview" if sample.get("preview") else "")
+        # A permission prompt holds the session for as long as it stands.
+        + (" after a permission prompt" if sample["comment"].get("approved") else "")
     )
 
 

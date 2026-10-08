@@ -119,9 +119,6 @@ class Pi(Terminal):
             self.closed_watches += 1
         elif kind == "agent_start":
             self.running = True
-            self.trace.append(
-                {"type": "system", "subtype": "init", "received_at": now()}
-            )
         elif kind == "agent_settled":
             self.running = False
             self.settled += 1

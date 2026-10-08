@@ -66,6 +66,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 import click
+import psutil
 from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.hook_transport import INLINE_DELIVERY
@@ -171,15 +172,10 @@ class ClaudeCode(Terminal):
         return turn is not None and turn["state"] == "idle"
 
     def sleeping(self) -> bool:
-        """Whether the user's turn is in its shell step."""
-        return (
-            subprocess.run(
-                ["pgrep", "-f", SLEEP.replace("(", r"\(").replace(")", r"\)")],
-                capture_output=True,
-                check=False,
-            ).returncode
-            == 0
-        )
+        """Whether the user's turn is in its shell step: whether the pane's own
+        processes, and no other journey's, run its command."""
+        pane = self.tmux("display-message", "-p", "-t", self.pane, "#{pane_pid}")
+        return runs(int(pane), SLEEP)
 
     def hear(self, seconds: float) -> None:
         require(not self.exited.exists(), f"Claude Code exited\n{self.screen()}")
@@ -194,30 +190,49 @@ class ClaudeCode(Terminal):
 
     def approve(self) -> None:
         """Answer a permission prompt Yes, as the user at the pane does, and record
-        it with how long it held the session. Every one of Claude Code's prompts asks
-        "Do you want to …?" above options starting "1. Yes", and "Esc to cancel":
-        "proceed" for a command, "make this edit to" or "create" a file for Edit and
-        Write."""
-        lines = [line.strip() for line in self.screen().splitlines()]
-        question = next(
-            (line for line in lines if line.startswith("Do you want to ")), None
-        )
-        if (
-            question is None
-            or not any(line.lstrip("❯ ").startswith("1. Yes") for line in lines)
-            or not any("Esc to cancel" in line for line in lines)
-        ):
+        it."""
+        question = permission_prompt(self.screen())
+        if question is None:
             return
-        started = time.monotonic()
         self.tmux("send-keys", "-t", self.pane, "Enter")
-        while question in self.screen() and time.monotonic() - started < 10:
+        deadline = time.monotonic() + 10
+        while question in self.screen() and time.monotonic() < deadline:
             time.sleep(0.1)
-        self.approved.append(
-            {"prompt": question, "seconds": time.monotonic() - started}
-        )
+        self.approved.append(question)
 
     def close(self) -> None:
         self.tmux("kill-session", "-t", self.pane)
+
+
+def permission_prompt(screen: str) -> str | None:
+    """The question of the permission prompt `screen` shows, if it shows one. Each of
+    Claude Code's asks "Do you want to …?" above options starting "1. Yes" and
+    "Esc to cancel": "proceed" for a command, "make this edit to" or "create" a file
+    for Edit and Write. The question alone is not a prompt, since the agent's own
+    words may ask it."""
+    lines = [line.strip() for line in screen.splitlines()]
+    question = next(
+        (line for line in lines if line.startswith("Do you want to ")), None
+    )
+    if (
+        question is None
+        or not any(line.lstrip("❯ ").startswith("1. Yes") for line in lines)
+        or not any("Esc to cancel" in line for line in lines)
+    ):
+        return None
+    return question
+
+
+def runs(pid: int, command: str) -> bool:
+    """Whether a descendant of process `pid` runs a command line containing
+    `command`."""
+    for child in psutil.Process(pid).children(recursive=True):
+        try:
+            if command in " ".join(child.cmdline()):
+                return True
+        except psutil.NoSuchProcess:
+            continue
+    return False
 
 
 def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:

@@ -59,8 +59,9 @@ COMMENTS = {
 }
 
 # A turn of the user's own that runs a shell command long enough to comment, or press
-# Escape, during it. The command is one no other process on the host runs, so the
-# process table says the turn is in it.
+# Escape, during it. Each harness finds the command among its own session's: Claude
+# Code's journey among its pane's processes, Codex's and Pi's in what the session
+# reports running.
 SLEEP = "time.sleep(25.17)"
 USER_TURN = (
     f"Run `python3 -c 'import time; {SLEEP}'` in the shell, in the foreground. Then, "

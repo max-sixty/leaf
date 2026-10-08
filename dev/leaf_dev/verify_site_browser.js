@@ -1,115 +1,145 @@
 /*
  * Browser-side observations for `leaf-dev verify-site`, installed before each navigation.
- * Shared startup evidence is installed separately. Visible-reply timestamps use sessionStorage
+ * Shared startup evidence is installed separately. Reply readings use sessionStorage
  * because the agent journey may navigate before Python reads them. __leafVerifier is
  * the website-specific Playwright boundary exposed to the Python orchestrator.
  *
  * A reply shows the user one of three ways, in the Threads panel or on a card at its
- * passage, and the page records each as it happens, whatever the journey is doing:
- * the reply's own message coming into view in an open thread; a thread's row in the panel, open or folded, dating its latest message
- * activity at or after the reply, since a folded thread draws no messages; or a news
- * notice on a thread holding the reply back, so as not to move what the user reads,
- * changing what it says after the reply was admitted. Only the last compares the
- * page's clock with the server's.
+ * passage, and the page records each as it happens, whatever the journey is doing,
+ * counting only what is in view by the same measure for all three: the reply's own
+ * message; a thread's row, open or folded, dating its latest message activity at or
+ * after the reply, since a folded thread draws no messages; or a news notice, on a
+ * thread holding the reply back so as not to move what the user reads, changing once
+ * the page's applied state holds the reply. Each compares like clocks: the row's date
+ * with the reply's, both the server's, and the notice's change with the reply's
+ * arrival, both the page's.
  */
 (() => {
-  const visibleReplyStartedKey = "leaf-visible-reply-started";
-  const visibleReplyAtKey = "leaf-visible-reply-at";
-  const threadActivityAtKey = "leaf-thread-activity-at";
+  const startedKey = "leaf-visible-reply-started";
+  const shownKey = "leaf-reply-shown";
   let activationCount = 0;
-  let visibleReplyObservers = null;
+  let watch = null;
   function serverScript() {
     const script = document.querySelector("script[data-lf-server]");
     if (!script) throw new Error("Leaf server script is missing");
     return script;
   }
 
-  function stopVisibleReplyWatch() {
-    visibleReplyObservers?.mutations.disconnect();
-    visibleReplyObservers?.intersections.disconnect();
-    visibleReplyObservers = null;
+  // `messages`: when each message id came into view; `rows`: when each thread's row in
+  // view first dated its latest activity at each instant; `notices`: each change of
+  // what a thread's notice in view says, its going included; `applied`: when the
+  // page's applied state first held each event.
+  function shown() {
+    return {
+      messages: {},
+      rows: {},
+      notices: {},
+      applied: {},
+      ...JSON.parse(sessionStorage.getItem(shownKey) ?? "{}"),
+    };
   }
 
-  function visibleReplies() {
-    return JSON.parse(sessionStorage.getItem(visibleReplyAtKey) ?? "{}");
+  function stopWatch() {
+    watch?.mutations.disconnect();
+    watch?.intersections.disconnect();
+    watch?.unsubscribe?.();
+    watch = null;
   }
 
-  function threadActivity() {
-    return JSON.parse(sessionStorage.getItem(threadActivityAtKey) ?? "{}");
-  }
-
-  // When each thread's row first dated its latest message activity at each instant.
-  function recordThreadActivity() {
-    const found = threadActivity();
-    let changed = false;
-    for (const recency of document.querySelectorAll(
-      ".lf-thread[data-id] > .lf-thread-summary .lf-thread-recency[datetime]",
-    )) {
-      const thread = recency.closest(".lf-thread").dataset.id;
-      const latest = recency.getAttribute("datetime");
-      if (found[thread]?.[latest] !== undefined || !recency.checkVisibility()) continue;
-      found[thread] = { ...found[thread], [latest]: Date.now() };
-      changed = true;
-    }
-    // A thread's notice is recorded each time what it says changes, its going
-    // included, at the page's own time.
-    for (const node of document.querySelectorAll(".lf-thread[data-id]")) {
-      const thread = node.dataset.id;
-      const notice = node.querySelector(".lf-thread-news");
-      const said = notice?.checkVisibility() ? notice.textContent.trim() : null;
-      const notices = found[thread]?.news ?? [];
-      if ((notices.at(-1)?.[0] ?? null) === said) continue;
-      found[thread] = { ...found[thread], news: [...notices, [said, Date.now()]] };
-      changed = true;
-    }
-    if (changed) sessionStorage.setItem(threadActivityAtKey, JSON.stringify(found));
-  }
-
-  function watchVisibleAgentReply() {
-    const started = sessionStorage.getItem(visibleReplyStartedKey);
-    if (started === null || visibleReplyObservers) return;
-
-    // A streamed draft and its durable answer reuse the same message node. Observing
-    // that node once would keep the stream's id even after its data-mid changes.
-    const seen = new WeakMap();
-    const intersections = new IntersectionObserver((entries) => {
-      const replies = visibleReplies();
-      for (const { isIntersecting, target } of entries) {
-        const id = target.dataset.mid;
+  function startWatch() {
+    if (sessionStorage.getItem(startedKey) === null || watch) return;
+    const inView = new WeakSet();
+    const observed = new WeakSet();
+    const record = () => {
+      const found = shown();
+      const now = Date.now();
+      const seen = (node) => inView.has(node) && node.checkVisibility();
+      for (const message of document.querySelectorAll(".lf-msg.agent[data-mid]")) {
+        const id = message.dataset.mid;
         if (
-          !isIntersecting ||
-          !id ||
-          replies[id] ||
-          !target.querySelector(".lf-msg-text")?.textContent.trim() ||
-          !target.checkVisibility()
+          found.messages[id] === undefined &&
+          seen(message) &&
+          message.querySelector(".lf-msg-text")?.textContent.trim()
         )
-          continue;
-        replies[id] = Date.now();
-        intersections.unobserve(target);
+          found.messages[id] = now;
       }
-      sessionStorage.setItem(visibleReplyAtKey, JSON.stringify(replies));
+      for (const row of document.querySelectorAll(
+        ".lf-thread[data-id] > .lf-thread-summary",
+      )) {
+        const thread = row.parentElement.dataset.id;
+        const latest = row
+          .querySelector(".lf-thread-recency")
+          ?.getAttribute("datetime");
+        found.rows[thread] ??= {};
+        if (latest && found.rows[thread][latest] === undefined && seen(row))
+          found.rows[thread][latest] = now;
+      }
+      for (const node of document.querySelectorAll(".lf-thread[data-id]")) {
+        const thread = node.dataset.id;
+        const notice = node.querySelector(".lf-thread-news");
+        const said = notice && seen(notice) ? notice.textContent.trim() : null;
+        const notices = found.notices[thread] ?? [];
+        if ((notices.at(-1)?.[0] ?? null) !== said)
+          found.notices[thread] = [...notices, [said, now]];
+      }
+      sessionStorage.setItem(shownKey, JSON.stringify(found));
+    };
+    const intersections = new IntersectionObserver((entries) => {
+      for (const { isIntersecting, target } of entries)
+        if (isIntersecting) inView.add(target);
+        else inView.delete(target);
+      record();
     });
     const observe = () => {
-      recordThreadActivity();
-      for (const message of document.querySelectorAll(".lf-msg.agent[data-mid]")) {
-        if (
-          seen.get(message) !== message.dataset.mid &&
-          message.querySelector(".lf-msg-text")?.textContent.trim()
-        ) {
-          if (seen.has(message)) intersections.unobserve(message);
-          seen.set(message, message.dataset.mid);
-          intersections.observe(message);
+      for (const node of document.querySelectorAll(
+        ".lf-msg.agent[data-mid], .lf-thread[data-id] > .lf-thread-summary, .lf-thread-news",
+      ))
+        if (!observed.has(node)) {
+          observed.add(node);
+          intersections.observe(node);
         }
-      }
+      record();
+      watchApplied();
     };
     const mutations = new MutationObserver(observe);
-    visibleReplyObservers = { mutations, intersections };
-    mutations.observe(document, {
-      attributes: true,
-      childList: true,
-      subtree: true,
-    });
+    watch = { mutations, intersections };
+    mutations.observe(document, { attributes: true, childList: true, subtree: true });
     observe();
+  }
+
+  // The page's applied state is the runtime's own reading, which a reply joins when
+  // the page has it, whether or not it draws it.
+  function watchApplied() {
+    if (!watch || watch.applied || !document.querySelector("script[data-lf-server]"))
+      return;
+    watch.applied = runtimeModule("semantic-state").then((semantic) => {
+      const apply = (reading) => {
+        const found = shown();
+        const now = Date.now();
+        for (const event of reading.authoritative?.events ?? [])
+          found.applied[event.id] ??= now;
+        sessionStorage.setItem(shownKey, JSON.stringify(found));
+      };
+      apply(semantic.readApplication());
+      if (watch) watch.unsubscribe = semantic.watchSemantic(apply);
+    });
+  }
+
+  // When the page first showed the user reply `id`, admitted at `ts` in `thread`, and
+  // by which sign: its `message`, its thread's `row`, or its thread's `notice`.
+  function replyShown({ thread, id, ts }) {
+    const found = shown();
+    const signs = [["message", found.messages[id]]];
+    for (const [latest, at] of Object.entries(found.rows[thread] ?? {}))
+      if (Date.parse(latest) >= Date.parse(ts)) signs.push(["row", at]);
+    const applied = found.applied[id];
+    if (applied !== undefined)
+      for (const [said, at] of found.notices[thread] ?? [])
+        if (said !== null && at >= applied) signs.push(["notice", at]);
+    const [by, at] = signs
+      .filter(([, at]) => at !== undefined)
+      .sort((a, b) => a[1] - b[1])[0] ?? [null, null];
+    return by === null ? null : { at, by };
   }
 
   async function runtimeModule(name) {
@@ -152,30 +182,13 @@
     },
     startVisibleReplyClock() {
       const started = Date.now();
-      sessionStorage.setItem(visibleReplyStartedKey, String(started));
-      sessionStorage.removeItem(visibleReplyAtKey);
-      sessionStorage.removeItem(threadActivityAtKey);
-      stopVisibleReplyWatch();
-      watchVisibleAgentReply();
+      sessionStorage.setItem(startedKey, String(started));
+      sessionStorage.removeItem(shownKey);
+      stopWatch();
+      startWatch();
       return started;
     },
-    visibleReplyRecorded(id) {
-      return visibleReplies()[id] !== undefined;
-    },
-    // When the user was first shown reply `id`, admitted at `ts`, in `thread`.
-    replyShownAt({ thread, id, ts }) {
-      const shown = [visibleReplies()[id]];
-      const { news = [], ...activity } = threadActivity()[thread] ?? {};
-      for (const [latest, at] of Object.entries(activity))
-        if (Date.parse(latest) >= Date.parse(ts)) shown.push(at);
-      for (const [said, at] of news)
-        if (said !== null && at >= Date.parse(ts)) shown.push(at);
-      const times = shown.filter((at) => at !== undefined);
-      return times.length ? Math.min(...times) : null;
-    },
-    visibleReplyAt(id) {
-      return visibleReplies()[id] ?? null;
-    },
+    replyShownAt: replyShown,
     // What the page shows about a reply the container holds and the panel never drew:
     // the reading it last applied, its traffic, and each message's identity.
     visibleReplyDebug() {
@@ -199,7 +212,7 @@
               ?.getAttribute("datetime") ?? null,
           news: node.querySelector(".lf-thread-news")?.textContent.trim() ?? null,
         })),
-        activity: threadActivity(),
+        shown: shown(),
         messages: [...document.querySelectorAll(".lf-msg")].map((node) => ({
           classes: [...node.classList],
           mid: node.dataset.mid ?? null,
@@ -226,5 +239,5 @@
   Object.defineProperty(window, "__leafVerifier", {
     value: Object.freeze(api),
   });
-  watchVisibleAgentReply();
+  startWatch();
 })();

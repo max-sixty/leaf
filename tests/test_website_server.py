@@ -3190,6 +3190,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         other_thread = page.locator(f'.lf-thread[data-id="{other["id"]}"]')
         expect(other_thread).to_have_attribute("open", "")
 
+    committed = page.evaluate("Date.now()")
     turn.commit(
         {
             "id": "app-server-turn",
@@ -3207,6 +3208,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
 
     told(page)
     rendered(page)
+    drawn = page.evaluate("Date.now()")
     if read_elsewhere:
         # The thread folded when the user's new one opened, and a folded card holds
         # nothing, since its title row draws at one size.
@@ -3221,11 +3223,12 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
             for event in read_events(page_dir)
             if event["kind"] == "reply" and event["parent"] == comment["id"]
         ]
-        shown = {"thread": comment["id"], "id": folded["id"], "ts": folded["ts"]}
-        assert (
-            page.evaluate("window.__leafVerifier.visibleReplyAt", folded["id"]) is None
+        shown = page.evaluate(
+            "window.__leafVerifier.replyShownAt",
+            {"thread": comment["id"], "id": folded["id"], "ts": folded["ts"]},
         )
-        assert page.evaluate("window.__leafVerifier.replyShownAt", shown) is not None
+        assert shown["by"] == "row"
+        assert committed <= shown["at"] <= drawn
     else:
         # The short thread's reopened answer would move its writing box, so the
         # reader explicitly opens the news before the visibility clock can see it. The
@@ -3244,15 +3247,14 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         # The held answer's notice is what the user is shown of it, and the page
         # times the answer from the notice before anyone opens it.
         held_answer = next(e for e in read_events(page_dir) if e["id"] == answer_id)
-        assert (
-            page.evaluate(
-                "window.__leafVerifier.replyShownAt",
-                {"thread": comment["id"], "id": answer_id, "ts": held_answer["ts"]},
-            )
-            is not None
+        shown = page.evaluate(
+            "window.__leafVerifier.replyShownAt",
+            {"thread": comment["id"], "id": answer_id, "ts": held_answer["ts"]},
         )
+        assert shown["by"] == "notice"
+        assert committed <= shown["at"] <= drawn
         if reveal == "click":
-            assert journey.wait_for_visible_reply(page, comment["id"], answer_id)
+            journey.open_news(page, comment["id"])
         else:
             # Choosing the thread's title is an arrival, which shows what it holds.
             title = thread.locator(":scope > .lf-thread-summary")
@@ -3260,11 +3262,11 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
             expect(title).to_be_focused()
             expect(thread).to_have_attribute("open", "")
         expect(news).to_have_count(0)
+        # Opened, the answer's own message comes into view too, though the notice
+        # had already shown the user it was there.
         page.wait_for_function(
-            "window.__leafVerifier.visibleReplyRecorded", arg=answer_id
-        )
-        assert (
-            page.evaluate("window.__leafVerifier.visibleReplyAt", answer_id) is not None
+            "id => window.__leafVerifier.visibleReplyDebug().shown.messages[id]",
+            arg=answer_id,
         )
         assert current_responses(page_dir, read_events(page_dir)) == {}
     [answer] = [event for event in read_events(page_dir) if event["kind"] == "reply"]
@@ -4258,11 +4260,25 @@ def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):
     page.goto(url)
     page.evaluate("window.__leafVerifier.startVisibleReplyClock")
     page.wait_for_timeout(100)
-    assert page.evaluate("window.__leafVerifier.visibleReplyAt('answer')") is None
-
+    reply = {"thread": "comment", "id": "answer", "ts": "2026-10-08T09:00:00Z"}
+    assert page.evaluate("window.__leafVerifier.replyShownAt", reply) is None
+    before = page.evaluate("Date.now()")
     page.locator(".lf-msg.agent").scroll_into_view_if_needed()
-    page.wait_for_function("window.__leafVerifier.visibleReplyRecorded", arg="answer")
-    assert page.evaluate("window.__leafVerifier.visibleReplyAt('answer')") is not None
+    page.wait_for_function(
+        "reply => window.__leafVerifier.replyShownAt(reply)", arg=reply
+    )
+    shown = page.evaluate("window.__leafVerifier.replyShownAt", reply)
+    assert shown["by"] == "message"
+    assert before <= shown["at"] <= page.evaluate("Date.now()")
+
+
+def shown_by(page, id):
+    """Which sign the page recorded for reply `id`, which no thread row dates."""
+    reply = {"thread": "comment", "id": id, "ts": "2026-10-08T09:00:00Z"}
+    page.wait_for_function(
+        "reply => window.__leafVerifier.replyShownAt(reply)", arg=reply
+    )
+    return page.evaluate("window.__leafVerifier.replyShownAt", reply)
 
 
 def test_the_agent_response_clock_ignores_an_earlier_failure_receipt(browser):
@@ -4281,12 +4297,14 @@ def test_the_agent_response_clock_ignores_an_earlier_failure_receipt(browser):
     )
     page.goto(url)
     page.evaluate("window.__leafVerifier.startVisibleReplyClock")
-    page.wait_for_function("window.__leafVerifier.visibleReplyRecorded", arg="failed")
-    assert not page.evaluate("window.__leafVerifier.visibleReplyRecorded('answer')")
+    assert shown_by(page, "failed")["by"] == "message"
+    hidden = {"thread": "comment", "id": "answer", "ts": "2026-10-08T09:00:00Z"}
+    assert page.evaluate("window.__leafVerifier.replyShownAt", hidden) is None
 
+    before = page.evaluate("Date.now()")
     page.locator('[data-mid="answer"]').evaluate("node => node.style.display = 'block'")
-    page.wait_for_function("window.__leafVerifier.visibleReplyRecorded", arg="answer")
-    assert page.evaluate("window.__leafVerifier.visibleReplyAt('answer')") is not None
+    shown = shown_by(page, "answer")
+    assert shown["by"] == "message" and shown["at"] >= before
 
 
 def test_the_agent_response_clock_follows_a_stream_into_its_durable_reply(browser):
@@ -4303,21 +4321,19 @@ def test_the_agent_response_clock_follows_a_stream_into_its_durable_reply(browse
     )
     page.goto(url)
     page.evaluate("window.__leafVerifier.startVisibleReplyClock")
-    page.wait_for_function(
-        "window.__leafVerifier.visibleReplyRecorded", arg="stream:turn"
-    )
+    streamed = shown_by(page, "stream:turn")
 
     page.locator(".lf-msg").evaluate("""node => {
       node.dataset.mid = 'answer';
       node.querySelector('.lf-msg-text').textContent = 'Complete answer';
     }""")
-    page.wait_for_function("window.__leafVerifier.visibleReplyRecorded", arg="answer")
-    assert page.evaluate("window.__leafVerifier.visibleReplyAt('answer')") is not None
+    shown = shown_by(page, "answer")
+    assert shown["by"] == "message" and shown["at"] >= streamed["at"]
 
 
-def test_the_agent_verifier_opens_news_arriving_after_an_earlier_notice(
-    browser, monkeypatch
-):
+def test_the_agent_verifier_opens_news_arriving_after_an_earlier_notice(browser):
+    """Waiting on a reply, the journey's user opens each notice its thread shows,
+    the second arriving once the first is opened, until the reply is in view."""
     page = browser.new_page()
     verify_site.observe_startup(page)
     url = "https://site-verifier.test/held-answer"
@@ -4343,11 +4359,14 @@ def test_the_agent_verifier_opens_news_arriving_after_an_earlier_notice(
     )
     page.goto(url)
     page.evaluate("window.__leafVerifier.startVisibleReplyClock")
-    monkeypatch.setattr(journey, "VISIBLE_REPLY_PATIENCE", 10_000)
-
-    assert journey.wait_for_visible_reply(page, "comment", "answer")
+    session = journey.Session(
+        None, page, [], url, url, {}, {}, None,
+        pause=lambda seconds: page.wait_for_timeout(seconds * 1000),
+    )  # fmt: skip
+    answer = {"parent": "comment", "id": "answer", "ts": "2026-10-08T09:00:00Z"}
+    shown = journey.await_reply_shown(session, answer)
+    assert shown["by"] == "message"
     assert page.locator(".lf-thread-news").count() == 0
-    assert page.evaluate("window.__leafVerifier.visibleReplyAt('answer')") is not None
 
 
 def test_a_refused_answer_carries_what_the_server_said_about_it():
@@ -5127,7 +5146,6 @@ class _DeployedPage:
         )
         self.init_scripts: list[Path] = []
         self.presentation_waits: list[int] = []
-        self.visible_reply_waits: list[int] = []
         self.revision_waits: list[tuple[int, int]] = []
         self.clicks: list[str] = []
 
@@ -5148,12 +5166,6 @@ class _DeployedPage:
     def wait_for_function(
         self, expression: str, *, arg: int | None = None, timeout: int
     ) -> None:
-        if "window.__leafVerifier.visibleReplyRecorded(id) ||" in expression:
-            self.visible_reply_waits.append(timeout)
-            return
-        if expression == "id => window.__leafVerifier.visibleReplyRecorded(id)":
-            self.visible_reply_waits.append(timeout)
-            return
         assert expression == "window.__leafVerifier.revisionAtLeast" and arg is not None
         self.revision_waits.append((arg, timeout))
         if self.revision >= arg:
@@ -5172,12 +5184,10 @@ class _DeployedPage:
         return _PresentationWait(self.presentation_waits)
 
     def evaluate(self, script: str, arg=None):
-        if script == "id => window.__leafVerifier.visibleReplyRecorded(id)":
-            return True
         if script == "window.__leafVerifier.startVisibleReplyClock":
             return 100.0
         if script == "window.__leafVerifier.replyShownAt":
-            return 12_600.0
+            return {"at": 12_600.0, "by": "message"}
         if script == "window.__leafStartup.reading":
             presented_at = (
                 self.presented_at
@@ -5524,14 +5534,14 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
         ),
     )
     # One sample sets `agent_session`'s rollout deadline; in the journey, one bounds
-    # the wait for the title the log already holds and two surround the revision wait
-    # this case measures.
+    # the wait for the title the log already holds, one the wait for the reply the
+    # page has already shown, and two surround the revision wait this case measures.
     with monkeypatch.context() as timing:
         timing.setattr(verify_site, "time", SimpleNamespace(monotonic=lambda: 0.0))
         timing.setattr(
             journey,
             "time",
-            SimpleNamespace(monotonic=iter([39.0, 40.0, 42.5]).__next__),
+            SimpleNamespace(monotonic=iter([39.0, 39.5, 40.0, 42.5]).__next__),
         )
         benchmark = journey.run_journey(
             *journey.website_session(
@@ -5545,7 +5555,6 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     # The ordinary first load uses the edge-page presentation bound. The post-turn
     # reload gets its own bound for both presentation and the later revision follow.
     assert page.presentation_waits == [30_000, journey.TURN_PRESENTATION]
-    assert page.visible_reply_waits == [30_000]
     assert page.revision_waits == [(2, journey.TURN_PRESENTATION)]
     assert journey.TURN_PRESENTATION > 30_000
     # The stamps the message needs to say which stall it was. Without them a page that
@@ -5591,6 +5600,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                 "acknowledged": [250.0],
                 "responseVisible": 12500.0,
             },
+            "responseShownBy": "message",
             "activity": [
                 {"atMs": 250.0, "kind": "queued", "detail": ""},
                 {

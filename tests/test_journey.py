@@ -1,10 +1,16 @@
-"""The journey's harness readings: what a step records of each comment, and the
-records each harness's session gives its turn phases."""
+"""The journey's harness readings: what a step records of each comment, the records
+each harness's session gives its turn phases, and how the Claude Code journey reads
+its pane."""
 
 import json
+import subprocess
+import sys
+import time
 from itertools import count
 
+import pytest
 from leaf_dev import journey, journey_claude_code, journey_pi
+from leaf_dev.review_scenario import SLEEP
 
 
 def at(seconds: float) -> str:
@@ -14,8 +20,9 @@ def at(seconds: float) -> str:
 def test_a_steps_comments_are_timed_from_the_log_and_the_page():
     """Each step keeps the comments it sent, timed on the page server's clock from
     their admission and on the page's from their send, with the turn split from the
-    session's records from the opened pickup on; a permission prompt the user
-    answered is named in its step and not counted in its time."""
+    session's records from the opened pickup on. A permission prompt the user
+    answered marks its step's comments, and the release ask's, so a reading held up
+    by one is told apart from those that were not."""
     events = [
         {"kind": "comment", "id": "c1", "ts": at(0)},
         {
@@ -41,7 +48,7 @@ def test_a_steps_comments_are_timed_from_the_log_and_the_page():
         def evaluate(self, script, arg=None):
             assert script == "window.__leafVerifier.replyShownAt"
             shown.append(arg)
-            return 1_000_000 + 9_500
+            return {"at": 1_000_000 + 9_500, "by": "row"}
 
     records = [
         {"type": "user", "message": {"content": []}, "received_at": at(0.5)},
@@ -66,6 +73,16 @@ def test_a_steps_comments_are_timed_from_the_log_and_the_page():
         None, Page(), [], "", "", {}, {}, None, records=terminal.records
     )
     user = journey.User(session, "v", lambda: events, terminal)
+    user.release_reading = {
+        "version": "v",
+        "comment": {
+            "eventIds": ["c0"],
+            "sinceAdmissionMs": {"replied": 12000},
+            "sinceSendMs": {},
+        },
+    }
+    terminal.approved.append("Do you want to make this edit to index.html?")
+    user.passed("release", time.monotonic())
     profile = journey.AgentProfile()
     profile.ask_count = 1
     profile.visible_reply_started_ms = 1_000_000
@@ -73,19 +90,25 @@ def test_a_steps_comments_are_timed_from_the_log_and_the_page():
     profile.event_ids = ["c1"]
     user.ids["mid-turn"], user.profiles["mid-turn"] = "c1", profile
     user.sent = ["mid-turn"]
-    terminal.approved.append({"prompt": "Do you want to proceed?", "seconds": 5})
-    user.passed("mid-turn", journey.time.monotonic() - 6)
-    user.release_reading = {"version": "v", "comment": {"eventIds": ["c0"]}}
+    terminal.approved.append("Do you want to proceed?")
+    user.passed("mid-turn", time.monotonic() - 6)
 
     sample = user.sample()
-    [step] = sample["steps"]
+    assert sample["comment"]["approved"] == [
+        "Do you want to make this edit to index.html?"
+    ]
+    release, step = sample["steps"]
+    assert release["comments"] == {}
     assert step["step"] == "mid-turn"
     assert step["approved"] == ["Do you want to proceed?"]
-    assert 0.9 <= step["seconds"] <= 1.5
+    # The time a prompt held the session is the step's like any other.
+    assert 5.9 <= step["seconds"] <= 6.5
     reading = step["comments"]["mid-turn"]
+    assert reading["approved"] == ["Do you want to proceed?"]
     assert reading["sinceAdmissionMs"]["pickedUp"] == 1000
     assert reading["sinceAdmissionMs"]["replied"] == 9000
     assert reading["sinceSendMs"]["responseVisible"] == 9500
+    assert reading["responseShownBy"] == "row"
     assert shown == [{"thread": "c1", "id": "r1", "ts": at(9)}]
     # The record before the pickup is no delivery; the work after it is.
     assert [phase["phase"] for phase in reading["turn"]] == [
@@ -96,6 +119,64 @@ def test_a_steps_comments_are_timed_from_the_log_and_the_page():
     ]
     assert reading["turn"][0] == {"phase": "delivery", "startMs": 0, "ms": 1000}
     assert terminal.approved == []
+    rows = journey.chart_rows([{**sample, "target": "claude-code"}])
+    assert {row["row"] for row in rows} == {
+        "Claude Code after a permission prompt at v"
+    }
+
+
+PROMPT = """
+ Bash command
+
+   python3 -c 'import time; time.sleep(25.17)'
+   Run the user's command
+
+ Do you want to proceed?
+ ❯ 1. Yes
+   2. Yes, and don't ask again for python3 commands in /private/work
+   3. No, and tell Claude what to do differently (esc)
+
+ Esc to cancel · Tab to amend
+"""
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "Do you want to proceed?",
+        "Do you want to make this edit to index.html?",
+        "Do you want to create notes.md?",
+    ],
+)
+def test_a_permission_prompt_is_read_from_its_question_and_options(question):
+    """Claude Code's prompts for a command, an edit and a new file share one shape,
+    the question above "1. Yes" and "Esc to cancel"; the question alone, as the
+    agent's own words may ask it, is not a prompt."""
+    screen = PROMPT.replace("Do you want to proceed?", question)
+    assert journey_claude_code.permission_prompt(screen) == question
+    asked = f"⏺ {question} I can make the change once you say so.\n\n❯ \n"
+    assert journey_claude_code.permission_prompt(asked) is None
+    assert journey_claude_code.permission_prompt("❯ Try again\n") is None
+
+
+def test_the_users_command_is_found_only_among_the_panes_own_processes():
+    """Journeys run side by side run the same command; each finds only its own, among
+    its pane's descendants, so another journey's command is not this one's turn."""
+    command = [sys.executable, "-c", f"import time; {SLEEP}"]
+    pane = subprocess.Popen(["sh", "-c", f"{subprocess.list2cmdline(command)}; true"])
+    other = subprocess.Popen(command)
+    neighbour = subprocess.Popen(["sh", "-c", "sleep 30; true"])
+    try:
+        deadline = time.monotonic() + 10
+        while not journey_claude_code.runs(pane.pid, SLEEP):
+            assert time.monotonic() < deadline, "the pane's command never ran"
+            time.sleep(0.1)
+        assert not journey_claude_code.runs(neighbour.pid, SLEEP)
+    finally:
+        for process in (pane, other, neighbour):
+            process.kill()
+            process.wait()
+        subprocess.run(["pkill", "-f", f"import time; {SLEEP}"], check=False)
 
 
 def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
@@ -138,9 +219,10 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
 
 
 def test_pis_events_give_the_turn_phases(monkeypatch):
-    """Pi reports its runs and tool calls as RPC events; the journey keeps them as
-    the records `turn_phases` reads, and tracks the shell commands running."""
-    seconds = count(2)
+    """Pi reports its runs and tool calls as RPC events; the journey keeps its tool
+    calls as the records `turn_phases` reads, and tracks the shell commands
+    running."""
+    seconds = count(3)
     monkeypatch.setattr(journey_pi, "now", lambda: at(next(seconds)))
     pi = journey_pi.Pi.__new__(journey_pi.Pi)
     journey.Terminal.__init__(pi)

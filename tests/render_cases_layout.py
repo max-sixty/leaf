@@ -960,8 +960,9 @@ FOCUS_IN_PAGE = """() => {
 # check is for survives untouched — a stray pick writes `chosen` on the option and a
 # stray tab switch moves the panels' attributes, both of them authored rather than
 # generated, and structure is compared either way.
-# The page as a press leaves it. Where the pointer is resting and the projection Leaf
-# paints above descendants are not authored state, so neither belongs in this reading.
+# The page as a press leaves it. Where the pointer is resting, the projection Leaf
+# paints above descendants, and the generated binding seat are not authored state,
+# so none belongs in this reading.
 PAGE_MARKUP = r"""() => [...document.body.children]
     .filter((n) => !n.classList.contains("lf-chrome"))
     .map((n) => {
@@ -969,7 +970,7 @@ PAGE_MARKUP = r"""() => [...document.body.children]
         for (const g of c.querySelectorAll("[data-lf-gen]")) g.textContent = "";
         if (c.dataset && c.dataset.lfGen !== undefined) c.textContent = "";
         for (const el of [c, ...c.querySelectorAll("*")]) {
-            el.classList?.remove("lf-mark-hover", "lf-projected-mark");
+            el.classList?.remove("lf-mark-hover", "lf-projected-mark", "lf-binding-seat");
             // The name a margin row anchors by, which the layout writes on whatever
             // target a row comes to stand by, on its own schedule rather than a press's.
             if (el.style?.anchorName) {

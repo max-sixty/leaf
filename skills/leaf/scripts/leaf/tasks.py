@@ -29,7 +29,7 @@ server, owes the user nothing and is no item.
 The user's tasks come from three places, and their owner and subject say how each
 ends. Each Ask in the markup is one, under the Ask's id, from the version that adds
 it, ended `done` when its widget is answered (`asks`); each agent turn in a thread
-that asks the user (`asks.thread_awaits_user`) is one, under that turn's id, ended by
+that asks the user (`asks.thread_questions`) is one, under that turn's id, ended by
 the user's reply there or a settling reaction; the document starts state, so neither
 writes an event, and `page_tasks` reads them. The third is a `task` event the agent
 writes with `--on user` on a widget, an element or the page, never a thread, where
@@ -72,8 +72,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
-from .asks import settles
-from .events import conversation_turns, is_reaction, note_settlements, taken_back
+from .events import note_settlements, taken_back
 from .schema import agent_name
 
 OUTCOMES = ("done", "failed", "dropped")
@@ -338,42 +337,38 @@ def ask_tasks(asks: dict) -> tuple[list[dict], list[dict]]:
 def page_tasks(
     log: list[dict],
     thread_asks: dict,
-    threads: dict,
-    prompts: dict,
-    ends: dict[str, dict],
-    tokens: dict,
+    questions: dict,
 ) -> tuple[list[dict], list[dict]]:
-    """Every task the page holds beside the page version's own Asks
-    (`ask_tasks`), as the open ones and the ended ones, each with its `owner`, how it
-    `ends`, and the `thread` it stands in.
+    """Tasks beside the document's Asks, selecting the shared question lifecycle.
 
-    `log` is the log's tasks (`TaskReading.tasks`), each stamped with its thread, the
-    agent's open ones as the activity fold aged them. `thread_asks` is the frozen
-    threads' Ask reading, and `threads` the durable threads; `prompts` names
-    the agent turn each thread's question stands on: a thread whose agent turn asks the
-    user in prose is a task on the user under that turn's id, open until the user
-    answers it in the thread, settles it with a reaction, or the agent ends it with a
-    `task_end` in `ends`. An answered question is done, its outcome the user's move
-    that answered it (`_answer`, reading reactions by `tokens`, the registry's
-    `$reactions.tokens`), so the Questions panel lists it with the other ended tasks."""
+    `log` holds explicit tasks with their thread and aged activity. `thread_asks`
+    holds frozen widget Asks. `questions` is `WorkReading.questions`: the same
+    recognition, current prompt and settling event thread attention consumes.
+    Only the current prose prompt is open on the user; each answered question
+    retains the exact event that ended it in the Questions panel's Done history.
+    """
     standing, ended = ask_tasks(thread_asks)
-    held = {task["id"] for task in log}
-    for identity, thread in threads.items():
-        prompt = prompts.get(identity)
-        for message in thread["msgs"]:
-            if prompt is not None and message["id"] == prompt["message"]:
-                outcome = None
-            elif message["id"] in ends and message["id"] not in held:
-                outcome = ends[message["id"]]
-            elif message.get("awaits") and (answer := _answer(thread, message, tokens)):
-                outcome = {"state": "done", **_outcome(answer, None)}
-            else:
+    for identity, reading in questions.items():
+        for question in reading.questions:
+            message = question["message"]
+            if question["state"] == "open" and (
+                reading.prompt is None or message["id"] != reading.prompt["message"]
+            ):
                 continue
+            settlement = question["settlement"]
+            outcome = (
+                {
+                    "state": question["state"],
+                    **_outcome(settlement, settlement.get("detail")),
+                }
+                if settlement is not None
+                else None
+            )
             task = _derived(
                 message["id"],
                 {"kind": "thread", "id": identity},
                 identity,
-                "open",
+                question["state"],
                 ENDS_BY_REPLY,
                 ended=outcome,
                 message=message,
@@ -383,28 +378,6 @@ def page_tasks(
         task = _log_task(task)
         (standing if task["state"] == "open" else ended).append(task)
     return standing, ended
-
-
-def _answer(thread: dict, question: dict, tokens: dict) -> dict | None:
-    """The user's move that answered a question asked with `--awaits` and no longer
-    standing: their next turn in its thread, or a reaction on it that settles it, by
-    the rule that takes it off them (`asks.settles`). A question the agent asked again
-    before the user moved has none until the user answers the later one, which
-    answers both."""
-    turns = conversation_turns(thread)
-    return next(
-        (
-            message
-            for message in thread["msgs"]
-            if message["seq"] > question["seq"]
-            and (
-                settles(message, question["id"], tokens)
-                if is_reaction(message)
-                else message["author"] == "user" and message in turns
-            )
-        ),
-        None,
-    )
 
 
 def task_error(

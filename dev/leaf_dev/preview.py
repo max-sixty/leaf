@@ -21,8 +21,9 @@ preview is serving is refused. The slot is a page directory under
 `LEAF_PREVIEWS_ROOT` (default `.tmp/previews/`), marked by its `preview.json`, with
 its lease at `<slot>.lock` beside it.
 
-While it runs, `watchfiles` reports edits. A source edit is stamped into the live page
-at the same URL; a layer edit (a vendored file, the runtime's Python, its lock)
+While it runs, `watchfiles` reports edits. Initialization decides whether the layer
+actually changed; identical saves leave the browser and server alone. A source edit
+is stamped into the live page at the same URL; a layer edit (a vendored file, the runtime's Python, its lock)
 re-vendors through `page init`, which mints a new layer generation the browser follows
 into a fresh document. A refused update is printed and retried after the next edit.
 Seeded history is installed once, so a change to it is refused until a restart.
@@ -96,7 +97,7 @@ class LeafFailed(RuntimeError):
         self.returncode = returncode
 
 
-def leaf(launcher: Path, runtime: Path, *args, input_text: str | None = None) -> None:
+def leaf(launcher: Path, runtime: Path, *args, input_text: str | None = None) -> str:
     """Hide successful chatter; a failure replays its stdout."""
     result = subprocess.run(
         [str(launcher), *args],
@@ -109,6 +110,7 @@ def leaf(launcher: Path, runtime: Path, *args, input_text: str | None = None) ->
     if result.returncode != 0:
         print(result.stdout, end="", flush=True)
         raise LeafFailed(args, result.returncode)
+    return result.stdout
 
 
 def slot_name(_ctx, _param, value: str | None) -> str | None:
@@ -396,12 +398,12 @@ def refresh_preview(
     runtime: Path,
     state: dict,
     service: PreviewService,
-    vendor: bool,
 ) -> bool:
     """Carry an edit into the live page, keeping its log; False if refused.
 
-    `vendor` says a layer input changed; that, or a changed package selection,
-    re-copies the layer, and only a re-copy takes a process-owned server down. A
+    Initialization compares the desired contract with the installed layer, so a
+    retry also adopts layer edits a previous refusal held back. Only a changed
+    layer takes a process-owned server down. A
     source edit is written into `index.html` and stamped, the way an agent revises a
     page, so it arrives in the tab the user is standing in. Only a source edit
     touches `index.html`, so an agent's own revision of a `--user` preview survives
@@ -428,12 +430,20 @@ def refresh_preview(
             )
         packages = source_packages(source)
         selection_args = package_selection_args(packages)
-        # The page's own package selection is vendored too, so a source that changed which
-        # packages it asks for needs the layer copied again whatever else stood still.
-        vendored_packages = json.loads(
-            (page / "registry.json").read_text(encoding="utf-8")
-        )["$layer"]["packages"]
-        if vendor or packages != vendored_packages:
+        # Initialization owns the change decision. Ask before a process-owned
+        # server is taken down; the actual init checks again before committing.
+        planned = json.loads(
+            leaf(
+                launcher,
+                runtime,
+                "page",
+                "init",
+                "--dry-run",
+                *selection_args,
+                str(page),
+            )
+        )
+        if planned["changed"]:
             with service.replacing():
                 leaf(launcher, runtime, "page", "init", *selection_args, str(page))
         refresh_media(source, page)
@@ -470,16 +480,15 @@ class Watched(NamedTuple):
 
     roots: tuple[Path, ...]
     paths: frozenset[str]
-    layer: frozenset[str]
 
 
 def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> Watched:
-    """The inputs one preview follows (`paths`), and which of them re-vendor (`layer`).
+    """The inputs one preview follows (`paths`).
 
     Every path is resolved: `input_paths` answers in resolved paths, so a package
     root reached through a symlink or `..` would otherwise match nothing.
     """
-    from leaf.layer import input_paths
+    from leaf.layer import input_paths, payload_server_inputs
 
     runtime = runtime.resolve()
     scripts = runtime / "skills" / "leaf" / "scripts"
@@ -493,9 +502,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
     ]
     layer = {
         *(str(path) for path in package),
-        *(str(path) for path in scripts.rglob("*.py")),
-        str(runtime / "pyproject.toml"),
-        str(runtime / "uv.lock"),
+        *(str(path) for path in payload_server_inputs(runtime)),
     }
     manifest = source_manifest(source)
     media = media_source(source)
@@ -541,7 +548,6 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path], seed: dict) -> W
     return Watched(
         tuple(subscribed),
         frozenset(layer | {str(path) for path in page}),
-        frozenset(layer),
     )
 
 
@@ -688,17 +694,14 @@ def serve_preview(
             current = watch_paths(source, runtime, roots, state["seed"])
             if not reported & (watched.paths | current.paths):
                 continue
-            vendored = bool(reported & (watched.layer | current.layer))
-            refreshed = refresh_preview(
-                source, page, launcher, runtime, state, service, vendored
+            refreshed = refresh_preview(source, page, launcher, runtime, state, service)
+            # Init can commit a selection even when the following source stamp
+            # refuses. Follow the installed layer after every attempt, so that
+            # its newly selected packages remain observable while source is fixed.
+            roots = layer_inputs(
+                tuple(read_json(page / "registry.json")["$layer"]["packages"])
             )
-            if refreshed:
-                roots = layer_inputs(
-                    tuple(read_json(page / "registry.json")["$layer"]["packages"])
-                )
-                rebuilt = watch_paths(source, runtime, roots, state["seed"])
-            else:
-                rebuilt = current
+            rebuilt = watch_paths(source, runtime, roots, state["seed"])
             if rebuilt.roots != watched.roots:
                 # A refresh can change which packages the page vendors, and a
                 # subscription is fixed for its lifetime. Holding the old one
@@ -712,7 +715,7 @@ def serve_preview(
                 # which said why. The next watcher poll is another try.
                 service.serve_again()
             if refreshed and service.running:
-                print(f"Reloaded {source.stem}", flush=True)
+                print(f"Updated {source.stem}", flush=True)
     finally:
         if changes is not None:
             changes.close()

@@ -558,7 +558,7 @@ def receive_held(
     for batch in payload["batches"]:
         try:
             pages.append(receive_one(batch, session_id, deadline=deadline))
-        except (FileNotFoundError, ReceiptRefused, TimeoutError):
+        except FileNotFoundError, ReceiptRefused, TimeoutError:
             continue
     return pages
 

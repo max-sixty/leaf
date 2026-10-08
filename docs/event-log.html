@@ -66,6 +66,8 @@
         >
           <pre>
 flowchart TD
+  accTitle: Widget actions become replayed state
+  accDescr: A widget submits a verb to the append door, which records it in events.jsonl. Folding the log yields state that renders back into the widget.
   Widget["Widget"] -- "verb" --&gt; Door{"Append door"}
   Door -- "record" --&gt; Log[("events.jsonl")]
   Log -- "fold" --&gt; Fold["State"]

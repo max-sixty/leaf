@@ -2,7 +2,9 @@
  * tree glyphs and call text, then an optional source location separated by two spaces.
  * The host owns analysis and the captured text; this widget only parses that display
  * grammar and projects each row as commentable evidence. Each root keeps its native
- * disclosure separate from its source link, which remains available when closed. */
+ * disclosure separate from its source link, which remains available when closed.
+ * Ordinary activation travels to the exact line; modified activation keeps the
+ * native link's separate-tab, separate-window and context-menu routes. */
 import {
   announce,
   html,
@@ -162,6 +164,15 @@ function locationLink(record, owner) {
         class="lf-call-location"
         href=${`#${owner.getAttribute("diff")}`}
         @click=${async (event) => {
+          if (
+            event.defaultPrevented ||
+            event.button !== 0 ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.shiftKey ||
+            event.altKey
+          )
+            return;
           event.preventDefault();
           event.stopPropagation();
           await travelToLine(owner, record);
@@ -177,10 +188,16 @@ function renderLine(record, line, owner, count = null) {
   line.toggleAttribute("data-meta", record.meta);
   render(
     html`<span class="lf-call-marker" aria-hidden="true"
-        >${record.status === "added" ? "+" : record.status === "removed" ? "−" : " "}</span
+        >${
+          record.status === "added" ? "+" : record.status === "removed" ? "−" : " "
+        }</span
       ><span class="lf-call-body">${record.body}</span>${
         record.root ? "" : locationLink(record, owner)
-      }${count === null ? "" : html`<span class="lf-call-group-count" data-lf-gen="1">${count}</span>`}`,
+      }${
+        count === null
+          ? ""
+          : html`<span class="lf-call-group-count" data-lf-gen="1">${count}</span>`
+      }`,
     line,
   );
   return line;

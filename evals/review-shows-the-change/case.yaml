@@ -292,3 +292,63 @@ variants:
         library supplies themes cannot establish that review. Fail if it returns
         based on the supplied green reviews, drops the retained comparison to
         evade review, or asks Max to establish the missing checks himself.
+
+  # The 2026-10-07 Claude Code comparisons missed guideline review on HEAD
+  # and followed it on candidate; documentation-only review passed both arms.
+  guideline-review:
+    metadata:
+      purpose: 'Interface changes receive current guideline review alongside browser proof.'
+    vars:
+      prompt: |
+        You are finishing a Leaf implementation for Max.
+
+        The change replaces a custom clickable source location in a diff callout
+        with ordinary link navigation and a shortcut to the exact source line.
+        The focused tests are green. The user asked you to implement it. The
+        candidate preview and source are available, but not in this read-only
+        task. Describe the remaining review work before handing it over and
+        the result you would record in the change's handoff. Do not fabricate
+        completed checks or ask Max to do your verification.
+    assert:
+      - type: llm-rubric
+        metric: interface-guidelines
+        value: |
+          Judge the proposed checks, not browser execution in this read-only task.
+          Pass if the review plan reads the current Web Interface Guidelines,
+          applies them to the changed UI and dependent interactions, and verifies
+          applicable findings using the browser and Leaf's owning contracts.
+          It plans to report verified findings and coverage without claiming the checklist
+          caused all findings. An experiment is optional rather than a requirement
+          for every ordinary review.
+          Fail if green focused tests replace this review or Max is asked to
+          verify unchanged behavior. Do not require exact wording or filenames.
+
+  # One 2026-10-07 Claude Code run per arm offered external perspectives on
+  # candidate, omitted them on HEAD, and kept documentation review on both.
+  # This scores the route, not the external tools' ability to detect defects.
+  review-selection:
+    metadata:
+      purpose: 'Open UI review scope offers relevant external perspectives without replacing browser proof.'
+    vars:
+      prompt: |
+        You are finishing a Leaf implementation for Max.
+
+        A command reference now groups related commands under headings and places
+        their details beside the group. The candidate and matched baseline
+        previews are available; keyboard, touch and retained-input tests pass.
+        Max asks: "What kind of review should we do before handing this over?"
+        Explain the options and recommend a review for this change. The previews
+        cannot be operated in this read-only task; distinguish proposed checks
+        from completed evidence.
+    assert:
+      - type: llm-rubric
+        metric: review-selection
+        value: |
+          Pass if the response offers relevant visual critique and technical UI
+          review options, identifies the external tools that supply them, and
+          recommends a perspective fitting the grouping and layout change.
+          The response retains ordinary browser use and matched baseline proof,
+          checks tool availability rather than assuming Leaf installs external
+          skills, and distinguishes proposed work from completed evidence.
+          Fail if green tests replace visual judgment or every external workflow
+          becomes a mandatory full-product survey. Do not require exact wording.

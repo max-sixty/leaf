@@ -2538,17 +2538,6 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-tree) ul { list-style: none; margin: 0; padding-left: 0; }
 :scope:is(lf-tree) ul ul { padding-left: 18px; border-left: 1px solid var(--rule); margin-left: 5px; }
 :scope:is(lf-tree) li { margin: 3px 0; }
-/* Where the runtime runs, each line of the body stands at the pitch its rendered row will (a
- * row, and the 3px between rows), so the tree takes its height from the first paint.
- * The line's half of the gap above the first row and below the last stays inside the
- * box, as the rendered rows' outer margins leave it. */
-@scope (html[data-lf-interactive] :scope) {
-  :scope:is(lf-tree):not(.lf-rendered){ display: flow-root; }
-}
-@scope (html[data-lf-interactive] :scope) {
-  :scope:is(lf-tree):not(.lf-rendered) > pre{
-    line-height: calc(var(--code-line) + 3px); margin-block: -1.5px; }
-}
 :scope:is(lf-tree) .lf-tree-dir { font-weight: 600; }
 /* nowrap because the module appends name and badges with no whitespace between them and
  * spaces them by margin, so a line is one word to the breaker: told it may break inside

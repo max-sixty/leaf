@@ -7,6 +7,12 @@
    containing it or by the page. CSS decides that from the space a workspace has
    (layouts.css, the workspace Layout), so nothing here chooses a posture.
 
+   A separately scrolling piece of a region's apparatus declares `apparatusFor`, the
+   owning region's id. It stays in the physical scroll inventory, while focus and
+   gestures there select its owner for reading. Containment still names the apparatus's
+   own box, so bringing its controls into view never mistakes the owner's reading body
+   for the box that actually carries them.
+
    Every box Leaf makes scroll vertically is a region, so every question that names the
    box scrolling a node (`scrollerFor`, and `scrollersOf` for the boxes around it) gets
    that box rather than the page: a pane's body, the Threads list, a compound widget's
@@ -68,12 +74,14 @@ export function compoundReadingRegionId(owner, localName) {
   return `lf-region:${owner.id}:${localName}`;
 }
 
-export function registerReadingRegion({ id, host, body }) {
+export function registerReadingRegion({ id, host, body, apparatusFor = null }) {
   if (typeof id !== "string" || !id || !host || !body)
     throw new Error("leaf: a reading region needs id, host, and body");
   if (live(regions.get(id)))
     throw new Error(`leaf: reading region ${id} is already live`);
-  const region = { id, host, body, scroller: null, width: null };
+  if (apparatusFor !== null && !live(regions.get(apparatusFor)))
+    throw new Error("leaf: reading apparatus needs a live owning region");
+  const region = { id, host, body, apparatusFor, scroller: null, width: null };
   const stopReaching = reachReadingScroller(body);
   regions.set(id, region);
   sizes.observe(host);
@@ -125,11 +133,18 @@ export const unconcealedReadingRegions = () =>
     .filter((region) => live(region) && !concealed(region) && !skipped(region.body))
     .map(regionRecord);
 
-export const readingRegionFor = (node) => {
+const regionAt = (node) => {
   const region = [...regions.values()]
     .filter((candidate) => live(candidate) && under(node, candidate.host))
     .sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
-  return region && regionRecord(region);
+  return region;
+};
+
+export const readingRegionFor = (node) => {
+  const region = regionAt(node);
+  return region?.apparatusFor
+    ? readingRegion(region.apparatusFor)
+    : region && regionRecord(region);
 };
 
 // The region the user is reading in, which the reading keys scroll and continuity
@@ -216,10 +231,10 @@ export const userReadingRegion = () => {
 // in. Keep that containment walk shared with scrollerFor so placement and travel cannot
 // disagree about which reading box holds a control.
 export const containingReadingRegionFor = (node) => {
-  let region = readingRegionFor(node);
+  let region = regionAt(node);
   while (region) {
-    if (under(node, region.body)) return region;
-    region = readingRegionFor(region.host.parentElement);
+    if (under(node, region.body)) return regionRecord(region);
+    region = regionAt(region.host.parentElement);
   }
   return undefined;
 };

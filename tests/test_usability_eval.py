@@ -110,6 +110,91 @@ def test_live_completion_requires_every_declared_round(tmp_path):
     assert not run.usable()
 
 
+def test_live_rounds_wait_for_delivery_and_cancel_the_completion_timer(
+    tmp_path, monkeypatch
+):
+    """A scripted model stream drives real HTTP admission and pickup records.
+
+    Two running injections must retain the first round's evidence
+    until its receipt arrives, and completion must leave no delayed child closure.
+    """
+    from dataclasses import replace
+
+    from leaf_dev import usability_eval
+
+    run = Run("handoff", ROOT, tmp_path)
+    run.state.mkdir()
+    page = tmp_path / "page"
+    build_fixture(run, "handoff", page)
+    (tmp_path / "work-dir").write_text(str(tmp_path))
+    case = replace(CASES["handoff"], injection=("running", "running"))
+    served = []
+    timers = []
+    timer = usability_eval.threading.Timer
+
+    def observed_timer(*args):
+        scheduled = timer(*args)
+        timers.append(scheduled)
+        return scheduled
+
+    def receive():
+        events = [event for event in page_events(page) if event.get("attention")]
+        with PageTransaction(page) as transaction:
+            record_pickup(transaction, events, session="eval", turn="active-turn")
+
+    class ModelStream:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            run.leaf("server", "start", str(page), check=True)
+            served.append(usability_eval.page_state(run, page)["server"]["url"])
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def close(self):
+            pass
+
+        def records(self):
+            yield {"type": "user", "text": "http://127.0.0.1:1/foreign-page"}
+            yield {"type": "assistant", "text": "working"}
+            assert len([e for e in page_events(page) if e.get("attempt")]) == 1
+            receive()
+            yield {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {"type": "tool_use", "id": "first", "name": "Bash", "input": {}}
+                    ]
+                },
+            }
+            assert len([e for e in page_events(page) if e.get("attempt")]) == 2
+            receive()
+            yield {"type": "result", "is_error": False}
+
+    monkeypatch.setattr(usability_eval, "LiveChild", ModelStream)
+    monkeypatch.setattr(usability_eval.threading, "Timer", observed_timer)
+    try:
+        usability_eval.execute_live(run, case, tmp_path, page)
+        records = [
+            json.loads(line)
+            for line in (tmp_path / "stream-1.jsonl").read_text().splitlines()
+        ]
+        assert [r["round"] for r in records if r["type"] == "eval_post"] == [1, 2]
+        assert [r["round"] for r in records if r["type"] == "eval_received"] == [1, 2]
+        assert [r["url"] for r in records if r["type"] == "eval_served"] == served
+        assert [
+            r["round"] for r in records if r["type"] == "eval_first_tool_state"
+        ] == [1]
+        assert len(timers) == 1
+        assert all(t.finished.is_set() for t in timers)
+    finally:
+        for scheduled in timers:
+            scheduled.cancel()
+
+
 @pytest.mark.parametrize(
     "reply_command",
     [

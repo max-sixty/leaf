@@ -4792,7 +4792,7 @@ def test_a_stream_reply_refreshes_its_lease_without_changing_its_message_time(
     assert projected["state"] == "active"
 
 
-def _observer() -> "codex_adapter_model.TaskConnection":
+def _observer() -> codex_adapter_model.TaskConnection:
     """An observer that has not connected, so a test feeds it notifications itself."""
     connection = codex_adapter_model.TaskConnection("ws://127.0.0.1:1", "codex-thread")
     connection.connected.set()
@@ -10467,6 +10467,21 @@ def test_a_codex_adapter_retiring_with_no_page_leaves_only_records_a_page_needs(
         path.is_file() and not leases_model.lock_is_held(path) for path in coordination
     )
     assert [path.name for path in kept.rglob("*.json")] == ["eeeeeeee.json"]
+
+
+def test_an_adapter_observer_that_cannot_start_releases_its_leases(monkeypatch):
+    """Acquisition failure keeps the original error and releases both listening proofs."""
+    harness = harness_model.CodexHarness(session="codex-thread", agent="Codex")
+    monkeypatch.setattr(codex_adapter_model, "session_harness", lambda: harness)
+
+    def refuse_start(_thread):
+        raise OSError("no thread resources")
+
+    monkeypatch.setattr(threading.Thread, "start", refuse_start)
+    with pytest.raises(OSError, match="no thread resources"):
+        codex_adapter_model.run_adapter("codex", app_server="ws://127.0.0.1:1")
+    assert not leases_model.adapter_is_live(harness.session)
+    assert not leases_model.wait_is_live(None, harness.session)
 
 
 def test_an_uncertain_app_server_start_recovers_by_delivery_identity(

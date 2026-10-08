@@ -602,22 +602,30 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   /* Open, the control takes the open surface's accent and ground, without the underline
      an auxiliary toggle wears: the card's top edge meets it there. */
   .lf-page-comment[aria-expanded="true"] { color: var(--accent); background: var(--chip); }
-  /* The card gives the shared attachment shelf its own row. */
   .lf-page-composer { --quote-inset: 10px; --pre-inset: 10px; }
-  .lf-page-composer:has(> .lf-composer-media:not([hidden])) { flex-wrap: wrap; }
   /* The card hangs from the control: its top edge on the banner's foot and its right
      edge on the control's, with no border along the edge it hangs from, so control and
-     card read as one piece while it is open. On a phone, where the control is behind
+     card read as one piece while it is open. If that placement overflows the window,
+     it slides just enough for the window's inset to own its left edge. Its height is
+     the room beneath the banner; the editor shrinks before the card scrolls. On a
+     phone, where the control is behind
      More, it spans the window under the banner. */
-  .lf-page-comment-card { position: fixed; position-anchor: --lf-page-comment;
-    top: var(--lf-banner-h); right: anchor(right); bottom: auto; left: auto;
+  .lf-page-comment-card { --lf-card-inset: 8px;
+    --lf-card-width: min(28rem, calc(100vw - 2 * var(--lf-card-inset)));
+    position: fixed; position-anchor: --lf-page-comment;
+    top: var(--lf-banner-h);
+    right: min(anchor(right), calc(100vw - var(--lf-card-width) - var(--lf-card-inset)));
+    bottom: auto; left: auto;
     margin: 0; z-index: var(--lf-z-menu);
-    box-sizing: border-box; width: min(28rem, calc(100vw - 16px));
+    box-sizing: border-box; width: var(--lf-card-width);
+    max-height: calc(100dvh - var(--lf-banner-h)); overflow-y: auto;
     padding: 12px; background: var(--paper); color: var(--ink);
     border: 1px solid var(--border-2); border-top: 0;
     border-radius: 0 0 var(--r) var(--r); box-shadow: 0 12px 36px var(--shade); }
+  .lf-page-comment-card:popover-open { display: flex; flex-direction: column; }
   @media screen and (width <= 480px) {
-    .lf-page-comment-card { right: 8px; width: calc(100vw - 16px); }
+    .lf-page-comment-card { right: var(--lf-card-inset);
+      width: calc(100vw - 2 * var(--lf-card-inset)); }
   }
   /* The controls stay packed against the row's end. Approval and Threads each hold the
      widest words they can show, measured by the reserve calls where the banner is
@@ -819,6 +827,9 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
     /* The mirrored drawer takes the left safe inset, this panel the right. */
     padding: 0 var(--lf-safe-right) var(--lf-safe-bottom) 0; }
   .lf-thread-panel.open { display: flex; }
+  /* The body's scrolling regions share a local paint order below the outer grip. */
+  .lf-thread-panel-body { isolation: isolate; display: flex; flex-direction: column; flex: 1;
+    min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
   /* The panel stands over the page and takes no room from it (theme.css, at
      `--lf-auxiliary-beside`). It shares the auxiliary scrim only where it leaves less than
      a usable page and covers it; elsewhere the page beside it stays live and no scrim
@@ -845,6 +856,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-edge:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring); --lf-focus-ring: edge;
     outline-offset: 0; }
   .lf-thread-panel-head, .lf-drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--rule); font-weight: 600; }
+  .lf-thread-panel-head { flex: none; }
   .lf-first-unread { margin-inline-start: auto; margin-inline-end: 8px; color: var(--accent);
     font-size: var(--t-6); white-space: nowrap; }
   /* The words in here, against the apparatus the root has already answered for: a reply
@@ -875,7 +887,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      criteria and result count visible even while the choices are folded, below them
      when open, so a press never moves the choices beside it. */
   leaf-thread-narrowing { display: contents; }
-  .lf-find { display: flex; gap: 8px; align-items: center; padding: 12px var(--lf-panel-inset) 6px; }
+  .lf-find { display: flex; flex: none; gap: 8px; align-items: center; padding: 12px var(--lf-panel-inset) 6px; }
   .lf-find-box { flex: 1; min-width: 0; }
   /* The chrome's own button face and type, which the panel's other buttons wear. */
   .lf-thread-filter-toggle { flex: none; color: var(--muted); }
@@ -885,7 +897,7 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      nothing drawn in it: the first letter typed into the find box used to insert the
      row and push the list 35px down under the user. */
   .lf-thread-filter-reset[data-lf-unoffered] { visibility: hidden; }
-  .lf-thread-view { display: flex; align-items: baseline; gap: 8px;
+  .lf-thread-view { display: flex; flex: none; align-items: baseline; gap: 8px;
     padding: 0 var(--lf-panel-inset) 8px; color: var(--muted); font-size: var(--t-6); }
   /* Open choices are closed off from the list by one rule, under the summary that
      follows them. */
@@ -939,7 +951,14 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      where a landing puts a thread's end and paints the band below it (below). */
   /* The editor takes a share of this actual list, so typing leaves the preceding
      turn readable even when the panel is short. */
-  .lf-threads-frame { flex: 1; min-height: 0; display: grid; container-type: size; }
+  /* Even the fallback keeps one complete reply control and its focus band readable;
+     the surrounding body scrolls instead of compressing this reading box to zero. */
+  /* The reading frame owns its pinned edges above the sibling composer scrollport.
+     Making that foot a positioned containing block must not put its border over the
+     reply's ground at their shared edge. */
+  .lf-threads-frame { flex: 1; z-index: 1;
+    min-height: calc(var(--lf-compose-h) + 2 * var(--focus-ring-room));
+    display: grid; container-type: size; }
   .lf-threads-frame::after, .lf-threads { grid-area: 1 / 1; min-height: 0; }
   .lf-threads { overflow-y: auto; overscroll-behavior: contain; z-index: 0;
     padding: var(--focus-ring-room) var(--lf-list-inset); --lf-block-frame: 1;
@@ -1223,12 +1242,18 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
       / 0 0 0 6px; }
   .lf-thread-panel { --lf-thread-inset: 12px; --lf-list-inset: 8px;
     --lf-panel-inset: calc(var(--lf-list-inset) + 1px + var(--lf-thread-inset)); }
-  /* The foot is a column of its own so the composer and the page's reaction strip keep
-     the flex-item margins they had as the panel's own children, and so the one box the
-     chrome measures for its lift is the one the user sees standing there. */
-  .lf-thread-panel-foot { display: flex; flex-direction: column; flex: none; }
+  /* List and foot share the room left after the panel controls. The foot's intrinsic
+     ceiling returns unused room to the list; a long draft uses at most its share.
+     Its one-line floor follows the shared composer and this row's own frame. The
+     editor scrolls first; the foot can scroll attachments and reactions when even
+     their minimum boxes exhaust that share. */
+  .lf-thread-panel-foot { --lf-general-pad: 12px;
+    display: flex; flex-direction: column; flex: 1;
+    min-height: calc(var(--lf-compose-h) + 2 * var(--lf-general-pad) + 1px);
+    max-height: max-content; overflow: auto; }
   /* Every composer gives its field the row; its submit action lives inside that field. */
-  :is(.lf-general, .lf-page-composer) { display: flex; gap: 6px; align-items: flex-end; }
+  :is(.lf-general, .lf-page-composer) { display: flex; gap: 6px; flex: 1; min-height: 0;
+    flex-direction: column; flex-wrap: nowrap; align-items: stretch; }
   .lf-thread-action { border: none; background: none; color: var(--muted); cursor: pointer; }
   .lf-thread-action:hover { color: var(--ok); }
   /* Reopen stands in the same row as Resolve and answers the same question from the
@@ -1238,7 +1263,12 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
      halfway. */
   .lf-thread-action:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
     --lf-focus-ring: thread-action; outline-offset: 2px; }
-  .lf-general { padding: 12px var(--lf-panel-inset); border-top: 1px solid var(--rule); }
+  .lf-general { padding: var(--lf-general-pad) var(--lf-panel-inset);
+    border-top: 1px solid var(--rule); }
+  :is(.lf-general, .lf-page-composer) > .lf-composer-media { flex: none; }
+  :is(.lf-general, .lf-page-composer) > .lf-compose-field { min-height: var(--lf-compose-h);
+    grid-template-rows: minmax(var(--lf-compose-h), 1fr); }
+  :is(.lf-general, .lf-page-composer) > .lf-compose-field > leaf-text { max-height: none; }
   .lf-system { color: var(--ok); margin: 8px 0; }
   /* The two floats that point at the page, the response bar and the thread card, are
      fixed and anchored to what they point at, so the page carries them, and are placed

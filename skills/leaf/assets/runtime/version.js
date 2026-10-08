@@ -92,10 +92,10 @@ import {
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
 import { prepareDeclaredInlineMarkdown } from "./markdown.js";
 import { pageScroller } from "./scrolling.js";
-import { TEXT_BOX } from "./control-selectors.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
+  onReadingInput,
   readingPosture,
   readingRegionFor,
   readingRegions,
@@ -1745,8 +1745,8 @@ export function createVersionController({
 
   // A region handed to another scroller keeps the reading recorded before the handover.
   // Focus can remain on a control the user has since scrolled past, so a posture change
-  // restores that reading. A visible editor is itself a live reading landmark;
-  // focus retained on a field the reader scrolled past is not.
+  // restores that reading. A visible focused element is itself a live reading landmark;
+  // focus retained on an element the reader scrolled past is not.
   // A composition change in progress owns any shift inside it.
   function restoreShifted(shifted, currentIntent) {
     if (compositionChanges.size) return;
@@ -1818,15 +1818,19 @@ export function createVersionController({
     readingContinuityInstalled = true;
     watchReadingRegionTransitions(readingRegionTransition);
     document.addEventListener("scroll", queueRecord, { capture: true, passive: true });
-    // Opening or editing a native field changes the reading place even when no
-    // scroller moves. Record after its seat commits, through the same frame door.
-    const recordEditing = () => {
+    // Arriving or editing changes the reading place even when no scroller moves.
+    // Keep the intact place now: an immediate resize can invalidate geometry before
+    // the queued record runs. Record again after any seat or layout commits.
+    const recordStanding = () => {
       const at = focused();
-      if (at?.matches(TEXT_BOX) && under(at, document.querySelector("body > main")))
+      if (at && under(at, document.querySelector("body > main"))) {
+        if (!compositionChanges.size && regionsSettled()) recordRegions();
         queueRecord();
+      }
     };
-    onStanding(recordEditing);
-    document.addEventListener("input", recordEditing);
+    onStanding(recordStanding);
+    onReadingInput(recordStanding);
+    document.addEventListener("input", recordStanding);
     queueRecord();
   }
 

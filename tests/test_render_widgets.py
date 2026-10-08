@@ -2465,11 +2465,13 @@ def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
     scrub.focus()
     scrub.press("End")
     expect(inspector).to_be_hidden()
+    expect(play).to_have_text("Replay")
     assert float(scrub.input_value()) == pytest.approx(
         float(scrub.get_attribute("max"))
     )
     scrub.press("Home")
     expect(scrub).to_have_value("0")
+    expect(play).to_have_text("Play")
     play.focus()
     play.press("ArrowRight")
     play.press("i")

@@ -90,14 +90,20 @@ from test_render_threads import hold_visible_thread_presentation
 
 
 @pytest.mark.parametrize(
-    ("unique", "tall"),
-    [(True, False), (False, False), (False, True)],
-    ids=["unique", "repeated", "tall-repeated"],
+    ("unique", "tall", "control"),
+    [
+        (True, False, "editor"),
+        (False, False, "editor"),
+        (False, True, "editor"),
+        (False, False, "checkbox"),
+        (False, False, "button"),
+    ],
+    ids=["unique", "repeated", "tall-repeated", "checkbox", "button"],
 )
-def test_a_visible_editor_is_the_reading_place_until_the_reader_scrolls_away(
-    browser, serve, unique, tall
+def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls_away(
+    browser, serve, unique, tall, control
 ):
-    """A pane carries live editing across posture changes without pulling back old focus."""
+    """A pane carries visible focus across posture changes without pulling back old focus."""
 
     def context(prefix):
         return "".join(
@@ -108,19 +114,35 @@ def test_a_visible_editor_is_the_reading_place_until_the_reader_scrolls_away(
     before = context("Reading")
     after = context("Following" if unique else "Reading")
     field_height = ' style="height:1000px"' if tall else ""
+    field_markup = {
+        "editor": f'<textarea aria-label="Working draft"{field_height}></textarea>',
+        "checkbox": '<label><input type="checkbox">Working choice</label>',
+        "button": '<button type="button">Working action</button>',
+    }[control]
     source = leaf_page(
         "Editing in a reading region",
         f'<lf-pane id="editor-pane" label="Working text"><div>{before}'
-        f'<textarea aria-label="Working draft"{field_height}></textarea>'
+        f"{field_markup}"
         f"{after}</div></lf-pane>",
         layout="workspace",
     )
     page = open_page(browser, serve(source))
     resized(page, 1366, 768)
-    field = page.get_by_role("textbox", name="Working draft")
+    role, name = {
+        "editor": ("textbox", "Working draft"),
+        "checkbox": ("checkbox", "Working choice"),
+        "button": ("button", "Working action"),
+    }[control]
+    field = page.get_by_role(role, name=name)
     field.click()
-    page.keyboard.type("The reader is working here")
+    if control == "editor":
+        page.keyboard.type("The reader is working here")
     rendered(page)
+    if control != "editor":
+        # Activation can keep focus on the same node without emitting an input.
+        # Settle the focus record first so it cannot accidentally cover the key.
+        field.press("Space" if control == "checkbox" else "Enter")
+        rendered(page)
 
     def in_view():
         return field.evaluate(
@@ -138,11 +160,21 @@ def test_a_visible_editor_is_the_reading_place_until_the_reader_scrolls_away(
     resized(page, 390, 760)
     rendered(page)
     expect(field).to_be_focused()
-    expect(field).to_have_value("The reader is working here")
-    assert in_view(), "the new page scroller lost the live editing place"
+    if control == "editor":
+        expect(field).to_have_value("The reader is working here")
+    assert in_view(), "the new page scroller lost the live focused place"
+    if control == "button":
+        # Clicking the same focused control must name it again, even though the
+        # browser has no new focus transition to announce.
+        field.click()
+        rendered(page)
+        resized(page, 1366, 768)
+        rendered(page)
+        expect(field).to_be_focused()
+        assert in_view(), "a repeated click lost the focused reading place"
 
     # Focus alone is not a reading place: scrolling elsewhere deliberately leaves
-    # the same editor focused, and the next posture must retain that new reading.
+    # the same element focused, and the next posture must retain that new reading.
     page.mouse.wheel(0, -10000)
     page.wait_for_function("document.scrollingElement.scrollTop === 0")
     scroll_settled(page)
@@ -152,7 +184,7 @@ def test_a_visible_editor_is_the_reading_place_until_the_reader_scrolls_away(
     resized(page, 1366, 768)
     rendered(page)
     expect(field).to_be_focused()
-    assert not in_view(), "a stale focused editor displaced the reader's new place"
+    assert not in_view(), "stale focus displaced the reader's new place"
 
 
 @pytest.mark.parametrize("bounded", [False, True])

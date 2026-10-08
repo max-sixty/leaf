@@ -196,6 +196,38 @@ def test_reading_keys_chain_at_a_document_bound_but_stop_at_a_task_boundary(
             assert page.evaluate("document.scrollingElement.scrollTop") == 0
 
 
+def test_a_focused_reading_surface_preserves_its_passage_on_reflow(browser, serve):
+    paragraphs = "".join(
+        f'<p id="passage-{number}">Paragraph {number}. '
+        + "The current passage stays readable when the viewport changes width. " * 10
+        + "</p>"
+        for number in range(12)
+    )
+    source = leaf_page(
+        "A focused reading surface",
+        f'<lf-pane id="reading" label="Reading"><div tabindex="0">{paragraphs}</div></lf-pane>',
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    body = page.locator("#reading > div")
+    body.focus()
+    body.press("PageDown")
+    scroll_settled(page, "#reading > div")
+    rendered(page)
+    landmark = body.evaluate("""body => {
+        const top = body.getBoundingClientRect().top;
+        return [...body.querySelectorAll('p')].find(
+            p => p.getBoundingClientRect().top >= top).id;
+    }""")
+    assert body.evaluate("body => body.scrollTop") > 0
+    resized(page, 390, 900)
+    rendered(page)
+    expect(body).to_be_focused()
+    box = page.locator(f"#{landmark}").bounding_box()
+    assert 0 <= box["y"] < 900, "the surface itself displaced its current passage"
+
+
 @pytest.mark.parametrize("workspace", [True, False])
 def test_reading_keys_follow_the_focused_pane_without_moving_its_sibling(
     browser, serve, workspace

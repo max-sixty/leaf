@@ -37,6 +37,7 @@ import {
   once,
   paintKeys,
   projectData,
+  projectedDatum,
   placeThreads,
   relabel,
   reserve,
@@ -51,6 +52,12 @@ import {
   watchData,
   watchOwner,
 } from "/runtime/widget-api.js";
+import {
+  diffDatumKey,
+  findDiffFile,
+  findDiffLine,
+  readDiffCoordinate,
+} from "/widgets/diff-coordinates.js";
 import "../vendor/webawesome.esm.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
 // an authored <lf-diff> bound to data
@@ -101,7 +108,7 @@ const changeCounts = (file) =>
 // rendered rows are a flat run with the separator chrome between them, so recovering
 // the grouping from the DOM afterwards would be reading a rendering for a fact the
 // parse already had. It rides on the same record the anchor coordinate is read off,
-// and `lineKey` names only the four fields that make a comment's coordinate, so a row
+// and `diffDatumKey` names only the four fields that make a comment's coordinate, so a row
 // knowing which hunk it is in changes no anchor.
 function sourceLines(file) {
   const lines = [];
@@ -135,13 +142,6 @@ const hunkHeads = (entry) =>
     (line, index) => index === 0 || line.hunk !== entry.lines[index - 1].hunk,
   );
 
-const lineKey = ({ path, side, oldLine, newLine }) =>
-  JSON.stringify(
-    side === "both"
-      ? [path, side, oldLine, newLine]
-      : [path, side, side === "old" ? oldLine : newLine],
-  );
-
 const lineLabel = ({ path, side, oldLine, newLine }) => {
   const file = path || "(unnamed file)";
   if (side === "old") return `${file} · old line ${oldLine}`;
@@ -149,7 +149,6 @@ const lineLabel = ({ path, side, oldLine, newLine }) => {
   return `${file} · old line ${oldLine} · new line ${newLine}`;
 };
 
-const fileKey = ({ path }) => JSON.stringify([path, "file"]);
 const fileLabel = ({ path }) => `${path || "(unnamed file)"} · file`;
 const fileNode = (entry) => entry.node;
 const fileDatum = (entry, origin = null) => ({
@@ -160,7 +159,7 @@ const fileDatum = (entry, origin = null) => ({
 });
 const projectionDatum = (record) => ({
   node: record.node,
-  key: record.file ? fileKey(record) : lineKey(record),
+  key: diffDatumKey(record),
   label: record.file ? fileLabel(record) : lineLabel(record),
   ...(record.origin ? { origin: record.origin } : {}),
 });
@@ -373,11 +372,11 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
   const details = entry.details;
   const pre = details.querySelector("pre");
   const nextPre = rendered.node.querySelector("pre");
-  const prior = new Map(entry.lines.map((record) => [lineKey(record), record]));
+  const prior = new Map(entry.lines.map((record) => [diffDatumKey(record), record]));
   const retained = new Map();
   const gutters = new Map();
   for (const next of rendered.lines) {
-    const previous = prior.get(lineKey(next));
+    const previous = prior.get(diffDatumKey(next));
     if (!previous || previous.node.innerHTML !== next.node.innerHTML) continue;
     retained.set(next.node, previous.node);
     const nextGutter = nextPre.querySelector(
@@ -456,7 +455,7 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
   ]);
   entry.lines = rendered.lines;
   const counterpart =
-    line && entry.lines.find((next) => lineKey(next) === lineKey(line));
+    line && entry.lines.find((next) => diffDatumKey(next) === diffDatumKey(line));
   return () =>
     restore?.(
       counterpart && (held === line.comment ? counterpart.comment : counterpart.node),
@@ -1233,22 +1232,17 @@ customElements.define(
     }
 
     threadOutletFor({ anchor, placement }) {
-      const entry = this.fileEntryForDatum(anchor.datum);
+      const coordinate = readDiffCoordinate(anchor.datum);
+      const entry = findDiffFile(this.fileEntries, coordinate);
       if (!entry || entry.filtered) return null;
-      let coordinate;
-      try {
-        coordinate = JSON.parse(anchor.datum);
-      } catch {
-        return null;
-      }
-      const file = coordinate[1] === "file";
+      const file = coordinate.file;
       if (file) {
         if (placement.datumElement !== entry.node) return null;
       } else if (
         !entry.loaded ||
         (entry.details && !entry.details.open) ||
         placement.datumElement !==
-          entry.lines.find((line) => lineKey(line) === anchor.datum)?.node
+          entry.lines.find((line) => diffDatumKey(line) === anchor.datum)?.node
       )
         return null;
 
@@ -1364,70 +1358,26 @@ customElements.define(
       restore?.();
     }
 
-    fileEntryForDatum(key) {
-      if (!this.fileEntries) return null;
-      let coordinate;
-      try {
-        coordinate = JSON.parse(key);
-      } catch {
-        return null;
-      }
-      if (!Array.isArray(coordinate) || typeof coordinate[0] !== "string") return null;
-      return (
-        this.fileEntries.find(({ record }) => record.path === coordinate[0]) ?? null
-      );
-    }
-
     // Core can place a standing line thread at its file disclosure before that file's
     // patch exists in the DOM. Navigation asks the second method to make the exact line
     // real, then the ordinary datum resolver and anchor painter take over.
     lfDataDatum(key, { outdated = false } = {}) {
-      const entry = this.fileEntryForDatum(key);
+      const coordinate = readDiffCoordinate(key);
+      const entry = findDiffFile(this.fileEntries, coordinate);
       if (!entry) return null;
-      let coordinate;
-      try {
-        coordinate = JSON.parse(key);
-      } catch {
-        return null;
-      }
-      if (coordinate[1] === "file") return fileNode(entry);
+      if (coordinate.file) return fileNode(entry);
       if (outdated) return entry.node;
       if (!entry.loaded || entry.filtered) return entry.node;
-      const exact = entry.lines.find((line) => lineKey(line) === key);
-      if (exact) return exact.node;
-      const [, side, at] = coordinate;
-      if (!Number.isInteger(at) || !["old", "new"].includes(side)) return null;
-      const context = entry.lines.find(
-        (line) =>
-          line.side === "both" && (side === "old" ? line.oldLine : line.newLine) === at,
-      );
-      if (context) return context.node;
-      if (side === "new") {
-        const priorContext = entry.lines.find(
-          (line) => line.side === "both" && line.oldLine === at,
-        );
-        if (priorContext) return priorContext.node;
-      }
-      // A non-removed call-tree item normally names the new side. Falling back to an
-      // old coordinate preserves travel for analyzers whose location still names the
-      // pre-change call site, without making callers understand diff coordinates.
-      if (side === "new")
-        return (
-          entry.lines.find((line) => line.side === "old" && line.oldLine === at)
-            ?.node ?? null
-        );
-      return null;
+      const line = findDiffLine(entry.lines, coordinate);
+      return line ? projectedDatum(this, diffDatumKey(line)) : null;
     }
 
     lfRevealDatum(key) {
-      const entry = this.fileEntryForDatum(key);
+      const coordinate = readDiffCoordinate(key);
+      const entry = findDiffFile(this.fileEntries, coordinate);
       if (!entry) return null;
       if (entry.filtered) this.clearFilter();
-      try {
-        if (JSON.parse(key)[1] === "file") return null;
-      } catch {
-        return null;
-      }
+      if (coordinate.file) return null;
       if (!entry.details || entry.loaded || entry.failed) return null;
       entry.details.toggleAttribute("open", true);
       return this.loadManifestEntry(entry);

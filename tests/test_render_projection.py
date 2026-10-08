@@ -34,6 +34,7 @@ from leaf.render_gate.preview import preview_server
 from leaf.render_gate.readings import DevtoolsIssues
 from leaf.schema import ELEMENT_ID
 from leaf.validation import compatibility as validation_model
+from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_IN_ORDER,
@@ -444,6 +445,135 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve, recon
             held.pop(0).continue_()
 
 
+def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser, serve):
+    """An analyzer's old-source fallback must never retarget a durable new address."""
+    url = serve(
+        leaf_page(
+            "source coordinates",
+            '<h1 id="title">Call locations</h1>'
+            '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
+            '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
+        ),
+        packages=("pr-review", "diff"),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -5,4 +8,4 @@\n shifted()\n-removed()\n+added()\n next()\n last()\n",
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "calls-data",
+        "calldiff diff main → feature\n  shifted()  app.py:8\n"
+        "  absent_new()  app.py:6\n- removed()  app.py:6\n"
+        "+ added()  app.py:9\n  last()  app.py:11",
+    )
+    page = open_page(browser, url)
+    diff = page.locator("#patch")
+
+    def resolved(key):
+        return diff.evaluate(
+            "(diff, key) => diff.lfDataDatum(JSON.stringify(key))?.dataset.lfDatum ?? null",
+            key,
+        )
+
+    assert resolved(["app.py", "new", 5]) is None
+    assert resolved(["app.py", "new", 6]) is None
+    assert resolved(["app.py", "both", 5, 99]) is None
+    assert resolved(["app.py", "both", 5, 8]) == '["app.py","both",5,8]'
+    assert resolved(["app.py", "old", 8]) == '["app.py","both",8,11]'
+    assert resolved(["app.py", "new", 8]) == '["app.py","both",5,8]'
+    assert resolved(["app.py", "file", "extra"]) is None
+
+    links = page.locator("#calls .lf-call-location:visible")
+    for index, key in enumerate(
+        [
+            '["app.py","both",5,8]',
+            None,
+            '["app.py","old",6]',
+            '["app.py","new",9]',
+            '["app.py","both",8,11]',
+        ]
+    ):
+        link = links.nth(index)
+        location = link.inner_text()
+        link.click()
+        if key is None:
+            expect(page.locator(".lf-live")).to_have_text(
+                f"{location} is not present in the exact patch"
+            )
+            continue
+        target = page.locator(f"#patch [data-lf-datum='{key}']")
+        expect(target).to_be_focused()
+        expect(target).to_be_in_viewport()
+        expect(page.locator(".lf-live")).to_have_text(
+            f"Opened {location} in the exact patch"
+        )
+
+
+@pytest.mark.parametrize("manifest", [False, True])
+def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
+    browser, serve, manifest
+):
+    """Old source b.py and durable destination b.py identify different rename rows."""
+    url = serve(
+        leaf_page(
+            "renamed source paths",
+            '<h1 id="title">Renamed calls</h1>'
+            '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
+            '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
+        ),
+        packages=("pr-review", "diff"),
+    )
+    patch = ""
+    for previous, current in [("a.py", "b.py"), ("b.py", "c.py")]:
+        patch += (
+            f"diff --git a/{previous} b/{current}\n"
+            f"similarity index 50%\nrename from {previous}\nrename to {current}\n"
+            f"--- a/{previous}\n+++ b/{current}\n"
+            f"@@ -1,2 +1,2 @@\n context()\n-removed_{previous[0]}()\n+added_{current[0]}()\n"
+        )
+    patch += (
+        "diff --git a/a.py b/a.py\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/a.py\n@@ -0,0 +1 @@\n+new_a()\n"
+    )
+    data_model.cmd_data_set(
+        serve.page_dir, "patch-data", patch_manifest(patch) if manifest else patch
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "calls-data",
+        "calldiff diff main → feature\n- removed_b()  b.py:2\n"
+        "- removed_a()  a.py:2\n+ new_a()  a.py:1\n+ added_b()  b.py:2",
+    )
+    page = open_page(browser, url)
+    links = page.locator("#calls .lf-call-location:visible")
+    for index, key in enumerate(
+        [
+            '["c.py","old",2]',
+            '["b.py","old",2]',
+            '["a.py","new",1]',
+            '["b.py","new",2]',
+        ]
+    ):
+        links.nth(index).click()
+        line = page.locator(f"#patch [data-lf-datum='{key}']")
+        expect(line).to_be_focused()
+        expect(line).to_be_in_viewport()
+        page.keyboard.press("c")
+        expect(page.locator("#lf-composer-quote")).to_contain_text(json.loads(key)[0])
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        page.keyboard.press("Escape")
+    # Source navigation never replaces the projection's destination identity.
+    assert (
+        page.locator("#patch").evaluate(
+            'diff => diff.lfDataDatum(\'["b.py","old",2]\').textContent.trim()'
+        )
+        == "removed_a()"
+    )
+
+
 def test_call_diff_projects_stable_commentable_rows(browser, serve):
     authored = leaf_page(
         "call diff",
@@ -698,7 +828,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     data_model.cmd_data_set(
         serve.page_dir,
         "request-call-diff",
-        "calldiff diff main → shifted\n  shifted_call()  gateway/limits.py:100",
+        "calldiff diff main → shifted\n  shifted_call()  gateway/limits.py:102",
     )
     told(page)
     shifted = page.locator(
@@ -707,7 +837,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     root_location.click()
     expect(shifted).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
-        "Opened gateway/limits.py:100 in the exact patch"
+        "Opened gateway/limits.py:102 in the exact patch"
     )
 
     data_model.cmd_data_set(serve.page_dir, "request-call-diff", "not CallDiff output")

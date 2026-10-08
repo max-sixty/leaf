@@ -25,12 +25,15 @@
  * states alike; pixel surfaces never own surrounding geometry. Same-page capture changes retain an inspected
  * image scale and origin, even across empty points and replay; fitted captures continue to fit.
  * Point metadata and saved-element disclosure scroll inside their own region, so
- * playback cannot move surrounding page controls. Page-scoped inspection state
+ * playback cannot move surrounding page controls. Registered nested reading regions
+ * and phase-keyed reading places retain saved-tree inspection through empty frames.
+ * Page-scoped inspection state
  * outlives the image and timeline renderers. Image replacement is atomic: one pending Viewer
  * prepares offscreen while the committed pixels, caption and comment identity stay
  * together; viewed and decoded pixels commit before the retired surface leaves. */
 import {
   commands,
+  capturePlace,
   declarationFor,
   dragging,
   cancelRender,
@@ -39,6 +42,8 @@ import {
   nextRender,
   compoundReadingRegionId,
   registerReadingRegion,
+  readingRegion,
+  restorePlace,
   keepsHidden,
   el,
   focused,
@@ -135,6 +140,8 @@ customElements.define(
     #selected = null;
     #intermediates = false;
     #stopReading = null;
+    #treeScope = null;
+    #treePlaces = new Map();
     #keys = null;
     #parts = null;
     #inventory = [];
@@ -288,11 +295,20 @@ customElements.define(
             when: () => this.#checkpoints().length > 0 && this.#frames().length > 0,
           },
         ]);
-      this.#stopReading ??= registerReadingRegion({
-        id: compoundReadingRegionId(this, "recording"),
-        host: this,
-        body: this.body,
-      });
+      if (!this.#stopReading) {
+        const stops = [
+          ["recording", this, this.body],
+          ["point-details", this.metadata, this.metadata],
+          ["saved-elements", this.treeDetails, this.treeDetails],
+        ].map(([name, host, body]) =>
+          registerReadingRegion({
+            id: compoundReadingRegionId(this, name),
+            host,
+            body,
+          }),
+        );
+        this.#stopReading = () => stops.toReversed().forEach((stop) => stop());
+      }
       if (firstConnection) watchData(this, "trace", (snapshot) => this.#show(snapshot));
       else this.#draw();
     }
@@ -449,6 +465,7 @@ customElements.define(
       this.actionDetails = el("p", "lf-trace-action");
       this.phaseHeading = el("h3", "lf-trace-phase");
       this.error = el("p", "lf-trace-error");
+      this.error.hidden = true;
       this.imageHost = el("div", "lf-trace-images");
       this.imageViewport = el("div", "lf-trace-image-viewport");
       this.missingImage = el("p", "lf-trace-missing-image");
@@ -495,19 +512,19 @@ customElements.define(
       // cannot move that control as frames and checkpoints replace each other.
       this.evidence = el("div", "lf-trace-evidence");
       const metadata = el("div", "lf-trace-metadata");
+      this.metadata = metadata;
       metadata.tabIndex = 0;
       metadata.setAttribute("role", "group");
       metadata.setAttribute("aria-label", "Selected point details");
-      // Point descriptions may wrap differently; the inspector and its retained
-      // disclosure keep their boxes while those words change inside them.
-      metadata.setAttribute("data-lf-reflow", "text");
+      // Variable checkpoint descriptions follow the commentable action and phase,
+      // so wrapping a readout cannot move a retained target during playback.
       metadata.append(
         this.treeDetails,
         this.clock,
-        this.readout,
         this.actionDetails,
         this.phaseHeading,
         this.error,
+        this.readout,
       );
       this.evidence.append(this.imageHost, this.imageTools, metadata);
       this.body.append(toolbar, stepper, this.evidence);
@@ -516,7 +533,23 @@ customElements.define(
         label: (id) => this.#targets.get(id)?.label ?? null,
         reveal: (id) => this.#reveal(id),
       });
-      this.treeDetails.addEventListener("toggle", () => this.#draw());
+      this.treeDetails.addEventListener("scroll", () => {
+        if (this.treeDetails.open && this.#treeScope)
+          this.#treePlaces.set(
+            this.#treeScope,
+            capturePlace(
+              readingRegion(compoundReadingRegionId(this, "saved-elements")),
+            ),
+          );
+      });
+      this.treeDetails.addEventListener("toggle", () => {
+        this.#draw();
+        if (this.treeDetails.open)
+          restorePlace(
+            this.#treePlaces.get(this.#treeScope),
+            readingRegion(compoundReadingRegionId(this, "saved-elements")),
+          );
+      });
       if (quoted(this)) {
         this.previous.disabled = true;
         this.next.disabled = true;
@@ -773,6 +806,8 @@ customElements.define(
         this.#images.clear();
         this.#scopeViews.clear();
         this.#nodes.clear();
+        this.#treePlaces.clear();
+        this.#treeScope = null;
         this.#page = null;
         this.#selected = null;
         this.#chosenBookmark = null;
@@ -1269,9 +1304,11 @@ customElements.define(
       this.#rail.addCustomTime(0, "selection");
       // Vis seats moving time cursors on a stationary background plane, separate
       // from moment buttons. Only that plane permits its live control to travel.
-      this.markers
-        .querySelector(".vis-panel.vis-background.vis-vertical")
-        .setAttribute("data-lf-reflow", "controls");
+      const cursorPlane = this.markers.querySelector(
+        ".vis-panel.vis-background.vis-vertical",
+      );
+      cursorPlane.setAttribute("data-lf-runtime", "");
+      cursorPlane.setAttribute("data-lf-reflow", "controls");
       this.#rail.setCustomTimeTitle(
         quoted(this) ? "Selected recorded point" : "Drag to scrub recording",
         "selection",
@@ -1444,6 +1481,13 @@ customElements.define(
       const items = this.#items();
       const position = Math.max(0, Math.min(this.#position(), items.length - 1));
       const point = items[position];
+      const treeScope = point?.action ? this.#phaseId(point.action, point.phase) : null;
+      const treeChanged = treeScope !== this.#treeScope;
+      const treeRegion = readingRegion(compoundReadingRegionId(this, "saved-elements"));
+      // Saved trees replace each other under their archive phase identity. Keep
+      // each reading through empty frames and returns using Leaf's place owner.
+      if (treeChanged && this.#treeScope && this.treeDetails.open)
+        this.#treePlaces.set(this.#treeScope, capturePlace(treeRegion));
       this.#selected = point?.id ?? null;
       if (this.sources.value !== (this.#page ?? ""))
         this.sources.value = this.#page ?? "";
@@ -1514,23 +1558,23 @@ customElements.define(
           : clockLabel,
       );
       const hasAction = !!point?.action;
-      keepsHidden(this.actionDetails, !hasAction);
-      keepsHidden(this.phaseHeading, !hasAction);
+      // A filmstrip frame has no action target. Retain the previous rows' extent
+      // while hiding them, so an inspected scroll position cannot be clamped.
+      this.metadata.classList.toggle("lf-trace-no-action", !hasAction);
       const { image, tree } = this.#evidence(point);
       let action = null;
       let phase = null;
-      let wanted = null;
       if (point?.action) {
         action = point.action;
         phase = action.phases[point.phase];
-        wanted = point.timestamp;
         keepsText(this.actionDetails, action.title);
         keepsText(
           this.phaseHeading,
-          `${PHASES[point.phase]} · ${this.#time(wanted, action.stream)}`,
+          `${PHASES[point.phase]} · ${this.#time(point.timestamp, action.stream)}`,
         );
 
         keepsText(this.error, action.error ?? "");
+        keepsHidden(this.error, !action.error);
         const actionIndex = this.#trace.actions.indexOf(action);
         add(this.#id("action", action.id), this.actionDetails, action.title, [
           "actions",
@@ -1545,14 +1589,11 @@ customElements.define(
             : ["actions", actionIndex],
         );
       }
-      keepsHidden(this.error, !action?.error);
-      let reading = !this.#trace
+      const reading = !this.#trace
         ? "Waiting for a Playwright recording."
         : !items.length
           ? "No recorded checkpoints or frames in this page or stream."
-          : `Timeline point ${position + 1} of ${items.length}${action ? ` · Action ${this.#trace.actions.indexOf(action) + 1} · ${PHASES[point.phase]}` : " · Captured frame · No saved elements at this frame"}`;
-      if (image)
-        reading += ` · ${image.kind === "checkpoint" ? "checkpoint" : "captured image"} ${this.#time(image.timestamp, image.stream)}${wanted === null || image.kind === "checkpoint" ? "" : ` (${Math.round(wanted - image.timestamp)} ms earlier)`}`;
+          : `Timeline point ${position + 1} of ${items.length}`;
       keepsText(this.readout, reading);
       if (image) {
         let figure = this.#images.get(image.id);
@@ -1727,6 +1768,11 @@ customElements.define(
         })),
         { snapshot: this.#snapshot },
       );
+      if (treeChanged) {
+        this.#treeScope = treeScope;
+        if (this.treeDetails.open)
+          restorePlace(this.#treePlaces.get(treeScope), treeRegion);
+      }
       this.#parts.update();
       paintKeys();
     }

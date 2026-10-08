@@ -90,11 +90,12 @@
 .lf-trace-clock { margin-block: var(--sp-2) 0; }
 /* Point metadata owns its scroll. Frame gaps and disclosure cannot shrink the
  * surrounding page or pull a control out from under a reader during playback. */
-.lf-trace-metadata { block-size: 14rem; overflow: auto; scrollbar-gutter: stable; }
+.lf-trace-metadata { block-size: 14rem; overflow: auto; scrollbar-gutter: stable; --lf-top: 0px; }
 .lf-trace-metadata:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .lf-trace-readout { margin-block: var(--sp-2); }
 .lf-trace-action { margin-block: var(--sp-2) 0; font-weight: 600; }
 .lf-trace-phase { margin-block: 4px var(--sp-2); font: 500 var(--t-5) / 1.4 var(--sans); font-variant-numeric: tabular-nums; }
+.lf-trace-no-action :is(.lf-trace-action, .lf-trace-phase, .lf-trace-error) { visibility: hidden; }
 .lf-trace-error { color: var(--danger); }
 .lf-trace-images { min-inline-size: 0; position: relative; }
 .lf-trace-image-pending { visibility: hidden; }
@@ -105,11 +106,14 @@
 .lf-trace-full-image[inert] { visibility: hidden; }
 .lf-trace-image-viewport[data-sized] > .lf-trace-missing-image:not([hidden]) { position: absolute; inset: 0; max-inline-size: none; display: grid; place-items: center; box-sizing: border-box; background: var(--paper-2, var(--paper)); }
 .lf-trace-missing-image { padding: var(--sp-4); border: 1px dashed var(--border-2); color: var(--muted); margin-block: 0; }
-.lf-trace-tree { margin-block-start: var(--sp-3); }
-.lf-trace-tree > summary { min-block-size: 44px; align-content: center; cursor: pointer; }
-.lf-trace-tree-clock { margin-block: var(--sp-2); }
-.lf-trace-nodes { margin: 0; padding-inline-start: 1.4em; }
-.lf-trace-node { padding-block: 6px; }
+.lf-trace-tree { margin-block-start: var(--sp-3); --lf-top: 0px; --lf-trace-tree-head: 44px; }
+/* An open saved tree keeps one inspection extent as checkpoints replace its
+ * nodes. Its own scroll exposes long trees without carrying adjacent targets. */
+.lf-trace-tree[open] { block-size: 100%; box-sizing: border-box; overflow: auto; scrollbar-gutter: stable; }
+.lf-trace-tree > summary { block-size: var(--lf-trace-tree-head); align-content: center; cursor: pointer; position: sticky; inset-block-start: var(--lf-top); background: var(--paper); z-index: 1; }
+.lf-trace-tree-clock { margin-block: var(--sp-2); --lf-top: var(--lf-trace-tree-head); }
+.lf-trace-nodes { margin: 0; padding-inline-start: 1.4em; --lf-top: var(--lf-trace-tree-head); }
+.lf-trace-node { padding-block: 6px; scroll-margin-top: var(--lf-trace-tree-head); }
 .lf-trace-node-path { display: block; color: var(--muted); font-size: var(--t-6); }
 :scope:is(lf-trace-bookmark) { display: none; }
 @container (max-width: 480px) {

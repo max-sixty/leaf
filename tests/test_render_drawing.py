@@ -1394,16 +1394,17 @@ def test_drawing_ink_follows_pixels_inside_their_ancestor_viewport(browser, serv
     """Panning a marked surface moves its ink, while its viewport cuts the paint.
 
     The complete surface remains the drawing's coordinate frame: clipping must
-    not renormalize the mark to only the pixels currently visible.
+    not renormalize the mark to only the pixels currently visible. Completed
+    draft ink uses the same clipping owner as posted ink; measuring it before
+    sending keeps a second drawing thumbnail and moving thread card out of the
+    pixel comparison.
     """
     page = open_page(browser, serve(CLIPPED_DRAWING_PAGE))
     target = page.locator("#pixels")
     draw_over(page, target, points=((0.2, 0.4), (0.4, 0.4), (0.7, 0.4)))
-    with sending(page, "the captured detail"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    page.keyboard.press("Escape")
-    mark = page.locator(".lf-drawing-posted")
+    mark = page.locator(".lf-drawing-pending")
     expect(mark).to_have_count(1)
+    expect(page.locator(".lf-fab-input")).to_be_focused()
     for pan in (-100, 180):
         target.evaluate(
             "(el, x) => { el.style.transform = `translateX(${x}px)`; }", pan

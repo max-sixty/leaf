@@ -171,7 +171,9 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     origin = stream["monotonicTime"]
     assert origin is not None
     elapsed = f"{(image['timestamp'] - origin) / 1000:.3f} s"
-    expect(widget.locator(".lf-trace-readout")).to_contain_text(f"checkpoint {elapsed}")
+    expect(widget.locator(".lf-trace-caption")).to_contain_text(
+        f"After checkpoint · {elapsed}"
+    )
     expect(widget.locator(".lf-trace-phase")).to_have_text(
         f"After · {(phase['timestamp'] - origin) / 1000:.3f} s"
     )
@@ -437,7 +439,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     )
 
     expect(frames_toggle).to_be_disabled()
-    expect(widget.locator(".lf-trace-readout")).to_contain_text("Captured frame")
+    expect(widget.locator(".lf-trace-selection")).to_contain_text("Captured frame")
     expect(raster).to_have_js_property("naturalWidth", 390)
 
     # A frame captured after the last included call is still a useful arrival.
@@ -461,7 +463,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     expect(
         widget.get_by_role("checkbox", name="Show intermediate frames")
     ).to_be_checked()
-    expect(widget.locator(".lf-trace-readout")).to_contain_text("Captured frame")
+    expect(widget.locator(".lf-trace-selection")).to_contain_text("Captured frame")
     widget.get_by_role("button", name="Previous", exact=True).click()
     expect(widget.locator(".lf-trace-position")).to_have_text(
         f"{((early_call['endTime']) - record['streams'][0]['monotonicTime']) / 1000:.3f} s"
@@ -706,7 +708,16 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
 
 def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve):
     """Mouse and touch transport browse captures; a review gesture freezes its pixels."""
-    url = serve(ROOT / "examples/developer/playwright-trace-gallery.html")
+    source = ROOT / "examples/developer/playwright-trace-gallery.html"
+    record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
+    checkpoints = [
+        phase["timestamp"]
+        for action in record["actions"]
+        for phase in action["phases"].values()
+        if phase["pageId"] == record["pages"][0]["id"]
+    ]
+    duration = max(checkpoints) - min(checkpoints)
+    url = serve(source)
     for touch in (False, True):
         context = browser.new_context(
             viewport={"width": 390 if touch else 1440, "height": 900},
@@ -740,12 +751,17 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
             const host = w.querySelector('.lf-trace-images').getBoundingClientRect();
             const tools = w.querySelector('.lf-trace-image-tools').getBoundingClientRect();
             startFrames.push({height: host.height, tools: tools.top + scrollY});
-            if (watchStart) requestAnimationFrame(sample);
+            if (watchStart) lfWatchPlatform.frame(sample);
           };
           sample();
         }""")
+        # Hold product time while native input is delivered. A slow runner cannot
+        # turn the Pause the test aims at into Replay before the press arrives.
+        user.clock.install(time=0)
+        user.clock.pause_at(1)
         play.tap() if touch else play.click()
         expect(pause).to_be_visible()
+        user.clock.run_for(round(duration / 2))
         expect(position).not_to_have_text(beginning)
         expect(
             widget.locator(
@@ -753,8 +769,10 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
             )
         ).to_be_visible()
         pause.tap() if touch else pause.click()
-        paused = position.inner_text()
+        expect(play).to_be_visible()
+        user.clock.resume()
         rendered(user)
+        paused = position.inner_text()
         frames = user.evaluate("() => {watchStart = false; return startFrames}")
         assert len(frames) >= 2
         for key in ("height", "tools"):
@@ -764,12 +782,16 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
         play.tap() if touch else play.click()
         expect(play).to_be_visible()
         expect(position).to_have_text(end)
+        user.clock.pause_at(user.evaluate("Date.now() / 1000") + 1)
         play.tap() if touch else play.click()
         expect(pause).to_be_visible()
+        user.clock.run_for(round(duration / 2))
         widget.get_by_role("button", name="Next", exact=True).click()
         expect(play).to_be_visible()
+        user.clock.resume()
 
         # The visible handle, rather than blank-space pan, changes evidence.
+        timeline.press("Home")
         widget.get_by_role("button", name="Whole recording", exact=True).click()
         timeline.scroll_into_view_if_needed()
         handle = widget.locator(".vis-custom-time.selection").bounding_box()
@@ -808,6 +830,7 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
         # Wheel engagement with the point inspector freezes its contents while
         # leaving the browser responsible for scrolling its saved-element tree.
         if not touch:
+            user.clock.pause_at(user.evaluate("Date.now() / 1000") + 1)
             play.click()
             expect(pause).to_be_visible()
             metadata = widget.get_by_role("group", name="Selected point details")
@@ -816,6 +839,8 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
             user.mouse.move(box["x"] + box["width"] / 2, box["y"] + 30)
             user.mouse.wheel(0, 100)
             expect(play).to_be_visible()
+            user.clock.resume()
+            rendered(user)
             frozen = position.inner_text()
             rendered(user)
             expect(position).to_have_text(frozen)
@@ -824,10 +849,13 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
         # before ink samples arrive; comments keep that immutable image identity.
         timeline.focus()
         timeline.press("Home")
+        user.clock.pause_at(user.evaluate("Date.now() / 1000") + 1)
         play.tap() if touch else play.click()
         expect(pause).to_be_visible()
-        play.press("w")
+        pause.press("w")
         expect(play).to_be_visible()
+        user.clock.resume()
+        rendered(user)
         frozen = position.inner_text()
         rendered(user)
         expect(position).to_have_text(frozen)
@@ -836,6 +864,8 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
 
 def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serve):
     """Playback, empty points and renderer replacement retain the user's inspection."""
+    from render_harness import scroll_settled
+
     source = ROOT / "examples/developer/playwright-trace-gallery.html"
     record = json.loads(source.with_suffix(".data.json").read_text())["release-journey"]
     # Native traces can have a saved tree before any screenshot. Keep this real
@@ -852,6 +882,12 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         )
         user = open_page(browser, url, context=context)
         widget = user.locator("lf-trace")
+        # Exercise classic scrollbars' real inner-width loss on macOS too,
+        # in both the bounded point inspector and its expanded saved tree.
+        user.add_style_tag(
+            content=".lf-trace-metadata::-webkit-scrollbar, "
+            ".lf-trace-tree::-webkit-scrollbar {width: 15px; height: 15px}"
+        )
         timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
         widget.get_by_role("checkbox", name="Show intermediate frames").check()
         timeline.focus()
@@ -872,6 +908,9 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
           window.inspectionFrames = [];
           window.inspectionWindows = [];
           window.inspectionDisclosures = [];
+          window.inspectionTargets = [];
+          window.inspectionReadouts = [];
+          window.inspectionGapTargets = [];
           window.watchInspection = true;
           window.inspectionWindow = () => {
             const w = document.querySelector('lf-trace');
@@ -903,8 +942,36 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
               top: summary.getBoundingClientRect().top - inspector.getBoundingClientRect().top
                 + inspector.scrollTop,
             });
+            const action = inspector.querySelector('.lf-trace-action');
+            const phase = inspector.querySelector('.lf-trace-phase');
+            inspectionReadouts.push(inspector.querySelector('.lf-trace-readout')
+              .getBoundingClientRect().height);
+            if (action.checkVisibility({visibilityProperty: true})
+              && phase.checkVisibility({visibilityProperty: true})) {
+              const top = node => node.getBoundingClientRect().top
+                - inspector.getBoundingClientRect().top + inspector.scrollTop;
+              inspectionTargets.push({
+                actionTop: top(action), phaseTop: top(phase),
+                actionViewTop: top(action) - inspector.scrollTop,
+                phaseViewTop: top(phase) - inspector.scrollTop,
+                treeHeight: inspector.querySelector('.lf-trace-tree')
+                  .getBoundingClientRect().height,
+                treeNodes: inspector.querySelectorAll('.lf-trace-node').length,
+                action: action.getAttribute('data-lf-datum'),
+                phase: phase.getAttribute('data-lf-datum'),
+                title: action.textContent,
+                runtimeOwned: !!action.closest('[data-lf-runtime]')
+                  || !!phase.closest('[data-lf-runtime]'),
+              });
+            } else {
+              inspectionGapTargets.push([
+                action.getAttribute('data-lf-datum'),
+                phase.getAttribute('data-lf-datum'),
+              ]);
+            }
             if (watchInspection) requestAnimationFrame(sample);
           };
+          window.sampleInspection = sample;
           sample();
         }""")
         before = user.evaluate("inspectionView()")
@@ -935,6 +1002,109 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
             sample["top"] == pytest.approx(disclosures[0]["top"], abs=1)
             for sample in disclosures
         ), "Saved elements must keep its place through frame and checkpoint stops"
+        targets = user.evaluate("inspectionTargets")
+        assert len({sample["phase"] for sample in targets}) > 1
+        assert all(
+            (sample["actionTop"], sample["phaseTop"])
+            == pytest.approx((targets[0]["actionTop"], targets[0]["phaseTop"]), abs=1)
+            for sample in targets
+        ), "Timeline changes must not move commentable action/phase targets"
+        readouts = user.evaluate("inspectionReadouts")
+        assert all(
+            height == pytest.approx(readouts[0], abs=1) for height in readouts
+        ), "Point counters must keep their extent through frames and checkpoints"
+        gaps = user.evaluate("inspectionGapTargets")
+        assert gaps and all(targets == [None, None] for targets in gaps), (
+            "Filmstrip gaps must not expose retained action/phase semantic targets"
+        )
+        archive = record["archive"]["sha256"]
+        actions = {
+            f"trace-{archive}-action-{action['id']}": action
+            for action in record["actions"]
+        }
+        assert all(
+            sample["action"] in actions
+            and sample["title"] == actions[sample["action"]]["title"]
+            and sample["phase"].startswith(
+                f"trace-{archive}-phase-{actions[sample['action']]['id']}-"
+            )
+            and not sample["runtimeOwned"]
+            for sample in targets
+        ), (
+            "Imported evidence must retain its archive target rather than runtime ownership"
+        )
+
+        # An expanded tree owns its scrolling. Replacing the zero-node Before
+        # tree with the populated After tree must not carry the same action's
+        # comment target down the outer inspector.
+        tree = widget.locator(".lf-trace-tree")
+        summary = tree.locator("summary")
+        summary.click()
+        summary.focus()
+        summary.press("PageDown")
+        user.wait_for_function(
+            "document.querySelector('lf-trace .lf-trace-tree').scrollTop > 0"
+        )
+        scroll_settled(user, ".lf-trace-tree")
+        rendered(user)
+        widget.locator(".lf-trace-phase").scroll_into_view_if_needed()
+        rendered(user)
+        tree_place = tree.evaluate("node => node.scrollTop")
+        tree_phase = widget.locator(".lf-trace-phase").get_attribute("data-lf-datum")
+        user.evaluate("""() => {
+          inspectionTargets = [];
+          watchInspection = true;
+          sampleInspection();
+        }""")
+        # Keep the inspected viewport while pressing the visible sticky Play
+        # control; locator activation can scroll before it delivers input.
+        box = play.bounding_box()
+        x, y = box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+        assert play.evaluate(
+            "(node, point) => node.contains(document.elementFromPoint(...point))",
+            [x, y],
+        )
+        user.touchscreen.tap(x, y) if touch else user.mouse.click(x, y)
+        expect(widget.get_by_role("button", name="Pause", exact=True)).to_be_visible()
+        expect(play).to_be_visible()
+        rendered(user)
+        expanded = user.evaluate(
+            "() => {watchInspection = false; return inspectionTargets}"
+        )
+        expect(widget.locator(".lf-trace-phase")).to_have_attribute(
+            "data-lf-datum", tree_phase
+        )
+        assert tree.evaluate("node => node.scrollTop") == pytest.approx(
+            tree_place, abs=1
+        ), "Returning to the same saved tree must restore its inspected scroll position"
+        assert all(
+            (sample["actionViewTop"], sample["phaseViewTop"], sample["treeHeight"])
+            == pytest.approx(
+                (
+                    expanded[0]["actionViewTop"],
+                    expanded[0]["phaseViewTop"],
+                    expanded[0]["treeHeight"],
+                ),
+                abs=1,
+            )
+            for sample in expanded
+        ), (
+            "Expanded saved trees must not move adjacent commentable targets: "
+            f"{sorted({(s['actionViewTop'], s['phaseViewTop'], s['treeHeight']) for s in expanded})}"
+        )
+        assert any(
+            len(
+                {
+                    sample["treeNodes"]
+                    for sample in expanded
+                    if sample["action"] == action
+                }
+            )
+            > 1
+            for action in {sample["action"] for sample in expanded}
+        ), "Expanded replay must replace differently sized trees for the same action"
+        summary.click()
+        rendered(user)
 
         # Rendering empty time, returning from API calls and resizing the page
         # cannot redefine the inspection. Fit is an explicit user action.

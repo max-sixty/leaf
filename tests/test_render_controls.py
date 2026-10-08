@@ -157,6 +157,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     this.count = 0;
     this.allowed = true;
     this.disabled = false;
+    this.ariaRefused = false;
     this.result = offer('output', '', '0');
     const editor = offer('input');
     editor.setAttribute('aria-label', 'Practice note');
@@ -169,8 +170,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     };
     const ariaDisable = offer('button', '', 'Toggle ARIA disabled');
     ariaDisable.onclick = () => {
-      keeps(this.control, 'aria-disabled',
-        this.control.getAttribute('aria-disabled') === 'true' ? null : 'true');
+      this.ariaRefused = !this.ariaRefused;
       paintKeys();
     };
     const guard = offer('button', '', 'Toggle availability');
@@ -189,7 +189,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         id: 'probe.apply', keys: ['x'], contextKeys: ['1'],
         control: () => this.control, bindingBadge: () => this.badge,
         title: 'Apply the operation', line: 'apply',
-        when: () => this.allowed && !this.disabled,
+        when: () => this.allowed && !this.disabled && !this.ariaRefused,
         run: () => keepsText(this.result, String(++this.count)),
       },
       {
@@ -464,7 +464,7 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
         "DISABLE_FIRST",
         "true;"
         if disabled == "native"
-        else "false; first.setAttribute('aria-disabled', 'true');",
+        else "true; first.setAttribute('aria-disabled', 'true');",
     )
     page = open_page(
         browser,

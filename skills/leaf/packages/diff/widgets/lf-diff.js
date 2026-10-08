@@ -1560,18 +1560,21 @@ customElements.define(
       const reviewed = this.fileEntries.filter((entry) => entry.reviewed).length;
       const total = this.fileEntries.length;
       const label = (done, matching) => {
-        const count = this.reviewing()
-          ? `${done} of ${total} reviewed`
-          : `${total} file${total === 1 ? "" : "s"}`;
+        if (!this.reviewing())
+          return matching === null
+            ? `${total} file${total === 1 ? "" : "s"}`
+            : `${matching} of ${total}`;
+        const count = `${done} of ${total} reviewed`;
         return matching === null ? count : `${count} · ${matching} matching`;
       };
       // Filtering and review change this count, never the field or the adjacent
-      // controls. Reserve the longest label this source can show in its actual face;
-      // a source changing its total is the only change that needs new room.
+      // controls. Reserve both count forms in their actual face. A compact ratio
+      // leaves room for the field and wrap control; a review retains its fuller
+      // reading. A changed source total needs a new reservation.
       const room = label(total, total);
       if (this.diffTools.progressRoom !== room) {
         this.diffTools.progressRoom = room;
-        reserve(this.diffTools.progress, [room]);
+        reserve(this.diffTools.progress, [label(total, null), room]);
       }
       keepsText(
         this.diffTools.progress,

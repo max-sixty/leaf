@@ -12294,8 +12294,14 @@ def test_filtering_a_diff_keeps_its_field_and_toolbar_controls_fixed(
         for query, matches in (("file-0.py", 1), ("no-such-file", 0), ("", total)):
             search.fill(query)
             expect(rows).to_have_count(matches)
-            suffix = f" · {matches} matching" if matches != total else ""
-            expect(progress).to_have_text(base_label + suffix)
+            expected_label = base_label
+            if matches != total:
+                expected_label = (
+                    f"{base_label} · {matches} matching"
+                    if review
+                    else f"{matches} of {total}"
+                )
+            expect(progress).to_have_text(expected_label)
             rendered(page)
             after = diff.evaluate(geometry)
             assert after == before, (query, before, after)

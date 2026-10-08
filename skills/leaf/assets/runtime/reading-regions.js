@@ -7,6 +7,12 @@
    containing it or by the page. CSS decides that from the space a workspace has
    (layouts.css, the workspace Layout), so nothing here chooses a posture.
 
+   A separately scrolling piece of a region's apparatus declares `apparatusFor`, the
+   owning region's id. It stays in the physical scroll inventory, while focus and
+   gestures there select its owner for reading. Containment still names the apparatus's
+   own box, so bringing its controls into view never mistakes the owner's reading body
+   for the box that actually carries them.
+
    Every box Leaf makes scroll vertically is a region, so every question that names the
    box scrolling a node (`scrollerFor`, and `scrollersOf` for the boxes around it) gets
    that box rather than the page: a pane's body, the Threads list, a compound widget's
@@ -15,15 +21,22 @@
    advises bounding the block instead, and nothing here searches the DOM for scrollers.
 
    A region's scroller can change without any gesture: a window crossing the workspace
-   threshold, a tab showing, a panel opening. Each region's host is watched for size, and
-   a region whose scroller is no longer the one last seen is announced to watchers as a
-   `shift`, after the new geometry exists. Continuity owners record the user's place
+   threshold, a tab showing, a panel opening. A region whose width changes keeps its
+   scroller but rewraps, which moves its words under the reader just the same. Each
+   region's host is watched for size, and a region whose scroller is no longer the one
+   last seen, or whose width is not, is announced to watchers as a `shift`, after the new
+   geometry exists. Continuity owners record the user's place
    continuously and restore it on a shift; this module stores no landmarks or scroll
    offsets. `preserveReadingRegions` brackets a composition change with the same
    watchers, as `before` and `after`, retaining only scrollers inside that composition
    when regions become hidden or visible. Hidden connected regions remain registered and
    return null bounds. Cleanup removes live DOM bindings, so a replacement can reclaim an
-   id. */
+   id.
+
+   `onReadingInput` tells a reader where the user explicitly clicked or stepped by Tab.
+   It includes unfocusable words, which update the reading region without a focus
+   arrival. Mechanical returns, programmatic arrivals and scrolling are not choices
+   of another passage. Each consumer interprets that target in its own domain. */
 import { sizeObserver } from "./rendering.js";
 import { shownRect, skipped } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
@@ -61,12 +74,14 @@ export function compoundReadingRegionId(owner, localName) {
   return `lf-region:${owner.id}:${localName}`;
 }
 
-export function registerReadingRegion({ id, host, body }) {
+export function registerReadingRegion({ id, host, body, apparatusFor = null }) {
   if (typeof id !== "string" || !id || !host || !body)
     throw new Error("leaf: a reading region needs id, host, and body");
   if (live(regions.get(id)))
     throw new Error(`leaf: reading region ${id} is already live`);
-  const region = { id, host, body, scroller: null };
+  if (apparatusFor !== null && !live(regions.get(apparatusFor)))
+    throw new Error("leaf: reading apparatus needs a live owning region");
+  const region = { id, host, body, apparatusFor, scroller: null, width: null };
   const stopReaching = reachReadingScroller(body);
   regions.set(id, region);
   sizes.observe(host);
@@ -118,11 +133,18 @@ export const unconcealedReadingRegions = () =>
     .filter((region) => live(region) && !concealed(region) && !skipped(region.body))
     .map(regionRecord);
 
-export const readingRegionFor = (node) => {
+const regionAt = (node) => {
   const region = [...regions.values()]
     .filter((candidate) => live(candidate) && under(node, candidate.host))
     .sort((a, b) => depthOf(b.host) - depthOf(a.host))[0];
-  return region && regionRecord(region);
+  return region;
+};
+
+export const readingRegionFor = (node) => {
+  const region = regionAt(node);
+  return region?.apparatusFor
+    ? readingRegion(region.apparatusFor)
+    : region && regionRecord(region);
 };
 
 // The region the user is reading in, which the reading keys scroll and continuity
@@ -149,6 +171,11 @@ let pageRegionId = null;
 // Chrome can focus body between pointerdown on unfocusable words and pointerup.
 // That focus belongs to the same press; pointerdown has already named its place.
 let pressing = false;
+const readingInputReaders = new Set();
+export const onReadingInput = (read) => readingInputReaders.add(read);
+const readingInput = (node) => {
+  for (const read of readingInputReaders) read(node);
+};
 const pageRoot = () => document.querySelector("body > main");
 const actedAt = (at, arriving) => {
   const region = readingRegionFor(at);
@@ -161,18 +188,24 @@ const actedAt = (at, arriving) => {
   )
     recentRegionId = pageRegionId = null;
 };
-for (const type of ["pointerdown", "wheel", "touchstart"])
+for (const type of ["pointerdown", "wheel", "touchstart", "click"])
   addEventListener(
     type,
     (event) => {
-      if (type === "pointerdown") pressing = true;
-      actedAt(event.composedPath()[0], false);
+      const at = event.composedPath()[0];
+      if (type === "click") {
+        if (event.isTrusted && event.button === 0) readingInput(at);
+      } else {
+        if (type === "pointerdown") pressing = true;
+        actedAt(at, false);
+      }
     },
     { capture: true, passive: true },
   );
 // An arrival, by whatever route, a move inside a widget's shadow tree included.
-onStanding((node) => {
+onStanding((node, cause) => {
   if (node) actedAt(node, true);
+  if (node && cause === "step") readingInput(node);
 });
 for (const type of ["pointerup", "pointercancel"])
   addEventListener(type, () => (pressing = false), { capture: true });
@@ -198,10 +231,10 @@ export const userReadingRegion = () => {
 // in. Keep that containment walk shared with scrollerFor so placement and travel cannot
 // disagree about which reading box holds a control.
 export const containingReadingRegionFor = (node) => {
-  let region = readingRegionFor(node);
+  let region = regionAt(node);
   while (region) {
-    if (under(node, region.body)) return region;
-    region = readingRegionFor(region.host.parentElement);
+    if (under(node, region.body)) return regionRecord(region);
+    region = regionAt(region.host.parentElement);
   }
   return undefined;
 };
@@ -305,33 +338,44 @@ export async function preserveReadingRegions(owner, change) {
   }
 }
 
-// Whether every region is still scrolled by the box last seen for it. A layout that has
-// handed a region to another scroller, before the observer below has announced it, is
-// not a place to record the user's position in: the old scroller has already let go
-// of it (a flow page clamps as its content leaves).
-export const scrollersSettled = () =>
+// Whether a region is scrolled by the box last seen for it, at the width last seen.
+const asSeen = (region, scroller, width) =>
+  region.scroller === scroller && region.width === width;
+
+// Whether every region stands as last seen. A layout that has handed a region to another
+// scroller or rewrapped it, before the observer below has announced it, is not a place
+// to record the user's position in: the words have already moved under the reader (a
+// flow page clamps as its content leaves), and the restore the announcement brings
+// would return them to that moved place. A region hidden from layout shows no words to
+// move, and measuring one in skipped content would lay out what it skips.
+export const regionsSettled = () =>
   [...regions.values()].every(
     (region) =>
       !live(region) ||
       !region.scroller ||
-      effectiveScroller(region) === region.scroller,
+      !shown(region) ||
+      asSeen(region, effectiveScroller(region), region.host.offsetWidth),
   );
 
-// Every region's scroller as last seen, so a size change that hands a region to a
-// different scroller is announced once, after layout has produced it. Read on the
-// observer's delivery, which follows layout; nothing here writes a box it observes.
+// Every shown region's scroller and width as last seen, so a size change that hands a
+// region to a different scroller, or rewraps it, is announced once, after layout has
+// produced it. A hidden region keeps what was last seen of it and is compared again once
+// it shows. Read on the observer's delivery, which follows layout; nothing here writes a
+// box it observes.
 const sizes = sizeObserver(() => {
   const shifted = [];
   for (const region of regions.values()) {
-    if (!live(region)) continue;
+    if (!live(region) || !shown(region)) continue;
     const scroller = effectiveScroller(region);
-    if (region.scroller && region.scroller !== scroller)
+    const width = region.host.offsetWidth;
+    if (region.scroller && !asSeen(region, scroller, width))
       shifted.push({
         region: regionRecord(region),
         from: region.scroller,
         to: scroller,
       });
     region.scroller = scroller;
+    region.width = width;
   }
   if (shifted.length) notify({ phase: "shift", shifted });
 });

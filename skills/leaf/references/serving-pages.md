@@ -1,20 +1,8 @@
 # Serving pages
 
-## Inspecting interactions
-
-For a served page, read the private diagnostic stream while reproducing a user or
-test-agent path:
-
-```bash
-tail -F <page>/interactions.jsonl
-```
-
-It combines browser gestures and server request outcomes in delivery order. Browser
-rows carry a tab session, event time, and sequence; large values appear as ordered
-`interaction_part` rows whose `json` fields concatenate to the original row.
-The semantic decisions remain in `leaf page events <page>`. See [page-storage.md](../scripts/leaf/page-storage.md)
-for the file contract. The public site stores its browser batches in Workers
-Observability; `worker/README.md` describes lookup by session reference.
+Serve and hand over by the selected harness contract. Use this reference for
+export, address changes, re-vendoring, and resuming a page. Keep the exact keyed
+URL returned by `leaf server start`.
 
 ## Exported files
 
@@ -46,16 +34,10 @@ so sharing one page URL grants access to every Leaf page on that machine.
 Leaf serves only on networks the machine already joins and creates no public
 tunnel. Binding beyond loopback exposes the port to that network.
 
-A page's URL is its host and port, which the first serve records in
-`<page>/service.json`, and the machine's key, which the state home keeps. None of
-them belongs to the server process, so every later serve of the page answers at the
-URL the user already has: a stop and start, a re-vendor, a revival by `leaf wait`,
-or a `server start` after a reboot. `--host` is the one thing that moves a URL: it
-replaces the name and keeps the port. Deleting `service.json` makes the next serve
-derive the address and lifetime again from the session running it, which gives the
-same URL only when that session arrived the same way and the port derived from the
-page's path is free. If another process holds the recorded port, `server start`
-refuses rather than moving.
+A page retains its host and port in `<page>/service.json`, and its key in the
+machine's state home. Re-serving, re-vendoring and reviving it use the same URL.
+`--host` changes the hostname while preserving the port. A recorded port occupied
+by another process makes serving refuse; it never silently moves the page.
 
 ## Unreachable URLs and `--host`
 
@@ -82,67 +64,53 @@ file.
 
 ## Re-vendoring and layer epochs
 
-Re-vendor a served page with `leaf page init <page>` alone. It checks the
-incoming layer against the page first, so a refused re-vendor leaves the running
-server as it was. An admitted one takes the server down, re-vendors, and starts
-the server again at the recorded URL under its recorded lifetime, and a `leaf wait`
-watching the page carries on through the restart. A page whose server was stopped
-stays stopped, and so does one that `leaf server stop` stops during the re-vendor.
-If the server cannot start again, init says why and leaves the service enabled:
-a `leaf wait` tries it once more, as it would a server that died. Re-vendor a session's page from the session that holds it: init
-refuses a page that another live session serves. A page whose session has ended
-stays stopped after init, and `leaf server start` then serves it for this session.
-Initialization preserves the page status and writes a new layer epoch, so an open
-tab reloads onto the new layer rather than posting into it.
+After a Leaf update or a checkout runtime edit, re-vendor the page from its
+owning session:
 
-A page is served only by a Leaf whose browser runtime it carries. The server is
-whichever Leaf starts it, and the runtime is whatever the page's last `page init`
-copied in, so after a Leaf update, or an edit to a checkout's runtime, an older page
-no longer matches. `server start`, `server run`, and a revival by `leaf wait` then
-refuse, naming `leaf page init <page>`, and the page stays down until the sequence
-above re-vendors it. A wait whose revival was refused prints that refusal before
-reporting the server not running.
+```bash
+leaf page init <page>
+```
 
-Leaf is changing quickly, so a page made under an earlier version can fail in ways
-a re-vendor doesn't fix: init refuses vocabulary the page's log can no longer read,
-or the page misbehaves after an update. When a Leaf update is causing problems like
-this, recreate the page on the current version rather than repairing the old one:
-initialize a new page directory, write its `index.html` as the page you would hand
-over today, and give the user the new URL.
+Init validates incoming layer declarations and file destinations first; refusal
+leaves the page and server unchanged. An unchanged layer and serving payload
+preserve installed files and the running server without reloading open tabs.
+A layer, server-code, dependency, package selection, or installed-file change
+writes a new layer epoch, restarts a running server at its recorded URL and
+lifetime, and reloads open tabs. Page status is preserved, and a stopped server
+stays stopped. For a session service, init refuses a change while another live
+session owns it. If its previous session has ended, init leaves it stopped;
+serve it from the session that will now own it. An enabled standing service
+restarts independently of session ownership.
+
+Serving an older runtime refuses with the same init command. If restart fails,
+follow init's diagnostic; an enabled page's watcher also tries one revival.
+Init reads the log under Leaf's kernel transport contract. If an earlier page's
+log cannot be read or the page misbehaves after an update, initialize a new
+directory, write the current page there, and hand over its new URL.
 
 ## Page lifetime
 
-Serving from an agent session claims the page and prepares the harness's watcher,
-which brings comments to your turns, before returning its URL. In Codex, this
-starts or joins the task's delivery adapter, or honors a direct wait already
-running. Re-serving restores delivery even when the existing server needs no
-restart. The harness-specific references describe how incoming comments reach
-your turn.
+A normal `server start` from an agent session claims the page and connects the
+selected harness's delivery route before returning. Re-serving restores delivery
+even when its server is already running. The page's first serve records its
+lifetime. Normal re-serving from an agent session preserves that lifetime. To
+change a session service to standing, stop it and start with `--standing`;
+starting a stopped service from the user's shell also selects standing.
 
-On a page with no recorded lifetime, a normal `server start` from an agent
-session chooses a session lifetime. Its process retires when no live session
-claims the page, but desired service remains enabled: a `leaf wait` watching any
-enabled page revives its server under the recorded lifetime and exact URL if the
-process dies, and ends if that revival does not hold. Only `leaf server stop
-<page>` disables a service, and a `leaf wait` goes on watching a stopped page until
-it is idle.
+A session page retires when no live session holds it. Desktop Codex keeps the
+chat's ownership and delivery across an idle instance unloading; its pages retire
+after four hours without page use, renewed by a visible page or agent revision.
+Terminal sessions release ownership when their harness ends.
 
-Desktop Codex can unload the chat's idle running instance while the app and chat
-remain open. Leaf keeps that chat's ownership, server and feedback route across
-the unload. Its pages retire after four hours without page use; a visible page
-or agent revision renews that activity. Process-backed terminal sessions still
-release ownership when their harness ends.
+`server start --standing`, or serving from the user's shell, makes a page stay
+live between sessions and prepares no agent delivery. Tell the user when starting
+one: they inherit a process that only `leaf server stop <page>` ends. Ending a
+session releases its claim and leaves the standing service enabled.
 
-`server start --standing`, or a serve started from the user's own shell, chooses
-a standing lifetime and prepares no agent delivery. Its process ignores session claims and remains live between
-sessions. Tell the user when starting one because they inherit a process only
-`server stop` ends, and do not stop it because a session's work is over: ending
-the session releases the claim and leaves the service enabled.
-
-`server run --temporary` is the browser-harness boundary. It serves on loopback
-until that foreground command exits, with a per-server access key and no claim or
-`service.json`. The serve cannot be revived and does not enroll its browser events
-in agent-task delivery.
+A watcher revives an enabled service whose process dies, at its recorded URL and
+lifetime, and ends if revival fails. `leaf server stop <page>` disables service;
+a watcher still watches a stopped page until it is idle. Ending the page's
+conversation follows `page-checkpoints.md`, "Sign-off and ending".
 
 ## Resuming a standing or foreign page
 
@@ -160,3 +128,25 @@ have run again. Before editing, follow `authoring-revisions.md`'s "Read
 before editing" section. Then run `leaf wait <page>` to claim it, or, where your
 harness contract says its own hook watches between turns, `leaf page claim <page>`. Starting a server
 when the standing one is already live prints its URL without changing its lifetime.
+
+## Inspecting interactions
+
+For a served page, read the private diagnostic stream while reproducing a user or
+test-agent path:
+
+```bash
+tail -F <page>/interactions.jsonl
+```
+
+It combines browser gestures and server request outcomes in delivery order. Browser
+rows carry a tab session, event time, and sequence; large values appear as ordered
+`interaction_part` rows whose `json` fields concatenate to the original row.
+The semantic decisions remain in `leaf page events <page>`. See [page-storage.md](../scripts/leaf/page-storage.md)
+for the file contract. The public site stores its browser batches in Workers
+Observability; `worker/README.md` describes lookup by session reference.
+
+## Temporary test servers
+
+`server run --temporary` serves on loopback until its foreground command exits,
+with a per-server key and no claim or `service.json`. It cannot be revived and
+does not deliver its browser events to an agent. Use it for browser-harness tests.

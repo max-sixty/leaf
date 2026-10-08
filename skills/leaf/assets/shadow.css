@@ -4,9 +4,11 @@
  * need is stated here, once: the stage copies the composed shadow.css into each declared
  * root, and the document reads the same rules at the head of this root's part of
  * /theme.css. A rule belongs here when a declared tree has to see it too. */
-/* The face every widget-injected control wears. `offer()` writes `lf-ui` on each one it
+/* The default face of native widget-injected controls. `offer()` writes `lf-ui-face` on each one it
  * builds, so this is the layer's answer for a control standing in the page's own prose:
- * the chrome's family, size and ink rather than the document's serif.
+ * the chrome's family, size and ink rather than the document's serif. The separate
+ * lf-ui identity still marks custom-element apparatus, but its component owns its
+ * face: an outer host declaration would outrank even its internal state rules.
  *
  * It is a default, and three things make it behave like one. It stands at this sheet's
  * head, which composes ahead of theme.css and every package sheet, so each component rule
@@ -34,9 +36,9 @@
  * so a rule that weighs nothing is enough to stop that, and it leaves every rule that
  * sets these on purpose winning: at a class's weight it took the pane header's 600 off
  * each playground's presets. */
-:where(:root) :is(.lf-ui, .button, .field) { font-family: var(--sans); font-size: var(--t-5);
+:where(:root) :is(.lf-ui-face, .button, .field) { font-family: var(--sans); font-size: var(--t-5);
     line-height: var(--lf-ui-lh); color: var(--ink); }
-:where(:root .lf-ui, :root .button, :root .field) { font: var(--t-5) / var(--lf-ui-lh) var(--sans);
+:where(:root .lf-ui-face, :root .button, :root .field) { font: var(--t-5) / var(--lf-ui-lh) var(--sans);
     font-feature-settings: normal; font-variation-settings: normal;
     letter-spacing: normal; word-spacing: normal; text-transform: none; }
 /* Words for a user listening, silent on screen: real text, the one thing every
@@ -234,12 +236,12 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 
    .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
    chip as well as a press and a chip is not something to aim at. */
-.lf-btn, .button, .lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-react-trigger,
+.lf-btn, .button, .lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-react-trigger,
 .lf-margin-entry,
 .lf-thread-action, .lf-preview, .lf-layer-reference, .lf-version-diff, .lf-version-row,
 .lf-command-reference-command, .lf-quote {
   min-width: var(--aim-floor); }
-.lf-outline-chip:is(button, [role="button"]), .lf-react, .lf-react-trigger,
+.lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-react-trigger,
 .lf-margin-entry, .lf-thread-action, .lf-command-reference-command, .lf-quote {
   min-height: var(--aim-floor); }
 /* --entry-floor under every field, beside --aim-floor under every aim. iOS Safari zooms
@@ -284,7 +286,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           gap: var(--sp-2); margin-top: var(--sp-3); }
 .lf-say leaf-text { flex: 1; min-width: 0; }
 .lf-page-thread-resolved { display: flex;
-          align-items: center; justify-content: space-between; gap: var(--sp-2); }
+          align-items: center; justify-content: space-between; gap: var(--sp-2);
+          /* Reopen inherits this row's line, 4px padding and a 1px border on each side.
+             Its compact news replacement retains that room under either pointer. */
+          min-height: max(calc(1lh + 10px), var(--aim-floor)); }
 .lf-thread-seat > .lf-say { margin-top: 0; }
 .lf-page-thread + .lf-page-thread { margin-top: calc(2 * var(--sp-3)); }
 .lf-page-thread + .lf-page-thread::before { content: "";
@@ -376,11 +381,25 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
           min-height: var(--lf-thread-action-room);
           overflow: hidden; text-overflow: ellipsis;
           white-space: nowrap; text-align: start; }
+/* Unread and held news share one text face in chrome and declared widget trees.
+   Their color says whether the conversation can be opened normally or is waiting
+   behind a deliberate reveal. A notice button keeps its aim floor without a chip's
+   border, fill or padding; a label inside a disclosure keeps the disclosure's hit box.
+   Both use an underline on hover, declining the generic pressable's inset wash. */
+.lf-thread-notice { color: var(--accent); font: 700 10px/14px var(--sans);
+          white-space: nowrap; }
+.lf-thread-notice-news { color: var(--danger); }
+button.lf-thread-notice { appearance: none; margin: 0; padding: 0;
+          border: 0; background: none; cursor: pointer; }
+.lf-thread-notice:hover { box-shadow: none; text-decoration: underline;
+          text-underline-offset: 3px; }
+button.lf-thread-notice:is(:focus-visible, .lf-focus-visible) { outline: var(--focus-ring);
+          --lf-focus-ring: thread-notice; outline-offset: 1px; }
 /* What a seat holds while it would move the page under the reader (thread/held-news.js).
    The rows it appears in already stand at the height of a control beside it: the head
    controls row's Resolve, the resolved row's Reopen. Centred rather than on the row's baseline,
    it asks for none of the depth below the words; in the resolved row it stands at the
-   end, beside Reopen, or in Reopen's place and face where it holds the reopening. A seat
+   end, beside Reopen, or in Reopen's place where it holds the reopening. A seat
    that draws no thread shows it in its controls row's place, at the height the
    runtime measured that row at. */
 .lf-thread-news { flex: none; align-self: center; }
@@ -857,7 +876,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 /* Every composition input renders the same attachment shelf, including inputs seated
    in widget shadow trees. Surfaces set its allocation and thumbnail size; the shelf
    owns its controls, image inspection face, and drawing paint here. */
-:is(.lf-thread-reply, .lf-general, .lf-say):has(> .lf-composer-media:not([hidden])) {
+:is(.lf-thread-reply, .lf-say):has(> .lf-composer-media:not([hidden])) {
   flex-wrap: wrap; }
 .lf-composer-media {
   display: flex; flex: 1 0 100%; gap: 6px; min-width: 0; overflow-x: auto;

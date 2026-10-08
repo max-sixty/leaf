@@ -49,9 +49,11 @@ browser's order.
 - An auxiliary surface contains its own state, such as the Threads narrowing.
   Page-side selections, targets, clusters, and the page composer coexist beside
   it, and focus decides which answers first.
-- A composer, reply box, or find box exits to its container; a reply box returns
-  to its thread, and the thread to the panel's rungs, which clear narrowing before
-  closing.
+- A composer, reply box, or find box exits to its container. An element comment
+  composer returns to the subject its anchor resolves, or that subject's declared
+  response proxy; an Ask remains a separate step before the document. A reply box
+  returns to its thread, and the thread to the panel's rungs, which clear narrowing
+  before closing.
 - A reply, or the first comment that starts a thread, leaves the user standing on
   the thread once sent. A thread in the margin card leaves them on the element it
   is about, with the card still up, so one Escape takes the card down and moving
@@ -139,8 +141,8 @@ scopes), `register.js` (scope order, page commands, the Escape ladder),
 (the `g` grammar), `control-keys.js`,
 `presentation.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,
 `command-hints.js` (inline hints from reachable command bindings),
-`key-badge-placement.js`, `disclosure.js`, and `touch-controls.js` (a finger's stand-ins
-for the keys).
+`key-badge-placement.js`, `chip-seats.js` (where key chips stand), `disclosure.js`,
+and `touch-controls.js` (a finger's stand-ins for the keys).
 
 Test a changed binding inside and outside its scope and inside any native editor
 the scope contains, and check entry and exit symmetry against the whole register.

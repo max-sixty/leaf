@@ -548,7 +548,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
     rows = page.locator(".lf-command-reference").inner_text()
-    assert "Take back: shorten on “The store is capped" in rows, rows
+    assert "Undo: shorten reaction on “The store is capped" in rows, rows
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()
 
@@ -1140,8 +1140,8 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     bar = page.locator(".lf-fab-bar")
 
     def enter_passage():
-        expect(page.locator(".lf-thread-panel")).not_to_have_attribute(
-            "aria-modal", "true"
+        assert not page.locator(".lf-thread-panel").evaluate(
+            "el => el.closest('dialog').matches(':modal')"
         )
         box = page.locator("#how-cap").bounding_box()
         select(
@@ -1605,9 +1605,14 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     expect(control).to_be_focused()
 
 
-def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve):
-    """Sibling anonymous pictures under one authored item are one durable target. Leaf
-    offers one proxy for that anchor and returns Escape to the control that opened it."""
+@pytest.mark.parametrize("entry", ["keyboard", "aim"])
+@pytest.mark.parametrize("proxy_hidden", [False, True])
+def test_one_semantic_visual_target_gets_one_keyboard_proxy(
+    browser, serve, proxy_hidden, entry
+):
+    """Sibling anonymous pictures under one authored item are one durable target.
+    Keyboard and pointer entry share that proxy as their Escape parent, falling
+    back to the visible subject when the proxy is hidden."""
     page_markup = leaf_page(
         "picture gallery",
         """
@@ -1624,11 +1629,16 @@ def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve):
 
     expect(controls).to_have_count(1)
     control = controls.first
-    control.focus()
-    page.keyboard.press("Enter")
+    if entry == "keyboard":
+        control.focus()
+        page.keyboard.press("Enter")
+    else:
+        page.locator("#gallery svg").first.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()
+    if proxy_hidden:
+        control.evaluate("node => node.hidden = true")
     page.keyboard.press("Escape")
-    expect(control).to_be_focused()
+    expect(page.locator("#gallery") if proxy_hidden else control).to_be_focused()
 
 
 def landed(page):
@@ -2037,13 +2047,17 @@ def test_the_response_surface_preserves_a_backward_drag(browser, serve):
     ), "the response pass reversed a backward drag before its next extension"
 
 
-def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
-    """When a keyboard-raised action completes, focus returns to the proxy that named
-    the target instead of remaining inside a hidden action bar."""
+@pytest.mark.parametrize("entry", ["keyboard", "aim"])
+def test_a_reaction_returns_focus_to_the_visual_target(browser, serve, entry):
+    """A completed action returns to the current proxy for its target, regardless
+    of keyboard or pointer entry, instead of remaining in a hidden action bar."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
-    control.focus()
-    page.keyboard.press("Enter")
+    if entry == "keyboard":
+        control.focus()
+        page.keyboard.press("Enter")
+    else:
+        page.locator('#flow g[data-id="S"]').click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Tab")
     page.keyboard.press("1")
@@ -2680,7 +2694,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     painted(page, [["merge-both", "change"]])
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
 
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         serve.page_dir,
         reaction["id"],
         "Which part — the case, or the answer?",

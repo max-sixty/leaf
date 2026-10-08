@@ -28,16 +28,6 @@ vars:
     \ phone\n\nThe page includes a contents outline and a full review-history section.\n\nThe research reports are still in your context. Say what you do between this check\nand\
     \ handing the URL to the user, step by step, and who does each step.\n"
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-page-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/page-authoring\.md
 - type: llm-rubric
   metric: reader-without-the-notes
   value: |

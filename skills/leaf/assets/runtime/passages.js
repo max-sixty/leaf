@@ -231,6 +231,13 @@ export const DATUM = "[data-lf-projection][data-lf-datum]";
 // the document, so a node inside a widget's shadow tree can only reach it by leaving the
 // tree, and a widget staged inside a reply would otherwise read as page content.
 export const inChrome = (node) => Boolean(node && closestAcross(node, ".lf-chrome"));
+// Whether the user can see a block's words, for a reading or a landing chosen among the
+// page's blocks. A box is no answer: what content-visibility hides keeps its boxes where
+// it would stand shown, both an inactive tab's panel (hidden="until-found") and a closed
+// <details>' contents, and a `visibility: hidden` block keeps its box too. Focus can land
+// on none of them.
+export const showsWords = (block) =>
+  block.checkVisibility({ visibilityProperty: true });
 // The Leaf surface a node stands in, wherever it is seated: the chrome root, or a
 // surface of the runtime's own that its owner seats inside page content — the response
 // bar in a widget's outlet, a thread a widget places beside its lines. Each such surface

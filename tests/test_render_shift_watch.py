@@ -2,6 +2,7 @@
 (`shift_watch.js`): a shift without input, and typing that carries its field."""
 
 from datetime import UTC, datetime, timedelta
+from html import escape
 from urllib.parse import quote
 
 import pytest
@@ -79,6 +80,63 @@ def test_typing_may_grow_its_field(browser):
     page = field_page(browser, "grow")
     page.locator("#field").fill("a")
     judge_watches()
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_hidden_opaque_frames_drain_without_waiting_for_suppressed_paint(
+    browser, nested
+):
+    """The owner is visible only to the driver, including an ancestor above a child."""
+    child = '<p id="reading">An isolated document.</p>'
+    embedded = f'<iframe sandbox="allow-scripts" srcdoc="{escape(child, quote=True)}"></iframe>'
+    if nested:
+        embedded = f'<iframe hidden srcdoc="{escape(embedded, quote=True)}"></iframe>'
+    else:
+        embedded = embedded.replace("<iframe ", "<iframe hidden ", 1)
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(f"<!doctype html><body>{embedded}</body>"))
+    frame = page.frame_locator("iframe")
+    if nested:
+        frame = frame.frame_locator("iframe")
+    expect(frame.locator("#reading")).to_have_text("An isolated document.")
+    assert frame.locator("#reading").evaluate(
+        "() => !document.hidden && window.frameElement === null"
+    )
+    judge_watches()
+
+    page.locator("iframe").evaluate("element => { element.hidden = false; }")
+    expect(frame.locator("#reading")).to_be_visible()
+    frame.locator("#reading").evaluate(PAINTED)
+    judge_watches()
+
+    # Hide an ancestor after the driver starts a drain whose native paint is held.
+    # Completion must use refreshed visibility rather than the initial true value.
+    page.evaluate("""() => {
+      window.hiddenDuringDrain = false;
+      window.hideDrainingFrame = event => {
+        if (event.data !== 'sensor-draining') return;
+        document.querySelector('iframe').hidden = true;
+        hiddenDuringDrain = true;
+      };
+      addEventListener('message', hideDrainingFrame);
+    }""")
+    frame.locator("#reading").evaluate("""() => {
+      const nativeFrame = lfWatchPlatform.frame;
+      window.restoreFrames = () => { lfWatchPlatform.frame = nativeFrame; };
+      lfWatchPlatform.frame = () => {
+        if (window.lfWatchJudgement && !lfWatchJudgement.complete)
+          top.postMessage('sensor-draining', '*');
+      };
+    }""")
+    reading = frame.locator("#reading").element_handle()
+    child_frame = reading.owner_frame()
+    reading.dispose()
+    try:
+        judge_watches()
+        assert page.evaluate("hiddenDuringDrain") is True
+    finally:
+        child_frame.evaluate("restoreFrames()")
+        page.evaluate("removeEventListener('message', hideDrainingFrame)")
 
 
 def test_hidden_returns_protect_only_the_resumed_reading(browser, serve):

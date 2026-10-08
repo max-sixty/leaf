@@ -100,7 +100,7 @@ import {
   readingRegionFor,
   readingRegions,
   recentReadingRegion,
-  scrollersSettled,
+  regionsSettled,
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
@@ -286,7 +286,7 @@ export function createVersionController({
   // Keep it to one stable version token (or Draft) through disclosure and comparison;
   // those states remain in the menu, class, title, and accessible name. A state arriving
   // on the poll therefore cannot resize this control and displace controls to its left.
-  // The picker view reserves this compact token range once at load.
+  // The visible label prefixes this token with Showing; comparisons keep the bare token.
   const currentVersionToken = () =>
     runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`;
 
@@ -578,7 +578,7 @@ export function createVersionController({
     return Object.freeze({
       picker: Object.freeze({
         offered,
-        token: currentVersionToken(),
+        token: `Showing ${currentVersionToken()}`,
         compared: diffOn || diffPendingBase !== null,
         news: behind,
         keyTitle: offered
@@ -1694,7 +1694,7 @@ export function createVersionController({
       recordQueued = false;
       const moved = scrolled.has(undefined) ? null : new Set(scrolled);
       scrolled.clear();
-      if (!compositionChanges.size && scrollersSettled()) recordRegions(moved);
+      if (!compositionChanges.size && regionsSettled()) recordRegions(moved);
     });
   };
 

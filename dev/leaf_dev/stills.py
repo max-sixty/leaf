@@ -1,7 +1,7 @@
 """Screenshot a fixed catalogue of UI states on BASE_REF's runtime and HEAD's, and
 show which ones changed.
 
-    uv run leaf-dev stills [BASE_REF]
+    uv run leaf-dev stills [BASE_REF] [--state NAME]...
 
 BASE_REF defaults to the merge base of HEAD and `main`; each arm is the payload at its
 commit (`leaf_dev.arms.build_pair`), so commit what you want compared. Each page is
@@ -17,6 +17,7 @@ A state is an example, a viewport, a color scheme and a pointer, and the input t
 brings a fresh tab there (`DRIVERS`, which `leaf-dev probe --do drive:NAME` also runs).
 The catalogue (`STATES`) covers states a user reaches by acting, not only pages at rest;
 add one where a change touches a surface it does not reach.
+Use repeated `--state` options to compare only the states a change touches.
 
 Whether a state changed, and where, is `lf-shot`'s reading of its two stills, from the
 module that owns the rule (`runtime/image-difference.js`), loaded into the browser.
@@ -111,6 +112,19 @@ def threads_panel(page: Page) -> None:
     page.wait_for_function(
         "() => document.querySelector('.lf-thread-panel')?.checkVisibility()"
     )
+
+
+def image_preview(page: Page) -> None:
+    """Inspect the gallery's pasted screenshot through the shared image viewer."""
+    threads_panel(page)
+    thread = page.locator('.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"]')
+    thread.locator(":scope > .lf-thread-summary").click()
+    thread.locator(".lf-media-open").click()
+    page.get_by_role("dialog", name="Image preview").wait_for(state="visible")
+    page.wait_for_function("""() => {
+      const zoom = document.querySelector('.lf-media-viewer-zoom');
+      return !zoom || zoom.getAttribute('aria-disabled') !== 'true';
+    }""")
 
 
 def panel_by_keyboard(page: Page) -> None:
@@ -381,6 +395,12 @@ def go_to(page: Page) -> None:
     page.wait_for_function("() => document.body.hasAttribute('data-lf-go-to-active')")
 
 
+def contents_by_keyboard(page: Page) -> None:
+    """Reveal the contents map with focus on its first section link."""
+    page.keyboard.press("Tab")
+    page.locator("lf-toc li a").first.focus()
+
+
 def widget_inline_hints(page: Page) -> None:
     """A standalone command scope with an active inline hint, outside an Ask."""
     page.locator("#bg-widget-shortcut-hints").scroll_into_view_if_needed()
@@ -412,6 +432,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         card_reply_large,
         card_reply_resolved,
         threads_panel,
+        image_preview,
         panel_by_keyboard,
         composer,
         composer_long,
@@ -437,6 +458,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         more_menu,
         versions_menu,
         go_to,
+        contents_by_keyboard,
         widget_inline_hints,
         draft_edit,
         hub_workers,
@@ -453,6 +475,23 @@ def playground_controls(page: Page) -> None:
     page.locator(".lf-playground-controls").scroll_into_view_if_needed()
 
 
+def targeting_menu(page: Page) -> None:
+    """The target-scope picker open on its selected option."""
+    targeting = page.locator("#code-comparison-targeting")
+    targeting.get_by_role("button", name="Select element").click()
+    page.locator(".reader-treatment-title").focus()
+    page.keyboard.press("Enter")
+    targeting.locator(".lf-targeting-candidate-choice").first.click()
+    control = targeting.locator("wa-select").first
+    control.evaluate("""node => {
+      node.reviewShown = new Promise(resolve => node.addEventListener(
+        'wa-after-show', () => resolve(), {once: true}));
+    }""")
+    control.get_by_role("combobox").click()
+    control.evaluate("node => node.reviewShown")
+    page.mouse.move(0, 0)
+
+
 def margin_gallery(page: Page) -> None:
     """The margin gallery's real controls and labels in a finger-sized column."""
     page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
@@ -462,6 +501,35 @@ def margin_gallery(page: Page) -> None:
     page.locator(
         "#bg-margin-controls-samples .margin-entry-gallery-group"
     ).first.evaluate("group => group.scrollIntoView({block: 'start'})")
+
+
+def trace_sources(page: Page) -> None:
+    """The recording's source controls in view, with its initial checkpoint ready."""
+    page.wait_for_function(
+        "() => !!document.querySelector('#release-trace .lf-trace-action')?.textContent"
+    )
+    page.locator("#release-trace .lf-trace-controls").evaluate(
+        "controls => controls.scrollIntoView({block: 'start'})"
+    )
+
+
+def trace_source_by_keyboard(page: Page) -> None:
+    """The selected source focused, after tabbing away from its control and back."""
+    trace_sources(page)
+    page.keyboard.press("Tab")
+    trace = page.locator("#release-trace")
+    native = trace.get_by_role("combobox", name="Recorded page or API stream")
+    if native.count():
+        native.focus()
+    else:
+        source = trace.get_by_role("radio", name="Page 1", exact=True)
+        source.focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
+    page.wait_for_function(
+        "() => document.activeElement?.matches("
+        "'#release-trace select, #release-trace wa-radio')"
+    )
 
 
 @dataclass(frozen=True)
@@ -475,6 +543,40 @@ class State:
 
 
 STATES = (
+    State("image-preview", "developer/feature-gallery", image_preview),
+    State(
+        "image-preview-dark", "developer/feature-gallery", image_preview, scheme="dark"
+    ),
+    State(
+        "image-preview-phone",
+        "developer/feature-gallery",
+        image_preview,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("targeting-menu", "code-comparison", targeting_menu),
+    State("targeting-menu-dark", "code-comparison", targeting_menu, scheme="dark"),
+    State("trace-sources", "developer/playwright-trace-gallery", trace_sources),
+    State(
+        "trace-source-keyboard",
+        "developer/playwright-trace-gallery",
+        trace_source_by_keyboard,
+    ),
+    State(
+        "trace-sources-phone",
+        "developer/playwright-trace-gallery",
+        trace_sources,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("contents-spine", "developer/feature-gallery", at_rest),
+    State("contents-spine-keyboard", "developer/feature-gallery", contents_by_keyboard),
+    State(
+        "contents-spine-dark",
+        "developer/feature-gallery",
+        contents_by_keyboard,
+        scheme="dark",
+    ),
     State("playground-controls", "notification-playground", playground_controls),
     State(
         "playground-controls-phone",
@@ -755,16 +857,24 @@ def crop(folder: Path, regions: list[dict]) -> None:
 
 @click.command()
 @click.argument("base_ref", required=False)
-def stills(base_ref: str | None) -> None:
+@click.option(
+    "--state",
+    "names",
+    type=click.Choice([state.name for state in STATES]),
+    multiple=True,
+    help="Capture a named state; repeat for more. Defaults to the whole catalogue.",
+)
+def stills(base_ref: str | None, names: tuple[str, ...]) -> None:
     """Screenshot a catalogue of UI states on BASE_REF's runtime and HEAD's, and crop
     each state that changed into a before/after pair under .tmp/stills/."""
+    states = [state for state in STATES if not names or state.name in names]
     out = run_directory(OUT)
     failed: dict[str, str] = {}
     with tempfile.TemporaryDirectory(prefix="leaf-stills-") as built:
         scratch = Path(built)
         arms, commits = build_pair(base_ref, scratch)
         with chrome() as browser:
-            for state in STATES:
+            for state in states:
                 for arm, arm_dir in arms.items():
                     # Every state starts from its authored fixture. A prior Send or
                     # Resolve must not become the next state's initial event log.
@@ -788,12 +898,12 @@ def stills(base_ref: str | None) -> None:
                         failed[state.name] = f"on {arm}: {str(error).splitlines()[0]}"
             read = differences(
                 browser,
-                [state.name for state in STATES if state.name not in failed],
+                [state.name for state in states if state.name not in failed],
                 out,
             )
     click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
     unchanged = 0
-    for state in STATES:
+    for state in states:
         folder = out / state.name
         if state.name in failed:
             click.echo(f"  failed  {state.name} {failed[state.name]}")
@@ -804,5 +914,5 @@ def stills(base_ref: str | None) -> None:
             )
         else:
             unchanged += 1
-    click.echo(f"{unchanged} of {len(STATES)} states unchanged")
+    click.echo(f"{unchanged} of {len(states)} states unchanged")
     click.echo(f"files in {out}")

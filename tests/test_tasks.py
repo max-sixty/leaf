@@ -11,6 +11,7 @@ from interact_support import (
     append_command,
     asks_on_you,
     publish,
+    response_reference,
     stamp,
     state_json,
 )
@@ -57,11 +58,9 @@ def test_a_task_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     assert task["subject"] == {"kind": "thread", "id": comment["id"]}
     written(
         leaf(
-            "thread",
+            "response",
             "reply",
-            page_dir,
-            "--for",
-            comment["id"],
+            response_reference(page_dir, comment["id"]),
             "--text",
             "Building it now.",
         )
@@ -182,11 +181,9 @@ def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir):
     )
     question = written(
         leaf(
-            "thread",
+            "response",
             "reply",
-            page_dir,
-            "--for",
-            comment["id"],
+            response_reference(page_dir, comment["id"]),
             "--text",
             "Warm or cool?",
             "--awaits",
@@ -241,11 +238,9 @@ def test_a_question_ends_at_the_reaction_that_settles_it(page_dir):
     )
     question = written(
         leaf(
-            "thread",
+            "response",
             "reply",
-            page_dir,
-            "--for",
-            comment["id"],
+            response_reference(page_dir, comment["id"]),
             "--text",
             "Warm or cool?",
             "--awaits",
@@ -330,7 +325,10 @@ def test_working_names_a_move_until_its_answer_and_a_task_until_its_end(page_dir
     )
     refused = leaf("task", "start", page_dir, "no-such-move", "Reading it")
     assert refused.exit_code != 0
-    assert "neither an open task of yours nor a move you owe" in refused.output
+    assert (
+        "neither an open task of yours nor an update you owe an answer to"
+        in refused.output
+    )
 
     start = written(
         leaf("task", "start", page_dir, comment["id"], "Tightening the plan section")
@@ -347,7 +345,13 @@ def test_working_names_a_move_until_its_answer_and_a_task_until_its_end(page_dir
 
     # The reply that answers the move ends its start: nothing is in hand.
     written(
-        leaf("thread", "reply", page_dir, "--for", comment["id"], "--text", "Done.")
+        leaf(
+            "response",
+            "reply",
+            response_reference(page_dir, comment["id"]),
+            "--text",
+            "Done.",
+        )
     )
     state = state_json(page_dir)
     assert state["workflows"] == []
@@ -382,7 +386,13 @@ def test_a_thread_task_runs_under_its_start_line(page_dir):
     )
     task = written(leaf("task", "open", page_dir, comment["id"], "Rebuild the chart"))
     written(
-        leaf("thread", "reply", page_dir, "--for", comment["id"], "--text", "On it.")
+        leaf(
+            "response",
+            "reply",
+            response_reference(page_dir, comment["id"]),
+            "--text",
+            "On it.",
+        )
     )
     written(leaf("task", "start", page_dir, task["id"], "Waiting on the build"))
     [thread] = state_json(page_dir)["threads"]
@@ -428,10 +438,8 @@ def test_a_widget_task_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     assert [item["id"] for item in state_json(page_dir)["tasks"]] == [task["id"]]
     (page_dir / "index.html").write_text(PAGE)
     dropped = stamp(page_dir, "Card gone")
-    assert dropped.exit_code != 0
-    assert "would remove the target of the open task on 'rollout-card'" in (
-        dropped.output
-    )
+    assert dropped.exit_code == 0, dropped.output
+    assert [item["id"] for item in state_json(page_dir)["tasks"]] == [task["id"]]
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace("<title>t</title>", "<title>t · v3</title>")
     )
@@ -443,7 +451,7 @@ def test_a_widget_task_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     [ended] = [
         item for item in tasks_model.canonical_tasks(events_model.read_events(page_dir))
     ]
-    assert (ended["state"], ended["outcome"]["detail"]) == ("done", "v3")
+    assert (ended["state"], ended["outcome"]["detail"]) == ("done", "v4")
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace("<title>t</title>", "<title>t · v4</title>")
     )
@@ -649,11 +657,9 @@ def test_a_question_is_the_task_on_the_user_a_thread_takes(page_dir):
     )
     question = written(
         leaf(
-            "thread",
+            "response",
             "reply",
-            page_dir,
-            "--for",
-            comment["id"],
+            response_reference(page_dir, comment["id"]),
             "--text",
             "Is the rollback plan enough?",
             "--awaits",
@@ -663,7 +669,7 @@ def test_a_question_is_the_task_on_the_user_a_thread_takes(page_dir):
         "task", "open", page_dir, comment["id"], "Is it enough?", "--on", "user"
     )
     assert refused.exit_code != 0
-    assert "ask it there with `leaf thread reply --awaits`" in refused.output
+    assert "question: ask it there" in refused.output
 
     status, answer = done(page_dir, question["id"])
     assert status == 400, answer
@@ -712,11 +718,9 @@ def test_an_asks_task_ends_only_at_its_answer_and_a_questions_at_the_agents_end(
     )
     question = written(
         leaf(
-            "thread",
+            "response",
             "reply",
-            page_dir,
-            "--for",
-            comment["id"],
+            response_reference(page_dir, comment["id"]),
             "--text",
             "Warm or cool?",
             "--awaits",
@@ -798,23 +802,23 @@ def test_a_task_an_earlier_leaf_wrote_without_an_owner_is_absent(page_dir):
     assert served["browser"]["tasks"] == []
 
 
-def test_a_version_keeps_the_target_of_every_open_task_on_an_id(page_dir):
-    """A version that drops a section with a task on it, the agent's or the user's, is
-    refused, as one dropping a widget with the agent's task on it is; ending each task
-    lets it through."""
+def test_a_version_can_remove_a_target_while_its_tasks_stay_open(page_dir):
+    """Removing a page subject does not silently settle either side's tasks."""
     (page_dir / "index.html").write_text(WORK_PAGE)
     publish(page_dir)
     mine = written(leaf("task", "open", page_dir, "plan", "Rewrite the plan"))
     theirs = written(
         leaf("task", "open", page_dir, "plan", "Is the plan enough?", "--on", "user")
     )
-    assert mine["subject"] == theirs["subject"] == {"kind": "element", "id": "plan"}
     (page_dir / "index.html").write_text(
         WORK_PAGE.replace('<section id="plan">', '<section id="scheme">')
     )
+    dropped = stamp(page_dir, "Plan renamed")
+    assert dropped.exit_code == 0, dropped.output
+    assert {task["id"] for task in state_json(page_dir)["tasks"]} == {
+        mine["id"],
+        theirs["id"],
+    }
     for task in (theirs, mine):
-        dropped = stamp(page_dir, "Plan renamed")
-        assert dropped.exit_code != 0
-        assert "would remove the target of the open task on 'plan'" in dropped.output
         written(leaf("task", "end", page_dir, task["id"], "dropped", "Renamed"))
-    assert stamp(page_dir, "Plan renamed").exit_code == 0
+    assert state_json(page_dir)["tasks"] == []

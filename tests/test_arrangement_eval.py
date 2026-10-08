@@ -1,8 +1,11 @@
 """Product controls really render ordinary HTML; judges read real screenshots."""
 
 import json
+import shlex
+import subprocess
 from pathlib import Path
 
+from interact_support import LEAF_COMMAND, published
 from leaf_dev import ROOT, arrangement_plain
 from leaf_dev.arrangement_eval import WIDTHS, first_prompt
 
@@ -100,6 +103,104 @@ def test_comparison_snapshots_exclude_later_leaf_feedback(tmp_path, monkeypatch)
     ) == ["b"]
 
 
+def test_completed_record_has_a_render_correction_loop_without_a_seeded_decision(
+    tmp_path, monkeypatch
+):
+    """Script only the model; actual checks reject, repair and render its page."""
+    from leaf_dev import arrangement_eval
+
+    calls = []
+
+    def model(cwd, prompt, *args, out, err, **kwargs):
+        calls.append(prompt)
+        page = cwd / "page"
+        state = Path(kwargs["env"]["XDG_STATE_HOME"])
+
+        def leaf(*arguments):
+            return arrangement_eval.run_leaf(ROOT, state, *arguments)
+
+        assert f"page check {page} --render" in prompt
+        if not page.exists():
+            assert leaf("page", "init", str(page)).returncode == 0
+        (page / "index.html").write_text("<!doctype html><p>Incomplete record</p>")
+        refused = leaf("page", "check", str(page), "--render")
+        assert refused.returncode != 0
+        (page / "index.html").write_text(
+            '<!doctype html><html lang="en"><head><title>Completed rollout</title>'
+            '<meta name="description" content="A completed rollout record."></head>'
+            '<body><main class="layout-sidebar"><header><h1>Completed rollout</h1>'
+            f'<p id="version">Version {len(calls)}</p>'
+            '</header><aside id="checks" style="align-self:stretch">'
+            '<div style="position:sticky;top:var(--lf-top)"><h2>Checks</h2>'
+            '<p>Five passed. One failed.</p><lf-toc id="contents"></lf-toc></div></aside>'
+            '<section id="log"><h2>Rollout log</h2>'
+            + "<p>Completed rollout entry.</p>" * 40
+            + "</section></main></body></html>"
+        )
+        accepted = leaf("page", "check", str(page), "--render")
+        assert accepted.returncode == 0, accepted.stdout + accepted.stderr
+        assert leaf("page", "stamp", str(page), "--text", "Repaired").returncode == 0
+        trace = []
+        for index, checked in enumerate((refused, accepted)):
+            cid = f"check-{index}"
+            trace += [
+                {
+                    "type": "assistant",
+                    "message": {
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": cid,
+                                "name": "Bash",
+                                "input": {
+                                    "command": f"$LEAF page check {page} --render"
+                                },
+                            }
+                        ]
+                    },
+                },
+                {
+                    "type": "user",
+                    "message": {
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": cid,
+                                "content": checked.stdout + checked.stderr,
+                                "is_error": checked.returncode != 0,
+                            }
+                        ]
+                    },
+                },
+            ]
+        trace.append(
+            {
+                "type": "result",
+                "is_error": False,
+                "session_id": "record-session",
+                "result": str(page),
+            }
+        )
+        out.write_text("\n".join(json.dumps(record) for record in trace))
+        err.write_text("")
+        return trace
+
+    monkeypatch.setattr(arrangement_eval, "run_agent", model)
+    evidence = tmp_path / "evidence"
+    response = arrangement_eval.execute_scenario(
+        "sidebar-page-at-900px", ROOT, evidence, shots=evidence / "shots"
+    )
+    assert len(calls) == 2
+    assert all(response["metadata"]["checks"].values())
+    assert not (evidence / "choice.json").exists()
+    assert not any(key.startswith("choice-") for key in response["metadata"]["checks"])
+    for phase in response["metadata"]["diagnostics"]["phases"].values():
+        assert phase["trace"]["renders"] == 2
+        assert phase["trace"]["failed_check_calls"] == 1
+        assert phase["captures"]["short"]
+        assert all(Path(path).is_file() for path in phase["captures"]["short"])
+
+
 def test_reader_calibration_shows_the_judge_its_page_at_every_width(tmp_path):
     """No model runs: the seeded triage page renders, and the output lists every
     capture under its width, which is all the count rubric reads."""
@@ -119,3 +220,78 @@ def test_reader_calibration_shows_the_judge_its_page_at_every_width(tmp_path):
     ]
     assert listed and all(path.is_file() for path in listed)
     assert 'value="8"' in (tmp_path / "source.html").read_text()
+
+
+def test_check_failure_diagnostics_use_the_tool_outcome(tmp_path, page_dir):
+    """Failure is a tool fact; prose containing old or current marks is not one."""
+    from leaf_dev.arrangement_eval import trace_scores
+
+    check = "leaf page check page --render"
+    compound = (
+        shlex.join([*LEAF_COMMAND, "page", "check", str(published(page_dir))])
+        + " && false"
+    )
+    failed = subprocess.run(
+        ["sh", "-c", compound], capture_output=True, text=True, check=False
+    )
+    assert failed.returncode == 1
+    assert "✓ index.html: valid" in failed.stdout
+    stream = tmp_path / "stream.jsonl"
+    for index, (command, returned, expected) in enumerate(
+        [
+            (
+                check,
+                {
+                    "content": "Error: index.html has 1 validation issue",
+                    "is_error": True,
+                },
+                1,
+            ),
+            (
+                check,
+                {"content": "✗ quoted example; check passed", "is_error": False},
+                0,
+            ),
+            (
+                check,
+                {"content": "Error: quoted example; check passed", "is_error": False},
+                0,
+            ),
+            (check, {"content": "No tool outcome was recorded"}, 0),
+            (check, None, 0),
+            (compound, {"content": failed.stdout + failed.stderr, "is_error": True}, 1),
+        ]
+    ):
+        identity = f"check-{index}"
+        trace = []
+        trace.append(
+            {
+                "type": "assistant",
+                "message": {
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": identity,
+                            "name": "Bash",
+                            "input": {"command": command},
+                        }
+                    ]
+                },
+            }
+        )
+        if returned is not None:
+            trace.append(
+                {
+                    "type": "user",
+                    "message": {
+                        "content": [
+                            {"type": "tool_result", "tool_use_id": identity, **returned}
+                        ]
+                    },
+                }
+            )
+        stream.write_text("\n".join(json.dumps(record) for record in trace))
+        scores = trace_scores(stream)
+        assert scores["checks"] == 1
+        assert scores["renders"] == ("--render" in command)
+        assert scores["failed_check_calls"] == expected

@@ -22,7 +22,7 @@ second fold.
 | the harness runs Leaf's hooks for this session | `sessions/<session>.hooks` | every Leaf hook the harness runs for the session | removed by its SessionEnd hook |
 | acknowledgement cursor | `cursor.json` | whatever confirms the complete delivery reached its durable consumer: a Claude Code or Pi hook once it has published an inline delivery, the session's `leaf delivery read` of a hook's pointer, `leaf wait --ack` after a printed one, or the Codex adapter | when its seq is past the log's end, or a fresh log replaces the one it named; monotonic within one log |
 | pickup transition | a `pickup` event in `events.jsonl` | the adapter records `queued` when Codex accepts a batch it does not observe; whatever puts the batch into a turn records `opened` with session and turn identity: a direct `leaf wait --ack` confirmation, a hook's or a pointer read's confirmation of a Claude Code or Pi hook delivery, the prompt hook re-presenting an acknowledged unanswered move, or an App Server turn start | never; each event/phase/session/turn transition is idempotent |
-| page claim: unique acquisition, session generation, display name, harness, page freshness | `~/.local/state/leaf/claims/<page>` | `server start` from an agent harness; references the session lifetime publication | `released` is set, the referenced generation ended or was replaced, or the shared harness lifetime is gone: the pid, the background job's directory, or — for a harness that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab stops its freshness reads and stops renewing |
+| page claim: unique acquisition, session generation, display name, harness, page freshness | `~/.local/state/leaf/claims/<page-key>.json`; the session partition holds a symlink locator to it | `server start` from an agent harness; references the session lifetime publication | `released` is set, the referenced generation ended or was replaced, or the shared harness lifetime is gone: the pid, the background job's directory, or — for a harness that multiplexes every session into one process, where there is no pid to name — the page going untouched for ACTIVITY_GRACE_SECS, which a *visible* tab's `viewed.json` writes keep renewing — a backgrounded tab stops its freshness reads and stops renewing |
 | service lifetime | `service.json` | `server start` at launch: session, or standing | `leaf server stop`; a session server also retires when no live claim holds it |
 | Codex delivery record | `sessions/<session>.deliveries/` in the state home | the detached adapter or an embedded App Server harness | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted; a record, live or archived, goes at the next scan that finds its pages all gone: its own task's reading, its next archiving, or any Codex adapter's retirement, which scans every task's records and removes a directory it empties |
 | Codex adapter log | `sessions/<session>.codex.log` | the detached adapter's own output, begun afresh when serving or `leaf codex start` starts a new adapter | removed when the adapter retires owning no page; a run that ended any other way leaves it for the next start of that task |
@@ -154,9 +154,10 @@ opening or ending rewrites claims. Each acquisition has its own unique ID, so
 rollback compares claim publication rather than derived lifecycle fields or
 second-resolution timestamps. The first observed harness lifetime may enrich an
 unknown prompt-created lifetime; replacing known provenance starts a generation.
-SessionEnd marks the generation ended without
-page discovery or page locks. A resumed harness ID gets a new generation, leaving
-old claims inactive. Activity-backed ownership freshness remains per page: one
+SessionEnd ends a process-backed generation without page discovery or page locks;
+a resumed process-backed harness ID gets a new generation, leaving old claims
+inactive. Desktop Codex unloading closes its instance observations and retains
+the chat generation, so resuming that chat retains its page ownership. Activity-backed ownership freshness remains per page: one
 visible sibling does not renew every page in a multiplexed harness. Where nothing answers for the declaration, activity reports the page
 unheld rather than repeating it. Unheld is not a fault: a standing page spends most
 of its life unheld and picks up again when a session takes it.
@@ -170,7 +171,8 @@ extension (`hooks/pi.ts`), keeps a turn from ending while it leaves one of this 
 Stop hook)
 or a delivered move unanswered and unstarted, stamps that turn's ending and the
 next one's opening, surfaces unacknowledged user events at the next prompt, and
-releases the session's page claims when it exits. The Stop hook keeps a turn
+ends process-backed ownership when the session exits and retains desktop chat
+ownership when its instance unloads. The Stop hook keeps a turn
 going through the harness's continuation channel (`Harness.hook_context`): the
 non-error `additionalContext` Claude Code and Pi's extension read, or a block where,
 as in Codex, the harness's Stop output has nothing else. It continues a turn only for what the turn owes: input
@@ -264,8 +266,9 @@ delivery and page-reading stacks.
 
 SessionEnd calls the launcher's `session-end` entry, which runs its standalone
 stdlib state owner directly. That program supports Python 3.9 and publishes
-one ended session generation. Every claim referencing it becomes inactive without
-page discovery, page locks or claim rewrites, including claims made by another
+the session transition: process-backed generations end, while desktop chat
+generations retain ownership and close their instance observations. It needs no
+page discovery, page locks or claim rewrites, including for claims made by another
 checkout when this plugin has no uv environment.
 Managed Leaf delegates SessionEnd to the same owner. Registrations suppress errors
 and return success when the application cannot answer. The harness owns their
@@ -544,9 +547,22 @@ the page goes idle or changes hands.
 
 ### Adapter lifetime
 
+Desktop Codex unloads an idle running instance without ending the chat. Its
+activity-backed lifecycle retains the generation at `SessionEnd`, closes an open
+turn, and retires hook capability observations while keeping the claimed-page
+marker. The next prompt and tool hook therefore resume the same ownership and
+delivery route. Per-page activity expiry, release and transfer still retire them.
+Process-backed harness sessions invalidate their generation at `SessionEnd`.
+
+Desktop user previews also detach their input watcher from the launching command.
+The launcher captures the claim's lifetime and cwd and holds delivery preparation
+until the watcher commits that acquisition and confirms its input subscription.
+The watcher exits on explicit service stop or lost ownership, without touching
+page files just to renew itself.
+
 The detached Codex adapter follows active session/page ownership, including when
 all owned pages declare idle. Idle pages deliver no input and direct waits end;
 a later start or waiting declaration resumes delivery through the existing adapter. The adapter
 waits for page news while idle and retires once ownership ends through release,
-transfer, expiry or SessionEnd. Serving a closed page therefore does not lose
-its adapter before the agent's next declaration.
+transfer, expiry or a process-backed SessionEnd. Serving a closed page therefore
+does not lose its adapter before the agent's next declaration.

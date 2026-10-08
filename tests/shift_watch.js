@@ -1136,9 +1136,30 @@
       }),
     );
   }).observe(document, { subtree: true, attributeFilter: ["data-lf-presented"] });
+  // A hidden-tab return deliberately replaces the layout the reader left. Its
+  // first refreshed presentation belongs to that return, even when the network
+  // answer arrives later. Consume the runtime's boundary, never a timed grace.
+  const returns = [];
+  let continuityTurn = 0;
+  document.addEventListener("lf-reading-continuity", ({ detail }) => {
+    const turn = ++continuityTurn;
+    const current = returns.at(-1);
+    if (!detail.continuous) {
+      if (current?.through === Infinity) return;
+      returns.push({ start: nativePerformance.now(), through: Infinity });
+    } else if (current?.through === Infinity) {
+      nativeFrame(() =>
+        nativeFrame((at) => {
+          if (turn === continuityTurn) current.through = at;
+        }),
+      );
+    }
+  });
   const presenting = ({ startTime }) =>
     document.querySelector("script[data-lf-entry]") &&
-    (presented === null || startTime < presented);
+    (presented === null ||
+      startTime < presented ||
+      returns.some(({ start, through }) => startTime >= start && startTime <= through));
   const permittedReflow = ({ node, previousRect, currentRect }, around) => {
     const element = node?.nodeType === Node.TEXT_NODE ? up(node) : node;
     if (around.length !== 3) return false;
@@ -1713,6 +1734,9 @@
   checkpoint();
   const drawing = () => {
     if (document.hidden) return false;
+    // The driver sees owners across origins; an opaque child cannot. Read it
+    // again while draining because an ancestor can hide after judgement starts.
+    if (window.lfWatchJudgement?.ancestorsDrawn === false) return false;
     for (let view = window; view.frameElement; view = view.parent)
       if (!view.frameElement.checkVisibility()) return false;
     return true;

@@ -855,11 +855,10 @@ export default [
     },
   },
   {
-    // The runtime's own fold tests. A private owner is what they are about, so the
-    // facade rule would forbid their subject; the entry stays out of reach, because a
+    // The browser framework's and runtime's own fold tests exercise private owners,
+    // which the facade rule would forbid; the entry stays out of reach, because a
     // test is not a page and booting one would import the whole layer to read one fold.
-    files: ["tests/runtime/**/*.mjs"],
-    languageOptions: { globals: browserGlobals },
+    files: ["tests/runtime/**/*.mjs", "build/browser/**/*.test.mjs"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -874,9 +873,18 @@ export default [
           selector: 'ImportExpression[source.value="/leaf.js"]',
           message: entryMessage,
         },
+        {
+          selector: "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?leaf\\.js$/]",
+          message: entryMessage,
+        },
       ],
-      "no-undef": "error",
     },
+  },
+  {
+    // Runtime tests exercise browser owners; compiler tests run in Node.
+    files: ["tests/runtime/**/*.mjs"],
+    languageOptions: { globals: browserGlobals },
+    rules: { "no-undef": "error" },
   },
   {
     files: ["build/pierre/*.mjs"],

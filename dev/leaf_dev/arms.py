@@ -49,6 +49,7 @@ from leaf_dev.page_fixtures import prepare_page, read_fixture
 # `package.json` makes the payload a Pi package.
 PAYLOAD = (
     ".claude/skills/developing-leaf",
+    ".claude/skills/ui-sweep",
     ".agents/plugins",
     ".claude-plugin",
     ".codex-plugin",
@@ -361,7 +362,10 @@ def claude_child(
     return {"args": command, "cwd": cwd, "env": child_env}
 
 
-TURN_LIMIT = 1200
+# Duration is evidence to diagnose, not a task's correctness criterion. Allow
+# hours for a native turn and a day for workflows that contain several turns.
+TURN_LIMIT = 6 * 60 * 60
+WORKFLOW_LIMIT = 24 * 60 * 60
 
 
 def run_agent(

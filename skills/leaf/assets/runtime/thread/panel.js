@@ -21,8 +21,6 @@ export function createThreadPanelKeys({
   panelIsOpen,
   narrowing,
   stepThread,
-  firstUnread,
-  unreadCount,
 }) {
   async function mount() {
     closeBtn.onclick = () => setPanel(false);
@@ -78,14 +76,6 @@ export function createThreadPanelKeys({
         control: () => narrowingView.userControl,
         when: () => runtime.statePhase === "ready" && narrowingView.canToggleUser,
         run: () => narrowingView.toggleUser(),
-      },
-      {
-        id: "thread.unread.first",
-        keys: ["u"],
-        description: "Go to the first unread message",
-        title: "first unread",
-        when: () => unreadCount() > 0,
-        run: firstUnread,
       },
       {
         id: "thread.find",

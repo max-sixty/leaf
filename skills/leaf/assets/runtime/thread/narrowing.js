@@ -5,10 +5,12 @@
    clears waiting because a resolved thread cannot owe a turn. Selecting a waiting
    party leaves Resolved for Open, preserving an already Open or unrestricted status.
    Counts describe the named subset under the other filters, including those status
-   and waiting transitions. The
-   conditional placement refinement finds detached anchored threads. Waiting choices
-   select predicates, not exclusive ownership: a thread can await both parties, so
-   their counts can overlap and an unrestricted view includes threads awaiting neither.
+   and waiting transitions. The conditional placement refinement finds detached
+   anchored threads and shows while any thread is detached. Every other facet shows in
+   every view, so a change of view, a refusal's return included, leaves each choice
+   where it stood. Waiting choices select predicates, not exclusive ownership: a thread
+   can await both parties, so their counts can overlap and an unrestricted view
+   includes threads awaiting neither.
 
    Order is the panel's other view question: Page reads the list in the page's order,
    and Recent puts the thread spoken in last first. It hides nothing, so it is not a
@@ -160,6 +162,7 @@ const entryReading = (declaration, selected, amount, disabled, hidden = false) =
 // broadens the results rather than changing what its label counts.
 function presentationReading(reading, threads, shown, places) {
   const rows = threads.map((thread) => ({ thread, place: places.get(thread) }));
+  const anyGone = rows.some(({ place }) => place.gone);
   const baseline = threads.filter((thread) => matchesStatus(reading, thread)).length;
   const lifecycle = reading.status === "all" ? "" : `${reading.status} `;
   const amount =
@@ -179,7 +182,6 @@ function presentationReading(reading, threads, shown, places) {
   const order = Object.freeze({
     kind: ORDER.kind,
     label: ORDER.label,
-    hidden: false,
     choices: Object.freeze(
       ORDER.choices.map((declaration) =>
         entryReading(declaration, reading.order === declaration.value, null, false),
@@ -190,7 +192,6 @@ function presentationReading(reading, threads, shown, places) {
     Object.freeze({
       kind: facet.kind,
       label: facet.label,
-      hidden: facet.kind === "waiting" && reading.status === "resolved",
       choices: Object.freeze(
         facet.choices.map((declaration) => {
           const selected =
@@ -211,7 +212,7 @@ function presentationReading(reading, threads, shown, places) {
             selected,
             switched,
             !selected && !recovery && !switched,
-            facet.kind === "gone" && !switched && !selected,
+            facet.kind === "gone" && !anyGone && !selected,
           );
         }),
       ),
@@ -223,6 +224,9 @@ function presentationReading(reading, threads, shown, places) {
     rows.some(({ thread, place }) => includesThread(userDestination, thread, place));
   return Object.freeze({
     summary,
+    // No count exceeds the number of threads, so its digits are the widest a count
+    // can be.
+    countDigits: String(threads.length).length,
     // Whether Reset has anything to put back: the view differs from the default.
     resettable: !(
       !reading.finding &&

@@ -161,13 +161,19 @@ def page() -> None:
     is_flag=True,
     help="remove all explicit packages from an existing page",
 )
-def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="report whether re-vendoring would change an initialized page",
+)
+def init(dir: str, selected: tuple[str, ...], no_packages: bool, dry_run: bool) -> None:
     """Create or re-vendor a page directory.
 
     Creates PAGE/revisions/, then vendors the widget layer.
     The author writes PAGE/index.html. Re-running preserves the page's explicit packages unless --package or
-    --no-packages replaces them, and refuses vocabulary the page log can no longer
-    read. A served page's server restarts around the re-vendor, at the same URL.
+    --no-packages replaces them, and validates the current vocabulary and markup.
+    A changed layer restarts its server at the same URL; identical initialization
+    leaves it running. --dry-run reports the planned change without writing it.
     A package may contain any subset of the package layout, including zero, one,
     or many widgets.
     """
@@ -180,7 +186,7 @@ def init(dir: str, selected: tuple[str, ...], no_packages: bool) -> None:
     if len(set(selected)) != len(selected):
         raise click.UsageError("each --package selection may appear only once")
     selections = () if no_packages else selected or None
-    cmd_init(resolve_dir(dir, must_exist=False), selections)
+    cmd_init(resolve_dir(dir, must_exist=False), selections, dry_run=dry_run)
 
 
 @cli.group(short_help="Create, check, install, and run packages.")
@@ -374,8 +380,8 @@ def stamp(dir: str, text: str, completes: tuple[str, ...]) -> None:
 
     Checks the exact source first, then records it as the next public version. Repeat
     --completes for each widget whose open tasks this version completes, which ends
-    them done, citing the version. A task on a widget otherwise survives unrelated
-    versions, and a version cannot silently remove its widget.
+    them done, citing the version. A task otherwise remains open, including when a
+    revision removes its widget.
     """
     from leaf.publishing import cmd_stamp
 
@@ -434,8 +440,8 @@ def report(dir: str, widget: str, verb: str, fields: tuple) -> None:
     """Report a state change onto a page widget, as a worker.
 
     The verb and its fields are the widget's own agent-written x-state verb —
-    `leaf page report <page> t-parser status status=review` moves a
-    task. The page paints the report live as provisional news; it stands until a
+    `leaf page report <page> t-parser status value=review text="Ready for review"`
+    moves a task. The page paints the report live as provisional news; it stands until a
     version absorbs or overrules it, and the page's watcher wakes to fold it in.
     """
     from leaf.thread import cmd_report
@@ -586,7 +592,7 @@ def data_set(dir: str, source: str, input_file) -> None:
 @click.argument("dir", metavar="PAGE")
 @click.argument("source", metavar="SOURCE")
 def data_clear(dir: str, source: str) -> None:
-    """Remove SOURCE's value; the id keeps the contract it was recorded with."""
+    """Remove SOURCE's current value; its next write uses the current binding."""
     from leaf.data import cmd_data_clear
 
     cmd_data_clear(resolve_dir(dir), source)

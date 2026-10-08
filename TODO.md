@@ -26,6 +26,10 @@ has tried; settle that before building it.
 
 ### User experience
 
+- **#25 — Answer one decision beside its evidence and on a board.** A section's
+  picker and its board card currently record independent facts. Choose the owner
+  and test both views against one decision, including ordering, write-ins and
+  revision retraction ([design](notes/shared-decisions.md)).
 - **Make complete reading journeys feel coherent.** Audit a document, workspace,
   board or table, and populated thread in light and dark at wide and narrow
   widths. Fix recurring gaps in type, spacing, framing, controls, and responsive
@@ -69,6 +73,16 @@ has tried; settle that before building it.
   `hides` says it covers.
 
 ### Agent and author experience
+
+- **Consider a reminder when revising decided content.** An optional `--force`
+  acknowledgment could make an agent pause over an existing decision. Revisions
+  currently remain unrestricted; decide whether such a reminder helps before
+  adding one.
+
+- **#3 — Prevent an obsolete execution from closing continued work.** A later
+  `task start` records a new execution, but admission still accepts an older
+  session's `task_end`. Test competing continuations and keep the delayed result
+  from closing the newer work ([comparison proposal](notes/comparisons.md#concrete-follow-up-proposals-2026-10-04-revised-2026-10-05)).
 
 - **Compare Leaf authoring with plain HTML (#19).** The
   [agent-usability baseline](notes/agent-usability-evals.md#second-slice-2026-09-27)
@@ -232,13 +246,6 @@ Boxes that still move without input, which the "Stability" rule in
 `skills/leaf/assets/AGENTS.md` forbids. `tests/known_widget_findings.py` lists each widget
 that changes size after first paint, with its cause.
 
-- **Draw the playground at its final size from first paint.** `lf-playground`,
-  `lf-playground-control`, `-output`, `-preview` and `-value` are `keeps-first-box`
-  findings: the module builds each control's inputs and the words of the instruction it
-  copies after first paint. Put each control's initial value and text in the authored markup, so
-  the module fills in what is there rather than adding it. Check first how values a
-  viewer restores from the tab's storage change the size, since markup carries only
-  the authored defaults.
 - **Size the activity feed and text documents at first paint.** `lf-activity` draws the
   log's history and `lf-text-document` its bound source's value, and both arrive with
   the first state answer, after first paint. Serving that state inside the page does
@@ -254,11 +261,9 @@ that changes size after first paint, with its cause.
   it measures at that point. A held summary does not answer that cause. Check first whether a
   container or media query on the space beside the column can make the same decision
   in CSS.
-- **Find a first-paint fix for the gallery's margin entry and for targeting.**
-  `lf-margin-entry-gallery` wraps words whose height follows the viewer's fonts (22px
-  to 45px taller on CI's Linux than on macOS), so no height its examples state holds
-  everywhere. `lf-targeting` has no recorded cause; read `lf-targeting.js` for what it
-  builds after first paint before choosing an approach.
+- **Find a first-paint fix for targeting.** `lf-targeting` has no recorded cause;
+  read `lf-targeting.js` for what it builds after first paint before choosing an
+  approach.
 - **Check that margin markers paint in place in their first frame.** The shift watch
   exempts the page until it is presented (`tests/shift_watch.js`), and #1603 records
   startup shifts only as diagnostics, so a marker drawn in the wrong place in its first
@@ -525,8 +530,9 @@ Revisit these when their stated trigger becomes real; they are not an active que
   state before answering. Measure that cost before expanding tool observation;
   a compiled hook path is a further step if import cleanup is insufficient.
 - **Invoker commands:** revisit when the browser support Leaf needs can replace
-  the current dialog and popover handlers. See the
-  [dependency survey](notes/dependency-survey.md).
+  the current dialog and popover handlers. At a Chromium floor of at least 135,
+  test `command` and `commandfor`; Leaf still owns layer ordering, semantic state
+  and focus restoration.
 - **MCP Apps:** rebuild inline hosting as the direct-resource design when a host
   the user runs renders MCP Apps. See [notes/mcp-apps/PROJECT.md](notes/mcp-apps/PROJECT.md).
 - **Release labels:** prefer an exact tag when Leaf adopts named releases.

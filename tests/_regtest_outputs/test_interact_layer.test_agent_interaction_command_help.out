@@ -163,9 +163,10 @@ Usage: leaf page report [OPTIONS] PAGE WIDGET VERB [NAME=VALUE]...
   Report a state change onto a page widget, as a worker.
 
   The verb and its fields are the widget's own agent-written x-state verb \u2014
-  `leaf page report <page> t-parser status status=review` moves a task. The page
-  paints the report live as provisional news; it stands until a version absorbs
-  or overrules it, and the page's watcher wakes to fold it in.
+  `leaf page report <page> t-parser status value=review text="Ready for review"`
+  moves a task. The page paints the report live as provisional news; it stands
+  until a version absorbs or overrules it, and the page's watcher wakes to fold
+  it in.
 
 Options:
   --help  Show this message and exit.
@@ -191,8 +192,8 @@ Usage: leaf page stamp [OPTIONS] PAGE
 
   Checks the exact source first, then records it as the next public version.
   Repeat --completes for each widget whose open tasks this version completes,
-  which ends them done, citing the version. A task on a widget otherwise
-  survives unrelated versions, and a version cannot silently remove its widget.
+  which ends them done, citing the version. A task otherwise remains open,
+  including when a revision removes its widget.
 
 Options:
   --text TEXT         changelog text (default: stdin)

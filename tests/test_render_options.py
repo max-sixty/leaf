@@ -1756,7 +1756,7 @@ def test_a_nested_questions_pick_is_not_part_of_its_outers_record(browser, serve
             "revision": 1,
             "widget": "outer",
             "action": "choose",
-            "detail": {"options": ["out-drill"]},
+            "detail": {"value": ["out-drill"]},
         },
     )
 
@@ -1849,7 +1849,7 @@ def test_working_the_evidence_in_an_option_is_not_a_pick(browser, serve):
     expect(page.locator("#ro-column > .lf-pick")).to_have_text("selected")
     round_trip(page)
     assert [
-        e["detail"]["options"]
+        e["detail"]["value"]
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ] == [["ro-column"]]
@@ -2204,12 +2204,12 @@ def test_a_pick_states_the_whole_set(browser, serve):
         if e.get("action") == "choose"
     ]
     assert picks == [
-        ("jobs", {"options": ["job-mounts"]}),
-        ("jobs", {"options": ["job-mounts", "job-camera"]}),
-        ("jobs", {"options": ["job-camera"]}),
-        ("bracket", {"options": ["br-steel"]}),
-        ("bracket", {"options": ["br-cedar"]}),
-        ("bracket", {"options": []}),
+        ("jobs", {"value": ["job-mounts"]}),
+        ("jobs", {"value": ["job-mounts", "job-camera"]}),
+        ("jobs", {"value": ["job-camera"]}),
+        ("bracket", {"value": ["br-steel"]}),
+        ("bracket", {"value": ["br-cedar"]}),
+        ("bracket", {"value": []}),
     ]
     expect(
         page.locator('[data-lf-margin-for="bracket-decision"] .lf-margin-marker')
@@ -2264,7 +2264,7 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
     _until(page, lambda traffic: traffic.sends == 2, "sent the queued second pick")
     round_trip(page)
     assert [
-        e["detail"]["options"]
+        e["detail"]["value"]
         for e in events_model.read_events(serve.page_dir)
         if e.get("action") == "choose"
     ] == [["br-steel"], ["br-cedar"]]
@@ -2319,7 +2319,7 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
     page.locator("#job-heater").click()
     round_trip(page)
     assert [
-        e["detail"]["options"]
+        e["detail"]["value"]
         for e in events_model.read_events(d)
         if e.get("widget") == "jobs"
     ] == [
@@ -2440,7 +2440,7 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
         for e in events_model.read_events(serve.page_dir)
         if e["kind"] == "action"
     ]
-    assert picks == [("jobs", {"options": ["job-heater"]})], picks
+    assert picks == [("jobs", {"value": ["job-heater"]})], picks
     expect(page.locator("#job-mounts")).not_to_have_attribute("chosen", "")
 
 
@@ -2837,7 +2837,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
         page.locator("#rp-stage").click()
     actions = [e for e in events_model.read_events(d) if e["kind"] == "action"]
     assert [(e["widget"], e["detail"]) for e in actions] == [
-        ("rp-live", {"options": ["rp-stage"]})
+        ("rp-live", {"value": ["rp-stage"]})
     ]
     message = page.locator(".lf-msg:has(#rp-live)")
     status = message.locator(":scope > .lf-msg-head .lf-msg-sending")
@@ -2988,7 +2988,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     assert all(seat["worn"] and seat["seat"] for seat in seats), seats
     assert len({round(seat["top"]) for seat in seats}) == 1, seats
     expect(
-        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_count(0)
     page.keyboard.press("1")
     chosen = page.locator("#ar-canary-consecutive")
@@ -3010,7 +3010,7 @@ def test_an_ask_digit_hangs_off_a_corner_clear_of_its_neighbours(browser, serve)
     )
     resized(page, 1024, 768)
     page.keyboard.press("a")
-    chip = page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     expect(chip).to_have_count(1)
     reading = chip.evaluate(
         """chip => {

@@ -4,6 +4,7 @@ import itertools
 import json
 import re
 import threading
+from html import escape
 from urllib.parse import urlsplit
 
 import pytest
@@ -1134,8 +1135,8 @@ def test_the_gate_reports_a_devtools_issue_the_page_owns(browser, serve):
 
     The page owns an image it authors in a form-associated control's light DOM, and
     a frame it embeds, whose issue is placed at the frame. The same image in the
-    control's shadow tree is the control's implementation, so the page is not refused
-    for it."""
+    control's shadow tree is the control's implementation, even inside a frame,
+    so the page is not refused for it."""
     src = SHOT_SRC["before"]
     control = f"""<script type="module">
 customElements.define("field-host", class extends HTMLElement {{
@@ -1147,6 +1148,9 @@ customElements.define("field-host", class extends HTMLElement {{
   }}
 }});
 </script></head>"""
+    shadow_frame = escape(
+        "<head>" + control + "<body><field-host></field-host></body>", quote=True
+    )
     source = LONG_PAGE.replace("</head>", control).replace(
         '<h1 id="t">Long</h1>',
         f"""<h1 id="t">Long</h1>
@@ -1154,7 +1158,8 @@ customElements.define("field-host", class extends HTMLElement {{
 <img id="sized" src="{src}" alt="A panel" loading="lazy" width="600" height="300">
 <field-host id="host"><img id="authored" src="{src}" alt="" loading="lazy"></field-host>
 <iframe id="frame" title="A frame" srcdoc='<img src="{src}" alt="" loading="lazy">'>
-</iframe>""",
+</iframe>
+<iframe id="shadow-frame" title="A control’s shadow tree" srcdoc="{shadow_frame}"></iframe>""",
     )
 
     failures = render_gate_model.render_version(
@@ -1170,6 +1175,33 @@ customElements.define("field-host", class extends HTMLElement {{
         f"[{scheme}] DevTools issue LazyLoadImageIssue at {where} (url={src})"
         for scheme in ("light", "dark")
         for where in ("<img id=unsized>", "<img id=authored>", "<iframe id=frame>")
+    )
+
+
+def test_a_devtools_issue_inside_nested_cross_origin_frames_is_unplaced(browser):
+    """A same-origin inner frame cannot lend access through its outer boundary."""
+    context = browser.new_context()
+    context.route(
+        "http://issue-top.local/**",
+        lambda route: route.fulfill(
+            body='<iframe src="http://issue-other.local/frame"></iframe>',
+            content_type="text/html",
+        ),
+    )
+    context.route(
+        "http://issue-other.local/**",
+        lambda route: route.fulfill(
+            body="<iframe srcdoc='<img alt=\"An issue node\">'></iframe>",
+            content_type="text/html",
+        ),
+    )
+    page = context.new_page()
+    page.goto("http://issue-top.local/")
+    node = page.frame_locator("iframe").frame_locator("iframe").locator("img")
+    expect(node).to_have_count(1)
+    assert (
+        node.evaluate(f"node => ({render_gate_readings._ISSUE_NODE}).call(node)")
+        is None
     )
 
 
@@ -2399,25 +2431,13 @@ def _author_stateful_verbatim_widget(tmp_path):
     )
     stateful["x-state"] = {
         "change": {
-            "detail": {
-                "type": "object",
-                "properties": {"value": {"type": "string"}},
-                "required": ["value"],
-                "additionalProperties": False,
-            },
             "unit": "widget",
-            "record": {"kind": "value", "attr": "user", "value": "value"},
+            "record": {"kind": "value", "attr": "user"},
         },
         "status": {
             "writer": "agent",
-            "detail": {
-                "type": "object",
-                "properties": {"value": {"type": "string"}},
-                "required": ["value"],
-                "additionalProperties": False,
-            },
             "unit": "widget",
-            "record": {"kind": "value", "attr": "agent", "value": "value"},
+            "record": {"kind": "value", "attr": "agent"},
         },
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
@@ -2496,7 +2516,7 @@ def test_projected_rewrite_retirement_and_undo_are_honest_verbatim_changes(
             "revision": 1,
             "widget": "edited",
             "action": "edit",
-            "detail": {"text": "User's standing draft."},
+            "detail": {"value": "User's standing draft."},
         },
     )
     append_command(
@@ -2819,7 +2839,9 @@ def test_page_fixture_renders(browser, serve, source):
     url = serve(source)
     failures = render_gate_model.render_version(browser, url).failures
     assert failures == [], "\n".join(failures)
-    page = open_page(browser, url)
+    # This pass measures writes caused by scrolling; the sort film may otherwise
+    # repaint its SVG on the same frames while it plays automatically.
+    page = open_page(browser, url, context=browser.new_context(reduced_motion="reduce"))
     # The layer's own panel is held open by its own test; shut, its boxes misreport.
     framing = [
         finding
@@ -5474,7 +5496,7 @@ def test_the_gate_replays_a_decision_made_on_a_widget_no_version_holds(browser, 
             "revision": 1,
             "widget": "an-set",
             "action": "choose",
-            "detail": {"options": ["an-chase", "an-say"]},
+            "detail": {"value": ["an-chase", "an-say"]},
         },
     )
     # The Done press. Recordless, and the last word on the group.

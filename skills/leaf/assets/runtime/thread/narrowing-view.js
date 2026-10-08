@@ -17,7 +17,7 @@ import {
   render,
   repeat,
 } from "../../vendor/browser-runtime.js";
-import { offer } from "../widget-elements.js";
+import { offer, reserve } from "../widget-elements.js";
 import { focusDestination } from "../focus.js";
 
 // `lf-*` is reserved for authored widgets. This is generated runtime chrome.
@@ -28,6 +28,8 @@ class ThreadNarrowingView extends HTMLElement {
   #chooseFacet = null;
   #disclosed = false;
   #model = null;
+  #countDigits = 2;
+  #reservedCounts = new WeakMap();
   #reset = null;
   #toggleUser = null;
   #searchInput = offer("wa-input", "lf-find-box lf-label-hidden");
@@ -80,6 +82,27 @@ class ThreadNarrowingView extends HTMLElement {
       throw new Error("Thread narrowing presentation models must be immutable");
     this.#model = model;
     render(this.#template(), this);
+    this.#reserveCounts();
+  }
+
+  // Each counted choice reserves the width of the widest count it could show, so a
+  // count changing with the view, a refusal's return included, moves no choice after
+  // it. Its words keep the leading edge (chrome.css). The room only grows, from two
+  // digits, so threads arriving or leaving move the choices at most once per digit.
+  #reserveCounts() {
+    this.#countDigits = Math.max(this.#countDigits, this.#model.countDigits);
+    const room = "0".repeat(this.#countDigits);
+    for (const group of this.#model.groups)
+      for (const choice of group.choices) {
+        if (choice.amount === null) continue;
+        const button = this.querySelector(
+          `[data-filter-kind="${choice.kind}"][data-filter-value="${choice.value}"]`,
+        );
+        const widest = `${choice.label} (${room})`;
+        if (this.#reservedCounts.get(button) === widest) continue;
+        this.#reservedCounts.set(button, widest);
+        reserve(button, [widest]);
+      }
   }
 
   #toggleFilters() {
@@ -128,7 +151,6 @@ class ThreadNarrowingView extends HTMLElement {
       class="lf-thread-filter-group"
       role="group"
       aria-label=${group.label}
-      ?hidden=${group.hidden}
     >
       <span class="lf-thread-filter-label" aria-hidden="true">${group.label}</span>
       <div class="lf-thread-filter-choices">

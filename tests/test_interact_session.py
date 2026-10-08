@@ -257,7 +257,15 @@ def reaper_retires(page: Path, monkeypatch) -> bool:
         controlled.setattr(
             server_model,
             "time",
-            SimpleNamespace(monotonic=lambda: clock.now, sleep=next_check),
+            SimpleNamespace(monotonic=lambda: clock.now),
+        )
+        controlled.setattr(
+            server_model,
+            "page_changes",
+            lambda _page: SimpleNamespace(
+                mark=lambda: None,
+                wait=lambda _mark, seconds: next_check(seconds),
+            ),
         )
         controlled.setattr(server_model, "os", SimpleNamespace(_exit=retire))
         try:
@@ -703,7 +711,7 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
             "revision": 1,
             "widget": "thread-region",
             "action": "choose",
-            "detail": {"options": ["thread-east"]},
+            "detail": {"value": ["thread-east"]},
         },
     )
     answered = append_command(
@@ -809,7 +817,7 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
             "revision": 1,
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+            "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
         },
     )
 
@@ -855,7 +863,7 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
             "revision": 1,
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-baffle", "value": "col-done", "rank": "0i"},
         },
     )
     renewed = _start(page_dir, moved["id"], "Moving it on")
@@ -895,7 +903,7 @@ def test_a_frozen_move_that_answers_no_ask_keeps_a_receipt_and_owes_nothing(
             "revision": 1,
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-heater", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-heater", "value": "col-done", "rank": "0i"},
         },
     )
     state, attention = reading()
@@ -1073,7 +1081,7 @@ def test_a_start_on_a_page_move_holds_that_move_and_not_a_later_one(page_dir):
             "revision": 1,
             "widget": "choice",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
         },
     )
 
@@ -1094,7 +1102,7 @@ def test_a_start_on_a_page_move_holds_that_move_and_not_a_later_one(page_dir):
             "revision": 1,
             "widget": "choice",
             "action": "choose",
-            "detail": {"options": ["backfill-first"]},
+            "detail": {"value": ["backfill-first"]},
         },
     )
     assert [
@@ -2143,10 +2151,8 @@ def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
     ]
 
 
-def test_a_widget_task_outlives_its_seat_but_not_its_widget(page_dir):
-    """A widget's `x-work` admits a task on it; once open, the task stands beside the
-    widget even when a later layer of the page drops that seat, and a version that
-    removes the widget itself is refused until it completes the task."""
+def test_a_widget_task_outlives_its_seat_and_its_widget(page_dir):
+    """An admitted task stays open when its widget or work seat disappears."""
     work_page = PAGE.replace(
         '<lf-diagram id="flow">',
         '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
@@ -2191,9 +2197,10 @@ def test_a_widget_task_outlives_its_seat_but_not_its_widget(page_dir):
     )
     (page_dir / "index.html").write_text(without_target)
     dropped = stamp(page_dir, "Removed")
-    assert dropped.exit_code == 1
-    assert "would remove the target of the open task on 'rollout-card'" in (
-        dropped.output
+    assert dropped.exit_code == 0, dropped.output
+    assert [item["id"] for item in state_json(page_dir)["tasks"]] == [task["id"]]
+    (page_dir / "index.html").write_text(
+        without_target.replace("<title>t</title>", "<title>t · completed</title>")
     )
     finished = stamp(page_dir, "Removed", completes=("rollout-card",))
     assert finished.exit_code == 0, finished.output
@@ -3453,23 +3460,24 @@ def test_app_server_activity_throttles_stream_deltas(monkeypatch):
         lifecycle=cleanup_model.session_record("codex-thread"),
     )
     clock = iter([10.0, 10.1, 10.3])
-    monkeypatch.setattr(codex_model.time, "monotonic", lambda: next(clock))
     updates = []
     clears = []
     take_stream_activity(monkeypatch, updates, clears)
 
-    for delta in ("one", " two", " three"):
-        fold.absorb(
-            {
-                "method": "item/agentMessage/delta",
-                "params": {
-                    "threadId": "codex-thread",
-                    "turnId": "turn-live",
-                    "itemId": "message-live",
-                    "delta": delta,
-                },
-            }
-        )
+    with monkeypatch.context() as clock_patch:
+        clock_patch.setattr(codex_model.time, "monotonic", lambda: next(clock))
+        for delta in ("one", " two", " three"):
+            fold.absorb(
+                {
+                    "method": "item/agentMessage/delta",
+                    "params": {
+                        "threadId": "codex-thread",
+                        "turnId": "turn-live",
+                        "itemId": "message-live",
+                        "delta": delta,
+                    },
+                }
+            )
 
     assert updates == [
         ("codex-thread", "turn-live", {"kind": "replying"}),
@@ -5963,7 +5971,7 @@ def test_each_delivered_event_says_only_what_its_own_case_asks(page_dir, capsys)
         "revision": 1,
         "widget": "w",
         "action": "choose",
-        "detail": {"options": ["a"]},
+        "detail": {"value": ["a"]},
         "meaning": {
             "scope": "page",
             "unit": "w",
@@ -6251,7 +6259,7 @@ def test_delivery_distinguishes_composing_an_ask_from_changing_input_in_hand(pag
             },
         )
 
-    composing = action("choice", "choose", {"options": ["flag-first"]})
+    composing = action("choice", "choose", {"value": ["flag-first"]})
     assert not composing["attention"]
     assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
     completed = action("choice", "answer", {})
@@ -6271,17 +6279,17 @@ def test_delivery_distinguishes_composing_an_ask_from_changing_input_in_hand(pag
     )
     assert undone["attention"]
     # The Ask is unfinished again, but the agent is already acting on its pick.
-    changed = action("choice", "choose", {"options": ["backfill-first"]})
+    changed = action("choice", "choose", {"value": ["backfill-first"]})
     assert changed["attention"]
     assert append_command(
         page_dir, {"kind": "undo", "author": "user", "undoes": changed["id"]}
     )["attention"]
-    quiet = action("draft", "edit", {"text": "Green room."})
+    quiet = action("draft", "edit", {"value": "Green room."})
     assert not quiet["attention"]
     assert not append_command(
         page_dir, {"kind": "undo", "author": "user", "undoes": quiet["id"]}
     )["attention"]
-    quiet = action("draft", "edit", {"text": "Red room."})
+    quiet = action("draft", "edit", {"value": "Red room."})
     assert (
         CliRunner()
         .invoke(
@@ -6290,7 +6298,7 @@ def test_delivery_distinguishes_composing_an_ask_from_changing_input_in_hand(pag
         .exit_code
         == 0
     )
-    assert action("draft", "edit", {"text": "Orange room."})["attention"]
+    assert action("draft", "edit", {"value": "Orange room."})["attention"]
     selected = service_model.unacknowledged(
         events_model.read_events(page_dir), completed["seq"]
     )
@@ -6319,7 +6327,7 @@ def test_a_put_down_start_holds_no_input_in_hand(page_dir):
                 "revision": 1,
                 "widget": "draft",
                 "action": "edit",
-                "detail": {"text": text},
+                "detail": {"value": text},
             },
         )
 
@@ -6360,7 +6368,7 @@ def test_signoff_withdrawals_reports_and_errors_remain_deliverable(page_dir):
             "revision": 1,
             "widget": "task",
             "action": "status",
-            "detail": {"status": "done"},
+            "detail": {"value": "done"},
         },
     )
     error = append_command(
@@ -6399,7 +6407,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
             "revision": 1,
             "widget": "b",
             "action": "move",
-            "detail": {"card": "x", "to": "y", "rank": "0i"},
+            "detail": {"unit": "x", "value": "y", "rank": "0i"},
             "meaning": {
                 "scope": "page",
                 "unit": "x",
@@ -6411,7 +6419,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
     payload, header, shown = printed(capsys.readouterr().out)
     assert header["page"] == str(page_dir)
     assert [e["kind"] for e in shown] == ["comment", "action"]
-    assert shown[1]["detail"]["to"] == "y"
+    assert shown[1]["detail"]["value"] == "y"
     # Printing is not acknowledgement: a detached Codex command can finish without
     # putting its output in the model's context, so wait leaves both events pending.
     assert files_model.read_json(page_dir / "cursor.json") is None
@@ -6468,7 +6476,7 @@ def test_wait_prints_unacknowledged_input_without_receipt_or_pickup(
                 "depends": ["t1"],
             },
             "action": "status",
-            "detail": {"status": "review"},
+            "detail": {"value": "review"},
             "revision": 1,
         },
     )
@@ -7015,7 +7023,7 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
             "revision": 1,
             "widget": "region",
             "action": "choose",
-            "detail": {"options": ["east"]},
+            "detail": {"value": ["east"]},
         },
     )
     newer = append_carried_log_record(
@@ -7080,7 +7088,7 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
             "revision": 1,
             "widget": "regions",
             "action": "choose",
-            "detail": {"options": ["east"]},
+            "detail": {"value": ["east"]},
         },
     )
     selecting = state_json(page_dir)
@@ -7276,7 +7284,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "revision": 1,
             "widget": "gm",
             "action": "choose",
-            "detail": {"options": ["m-cap"]},
+            "detail": {"value": ["m-cap"]},
         },
     )
 
@@ -7310,7 +7318,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     assert [
         (a["author"], a["widget"], a["action"], a["detail"])
         for a in standing["actions"]
-    ] == [("user", "gm", "choose", {"options": ["m-cap"]})]
+    ] == [("user", "gm", "choose", {"value": ["m-cap"]})]
 
     # Taken back, and the thread stops carrying it — the log keeps the
     # gesture, and no reading of the log stands on it.
@@ -7354,7 +7362,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
             "revision": 1,
             "widget": "plan-choice",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
         },
     )
     answered = append_command(
@@ -7512,7 +7520,7 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
             "revision": 1,
             "widget": "thread-commands",
             "action": "choose",
-            "detail": {"options": ["restart"]},
+            "detail": {"value": ["restart"]},
         },
     )
 
@@ -7729,7 +7737,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
             "revision": 1,
             "widget": "picks",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
         },
     )
     # Rewriting the option they picked retracts the pick: the thing they chose is
@@ -7866,7 +7874,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "revision": 1,
             "widget": "gm",
             "action": "choose",
-            "detail": {"options": ["m-cap"]},
+            "detail": {"value": ["m-cap"]},
         },
     )
     # Bury the question: enough later exchange that the bound would drop it.
@@ -8625,8 +8633,9 @@ def test_a_stop_during_a_restart_keeps_the_service_stopped(
         assert starts == []
 
 
+@pytest.mark.parametrize("changed", [False, True])
 def test_page_init_restarts_a_served_page_under_the_sessions_wait(
-    page_dir, tmp_path, spawn
+    page_dir, tmp_path, spawn, changed
 ):
     """`page init` on a served page restarts its server itself, so the session's
     `leaf wait` carries on watching it.
@@ -8641,6 +8650,13 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
     started = start_server_command(page_dir, session_id=session)
     assert started.returncode == 0, started.stderr
     url = json.loads(started.stdout)["url"]
+    state = urllib.parse.urlsplit(url)._replace(path="/api/state").geturl()
+
+    def incarnation():
+        with urllib.request.urlopen(state) as response:
+            return response.headers["Leaf-Server"]
+
+    before = incarnation()
     claim = service_model.page_claim(page_dir)
     generation = files_model.read_json(page_dir / "registry.json")["$layer"][
         "generation"
@@ -8660,6 +8676,9 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
         failure="the wait did not start watching the page",
     )
 
+    if changed:
+        theme = page_dir / "theme.css"
+        theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
     revendored = subprocess.run(
         [*LEAF_COMMAND, "page", "init", str(page_dir)],
         capture_output=True,
@@ -8671,7 +8690,8 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
     assert (
         files_model.read_json(page_dir / "registry.json")["$layer"]["generation"]
         != generation
-    )
+    ) == changed
+    assert (incarnation() != before) == changed
     assert server_model.running_server(page_dir)["url"] == url
     # The restart claims nothing, so the turn the claim records is left as it was.
     assert service_model.page_claim(page_dir) == claim
@@ -8693,14 +8713,14 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
 
 
 def test_a_refused_revendor_leaves_the_running_server_alone(page_dir):
-    """A re-vendor the page's log refuses is refused before the server goes down.
+    """A malformed incoming registry is refused before the server goes down.
 
     A restart after the refusal would put this Leaf's server over the layer the
     page keeps, so a page vendored by another Leaf would be served by code its
     runtime does not speak. The same process answers at the same URL before and
     after, which is what `Leaf-Server`, the server's incarnation, says."""
-    # A page made under a registry where lf-draft declared `decide`: the log keeps
-    # a decision the incoming layer no longer speaks.
+    # Original decision evidence can outlive its declaration. The malformed
+    # incoming registry, rather than that history, causes this refusal.
     version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
@@ -8739,10 +8759,15 @@ def test_a_refused_revendor_leaves_the_running_server_alone(page_dir):
 
     before = incarnation()
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir()
+    (overlay / "registry.json").write_text("{broken")
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page_dir)]
+    )
 
     assert result.exit_code == 1
-    assert "no longer speaks" in result.output
+    assert "invalid JSON" in result.output
     assert server_model.running_server(page_dir)["url"] == url
     assert incarnation() == before
 
@@ -8770,6 +8795,8 @@ def test_page_init_leaves_a_service_it_cannot_restart_for_this_session(
         with service_model.PageTransaction(page_dir) as page:
             page.release_claim()
 
+    theme = page_dir / "theme.css"
+    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
     revendored = (
@@ -8829,6 +8856,336 @@ def test_a_watch_wakes_on_what_its_pass_read_moving(page_dir):
         assert events_model.read_events(page_dir)[-1]["text"] == "hi"
     finally:
         watch.release()
+
+
+# This interval is the subject of diagnostic absence assertions, not a deadline
+# for native scheduling; their later positive write is bounded by STATED_TIMEOUT.
+DIAGNOSTIC_QUIET_WINDOW_S = 0.2
+
+
+def test_a_quiet_native_watch_discovers_claim_transfer_and_nested_source_edits(
+    page_dir, monkeypatch
+):
+    """Subscriptions cover ownership replacement and in-place authored writes.
+
+    Atomic diagnostics are excluded, so a tab's housekeeping cannot wake the
+    delivery loop. Transfer is published outside this adapter's process, under
+    the same page lease as an ordinary acquisition.
+    """
+    record_claim(page_dir, id="native-owner")
+    watch = session_model.Watch(
+        harness_model.ClaudeCodeHarness("native-owner", "Claude")
+    )
+    assert watch.acquire()
+    try:
+        list(watch.tick())
+        mark = watch.mark()
+        cleanup_model.write_json(page_dir / "user-views.json", {"diagnostic": True})
+        assert not watch.await_news(mark, timeout=DIAGNOSTIC_QUIET_WINDOW_S)
+        source = page_dir / "page" / "nested"
+        source.mkdir(parents=True)
+        module = source / "state.js"
+        _write_during_native_wait(
+            watch, lambda: module.write_text("export const n = 1;"), monkeypatch
+        )
+        _write_during_native_wait(
+            watch, lambda: module.write_text("export const n = 2;"), monkeypatch
+        )
+        _write_during_native_wait(
+            watch, lambda: record_claim(page_dir, id="native-successor"), monkeypatch
+        )
+        assert list(watch.tick()) == []
+        assert service_model.claim_records("native-owner") == []
+    finally:
+        watch.release()
+
+
+def _write_during_native_wait(watch, write, monkeypatch):
+    """Publish after the watch's comparison has completed and native waiting begins."""
+    mark = watch.mark()
+    entered = threading.Event()
+    original = watch.changes.wait
+
+    def waiting(*args):
+        entered.set()
+        return original(*args)
+
+    with monkeypatch.context() as observation:
+        observation.setattr(watch.changes, "wait", waiting)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            waiting_result = executor.submit(watch.await_news, mark, STATED_TIMEOUT)
+            assert entered.wait(STATED_TIMEOUT), (
+                "the page watch never entered native waiting"
+            )
+            write()
+            assert waiting_result.result(timeout=STATED_TIMEOUT), (
+                "the publication did not wake the native watch"
+            )
+
+
+def test_an_explicit_native_watch_follows_foreign_claim_and_lifecycle_publications(
+    page_dir, monkeypatch
+):
+    """An explicit page's dependencies belong to its claimant, not its observer.
+
+    A release replaces the canonical payload without changing the session locator;
+    a transfer changes the discovery locator and referenced lifecycle. Subsequent
+    marks must subscribe the new targets even though the watched page stays put.
+    """
+    record_claim(page_dir, id="foreign-owner")
+    watch = session_model.Watch(None, pages=(page_dir,))
+    assert watch.acquire()
+    try:
+        list(watch.tick())
+
+        def release():
+            with service_model.PageTransaction(page_dir) as page:
+                page.release_claim()
+
+        _write_during_native_wait(watch, release, monkeypatch)
+        _write_during_native_wait(
+            watch, lambda: record_claim(page_dir, id="foreign-successor"), monkeypatch
+        )
+        _write_during_native_wait(
+            watch,
+            lambda: cleanup_model.close_session_turn("foreign-successor"),
+            monkeypatch,
+        )
+        mark = watch.mark()
+        cleanup_model.write_json(page_dir / "user-views.json", {"diagnostic": True})
+        assert not watch.await_news(mark, timeout=DIAGNOSTIC_QUIET_WINDOW_S)
+    finally:
+        watch.release()
+
+
+def test_native_watch_rearms_a_session_partition_created_after_startup(
+    page_dir, tmp_path, monkeypatch
+):
+    record_claim(page_dir, id="explicit-foreign")
+    cleanup_model.ensure_session("new-partition", {"pid": os.getpid()})
+    watch = session_model.Watch(
+        harness_model.ClaudeCodeHarness("new-partition", "Claude"), pages=(page_dir,)
+    )
+    assert watch.acquire()
+    try:
+        list(watch.tick())
+        mark = watch.mark()
+        partition = service_model.session_claims("new-partition")
+        assert not partition.exists()
+        partition.mkdir()
+        assert watch.changes.wait(mark[2], STATED_TIMEOUT)
+        # Consume creation before reconnecting; a delayed mkdir event must not
+        # masquerade as notification of the later locator publication.
+        while watch.changes.wait(watch.changes.mark(), 0.1):
+            pass
+        watch.mark()
+        new_page = tmp_path / "later-acquisition"
+        new_page.mkdir()
+        (new_page / "events.jsonl").touch()
+        prepared = service_model.prepare_claim(watch.harness, new_page)
+        _write_during_native_wait(
+            watch, lambda: service_model.publish_claim(new_page, prepared), monkeypatch
+        )
+        assert new_page in watch.pages()
+    finally:
+        watch.release()
+
+
+def test_shared_page_native_owner_rearms_created_and_replaced_directories(
+    tmp_path, monkeypatch
+):
+    from leaf.file_changes import _PageChanges
+
+    page = tmp_path / "later-page"
+    owner = _PageChanges()
+    initial = owner.connect(page)
+    page.mkdir()
+    source = page / "page"
+    source.mkdir()
+    module = source / "index.html"
+    module.write_text("initial authored input")
+    changes = owner.connect(page)
+    assert changes is not initial
+    assert all(not thread.is_alive() for thread in initial.threads)
+    try:
+        while changes.wait(changes.mark(), 0.1):
+            pass
+        mark = changes.mark()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            waiting = executor.submit(changes.wait, mark, STATED_TIMEOUT)
+            module.write_text("later authored input")
+            assert waiting.result(timeout=STATED_TIMEOUT)
+        descriptor = changes.roots[page][1]
+        previous_identity = os.fstat(descriptor)
+        shutil.rmtree(page)
+        page.mkdir()
+        current_identity = page.stat()
+        assert (previous_identity.st_dev, previous_identity.st_ino) != (
+            current_identity.st_dev,
+            current_identity.st_ino,
+        ), "the subscribed directory descriptor must prevent inode reuse"
+        closed = []
+        real_close = os.close
+
+        def closing(descriptor):
+            closed.append(descriptor)
+            real_close(descriptor)
+
+        with monkeypatch.context() as observation:
+            observation.setattr(os, "close", closing)
+            replacement = owner.connect(page)
+        assert replacement is not changes
+        assert descriptor in closed
+        assert all(not thread.is_alive() for thread in changes.threads)
+        source = page / "page"
+        source.mkdir()
+        mark = replacement.mark()
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            waiting = executor.submit(replacement.wait, mark, STATED_TIMEOUT)
+            (source / "after-replacement.html").write_text("replacement authored input")
+            assert waiting.result(timeout=STATED_TIMEOUT)
+    finally:
+        owner.release()
+
+
+def test_session_native_watch_pins_roots_until_replacement(page_dir, monkeypatch):
+    """The native provider holds an inode while the pathname is replaced."""
+    watch = session_model.Watch(None, pages=(page_dir,))
+    assert watch.acquire()
+    try:
+        list(watch.tick())
+        watch.mark()
+        previous = watch.changes
+        descriptor = previous.roots[page_dir][1]
+        held = os.fstat(descriptor)
+        shutil.rmtree(page_dir)
+        page_dir.mkdir()
+        current = page_dir.stat()
+        assert (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)
+        watch.mark()
+        assert watch.changes is not previous
+        assert all(not thread.is_alive() for thread in previous.threads)
+    finally:
+        watch.release()
+
+
+@pytest.mark.parametrize("failure", ["directory", "provider"])
+def test_native_subscription_releases_partial_startup_resources(
+    tmp_path, monkeypatch, failure
+):
+    from leaf import file_changes
+
+    shallow, tree = tmp_path / "shallow", tmp_path / "tree"
+    shallow.mkdir()
+    tree.mkdir()
+    opened, readers = [], []
+    real_open, real_thread, real_native = (
+        os.open,
+        threading.Thread,
+        file_changes.RustNotify,
+    )
+
+    def opening(*args, **kwargs):
+        if failure == "directory" and opened:
+            raise RuntimeError("directory installation refused")
+        descriptor = real_open(*args, **kwargs)
+        opened.append(descriptor)
+        return descriptor
+
+    def thread(*args, **kwargs):
+        reader = real_thread(*args, **kwargs)
+        readers.append(reader)
+        return reader
+
+    providers = []
+
+    def installing(*args, **kwargs):
+        if failure == "provider" and providers:
+            raise RuntimeError("provider installation refused")
+        provider = real_native(*args, **kwargs)
+        providers.append(provider)
+        return provider
+
+    monkeypatch.setattr(os, "open", opening)
+    monkeypatch.setattr(file_changes.threading, "Thread", thread)
+    monkeypatch.setattr(file_changes, "RustNotify", installing)
+    with pytest.raises(RuntimeError, match="installation refused"):
+        file_changes.FileChanges({shallow: False, tree: True}, lambda _path: True)
+    assert opened
+    for descriptor in opened:
+        with pytest.raises(OSError):
+            os.fstat(descriptor)
+    assert all(not reader.is_alive() for reader in readers)
+
+
+def test_native_subscription_rearms_a_root_replaced_during_installation(
+    tmp_path, monkeypatch
+):
+    """A replacement between pinning and native installation invalidates the plan."""
+    from leaf import file_changes
+
+    page = tmp_path / "installing"
+    page.mkdir()
+    real_native = file_changes.RustNotify
+    installations = []
+
+    def installing(*args, **kwargs):
+        if not installations:
+            page.rmdir()
+            page.mkdir()
+        installations.append(args)
+        return real_native(*args, **kwargs)
+
+    owner = file_changes._PageChanges()
+    monkeypatch.setattr(file_changes, "RustNotify", installing)
+    try:
+        initial = owner.connect(page)
+        assert not initial.matches(
+            {path: nested for path, (nested, _fd) in initial.roots.items()}
+        )
+        replacement = owner.connect(page)
+        assert replacement is not initial
+        assert all(not reader.is_alive() for reader in initial.threads)
+        roots = {path: nested for path, (nested, _fd) in replacement.roots.items()}
+        assert replacement.matches(roots)
+        (page / "diagnostic.json").write_text("{}")
+        assert owner.connect(page) is replacement, (
+            "a child edit must not rearm its root"
+        )
+        descriptors = [fd for _nested, fd in replacement.roots.values()]
+        replacement.close()
+        replacement.close()
+        assert not replacement.matches(roots)
+        for descriptor in descriptors:
+            with pytest.raises(OSError):
+                os.fstat(descriptor)
+    finally:
+        if owner.release is not None:
+            owner.release()
+
+
+def test_shared_native_page_owner_survives_held_memory_and_closes_on_eviction(
+    page_dir, tmp_path, monkeypatch
+):
+    import gc
+
+    from leaf import page_memory
+    from leaf.file_changes import page_changes
+
+    monkeypatch.setattr(page_memory, "_memories", page_memory.PageMemories())
+    retained = page_memory.memory_of(page_dir)
+    changes = page_changes(page_dir)
+    try:
+        for n in range(9):
+            page_memory.memory_of(tmp_path / f"gallery-{n}")
+        assert page_changes(page_dir) is changes
+        del retained
+        for n in range(9):
+            page_memory.memory_of(tmp_path / f"later-gallery-{n}")
+        gc.collect()
+        assert all(not thread.is_alive() for thread in changes.threads)
+    finally:
+        changes.close()
 
 
 def test_a_delayed_revival_cannot_cross_an_explicit_stop(page_dir, monkeypatch):
@@ -13412,7 +13769,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
             "revision": 1,
             "widget": "picks",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
         },
     )
     note = {
@@ -14771,7 +15128,7 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
                 "depends": ["t1"],
             },
             "action": "status",
-            "detail": {"status": "review"},
+            "detail": {"value": "review"},
             "revision": 1,
         },
     )
@@ -14925,6 +15282,19 @@ def test_session_end_releases_the_page_and_its_session_server_retires(claimed):
     assert claim is not None
     assert claim["released"] is not None
     assert service_model.owned_pages("s1") == []
+
+
+def test_desktop_codex_unloading_keeps_the_chat_page_owned(page_dir):
+    """Desktop unloads idle running instances without ending the user's chat."""
+    claim = record_claim(
+        page_dir, harness="codex", activity="multiplexed", ts=cleanup_model.now_iso()
+    )
+    before = cleanup_model.session_record("s1")
+    hooks_model.cmd_hook("codex", {"hook_event_name": "SessionEnd", "session_id": "s1"})
+    assert service_model.claim_is_active(service_model.page_claim(page_dir))
+    assert service_model.page_claim(page_dir)["acquisition"] == claim["acquisition"]
+    assert cleanup_model.session_record("s1")["generation"] == before["generation"]
+    assert cleanup_model.session_record("s1")["turn_closed"] is not None
 
 
 @pytest.mark.parametrize("harness", ["claude-code", "codex"])
@@ -16396,7 +16766,7 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, capsys):
             "</lf-options>",
         },
     )
-    for action, detail in (("choose", {"options": ["thread-east"]}), ("answer", {})):
+    for action, detail in (("choose", {"value": ["thread-east"]}), ("answer", {})):
         done = append_command(
             claimed,
             {
@@ -16521,7 +16891,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
             "revision": 1,
             "widget": "note",
             "action": "edit",
-            "detail": {"text": "Green room."},
+            "detail": {"value": "Green room."},
         },
     )
     edited = state_json(claimed)
@@ -16541,7 +16911,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(claimed, capsys)
             "revision": 1,
             "widget": "choice",
             "action": "choose",
-            "detail": {"options": ["backfill-first"]},
+            "detail": {"value": ["backfill-first"]},
         },
     )
     state = state_json(claimed)
@@ -16606,7 +16976,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
             "revision": 1,
             "widget": "choice",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
         },
     )
     ticked = state_json(claimed)
@@ -16672,7 +17042,7 @@ def test_a_finished_deck_owes_every_card_the_user_sorted(page_dir):
                 "revision": 1,
                 "widget": "triage",
                 "action": "swipe",
-                "detail": {"card": card, "to": "keep", "rank": rank},
+                "detail": {"unit": card, "value": "keep", "rank": rank},
             },
         )
 
@@ -16718,7 +17088,7 @@ def test_a_deck_in_a_thread_owes_nothing_until_it_is_finished(page_dir):
                 "revision": 1,
                 "widget": "triage",
                 "action": "swipe",
-                "detail": {"card": card, "to": "keep", "rank": rank},
+                "detail": {"unit": card, "value": "keep", "rank": rank},
             },
         )
 

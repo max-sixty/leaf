@@ -149,7 +149,7 @@ import { pageRung, pageScope } from "/runtime/keyboard/register.js";
 import { declareOffFlowSurface } from "/runtime/off-flow.js";
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
 import { repaint } from "/runtime/repaint.js";
-import { chromeRoot } from "/runtime/chrome.js";
+import { chromeRoot, chromeForeground } from "/runtime/chrome.js";
 import { versionBtn } from "/runtime/version-picker.js";
 import { motion, scrollBehavior } from "/runtime/motion.js";
 import { askHolding, declareSide, placeOf } from "/runtime/standing-target.js";
@@ -1513,7 +1513,10 @@ export function createMarginProjection({
     transferThreadFocus = false;
     // Before the card, which anchors to its rows (`mount`).
     if (!nav.isConnected)
-      chromeRoot.insertBefore(nav, preview.parentNode === chromeRoot ? preview : null);
+      chromeRoot.insertBefore(
+        nav,
+        preview.parentNode === chromeRoot ? preview : chromeForeground,
+      );
     pageInventory = inventory;
     const liveHosts = new Set(
       pageInventory.filter(entryHasMarginHost).map((entry) => entry.key),
@@ -2507,6 +2510,9 @@ export function createMarginProjection({
     document.addEventListener("pointerover", scheduleMarginEntryLabels, {
       capture: true,
     });
+    document.addEventListener("pointerout", scheduleMarginEntryLabels, {
+      capture: true,
+    });
     // A drop is the change's own to put right: the margin follows where the user stands.
     onStanding((node, cause) => {
       if (cause === "drop") return;
@@ -2540,7 +2546,8 @@ export function createMarginProjection({
     renderAnnotations();
     // The card anchors to its row (floating.js), which an anchor may do only to a box
     // laid out before it: the margin comes first.
-    chromeRoot.append(nav, preview);
+    chromeRoot.insertBefore(nav, chromeForeground);
+    chromeRoot.insertBefore(preview, chromeForeground);
     if (!previewRegionMounted) {
       previewRegionMounted = true;
       // The card may not yet hold a thread. Its region starts with the first transcript.

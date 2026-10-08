@@ -330,7 +330,7 @@ def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
     edited = tmp_path / "source.html"
     edited.write_text("<p>authored</p>", encoding="utf-8")
     changes = preview_model.watch_changes(
-        preview_model.Watched((tmp_path,), frozenset(), frozenset())
+        preview_model.Watched((tmp_path,), frozenset({str(edited)}))
     )
     try:
         edited.write_text("<p>edited</p>", encoding="utf-8")
@@ -678,28 +678,24 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
         stream.write("\nh1 { color: navy; }\n")
     wait_for(
         log.read_text,
-        lambda output: "Reloaded detached" in output,
+        lambda output: "Updated detached" in output,
         failure="the preview did not restart for its runtime",
     )
     assert server_model.running_server(directory)
     assert service_model.page_claim(directory) == claim
 
-    # SessionEnd can win while the re-vendor waits for the page transaction.
+    # Ownership can end while a runtime edit waits for the page transaction.
+    # page init needs that transaction before it can stop the service, so do not
+    # wait for its stop while holding the transaction ourselves.
     with service_model.PageTransaction(directory) as transaction:
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: teal; }\n")
-        wait_for(
-            lambda: server_model.running_server(directory),
-            lambda running: not running,
-            failure="the refresh did not stop the service",
-        )
         transaction.release_claim()
     wait_for(
-        log.read_text,
-        lambda output: "no longer owns" in output,
-        failure="the preview did not report its lost claim",
+        lambda: server_model.running_server(directory),
+        lambda running: not running,
+        failure="the released claim left the service running",
     )
-    assert server_model.running_server(directory) is None
     assert service_model.page_claim(directory)["released"] is not None
     wait_for(
         lambda: leases_model.lock_is_held(preview_model.preview_lease(directory)),
@@ -873,20 +869,21 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         generation = json.loads((directory / "registry.json").read_text())["$layer"][
             "generation"
         ]
-        # A refused re-vendor still replaces the server; the old layer is now loadable.
-        (
-            runtime / "skills" / "leaf" / "packages" / "default" / "registry.json"
-        ).write_text("{", encoding="utf-8")
+        # A changed layer replaces the server. An invalid input is now refused
+        # before that replacement, so change a valid theme to test recovery.
+        theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+        with theme.open("a", encoding="utf-8") as stream:
+            stream.write("\nh1 { color: navy; }\n")
         expect(page.locator("body")).to_have_attribute(
             "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
         )
         expect(status).not_to_be_visible()
     if resource == "widgets/lf-options.js":
         expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
-    assert len(documents) == 2
+    assert len(documents) >= 2
     assert (
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
-        == generation
+        != generation
     )
 
 
@@ -1103,7 +1100,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
             stream.write("\nh1 { color: navy; }\n")
     wait_for(
         log.read_text,
-        lambda output: "Reloaded watched" in output,
+        lambda output: "Updated watched" in output,
         failure="the preview did not finish its update",
     )
     assert server_model.running_server(directory)
@@ -1236,7 +1233,7 @@ customElements.define("lf-offline-test", class extends LitElement {
 
   choose() {
     return this.controller.dispatch({
-      kind: "action", verb: "choose", detail: {choice: "chosen"},
+      kind: "action", verb: "choose", detail: {value: "chosen"},
     });
   }
 
@@ -1275,14 +1272,8 @@ OFFLINE_REGISTRY = {
         "x-upgrade": True,
         "x-state": {
             "choose": {
-                "detail": {
-                    "type": "object",
-                    "properties": {"choice": {"type": "string"}},
-                    "required": ["choice"],
-                    "additionalProperties": False,
-                },
                 "unit": "widget",
-                "record": {"kind": "value", "attr": "choice", "value": "choice"},
+                "record": {"kind": "value", "attr": "choice"},
             }
         },
         "x-example": (

@@ -1,5 +1,6 @@
 {
   "lf-playground": {
+    "x-initial": "/vendor/lf-playground-initial.js",
     "description": "The deployment-notification playground with one exact scalar configuration.",
     "type": "object",
     "properties": {

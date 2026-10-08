@@ -9,7 +9,8 @@
  * restore nothing. Every classification is one `swipe`; the deck's Ask is answered
  * while the queue stands empty, so returning any card reopens it. Complete projection
  * supplies the ordered cards in every pile; this module places the retained nodes and
- * carries only the live pointer gesture. A
+ * carries only the live pointer gesture. Return hands focus to the active card with
+ * its optimistic placement; delivery never takes focus from a later gesture. A
  * card's parent pile presents whether it is unseen, passed, or kept. The complete
  * painted reading is memoized, so a broad action heartbeat that changes no deck state
  * writes nothing and repaints keyboard scopes only when action availability changes.
@@ -64,7 +65,6 @@ customElements.define(
     #progress = null;
     #pointer = null;
     #interactive = false;
-    #returning = new Set();
     #painted = null;
     #keysAvailable = null;
     #controller = null;
@@ -201,7 +201,6 @@ customElements.define(
           card,
           active: card === active && available,
           returnable: Boolean(this.#returnable(card)),
-          returning: this.#returning.has(card.id),
         })),
       }));
       const reading = JSON.stringify({
@@ -209,11 +208,10 @@ customElements.define(
         progress,
         piles: piles.map(({ verdict, cards }) => ({
           verdict,
-          cards: cards.map(({ card, active, returnable, returning }) => ({
+          cards: cards.map(({ card, active, returnable }) => ({
             id: card.id,
             active,
             returnable,
-            returning,
           })),
         })),
       });
@@ -223,12 +221,11 @@ customElements.define(
       keepsText(this.#progress, progress);
 
       for (const { pile, verdict, cards } of piles) {
-        for (const { card, active, returnable, returning } of cards) {
+        for (const { card, active, returnable } of cards) {
           keeps(card, "tabindex", active ? 0 : -1);
           const button = card.querySelector(":scope > .lf-swipe-return");
           if (!button) continue;
           keepsHidden(button, !returnable);
-          button.toggleAttribute("disabled", returning);
         }
         const label = pile.querySelector(':scope > [data-lf-said="verdict"]');
         keepsText(label, `${VERDICTS[verdict]} · ${cards.length}`);
@@ -247,7 +244,7 @@ customElements.define(
       if (!actions.swipe?.available || !queue || card.parentElement === queue)
         return null;
       const pending = actions.swipe.undo.find(
-        (event) => event.detail?.card === card.id && !Number.isInteger(event.seq),
+        (event) => event.detail?.unit === card.id && !Number.isInteger(event.seq),
       );
       if (pending) return { kind: "undo", target: pending.attempt ?? pending.id };
       if (!state.swipe?.units[card.id]) return null;
@@ -255,8 +252,8 @@ customElements.define(
         kind: "action",
         verb: "swipe",
         detail: {
-          card: card.id,
-          to: queue.id,
+          unit: card.id,
+          value: queue.id,
           rank: rankAt(state.swipe, queue.id, 0, card.id),
         },
       };
@@ -266,23 +263,18 @@ customElements.define(
       const button = offer("button", "lf-swipe-return", "Return to queue");
       button.setAttribute("aria-label", `Return ${this.#title(card)} to queue`);
       button.hidden = true;
-      button.addEventListener("click", async () => {
+      button.addEventListener("click", () => {
         const command = this.#returnable(card);
-        if (!command || this.#returning.has(card.id)) return;
+        if (!command) return;
         const refocus = document.activeElement === button;
-        this.#returning.add(card.id);
         const placed =
           command.kind === "action" && this.#place(card, this.#pile("unseen"), 0);
         this.#render();
         if (placed) layoutChanged(this);
-        let returned = false;
-        try {
-          returned = Boolean(await this.#controller.dispatch(command)?.delivery);
-        } finally {
-          this.#returning.delete(card.id);
-          if (this.isConnected) this.#render();
-        }
-        if (refocus) focusDestination(returned ? this.#active() : button, "return");
+        const returned = this.#controller.dispatch(command);
+        const next = returned && refocus && this.#active();
+        if (next) focusDestination(next, "return");
+        void returned?.delivery;
       });
       card.append(button);
     }
@@ -313,8 +305,8 @@ customElements.define(
       this.#restorePointer(false);
       const end = this.#cards(destination).length;
       const detail = {
-        card: card.id,
-        to: destination.id,
+        unit: card.id,
+        value: destination.id,
         rank: rankAt(this.#controller.read().state.swipe, destination.id, end, card.id),
       };
       this.#place(card, destination, end);
@@ -453,10 +445,12 @@ customElements.define(
       // projection motion() returns null, so standing units load directly at rest.
       const transitions = Object.values(state.swipe.units ?? {}).reverse();
       const transition = transitions.find(({ action, detail }) => {
-        const card = detail?.card
-          ? cards.find((candidate) => candidate.id === detail.card)
+        const card = detail?.unit
+          ? cards.find((candidate) => candidate.id === detail.unit)
           : null;
-        const destination = detail?.to ? document.getElementById(detail.to) : null;
+        const destination = detail?.value
+          ? document.getElementById(detail.value)
+          : null;
         return (
           action === "swipe" &&
           card?.parentElement?.getAttribute("verdict") === "unseen" &&
@@ -465,10 +459,10 @@ customElements.define(
         );
       });
       const detail = transition?.detail;
-      const movingCard = detail?.card
-        ? cards.find((candidate) => candidate.id === detail.card)
+      const movingCard = detail?.unit
+        ? cards.find((candidate) => candidate.id === detail.unit)
         : null;
-      const destination = detail?.to ? document.getElementById(detail.to) : null;
+      const destination = detail?.value ? document.getElementById(detail.value) : null;
       const verdict = destination?.getAttribute("verdict");
       const played = transition
         ? this.#exit(movingCard, verdict === "pass" ? -1 : 1)
@@ -525,7 +519,7 @@ export const interactionGalleryScenario = {
             [card.id]: {
               action: "swipe",
               value: keepPile.id,
-              detail: { card: card.id, to: keepPile.id, rank: "i" },
+              detail: { unit: card.id, value: keepPile.id, rank: "i" },
             },
           },
           value: Object.fromEntries(

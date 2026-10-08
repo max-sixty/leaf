@@ -53,6 +53,8 @@
         >
           <pre>
 flowchart LR
+  accTitle: Shared checkout crosses the sandbox boundary
+  accDescr: Runner setup hands its checkout to the agent, then resumes runner steps and action POSTs on the same writable tree.
   R0[Runner checkout] --> R1[Runner setup]
   R1 --> A1[Same tree handed to agent]
   A1 --> R2[Same tree returned to runner]
@@ -203,6 +205,8 @@ flowchart LR
           >
             <pre>
 stateDiagram-v2
+  accTitle: Sandbox execution and cleanup states
+  accDescr: A trusted runner prepares an independent agent checkout, starts setup and the agent under one supervisor, reaps the process tree and validates outputs before trusted cleanup. Failures close the gate or enter finalization.
   state "S0 · Gate passed" as S0
   state "S1 · Wᵣ prepared" as S1
   state "S2 · Wₐ imported" as S2

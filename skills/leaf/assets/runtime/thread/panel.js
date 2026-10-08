@@ -15,7 +15,13 @@ import { pagePresented } from "../presentation.js";
 import { rowWalk } from "../walk-position.js";
 
 export function createThreadPanelKeys({
-  elements: { closeBtn, findInput, narrowingView, threadsBox, inPanel: panelFocusIsInside },
+  elements: {
+    closeBtn,
+    findInput,
+    narrowingView,
+    threadsBox,
+    inPanel: panelFocusIsInside,
+  },
   openThreads,
   setPanel,
   panelIsOpen,

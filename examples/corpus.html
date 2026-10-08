@@ -6751,6 +6751,12 @@ observe --cohort staff</code></pre>
             </div>
           </section>
         </lf-tab>
+        <lf-tab id="summary-tab" label="Summary">
+          <section id="release-summary">
+            <h2>Release decision</h2>
+            <p>Advance only after the evidence meets every rollout gate.</p>
+          </section>
+        </lf-tab>
       </lf-tabs>
 </lf-tab>
 
@@ -8202,10 +8208,12 @@ gallery/
                 presents this same tab set at the root of a page, where it becomes
                 borderless top navigation for page-scale views. Both forms remember the
                 selected panel after reload. At page level, scroll a view and switch
-                away and back: each selection reaches the panel’s beginning below the
-                tab strip. Browser Back and Forward return to the corresponding views.
-                Narrow the window until the gallery’s own tab names overflow, then page
-                them with the edge arrows. Reduced motion makes that move immediate.
+                away and back: an unread view opens below the tab strip, and a view you
+                already read returns to its place. The strip stays put even when the
+                next view is shorter than the window. Browser Back and Forward return to
+                the corresponding views. Narrow the window until the gallery’s own tab
+                names overflow, then page them with the edge arrows. Reduced motion
+                makes that move immediate.
               </p>
               <lf-tabs id="bg-tabs">
                 <lf-tab id="bg-tab-current" label="Current">
@@ -9013,6 +9021,11 @@ switch --readers checkout-api,orders-api</code></pre>
           <li>
             Step through a click’s Before, Action and After checkpoints on one timeline.
             Each image and saved tree shows its own capture time.
+          </li>
+          <li>
+            Scroll inside the recording, then press Next or the timeline’s Right arrow.
+            Your scroll position stays put so you can compare the same area across
+            images. Changing recorded sources opens the new source at the top.
           </li>
           <li>
             Enable Show intermediate frames to include the browser’s filmstrip on that

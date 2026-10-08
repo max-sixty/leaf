@@ -249,11 +249,10 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     badge = (
         widget.locator("kbd")
         if hint_seat == "widget"
-        else page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        else page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     )
     active_hints = page.locator(
-        "[data-lf-binding-badge], "
-        ".lf-command-binding-badges > .lf-command-binding-badge"
+        "[data-lf-binding-badge], .lf-command-binding-badges .lf-command-binding-badge"
     )
     result = widget.locator("output")
     action = widget.get_by_role("button", name="Apply", exact=True)
@@ -698,7 +697,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     )
     assert routes == ["Escape"]
     expect(
-        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_be_visible()
     expect(
         page.locator('.lf-shortcut-bar [data-lf-command-ids~="probe.escape"]')
@@ -965,7 +964,7 @@ def test_route_corner_hint_overrides_the_rows_face_in_ask_and_widget(browser, se
     )
     control = page.get_by_role("button", name="Inspect", exact=True)
     inherited = page.locator("#probe kbd")
-    chip = page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     result = page.locator("#probe output")
 
     page.keyboard.press("a")
@@ -6549,7 +6548,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     # And the sequence's generated target hints, painted over the visible page rather than
     # inserted into it.
     page.keyboard.press("g")
-    expect(page.locator(".lf-go-to-hints > .lf-go-to-hint").first).to_be_visible()
+    expect(page.locator(".lf-go-to-hints .lf-go-to-hint").first).to_be_visible()
     sweep("with the visible-target sequence armed")
     page.keyboard.press("Escape")
 

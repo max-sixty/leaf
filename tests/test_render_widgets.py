@@ -3771,7 +3771,7 @@ def test_a_margin_table_of_contents_maps_the_document_until_the_user_enters_it(
         expect(link).to_have_css("opacity", "1")
         expect(link).to_have_css("pointer-events", "auto")
     link_hints = page.locator(
-        '.lf-go-to-hints > .lf-go-to-hint[data-lf-go-to-kind="Link"]'
+        '.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-kind="Link"]'
     )
     expect(link_hints).to_have_count(nav.locator("a").count())
     assert (
@@ -6070,7 +6070,7 @@ def test_a_playground_switch_is_reachable_through_go_to(browser, serve):
 
     page.keyboard.press("g")
     page.wait_for_function(
-        "() => document.querySelectorAll('.lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]').length"
+        "() => document.querySelectorAll('.lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]').length"
     )
     switch_hint = page.locator(
         '.lf-go-to-hint[data-lf-go-to-target="card-playground-compact-input"]'
@@ -6093,7 +6093,7 @@ def test_a_playground_copy_is_reachable_through_go_to(browser, serve):
 
     page.keyboard.press("g")
     page.wait_for_function(
-        "() => document.querySelectorAll('.lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]').length"
+        "() => document.querySelectorAll('.lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]').length"
     )
     hint_targets = page.locator(".lf-go-to-hint").evaluate_all(
         "els => els.map(el => [el.dataset.lfGoToTarget, el.dataset.lfGoToKind])"
@@ -6602,7 +6602,7 @@ def test_targeting_selects_names_previews_reverts_and_submits_structured_changes
     first.locator("wa-select").first.click()
     page.keyboard.press("g")
     expect(
-        page.locator(".lf-go-to-hints > .lf-go-to-hint[data-lf-hint-code]")
+        page.locator(".lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]")
     ).to_have_count(0)
     page.keyboard.press("Escape")
     expect(first.locator("wa-select").first).to_have_js_property("open", False)
@@ -7013,7 +7013,7 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     expect(page.locator(".lf-swipe-pass")).to_have_attribute("aria-keyshortcuts", "1")
     expect_asks_answered(page, "0/1")
     expect(
-        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_text(["1", "2"])
     assert active_digit_bindings(page) == "1–2"
 
@@ -7049,7 +7049,7 @@ def test_a_swipe_deck_is_one_ask_with_directional_action_hints(browser, serve):
     round_trip(page)
     expect_asks_answered(page, "1/1")
     expect(
-        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_count(0)
     assert "Undo last swipe" not in shortcut_bar_text(page)
     assert [event["action"] for event in actions(serve.page_dir)] == [
@@ -9290,7 +9290,7 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
     rendered(page)
     assert sorted(
         page.locator(
-            ".lf-command-binding-badges > .lf-command-binding-badge"
+            ".lf-command-binding-badges .lf-command-binding-badge"
         ).all_text_contents()
     ) == ["1", "2", "3"]
 
@@ -9307,7 +9307,7 @@ def test_ask_contextual_bindings_are_independent_of_widget_bindings(browser, ser
     rendered(page)
     assert sorted(
         page.locator(
-            ".lf-command-binding-badges > .lf-command-binding-badge"
+            ".lf-command-binding-badges .lf-command-binding-badge"
         ).all_text_contents()
     ) == ["1", "2", "3"]
     page.keyboard.press("y")
@@ -9383,7 +9383,7 @@ def test_a_widget_digit_shadows_only_the_matching_ask_alias(browser, serve):
     inspect.focus()
     expect(inspect).to_have_attribute("aria-keyshortcuts", "1 3")
     expect(
-        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_text(["2"])
     page.keyboard.press("1")
     expect(inspect).to_have_attribute("data-activated", "1")
@@ -9549,7 +9549,7 @@ def test_ask_action_binding_badges_use_the_available_card_action_seats(browser, 
     )
     assert gap == pytest.approx(expected_gap, abs=0.5)
     expect(
-        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_count(0)
 
 
@@ -9634,7 +9634,7 @@ def test_ask_actions_replace_unusable_package_binding_badge_faces(browser, serve
     for binding in ("3", "4", "5", "6", "7"):
         expect(
             page.locator(
-                ".lf-command-binding-badges > .lf-command-binding-badge",
+                ".lf-command-binding-badges .lf-command-binding-badge",
                 has_text=binding,
             )
         ).to_have_count(1)
@@ -9690,7 +9690,7 @@ def test_ask_binding_badges_do_not_cover_their_key_line(browser, serve):
           return {
             line: read(document.querySelector('.lf-shortcut-bar')),
             chips: [...document.querySelectorAll(
-              '.lf-command-binding-badges > .lf-command-binding-badge, [data-lf-binding-badge]'
+              '.lf-command-binding-badges .lf-command-binding-badge, [data-lf-binding-badge]'
             )].filter(node => node.checkVisibility({visibilityProperty: true})).map(read),
           };
         }"""

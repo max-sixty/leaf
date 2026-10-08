@@ -25,11 +25,18 @@ from .layer import (
     layer_inputs,
     payload_provenance,
     payload_runtime_fingerprint,
+    payload_server_fingerprint,
 )
 from .leases import lock_is_held, page_locked
 from .locations import located, locations_overlap, path_is_within, path_location
 from .projection import page_reading
-from .registry.storage import compose_candidate, layer_packages, widget_paths
+from .registry.storage import (
+    RegistryError,
+    compose_candidate,
+    layer_metadata,
+    layer_packages,
+    widget_paths,
+)
 from .revision_artifact import read_revision
 from .schema import (
     CURSOR_FILE,
@@ -48,14 +55,18 @@ from .validation.source import check_source
 from .work import tasks_without_targets
 
 
-def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:
+def cmd_init(
+    page_dir: Path, selected: tuple[str, ...] | None = None, *, dry_run: bool = False
+) -> None:
     """Create a page, or re-vendor one inside a restart of its service.
 
     Everything that can refuse a re-vendor is decided first, in a dry run with the
     page still served, so a refused re-vendor leaves its server untouched: a
     restart would bring this Leaf's server back over the layer the page keeps.
-    Only then does the service go down (`hosting.restarting_server`) for the init
-    itself, which decides again under the page transaction, since the page may
+    An identical installed layer and serving contract need no transition, so neither
+    files nor the server change. `dry_run` reports this decision without committing.
+    Only a changed contract takes the service down (`hosting.restarting_server`)
+    for the init itself, which decides again under the page transaction, since the page may
     have moved in between: the restart's stop needs the page lock, so neither step
     can hold it across the gap.
 
@@ -65,12 +76,24 @@ def cmd_init(page_dir: Path, selected: tuple[str, ...] | None = None) -> None:
     the mode they chose, and a refused init takes back the empty directory it made.
     """
     made = not page_dir.exists()
+    if dry_run and made:
+        sys.exit(
+            f"{page_dir} does not exist; initialize it before planning a re-vendor"
+        )
     if made:
         _refuse_package_target(page_dir, layer_inputs(selected or ()))
         page_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     if (page_dir / EVENTS_FILE).is_file():
         with page_locked(page_dir):
-            _plan_page(page_dir, selected, read_events(page_dir))
+            plan = _plan_page(page_dir, selected, read_events(page_dir))
+        if dry_run:
+            print(json.dumps({"page": str(page_dir), "changed": plan.changed}))
+            return
+        if not plan.changed:
+            print(json.dumps({"page": str(page_dir)}))
+            return
+    elif dry_run:
+        sys.exit(f"{page_dir} is not initialized")
     with restarting_server(page_dir), page_locked(page_dir):
         try:
             _init_page(page_dir, selected)
@@ -90,7 +113,7 @@ def start_throwaway_page(page_dir: Path, composition: LayerComposition) -> None:
     a page cannot record (`layer.resolve_packages`), and nothing re-vendors a page
     that is thrown away."""
     layer = _stamp_layer(composition, ())
-    plan = _PagePlan(True, layer, _checked_destinations(page_dir, layer))
+    plan = _PagePlan(True, layer, _checked_destinations(page_dir, layer), True)
     _commit_layer(page_dir, plan)
 
 
@@ -124,7 +147,10 @@ def _init_page(page_dir: Path, selected: tuple[str, ...] | None) -> None:
     # and contract commit one order against every browser append. No path takes
     # the page transaction and then the page lock, so this order cannot invert.
     with PageTransaction(page_dir) as page:
-        _commit_layer(page_dir, _plan_page(page_dir, selected, page.events))
+        plan = _plan_page(page_dir, selected, page.events)
+        if not plan.changed:
+            return
+        _commit_layer(page_dir, plan)
         events = page.events
     # The re-vendored layer is in place, but the page shows it only once index.html
     # activates, which runs the same check `page check` does. Say now what would
@@ -147,6 +173,7 @@ class _PagePlan(NamedTuple):
     fresh: bool
     layer: "_VendoredLayer"
     directories: set[Path]
+    changed: bool
 
 
 def _plan_page(
@@ -172,13 +199,50 @@ def _plan_page(
         _validate_page_transition(
             page_dir, events, _effective_registry(page_dir, composition)
         )
-    layer = _stamp_layer(composition, selected)
-    return _PagePlan(fresh, layer, _checked_destinations(page_dir, layer))
+    previous = None
+    if not fresh:
+        try:
+            layer_metadata(page_dir)
+            previous = read_json(page_dir / "registry.json")["$layer"]
+        except RegistryError:
+            # Init repairs damaged installed metadata as well as installed files.
+            pass
+    layer = _stamp_layer(composition, selected, previous)
+    directories = _checked_destinations(page_dir, layer)
+    changed = fresh or not _same_installed_layer(page_dir, layer)
+    if changed and layer.reused:
+        # The source contract agrees, but missing, stale or damaged installed bytes
+        # require repair. Invalidate tabs that may already have loaded those bytes.
+        layer = _stamp_layer(composition, selected)
+    return _PagePlan(fresh, layer, directories, changed)
 
 
 class _VendoredLayer(NamedTuple):
     top_files: dict[str, bytes]
     directory_files: dict[str, dict[str, bytes]]
+    reused: bool
+
+
+def _same_installed_layer(page_dir: Path, layer: _VendoredLayer) -> bool:
+    """An init is a no-op only when all owned files already carry the desired bytes."""
+    wanted = {
+        **layer.top_files,
+        **{
+            f"{directory}/{name}": data
+            for directory, entries in layer.directory_files.items()
+            for name, data in entries.items()
+        },
+    }
+    for name, data in wanted.items():
+        path = page_dir / name
+        if path.is_symlink() or not path.is_file() or path.read_bytes() != data:
+            return False
+    return all(
+        f"{directory}/{path.relative_to(page_dir / directory).as_posix()}" in wanted
+        for directory in PACKAGE_DIRS
+        for path in (page_dir / directory).rglob("*")
+        if path.is_file() or path.is_symlink()
+    )
 
 
 def _refuse_input_destination_overlap(roots: list[Path], page_target: Path) -> None:
@@ -320,18 +384,15 @@ def _effective_registry(page_dir: Path, composition: LayerComposition) -> dict:
 
 
 def _stamp_layer(
-    composition: LayerComposition, selected: tuple[str, ...]
+    composition: LayerComposition,
+    selected: tuple[str, ...],
+    previous: dict | None = None,
 ) -> _VendoredLayer:
-    # `page init` is the contract transition, even when its input bytes happen to
-    # match the last run. The browser carries this epoch on every write so an open
-    # tab cannot post through a runtime whose server contract was re-vendored under it.
-    generation = secrets.token_hex(16)
     fingerprint = layer_fingerprint(composition)
     producer = payload_provenance()
-    incoming = composition.registry
-    incoming["$layer"] = {
-        "generation": generation,
+    metadata = {
         "fingerprint": fingerprint,
+        "server": payload_server_fingerprint(),
         # The kernel half of that composition, stamped on its own because it is the
         # half another Leaf can read the page against anywhere: the selection beside
         # it was resolved against the project `page init` ran in, so nothing away from
@@ -341,15 +402,26 @@ def _stamp_layer(
         "packages": list(selected),
         **({"producer": producer} if producer else {}),
     }
-    top_files = composition.top_files
-    directory_files = composition.directory_files
+    # A generation names a contract transition, not an invocation. Provenance
+    # remains the producer of the installed bytes until the contract changes.
+    same = previous is not None and all(
+        previous.get(key) == metadata[key]
+        for key in ("fingerprint", "runtime", "server", "packages")
+    )
+    metadata = previous if same else {"generation": secrets.token_hex(16), **metadata}
+    incoming = {**composition.registry, "$layer": metadata}
+    generation = metadata["generation"]
+    top_files = dict(composition.top_files)
+    directory_files = {
+        name: dict(files) for name, files in composition.directory_files.items()
+    }
     client = directory_files["runtime"]["layer-generation.js"]
     directory_files["runtime"]["layer-generation.js"] = client.replace(
         LAYER_PLACEHOLDER, json.dumps(generation).encode()
     )
     # The registry makes the theme and modules live, so it commits last.
     top_files["registry.json"] = json_bytes(incoming)
-    return _VendoredLayer(top_files, directory_files)
+    return _VendoredLayer(top_files, directory_files, same)
 
 
 def _checked_destinations(page_dir: Path, layer: _VendoredLayer) -> set[Path]:
@@ -414,7 +486,7 @@ def _checked_destinations(page_dir: Path, layer: _VendoredLayer) -> set[Path]:
 
 
 def _commit_layer(page_dir: Path, plan: _PagePlan) -> None:
-    fresh, layer, directories = plan
+    fresh, layer, directories = plan.fresh, plan.layer, plan.directories
     if fresh:
         # A page's claim lives outside its directory. Recreating a deleted path
         # creates a new page, so it must not inherit the deleted page's owner.

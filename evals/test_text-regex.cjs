@@ -10,8 +10,6 @@ async function check(caseName, metric, output) {
     fs.readFileSync(path.join(__dirname, caseName, "case.yaml"), "utf8"),
   );
   const assertion = source.assert.find((item) => item.metric === metric);
-  if (assertion.value.startsWith("file://"))
-    assertion.value = `file://${path.join(__dirname, assertion.value.slice(7))}`;
   return (
     await assertions.runAssertions({
       test: { assert: [assertion] },

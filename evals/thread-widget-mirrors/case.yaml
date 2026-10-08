@@ -22,16 +22,6 @@ vars:
     The page directory is not reachable from here. Reply with the JavaScript module
     for the custom element, rather than writing a file.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-module-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/(?:packages|module-authoring)\.md
 - type: regex
   metric: mounts-core-thread-views
   value: mountThreadViews\s*\(

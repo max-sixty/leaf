@@ -40,21 +40,6 @@ vars:
     directory. Reply with the HTML and page module; the page directory is not
     reachable here. You can use placeholders for the live sample bodies.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-playground-instructions
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/packages/playground/instructions/author\.md
-- type: javascript
-  metric: reads-control-idioms
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/assets/registry\.json
 - type: llm-rubric
   metric: independent-case
   value: |

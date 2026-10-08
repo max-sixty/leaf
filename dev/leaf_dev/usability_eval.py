@@ -22,6 +22,7 @@ from leaf.service import requires_agent_attention
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
+    TURN_LIMIT,
     URL,
     LiveChild,
     PageClient,
@@ -609,10 +610,7 @@ def execute(run: Run) -> None:
         shutil.copytree(found, run.dir / "pages" / found.name, ignore=ignore)
 
 
-# How long a live session may run, how long a posted round may wait for the delivery
-# that carries it, and how long a finished session stays open for a trailing turn.
-LIVE_LIMIT = 1500
-DELIVERY_LIMIT = 300
+# How long a finished session stays open for a trailing turn.
 GRACE = 20
 
 
@@ -621,13 +619,11 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
 
     Each time a turn ends with every posted round delivered, the next round goes out
     through the served page, a few seconds later so that Leaf's watcher has
-    taken its lease. The session closes once the last round's turn has ended, when a
-    round waits past DELIVERY_LIMIT, or at LIVE_LIMIT, which voids the run. At each
+    taken its lease. The session closes once the last round's turn has ended or
+    the session reaches TURN_LIMIT. At each
     turn's end the stream records the page's status."""
     prompt = case.prompts[0].replace("{page}", str(page))
     (run.dir / "prompt-1.txt").write_text(prompt)
-    # The deadline for the posted round's delivery; unstarted until the first post.
-    waiting = threading.Timer(DELIVERY_LIMIT, lambda: None)
     url, posted, delivered = None, 0, 0
     pending_events: set[str] = set()
     attempts: set[str] = set()
@@ -639,7 +635,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 "--plugin-dir",
                 str(run.payload),
                 stderr=run.dir / "err-1.txt",
-                limit=LIVE_LIMIT,
+                limit=TURN_LIMIT,
                 timed_out=run.dir / "timed-out",
                 dirs=[run.payload],
                 env={"XDG_STATE_HOME": str(run.state)},
@@ -653,7 +649,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 stream.flush()
 
             def post(injection: str) -> None:
-                nonlocal posted, pending_events, waiting
+                nonlocal posted, pending_events
                 if injection == "idle":
                     time.sleep(3)
                 active_turn = observed_active_turn(run, page, child)
@@ -678,8 +674,6 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                         "received_at": now(),
                     }
                 )
-                waiting = threading.Timer(DELIVERY_LIMIT, child.close)
-                waiting.start()
 
             for record in child.records():
                 if delivered < posted:
@@ -688,7 +682,6 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                         events, attempts
                     ) and pending_events <= opened_input_ids(events):
                         delivered = posted
-                        waiting.cancel()
                         note(
                             {
                                 "type": "eval_received",
@@ -726,7 +719,6 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 else:
                     threading.Timer(GRACE, child.close).start()
     finally:
-        waiting.cancel()
         run.leaf("server", "stop", str(page))
 
 
@@ -923,7 +915,9 @@ def trace_scores(trace: list[dict]) -> dict:
             else None
         ),
         "cost_known": done.get("total_cost_usd") is not None,
-        "minutes": round(sum(d.get("duration_ms", 0) for d in ended) / 60000, 1),
+        "minutes": round(sum(d["duration_ms"] for d in ended) / 60000, 1)
+        if ended and all("duration_ms" in d for d in ended)
+        else None,
         **token_counts(trace),
         "denials": len(done.get("permission_denials") or []),
         "leaf_skill": any("leaf" in s for s in skills)

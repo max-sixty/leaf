@@ -408,8 +408,8 @@ def describe(base: str | None, head: str, globs: tuple[str, ...]) -> str:
 @click.option(
     "--harness",
     type=click.Choice([*HARNESSES, "both"]),
-    default="both",
-    show_default=True,
+    required=True,
+    help="The harness the motivating failure came from, or the one you work in.",
 )
 @click.option(
     "--condition",

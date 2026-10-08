@@ -34,6 +34,7 @@ from leaf.render_gate.preview import preview_server
 from leaf.render_gate.readings import DevtoolsIssues
 from leaf.schema import ELEMENT_ID
 from leaf.validation import compatibility as validation_model
+from leaf_dev.example_data import patch_manifest
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASKS_IN_ORDER,
@@ -444,6 +445,248 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve, recon
             held.pop(0).continue_()
 
 
+def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser, serve):
+    """An analyzer's old-source fallback must never retarget a durable new address."""
+    url = serve(
+        leaf_page(
+            "source coordinates",
+            '<h1 id="title">Call locations</h1>'
+            '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
+            '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
+        ),
+        packages=("diff",),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -5,4 +8,4 @@\n shifted()\n-removed()\n+added()\n next()\n last()\n",
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "calls-data",
+        "calldiff diff main → feature\n  shifted()  app.py:8\n"
+        "  absent_new()  app.py:6\n- removed()  app.py:6\n"
+        "+ added()  app.py:9\n  last()  app.py:11",
+    )
+    page = open_page(browser, url)
+    diff = page.locator("#patch")
+
+    def resolved(key):
+        return diff.evaluate(
+            "(diff, key) => diff.lfDataDatum(JSON.stringify(key))?.dataset.lfDatum ?? null",
+            key,
+        )
+
+    assert resolved(["app.py", "new", 5]) is None
+    assert resolved(["app.py", "new", 6]) is None
+    assert resolved(["app.py", "both", 5, 99]) is None
+    assert resolved(["app.py", "both", 5, 8]) == '["app.py","both",5,8]'
+    assert resolved(["app.py", "old", 8]) == '["app.py","both",8,11]'
+    assert resolved(["app.py", "new", 8]) == '["app.py","both",5,8]'
+    assert resolved(["app.py", "file", "extra"]) is None
+
+    links = page.locator("#calls .lf-call-location:visible")
+    for index, key in enumerate(
+        [
+            '["app.py","both",5,8]',
+            None,
+            '["app.py","old",6]',
+            '["app.py","new",9]',
+            '["app.py","both",8,11]',
+        ]
+    ):
+        link = links.nth(index)
+        location = link.inner_text()
+        link.click()
+        if key is None:
+            expect(page.locator(".lf-live")).to_have_text(
+                f"{location} is not present in the exact patch"
+            )
+            continue
+        target = page.locator(f"#patch [data-lf-datum='{key}']")
+        expect(target).to_be_focused()
+        expect(target).to_be_in_viewport()
+        expect(page.locator(".lf-live")).to_have_text(
+            f"Opened {location} in the exact patch"
+        )
+
+    # A note describes its exact holder, including the side, rather than reconstructing
+    # a section-only address that makes two different source lines sound identical.
+    for side, number in [("old", 6), ("new", 9)]:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About the {side} line",
+                "anchor": {
+                    "section": "patch",
+                    "datum": json.dumps(
+                        ["app.py", side, number], separators=(",", ":")
+                    ),
+                },
+            },
+        )
+    told(page)
+    notes = page.locator(".lf-mark-note")
+    expect(notes).to_have_count(2)
+    names = notes.evaluate_all(
+        "notes => notes.map(note => note.getAttribute('aria-label'))"
+    )
+    assert any("old line 6" in name and "app.py" in name for name in names), names
+    assert any("new line 9" in name and "app.py" in name for name in names), names
+    for key in ['["app.py","old",6]', '["app.py","new",9]']:
+        assert page.locator(f"#patch [data-lf-datum='{key}']").evaluate(
+            "line => line.ariaDetailsElements.some(note => note.matches('.lf-mark-note'))"
+        )
+
+    # Different exact context identities may share one old-side number in admitted
+    # overlapping hunks. A source request must not choose among them by row order.
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
+        "@@ -5 +8 @@\n same()\n@@ -5 +20 @@\n same()\n",
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "calls-data",
+        "calldiff diff main → feature\n- same()  app.py:5",
+    )
+    told(page)
+    expect(links).to_have_count(1)
+    links.first.click()
+    expect(page.locator(".lf-live")).to_have_text(
+        "app.py:5 is not present in the exact patch"
+    )
+    assert resolved(["app.py", "source", "old", 5]) is None
+    assert resolved(["app.py", "old", 5]) is None
+    assert resolved(["app.py", "both", 5, 8]) == '["app.py","both",5,8]'
+    assert resolved(["app.py", "both", 5, 20]) == '["app.py","both",5,20]'
+    assert resolved(["app.py", "new", 8]) == '["app.py","both",5,8]'
+    assert resolved(["app.py", "new", 20]) == '["app.py","both",5,20]'
+
+
+@pytest.mark.parametrize("manifest", [False, True])
+def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
+    browser, serve, manifest
+):
+    """Old source b.py and durable destination b.py identify different rename rows."""
+    url = serve(
+        leaf_page(
+            "renamed source paths",
+            '<h1 id="title">Renamed calls</h1>'
+            '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
+            '<lf-diff id="patch" source="patch-data" collapsed><pre></pre></lf-diff>',
+        ),
+        packages=("diff",),
+    )
+    patch = ""
+    for previous, current in [("a.py", "b.py"), ("b.py", "c.py")]:
+        patch += (
+            f"diff --git a/{previous} b/{current}\n"
+            f"similarity index 50%\nrename from {previous}\nrename to {current}\n"
+            f"--- a/{previous}\n+++ b/{current}\n"
+            f"@@ -1,2 +1,2 @@\n context()\n-removed_{previous[0]}()\n+added_{current[0]}()\n"
+        )
+    patch += (
+        "diff --git a/a.py b/a.py\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/a.py\n@@ -0,0 +1 @@\n+new_a()\n"
+    )
+    data_model.cmd_data_set(
+        serve.page_dir, "patch-data", patch_manifest(patch) if manifest else patch
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "calls-data",
+        "calldiff diff main → feature\n- removed_b()  b.py:2\n"
+        "- removed_a()  a.py:2\n+ new_a()  a.py:1\n+ added_b()  b.py:2",
+    )
+    page = open_page(browser, url)
+    expect(page.locator("#patch .lf-diff-head").nth(0)).to_contain_text("a.py → b.py")
+    expect(page.locator("#patch .lf-diff-head").nth(1)).to_contain_text("b.py → c.py")
+    links = page.locator("#calls .lf-call-location:visible")
+    for index, key in enumerate(
+        [
+            '["c.py","old",2]',
+            '["b.py","old",2]',
+            '["a.py","new",1]',
+            '["b.py","new",2]',
+        ]
+    ):
+        links.nth(index).click()
+        line = page.locator(f"#patch [data-lf-datum='{key}']")
+        expect(line).to_be_focused()
+        expect(line).to_be_in_viewport()
+        page.keyboard.press("c")
+        expect(page.locator("#lf-composer-quote")).to_contain_text(json.loads(key)[0])
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        page.keyboard.press("Escape")
+    # Source navigation never replaces the projection's destination identity.
+    assert (
+        page.locator("#patch").evaluate(
+            'diff => diff.lfDataDatum(\'["b.py","old",2]\').textContent.trim()'
+        )
+        == "removed_a()"
+    )
+
+    # The parser and manifest producer admit repeated preimages even though a real
+    # Git comparison ordinarily has only one rename per source. Such navigation has
+    # no unique owner; canonical destination identities still name each file exactly.
+    header = page.locator("#patch .lf-diff-head").nth(1)
+    header.evaluate("node => { node.dataset.identityProbe = 'held'; node.focus(); }")
+    stat_before = header.locator(".lf-diff-stat").bounding_box()
+    long_preimage = (
+        patch.replace("a/b.py b/c.py", "a/legacy/very/long/original.py b/c.py")
+        .replace("rename from b.py", "rename from legacy/very/long/original.py")
+        .replace("--- a/b.py", "--- a/legacy/very/long/original.py")
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        patch_manifest(long_preimage) if manifest else long_preimage,
+    )
+    told(page)
+    expect(header).to_contain_text("legacy/very/long/original.py → c.py")
+    stat_long = header.locator(".lf-diff-stat").bounding_box()
+    assert stat_long["x"] == pytest.approx(stat_before["x"], abs=0.5)
+    assert stat_long["y"] == pytest.approx(stat_before["y"], abs=0.5)
+    ambiguous = (
+        patch.replace("a/b.py b/c.py", "a/a.py b/c.py")
+        .replace("rename from b.py", "rename from a.py")
+        .replace("--- a/b.py", "--- a/a.py")
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        patch_manifest(ambiguous) if manifest else ambiguous,
+    )
+    told(page)
+    expect(header).to_contain_text("a.py → c.py")
+    expect(header).to_have_attribute("data-identity-probe", "held")
+    expect(header).to_be_focused()
+    stat_after = header.locator(".lf-diff-stat").bounding_box()
+    assert stat_after["x"] == pytest.approx(stat_before["x"], abs=0.5)
+    assert stat_after["y"] == pytest.approx(stat_before["y"], abs=0.5)
+    links.nth(1).click()
+    expect(page.locator(".lf-live")).to_have_text(
+        "a.py:2 is not present in the exact patch"
+    )
+    assert page.locator("#patch").evaluate(
+        "(diff, key) => diff.lfDataDatum(JSON.stringify(key)) === null",
+        ["a.py", "source", "old", 2],
+    )
+    assert (
+        page.locator("#patch").evaluate(
+            "(diff, key) => diff.lfDataDatum(JSON.stringify(key)).textContent.trim()",
+            ["c.py", "old", 2],
+        )
+        == "removed_b()"
+    )
+
+
 def test_call_diff_projects_stable_commentable_rows(browser, serve):
     authored = leaf_page(
         "call diff",
@@ -454,8 +697,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 <lf-diff id="patch" source="review-patch" collapsed review><pre></pre></lf-diff>
 """,
     )
-    # pr-review's lf-call-diff points at an lf-diff, which travels in `diff`.
-    url = serve(authored, packages=("pr-review", "diff"))
+    url = serve(authored, packages=("diff",))
     call_diff = """calldiff diff main → feature
 
   Limiter.bucket_key(self, request)  gateway/limits.py:38
@@ -698,7 +940,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     data_model.cmd_data_set(
         serve.page_dir,
         "request-call-diff",
-        "calldiff diff main → shifted\n  shifted_call()  gateway/limits.py:100",
+        "calldiff diff main → shifted\n  shifted_call()  gateway/limits.py:102",
     )
     told(page)
     shifted = page.locator(
@@ -707,7 +949,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     root_location.click()
     expect(shifted).to_be_in_viewport()
     expect(page.locator(".lf-live")).to_have_text(
-        "Opened gateway/limits.py:100 in the exact patch"
+        "Opened gateway/limits.py:102 in the exact patch"
     )
 
     data_model.cmd_data_set(serve.page_dir, "request-call-diff", "not CallDiff output")
@@ -751,7 +993,7 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
             '<lf-call-diff id="request-calls" source="request-call-diff" diff="patch">'
             '</lf-call-diff><lf-diff id="patch" source="review-patch"><pre></pre></lf-diff>',
         ),
-        packages=("pr-review", "diff"),
+        packages=("diff",),
     )
     header = "calldiff diff main → feature\n"
     first = "  Limiter.first(self)  gateway/limits.py:10\n+ ├─ one()  gateway/limits.py:11\n"
@@ -4836,7 +5078,7 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     # exact record still says the third Ask.
     page.evaluate("""() => {
         const earlier = document.getElementById('refill-now').getBoundingClientRect();
-        document.scrollingElement.scrollBy({top: earlier.bottom - 80, behavior: 'instant'});
+        document.scrollingElement.scrollBy({top: earlier.bottom - 220, behavior: 'instant'});
     }""")
 
     stamp_page(d, ASKS_PAGE, "two")
@@ -4847,11 +5089,13 @@ def test_the_ask_walk_keeps_its_place_when_a_version_lands(browser, serve):
     # The condition the restore is for, stated rather than assumed: an earlier Ask's own
     # prose is on screen above the one the user was standing on, so a walk reading the
     # page alone starts behind them and steps forward onto the Ask they just left.
-    assert page.evaluate("""() => {
+    position = page.evaluate("""() => {
             const decision = document.getElementById('t-baffles-decision').getBoundingClientRect();
         const earlier = document.getElementById('refill-now').getBoundingClientRect();
-        return earlier.bottom > 42 && earlier.bottom <= decision.top;
-    }"""), "the user is at the top of the window, where either reading would do"
+        return {earlierBottom: earlier.bottom, decisionTop: decision.top,
+                scrollTop: document.scrollingElement.scrollTop};
+    }""")
+    assert 42 < position["earlierBottom"] <= position["decisionTop"], position
     page.keyboard.press("q")
     expect(page.locator("#t-bath-decision")).to_have_attribute("data-lf-ask", "1")
 
@@ -8708,7 +8952,15 @@ def test_command_goal_thread_follows_its_declaration_not_talk(
     expect(seat.get_by_role("button", name="pause", exact=True)).to_be_visible()
 
 
-def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
+@pytest.mark.parametrize(
+    "provided",
+    [
+        "ledger_id,amount\n7,42",
+        "ledger_id,amount\n7,42\n",
+        "\nledger_id,amount\n7,42  \n",
+    ],
+)
+def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided):
     """An input action discharges the request live; the honoring version removes its
     authored `needed` condition, so incorporating its state into source cannot turn the input back into
     a decision."""
@@ -8717,8 +8969,16 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     page = open_page(browser, live_url(url))
     draft = page.locator("#ledger-cargo")
     draft_control(page, "edit", "ledger-cargo").click()
-    provided = "ledger_id,amount\n7,42"
-    write(draft.get_by_role("textbox", name="Edit ledger-cargo"), provided)
+    editor = draft.get_by_role("textbox", name="Edit ledger-cargo")
+    if provided.startswith("\n"):
+        # CodeMirror's bulk insertText reading drops an initial LF;
+        # create that line through the editor's ordinary key route instead.
+        write(editor, "")
+        page.keyboard.press("Shift+Enter")
+        page.keyboard.insert_text(provided[1:])
+    else:
+        write(editor, provided)
+    expect(draft.get_by_role("textbox")).to_have_js_property("value", provided)
     draft_control(page, "save", "ledger-cargo").click()
     round_trip(page)
     expect_asks_answered(page, "1/5")
@@ -8726,7 +8986,8 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
 
     honoring = re.sub(
         r'<lf-draft id="ledger-cargo" needed>.*?</lf-draft>',
-        f'<lf-draft id="ledger-cargo"><pre>\n{provided}\n</pre></lf-draft>',
+        # The authoring contract adds only the opening LF consumed by HTML.
+        f'<lf-draft id="ledger-cargo"><pre>\n{provided}</pre></lf-draft>',
         COMMAND_HUB_PAGE,
         flags=re.DOTALL,
     )
@@ -8740,6 +9001,10 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve):
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")
     expect(page.locator("#ledger-fixture > .lf-task-meta")).not_to_contain_text(
         "privileged input"
+    )
+    draft_control(page, "edit", "ledger-cargo").click()
+    expect(page.locator("#ledger-cargo").get_by_role("textbox")).to_have_js_property(
+        "value", provided
     )
 
 
@@ -9851,6 +10116,94 @@ def test_command_hub_readings_stay_in_their_own_document(browser, serve):
     expect(seat.first).to_contain_text("One clean shadow week")
 
 
+COMMAND_GOAL_CONTROLS = leaf_page(
+    "Task controls",
+    """
+<h1>Task controls</h1>
+<p id="outside-words">Read these words before inspecting the task.</p>
+<lf-command id="control-plan" label="Inspect the task">
+  <lf-task id="control-goal" status="active">
+    <strong id="goal-words">Inspect the worker evidence</strong>
+    <p><label for="goal-select">Evidence format</label>
+      <select id="goal-select"><option>Brief</option><option>Complete</option></select></p>
+    <p id="goal-editor" contenteditable="true" aria-label="Working note">Write a note</p>
+    <p id="goal-region" tabindex="0">Focus this evidence</p>
+    <p id="goal-aria" role="button" tabindex="0">Inspect this evidence</p>
+    <lf-tabs id="goal-tabs">
+      <lf-tab id="goal-tab" label="Evidence"><p id="nested-words">Read nested evidence</p></lf-tab>
+    </lf-tabs>
+    <lf-task id="child-goal" status="active"><strong id="child-words">Child task</strong>
+      <lf-agent id="child-worker" state="idle"><strong>Child worker</strong></lf-agent>
+    </lf-task>
+    <lf-agent id="control-worker" state="idle"><strong id="worker-words">Task worker</strong></lf-agent>
+  </lf-task>
+</lf-command>
+""",
+    # Preserve an outside selection on pointer-down, as nonselectable controls do,
+    # so the selection regression exercises the boundary rather than browser clearing.
+    head="<style>#goal-words { user-select: none; }</style>",
+)
+
+
+def test_command_goal_clicks_leave_nested_controls_to_their_owners(browser, serve):
+    """Native controls, platform regions and nested widgets never open the crew."""
+    page = open_page(browser, serve(COMMAND_GOAL_CONTROLS))
+    goal = page.locator("#control-goal")
+    crew = goal.locator(":scope > .lf-task-meta .lf-task-crew")
+    opened = []
+    for target in (
+        "#goal-select",
+        "label[for=goal-select]",
+        "#goal-editor",
+        "#goal-region",
+        "#goal-aria",
+        "#nested-words",
+    ):
+        page.locator(target).click()
+        page.keyboard.press("Escape")
+        rendered(page)
+        opened.append((target, goal.get_attribute("data-lf-open") is not None))
+        if goal.get_attribute("data-lf-open") is not None:
+            crew.click()
+            rendered(page)
+    assert opened == [(target, False) for target, _ in opened]
+
+    # The row still opens its own crew; a child task and a worker keep their boundaries.
+    page.locator("#child-words").click()
+    expect(page.locator("#child-worker")).to_be_visible()
+    expect(goal).not_to_have_attribute("data-lf-open", "")
+    page.locator("#goal-words").click()
+    expect(page.locator("#control-worker")).to_be_visible()
+    page.locator("#worker-words").click()
+    expect(page.locator("#control-worker")).to_be_visible()
+    crew.focus()
+    page.keyboard.press("Enter")
+    expect(page.locator("#control-worker")).to_be_hidden()
+    page.keyboard.press("Space")
+    expect(page.locator("#control-worker")).to_be_visible()
+
+
+def test_command_goal_selection_only_guards_the_drag_that_ends_inside_it(
+    browser, serve
+):
+    """A standing selection elsewhere cannot make an ordinary task row dead."""
+    page = open_page(browser, serve(COMMAND_GOAL_CONTROLS))
+    words = page.locator("#outside-words")
+    words.dblclick()
+    assert page.evaluate("!getSelection().isCollapsed")
+    page.locator("#goal-words").click()
+    assert page.evaluate("!getSelection().isCollapsed")
+    expect(page.locator("#control-worker")).to_be_visible()
+
+    crew = page.locator("#control-goal > .lf-task-meta .lf-task-crew")
+    crew.click()
+    words = page.locator("#child-words").bounding_box()
+    y = words["y"] + words["height"] / 2
+    select(page, (words["x"] + 1, y), (words["x"] + words["width"] - 1, y))
+    assert page.evaluate("!getSelection().isCollapsed")
+    expect(page.locator("#child-worker")).to_be_hidden()
+
+
 def test_nested_command_projections_stop_at_their_own_boundary(browser, serve):
     command = leaf_page(
         "nested command boundaries",
@@ -10048,7 +10401,7 @@ def test_datum_travel_resolves_the_destination_after_reveal(
             '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
             '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
         ),
-        packages=("pr-review", "diff"),
+        packages=("diff",),
     )
     data_model.cmd_data_set(
         serve.page_dir,

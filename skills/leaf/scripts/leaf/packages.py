@@ -4,6 +4,7 @@ import contextlib
 import json
 import os
 import re
+import secrets
 import shutil
 import sys
 import tempfile
@@ -487,15 +488,17 @@ def cmd_package_check(package: Path, render: bool = False) -> int:
 
 
 def cmd_package_install(source: Path) -> Path:
-    """Copy a checked package into the store a bare `--package` name reaches.
+    """Publish a checked immutable snapshot under its source directory's name.
 
-    The source directory's own name is the name pages select, so the install
-    refuses one already answered by a bundled or installed package instead of
-    changing which directory that name means.
+    The lexical name changes atomically after all copied bytes validate. Existing
+    readers retain their resolved snapshot; subsequent readers use the replacement.
+    Installed packages may replace installed or bundled names on the same terms.
     """
     store = package_store()
     source = source.expanduser().resolve()
-    with package_write_lock(source, store / source.name):
+    # This destination is a stable synthetic lock coordinate, never the symlink
+    # whose target installation replaces. Resolve aliases of the source separately.
+    with package_write_lock(source, store / "locks" / source.name):
         package, _, _ = check_package(source, require_exists=True)
         name = package.name
         if re.fullmatch(HTML_NAME, name) is None:
@@ -503,18 +506,8 @@ def cmd_package_install(source: Path) -> Path:
                 f"package directory {name!r} cannot be selected by name; rename "
                 f"it to match {HTML_NAME} before installing it"
             )
-        destination = store / name
-        if standing := named_package(name):
-            remedy = (
-                "remove that directory to replace it"
-                if standing == destination
-                else "rename the source directory to install this one beside it"
-            )
-            sys.exit(f"package name {name!r} already resolves to {standing}; {remedy}")
-        store.mkdir(exist_ok=True)
-        # Stage beside the store rather than in it, so a half-copied package is
-        # never a name `--package` can reach and never a directory the next
-        # install has to recognize as debris.
+        # A failed copy or check creates no selectable name and preserves an earlier
+        # installation. Staging is outside the published store.
         with tempfile.TemporaryDirectory(
             dir=store.parent, prefix="leaf-install-"
         ) as temporary:
@@ -522,9 +515,21 @@ def cmd_package_install(source: Path) -> Path:
             staged.mkdir()
             copy_package_contract(package, staged)
             check_package(staged, require_exists=True)
-            os.rename(staged, destination)
-        print(json.dumps({"package": str(destination)}))
-        return destination
+            names = store / "names"
+            snapshot = store / "snapshots" / secrets.token_hex(16)
+            names.mkdir(parents=True, exist_ok=True)
+            snapshot.mkdir(parents=True)
+            published = snapshot / name
+            os.rename(staged, published)
+            pointer = Path(temporary) / "selection"
+            pointer.symlink_to(
+                os.path.relpath(published, names), target_is_directory=True
+            )
+            destination = names / name
+            os.replace(pointer, destination)
+            fsync_parents([published, destination])
+        print(json.dumps({"package": str(published)}))
+        return published
 
 
 def cmd_package_run(name: str, script: str, arguments: tuple[str, ...]) -> None:

@@ -1,5 +1,4 @@
-"""The subjects tasks stand on: what an id names, which widgets seat the agent's
-task, and which tasks a version would leave without a target."""
+"""The subjects tasks stand on and the widgets that admit new tasks."""
 
 from pathlib import Path
 
@@ -8,7 +7,6 @@ from .files import latest_revision
 from .passages import page_passages
 from .projection import (
     PageReading,
-    StateProjection,
     frozen_thread_reading,
     retirement_outcomes,
     rewritten_bodies,
@@ -45,46 +43,6 @@ def widget_seat_error(page: PageReading, widget: str, moves: list[dict]) -> str 
             "no unsettled move"
         )
     return None
-
-
-def tasks_without_targets(
-    document,
-    projection: StateProjection,
-    tasks: list[dict],
-    registry: dict,
-    ignored=(),
-) -> list[str]:
-    """The ids of the widgets and elements open `tasks` stand on that `document` would
-    leave with no live target, apart from `ignored`: a task on either side whose
-    subject names an id stands beside that id, so a version without it would leave the
-    task beside nothing."""
-    ignored = set(ignored)
-    passages = page_passages(
-        document,
-        registry,
-        retirement_outcomes(projection.actions),
-        rewritten_bodies(projection.actions),
-    )
-    missing = set()
-    for task in tasks:
-        subject = task["subject"]
-        if subject["kind"] not in ("widget", "element") or subject["id"] in ignored:
-            continue
-        target = subject["id"]
-        if subject["kind"] == "element":
-            if target not in document.ids:
-                missing.add(target)
-            continue
-        rec = document.by_id.get(target)
-        if not (
-            rec
-            and rec["tag"] in registry
-            and target not in passages.retired
-            and target not in passages.gone
-            and not quoted_in(rec, registry)
-        ):
-            missing.add(target)
-    return sorted(missing)
 
 
 def page_element(page_dir: Path, name: str) -> dict | None:

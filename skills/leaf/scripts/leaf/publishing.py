@@ -9,15 +9,14 @@ from leaf.leases import contract_writer
 from leaf.projection import folded_value, markup_value, page_reading
 from leaf.revisioning import planned_activation, publish_checked_event
 from leaf.service import PageTransaction
-from leaf.tasks import log_tasks_open, owed_tasks
+from leaf.tasks import owed_tasks
 from leaf.validation.admission import read_text_arg
 from leaf.validation.source import check_source
-from leaf.work import tasks_without_targets
 
 
 def _stamp_candidate(page_dir: Path, events: list):
     """Check the exact source and determine its revision without publishing it."""
-    checked = check_source(page_dir, events, allow_transition=True)
+    checked = check_source(page_dir, events)
     if checked.errors:
         sys.exit(f"refusing to stamp index.html: {'; '.join(checked.errors)}")
     return checked, planned_activation(page_dir, checked)
@@ -34,18 +33,15 @@ def _stamp_reading(events: list, checked, revision: int):
 
 
 def _completed_tasks(
-    checked,
-    projection,
     events: list,
-    registry: dict,
     revision: int,
     completes: tuple[str, ...],
 ) -> list[str]:
-    """The open tasks this version ends `done`: every task on each widget `completes`
-    names. A version that would drop the target of an open widget task it does not
-    complete is refused, as is one that would drop the target of any other open task
-    on a widget or an element, either side's, since the task would stand beside
-    nothing."""
+    """End only the open widget tasks explicitly named by ``completes``.
+
+    Removing a target leaves its task open in the queue; a page edit does not
+    establish that the task is complete.
+    """
     if len(set(completes)) != len(completes):
         sys.exit("--completes names each widget at most once")
     tasks = owed_tasks(events)
@@ -61,16 +57,6 @@ def _completed_tasks(
         sys.exit(
             f"revision r{revision} is not later than the open task on "
             + ", ".join(repr(widget) for widget in not_later)
-        )
-    untargeted = tasks_without_targets(
-        checked.document, projection, log_tasks_open(events), registry, completes
-    )
-    if untargeted:
-        targets = ", ".join(repr(target) for target in untargeted)
-        sys.exit(
-            "refusing to stamp index.html: it would remove the target of the open "
-            f"task on {targets}; pass --completes for each widget this version "
-            "completes, or end the task with `leaf task end`"
         )
     return sorted(task["id"] for task in completed)
 
@@ -118,9 +104,7 @@ def _stamp_locked(page_dir: Path, page, body: str, completes: tuple[str, ...]) -
     checked, activation = _stamp_candidate(page_dir, events)
     revision = activation.revision
     registry, projection, parser, spk = _stamp_reading(events, checked, revision)
-    completed = _completed_tasks(
-        checked, projection, events, registry, revision, completes
-    )
+    completed = _completed_tasks(events, revision, completes)
     settled_reports = _settled_reports(projection, parser, spk, registry)
     notes = [event for event in events if event["kind"] == "note"]
     version = max((event["version"] for event in notes), default=0) + 1

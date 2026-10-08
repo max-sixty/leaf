@@ -73,7 +73,45 @@ def _validator(canonical: str) -> Draft202012Validator:
 def schema_error(schema: dict, instance) -> str | None:
     """The first deterministic complaint about an instance, if it is invalid."""
     error = min(json_validator(schema).iter_errors(instance), key=str, default=None)
-    return error.message if error else None
+    return schema_error_message(error) if error else None
+
+
+def json_value(value) -> str:
+    """One reader-facing rendering of a structured JSON value."""
+    return json.dumps(value, ensure_ascii=False)
+
+
+def schema_error_message(error) -> str:
+    """Render invalid JSON values as JSON, from the validator's structured reading.
+
+    jsonschema's default messages use Python repr for JSON arrays, objects,
+    booleans and null. Keep its property/pattern diagnoses, which name text,
+    and render value-bearing constraints from their declared keyword and value.
+    """
+    actual = json_value(error.instance)
+    if error.schema is False:
+        return f"schema does not allow {actual}"
+    expected = json_value(error.validator_value)
+    messages = {
+        "type": f"{actual} is not of type {expected}",
+        "enum": f"{actual} is not one of {expected}",
+        "const": f"expected {expected}, got {actual}",
+        "anyOf": f"{actual} is not valid under any of the given schemas",
+        "oneOf": f"{actual} must match exactly one of the given schemas",
+        "not": f"{actual} must not match {expected}",
+        "uniqueItems": f"{actual} has non-unique elements",
+    }
+    if error.validator in messages:
+        return messages[error.validator]
+    if (
+        isinstance(error.instance, (dict, list, bool)) or error.instance is None
+    ) and error.validator not in {
+        "required",
+        "additionalProperties",
+        "dependentRequired",
+    }:
+        return f"{actual} does not satisfy {error.validator}: {expected}"
+    return error.message
 
 
 def unresolved_schema_reference(schema: dict) -> str | None:

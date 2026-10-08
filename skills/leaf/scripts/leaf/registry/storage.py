@@ -217,7 +217,7 @@ def layer_metadata(page_dir: Path) -> dict:
         for kind, value in dates.items():
             try:
                 offset = datetime.fromisoformat(value).utcoffset()
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 offset = None
             if offset is None:
                 raise RegistryError(

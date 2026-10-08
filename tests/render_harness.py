@@ -39,7 +39,7 @@ import shutil
 import subprocess
 import time
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
 from types import SimpleNamespace
@@ -597,9 +597,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
             for index in range(len(lines) - 1, -1, -1):
                 event = json.loads(lines[index])
                 if event["kind"] == "note":
-                    event["ts"] = datetime.now(timezone.utc).isoformat(
-                        timespec="seconds"
-                    )
+                    event["ts"] = datetime.now(UTC).isoformat(timespec="seconds")
                     lines[index] = json.dumps(event, separators=(",", ":"))
                     log.write_text("\n".join(lines) + "\n", encoding="utf-8")
                     break

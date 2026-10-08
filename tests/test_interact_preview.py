@@ -24,12 +24,11 @@ import pytest
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import ROOT, STATED_TIMEOUT, declare_idle, fetch, stamp, wait_for
-from leaf import codex_adapter, hosting, leases, server, service, session, state
 from leaf import cli as cli_model
+from leaf import codex_adapter, hosting, leases, server, service, session, state
 from leaf.media import media_name
 from leaf.structure import SourceDocument
-from leaf_dev import preview
-from leaf_dev import page_fixtures
+from leaf_dev import page_fixtures, preview
 from leaf_dev.page_fixtures import prepare_page, read_fixture
 
 
@@ -778,9 +777,9 @@ finally:
         url, _ = json.loads(ready.read_text())
         claim = service.page_claim(page_dir)
         assert claim["id"] == "preview-thread"
-        assert (
-            claim["pid"] == task.pid
-        ), "detached child replaced its launching harness lifetime"
+        assert claim["pid"] == task.pid, (
+            "detached child replaced its launching harness lifetime"
+        )
         assert codex_adapter.adapter_is_live("preview-thread")
         if initially_idle:
             assert service.read_status(page_dir)["state"] == "idle"

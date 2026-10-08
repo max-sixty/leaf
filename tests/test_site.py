@@ -473,9 +473,9 @@ def test_a_crawler_is_given_one_page_per_route(site):
             html = document.read_text(encoding="utf-8")
             head = html[: html.index("</head>")]
             assert canonical in head, document
-            assert (
-                f'content="{site_build.SITE_ORIGIN}{page["image"]}"' in head
-            ), document
+            assert f'content="{site_build.SITE_ORIGIN}{page["image"]}"' in head, (
+                document
+            )
             # A card falls back to the page's own words, so a stale title here is
             # what a shared link would show.
             assert (
@@ -552,9 +552,9 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         )
         for number, authored in enumerate(versions, start=1):
             revision = files_model.revision_path(page_dir, mappings[number])
-            assert (
-                revision.read_bytes() == authored.read_bytes()
-            ), f"{authored.name} changed while it was published"
+            assert revision.read_bytes() == authored.read_bytes(), (
+                f"{authored.name} changed while it was published"
+            )
 
         seed = source.with_suffix(".jsonl")
         if seed.exists():
@@ -1051,9 +1051,9 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         expect(page.locator('link[rel="stylesheet"]')).to_have_count(1)
         expect(page.locator("main > .sitenote")).to_have_count(0)
         if "<lf-toc" in source:
-            assert (
-                page.locator("lf-toc a").count() > 0
-            ), f"{name}: the table of contents has no links"
+            assert page.locator("lf-toc a").count() > 0, (
+                f"{name}: the table of contents has no links"
+            )
         state = page.evaluate("() => fetch('api/state').then(r => r.json())")
         assert state["publication"] == {
             "kind": "product",
@@ -2165,9 +2165,9 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     expect(thread).to_have_count(1)
     thread.locator(".lf-thread-summary").click()
     expect(thread.locator("blockquote")).to_have_text("“One reconnect in about 40”")
-    assert (
-        page.locator(".lf-thread-panel .lf-quote.detached").count() == 0
-    ), "the shipped anchor found nothing on the page it was captured from"
+    assert page.locator(".lf-thread-panel .lf-quote.detached").count() == 0, (
+        "the shipped anchor found nothing on the page it was captured from"
+    )
     # Painted, not merely resolved: the mark is what puts the user at the passage.
     assert "lf-mark" in page.evaluate("() => [...CSS.highlights.keys()]")
     # The question Claude asks in that thread is a widget, upgraded from the
@@ -2305,9 +2305,9 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     page.evaluate(
         "() => document.scrollingElement.scrollTo({top: 1500, behavior: 'instant'})"
     )
-    assert (
-        page.evaluate("() => document.scrollingElement.scrollTop") > 0
-    ), "the document did not scroll, so the landmark under test was never written"
+    assert page.evaluate("() => document.scrollingElement.scrollTop") > 0, (
+        "the document did not scroll, so the landmark under test was never written"
+    )
 
     # An example that ships no log of its own, so the count there is the user's
     # own doing or nobody's. Asked of the corpus rather than named, since a page
@@ -2320,9 +2320,9 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     _, plain_url = served_example(plain)
     opened(page, plain_url)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
-    assert (
-        page.evaluate("() => document.scrollingElement.scrollTop") == 0
-    ), "the second example opened at the offset left on the first"
+    assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
+        "the second example opened at the offset left on the first"
+    )
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])

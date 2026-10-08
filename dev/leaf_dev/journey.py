@@ -58,6 +58,7 @@ from urllib.parse import urljoin, urlsplit
 import click
 from leaf.events import build_threads
 from leaf.harness import ClaudeCodeHarness, CodexHarness
+from leaf.tasks import start_reading
 from leaf.thread import successful_replies
 from playwright.sync_api import BrowserContext, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -211,7 +212,11 @@ def recorded_steps(events: list[dict], comment: dict, published: dict) -> dict:
         for phase in ("queued", "opened")
     }
     started = next(
-        (e["ts"] for e in events if e["kind"] == "start" and e["item"] == thread),
+        (
+            e["ts"]
+            for e in events
+            if (start := start_reading(e)) and start["item"] == thread
+        ),
         None,
     )
     titled = next(

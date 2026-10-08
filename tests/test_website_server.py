@@ -4885,12 +4885,35 @@ def test_a_progress_update_is_timed_apart_from_the_answer():
         },
         {"kind": "start", "item": comment["id"], "ts": "2026-10-04T12:00:02.500-07:00"},
     ]
+    for index, event in enumerate(transport):
+        event["id"] = f"transport-{index}"
     assert journey.recorded_steps(
         [comment, *transport, progress, reply], comment, published
     ) == {
         "queued": 1.0,
         "pickedUp": 2.0,
         "started": 2.5,
+        "titled": None,
+        "progress": 3.0,
+        "published": 12.0,
+        "replied": 12.5,
+    }
+
+    # Addressed progress takes the input in hand atomically in the current log.
+    inline = {**progress, "start": {"item": comment["id"]}}
+    unrelated = {
+        **inline,
+        "id": "other-progress",
+        "parent": "other-input",
+        "start": {"item": "other-input"},
+        "ts": "2026-10-04T12:00:01.000-07:00",
+    }
+    assert journey.recorded_steps(
+        [comment, unrelated, inline, reply], comment, published
+    ) == {
+        "queued": None,
+        "pickedUp": None,
+        "started": 3.0,
         "titled": None,
         "progress": 3.0,
         "published": 12.0,

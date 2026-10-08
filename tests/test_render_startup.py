@@ -210,7 +210,7 @@ def test_the_gallery_embeds_an_ordinary_stamped_page(browser, serve):
         "Which map should the sample team carry?"
     )
     frame.locator(".lf-threads-toggle").click()
-    expect(frame.locator(".lf-thread-panel")).to_have_attribute("open", "")
+    expect(frame.locator(".lf-thread-panel")).to_be_visible()
     frame.goto(frame.url)
     wait_until_ready(frame)
     assert urlparse(frame.url).path == "/versions/v2.html"

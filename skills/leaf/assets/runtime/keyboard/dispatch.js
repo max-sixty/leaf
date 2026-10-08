@@ -59,11 +59,6 @@
    while an unhandled Escape reaches the browser and cannot fall through. The universal
    reference is the boundary's one route through to another layer.
 
-   A covering auxiliary surface uses the same modal command floor without entering the browser's
-   top layer. Its owner makes the background DOM inert, and this dispatcher keeps only
-   scopes rooted in the auxiliary surface. A native layer opened above the auxiliary
-   surface keeps its own scopes above that floor.
-
    A popover hands focus back to whatever had it when the popover showed — not to its
    invoker, and not to `showPopover({source})`, which buys the anchor and the invoker
    relationship and nothing about focus. So a key that opens a layer runs the press from
@@ -92,7 +87,6 @@ import {
   word,
 } from "./bindings.js";
 import {
-  coveringAuxiliarySurface,
   ELEMENTS,
   pageScopes,
   textEntryScope,
@@ -232,13 +226,8 @@ export function stack(binding = null) {
   const layers = nativeLayers();
   const modalAt = layers.findLastIndex((layer) => layer.kind === "modal");
   const visible = modalAt < 0 ? layers : layers.slice(modalAt);
-  const auxiliarySurface = coveringAuxiliarySurface();
-  // The floor is the newest modal, or a covering auxiliary surface taking modal semantics
-  // without the browser's top layer. What it makes inert is out of reach however near the
-  // user it stands, so a focused control inside a layer keeps the widget ancestors that
-  // are inside the floor too and drops the ones outside it. The layers themselves stand
-  // above the floor rather than under it, and each takes its own scopes below.
-  const floor = modalAt < 0 ? auxiliarySurface : visible[0].root;
+  // The newest native modal is the one boundary the browser makes inert behind it.
+  const floor = modalAt < 0 ? null : visible[0].root;
   const aboveFloor = (scope) => !floor || under(scopeRoot(scope), floor);
   const top = visible.at(-1) ?? null;
   // The topmost layer also holds the focused control and explicitly inner modes: they
@@ -263,12 +252,7 @@ export function stack(binding = null) {
     );
     parts.push(layer.kind === "modal" ? MODAL_BOUNDARY : POPOVER_BOUNDARY);
   }
-  if (modalAt < 0) {
-    if (auxiliarySurface) {
-      take(aboveFloor);
-      parts.push(MODAL_BOUNDARY);
-    } else parts.push(...pool);
-  }
+  if (modalAt < 0) parts.push(...pool);
   return ordered(parts);
 }
 // The ownership of every scope nearer the user than this one, accumulated as either

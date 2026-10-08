@@ -4659,7 +4659,7 @@ def test_the_band_stays_over_the_covering_leaves_drawer(browser, serve, other_le
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     drawer = page.locator(".lf-others-panel")
-    expect(drawer).to_have_attribute("aria-modal", "true")
+    assert drawer.evaluate("surface => surface.closest('dialog').matches(':modal')")
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("close leaves")
     reading = page.evaluate(
         """() => {
@@ -5492,7 +5492,7 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
     banner_control(page, ".lf-queue").click()
     expect(asks).to_have_class(re.compile(r"\bopen\b"))
     expect_open("asks")
-    if page.locator("main").evaluate("el => el.inert"):
+    if bool(page.locator("dialog:modal").count()):
         page.keyboard.press("Escape")
         expect(asks).not_to_have_class(re.compile(r"\bopen\b"))
     page.locator(".lf-threads-toggle").click()
@@ -5500,7 +5500,7 @@ def test_auxiliary_surfaces_replace_each_other_and_name_the_open_one(
     expect(asks).not_to_have_class(re.compile(r"\bopen\b"))
     expect_open("threads")
 
-    if page.locator("main").evaluate("el => el.inert"):
+    if bool(page.locator("dialog:modal").count()):
         page.keyboard.press("Escape")
         panel_settled(page, open=False)
     page.keyboard.press("g")
@@ -5581,7 +5581,9 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page)
-    expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
+    assert not page.locator(".lf-thread-panel").evaluate(
+        "panel => panel.closest('dialog').matches(':modal')"
+    )
 
     draft = "Keep this draft through both auxiliary placements."
     write(page.locator(".lf-general leaf-text"), draft)
@@ -5625,8 +5627,10 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
 
     resized(page, 400, 640)
     panel_settled(page)
-    assert page.locator("main").evaluate("el => el.inert")
-    expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
+    assert bool(page.locator("dialog:modal").count())
+    assert page.locator(".lf-thread-panel").evaluate(
+        "panel => panel.closest('dialog').matches(':modal')"
+    )
     expect(
         page.locator(f'.lf-thread[data-id="{identity}"] > .lf-thread-summary')
     ).to_be_focused()
@@ -5678,11 +5682,15 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     resized(page, 1000, 640)
     panel_settled(page)
     expect(open_filter).to_be_focused()
-    expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
+    assert not page.locator(".lf-thread-panel").evaluate(
+        "panel => panel.closest('dialog').matches(':modal')"
+    )
     resized(page, 400, 640)
     panel_settled(page)
     expect(open_filter).to_be_focused()
-    expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
+    assert page.locator(".lf-thread-panel").evaluate(
+        "panel => panel.closest('dialog').matches(':modal')"
+    )
 
     # What a covered document must not do is move under these gestures, so each one is
     # read against the position the document was in when the gesture started. Comparing
@@ -5720,15 +5728,19 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     reading_place()
     resized(page, 1000, 640)
     panel_settled(page)
-    assert not page.locator("main").evaluate("el => el.inert")
+    assert not bool(page.locator("dialog:modal").count())
     expect(summary).to_be_focused()
-    expect(page.locator(".lf-thread-panel")).not_to_have_attribute("aria-modal", "true")
+    assert not page.locator(".lf-thread-panel").evaluate(
+        "panel => panel.closest('dialog').matches(':modal')"
+    )
     expect(page.locator(".lf-general leaf-text")).to_have_js_property("value", draft)
     reading_place()
     resized(page, 400, 640)
     panel_settled(page)
     expect(summary).to_be_focused()
-    expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
+    assert page.locator(".lf-thread-panel").evaluate(
+        "panel => panel.closest('dialog').matches(':modal')"
+    )
     reading_place()
 
     # A panel thread has no release of its own: Escape from it is the panel's, and with
@@ -5739,7 +5751,7 @@ def test_covering_threads_keeps_the_user_and_their_work_inside(browser, serve):
     # it was and the reading place needs no carry across the close.
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
-    assert not page.locator("main").evaluate("el => el.inert")
+    assert not bool(page.locator("dialog:modal").count())
     assert page.evaluate("() => document.scrollingElement.scrollTop") == closing_at
 
 
@@ -5757,7 +5769,7 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
     page = open_page(browser, live_url(url))
     resized(page, 500, 640)
     toggle_queue(page)
-    assert page.locator("main").evaluate("el => el.inert")
+    assert bool(page.locator("dialog:modal").count())
 
     revised = source.replace(
         '<h1 id="t">Long</h1>', '<h1 id="t">Long after replacement</h1>'
@@ -5768,20 +5780,20 @@ def test_a_covering_auxiliary_surface_keeps_a_replacement_document_inert(
 
     state = page.evaluate(
         """() => ({
-          inert: document.querySelector('main').inert,
-          modal: document.querySelector('.lf-queue-panel').getAttribute('aria-modal'),
+          covered: Boolean(document.querySelector('.lf-auxiliary-envelope:modal')),
+          modal: document.querySelector('.lf-queue-panel').closest('dialog').matches(':modal'),
           focusInside: document.querySelector('.lf-queue-panel').contains(document.activeElement),
         })"""
     )
     assert state == {
-        "inert": True,
-        "modal": "true",
+        "covered": True,
+        "modal": True,
         "focusInside": True,
     }, f"the updated document escaped its covering auxiliary surface: {state}"
 
     page.get_by_role("button", name="Close queue").click()
     expect(page.locator(".lf-queue-panel")).not_to_have_class(re.compile(r"\bopen\b"))
-    assert not page.locator("main").evaluate("el => el.inert")
+    assert not bool(page.locator("dialog:modal").count())
 
 
 def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, serve):
@@ -5796,9 +5808,8 @@ def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, se
     banner_control(page, ".lf-queue").click()
     drawer = page.locator(".lf-queue-panel")
     expect(drawer).to_have_class(re.compile(r"\bopen\b"))
-    assert page.locator("main").evaluate("el => el.inert")
-    expect(drawer).to_have_attribute("role", "dialog")
-    expect(drawer).to_have_attribute("aria-modal", "true")
+    assert bool(page.locator("dialog:modal").count())
+    assert drawer.evaluate("surface => surface.closest('dialog').matches(':modal')")
 
     rows = drawer.locator(".lf-queue-row")
     row = rows.nth(8)
@@ -5828,21 +5839,19 @@ def test_a_covering_drawer_uses_the_same_auxiliary_modality_boundary(browser, se
     row.focus()
     list_at = list_box.evaluate("el => el.scrollTop")
     resized(page, 900, 640)
-    assert not page.locator("main").evaluate("el => el.inert")
+    assert not bool(page.locator("dialog:modal").count())
     expect(row).to_be_focused()
-    expect(drawer).not_to_have_attribute("aria-modal", "true")
-    expect(drawer).not_to_have_attribute("role", "dialog")
+    assert not drawer.evaluate("surface => surface.closest('dialog').matches(':modal')")
     assert list_box.evaluate("el => el.scrollTop") == pytest.approx(list_at, abs=1)
     resized(page, 500, 640)
-    assert page.locator("main").evaluate("el => el.inert")
+    assert bool(page.locator("dialog:modal").count())
     expect(row).to_be_focused()
-    expect(drawer).to_have_attribute("aria-modal", "true")
-    expect(drawer).to_have_attribute("role", "dialog")
+    assert drawer.evaluate("surface => surface.closest('dialog').matches(':modal')")
 
     page.keyboard.press("Escape")
     expect(drawer).not_to_have_class(re.compile(r"\bopen\b"))
     assert page.evaluate("() => document.activeElement === document.body")
-    assert not page.locator("main").evaluate("el => el.inert")
+    assert not bool(page.locator("dialog:modal").count())
     assert page.evaluate("() => document.scrollingElement.scrollTop") == document_at
 
 
@@ -5871,14 +5880,14 @@ def test_covering_drawers_have_a_pointer_route_back_to_their_banner_controls(
         door.click()
         drawer = page.locator(panel)
         expect(drawer).to_have_class(re.compile(r"\bopen\b"))
-        assert page.locator("main").evaluate("el => el.inert")
+        assert bool(page.locator("dialog:modal").count())
         expect(page.locator(".lf-banner-menu")).not_to_be_visible()
         expect(drawer.locator(first_destination).first).to_be_focused()
 
         page.get_by_role("button", name=f"Close {name}").click()
         expect(drawer).not_to_have_class(re.compile(r"\bopen\b"))
         expect(page.locator(".lf-banner-more")).to_be_focused()
-        assert not page.locator("main").evaluate("el => el.inert")
+        assert not bool(page.locator("dialog:modal").count())
 
 
 def test_the_shared_auxiliary_scrim_marks_and_dismisses_a_covering_surface(
@@ -5895,7 +5904,7 @@ def test_the_shared_auxiliary_scrim_marks_and_dismisses_a_covering_surface(
     leaves = page.locator(".lf-others-panel")
     expect(leaves).to_have_class(re.compile(r"\bopen\b"))
     expect(scrim).to_be_visible()
-    assert page.locator("main").evaluate("el => el.inert")
+    assert bool(page.locator("dialog:modal").count())
     scrim_reading = page.evaluate(
         """() => {
           const scrim = document.querySelector('.lf-auxiliary-scrim');
@@ -5936,7 +5945,7 @@ def test_the_shared_auxiliary_scrim_marks_and_dismisses_a_covering_surface(
     expect(leaves).not_to_have_class(re.compile(r"\bopen\b"))
     expect(page.locator(".lf-banner-more")).to_be_focused()
     expect(scrim).to_be_hidden()
-    assert not page.locator("main").evaluate("el => el.inert")
+    assert not bool(page.locator("dialog:modal").count())
 
     # Threads stands over the page at every width. Where it leaves a usable page beside
     # it, there is no scrim and that page stays live; where what it leaves is a sliver —
@@ -5948,11 +5957,11 @@ def test_the_shared_auxiliary_scrim_marks_and_dismisses_a_covering_surface(
         resized(page, width, 700)
         panel_settled(page)
         expect(scrim).to_be_hidden()
-        assert not page.locator("main").evaluate("el => el.inert")
+        assert not bool(page.locator("dialog:modal").count())
     resized(page, 430, 700)
     panel_settled(page)
     expect(scrim).to_be_visible()
-    assert page.locator("main").evaluate("el => el.inert")
+    assert bool(page.locator("dialog:modal").count())
     resized(page, 1200, 700)
     panel_settled(page)
     page.get_by_role("button", name="Close threads").click()
@@ -6003,14 +6012,14 @@ def test_threads_covering_a_page_holds_while_its_lock_takes_the_scrollbar(
             page.evaluate(
                 """() => ({
                   modal: document.querySelector('.lf-thread-panel')
-                    .getAttribute('aria-modal') === 'true',
-                  inert: document.querySelector('main').inert,
+                    .closest('dialog').matches(':modal'),
+                  covered: Boolean(document.querySelector('.lf-auxiliary-envelope:modal')),
                   locked: getComputedStyle(document.scrollingElement).overflowY
                     === 'hidden',
                 })"""
             )
         )
-    held = {"modal": covers, "inert": covers, "locked": covers}
+    held = {"modal": covers, "covered": covers, "locked": covers}
     assert readings == [held] * 4, (
         f"the covering boundary at {width}px did not hold one answer across its "
         f"lock: {readings}"
@@ -6030,10 +6039,10 @@ def test_a_keyboard_auxiliary_entry_survives_covering_to_beside(browser, serve):
     page.keyboard.press("g")
     page.keyboard.press("Shift+q")
     expect(drawer).to_have_class(opened)
-    assert page.locator("main").evaluate("el => el.inert")
+    assert bool(page.locator("dialog:modal").count())
 
     resized(page, 1000, 640)
-    assert not page.locator("main").evaluate("el => el.inert")
+    assert not bool(page.locator("dialog:modal").count())
     expect(drawer).to_have_class(opened)
 
     page.keyboard.press("Escape")
@@ -6690,14 +6699,14 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
             return {shortcut_bar: rect(document.querySelector(".lf-shortcut-bar")),
                     foot: rect(document.querySelector(".lf-thread-panel-foot")),
                     standingTitle: standing ? rect(document.activeElement) : null,
-                    lineInert: document.querySelector(".lf-shortcut-bar").inert,
+                    lineCovered: Boolean(document.querySelector("dialog:modal")) && !document.querySelector("dialog:modal").contains(document.querySelector(".lf-shortcut-bar")),
                     viewportHeight: innerHeight,
                     listPad: parseFloat(style.paddingBottom),
                     listScrollPad: parseFloat(style.scrollPaddingBottom)};
         }""")
 
     one_line = boxes()
-    assert one_line["lineInert"], one_line
+    assert one_line["lineCovered"], one_line
     assert one_line["shortcut_bar"]["right"] > one_line["foot"]["left"], (
         f"the fixture no longer exercises the overlapping lanes: {one_line}"
     )
@@ -6735,7 +6744,7 @@ def test_a_covering_sheet_cannot_move_the_background_shortcut_bar(browser, serve
     # Over a live page, the bar is live page chrome and stops at the panel's edge.
     resized(page, 1200, 900)
     beside = boxes()
-    assert not beside["lineInert"], beside
+    assert not beside["lineCovered"], beside
     assert beside["shortcut_bar"]["right"] <= beside["foot"]["left"] + 1, (
         f"the line crossed into the panel standing over the page: {beside}"
     )

@@ -354,7 +354,7 @@ def test_covering_panel_keeps_focus_on_a_nested_reading_region(browser, serve):
     page.keyboard.press("Shift+t")
     panel = page.locator(".lf-thread-panel")
     expect(panel).to_be_visible()
-    expect(panel).to_have_attribute("aria-modal", "true")
+    assert panel.evaluate("surface => surface.closest('dialog').matches(':modal')")
     page.evaluate(
         """async () => {
           const { registerReadingRegion } = await window.__lfRuntimeImport(
@@ -7595,7 +7595,9 @@ def test_a_banner_disclosure_does_not_retake_focus_from_a_list(
     expect(asks.first).to_be_focused()
     more = page.locator(".lf-banner-more")
     expect(more).to_be_visible()
-    expect(page.locator(".lf-queue-panel")).not_to_have_attribute("aria-modal", "true")
+    assert not page.locator(".lf-queue-panel").evaluate(
+        "surface => surface.closest('dialog').matches(':modal')"
+    )
     more.focus()
     expect(more).to_be_focused()
 
@@ -9192,7 +9194,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
 def test_named_go_to_addresses_toggle_their_auxiliary_surfaces(
     browser, serve, live_leaf
 ):
-    """One auxiliary selection survives reload and toggles off without reviving another."""
+    """One auxiliary selection survives reload and retains its native modal posture."""
     live_leaf("second", "A second leaf")
     page = open_page(browser, serve(ASKS_PAGE, comments=1))
 
@@ -9225,11 +9227,11 @@ def test_named_go_to_addresses_toggle_their_auxiliary_surfaces(
         page.keyboard.press("g")
         page.keyboard.press(key)
         expect(page.locator(surface)).to_be_visible()
-        assert page.locator("main").evaluate("main => main.inert") is covering
+        assert bool(page.locator("dialog:modal").count()) is covering
 
         navigate(page, page.url)
         expect(page.locator(surface)).to_be_visible()
-        assert page.locator("main").evaluate("main => main.inert") is covering
+        assert bool(page.locator("dialog:modal").count()) is covering
 
         page.keyboard.press("g")
         expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
@@ -9245,7 +9247,7 @@ def test_named_go_to_addresses_toggle_their_auxiliary_surfaces(
         expect(page.locator("body")).not_to_have_attribute(
             "data-lf-auxiliary-surface", re.compile(".+")
         )
-        assert not page.locator("main").evaluate("main => main.inert")
+        assert not bool(page.locator("dialog:modal").count())
 
 
 def test_global_destinations_switch_from_a_covering_workspace(
@@ -9272,15 +9274,14 @@ def test_global_destinations_switch_from_a_covering_workspace(
         page.keyboard.press(key)
         expect(page.locator(opened)).to_be_visible()
         expect(page.locator(closed)).to_be_hidden()
-        assert page.locator("main").evaluate("main => main.inert")
+        assert bool(page.locator("dialog:modal").count())
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     page_map = page.locator(".lf-page-map-dialog")
     expect(page_map).to_be_visible()
     expect(page_map.get_by_role("searchbox")).to_be_focused()
-    assert page.locator("main").evaluate("main => main.inert")
-    assert not page_map.evaluate("surface => surface.inert")
+    assert bool(page.locator("dialog:modal").count())
     page.keyboard.press("Escape")
     expect(page_map).to_be_hidden()
 
@@ -9291,8 +9292,7 @@ def test_global_destinations_switch_from_a_covering_workspace(
     versions = page.locator(".lf-version-menu")
     expect(versions).to_be_visible()
     expect(versions.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
-    assert page.locator("main").evaluate("main => main.inert")
-    assert not versions.evaluate("surface => surface.inert")
+    assert bool(page.locator("dialog:modal").count())
     rendered(page)
     version_hints = {hint["commands"] for hint in page.evaluate(KEY_LINE_HINTS)}
     # The phone-width line has room for the scope's first hint only; its presence is what
@@ -9339,7 +9339,7 @@ def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, se
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
     panel_settled(page)
-    assert not page.locator("main").evaluate("main => main.inert")
+    assert not bool(page.locator("dialog:modal").count())
 
     origin = page.locator(".lf-thread").first.locator(":scope > .lf-thread-summary")
     origin.focus()
@@ -9353,7 +9353,7 @@ def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, se
     panel_settled(page)
     expect(versions).to_be_hidden()
     expect(origin).to_be_focused()
-    assert page.locator("main").evaluate("main => main.inert")
+    assert bool(page.locator("dialog:modal").count())
     rendered(page)
     # The selected thread's way out is the panel's own, which closes it.
     hints = page.evaluate(KEY_LINE_HINTS)
@@ -9377,7 +9377,7 @@ def test_entering_a_covering_workspace_dismisses_an_existing_popover(browser, se
     resized(page, 1000, 800)
     panel_settled(page)
     expect(origin).to_be_focused()
-    assert not page.locator("main").evaluate("main => main.inert")
+    assert not bool(page.locator("dialog:modal").count())
     page.keyboard.press("Escape")
     expect(page.locator(".lf-thread-panel")).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -9429,9 +9429,29 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     page.keyboard.press("?")
     expect(reference).to_be_visible()
 
+    search = reference.locator(".lf-command-reference-search")
+    search.fill("thread")
+    page.keyboard.press("ArrowDown")
+    search.evaluate(
+        "node => { node.setSelectionRange(1, 3); window.heldReferenceSearch = node; }"
+    )
+    held_search = search.evaluate(
+        "node => [node.value, node.selectionStart, node.selectionEnd, node.getAttribute('aria-activedescendant')]"
+    )
     resized(page, 400, 800)
     panel_settled(page)
     expect(reference).to_be_visible()
+    expect(search).to_be_focused()
+    assert search.evaluate("node => node === window.heldReferenceSearch")
+    assert (
+        search.evaluate(
+            "node => [node.value, node.selectionStart, node.selectionEnd, node.getAttribute('aria-activedescendant')]"
+        )
+        == held_search
+    )
+    assert search.evaluate(
+        "node => { const box = node.getBoundingClientRect(); return document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2) === node; }"
+    )
     # Every Escape from here lands the user while the panel covers the page, which is
     # inert under it, so the panel is what can take them. The platform also hands a
     # popover's focus back to whoever held it when the popover showed; that arrives at the
@@ -9451,7 +9471,7 @@ def test_reference_accepts_native_popover_dismissal_across_modal_entry(browser, 
     expect(versions).to_be_hidden()
     panel = page.locator("#lf-threads")
     assert panel.evaluate("panel => panel.contains(document.activeElement)")
-    assert page.locator("main").evaluate("main => main.inert")
+    assert bool(page.locator("dialog:modal").count())
     # The stale row the reference displaced cannot take focus back, and where the user
     # lands instead is not settled: sometimes the card they stood on, sometimes the
     # covering panel's list. The card returns to the panel; the panel returns to the
@@ -15255,3 +15275,38 @@ def test_a_command_button_owns_activation_and_the_native_form_default(browser, s
         ["2", "2"],
         0,
     ]
+
+
+def test_native_dialog_transitions_change_state_without_rewriting_reflected_attributes(
+    browser, serve
+):
+    """The write instrument recognizes native posture and focus operations, while plain
+    repeated attributes still fail even on the same native dialog."""
+    page = open_page(browser, serve(ASKS_PAGE))
+    page.evaluate("""() => {
+      const dialog = document.createElement('dialog');
+      dialog.id = 'native-transition-probe';
+      document.body.append(dialog);
+      dialog.show();
+    }""")
+    page.evaluate("""() => {
+      const dialog = document.querySelector('#native-transition-probe');
+      dialog.inert = true;
+      dialog.close();
+      dialog.showModal();
+      dialog.inert = false;
+    }""")
+    assert page.locator("#native-transition-probe").evaluate(
+        'dialog => dialog.matches(":modal")'
+    )
+    page.evaluate("""() => {
+      const dialog = document.querySelector('#native-transition-probe');
+      dialog.setAttribute('open', '');
+      dialog.setAttribute('inert', '');
+      dialog.removeAttribute('inert');
+    }""")
+    failures = consume_browser_errors(page, "unchanged write:")
+    assert len(failures) == 2, failures
+    assert any("open on dialog#native-transition-probe" in error for error in failures)
+    assert any("inert on dialog#native-transition-probe" in error for error in failures)
+    page.evaluate("() => document.querySelector('#native-transition-probe').remove()")

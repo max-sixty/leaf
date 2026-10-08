@@ -272,6 +272,16 @@ let goToSequence;
 const auxiliarySurfaces = createAuxiliarySurfaces({
   chromeRoot,
   band: shortcutBarEl,
+  foreground: [
+    bottomStatusEl,
+    goToHintLayer,
+    commandHintLayer,
+    targetPickerHintLayer,
+    targetPaint.targetTraceLayer,
+    targetPaint.aimLayer,
+    inspectEl,
+    liveEl,
+  ],
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
     app.renderAnnotations();
@@ -892,7 +902,7 @@ if (!offlineInteractive) {
     liveEl,
     mediaViewer,
     commandReferenceDialog,
-    auxiliarySurfaces.scrim,
+    auxiliarySurfaces.envelope,
     bottomStatusEl,
     shortcutBarEl,
     inspectEl,

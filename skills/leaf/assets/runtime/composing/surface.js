@@ -849,7 +849,7 @@ export function createResponseSurface({
     // Opening or acting in chrome is a route away from the page, not a new selection
     // gesture. Keep the already-captured touch passage verbatim while focus moves
     // through the banner, its sibling popovers, and their controls.
-    if (offeredSelectionAnchor && inChrome(ev.target)) {
+    if (offeredSelectionAnchor && inChrome(ev.composedPath()[0])) {
       primaryPointerPressed = false;
       pointerSelecting = false;
       selectionGestureClaimed = false;
@@ -954,10 +954,13 @@ export function createResponseSurface({
       "pointerdown",
       (ev) => {
         if (drawModeActive()) return;
+        // Admission reads the press's origin across widget shadow roots. The host
+        // also contains runtime editors and controls, which are not page prose.
+        const target = ev.composedPath()[0];
         primaryPointerPressed = ev.isPrimary && ev.button === 0;
-        pointerSelecting = primaryPointerPressed && pageWords(ev.target);
+        pointerSelecting = primaryPointerPressed && pageWords(target);
         selectionPressIntent = pointerSelecting
-          ? retainUserIntent({ source: ev.target })
+          ? retainUserIntent({ source: target })
           : null;
         selectionDragged = false;
         selectionRangeDuringPress = null;
@@ -971,12 +974,12 @@ export function createResponseSurface({
         selectionStood = Boolean(stood);
         wordsAtPress = stood ? stood.toString() : "";
         const selection = pointerSelecting ? stood : null;
-        if (selection && pageRange(selection).intersectsNode(ev.target))
+        if (selection && pageRange(selection).intersectsNode(target))
           rememberPointerSelection();
         actionPress =
-          (offeredSelectionAnchor && inChrome(ev.target)) ||
-          ev.target === selectionComment ||
-          Boolean(ev.target.closest?.(".lf-react-surface, .lf-composer"));
+          (offeredSelectionAnchor && inChrome(target)) ||
+          target === selectionComment ||
+          Boolean(target.closest?.(".lf-react-surface, .lf-composer"));
       },
       true,
     );
@@ -997,7 +1000,7 @@ export function createResponseSurface({
       // The native touch event follows pointerdown and is the same selecting press.
       // Capture its input generation at that producer, before handles can adjust it.
       if (primaryPointerPressed && pointerSelecting)
-        selectionPressIntent = retainUserIntent({ source: ev.target });
+        selectionPressIntent = retainUserIntent({ source: ev.composedPath()[0] });
     });
     document.addEventListener("pointerup", finishPointerSelection);
     document.addEventListener("pointercancel", finishPointerSelection);
@@ -1013,7 +1016,7 @@ export function createResponseSurface({
       // Focus and action handoffs own the captured target while the browser collapses
       // its selection. Outside those handoffs, observe the browser's live passage;
       // only the completed page gesture above/below may replace the composer.
-      if (takesLetters(document.activeElement)) {
+      if (takesLetters(focused())) {
         offerSelection(null);
         return;
       }
@@ -1084,8 +1087,9 @@ export function createResponseSurface({
         if (ev.key === "Escape") return;
       }
       if (isReactArmed()) return;
-      if (takesLetters(ev.target) || inChrome(ev.target)) return;
-      if (!pageWords(ev.target) && !pageSelection()) return;
+      const target = ev.composedPath()[0];
+      if (takesLetters(target) || inChrome(target)) return;
+      if (!pageWords(target) && !pageSelection()) return;
       if (
         (ev.shiftKey &&
           [
@@ -1109,7 +1113,8 @@ export function createResponseSurface({
     });
     document.addEventListener("click", (ev) => {
       if (drawModeActive()) return;
-      if (!pageWords(ev.target)) return;
+      const target = ev.composedPath()[0];
+      if (!pageWords(target)) return;
       // A press that ends holding words it did not begin with took them, and is that
       // selection's mouseup rather than a click on whatever lies under it: the user was
       // reaching for the words, and the 💬 is already up on them (updateFab, on the same
@@ -1137,8 +1142,8 @@ export function createResponseSurface({
       // at a widget host, since a Leaf surface the widget seats in its shadow tree answers
       // for itself (design.js).
       if (designModeActive()) {
-        const target = designTarget(ev.composedPath()[0]);
-        if (target) openOnDesign(target);
+        const design = designTarget(target);
+        if (design) openOnDesign(design);
         return;
       }
       // The record rather than this event's own coordinates, for the reason the record is

@@ -3153,8 +3153,7 @@ def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
     assert (box["x"] if surface == "queue" else box["x"] + box["width"]) == (
         pytest.approx(edge, abs=1)
     )
-    assert not page.locator("main").evaluate("el => el.inert")
-    expect(region).not_to_have_attribute("aria-modal", "true")
+    assert not region.evaluate("el => el.closest('dialog').matches(':modal')")
 
     toggle_surface(page, surface, open=False)
     assert page.evaluate(shape) == pytest.approx(before, abs=0.5)
@@ -3169,8 +3168,18 @@ def test_the_panel_covers_a_wide_page_where_it_would_leave_no_usable_page(
     resized(page, 700, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
-    assert page.locator("main").evaluate("el => el.inert")
+    assert page.locator(".lf-thread-panel").evaluate(
+        "el => el.closest('dialog').matches(':modal')"
+    )
+    assert page.locator("main").evaluate(
+        """el => {
+          const focused = document.activeElement;
+          el.tabIndex = -1;
+          el.focus();
+          el.removeAttribute('tabindex');
+          return document.activeElement === focused;
+        }"""
+    )
 
 
 def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):

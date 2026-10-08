@@ -807,8 +807,9 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
 
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    assert page.locator("main").evaluate("el => el.inert")
-    expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
+    assert page.locator(".lf-thread-panel").evaluate(
+        "surface => surface.closest('dialog').matches(':modal')"
+    )
     page.keyboard.press("s")
     assert page.locator(".lf-target-picker-hint").count() == 0, (
         "page target selection crossed the covering auxiliary surface boundary"

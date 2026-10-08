@@ -26,8 +26,8 @@
 // the page. Threads and the Queue drawer cover it only where they would leave less than a
 // usable page beside them, one rule for both (`standsBeside`, auxiliary-surfaces.js;
 // `--lf-auxiliary-beside`, theme.css); elsewhere the page beside them stays live.
-// Auxiliary modality is a shared inert boundary outside this geometry owner; the
-// reference and Page Map keep native `showModal()`. `--lf-room` and
+// The selected auxiliary surface shares one native dialog envelope outside this
+// geometry owner; the reference and Page Map retain their own native layers. `--lf-room` and
 // `--lf-sidebar-posture` are CSS-owned readings resolved on `main`, which is the named
 // `lf-content-frame` style container a margin resident asks for them. The bottom bar is
 // a stated height (`--lf-bottom-bar-h`, theme.css) rather than a reading, so whatever has to
@@ -125,13 +125,18 @@ export function createChromeLayout({
     if (panelCovers() && bottomStatusEl.checkVisibility()) {
       const list = threadsBox.getBoundingClientRect();
       const status = bottomStatusEl.getBoundingClientRect();
+      // Reserve at the panel's standing position, as rail coverage above does. Its
+      // horizontal entrance slide must not first place visible feedback below a reply
+      // and then lift it when that same reply reaches the status's column.
+      const slideX = panel.getBoundingClientRect().left - panel.offsetLeft;
+      const statusColumn = { left: status.left + slideX, right: status.right + slideX };
       for (const reply of threadsBox.querySelectorAll(
         ":scope > .lf-thread[open] > .lf-thread-reply",
       )) {
         const box = reply.getBoundingClientRect();
         if (
           reply.checkVisibility() &&
-          overlapsAcross(box, status) &&
+          overlapsAcross(box, statusColumn) &&
           box.bottom > list.top &&
           box.top < list.bottom
         )

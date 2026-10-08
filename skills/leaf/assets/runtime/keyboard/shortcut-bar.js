@@ -76,7 +76,6 @@ import { lineOwner, shadow, stack, executeCommand } from "./dispatch.js";
 import { scopeIdentity } from "./scopes.js";
 
 import {
-  commandReferenceDialog,
   commandReferenceOpen,
   declareExpandedBarBehindReference,
   openCommandReference,
@@ -578,13 +577,12 @@ const COLLAPSE_SHORTCUT_BAR = {
   run: () => collapseShortcutBar(),
 };
 
-// The expanded bar stands inside the reference's own dialog box, and the reference claims
-// the keyboard whole while it is open, so this scope answers only in the state between
-// the two presses: the bar expanded, the reference not yet opened.
+// The expanded bar owns its own Escape. Its actual node states whether it stands above
+// the modal floor; the reference and a covering Threads panel both leave it below.
 pageScope("expanded shortcut bar", {
   title: "In the expanded shortcut bar",
   escape: "inner",
-  root: () => commandReferenceDialog,
+  root: () => shortcutBarEl,
   at: () => Boolean(shortcutBarExpanded()),
   rows: [COLLAPSE_SHORTCUT_BAR],
 });

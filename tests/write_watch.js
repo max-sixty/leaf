@@ -83,6 +83,37 @@
   // its pane shows (margin-layout.js, `layoutMarginRows`).
   const tokens = (value) => new Set([...(value ?? "").split(" "), "lf-withheld"]);
   const sameTokens = (a, b) => a.size === b.size && [...a].every((t) => b.has(t));
+  // Native dialog posture and its focusing steps are browser state, not the reflected
+  // `open` attribute. close→showModal changes a nonmodal dialog to modal while `open`
+  // returns to the same value; lending inertness during an opening suppresses the
+  // platform's focus transfer. Track those actual operations until their mutations
+  // arrive, so plain attribute restatements still have no exemption.
+  let dialogTransitions = new WeakMap();
+  const posture = (dialog) =>
+    dialog.matches(":modal") ? "modal" : dialog.open ? "nonmodal" : "closed";
+  for (const method of ["show", "showModal", "close"]) {
+    const native = HTMLDialogElement.prototype[method];
+    HTMLDialogElement.prototype[method] = function (...args) {
+      const before = posture(this);
+      const inert = this.inert;
+      const result = native.apply(this, args);
+      const after = posture(this);
+      if (after !== before) {
+        const transition = dialogTransitions.get(this) ?? { focusedInert: false };
+        transition.focusedInert ||= inert && method !== "close";
+        dialogTransitions.set(this, transition);
+      }
+      return result;
+    };
+  }
+  const nativeTransition = (record) => {
+    const transition = dialogTransitions.get(record.target);
+    return (
+      transition &&
+      (record.attributeName === "open" ||
+        (record.attributeName === "inert" && transition.focusedInert))
+    );
+  };
   const putBack = ({ record, through }) =>
     (record.attributeName === "tabindex" &&
       record.oldValue === null &&
@@ -104,11 +135,13 @@
       if (
         valueOf(record) === record.oldValue &&
         !reflected(record) &&
+        !nativeTransition(record) &&
         !(through.length && putBack(write))
       )
         report(`${record.attributeName ?? "text"} on ${place(record.target)}`);
     }
     started.clear();
+    dialogTransitions = new WeakMap();
   };
   const watch = (records) => {
     for (const record of records) {

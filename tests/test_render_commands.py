@@ -237,11 +237,11 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve, headless_shell)
 
     ok = gate()
     assert ok.returncode == 0, ok.stderr
-    assert "renders clean in Chrome" in ok.stdout
+    assert "render checks passed in Chrome" in ok.stdout
 
     named = gate(variable="LEAF_BROWSER_EXECUTABLE", executable=headless_shell)
     assert named.returncode == 0, named.stderr
-    assert f"renders clean in {headless_shell}" in named.stdout
+    assert f"render checks passed in {headless_shell}" in named.stdout
 
     # A vw width slips the static lint (which counts only px) and overflows only
     # in a layout engine.
@@ -260,8 +260,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     bottom at the desktop viewport and on a phone, and one screen at each width where
     the page's own arrangement is at its tightest before it changes. A sidebar page with
     four tiles in its body changes twice there: its tiles wrap before its track stacks.
-    Each open Ask, a suggestion as much as an lf-ask, gets the window `a` brings it
-    into, as the user working the page meets it, including those `a` reaches past a
+    Each open Ask, a suggestion as much as an lf-ask, gets the window `q` brings it
+    into, as the user working the page meets it, including those `q` reaches past a
     page widget move handed back to the user, which is a stop of its own and no Ask.
     A second check replaces the first's screens rather than adding to them."""
     tiles = "".join(
@@ -337,7 +337,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     assert {"1200px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
     assert {"1200px-ask-1.png", "1200px-ask-2.png", "1200px-ask-3.png"} <= set(names)
     assert "1200px-ask-4.png" not in names
-    assert any("each press of `a`" in line for line in listed)
+    assert any("each press of `q`" in line for line in listed)
     assert any('"Pre-handover review"' in line for line in listed)
     stacks = next(line for line in listed if "<main> 1+2 → 1+1+1" in line)
     assert (into / stacks.split(":")[0].strip()).exists()
@@ -506,7 +506,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
         env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
     )
     assert rendered.returncode == 0, rendered.stderr
-    assert "renders clean" in rendered.stdout
+    assert "render checks passed" in rendered.stdout
 
 
 def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
@@ -1195,7 +1195,7 @@ def test_the_shim_runs_the_gate_from_anywhere(serve, tmp_path, headless_shell):
         assert run.returncode == 1, run.stdout + run.stderr
         # "needs Playwright" here would mean the shim dispatched the plain `uv run`.
         # The report names the widget and gives the renderer's reason, not the source.
-        assert "✗ page code: 1 error(s)" in run.stderr
+        assert "Error: page code reported 1 error" in run.stderr
         assert '<lf-diagram id="d-broken"> failed:' in run.stderr
         assert "is unsupported" in run.stderr
         assert "Ada,Review,3" not in run.stderr
@@ -1264,7 +1264,7 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     (d / "index.html").write_text(FILM_PAGE)
     broken = check(LEAF_BROWSER_EXECUTABLE=headless_shell)
     assert broken.returncode == 1, broken.stdout + broken.stderr
-    assert "✗ page code: 2 error(s)" in broken.stderr
+    assert "Error: page code reported 2 errors" in broken.stderr
     assert "map is not a function" in broken.stderr
     assert "/page/film.js:2)" in broken.stderr
     assert "Error: the trace never loaded" in broken.stderr
@@ -1285,9 +1285,7 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
     )
     clean = check(LEAF_BROWSER_EXECUTABLE=headless_shell)
     assert clean.returncode == 0, clean.stdout + clean.stderr
-    assert f"✓ page code: runs through upgrade and first paint in {headless_shell}" in (
-        clean.stdout
-    )
+    assert f"✓ page code: no errors in {headless_shell}" in (clean.stdout)
 
 
 def test_a_widget_that_fails_in_a_message_reports_when_its_thread_draws(

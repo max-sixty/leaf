@@ -108,8 +108,16 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch, code
     ]
 
 
+@pytest.mark.parametrize(
+    "address",
+    [
+        "review-shows-the-change",
+        "interaction-proof-follows-the-reader/comparison",
+        "visible-outcome-before-handoff/shared-identity",
+    ],
+)
 def test_internal_instruction_cases_receive_their_arms_source(
-    tmp_path, monkeypatch, codex_cli
+    tmp_path, monkeypatch, codex_cli, address
 ):
     login = tmp_path / "login"
     login.mkdir()
@@ -122,7 +130,7 @@ def test_internal_instruction_cases_receive_their_arms_source(
         path.parent.mkdir(parents=True)
         path.write_text(f"{arm} maintainer instructions")
     config = prepare(
-        ["review-shows-the-change"],
+        [address],
         payloads,
         tmp_path / "scratch",
         ("claude-code", "codex"),
@@ -140,10 +148,7 @@ def test_internal_instruction_cases_receive_their_arms_source(
         assert str(payloads[arm] / source) in injected
         assert injected.endswith(f"{arm} maintainer instructions")
     assert [check["type"] for check in config["tests"][0]["assert"]] == ["llm-rubric"]
-    assert (
-        config["tests"][0]["vars"]["prompt"]
-        == catalog()["review-shows-the-change"]["vars"]["prompt"]
-    )
+    assert config["tests"][0]["vars"]["prompt"] == catalog()[address]["vars"]["prompt"]
 
 
 def test_native_codex_discovers_the_complete_arm_with_root_relative_access(
@@ -350,7 +355,7 @@ def test_python_provider_gives_each_call_its_own_evidence(tmp_path, monkeypatch)
             return {"output": "{}"}
 
     class Judged:
-        rubrics = staticmethod(lambda scenario: [])
+        rubrics = staticmethod(lambda scenario: [{"type": "agent-rubric"}])
 
         @staticmethod
         def execute_scenario(case, payload, work, *, shots, harness, condition):
@@ -454,3 +459,23 @@ def test_command_passes_promptfoo_options_and_status_without_api_keys(
     result = run("--base", "task-outlasts-the-turn")
     assert result.exit_code == 2 and "put cases before --base" in result.output
     assert built == []
+
+
+def test_reading_semantics_use_the_text_judge_without_a_screenshot_home(tmp_path):
+    config = prepare(
+        ["reading", "reading/view"],
+        {"candidate": tmp_path / "arm"},
+        tmp_path / "scratch",
+        ("claude-code",),
+        ("leaf",),
+        tmp_path / "samples",
+    )
+    for test in config["tests"]:
+        assert test["assert"][0]["metric"] == "completed"
+        answers = test["assert"][1:]
+        assert len(answers) == (7 if test["description"] == "reading" else 1)
+        assert all(a["type"] == "llm-rubric" and "provider" not in a for a in answers)
+        view = next(a for a in answers if a["metric"] == "answer_view")
+        assert "acknowledge uncertainty" in view["value"]
+        assert "Current attempt is only the default" in view["value"]
+    assert not (tmp_path / "scratch" / "judge").exists()

@@ -38,9 +38,10 @@ def event_document(event: dict) -> dict:
     return document_identity(event["meaning"]["scope"], event["revision"])
 
 
-def standing_approvals(events: list) -> list:
+def standing_approvals(events: list, *, withdrawn: set | None = None) -> list:
     """The sign-off approvals no later undo took back, in log order."""
-    withdrawn = taken_back(events)
+    if withdrawn is None:
+        withdrawn = taken_back(events)
     return [
         event
         for event in events
@@ -65,16 +66,6 @@ def spoken_turns(thread: dict) -> list:
 def conversation_turns(thread: dict) -> list:
     """Spoken messages that participate in the exchange, excluding progress updates."""
     return [message for message in spoken_turns(thread) if not message.get("ephemeral")]
-
-
-def thread_replied_after(thread: dict, after: int) -> bool:
-    """Whether an ordinary agent reply ended thread work after its starting sequence."""
-    return any(
-        message["kind"] == "reply"
-        and message["author"] == "agent"
-        and message["seq"] > after
-        for message in conversation_turns(thread)
-    )
 
 
 def bare_reaction(thread: dict) -> bool:
@@ -261,7 +252,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
             thread = {
                 "id": e["id"],
                 "root": message,
-                "title": None,
+                "title": e.get("title"),
                 "anchor": message.get("anchor"),
                 "detached_from": None,
                 "rewritten_from": None,
@@ -323,6 +314,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
                 thread_for[e["parent"]] = thread
             messages[e["id"]] = message
             thread["msgs"].append(message)
+            if thread["title"] is None and "title" in e:
+                thread["title"] = e["title"]
             if "token" not in e and "failure" not in e and not e.get("ephemeral"):
                 thread["resolved"] = None
             if "anchor" in e:

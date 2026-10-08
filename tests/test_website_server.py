@@ -53,7 +53,7 @@ from leaf.served_state import page as served_page
 from leaf.service import delivery_reply_attempt
 from leaf.state import flocked, open_session_turn, session_record, start_session_turn
 from leaf.structure import SourceDocument
-from leaf.thread import cmd_reply, cmd_resolve
+from leaf.thread import cmd_resolve, post_reply
 from leaf_dev import example_previews, journey, startup, verify_site
 from playwright.sync_api import expect
 from render_harness import (
@@ -402,7 +402,8 @@ def test_the_website_harness_delivers_into_the_existing_codex_thread(
                             {
                                 "id": "user-event",
                                 "answer": {
-                                    "kind": "turn",
+                                    "kind": "reply",
+                                    "writer": "turn",
                                     "to": "user-event",
                                     "for": "user-event",
                                     "attempt": "leaf-delivery-1",
@@ -972,7 +973,7 @@ def test_hosted_agent_receives_the_response_instructions_and_delivery(
     payload = json.loads(outgoing["turn/start"]["toolOutput"]["output"])
     [delivered] = payload["batches"][0]["events"]
     # Frozen for App Server, a reply is the turn's to write with its messages.
-    assert delivered["answer"]["kind"] == "turn"
+    assert delivered["answer"]["writer"] == "turn"
     replacements = {
         str(page_dir): "/page",
         event["id"]: "user-event",
@@ -1268,15 +1269,18 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
     """`journey-chart` charts the samples the journey kept, so a later reading needs
     no transcription: each target's latest version only, each sign a sample saw."""
 
-    def sample(target, version, titled, working, progress, replied, **named):
+    def sample(target, version, titled, picked_up, progress, replied, **named):
         comment = {
             "sinceAdmissionMs": {
+                "queued": None,
+                "pickedUp": picked_up,
+                "started": None,
                 "titled": titled,
                 "progress": progress,
                 "published": replied - 500,
                 "replied": replied,
             },
-            "sinceSendMs": {"workVisible": working, "responseVisible": replied + 1000},
+            "sinceSendMs": {"responseVisible": replied + 1000},
         }
         harness = target if target in ("claude-code", "codex") else "website"
         return {
@@ -1318,7 +1322,7 @@ def test_the_journey_chart_draws_each_targets_latest_version_from_kept_samples()
         102.9,
     ]
     # A step the run never reached draws no dot.
-    assert [r["row"] for r in rows if r["sign"] == "first words"] == [
+    assert [r["row"] for r in rows if r["sign"] == "progress"] == [
         "Claude Code at bbbbbbbb+working-tree"
     ]
     assert json.dumps(rows) in markup
@@ -1771,7 +1775,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
 
     def refuse(*args, **kwargs):
         with pytest.raises(SystemExit, match="answered by this turn's messages"):
-            cmd_reply(
+            post_reply(
                 page_dir,
                 comment["id"],
                 "Competing tool reply",
@@ -2668,6 +2672,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
                 "page": str(page_dir),
                 "reply_to": comment["id"],
                 "responds": comment["id"],
+                "ref": prepared.payload["batches"][0]["events"][0]["answer"]["ref"],
             },
         ),
         ("Deployment verified.", True),
@@ -3093,6 +3098,29 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     receipt_width = receipt_words()
     initial_receipt = receipt.inner_text()
     assert receipt.evaluate("node => node.scrollWidth <= node.clientWidth")
+    # The gap belongs to neither receipt nor notice. Read its actual paint as
+    # well as the retained parent box: unclipped glyphs can escape a child whose
+    # bounding box still fits, without changing any metadata/news geometry.
+    thread.evaluate(
+        "node => Promise.all(node.getAnimations({subtree: true})"
+        ".filter(animation => Number.isFinite("
+        "animation.effect.getComputedTiming().endTime))"
+        ".map(animation => animation.finished))"
+    )
+    gutter = receipt.evaluate(
+        """node => {
+      const metadata = node.closest('.lf-msg-meta').getBoundingClientRect();
+      const notice = node.closest('.lf-thread').querySelector('.lf-thread-news')
+        .getBoundingClientRect();
+      const receipt = node.getBoundingClientRect();
+      const x = Math.ceil(metadata.right);
+      const y = Math.floor(receipt.top);
+      return {x, y, width: Math.floor(notice.left) - x,
+        height: Math.ceil(receipt.bottom) - y};
+    }"""
+    )
+    assert gutter["width"] > 0, gutter
+    gutter_before = page.screenshot(clip=gutter)
     # Losing the provider watcher changes Replying to the longer stale receipt
     # while its answer still waits. The words spend their own retained box.
     watcher.close()
@@ -3106,6 +3134,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         receipt_words(),
     )
     assert held_header() == held
+    assert page.screenshot(clip=gutter) == gutter_before, (
+        "the longer workflow receipt painted into the gap before held news"
+    )
     cmd_resolve(page_dir, comment["id"])
     told(page)
     rendered(page)
@@ -3191,7 +3222,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     assert answer["responds"] == comment["id"]
     # Retrying the same delivery keeps one answer and its original response scope.
     assert (
-        cmd_reply(
+        post_reply(
             page_dir,
             comment["id"],
             "deployment verified",
@@ -3251,7 +3282,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         website_server.website_harness("hosted-thread", os.getpid()),
     )
     accept_in_turn("hosted-thread")
-    cmd_reply(
+    post_reply(
         page_dir,
         comment["id"],
         "Done.",
@@ -3766,7 +3797,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         ]
         assert [event["id"] for event in failures] == [reply["id"]]
         assert journey.startup_failed(failures)
-        assert journey.deployment_answer(failures) is None
+        assert journey.deployment_answer(failures, comment["id"]) is None
         repeated, _ = post(
             f"{root}/examples/decision/_leaf/agent/fail",
             {"event": comment["id"], "failure": "startup_failed"},
@@ -4362,7 +4393,7 @@ def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir, failure):
     assert event_record_error(contract, replies[0]) is None
     assert journey.turn_failed(replies)
     assert journey.startup_failed(replies) == (failure == "startup_failed")
-    assert journey.deployment_answer(replies) is None
+    assert journey.deployment_answer(replies, comment["id"]) is None
     assert not state["activity"]["obligations"]
     assert harness.attach(page_dir, comment["id"]) is None
 
@@ -4471,6 +4502,8 @@ class _FailedFirstTurn:
 
     def post(self, url: str, data: dict, **kwargs) -> _Read:
         comment = {
+            "kind": "comment",
+            "author": "user",
             "id": f"comment-{len(self.comments) + 1}",
             "attempt": data["attempt"],
             "revision": data["revision"],
@@ -4494,6 +4527,8 @@ class _FailedFirstTurn:
             {
                 "kind": "reply",
                 "parent": "comment-1",
+                "author": "agent",
+                "responds": "comment-1",
                 "text": "The harness could not start this task.",
                 "failure": self.failure,
             },
@@ -4505,7 +4540,13 @@ class _FailedFirstTurn:
                 "events": events,
             }
         events.append(
-            {"kind": "reply", "parent": "comment-2", "text": "deployment verified"}
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": "comment-2",
+                "responds": "comment-2",
+                "text": "deployment verified",
+            }
         )
         return {
             "active": {"revision": 2, "url": "revisions/2.html"},
@@ -4553,12 +4594,18 @@ def test_the_deploy_gate_reads_outcomes_independently_of_reply_wording():
         "I finished without posting a reply. Please send a new message to try again.",
         "This public demo is busy right now. Please wait a minute, then send a new message.",
     ):
-        answer = {"text": text}
-        assert journey.deployment_answer([answer]) is answer
+        answer = {
+            "kind": "reply",
+            "author": "agent",
+            "parent": "root",
+            "responds": "comment",
+            "text": text,
+        }
+        assert journey.deployment_answer([answer], "comment") is answer
         assert not journey.turn_failed([answer])
         for failure in ("startup_failed", "rate_limited"):
-            receipt = {"text": text, "failure": failure}
-            assert journey.deployment_answer([receipt]) is None
+            receipt = {**answer, "failure": failure}
+            assert journey.deployment_answer([receipt], "comment") is None
             assert journey.turn_failed([receipt])
 
 
@@ -4744,6 +4791,8 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
             {
                 "kind": "reply",
                 "parent": "comment-id",
+                "author": "agent",
+                "responds": "comment-id",
                 "text": "A newly worded harness failure.",
                 "failure": failure,
             }
@@ -4785,8 +4834,20 @@ def test_a_title_written_after_the_reply_is_still_timed():
     after the reply that ended the turn's wait; the journey reads on for it rather
     than reporting the title as never written."""
     comment, title, reply = TURN_LOG
-    answered = {"active": {"revision": 2}, "events": [comment, reply]}
-    context = _StateReads([{**answered, "events": [comment, reply, title]}])
+    answered = {
+        "active": {"revision": 2},
+        "events": [comment, reply],
+        "thread": {"threads": [{"id": comment["id"], "title": None}]},
+    }
+    context = _StateReads(
+        [
+            {
+                **answered,
+                "events": [comment, reply, title],
+                "thread": {"threads": [{"id": comment["id"], "title": title["title"]}]},
+            }
+        ]
+    )
     session = journey.Session(
         context,
         None,
@@ -4801,6 +4862,9 @@ def test_a_title_written_after_the_reply_is_still_timed():
     published = {"activated_at": "2026-10-04T19:00:12+00:00"}
     assert journey.recorded_steps(events, comment, published)["titled"] == 2.25
     assert journey.recorded_steps(answered["events"], comment, published) == {
+        "queued": None,
+        "pickedUp": None,
+        "started": None,
         "titled": None,
         "progress": None,
         "published": 12.0,
@@ -4809,21 +4873,73 @@ def test_a_title_written_after_the_reply_is_still_timed():
 
 
 def test_a_progress_update_is_timed_apart_from_the_answer():
-    """An agent says what it will do in the thread before the work, as an ephemeral
-    update; the journey times that update as `progress` and keeps waiting for the
-    reply that answers."""
+    """Transport and work milestones name this exact input; unrelated earlier
+    pickups and starts cannot count. Ephemeral progress is timed separately from
+    the durable reply that answers."""
     comment, _title, reply = TURN_LOG
     progress = {
         "kind": "reply",
+        "author": "agent",
+        "id": "test-progress",
         "parent": comment["id"],
         "text": "Recording the release on the board.",
         "ephemeral": True,
         "ts": "2026-10-04T12:00:03.000-07:00",
     }
-    assert journey.deployment_answer([progress]) is None
-    assert journey.deployment_answer([progress, reply]) is reply
+    assert journey.deployment_answer([progress], comment["id"]) is None
+    assert journey.deployment_answer([progress, reply], comment["id"]) is reply
     published = {"activated_at": "2026-10-04T19:00:12+00:00"}
-    assert journey.recorded_steps([comment, progress, reply], comment, published) == {
+    transport = [
+        {
+            "kind": "pickup",
+            "events": ["other-input"],
+            "phase": "opened",
+            "ts": "2026-10-04T12:00:00.500-07:00",
+        },
+        {"kind": "start", "item": "other-input", "ts": "2026-10-04T12:00:00.750-07:00"},
+        {
+            "kind": "pickup",
+            "events": [comment["id"]],
+            "phase": "queued",
+            "ts": "2026-10-04T12:00:01.000-07:00",
+        },
+        {
+            "kind": "pickup",
+            "events": [comment["id"]],
+            "phase": "opened",
+            "ts": "2026-10-04T12:00:02.000-07:00",
+        },
+        {"kind": "start", "item": comment["id"], "ts": "2026-10-04T12:00:02.500-07:00"},
+    ]
+    for index, event in enumerate(transport):
+        event["id"] = f"transport-{index}"
+    assert journey.recorded_steps(
+        [comment, *transport, progress, reply], comment, published
+    ) == {
+        "queued": 1.0,
+        "pickedUp": 2.0,
+        "started": 2.5,
+        "titled": None,
+        "progress": 3.0,
+        "published": 12.0,
+        "replied": 12.5,
+    }
+
+    # Addressed progress takes the input in hand atomically in the current log.
+    inline = {**progress, "start": {"item": comment["id"]}}
+    unrelated = {
+        **inline,
+        "id": "other-progress",
+        "parent": "other-input",
+        "start": {"item": "other-input"},
+        "ts": "2026-10-04T12:00:01.000-07:00",
+    }
+    assert journey.recorded_steps(
+        [comment, unrelated, inline, reply], comment, published
+    ) == {
+        "queued": None,
+        "pickedUp": None,
+        "started": 3.0,
         "titled": None,
         "progress": 3.0,
         "published": 12.0,
@@ -4872,7 +4988,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
         result(5.0, "start"),
         call(7.0, ("edit", "leaf page check .")),
         result(8.0, "edit"),
-        call(12.0, ("reply", "leaf thread reply . --for test-comment")),
+        call(12.0, ("reply", "leaf response reply 62af9e31:0:test-comment")),
     ]
     assert journey.turn_phases(stream, comment["ts"], reply["ts"]) == [
         {"phase": "delivery", "startMs": 0, "ms": 500},
@@ -4890,7 +5006,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
             "phase": "tool",
             "startMs": 12000,
             "ms": 500,
-            "calls": ["leaf thread reply . --for test-comment"],
+            "calls": ["leaf response reply 62af9e31:0:test-comment"],
         },
     ]
 
@@ -4994,8 +5110,6 @@ class _DeployedPage:
             return 100.0
         if script == "id => window.__leafVerifier.visibleReplyAt(id)":
             return 12_600.0
-        if script == "thread => window.__leafVerifier.workVisibleAt(thread)":
-            return 4_100.0
         if script == "window.__leafStartup.reading":
             presented_at = (
                 self.presented_at
@@ -5248,13 +5362,17 @@ TURN_LOG = [
     {"kind": "comment", "id": "test-comment", "ts": "2026-10-04T12:00:00.000-07:00"},
     {
         "kind": "thread_title",
+        "id": "test-title",
         "thread": "test-comment",
         "title": "Deployment heading",
         "ts": "2026-10-04T12:00:02.250-07:00",
     },
     {
         "kind": "reply",
+        "id": "test-answer",
+        "author": "agent",
         "parent": "test-comment",
+        "responds": "test-comment",
         "text": "deployment verified",
         "ts": "2026-10-04T12:00:12.500-07:00",
     },
@@ -5314,6 +5432,11 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                     "activity": {"kind": "away"},
                     "source_error": None,
                     "events": TURN_LOG,
+                    "thread": {
+                        "threads": [
+                            {"id": "test-comment", "title": "Deployment heading"}
+                        ]
+                    },
                 },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
@@ -5385,6 +5508,9 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             "eventIds": ["test-comment"],
             "asks": 1,
             "sinceAdmissionMs": {
+                "queued": None,
+                "pickedUp": None,
+                "started": None,
                 "titled": 2250.0,
                 "progress": None,
                 "published": 12000.0,
@@ -5392,7 +5518,6 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             },
             "sinceSendMs": {
                 "acknowledged": [250.0],
-                "workVisible": 4000.0,
                 "responseVisible": 12500.0,
             },
             "activity": [
@@ -5477,6 +5602,11 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
                     "activity": {"kind": "away"},
                     "source_error": None,
                     "events": TURN_LOG,
+                    "thread": {
+                        "threads": [
+                            {"id": "test-comment", "title": "Deployment heading"}
+                        ]
+                    },
                 },
                 published,
                 [{"kind": "reply", "text": "deployment verified"}],
@@ -5618,3 +5748,43 @@ def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
         assert website_server.PageTransaction(page_dir).status == winner["status"]
     finally:
         harness.close()
+
+
+def test_journey_reads_and_times_inline_message_title():
+    comment, _title, reply = TURN_LOG
+    titled_reply = {**reply, "title": "Release recorded"}
+    threads = list(journey.build_threads([comment, titled_reply], {}).values())
+    assert journey.titled({"thread": {"threads": threads}}, comment["id"])
+    assert (
+        journey.recorded_steps(
+            [comment, titled_reply], comment, {"activated_at": reply["ts"]}
+        )["titled"]
+        == 12.5
+    )
+    titled_comment = {**comment, "title": "Initial release"}
+    assert (
+        journey.recorded_steps(
+            [titled_comment, titled_reply],
+            titled_comment,
+            {"activated_at": reply["ts"]},
+        )["titled"]
+        == 0
+    )
+
+
+def test_journey_title_timing_accepts_admitted_action_dependencies():
+    comment, _title, reply = TURN_LOG
+    action = {
+        "kind": "action",
+        "id": "test-pick",
+        "widget": "options",
+        "action": "choose",
+        "revision": 1,
+        "ts": "2026-10-04T12:00:01.000-07:00",
+        "meaning": {"unit": "options", "depends": ["child"], "scope": "page"},
+    }
+    events = [comment, action, {**reply, "title": "Release recorded"}]
+    assert (
+        journey.recorded_steps(events, comment, {"activated_at": reply["ts"]})["titled"]
+        == 12.5
+    )

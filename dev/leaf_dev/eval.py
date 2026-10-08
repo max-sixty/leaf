@@ -309,7 +309,10 @@ def prepare(
                     metadata["scenario"], condition=condition
                 )
                 rubrics = getattr(module, "rubrics", lambda _: [])(metadata["scenario"])
-                if rubrics and judge is None:
+                if (
+                    any(r["type"].endswith("agent-rubric") for r in rubrics)
+                    and judge is None
+                ):
                     judge = screenshot_judge(screenshots, scratch / "judge")
                 sample["assert"] = [
                     *(
@@ -320,8 +323,18 @@ def prepare(
                         }
                         for check in checks
                     ),
-                    # A judge's verdicts on the screenshots the sample lists.
-                    *({**rubric, "provider": judge} for rubric in rubrics),
+                    # Semantic answer rubrics and rendered screenshot rubrics.
+                    *(
+                        {
+                            **rubric,
+                            **(
+                                {"provider": judge}
+                                if rubric["type"].endswith("agent-rubric")
+                                else {}
+                            ),
+                        }
+                        for rubric in rubrics
+                    ),
                 ]
                 sample["vars"] = {"prompt": address}
             else:
@@ -408,8 +421,8 @@ def describe(base: str | None, head: str, globs: tuple[str, ...]) -> str:
 @click.option(
     "--harness",
     type=click.Choice([*HARNESSES, "both"]),
-    default="both",
-    show_default=True,
+    required=True,
+    help="The harness the motivating failure came from, or the one you work in.",
 )
 @click.option(
     "--condition",

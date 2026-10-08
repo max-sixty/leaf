@@ -2156,13 +2156,16 @@ def test_a_menu_comparison_keeps_its_active_paint(browser, serve):
     assert box and 0 <= box["y"] < page.evaluate("innerHeight"), box
     # The door's news is the toolbar's to state, and it restates it on every paint. A
     # newer version puts the urgent latest chip in the menu, so the dot the door
-    # takes is the one the page arrived at rather than one the test wrote on it. The
+    # takes is the one the page arrived at rather than one the test wrote on it, beside
+    # the suggestion's question already waiting behind it. The
     # news is a dot and not an accent contour, which is the focus ring's face: a door
     # drawn that way read as focused while the user typed somewhere else.
     door = page.locator(".lf-banner-more")
     _publish(serve.page_dir, 3, html, "reworded the suggestion again")
     told(page)
-    expect(door).to_have_attribute("aria-label", "More page controls, new")
+    expect(door).to_have_attribute(
+        "aria-label", "More page controls, questions waiting, new"
+    )
     accent = token_colour(page, "--accent")
     face = door.evaluate(
         "d => ({dot: getComputedStyle(d, '::after').backgroundColor,"
@@ -2233,8 +2236,8 @@ def test_a_refused_approval_says_why_to_the_keyboard_and_the_finger(browser, ser
 
 def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf):
     """The fixed menu and primary row keep one reading order at every desk width, and
-    a phone reads the same order with Approval and Comment on the page, which stand
-    before Threads on a desk, moved to the head of More."""
+    a phone reads the same order with Approval, Comment on the page and Questions,
+    which stand before Threads on a desk, moved to the head of More."""
     html = SUGGESTION_PAGE.replace(
         "<title>suggestions</title>",
         '<title>suggestions</title>\n<meta name="lf-review" content="sign-off">',
@@ -2242,7 +2245,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     url = serve(html)
     panel_comment(serve.page_dir, "Is this ready?", author="agent")
     page = open_page(browser, url)
-    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
+    expect(page.locator(".lf-others")).to_have_text("All pages (2)")
     expect(page.locator(".lf-signoff")).to_be_disabled()
     expect(page.locator(".lf-signoff")).to_have_attribute(
         "title", "Answer every Ask before approving this work"
@@ -2254,7 +2257,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
         resized(page, width, 900)
         orders[width] = page.evaluate(BANNER_ORDER)
     phone = orders.pop(390)
-    moved = ["Approve version", "Comment on the page"]
+    moved = ["Approve version", "Comment on the page", "Questions: 4 waiting on you"]
     assert phone[: len(moved)] == moved, phone
     rest = phone[len(moved) :]
     assert rest[:-1] + moved + rest[-1:] == orders[800], (phone, orders[800])
@@ -2274,7 +2277,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
 
     # More follows the primary reading loop, with one order at every width.
     widest = max(orders.values(), key=len)
-    for wanted in ("All leaves", "Queue", "Accept all", "v1", "Approve version"):
+    for wanted in ("All pages", "Questions", "Accept all", "v1", "Approve version"):
         assert any(wanted in name for name in widest), (
             f"{wanted} was not on the row at all, so this order proves little: {widest}"
         )
@@ -3117,8 +3120,8 @@ def toggle_surface(page, surface, open=True):
 def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
     browser, serve, case, width
 ):
-    """Opening Threads or the Queue panel never moves the page: each stands over its edge of
-    the window, so the reading column keeps its place, its width and its wrapping, a
+    """Opening Threads or the Questions panel never moves the page: each stands over the
+    right edge of the window they share, so the reading column keeps its place, its width and its wrapping, a
     wide page's side track stays where its Layout put it, and the document neither grows nor
     scrolls under it. The page beside the surface stays live rather than going inert
     behind a covering boundary."""
@@ -3146,10 +3149,7 @@ def test_an_auxiliary_surface_stands_over_the_page_and_moves_none_of_it(
     region.evaluate("el => el.getAnimations().forEach((a) => a.finish())")
     assert page.evaluate(shape) == pytest.approx(before, abs=0.5)
     box = region.bounding_box()
-    edge = 0 if surface == "queue" else width
-    assert (box["x"] if surface == "queue" else box["x"] + box["width"]) == (
-        pytest.approx(edge, abs=1)
-    )
+    assert box["x"] + box["width"] == pytest.approx(width, abs=1)
     assert not region.evaluate("el => el.closest('dialog').matches(':modal')")
 
     toggle_surface(page, surface, open=False)

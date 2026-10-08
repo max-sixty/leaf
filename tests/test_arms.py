@@ -1,17 +1,26 @@
-"""Harness evidence admits successful commands and retains actual delivery inputs."""
+"""Native traces retain commands, turn outcomes and actual delivery inputs."""
 
 import json
 
 import pytest
-from leaf_dev.arms import accepted_starts, commands, completed, trace_result
+from leaf_dev.arms import commands, completed, trace_result
 from leaf_dev.eval_codex import records_for
+
+EVENT_ENVELOPE = {
+    "attention": False,
+    "id": "a1b2c3d4",
+    "ts": "2026-10-07T12:00:00-07:00",
+    "author": "agent",
+    "seq": 1,
+}
 
 
 def test_codex_command_and_turn_success_are_observed_harness_results():
-    # App Server's observed commandExecution notifications, reduced to the fields
-    # relevant to successful Leaf start admission. Unknown/nonzero exits must
-    # never turn a printed start into an accepted one.
-    output = json.dumps({"kind": "start", "item": "comment", "text": "editing"})
+    # Command text is retained independently of its exit status; completion is
+    # the native turn outcome, rather than something inferred from stdout.
+    output = json.dumps(
+        {**EVENT_ENVELOPE, "kind": "start", "item": "comment", "text": "editing"}
+    )
     for exit_code in (0, 1, None):
         item = {
             "id": "claim",
@@ -26,10 +35,9 @@ def test_codex_command_and_turn_success_are_observed_harness_results():
         ) + records_for(
             {"method": "item/completed", "params": {"item": item}}, "session", ""
         )
+        trace[0]["received_at"] = "2026-10-07T11:59:59-07:00"
+        trace[1]["received_at"] = "2026-10-07T12:00:01-07:00"
         assert commands(trace[0]) == [item["command"]]
-        assert accepted_starts(trace, "comment") == (
-            {"claim": 1} if exit_code == 0 else {}
-        )
         for status in ("completed", "failed", "interrupted"):
             end = records_for(
                 {
@@ -43,50 +51,6 @@ def test_codex_command_and_turn_success_are_observed_harness_results():
             assert trace_result(end)["session_id"] == "session"
             assert trace_result(end)["turn_id"] == "turn"
             assert trace_result(end)["result"] == "the actual final answer"
-
-
-def test_a_progress_update_on_an_owed_move_is_an_accepted_start():
-    """An ephemeral reply to a move takes it in hand and prints that start, so it
-    counts; a read of the log printing the same start record does not."""
-    start = json.dumps({"kind": "start", "item": "comment", "text": "editing"})
-    reply = json.dumps({"kind": "reply", "ephemeral": True, "text": "editing"})
-
-    def call(identity, command, output):
-        return [
-            {
-                "type": "assistant",
-                "message": {
-                    "content": [
-                        {
-                            "type": "tool_use",
-                            "id": identity,
-                            "name": "Bash",
-                            "input": {"command": command},
-                        }
-                    ]
-                },
-            },
-            {
-                "type": "user",
-                "message": {
-                    "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": identity,
-                            "is_error": False,
-                            "content": output,
-                        }
-                    ]
-                },
-            },
-        ]
-
-    trace = call(
-        "progress",
-        "leaf thread reply page --for comment \\\n  --ephemeral --text editing",
-        f"{reply}\n{start}",
-    ) + call("read", "leaf page events page", start)
-    assert accepted_starts(trace, "comment") == {"progress": 1}
 
 
 def test_codex_delivery_evidence_preserves_actual_input_and_hook_output():

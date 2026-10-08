@@ -20,6 +20,8 @@ The journey, in order:
 - `idle`: a comment posted while the task is idle is answered in a turn Leaf starts;
 - `mid-turn`: a comment posted during a shell command is answered once; the queue
   task must pick it up and answer it before that turn's first final response;
+- `resume`: the queue task resumes an interrupted turn with empty input and
+  receives a comment while that turn runs, without starting another turn;
 - `restart`: with the adapter killed, the user's next turn ends with the agent having
   started it again, and a comment posted afterwards is answered.
 
@@ -52,7 +54,9 @@ import click
 import psutil
 from leaf.codex import private_app_server
 from leaf.event_log import read_events
+from leaf.events import build_threads
 from leaf.leases import adapter_is_live, lock_is_held, titles_log
+from leaf.revision_artifact import active_enclosing
 from leaf.server import running_server
 from leaf.service import page_claim
 from leaf.thread_titles import TIMEOUT
@@ -84,6 +88,11 @@ USER_TURN = (
     "`printf 'verified\\n'`. Then reply with the single word done."
 )
 RESTART_TURN = "Reply with the single word OK."
+RESUME_TURN = (
+    "Run `sleep 30` in the shell, then in a separate tool call run "
+    "`printf 'verified\\n'`, then say done. If interrupted and resumed, "
+    "skip the remaining shell command and report the interruption."
+)
 
 
 def adapter_processes(codex: str) -> list[psutil.Process]:
@@ -234,6 +243,76 @@ def journey(
     check_step(["idle"])
     step("idle", started)
 
+    # Real author intent exercises the rich interface without naming its commands.
+    for rich, request in (
+        (
+            "choice",
+            (
+                "I need to decide whether to ship or wait. Give me two clickable choices "
+                "inside this thread, not on the page. Explain the decision in a short "
+                "question, and move this thread to the release rationale section."
+            ),
+        ),
+        (
+            "question",
+            (
+                "Ask me whether I can own the release check, as a prose question in this "
+                "thread. Keep it waiting for my answer and move the thread to the release "
+                "rationale section."
+            ),
+        ),
+    ):
+        started = time.monotonic()
+        client = PageClient(url)
+        client.post(
+            {
+                "kind": "comment",
+                "revision": client.state()["active"]["revision"],
+                "attempt": f"verify-rich-{rich}",
+                "text": request,
+                "anchor": {"section": "triage-lede"},
+            }
+        )
+        # The browser response carries state; the admitted event is the log fact.
+        posted = next(
+            event["id"]
+            for event in read_events(page)
+            if event.get("attempt") == f"verify-rich-{rich}"
+        )
+
+        def rich_answers(responds=posted):
+            return [
+                event
+                for event in read_events(page)
+                if event["kind"] == "reply"
+                and event.get("responds") == responds
+                and "failure" not in event
+            ]
+
+        task.settle(
+            lambda: bool(rich_answers()), f"rich {rich} comment was not answered"
+        )
+        [reply] = rich_answers()
+        require(bool(reply.get("text")), "the rich reply has no prose")
+        require(
+            reply.get("anchor", {}).get("section") == "triage-why",
+            "rich reply did not relocate to the rationale",
+        )
+        if rich == "choice":
+            require(
+                bool(reply.get("markup")),
+                "the real author did not send clickable thread markup",
+            )
+        else:
+            require(
+                reply.get("awaits") is True,
+                "the prose question does not await the user's answer",
+            )
+        thread = build_threads(read_events(page), active_enclosing(page))[posted]
+        require(bool(thread["title"]), "the rich thread was not titled")
+        check_step(["idle"])
+        step(f"rich-{rich}", started)
+
     started = time.monotonic()
     previous_turns = len(task.started)
     user_turn = task.say(USER_TURN)
@@ -293,6 +372,69 @@ def journey(
             "the mid-turn comment started another turn instead of entering the active one",
         )
     step("mid-turn", started)
+    posted = ["idle", "mid-turn"]
+
+    if transport == "queue":
+        started = time.monotonic()
+        interrupted = task.say(RESUME_TURN)
+        deadline = time.monotonic() + STEP_LIMIT
+        while not any(
+            "sleep 30" in command for command in task.running_commands.values()
+        ):
+            task.listen(0.5)
+            require(
+                time.monotonic() < deadline and interrupted in task.running,
+                "the turn to interrupt did not start its sleep command",
+            )
+        task.request("turn/interrupt", {"threadId": task.thread, "turnId": interrupted})
+        while interrupted in task.running:
+            task.listen(0.5)
+            require(time.monotonic() < deadline, "the interrupted turn did not end")
+        # Aborted command items need not emit item/completed. They cannot stand
+        # in for execution of the resumed turn's first command.
+        task.running_commands.clear()
+        previous_turns = len(task.started)
+        resumed = task.request(
+            "turn/start",
+            {
+                "threadId": task.thread,
+                "input": [],
+                "turnTrigger": "resume_interrupted_task",
+            },
+        )["turn"]["id"]
+        deadline = time.monotonic() + STEP_LIMIT
+        while resumed not in task.started:
+            task.listen(0.5)
+            require(
+                time.monotonic() < deadline,
+                "the empty-input resume did not start",
+            )
+        require(resumed in task.running, "the empty-input resume already ended")
+        # Resume can continue tools or simply report the interruption. Post
+        # while that native turn is open, before its first delivery hook.
+        post(page, "escape")
+        task.settle(
+            lambda: bool(answers(page, "escape")),
+            "the comment posted during resume was not answered",
+        )
+        posted.append("escape")
+        check_step(posted)
+        require(
+            task.started[previous_turns:] == [resumed],
+            "the resumed-turn comment started another turn",
+        )
+        posted_id = comment_id(page, "escape")
+        require(
+            any(
+                event["kind"] == "pickup"
+                and event["phase"] == "opened"
+                and event["turn"] == resumed
+                and posted_id in event["events"]
+                for event in read_events(page)
+            ),
+            "the comment did not enter the empty-input resumed turn",
+        )
+        step("resume", started)
 
     started = time.monotonic()
     for process in adapter_processes(codex):
@@ -328,13 +470,14 @@ def journey(
         lambda: adapter_is_live(task.thread),
         "the agent did not start the adapter again",
     )
-    check_step(["idle", "mid-turn"])
+    check_step(posted)
     post(page, "restart")
     task.settle(
         lambda: bool(answers(page, "restart")),
         "comment `restart` was not answered",
     )
-    check_step(["idle", "mid-turn", "restart"])
+    posted.append("restart")
+    check_step(posted)
     step("restart", started)
 
     if preview:
@@ -352,13 +495,13 @@ def journey(
             lambda: running_server(page) is not None,
             "the idle preview did not restore its server without an edit",
         )
-        check_step(["idle", "mid-turn", "restart"])
+        check_step(posted)
         post(page, "reconnect")
         task.settle(
             lambda: bool(answers(page, "reconnect")),
             "the restored preview's comment was not answered",
         )
-        check_step(["idle", "mid-turn", "restart", "reconnect"])
+        check_step([*posted, "reconnect"])
         step("reconnect", started)
 
 

@@ -12,9 +12,16 @@ import { focused, keys } from "../keyboard/scopes.js";
 import { pageScope } from "../keyboard/register.js";
 import { runtime } from "../context.js";
 import { pagePresented } from "../presentation.js";
+import { rowWalk } from "../walk-position.js";
 
 export function createThreadPanelKeys({
-  elements: { closeBtn, findInput, narrowingView, inPanel: panelFocusIsInside },
+  elements: {
+    closeBtn,
+    findInput,
+    narrowingView,
+    threadsBox,
+    inPanel: panelFocusIsInside,
+  },
   openThreads,
   setPanel,
   panelIsOpen,
@@ -29,12 +36,27 @@ export function createThreadPanelKeys({
 
   const inPanel = () => panelFocusIsInside(panelIsOpen);
   const hasThreads = () => openThreads({ visibleOnly: panelIsOpen() }).length > 0;
+  // The list's rows are its threads' titles, which the arrows walk as they walk the
+  // Questions panel's rows; `t` and `T` still step and open. Only from a title, so the
+  // arrows inside an open thread keep scrolling it.
+  const titles = () =>
+    [...threadsBox.querySelectorAll(".lf-thread-summary")].filter((title) =>
+      title.checkVisibility(),
+    );
+  const onTitle = () => Boolean(focused()?.matches?.(".lf-thread-summary"));
+  const titleWalk = rowWalk({
+    id: "thread.list",
+    noun: "Thread",
+    plural: "threads",
+    rows: titles,
+  }).map((row) => ({ ...row, when: onTitle }));
 
   const stopPanelScope = pageScope("panel", {
     title: "In the thread panel",
     root: focused,
     at: inPanel,
     rows: [
+      ...titleWalk,
       {
         // Search repeat keeps its canonical n/N meaning in the nearest active search.
         // Only a textual query makes this row live; the waiting filter does not claim them.
@@ -60,7 +82,7 @@ export function createThreadPanelKeys({
       {
         id: "thread.waiting.toggle",
         // `w` for the words the control says. It is the phrase the page already uses for
-        // the same question the queue walk (a/A) asks of the page, asked here of
+        // the same question the queue walk (q/Q) asks of the page, asked here of
         // the thread — so the user learns one idea and reaches it two ways rather
         // than learning "needs you" beside it.
         //

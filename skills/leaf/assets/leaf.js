@@ -582,6 +582,7 @@ const queueWalk = createQueueWalk({
 const queue = createQueuePanel({
   arriveAtItem: queueWalk.arriveAtItem,
   endTask: queueWalk.endTask,
+  next: queueWalk.next,
   announce,
 });
 
@@ -791,6 +792,7 @@ if (window.frameElement?.hasAttribute("data-lf-contained")) {
 }
 drawers = createDrawers({
   doors: { queue: [queueCounts] },
+  sideEdge: layout.commentsEdge,
   landEdge: layout.landEdge,
   auxiliarySurfaces,
   closePreview: app.overlay?.closePreview,
@@ -812,11 +814,11 @@ goToSequence = createGoToSequence({
   elements: { banner, toggleBtn },
   hintChrome,
   directDestinations: () => [
-    version.PICKER,
     writingResume,
     passageSelection.command,
     navigation.alignTop,
     app.read.firstUnreadCommand,
+    version.PICKER,
   ],
   scrollToElement: anchorTravel.scrollToElement,
   leavesOffered,
@@ -951,8 +953,11 @@ if (!offlineInteractive) {
     paintStandingGeometry: standing.paintStandingGeometry,
   });
 } else {
-  // An interactive export attaches no chrome, so its standing is only what a widget's
-  // own box shows: an options group's addition field paints there as it does live.
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, chromeSheet];
+  chromeRoot.append(mediaViewer);
+  document.body.append(chromeRoot);
+  // Exports retain image inspection, but no page controls. Their other standing is
+  // what a widget's own box shows, such as an options group's addition field.
   mountRepaint({ paintStandingGeometry: inputs.paintInputs, reflectKeys });
 }
 

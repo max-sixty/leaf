@@ -20,7 +20,12 @@ from leaf.schema import (
 
 from .contract import RegistryError, stamp_decisions
 from .kernel import kernel_event_kinds
-from .schema import json_validator, unresolved_schema_reference
+from .schema import (
+    json_validator,
+    json_value,
+    schema_error_message,
+    unresolved_schema_reference,
+)
 
 
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:
@@ -159,8 +164,8 @@ def validate_layer_declarations(
     ):
         raise RegistryError(
             f"{path}: $keys must carry a description and one paragraph per x- key the "
-            f"lint admits — missing {sorted(admitted - documented)}, "
-            f"unadmitted {sorted(documented - admitted)}"
+            f"lint admits — missing {json_value(sorted(admitted - documented))}, "
+            f"unadmitted {json_value(sorted(documented - admitted))}"
         )
     # An idiom declares the marks `DECLARED_MARKS` admits on one (`idiom`), such as the
     # room a `.callout` takes, which delivery paints on every element the idiom's
@@ -177,7 +182,7 @@ def validate_layer_declarations(
                 EXTENSION_SCHEMA["properties"][key]
             ).is_valid(entry[key]):
                 raise RegistryError(
-                    f"{path}: $idioms {selector!r} declares {key}={entry[key]!r}; an "
+                    f"{path}: $idioms {selector!r} declares {key}={json_value(entry[key])}; an "
                     f"idiom may declare {', '.join(admitted)}, with a value its $keys "
                     "entry admits"
                 )
@@ -282,14 +287,14 @@ def validate_layer_declarations(
         if instructions_errors:
             raise RegistryError(
                 f"{path}: $data contract {contract!r} instructions are invalid: "
-                f"{instructions_errors[0].message}"
+                f"{schema_error_message(instructions_errors[0])}"
             )
         try:
             Draft202012Validator.check_schema(declaration["schema"])
         except SchemaError as error:
             raise RegistryError(
                 f"{path}: $data contract {contract!r} has an invalid JSON Schema: "
-                f"{error.message}"
+                f"{schema_error_message(error)}"
             ) from error
         if reference := unresolved_schema_reference(declaration["schema"]):
             raise RegistryError(

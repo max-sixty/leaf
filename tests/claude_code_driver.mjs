@@ -66,6 +66,8 @@ function stream(request) {
     },
     async next() {
       const how = await Promise.race([ended, stopped]);
+      if (how === undefined && options.abortLagMs)
+        throw new Error("the op was aborted");
       if (finished || how === undefined) return { done: true, value: how };
       if (output) {
         const text = output;
@@ -77,7 +79,11 @@ function stream(request) {
     },
     async return() {
       finished = true;
-      child.kill("SIGTERM");
+      // Native cancellation can abort output before the child releases its lease.
+      // Exercise that ordering deterministically instead of relying on process speed.
+      if (options.abortLagMs)
+        setTimeout(() => child.kill("SIGTERM"), options.abortLagMs);
+      else child.kill("SIGTERM");
       stop();
       return { done: true, value: undefined };
     },

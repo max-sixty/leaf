@@ -114,6 +114,19 @@ def threads_panel(page: Page) -> None:
     )
 
 
+def image_preview(page: Page) -> None:
+    """Inspect the gallery's pasted screenshot through the shared image viewer."""
+    threads_panel(page)
+    thread = page.locator('.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"]')
+    thread.locator(":scope > .lf-thread-summary").click()
+    thread.locator(".lf-media-open").click()
+    page.get_by_role("dialog", name="Image preview").wait_for(state="visible")
+    page.wait_for_function("""() => {
+      const zoom = document.querySelector('.lf-media-viewer-zoom');
+      return !zoom || zoom.getAttribute('aria-disabled') !== 'true';
+    }""")
+
+
 def panel_by_keyboard(page: Page) -> None:
     """The Threads panel with keyboard focus on its current title."""
     page.keyboard.press("g")
@@ -371,8 +384,8 @@ def versions_menu(page: Page) -> None:
 
 
 def ask_by_keyboard(page: Page) -> None:
-    """The next open Ask, reached with `a`: its ring and its marker in view."""
-    page.keyboard.press("a")
+    """The next open Ask, reached with `q`: its ring and its marker in view."""
+    page.keyboard.press("q")
     page.locator("lf-ask").first.wait_for()
 
 
@@ -419,6 +432,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         card_reply_large,
         card_reply_resolved,
         threads_panel,
+        image_preview,
         panel_by_keyboard,
         composer,
         composer_long,
@@ -529,6 +543,17 @@ class State:
 
 
 STATES = (
+    State("image-preview", "developer/feature-gallery", image_preview),
+    State(
+        "image-preview-dark", "developer/feature-gallery", image_preview, scheme="dark"
+    ),
+    State(
+        "image-preview-phone",
+        "developer/feature-gallery",
+        image_preview,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("targeting-menu", "code-comparison", targeting_menu),
     State("targeting-menu-dark", "code-comparison", targeting_menu, scheme="dark"),
     State("trace-sources", "developer/playwright-trace-gallery", trace_sources),

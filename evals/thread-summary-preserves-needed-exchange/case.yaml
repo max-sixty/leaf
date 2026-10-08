@@ -23,7 +23,8 @@ vars:
     ttl-seven (user, just delivered): "Walk through those two claims against my counterexample."
 
     The delivery carries summary_hint: {from: ttl-one, through: ttl-five}.
-    Its answer is {kind: reply, to: ttl-thread, for: ttl-seven}.
+    Its answer is {kind: reply, to: ttl-thread, for: ttl-seven,
+    ref: "70c41e9a:0:ttl-seven", writer: agent}.
 
     Work out the next turn. Nothing here can execute writes: read the relevant
     Leaf instructions, then give the CLI commands you would run, in order,
@@ -33,9 +34,8 @@ assert:
   metric: keeps-needed-originals-and-answers
   value: |
     Pass only if no proposed command summarizes or folds the earlier messages,
-    and the commands give an ordinary thread reply answering ttl-seven in
-    ttl-thread (using --for ttl-seven or the single outstanding
-    answer). Its text must examine the earlier ten-minute and five-minute claims
+    and the commands give `leaf response reply 70c41e9a:0:ttl-seven` answering
+    ttl-seven in ttl-thread. Its text must examine the earlier ten-minute and five-minute claims
     against the user's counterexample and distinguish expiry from quote age;
     it may question the counterexample's assumptions. A prose explanation that
     summarization is inappropriate is allowed, even if it names the command.

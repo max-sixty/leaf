@@ -1040,7 +1040,7 @@ def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
         )
         expect(question).to_be_focused()
 
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(question).to_be_focused()
     expect(draft_control(page, "edit", "note")).to_have_attribute(
         "aria-keyshortcuts", "1"

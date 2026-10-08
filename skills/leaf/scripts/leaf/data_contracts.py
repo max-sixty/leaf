@@ -10,7 +10,12 @@ from jmespath.exceptions import JMESPathError
 from referencing.exceptions import Unresolvable
 
 from .files import list_revisions
-from .registry.schema import aware_instant, json_validator
+from .registry.schema import (
+    aware_instant,
+    json_validator,
+    json_value,
+    schema_error_message,
+)
 from .revision_artifact import read_revision
 from .schema import DATA_SOURCE_NAME, DIR_FILES, MEDIA_DIR
 from .structure import SourceDocument
@@ -332,7 +337,7 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
         declared = sorted(registry.get("$data", {}).get("contracts", {}))
         return (
             f"source {source!r} uses undeclared contract {contract!r}; "
-            f"available contracts are {declared}"
+            f"available contracts are {json_value(declared)}"
         )
     try:
         error = min(
@@ -385,10 +390,10 @@ def payload_error(source: str, contract: str, value, registry: dict) -> str | No
             if duplicates:
                 return (
                     f"source {source!r} contract {contract!r} record keys must be "
-                    f"unique; repeated {sorted(duplicates)}"
+                    f"unique; repeated {json_value(sorted(duplicates))}"
                 )
         return None
     return (
         f"source {source!r} value is invalid for contract {contract!r} at "
-        f"{error.json_path}: {error.message}"
+        f"{error.json_path}: {schema_error_message(error)}"
     )

@@ -11,6 +11,7 @@ from interact_support import (
     append_command,
     asks_on_you,
     publish,
+    response_reference,
     stamp,
     state_json,
 )
@@ -57,11 +58,9 @@ def test_a_task_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     assert task["subject"] == {"kind": "thread", "id": comment["id"]}
     written(
         leaf(
-            "thread",
+            "response",
             "reply",
-            page_dir,
-            "--for",
-            comment["id"],
+            response_reference(page_dir, comment["id"]),
             "--text",
             "Building it now.",
         )
@@ -107,7 +106,7 @@ def test_a_task_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
     state = state_json(page_dir)
     assert state["queues"]["on_agent"] == []
     assert state["tasks"] == []
-    # The browser is served the ended task beside the open ones, for the Queue panel's
+    # The browser is served the ended task beside the open ones, for the Questions panel's
     # Done list, with its outcome.
     served = full_state(page_dir, events_model.read_events(page_dir))
     assert served["browser"]["tasks"] == []
@@ -171,7 +170,7 @@ def test_the_door_refuses_a_task_off_the_page_and_an_outcome_twice(page_dir):
     assert events_model.read_events(page_dir) == before
 
 
-def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir):
+def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir, sessionless):
     """An Ask is a task on the user, and so is an agent turn in a thread that asks in
     prose (`--awaits`), under that turn's id; answering the prose question ends it
     and hands the thread to the agent."""
@@ -182,11 +181,9 @@ def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir):
     )
     question = written(
         leaf(
-            "thread",
+            "response",
             "reply",
-            page_dir,
-            "--for",
-            comment["id"],
+            response_reference(page_dir, comment["id"]),
             "--text",
             "Warm or cool?",
             "--awaits",
@@ -202,6 +199,16 @@ def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir):
         {"kind": "thread", "id": comment["id"]},
         None,
     )
+
+    served = full_state(page_dir, events_model.read_events(page_dir))
+    named_question = next(
+        message
+        for thread in served["browser"]["thread"]["threads"]
+        for message in thread["msgs"]
+        if message["id"] == question["id"]
+    )
+    assert question.get("agent") is None
+    assert asked["agent"] == named_question["agent"]
 
     warm = append_carried_log_record(
         page_dir,
@@ -241,11 +248,9 @@ def test_a_question_ends_at_the_reaction_that_settles_it(page_dir):
     )
     question = written(
         leaf(
-            "thread",
+            "response",
             "reply",
-            page_dir,
-            "--for",
-            comment["id"],
+            response_reference(page_dir, comment["id"]),
             "--text",
             "Warm or cool?",
             "--awaits",
@@ -280,7 +285,7 @@ def test_a_question_ends_at_the_reaction_that_settles_it(page_dir):
 def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     """A thread whose reply failed is one item on the user, named by the thread, and a
     question the agent then leaves in it makes it that question rather than a second
-    item: `a` stops at a thread once."""
+    item: `q` stops at a thread once."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -330,7 +335,10 @@ def test_working_names_a_move_until_its_answer_and_a_task_until_its_end(page_dir
     )
     refused = leaf("task", "start", page_dir, "no-such-move", "Reading it")
     assert refused.exit_code != 0
-    assert "neither an open task of yours nor a move you owe" in refused.output
+    assert (
+        "neither an open task of yours nor an update you owe an answer to"
+        in refused.output
+    )
 
     start = written(
         leaf("task", "start", page_dir, comment["id"], "Tightening the plan section")
@@ -347,7 +355,13 @@ def test_working_names_a_move_until_its_answer_and_a_task_until_its_end(page_dir
 
     # The reply that answers the move ends its start: nothing is in hand.
     written(
-        leaf("thread", "reply", page_dir, "--for", comment["id"], "--text", "Done.")
+        leaf(
+            "response",
+            "reply",
+            response_reference(page_dir, comment["id"]),
+            "--text",
+            "Done.",
+        )
     )
     state = state_json(page_dir)
     assert state["workflows"] == []
@@ -382,7 +396,13 @@ def test_a_thread_task_runs_under_its_start_line(page_dir):
     )
     task = written(leaf("task", "open", page_dir, comment["id"], "Rebuild the chart"))
     written(
-        leaf("thread", "reply", page_dir, "--for", comment["id"], "--text", "On it.")
+        leaf(
+            "response",
+            "reply",
+            response_reference(page_dir, comment["id"]),
+            "--text",
+            "On it.",
+        )
     )
     written(leaf("task", "start", page_dir, task["id"], "Waiting on the build"))
     [thread] = state_json(page_dir)["threads"]
@@ -582,7 +602,7 @@ def asking(page_dir):
 
 
 def done(page_dir, task: str) -> tuple[int, dict]:
-    """The user's Done on `task`, posted as the Queue panel posts it."""
+    """The user's Done on `task`, posted as the Questions panel posts it."""
     return endpoint_model.accept_event(
         page_dir, {"kind": "task_end", "task": task, "outcome": "done"}, dict
     )
@@ -647,11 +667,9 @@ def test_a_question_is_the_task_on_the_user_a_thread_takes(page_dir):
     )
     question = written(
         leaf(
-            "thread",
+            "response",
             "reply",
-            page_dir,
-            "--for",
-            comment["id"],
+            response_reference(page_dir, comment["id"]),
             "--text",
             "Is the rollback plan enough?",
             "--awaits",
@@ -661,7 +679,7 @@ def test_a_question_is_the_task_on_the_user_a_thread_takes(page_dir):
         "task", "open", page_dir, comment["id"], "Is it enough?", "--on", "user"
     )
     assert refused.exit_code != 0
-    assert "ask it there with `leaf thread reply --awaits`" in refused.output
+    assert "question: ask it there" in refused.output
 
     status, answer = done(page_dir, question["id"])
     assert status == 400, answer
@@ -710,11 +728,9 @@ def test_an_asks_task_ends_only_at_its_answer_and_a_questions_at_the_agents_end(
     )
     question = written(
         leaf(
-            "thread",
+            "response",
             "reply",
-            page_dir,
-            "--for",
-            comment["id"],
+            response_reference(page_dir, comment["id"]),
             "--text",
             "Warm or cool?",
             "--awaits",

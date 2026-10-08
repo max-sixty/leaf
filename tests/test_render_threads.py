@@ -12,6 +12,7 @@ from interact_support import append_carried_log_record, append_command, record_c
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
+from leaf import exporting as exporting_model
 from leaf import leases as leases_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
@@ -626,7 +627,7 @@ def test_a_durable_reply_completes_an_empty_stream_placeholder(browser, serve, r
         attempt,
     )
 
-    reply = thread_model.cmd_reply(
+    reply = thread_model.post_reply(
         serve.page_dir,
         root,
         "The complete answer.",
@@ -761,7 +762,7 @@ def test_an_inline_reply_link_reveals_its_thread(browser, serve, resolved):
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
-    reply = thread_model.cmd_reply(
+    reply = thread_model.post_reply(
         serve.page_dir,
         root,
         "Choose the first job.",
@@ -847,7 +848,7 @@ def test_a_summary_folds_originals_and_a_direct_reply_link_reveals_them(browser,
     root = panel_comment(
         serve.page_dir, "Keep the opening question visible.", {"section": "jobs"}
     )
-    first = thread_model.cmd_reply(
+    first = thread_model.post_reply(
         serve.page_dir,
         root,
         "The first job establishes the dependency.",
@@ -998,7 +999,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     """The answer and its fold arrive together; originals remain a keyboard route."""
     url = serve(SEATED_QUESTION_PAGE)
     root = panel_comment(serve.page_dir, "Check the schedule.", {"section": "jobs"})
-    progress = thread_model.cmd_reply(
+    progress = thread_model.post_reply(
         serve.page_dir,
         root,
         "Checking the camera.",
@@ -1026,7 +1027,7 @@ def test_ephemeral_progress_folds_when_its_held_completion_is_revealed(
     if surface == "panel":
         expect(original).to_be_focused()
 
-    answer = thread_model.cmd_reply(
+    answer = thread_model.post_reply(
         serve.page_dir,
         root,
         "The schedule works.",
@@ -1126,7 +1127,7 @@ def test_a_root_summary_keeps_thread_actions_outside_its_fold(
     reads it, and drawn once they have scrolled away, leaves them on Resolve."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Start with the measured constraint.")
-    reply = thread_model.cmd_reply(
+    reply = thread_model.post_reply(
         serve.page_dir, root, "The constraint still applies.", None, for_event=root
     )
     end = reply["id"]
@@ -1221,7 +1222,7 @@ def test_a_later_summary_replaces_its_overlap_and_an_edit_restores_originals(
     the words it would change; shown, a summary opens around the messages being read."""
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Start with the measured constraint.")
-    first = thread_model.cmd_reply(
+    first = thread_model.post_reply(
         serve.page_dir, root, "The first constraint.", None, for_event=root
     )
     second = append_agent_reply(serve.page_dir, root, "The second constraint.")
@@ -1296,7 +1297,7 @@ def test_a_summary_cannot_hide_an_active_question(browser, serve):
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
-    question = thread_model.cmd_reply(
+    question = thread_model.post_reply(
         serve.page_dir,
         root,
         "Choose the first job.",
@@ -1343,7 +1344,7 @@ def test_a_held_inline_reply_reveal_yields_to_new_user_focus(browser, serve):
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
     )
-    reply = thread_model.cmd_reply(
+    reply = thread_model.post_reply(
         serve.page_dir,
         root,
         "Choose the first job.",
@@ -2569,6 +2570,115 @@ def test_a_pasted_image_survives_the_reply_draft_and_renders_from_the_message(
     assert (serve.page_dir / "media" / "051bee487bfb5d13.png").read_bytes() == pixels
 
 
+@pytest.mark.parametrize("offline", [False, True])
+def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, offline):
+    """An authored image link inspects in place, including in the offline artifact."""
+    url = serve(
+        leaf_page(
+            "Screenshot report",
+            """
+      <h1>Screenshot report</h1>
+      <figure id="screenshot"><a href="/media/051bee487bfb5d13.png">
+        <img src="/media/051bee487bfb5d13.png" width="1800" height="746"
+          alt="Release output with two highlighted changes"></a>
+        <figcaption>Release output after the fix.</figcaption></figure>
+      <p><a id="other" href="#context"><img src="/media/051bee487bfb5d13.png"
+        alt="Go to the context"></a></p>
+      <section id="context"><h2>Context</h2><p>The release passed.</p></section>
+    """,
+        )
+    )
+    if offline:
+        out = tmp_path / "image-report.html"
+        exporting_model.cmd_export(serve.page_dir, out, None)
+        url = out.as_uri()
+    page = open_page(browser, url)
+    for width in (1440, 390):
+        resized(page, width, 900)
+        image_link = page.locator("#screenshot a")
+        image_link.scroll_into_view_if_needed()
+        before = page.evaluate("({url:location.href,scroll:scrollY})")
+        # Enter follows the authored link's same inspection route as a tap.
+        page.keyboard.press("Tab")
+        image_link.focus()
+        image_link.press("Enter")
+        viewer = page.get_by_role("dialog", name="Image preview")
+        expect(viewer).to_be_visible()
+        zoom = viewer.get_by_role("button", name="Zoom to actual size", exact=True)
+        expect(zoom).to_be_enabled()
+        if not offline:
+            expect(zoom).to_have_attribute("aria-keyshortcuts", "z")
+        expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(
+            "Release output after the fix."
+        )
+        fitted = viewer.locator("img.pswp__img").bounding_box()
+        head = viewer.locator(".lf-media-viewer-head").bounding_box()
+        caption = viewer.locator(".lf-media-viewer-caption").bounding_box()
+        assert fitted["y"] >= head["y"] + head["height"]
+        assert fitted["y"] + fitted["height"] <= caption["y"]
+        zoom.click()
+        expect(
+            viewer.get_by_role("button", name="Fit image", exact=True)
+        ).to_be_visible()
+        # Pixel scale is the reader's goal: enlarging a modal alone does not prove it.
+        expect(viewer.locator("img.pswp__img")).to_have_css("width", "1800px")
+        zoomed = viewer.locator("img.pswp__img").bounding_box()
+        assert zoomed["width"] == pytest.approx(1800, abs=1)
+        if not offline and width == 1440:
+            page.keyboard.press("?")
+            page.keyboard.press("?")
+            help_dialog = page.get_by_role(
+                "dialog", name="Command reference", exact=True
+            )
+            expect(help_dialog).to_be_visible()
+            search = help_dialog.get_by_role("combobox", name="Search commands")
+            search.press("ArrowRight")
+            search.press_sequentially("z")
+            expect(search).to_have_value("z")
+            rendered(page)
+            assert viewer.locator("img.pswp__img").bounding_box() == zoomed
+            page.keyboard.press("Escape")
+            expect(help_dialog).to_be_hidden()
+        page.keyboard.press("ArrowRight")
+        panned = viewer.locator("img.pswp__img").bounding_box()
+        assert panned["x"] < zoomed["x"]
+        page.keyboard.press("z")
+        expect(
+            viewer.get_by_role("button", name="Zoom to actual size", exact=True)
+        ).to_be_visible()
+        page.keyboard.press("w")
+        expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
+        page.keyboard.press("Escape")
+        expect(viewer).to_be_hidden()
+        expect(image_link).to_be_focused()
+        assert page.evaluate("({url:location.href,scroll:scrollY})") == before
+        image_link.click()
+        expect(viewer).to_be_visible()
+        viewer.get_by_role("button", name="Close image preview", exact=True).click()
+        expect(viewer).to_be_hidden()
+        expect(image_link).to_be_focused()
+    # Even an image that initially fits at 100% can be enlarged by a wheel gesture.
+    # Its retained Fit command must remain available after that manipulation.
+    resized(page, 2200, 1600)
+    image_link.click()
+    expect(viewer.locator("img.pswp__img")).to_be_visible()
+    expect(
+        viewer.get_by_role("button", name="Zoom to actual size", exact=True)
+    ).to_be_disabled()
+    page.mouse.move(1100, 800)
+    page.keyboard.down("Control")
+    page.mouse.wheel(0, -300)
+    page.keyboard.up("Control")
+    fit = viewer.get_by_role("button", name="Fit image", exact=True)
+    expect(fit).to_be_enabled()
+    fit.click()
+    expect(viewer.locator("img.pswp__img")).to_have_css("width", "1800px")
+    page.keyboard.press("Escape")
+    page.locator("#other").click()
+    expect(page).to_have_url(re.compile(r"#context$"))
+    expect(viewer).to_be_hidden()
+
+
 @pytest.mark.parametrize("width", [1280, 390])
 def test_an_image_only_composer_names_and_lays_out_the_draft_it_keeps(
     browser, serve, width
@@ -3589,7 +3699,7 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
         expect(
             thread.get_by_role("button", name="1 new reply", exact=True)
         ).to_be_visible()
-        page.keyboard.press("a")
+        page.keyboard.press("q")
         expect(thread.locator("#held-question")).to_be_focused()
     expect(message).to_be_visible()
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
@@ -4467,7 +4577,7 @@ def test_the_panel_reads_the_thread_in_the_pages_own_order(browser, serve):
         "placeholder", "Reply"
     )
     # From no place on the page the walk starts at the list's first thread; a caret a
-    # click leaves is a place, as it is for `a`.
+    # click leaves is a place, as it is for `q`.
     page.evaluate(
         "() => { document.activeElement?.blur(); getSelection().removeAllRanges(); }"
     )
@@ -4501,7 +4611,7 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
-    authored = thread_model.cmd_reply(
+    authored = thread_model.post_reply(
         serve.page_dir,
         first_id,
         "Choose the deployment window.",
@@ -4532,7 +4642,7 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
             const { panel, threadsBox, narrowingView } = elements;
             panel.style.cssText = 'position:relative; inset:auto; width:420px; height:560px; margin:0';
             host.append(panel);
-            panel.show();
+            panel.classList.add('open');
             const controller = createThreadListController(elements);
             let handle;
             const narrowing = createThreadNarrowing({
@@ -4671,7 +4781,7 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
     cap = comment("Is forty enough?", {"section": "how-cap"}, 3)
     whole = comment("The whole thing needs a summary.", None, 12)
     # A reply today makes the oldest thread the most recent one.
-    thread_model.cmd_reply(d, whole, "Added one at the top.", None, for_event=whole)
+    thread_model.post_reply(d, whole, "Added one at the top.", None, for_event=whole)
 
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
@@ -4721,7 +4831,7 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
 
     # The page's walk is the page's order whatever the panel shows.
     # From no place on the page, which is where the walk starts from its first thread:
-    # a caret a click leaves is a place, as it is for `a`.
+    # a caret a click leaves is a place, as it is for `q`.
     order.get_by_role("button", name="Recent").click()
     page.locator(".lf-threads-toggle").click()
     page.evaluate(
@@ -5072,7 +5182,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     page.keyboard.press("n")
     expect(theirs_title).to_be_focused()
     # The card the narrowing hides keeps its node. A widget an agent sent in a reply is
-    # instantiated once, in that card, and the Ask reading and the Queue find it by
+    # instantiated once, in that card, and the Ask reading and the Questions panel find it by
     # id in the document — hidden is the list's business, gone would be a claim about the
     # log (test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page).
     expect(
@@ -5157,7 +5267,7 @@ def test_the_panel_composes_state_scope_subject_and_placement_facets(browser, se
 
     # One open thread awaits neither party after a complete agent answer.
     settled_turn = panel_comment(d, "A complete answer is available.")
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         d, settled_turn, "Done; nothing more is needed.", None, for_event=settled_turn
     )
     page = open_page(browser, url)
@@ -5333,14 +5443,14 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     url = serve(PANEL_PAGE)
     answered = panel_comment(serve.page_dir, "Why forty?", {"section": "how-cap"})
     asked = panel_comment(serve.page_dir, "What remains?", {"section": "how-store"})
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         serve.page_dir,
         answered,
         "Forty is what the slowest supported device can hold.",
         None,
         for_event=answered,
     )
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         serve.page_dir,
         asked,
         "One choice remains. Which store should own the result?",
@@ -5409,7 +5519,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     # The completed thread is absent under the narrowing. A later structured ask must
     # still be projected before the filter decides whether to admit that thread, or the
     # question can never render itself into the list that would discover it.
-    widget_reply = thread_model.cmd_reply(
+    widget_reply = thread_model.post_reply(
         serve.page_dir,
         answered,
         "Choose the backend here.",
@@ -5485,14 +5595,14 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
         )
         for text in ("Widen the north bracket?", "And the south pair?")
     )
-    answer = thread_model.cmd_reply(
+    answer = thread_model.post_reply(
         serve.page_dir,
         answered["id"],
         "Widened it to forty.",
         None,
         for_event=answered["id"],
     )
-    receipt = thread_model.cmd_reply(
+    receipt = thread_model.post_reply(
         serve.page_dir,
         unanswered["id"],
         "The agent's turn ended without an answer to this message. "
@@ -6300,7 +6410,7 @@ def test_an_inline_reply_link_finishes_a_resolution_fold(browser, serve):
     """A direct jump uses the resolved card, even before its outgoing fold ends."""
     url = serve(SEATED_QUESTION_PAGE)
     root = panel_comment(serve.page_dir, "Which job first?", {"section": "jobs"})
-    reply = thread_model.cmd_reply(
+    reply = thread_model.post_reply(
         serve.page_dir,
         root,
         "Pick the first job.",
@@ -7022,7 +7132,7 @@ def test_a_delayed_accordion_reveal_yields_to_the_users_new_thread(browser, serv
     page.locator(".lf-threads").focus()
     # The thread the list shows asks the user a question too, so focus on the list is
     # standing on that item of their queue; the hidden Ask stands before it on the page.
-    page.keyboard.press("Shift+a")
+    page.keyboard.press("Shift+q")
     page.wait_for_function(
         "window.visibleThreadPresentationHeld === true", timeout=3000
     )
@@ -8427,7 +8537,7 @@ def test_the_line_offers_the_thread_g_t_lands_on_its_own_keys(browser, serve):
 def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     browser, serve
 ):
-    """The Ask reading and the Queue read the log; the panel's narrowing is a view.
+    """The Ask reading and the Questions panel read the log; the panel's narrowing is a view.
 
     A question an agent asks in a reply is a widget instantiated once, in the panel's
     card, and every other reading of it finds that widget by id in the document. So
@@ -8436,7 +8546,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     minute later — the narrowing let go — both came back, with nothing in the log
     having moved. A blind drive spent a locator timeout on the flip.
 
-    The card the narrowing hides is hidden, not gone, so the count and the Queue hold."""
+    The card the narrowing hides is hidden, not gone, so the count and the Questions panel hold."""
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
     )
@@ -8857,6 +8967,80 @@ def test_leaving_a_long_threads_reply_keeps_the_list_where_it_was(browser, serve
     rendered(page)
     scroll_settled(page, ".lf-threads")
     assert page.locator(".lf-threads").evaluate("list => list.scrollTop") == before
+    assert card.locator(".lf-msg").last.evaluate(IN_LANDING_BAND)["inside"]
+
+
+def test_reopening_a_touch_panel_keeps_its_reading_position_and_draft(browser, serve):
+    """A modal panel returns to the turn being read; an explicit thread walk lands.
+
+    Reopening forwarded focus through the retained list as a fresh navigation and
+    carried an earlier reading to the latest turn, despite keeping the draft node.
+    """
+    url = serve(PANEL_PAGE)
+    root = seed_panel_threads(serve.page_dir, 1, long_index=0)[0]
+    context = browser.new_context(
+        has_touch=True,
+        viewport={"width": 390, "height": 740},
+        reduced_motion="reduce",
+    )
+    page = open_page(browser, url, context=context)
+    toggle = page.locator(".lf-threads-toggle")
+    toggle.tap()
+    panel_settled(page)
+    panel = page.locator(".lf-thread-panel")
+    envelope = page.locator(".lf-auxiliary-envelope")
+    assert envelope.evaluate("el => el.matches(':modal')")
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    if card.get_attribute("open") is None:
+        card.locator(":scope > .lf-thread-summary").tap()
+    earlier = card.get_by_role(
+        "button", name=re.compile(r"^Show \d+ earlier messages$")
+    )
+    if earlier.is_visible():
+        earlier.tap()
+    field = card.locator(".lf-thread-reply leaf-text")
+    field.tap()
+    draft = "\n".join(f"Draft line {n}" for n in range(20))
+    page.keyboard.insert_text(draft)
+    expect(field).to_have_js_property("value", draft)
+    retained = field.element_handle()
+    caret = field.evaluate("el => [el.selectionStart, el.selectionEnd]")
+    rendered(page)
+    listing = page.locator(".lf-threads")
+    limit = listing.evaluate("el => el.scrollHeight - el.clientHeight")
+    assert limit > listing.evaluate("el => el.clientHeight")
+    port = listing.bounding_box()
+    touch = context.new_cdp_session(page)
+    touch.send(
+        "Input.synthesizeScrollGesture",
+        {
+            "x": port["x"] + port["width"] * 0.7,
+            "y": port["y"] + min(80, port["height"] / 4),
+            "yDistance": limit + 100,
+            "gestureSourceType": "touch",
+            "speed": 10000,
+        },
+    )
+    scroll_settled(page, ".lf-threads")
+    before = listing.evaluate("el => el.scrollTop")
+    assert before < limit - 100, "the touch gesture must reveal an earlier turn"
+    panel.get_by_role("button", name="Close threads", exact=True).tap()
+    panel_settled(page, open=False)
+    assert not envelope.evaluate("el => el.matches(':modal')")
+    toggle.tap()
+    panel_settled(page)
+    rendered(page)
+    scroll_settled(page, ".lf-threads")
+    assert envelope.evaluate("el => el.matches(':modal')")
+    assert listing.evaluate("el => el.scrollTop") == before
+    assert field.evaluate("(el, retained) => el === retained", retained)
+    expect(field).to_have_js_property("value", draft)
+    assert field.evaluate("el => [el.selectionStart, el.selectionEnd]") == caret
+    page.keyboard.press("t")
+    page.wait_for_function(
+        "before => document.querySelector('.lf-threads').scrollTop > before", arg=before
+    )
+    scroll_settled(page, ".lf-threads")
     assert card.locator(".lf-msg").last.evaluate(IN_LANDING_BAND)["inside"]
 
 
@@ -10060,7 +10244,7 @@ def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser,
 
 
 def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve):
-    """A card the narrowing hid keeps its node, so the `a` walk can still name the
+    """A card the narrowing hid keeps its node, so the `q` walk can still name the
     question in it — and arriving there has to show it, the way showThread does:
     focus on a card with no box is a no-op and the announcement would say "1 of 2"
     over a list that shows something else. The thread the list shows asks the user a
@@ -10078,7 +10262,7 @@ def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve
     page.get_by_role("searchbox", name="Find in threads").fill("stay blocked")
     expect(card).to_have_attribute("hidden", "")
     page.locator(".lf-threads").focus()
-    page.keyboard.press("Shift+a")
+    page.keyboard.press("Shift+q")
     expect(card).not_to_have_attribute("hidden", "")
     expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value("")
     assert page.evaluate(

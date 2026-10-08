@@ -1,14 +1,10 @@
 # Codex App Server handoff and delivery
 
-This contract is for a Codex task Leaf reaches over Codex App Server
-(`codex app-server`), the JSON-RPC server Codex's clients drive a task through. Leaf
-is a client of the task's server: it starts the turns that carry user input and takes
-each turn's opening and final messages as its reply. A terminal task is on App Server when its
-environment sets `LEAF_CODEX_APP_SERVER`, as a `leaf codex launch` terminal does, or
-when the user gave you the task's App Server endpoint; it hands its own page over, as
-"Hand a page over from a terminal" describes. A harness that starts the task itself, as
-leaf.page does, says so in its own instructions and has already handed the page over.
-Any other Codex task, the desktop app's included, follows `references/harness-codex.md`.
+Use this contract when the main skill's "Harness selection" selects Codex App
+Server. Leaf starts the turns that deliver user input and writes each turn's
+opening and final messages to its addressed thread. A harness that starts the
+task, such as leaf.page, has already handed the page over. A terminal task hands
+its page over as "Hand a page over from a terminal" describes.
 
 ## Delivery
 
@@ -26,17 +22,22 @@ delivers to this task over App Server.
 
 ## Replies
 
-Each slice contains at most one thread reply, delivered as a `turn` answer, and
-your turn's first message and final message write it. Before your first tool call,
-open with a short message to the user: the answer, or what you are about to do. Leaf streams it into the addressed thread at
-once, so the user reads it while you work. Later working messages stay in Codex. Your
-final message completes the reply, and Leaf commits the opening and the final message
-together through the same reply contract as `leaf thread reply`. Do not run `leaf thread reply` for
-that response, which refuses it. The final message cannot move or detach its
-thread, so the thread keeps its anchor. Leaf titles an untitled thread the reply
-answers from its opening message, so it needs no title from you. If the user
-resolves the thread before the turn completes, the reply still posts and reopens
-it. A later plain reply remains pending for the next slice.
+Each slice contains at most one thread reply, with `kind: "reply"` and
+`writer: "turn"`. Before your first tool call, open with a short message to the
+user: the answer or what you are about to do. Leaf streams it into the captured
+thread at once. Later working messages stay in Codex. Your completed final
+commits the reply through the same durable writer as `leaf response reply`.
+
+For a reply needing widgets, a prose question awaiting the user, a title or a
+changed anchor, author it with `leaf response reply <answer.ref>` and the rich
+options in [threads](threads.md). The command prepares the full reply on this
+turn's reservation; your completed final commits that content, including its
+text. Without preparation, Leaf commits your opening and final text. A failed
+or interrupted turn leaves no durable prepared answer. Leaf may title an
+untitled thread from its opening before your reply arrives; that name stands.
+
+If the user resolves the thread before completion, a successful reply still posts
+and reopens it. A prepared failure posts only while that input still needs an answer. A later reply remains pending for the next slice.
 
 Other answers in the slice take the operations their delivered `handling`
 clauses name.
@@ -47,7 +48,7 @@ after the model's turn has ended, when it can no longer correct the edit.
 
 A `leaf-delivery` pointer queued before Leaf observed the task can still arrive as a
 user message. Read it with `leaf delivery read <id>`: it was frozen for the queue, so
-its reply is a plain `reply` for `leaf thread reply`, as `references/harness-codex.md`
+its reply has `writer: "agent"` for `leaf response reply <answer.ref>`, as `references/harness-codex.md`
 describes.
 
 ## Activity
@@ -67,47 +68,15 @@ serving leaves running: it connects to the task's server as a second
 client, watches the task's own turns, and starts a delivery's turn once the task is
 idle. This route is experimental.
 
-### Start the terminal
+If the user supplied an endpoint and `LEAF_CODEX_APP_SERVER` is absent, bind it
+before serving starts an adapter on another route:
 
-The normal entry point starts a private Unix-socket App Server and runs the terminal
-client against it:
-
-```sh
-leaf codex launch
+```bash
+leaf codex start <page> --app-server <supplied-endpoint>
 ```
 
-The launcher exports its endpoint to the task as `LEAF_CODEX_APP_SERVER` and owns
-both processes. Exiting the terminal stops its App Server, so each terminal is
-independent and no fixed port or separate server tab remains. Observed activity ends
-with that server.
-
-To run the two processes separately, create a private socket directory and print
-its endpoint before starting App Server:
-
-```sh
-socket_dir=$(mktemp -d /tmp/leaf-codex.XXXXXX)
-endpoint="unix://$socket_dir/app-server.sock"
-printf '%s\n' "$endpoint"
-codex app-server --listen "$endpoint"
-```
-
-In the terminal client's shell, copy that printed endpoint:
-
-```sh
-export LEAF_CODEX_APP_SERVER="<printed endpoint>"
-codex --remote "$LEAF_CODEX_APP_SERVER"
-```
-
-The task inherits the endpoint, so `leaf codex start` connects to that App Server.
-Each pair of processes has its own socket; parallel versions need no port assignment.
-
-Only `unix://<absolute path>` sockets and unauthenticated loopback `ws://` endpoints
-are accepted; keep a socket you supply in a directory only you can reach, as
-`leaf codex launch` does. The loopback WebSocket listener is experimental; do not
-expose it on a network. Keep the CLI open because it is still the interactive client for
-approvals and user input. The task is still stored in Codex's task history and can be
-resumed later from the CLI or desktop app after the standalone server releases its
-writer; the desktop app is not a live client of this separately started server.
+If an adapter already holds a different endpoint, follow the conflict diagnostic.
+Terminal launch and independent-shell setup are in `references/codex-setup.md`.
 
 ### Full Leaf handoff
 
@@ -117,8 +86,8 @@ theme, package widgets, anchored comments, versions, and state stream unchanged.
 
 Serving starts or joins the task's delivery adapter before returning the URL,
 using `LEAF_CODEX_APP_SERVER` as its endpoint. Re-serving restores an adapter that
-stopped, including when the page server is already running. Set the page to
-`waiting`, then finish the turn with the URL and a concrete gesture. The adapter
+stopped, including when the page server is already running. Follow
+`references/conversation-loop.md`, "Status and handoff". The adapter
 watches every page this task owns, and a completed turn does not stop it.
 
 `leaf codex start <page>` connects delivery explicitly when claiming without
@@ -129,7 +98,7 @@ than the one that adapter holds.
 
 A `leaf wait` this task already runs, or a watcher task, carries input without the
 adapter, as `references/harness-codex.md`, "Routes without the adapter", describes; on those routes there is no App Server turn to bind, so
-answer with `leaf thread reply`.
+answer with `leaf response reply <answer.ref>`.
 
 If serving refuses to connect delivery, fix its diagnostic before handing the
 page over. Serving honors an existing direct `leaf wait`; an explicit

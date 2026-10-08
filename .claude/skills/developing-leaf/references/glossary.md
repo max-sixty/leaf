@@ -33,7 +33,7 @@ and implementation terms retain their exact spelling when the reader needs them.
 | **Update** | A user input of any kind, or a mixed collection of inputs: “Your updates are saved”. Where its kind is known, name the **comment**, **reply**, **choice**, **reaction** or **approval** instead |
 | **Response** | Aggregate work owed to user input when its required kind is not available: “2 responses owed”. Where the kind is known, name the **answer** or **reply** instead |
 | **Answer** | A response satisfying an Ask or a user update: a choice, a reply, or a stamped revision, as the declared requirement specifies. Use the specific noun when its kind is known |
-| **Reply** | A message in a conversation, including an answer or a proactive message. A reply owed by the agent is separate from delivery and work: the Queue calls message obligations **replies** and revision obligations **answers** until they arrive |
+| **Reply** | A message in a conversation, including an answer or a proactive message. A reply owed by the agent is separate from delivery and work: the Questions panel calls message obligations **replies** and revision obligations **answers** until they arrive |
 | **Delivery** | Whether an update reached the agent. **Sending**, **Queued** and **Picked up** describe delivery; Picked up does not claim work has begun |
 | **Working** | The agent is currently working. A particular update or task says Working only when the agent explicitly starts it; page activity alone does not establish that fact |
 | **Undo** | Take back the latest eligible user update. Do not rename this action after the widget verb it withdraws |

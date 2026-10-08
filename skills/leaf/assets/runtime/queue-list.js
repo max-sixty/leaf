@@ -132,7 +132,7 @@ class QueueList extends RetainedFace {
     for (const row of this.querySelectorAll(ROW)) {
       if (this.#wired.has(row)) continue;
       this.#wired.add(row);
-      keys(row, "In the Queue", [
+      keys(row, "In Questions", [
         { id: "queue.row.open", keys: PRESS, title: "go to this item" },
         {
           id: "queue.row.done",

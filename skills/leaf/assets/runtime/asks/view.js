@@ -289,11 +289,11 @@ export function createAskView({
     return presenter.present();
   }
 
-  // An answered Ask normally keeps semantic focus on its own element after a Queue row's
-  // arrival. A boxless answered widget cannot: its visible revision control is the only
-  // focus target. Remember that exact target for this arrival, and only while it still
-  // owns focus, so returning to the same control ordinarily does not promote it from its
-  // own local meaning to the whole Ask again.
+  // An answered Ask normally keeps semantic focus on its own element after a Questions
+  // panel row's arrival. A boxless answered widget cannot: its visible revision control
+  // is the only focus target. Remember that exact target for this arrival, and only while
+  // it still owns focus, so returning to the same control ordinarily does not promote it
+  // from its own local meaning to the whole Ask again.
   let reviewedThrough = null;
   function hasReviewedFocus() {
     if (reviewedThrough?.isConnected && focused() === reviewedThrough) return true;
@@ -390,8 +390,8 @@ export function createAskView({
   // around the entire surface even though the focused control already shows the action.
   //
   // Keyed on focus and not on :focus-visible, which is a claim about the last input rather
-  // than about where the user is: a Queue row's press lands the focus by script after a
-  // click, and the ask it brought the user to would wear nothing at all.
+  // than about where the user is: a Questions panel row's press lands the focus by script
+  // after a click, and the ask it brought the user to would wear nothing at all.
   //
   // The ask wears it, and so does every box it shows through (shownParts): the ask is
   // what carries the id captureView writes down and the place the queue walk measures from,
@@ -457,9 +457,9 @@ export function createAskView({
   // place that cannot misfire, because it holds a lent tab stop rather than a decision:
   // the widget's context routes are live there and Space decides nothing.
   //
-  // Chrome is excluded because it has nothing to restore: a Queue row and a margin entry
-  // for the same Ask are keyed by that id already, so a patch hands each of them back as
-  // the same element, still holding the focus the user put on it.
+  // Chrome is excluded because it has nothing to restore: a Questions panel row and a
+  // margin entry for the same Ask are keyed by that id already, so a patch hands each of
+  // them back as the same element, still holding the focus the user put on it.
   function captureStanding() {
     const held = documentFocused();
     if (!held || held === document.body || inChrome(held)) return null;

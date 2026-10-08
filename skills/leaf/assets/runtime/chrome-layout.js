@@ -210,7 +210,7 @@ export function createChromeLayout({
   }
 
   // The side panel's edge, on the right, which Threads and Questions share, and the
-  // Leaves drawer's, on the left. Each keeps
+  // pages drawer's, on the left. Each keeps
   // the user's choice in their own store rather than the tab's, because where a user
   // keeps their threads, and how much of the page they will give a drawer, is the
   // chrome they arrange and expect to find arranged wherever they are reading (see

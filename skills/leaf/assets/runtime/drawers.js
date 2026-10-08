@@ -278,9 +278,9 @@ export function createDrawers({
     );
   }
   // A standing drawer is one layer of the page the user put on by pressing its button, so
-  // Escape takes it off again. Whichever drawer holds the edge is named by the step, so the
-  // user is told what the press will take rather than being told "close the drawer" over
-  // two of them, by the word its door in the banner says. Rooted at the open drawer, so
+  // Escape takes it off again. Whichever drawer stands is named by the step, so the user
+  // is told what the press will take rather than "close the drawer", by the word its door
+  // in the banner says. Rooted at the open drawer, so
   // the step survives the width at which that drawer covers the page and becomes the
   // floor.
   pageRung("drawer", () =>

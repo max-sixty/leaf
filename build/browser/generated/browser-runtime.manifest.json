@@ -23,7 +23,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "b3386dd7d5fad99e90ed9f3216ea4b6f2b0ab842a19747a94c5dafa03a55c66e",
+  "lockfileSha256": "73a0e2933d57682e4752d5002a67f9f913465517321298f4839c0209ca632ed5",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -58,7 +58,9 @@
     "markdown-it-task-lists": "2.1.1",
     "photoswipe": "5.4.4",
     "sortablejs": "1.15.7",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "viewerjs": "1.15.2",
+    "vis-timeline": "8.5.4"
   },
   "bundledDependencies": {
     "@lit/reactive-element": "2.1.2",

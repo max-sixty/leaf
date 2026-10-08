@@ -112,6 +112,42 @@ from render_harness import (
 pytestmark = pytest.mark.nightly
 
 
+@pytest.mark.parametrize("touch", [False, True])
+def test_native_disclosure_inherits_the_offered_control_target(browser, serve, touch):
+    """A native disclosure gets the same press target without a widget-specific rule."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=touch
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Native disclosure",
+                """<h1>Comparison</h1>
+<details id="comparison"><p>Inspection controls.</p></details>
+<script type="module">
+import {offer} from '/runtime/widget-api.js';
+const summary = offer('summary', '', 'Inspect comparison');
+summary.id = 'inspect';
+document.querySelector('#comparison').prepend(summary);
+</script>""",
+            )
+        ),
+        context=context,
+    )
+    control = page.locator("#inspect")
+    before = control.bounding_box()
+    floor = 44 if touch else 24
+    assert min(before["width"], before["height"]) >= floor - 0.5, before
+    control.click()
+    expect(page.locator("#comparison")).to_have_attribute("open", "")
+    assert control.bounding_box() == before
+    control.press("Space")
+    expect(page.locator("#comparison")).not_to_have_attribute("open", "")
+    assert control.bounding_box() == before
+    context.close()
+
+
 @pytest.mark.parametrize("width", [390, 1440])
 def test_merge_film_play_continues_from_the_displayed_moment(browser, serve, width):
     source = next(path for path in EXAMPLES if path.name == "wt-merge.html")

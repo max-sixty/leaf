@@ -450,6 +450,8 @@ def canonical_activity(
     stream: dict | None = None,
     reply: dict | None = None,
     bindings: dict | None = None,
+    *,
+    task_reading=None,
 ) -> dict:
     """Return the one current reading of agent activity for a page snapshot.
 
@@ -464,8 +466,9 @@ def canonical_activity(
     `turn` under the binding's attempt: every consumer that holds the agent to an
     answer, or refuses a second writer, reads that answer rather than the
     binding."""
-    from .tasks import owed_tasks
+    from .tasks import TaskReading
 
+    log = task_reading or TaskReading(events)
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
     declared = declared_at(present, events)
@@ -488,9 +491,7 @@ def canonical_activity(
     workflows, aging = _canonical_workflows(
         interaction_evidence, present, now, held=held, turn=turn
     )
-    tasks, task_aging = _canonical_tasks(
-        owed_tasks(events), present, now, held=held, turn=turn
-    )
+    tasks, task_aging = _canonical_tasks(log.owed, present, now, held=held, turn=turn)
     _bind_reply(workflows, reply)
     for item in workflows:
         binding = (bindings or {}).get(item.get("input"))

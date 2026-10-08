@@ -159,13 +159,11 @@ def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
     the Stop hook name the same operation. An input a newer one in its thread covers
     owns none; the newest carries the thread's one answer.
     """
-    from .served_state.page import full_state
+    from .served_state.work import live_work
 
     return {
         item["input"]: item["answer"]
-        for item in full_state(page_dir, events, layer_identity={})["activity"][
-            "obligations"
-        ]
+        for item in live_work(page_dir, events).obligations
     }
 
 

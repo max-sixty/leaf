@@ -108,6 +108,7 @@ from leaf.registry import storage as registry_storage
 from leaf.served_state import browser as browser_served_model
 from leaf.served_state import context as read_context
 from leaf.served_state import page as served_page
+from leaf.served_state import work as work_served_model
 from leaf_dev.arms import PageClient
 from leaf_dev.page_fixtures import package_selection_args
 from websockets.exceptions import WebSocketException
@@ -966,7 +967,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         browser_served_model._apply_thread_attention(
             threads,
             {"user": []},
-            browser_served_model.served_workflows(workflows, frozen),
+            work_served_model.served_workflows(workflows, frozen),
             [
                 {
                     "id": "t1",
@@ -1061,7 +1062,7 @@ def test_served_workflows_list_the_strongest_first():
     ]
     frozen = projection_model.FrozenThreadReading(None, {}, {}, {}, None)
     for workflows, expected in cases:
-        served = browser_served_model.served_workflows(workflows, frozen)
+        served = work_served_model.served_workflows(workflows, frozen)
         assert [item["id"] for item in served] == expected
 
 

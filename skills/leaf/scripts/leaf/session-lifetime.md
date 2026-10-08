@@ -60,7 +60,7 @@ canonical publication.
 `replying`, or the retained terminal `answered` outcome), and any separately proven
 `condition`. The served list also names the `thread` each workflow stands in (null for
 a page widget) and whether it `holds_thread` the agent's turn, and lists the strongest
-first (`served_state.browser.served_workflows`): a surface that shows one workflow of
+first (`served_state.work.served_workflows`): a surface that shows one workflow of
 several shows the first, and the browser places only its own unresolved sends
 against that order. A Sent input that remains
 unpicked after the short grace has a stale delivery condition. A pickup whose

@@ -38,10 +38,10 @@ from leaf.registry.contract import (
 from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_error
 from leaf.schema import MESSAGE_KINDS, WIDGET_KINDS
-from leaf.served_state.thread import browser_thread
 from leaf.structure import review_mode
 from leaf.tasks import task_error
 from leaf.work import widget_seat_error
+from leaf.work_reading import WorkReading
 from leaf.workflows import admission_tasks, admission_workflows, obligation_reading
 
 # The envelope the append lease itself assigns. Admission validates the complete
@@ -491,10 +491,10 @@ def _approval_error(view, event: dict, events: list, registry: dict):
     page = page_reading(view.reading(revision, registry), events, revision)
     threads = build_threads(events, page.within)
     document_state = read_document(page, threads)
-    thread, _reading = browser_thread(events, registry, threads)
+    work = WorkReading(events, registry, page)
     unanswered = [
         *document_state.asks["unanswered"],
-        *thread["asks"]["unanswered"],
+        *work.asks["unanswered"],
     ]
     if unanswered:
         identities = ", ".join(ask["id"] for ask in unanswered)
@@ -637,11 +637,7 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
     if event["kind"] not in {"task", "task_end", "start"}:
         return None
     workflows = admission_workflows(readings)[0] if event["kind"] != "task_end" else []
-    threads = (
-        build_threads(events, view.within, withdrawn=taken_back(events))
-        if event["kind"] == "task"
-        else {}
-    )
+    threads = readings.work.threads if event["kind"] == "task" else {}
 
     def seat_error(widget: str) -> str | None:
         if not view.revisions:
@@ -659,7 +655,7 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
     def user_widget_error(widget: str) -> str | None:
         if error := element_error(widget):
             return error
-        asks = read_document(readings.page(view.revisions[-1]), threads).asks["all"]
+        asks = readings.work.document.asks["all"]
         if ask := next(
             (ask for ask in asks if widget in (ask["id"], ask["source"])), None
         ):
@@ -672,7 +668,7 @@ def _task_error(view, event: dict, events: list, readings) -> str | None:
     owed = {item["input"] for item in workflows if item["next_actor"] == "agent"}
     return task_error(
         event,
-        events,
+        readings.log,
         threads,
         seat_error=seat_error,
         element_error=element_error,

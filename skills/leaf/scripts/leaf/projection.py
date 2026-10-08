@@ -361,6 +361,8 @@ def state_projection(
     registry: dict,
     upto,
     floors: dict | None = None,
+    *,
+    withdrawn: set | None = None,
 ) -> StateProjection:
     """Project user actions and agent reports onto owner-unit-verb coordinates.
 
@@ -377,7 +379,8 @@ def state_projection(
     derived readings. An event whose widget the markup lacks stands nowhere."""
     if floors is None:
         floors = retractions(events, upto)
-    withdrawn = taken_back(events)
+    if withdrawn is None:
+        withdrawn = taken_back(events)
     settled = report_settlements(events, upto)
     actions = {}
     standing = set()
@@ -450,7 +453,9 @@ def with_action(
     )
 
 
-def frozen_thread_reading(events: list, registry: dict) -> FrozenThreadReading:
+def frozen_thread_reading(
+    events: list, registry: dict, *, withdrawn: set | None = None
+) -> FrozenThreadReading:
     """Project every frozen message fragment through one shared reading."""
     structure = thread_structure(events)
     by_name = thread_names(events)
@@ -463,7 +468,9 @@ def frozen_thread_reading(events: list, registry: dict) -> FrozenThreadReading:
         spk,
         by_name,
         by_widget,
-        state_projection(events, structure.by_id, spk, registry, None, floors={}),
+        state_projection(
+            events, structure.by_id, spk, registry, None, floors={}, withdrawn=withdrawn
+        ),
     )
 
 
@@ -652,7 +659,9 @@ def folded_value(e: dict, spec: dict):
     return value
 
 
-def page_reading(reading: SourceReading, events: list, revision: int) -> PageReading:
+def page_reading(
+    reading: SourceReading, events: list, revision: int, *, withdrawn: set | None = None
+) -> PageReading:
     """Read one page's markup and log window through one construction.
 
     Document inspection and the passage readings used by `leaf thread open` and
@@ -670,6 +679,7 @@ def page_reading(reading: SourceReading, events: list, revision: int) -> PageRea
             reading.spoken,
             reading.registry,
             revision,
+            withdrawn=withdrawn,
         ),
     )
 

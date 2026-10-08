@@ -17,7 +17,7 @@ from .registry.storage import layer_metadata, require_registry
 from .revision_artifact import active_enclosing
 from .revisioning import activate_source
 from .schema import DATA_DIR, DATA_FILE
-from .served_state.browser import at_work
+from .served_state.work import at_work
 from .served_state.context import read_page
 from .served_state.page import read_served_page
 from .server import running_server

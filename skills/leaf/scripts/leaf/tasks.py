@@ -68,6 +68,8 @@ repository depends on them.
 """
 
 import sys
+from dataclasses import dataclass
+from functools import cached_property
 from pathlib import Path
 
 from .asks import settles
@@ -128,13 +130,40 @@ def _outcome(event: dict, detail: str | None) -> dict:
     }
 
 
-def canonical_tasks(events: list) -> list[dict]:
-    """Every task the log holds, oldest first, with its current state and the start
-    running on it while it is open. An ending naming no task the log holds is skipped,
-    as other folds skip a lost line, and so is a task with no `owner`, which an earlier
-    Leaf wrote."""
+@dataclass(frozen=True)
+class TaskReading:
+    """Task facts for one admitted log. Consumers share this in-memory reading;
+    no derived state survives the transaction or chooses a different event basis."""
+
+    events: list
+
+    @cached_property
+    def withdrawn(self) -> set:
+        return taken_back(self.events)
+
+    @cached_property
+    def starts(self) -> dict:
+        return item_starts(self.events)
+
+    @cached_property
+    def tasks(self) -> list[dict]:
+        return _tasks(self.events, self.withdrawn, self.starts)
+
+    @cached_property
+    def ends(self) -> dict:
+        return _ends(self.events, self.withdrawn)
+
+    @property
+    def owed(self) -> list[dict]:
+        return [
+            task
+            for task in self.tasks
+            if task["state"] == "open" and task["owner"] == "agent"
+        ]
+
+
+def _tasks(events: list, withdrawn: set, standing: dict) -> list[dict]:
     tasks: dict[str, dict] = {}
-    withdrawn = taken_back(events)
 
     def end(task: dict, state: str, event: dict, detail: str | None) -> None:
         task["state"] = state
@@ -169,19 +198,13 @@ def canonical_tasks(events: list) -> list[dict]:
                 task = tasks.get(identity)
                 if task is not None and task["state"] == "open":
                     end(task, "done", event, f"v{event['version']}")
-    standing = item_starts(events)
     for task in tasks.values():
         if task["state"] == "open" and task["id"] in standing:
             task["running"] = running(standing[task["id"]])
     return list(tasks.values())
 
 
-def task_ends(events: list) -> dict[str, dict]:
-    """Each task id a `task_end` names, to how it ended. The user's tasks that an Ask
-    or a thread's question holds have no `task` event, so their ending is read here,
-    and the readings of those Asks and questions take an ended one off the user. The
-    user's Done taken back with `undo` ends nothing."""
-    withdrawn = taken_back(events)
+def _ends(events: list, withdrawn: set) -> dict:
     return {
         event["task"]: {
             "state": event["outcome"],
@@ -192,13 +215,20 @@ def task_ends(events: list) -> dict[str, dict]:
     }
 
 
+def canonical_tasks(events: list) -> list[dict]:
+    """Every logged task, including ended ones and the standing start on open ones.
+    A task without an owner from an earlier runtime is absent."""
+    return TaskReading(events).tasks
+
+
+def task_ends(events: list) -> dict[str, dict]:
+    """The standing endings, including endings of questions with no task event."""
+    return TaskReading(events).ends
+
+
 def owed_tasks(events: list) -> list[dict]:
     """The agent's tasks nothing has ended: the work it still owes."""
-    return [
-        task
-        for task in canonical_tasks(events)
-        if task["state"] == "open" and task["owner"] == "agent"
-    ]
+    return TaskReading(events).owed
 
 
 def log_tasks_open(events: list) -> list[dict]:
@@ -300,7 +330,8 @@ def ask_tasks(asks: dict) -> tuple[list[dict], list[dict]]:
 def page_tasks(
     log: list[dict],
     thread_asks: dict,
-    threads: list[dict],
+    threads: dict,
+    prompts: dict,
     ends: dict[str, dict],
     tokens: dict,
 ) -> tuple[list[dict], list[dict]]:
@@ -310,8 +341,8 @@ def page_tasks(
 
     `log` is the log's tasks (`canonical_tasks`), each stamped with its thread, the
     agent's open ones as the activity fold aged them. `thread_asks` is the frozen
-    threads' Ask reading, and `threads` the served threads, whose `user_prompt` names
-    the agent turn a thread's question stands on: a thread whose agent turn asks the
+    threads' Ask reading, and `threads` the durable threads; `prompts` names
+    the agent turn each thread's question stands on: a thread whose agent turn asks the
     user in prose is a task on the user under that turn's id, open until the user
     answers it in the thread, settles it with a reaction, or the agent ends it with a
     `task_end` in `ends`. An answered question is done, its outcome the user's move
@@ -319,8 +350,8 @@ def page_tasks(
     `$reactions.tokens`), so the Queue panel lists it with the other ended tasks."""
     standing, ended = ask_tasks(thread_asks)
     held = {task["id"] for task in log}
-    for thread in threads:
-        prompt = thread["user_prompt"]
+    for identity, thread in threads.items():
+        prompt = prompts.get(identity)
         for message in thread["msgs"]:
             if prompt is not None and message["id"] == prompt["message"]:
                 outcome = None
@@ -332,8 +363,8 @@ def page_tasks(
                 continue
             task = _derived(
                 message["id"],
-                {"kind": "thread", "id": thread["id"]},
-                thread["id"],
+                {"kind": "thread", "id": identity},
+                identity,
                 "open",
                 ENDS_BY_REPLY,
                 ended=outcome,
@@ -370,7 +401,7 @@ def _answer(thread: dict, question: dict, tokens: dict) -> dict | None:
 
 def task_error(
     event: dict,
-    events: list,
+    log: TaskReading,
     threads: dict,
     *,
     seat_error,
@@ -419,7 +450,7 @@ def task_error(
         return None
     if kind == "start":
         item = event["item"]
-        if item in owed or any(task["id"] == item for task in owed_tasks(events)):
+        if item in owed or any(task["id"] == item for task in log.owed):
             return None
         return (
             f"{item!r} is neither an open task of yours nor a move you owe; start the "
@@ -430,7 +461,7 @@ def task_error(
     identity = event["task"]
     task = next((task for task in tasks() if task["id"] == identity), None)
     if task is None:
-        if ended := task_ends(events).get(identity):
+        if ended := log.ends.get(identity):
             return f"task {identity!r} has already ended ({ended['state']})"
         return f"unknown task {identity!r}"
     if task["ends"] == ENDS_BY_WIDGET:

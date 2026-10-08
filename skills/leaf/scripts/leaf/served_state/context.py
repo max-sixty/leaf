@@ -43,6 +43,20 @@ class PageRead:
     taken: float
 
     @cached_property
+    def work(self):
+        from .work import work_state
+
+        active = self.active
+        return work_state(
+            self.events,
+            self.revision(active["revision"]) if active else None,
+            active["revision"] if active else None,
+            self.presence,
+            self.now,
+            self.live_stream,
+        )
+
+    @cached_property
     def data(self) -> dict:
         return self.stored_data()
 

@@ -31,13 +31,37 @@ class AdmissionReadings:
         self._pages: dict = {}
 
     @cached_property
+    def log(self):
+        from .tasks import TaskReading
+
+        return TaskReading(self.events)
+
+    @cached_property
+    def work(self):
+        from .work_reading import WorkReading
+
+        revisions = self.view.revisions
+        return WorkReading(
+            self.events,
+            self.registry,
+            self.page(revisions[-1]) if revisions else None,
+            thread=self.thread,
+            log=self.log,
+        )
+
+    @cached_property
     def thread(self):
-        return frozen_thread_reading(self.events, self.registry)
+        return frozen_thread_reading(
+            self.events, self.registry, withdrawn=self.log.withdrawn
+        )
 
     def page(self, revision: int):
         if revision not in self._pages:
             self._pages[revision] = page_reading(
-                self.view.reading(revision, self.registry), self.events, revision
+                self.view.reading(revision, self.registry),
+                self.events,
+                revision,
+                withdrawn=self.log.withdrawn,
             )
         return self._pages[revision]
 

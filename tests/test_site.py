@@ -38,10 +38,12 @@ from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.render_gate import version as render_gate_model
+from leaf.revision_artifact import read_artifact
 from leaf.structure import SourceDocument
 from leaf_dev import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets, raw_prefix, specification
+from leaf_dev.page_fixtures import source_packages
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_layout import banner_control
@@ -245,12 +247,12 @@ def opened(page, url):
     navigate(page, url, wait_until="load")
 
 
-def test_product_pages_vendor_the_composed_theme(site):
-    """Every authored product source becomes an independent complete page."""
-    packages = tuple(json.loads((EXAMPLES / "layer.json").read_text()))
-    inputs = [*layer_model.layer_inputs(packages), DOCS / "package"]
-    expected_theme = layer_model.composed_sheets(inputs)["theme.css"]
+def test_product_pages_vendor_the_composed_theme(site, monkeypatch):
+    """Publication and local previews compose the product source's same layer."""
+    monkeypatch.chdir(ROOT)
     for page in pages_under(DOCS):
+        inputs = layer_model.layer_inputs(tuple(source_packages(page)))
+        expected_theme = layer_model.composed_sheets(inputs)["theme.css"]
         target = site_build.product_page(site, page.name)
         published = (target / "index.html").read_text()
         source_markup = page.read_text()
@@ -300,6 +302,7 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
 
 
 def test_product_pages_are_published_as_complete_page_records(site):
+    """Each page retains its layer, history, and every captured media input."""
     sources = pages_under(DOCS)
     assert {source.name for source in sources} == set(site_build.PRODUCT_ROUTES)
     for source in sources:
@@ -313,13 +316,16 @@ def test_product_pages_are_published_as_complete_page_records(site):
             assert (page / name).is_file(), f"{source.name}: no {name}"
         for name in (
             "instructions",
-            "media",
             "revisions",
             "runtime",
             "vendor",
             "widgets",
         ):
             assert list((page / name).iterdir()), f"{source.name}: {name}/ is empty"
+        artifact = read_artifact(page, files_model.latest_revision(page))
+        for path, resource in artifact.resources.items():
+            if path.startswith("/media/"):
+                assert (page / path.lstrip("/")).read_bytes() == resource.data
         assert json.loads((page / "status.json").read_text())["state"] == "idle"
 
 
@@ -356,6 +362,8 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     """The edge gets served Leaf documents and browser assets, never session state."""
     assets = site_build.asset_site(site)
     pinned = pinned_assets()
+    root_media = SourceDocument((ROOT / "docs" / "index.html").read_text()).media_refs
+    root_media.add(media_url(pinned / site_build.SOCIAL_CARD))
     product_media = {
         Path(media_url(source)).name: source
         for source in (
@@ -365,6 +373,7 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
                 for page in catalog_sources()
             ),
         )
+        if media_url(source) in root_media
     }
     assert {path.name for path in (assets / "media").iterdir()} == set(product_media)
     for name, source in product_media.items():
@@ -464,9 +473,9 @@ def test_a_crawler_is_given_one_page_per_route(site):
             html = document.read_text(encoding="utf-8")
             head = html[: html.index("</head>")]
             assert canonical in head, document
-            assert f'content="{site_build.SITE_ORIGIN}{page["image"]}"' in head, (
-                document
-            )
+            assert (
+                f'content="{site_build.SITE_ORIGIN}{page["image"]}"' in head
+            ), document
             # A card falls back to the page's own words, so a stale title here is
             # what a shared link would show.
             assert (
@@ -543,9 +552,9 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         )
         for number, authored in enumerate(versions, start=1):
             revision = files_model.revision_path(page_dir, mappings[number])
-            assert revision.read_bytes() == authored.read_bytes(), (
-                f"{authored.name} changed while it was published"
-            )
+            assert (
+                revision.read_bytes() == authored.read_bytes()
+            ), f"{authored.name} changed while it was published"
 
         seed = source.with_suffix(".jsonl")
         if seed.exists():
@@ -1042,9 +1051,9 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         expect(page.locator('link[rel="stylesheet"]')).to_have_count(1)
         expect(page.locator("main > .sitenote")).to_have_count(0)
         if "<lf-toc" in source:
-            assert page.locator("lf-toc a").count() > 0, (
-                f"{name}: the table of contents has no links"
-            )
+            assert (
+                page.locator("lf-toc a").count() > 0
+            ), f"{name}: the table of contents has no links"
         state = page.evaluate("() => fetch('api/state').then(r => r.json())")
         assert state["publication"] == {
             "kind": "product",
@@ -2156,9 +2165,9 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     expect(thread).to_have_count(1)
     thread.locator(".lf-thread-summary").click()
     expect(thread.locator("blockquote")).to_have_text("“One reconnect in about 40”")
-    assert page.locator(".lf-thread-panel .lf-quote.detached").count() == 0, (
-        "the shipped anchor found nothing on the page it was captured from"
-    )
+    assert (
+        page.locator(".lf-thread-panel .lf-quote.detached").count() == 0
+    ), "the shipped anchor found nothing on the page it was captured from"
     # Painted, not merely resolved: the mark is what puts the user at the passage.
     assert "lf-mark" in page.evaluate("() => [...CSS.highlights.keys()]")
     # The question Claude asks in that thread is a widget, upgraded from the
@@ -2296,9 +2305,9 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     page.evaluate(
         "() => document.scrollingElement.scrollTo({top: 1500, behavior: 'instant'})"
     )
-    assert page.evaluate("() => document.scrollingElement.scrollTop") > 0, (
-        "the document did not scroll, so the landmark under test was never written"
-    )
+    assert (
+        page.evaluate("() => document.scrollingElement.scrollTop") > 0
+    ), "the document did not scroll, so the landmark under test was never written"
 
     # An example that ships no log of its own, so the count there is the user's
     # own doing or nobody's. Asked of the corpus rather than named, since a page
@@ -2311,9 +2320,9 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
     _, plain_url = served_example(plain)
     opened(page, plain_url)
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
-    assert page.evaluate("() => document.scrollingElement.scrollTop") == 0, (
-        "the second example opened at the offset left on the first"
-    )
+    assert (
+        page.evaluate("() => document.scrollingElement.scrollTop") == 0
+    ), "the second example opened at the offset left on the first"
 
 
 @pytest.mark.parametrize("scheme", ["light", "dark"])

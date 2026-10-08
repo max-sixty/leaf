@@ -23,6 +23,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { initialOutputs } from "../initial.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -209,6 +210,7 @@ export async function buildOutputs() {
     ),
   };
   outputs.set(manifestPath, Buffer.from(JSON.stringify(manifest, null, 2) + "\n"));
+  for (const [name, bytes] of await initialOutputs()) outputs.set(name, bytes);
   return outputs;
 }
 

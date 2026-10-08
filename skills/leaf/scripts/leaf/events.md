@@ -14,7 +14,7 @@ page and is not a global identifier. The kinds:
 | `edit` | agent | `leaf thread edit` | `message`, `text` | replaces one message's visible text; the original stays in the log |
 | `read` | user | `POST /api/event` | `messages: [{message, version}]` | records that this page's one user has read exact current or historical agent-content versions; `$events` declares it bookkeeping, so it adds no thread turn or agent work |
 | `thread_title` | agent | `--title` on `leaf thread open`, `reply` or `edit` | `thread`, `title` | names a thread in the panel; latest title wins without adding a turn or settling work |
-| `reanchor` | page | revision activation | `thread`, `revision`, `anchor: {section}` | a quoted passage no longer resolves; retains the open thread at its surviving section without adding a message, answering work or changing attention |
+| `reanchor` | page | revision activation | `thread`, `revision`, `anchor: {section} or null` | a passage or visual part no longer resolves; retains the open thread at its surviving section or detaches it without adding a message, answering work or changing attention |
 | `summary` | agent | `leaf thread summarize` | `thread`, `from`, `through`, `text`; optional `label` | folds one contiguous range with optional Markdown in the thread panel; originals stay in the log and remain revealable |
 | `resolve` | user or agent | `POST /api/event`, `leaf thread resolve` | `parent` | closes a thread |
 | `unresolve` | user | `POST /api/event` | `parent` | the user reopens a resolved thread |
@@ -42,11 +42,12 @@ landed on.
 Activation records a `reanchor` for every affected open thread, even when no reply
 addresses it. The original message retains its quote; `build_threads` reads the
 latest explicit reply transition or automatic reanchor as the current location, and
-keeps the anchor an automatic reanchor moved off as `rewritten_from` until a reply
-places the thread again, so the panel can go on naming the words that changed.
+keeps the old anchor as `rewritten_from` after a section fallback, or `detached_from`
+after detachment, until a reply places the thread again.
 Quoted text that the predecessor's file reading cannot resolve, such as words a
 data projection generates, stays with its runtime owner. An automatic transition
-cannot invent a replacement passage or detach a thread: a reply makes those choices.
+cannot invent a replacement passage; it detaches when the original section is gone.
+A reply can explicitly choose a new passage.
 
 A `drawing` is up to 32 freehand strokes (`strokes`, each a list of points) attached to
 an ordinary comment, and may be that comment's only content. The browser anchors it on
@@ -149,7 +150,10 @@ it may land either side of the append; the HTTP transport's one fault boundary
 the browser retries the same attempt.
 
 Transports own only their input boundary: which kinds and fields they accept and
-how they answer retries.
+how they answer retries. Both writers share recorded-effect applicability: selected
+ids must belong to the recording widget, and a position must name an owned unit,
+an admissible destination, and a valid rank in the named revision. Reports name
+page widgets; user actions may also name widgets in frozen thread markup.
 
 Browser POSTs are commands. The append transaction stamps the accepted event with
 server-owned `meaning`; callers cannot send it, and retry identity
@@ -182,8 +186,15 @@ undone: the markup decides the order an undo would have restored. The door refus
 a move made on an older revision whose container the newest one authors
 differently.
 
+Recorded effects own their payload schema (`registry.contract.detail_schema`):
+`detail.value` carries a body's string, an attribute set's ids, or the scalar
+attribute's own schema. Positions require `{unit, value, rank}` for the moved
+item, destination and rank key. `update: true` on an agent verb adds required
+nonempty `detail.text`. Custom verbs without a record keep their declared detail
+schema. All payloads are closed objects.
+
 Dependency identities come from the fold unit and the attribute-set and position
-record fields. Literal detail strings do not become dependencies by matching HTML ids. The log does not freeze ancestry:
+record values. Literal detail strings do not become dependencies by matching HTML ids. The log does not freeze ancestry:
 retraction tests use the current document's containment of those identities.
 A child a `creates` verb adds is that action's fold unit, so it stands on the action's
 own coordinate until the action is undone or retracted. Admission stamps the child tag

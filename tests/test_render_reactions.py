@@ -808,11 +808,9 @@ def test_a_focused_response_choice_wears_the_layer_s_band(browser, serve, scheme
     )
 
 
-def test_the_response_choices_hold_one_row_beside_the_panel(browser, serve):
-    """A side is chosen for the field and its More press, narrower than Suggest and six
-    reactions at rest. Constrain the bar beside the open Threads panel to the
-    280px space that previously made reactions drop beneath Suggest. They give
-    up spare padding before the row breaks, so it stays inside the bar."""
+def test_the_response_choices_stay_reachable_beside_the_panel(browser, serve):
+    """A narrow side can wrap the choices while keeping every action whole and
+    inside the comment bar beside the open Threads panel."""
     page = open_page(browser, serve(PANEL_PAGE))
     resized(page, 1024, 768)
     page.locator(".lf-threads-toggle").click()
@@ -836,17 +834,22 @@ def test_the_response_choices_hold_one_row_beside_the_panel(browser, serve):
         .map((choice) => choice.getBoundingClientRect());
       return {
         bar: [box.left, box.right],
-        rows: new Set(choices.map((choice) => Math.round(choice.top))).size,
+        vertical: [box.top, box.bottom],
         left: Math.min(...choices.map((choice) => choice.left)),
         right: Math.max(...choices.map((choice) => choice.right)),
+        top: Math.min(...choices.map((choice) => choice.top)),
+        bottom: Math.max(...choices.map((choice) => choice.bottom)),
         narrowest: Math.min(...choices.map((choice) => choice.width)),
       };
     }""")
     assert row["bar"][1] - row["bar"][0] < 288, (
         f"the bar has room for the resting row, so this proves nothing: {row}"
     )
-    assert row["rows"] == 1, row
     assert row["bar"][0] - 0.5 <= row["left"] and row["right"] <= row["bar"][1] + 0.5
+    assert (
+        row["vertical"][0] - 0.5 <= row["top"]
+        and row["bottom"] <= row["vertical"][1] + 0.5
+    )
     assert row["narrowest"] >= 30, row
 
 
@@ -1137,8 +1140,8 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     bar = page.locator(".lf-fab-bar")
 
     def enter_passage():
-        expect(page.locator(".lf-thread-panel")).not_to_have_attribute(
-            "aria-modal", "true"
+        assert not page.locator(".lf-thread-panel").evaluate(
+            "el => el.closest('dialog').matches(':modal')"
         )
         box = page.locator("#how-cap").bounding_box()
         select(
@@ -1602,9 +1605,14 @@ def test_a_declared_visual_part_can_raise_the_same_bar_from_the_keyboard(
     expect(control).to_be_focused()
 
 
-def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve):
-    """Sibling anonymous pictures under one authored item are one durable target. Leaf
-    offers one proxy for that anchor and returns Escape to the control that opened it."""
+@pytest.mark.parametrize("entry", ["keyboard", "aim"])
+@pytest.mark.parametrize("proxy_hidden", [False, True])
+def test_one_semantic_visual_target_gets_one_keyboard_proxy(
+    browser, serve, proxy_hidden, entry
+):
+    """Sibling anonymous pictures under one authored item are one durable target.
+    Keyboard and pointer entry share that proxy as their Escape parent, falling
+    back to the visible subject when the proxy is hidden."""
     page_markup = leaf_page(
         "picture gallery",
         """
@@ -1621,11 +1629,16 @@ def test_one_semantic_visual_target_gets_one_keyboard_proxy(browser, serve):
 
     expect(controls).to_have_count(1)
     control = controls.first
-    control.focus()
-    page.keyboard.press("Enter")
+    if entry == "keyboard":
+        control.focus()
+        page.keyboard.press("Enter")
+    else:
+        page.locator("#gallery svg").first.click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()
+    if proxy_hidden:
+        control.evaluate("node => node.hidden = true")
     page.keyboard.press("Escape")
-    expect(control).to_be_focused()
+    expect(page.locator("#gallery") if proxy_hidden else control).to_be_focused()
 
 
 def landed(page):
@@ -2034,13 +2047,17 @@ def test_the_response_surface_preserves_a_backward_drag(browser, serve):
     ), "the response pass reversed a backward drag before its next extension"
 
 
-def test_a_keyboard_reaction_returns_focus_to_the_visual_target(browser, serve):
-    """When a keyboard-raised action completes, focus returns to the proxy that named
-    the target instead of remaining inside a hidden action bar."""
+@pytest.mark.parametrize("entry", ["keyboard", "aim"])
+def test_a_reaction_returns_focus_to_the_visual_target(browser, serve, entry):
+    """A completed action returns to the current proxy for its target, regardless
+    of keyboard or pointer entry, instead of remaining in a hidden action bar."""
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
     control = page.get_by_role("button", name="Respond to Start request")
-    control.focus()
-    page.keyboard.press("Enter")
+    if entry == "keyboard":
+        control.focus()
+        page.keyboard.press("Enter")
+    else:
+        page.locator('#flow g[data-id="S"]').click(modifiers=["Alt"])
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Tab")
     page.keyboard.press("1")

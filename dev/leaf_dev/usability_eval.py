@@ -22,6 +22,7 @@ from leaf.service import requires_agent_attention
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
+    TURN_LIMIT,
     URL,
     LiveChild,
     PageClient,
@@ -133,9 +134,9 @@ alerts" to "Key expiry alerts". Check the page and stamp the new version. {quiet
 # The user's moves, in order: two cards into Doing at ranks around the authored "1"
 # and "2", and one into Done that they then undid.
 BOARD_MOVES = [
-    {"card": "card-docs", "to": "col-doing", "rank": "0i"},
-    {"card": "card-audit", "to": "col-doing", "rank": "1i"},
-    {"card": "card-rotate", "to": "col-done", "rank": "1"},
+    {"unit": "card-docs", "value": "col-doing", "rank": "0i"},
+    {"unit": "card-audit", "value": "col-doing", "rank": "1i"},
+    {"unit": "card-rotate", "value": "col-done", "rank": "1"},
 ]
 BOARD_DOING = ["card-docs", "card-inventory", "card-audit", "card-alerts"]
 
@@ -183,7 +184,7 @@ PICK = {
     "kind": "action",
     "widget": "copy-mode",
     "action": "choose",
-    "detail": {"options": ["opt-online"]},
+    "detail": {"value": ["opt-online"]},
 }
 SHORTEN = {
     "kind": "comment",
@@ -194,7 +195,7 @@ CARD_MOVE = {
     "kind": "action",
     "widget": "follow-board",
     "action": "move",
-    "detail": {"card": "card-lag-alert", "to": "col-done", "rank": "1"},
+    "detail": {"unit": "card-lag-alert", "value": "col-done", "rank": "1"},
 }
 # The duration the `DRY_RUN` comment asks for, as the edited paragraph may write it.
 DRY_RUN_DONE = r"3\s*h(ours?)?\s*(and\s*)?10"
@@ -421,7 +422,7 @@ def build_resume(run: Run, page: Path) -> None:
     admit(run, page, {"kind": "resolve", "parent": rerun})
     admit(run, page, {
         "kind": "action", "revision": 2, "widget": "rollout", "action": "choose",
-        "detail": {"options": ["opt-per-tenant"]},
+        "detail": {'value': ["opt-per-tenant"]},
     })  # fmt: skip
     admit(run, page, {
         "kind": "comment", "revision": 2,
@@ -460,7 +461,7 @@ def build_constructs(run: Run, page: Path) -> None:
     run.leaf("status", str(page), "waiting", "Edit the release note", check=True)
     admit(run, page, {
         "kind": "action", "revision": 1, "widget": "release-note", "action": "edit",
-        "detail": {"text": CONSTRUCTS_DRAFT},
+        "detail": {'value': CONSTRUCTS_DRAFT},
     })  # fmt: skip
     run.leaf("data", "set", str(page), "checkout-p95", input_text="231", check=True)
 
@@ -609,10 +610,7 @@ def execute(run: Run) -> None:
         shutil.copytree(found, run.dir / "pages" / found.name, ignore=ignore)
 
 
-# How long a live session may run, how long a posted round may wait for the delivery
-# that carries it, and how long a finished session stays open for a trailing turn.
-LIVE_LIMIT = 1500
-DELIVERY_LIMIT = 300
+# How long a finished session stays open for a trailing turn.
 GRACE = 20
 
 
@@ -621,13 +619,11 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
 
     Each time a turn ends with every posted round delivered, the next round goes out
     through the served page, a few seconds later so that Leaf's watcher has
-    taken its lease. The session closes once the last round's turn has ended, when a
-    round waits past DELIVERY_LIMIT, or at LIVE_LIMIT, which voids the run. At each
+    taken its lease. The session closes once the last round's turn has ended or
+    the session reaches TURN_LIMIT. At each
     turn's end the stream records the page's status."""
     prompt = case.prompts[0].replace("{page}", str(page))
     (run.dir / "prompt-1.txt").write_text(prompt)
-    # The deadline for the posted round's delivery; unstarted until the first post.
-    waiting = threading.Timer(DELIVERY_LIMIT, lambda: None)
     url, posted, delivered = None, 0, 0
     pending_events: set[str] = set()
     attempts: set[str] = set()
@@ -639,7 +635,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 "--plugin-dir",
                 str(run.payload),
                 stderr=run.dir / "err-1.txt",
-                limit=LIVE_LIMIT,
+                limit=TURN_LIMIT,
                 timed_out=run.dir / "timed-out",
                 dirs=[run.payload],
                 env={"XDG_STATE_HOME": str(run.state)},
@@ -653,7 +649,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 stream.flush()
 
             def post(injection: str) -> None:
-                nonlocal posted, pending_events, waiting
+                nonlocal posted, pending_events
                 if injection == "idle":
                     time.sleep(3)
                 active_turn = observed_active_turn(run, page, child)
@@ -678,8 +674,6 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                         "received_at": now(),
                     }
                 )
-                waiting = threading.Timer(DELIVERY_LIMIT, child.close)
-                waiting.start()
 
             for record in child.records():
                 if delivered < posted:
@@ -688,7 +682,6 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                         events, attempts
                     ) and pending_events <= opened_input_ids(events):
                         delivered = posted
-                        waiting.cancel()
                         note(
                             {
                                 "type": "eval_received",
@@ -726,7 +719,6 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 else:
                     threading.Timer(GRACE, child.close).start()
     finally:
-        waiting.cancel()
         run.leaf("server", "stop", str(page))
 
 
@@ -923,7 +915,9 @@ def trace_scores(trace: list[dict]) -> dict:
             else None
         ),
         "cost_known": done.get("total_cost_usd") is not None,
-        "minutes": round(sum(d.get("duration_ms", 0) for d in ended) / 60000, 1),
+        "minutes": round(sum(d["duration_ms"] for d in ended) / 60000, 1)
+        if ended and all("duration_ms" in d for d in ended)
+        else None,
         **token_counts(trace),
         "denials": len(done.get("permission_denials") or []),
         "leaf_skill": any("leaf" in s for s in skills)
@@ -1024,7 +1018,7 @@ def score_constructs(run: Run, replies: list[str]) -> dict:
     html = (page / state["active"]["file"]).read_text()
     draft = re.search(r"<lf-draft\b([^>]*)>(.*?)</lf-draft>", html, re.DOTALL)
     standing = next(
-        (s["detail"]["text"] for s in state["state"] if s["widget"] == "release-note"),
+        (s["detail"]["value"] for s in state["state"] if s["widget"] == "release-note"),
         None,
     )
     # What the user now reads: their edit where it still stands, else the markup.
@@ -1123,7 +1117,7 @@ def score_resume(run: Run, replies: list[str]) -> dict:
         ),
         "pick_standing": any(
             s.get("widget") == "rollout"
-            and s.get("detail", {}).get("options") == ["opt-per-tenant"]
+            and s.get("detail", {}).get("value") == ["opt-per-tenant"]
             for s in state.get("state", [])
         ),
         "no_restated": "restated" not in html,

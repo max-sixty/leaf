@@ -191,12 +191,43 @@ def declares_string(field_schema) -> bool:
     return allowed == {"string"}
 
 
+def detail_schema(entry: dict, spec: dict) -> dict:
+    """The event payload contract: an effect's fixed fields or custom command data.
+
+    Recorded values use `value`; positions add `unit` and `rank`, and a report
+    declaring `update` adds required nonempty `text`. Attribute values inherit
+    the destination's exact schema. Derived schemas are readings, never inserted
+    into the registry beside the effect that owns them.
+    """
+    record = spec.get("record")
+    if record is None:
+        return spec["detail"]
+    kind = record["kind"]
+    if kind == "value":
+        value = entry["properties"][record["attr"]]
+    elif kind == "attribute":
+        value = {"type": "array", "items": {"type": "string"}, "uniqueItems": True}
+    else:
+        value = {"type": "string"}
+    properties = {"value": value}
+    if kind == "position":
+        properties.update(unit={"type": "string"}, rank={"type": "string"})
+    if spec.get("update"):
+        properties["text"] = {"type": "string", "minLength": 1}
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": list(properties),
+        "additionalProperties": False,
+    }
+
+
 def decides(spec: dict) -> bool:
     """Whether one verb is a deciding verb: its detail declares the reserved
     `outcome`, which says which retirable members leave the page (x-retired-when,
     x-withdrawn-as). The browser reads the answer from `$decisions`
     (`registry.contract.stamp_decisions`)."""
-    return "outcome" in spec["detail"].get("properties", {})
+    return not spec.get("record") and "outcome" in spec["detail"].get("properties", {})
 
 
 def deciding_verbs(entry: dict) -> list[str]:
@@ -237,6 +268,114 @@ def state_specs(entry: dict, *, writer: str | None = None):
     for verb, spec in entry.get("x-state", {}).items():
         if writer is None or verb_writer(spec) == writer:
             yield verb, spec
+
+
+def _semantic_schema(schema):
+    """Strip JSON Schema annotations without changing literal values or names."""
+    if not isinstance(schema, dict):
+        return schema
+    annotations = {
+        "title",
+        "description",
+        "$comment",
+        "default",
+        "examples",
+        "deprecated",
+        "readOnly",
+        "writeOnly",
+    }
+    maps = {
+        "properties",
+        "patternProperties",
+        "$defs",
+        "definitions",
+        "dependentSchemas",
+    }
+    single = {
+        "additionalProperties",
+        "unevaluatedProperties",
+        "propertyNames",
+        "items",
+        "additionalItems",
+        "unevaluatedItems",
+        "contains",
+        "not",
+        "if",
+        "then",
+        "else",
+        "contentSchema",
+    }
+    sequences = {"allOf", "anyOf", "oneOf", "prefixItems"}
+    result = {}
+    for key, value in schema.items():
+        if key in annotations:
+            continue
+        if key in {"enum", "const"}:
+            result[key] = value
+        elif key in maps:
+            result[key] = {
+                name: _semantic_schema(child) for name, child in value.items()
+            }
+        elif key in sequences:
+            result[key] = [_semantic_schema(child) for child in value]
+        elif key in single:
+            result[key] = _semantic_schema(value)
+        else:
+            result[key] = value
+    return result
+
+
+def state_definition(origin: str, entry: dict, spec: dict) -> dict:
+    """The admitted semantic definition and payload domain of one widget verb.
+
+    Later declarations may reuse a verb's name with different meaning or types.
+    Recorded definitions distinguish those new operations from history, while
+    descriptive schema annotations remain free to change.
+    """
+    from copy import deepcopy
+
+    return deepcopy(
+        {
+            "origin": origin,
+            "unit": spec["unit"],
+            "record": spec.get("record"),
+            "creates": spec.get("creates"),
+            "update": spec.get("update", False),
+            "detail": _semantic_schema(detail_schema(entry, spec)),
+        }
+    )
+
+
+def same_state_definition(recorded, current) -> bool:
+    """Compare JSON definitions with the same boolean/number distinction as JS."""
+    if type(recorded) is not type(current):
+        return (
+            type(recorded) in (int, float)
+            and type(current) in (int, float)
+            and recorded == current
+        )
+    if isinstance(recorded, dict):
+        return recorded.keys() == current.keys() and all(
+            same_state_definition(value, current[key])
+            for key, value in recorded.items()
+        )
+    if isinstance(recorded, list):
+        return len(recorded) == len(current) and all(
+            same_state_definition(left, right) for left, right in zip(recorded, current)
+        )
+    return recorded == current
+
+
+def same_state_operation(recorded, current) -> bool:
+    """The same fold destination and construction, independent of payload domain."""
+    return (
+        isinstance(recorded, dict)
+        and isinstance(current, dict)
+        and same_state_definition(
+            {key: value for key, value in recorded.items() if key != "detail"},
+            {key: value for key, value in current.items() if key != "detail"},
+        )
+    )
 
 
 def event_spec(entry: dict, event: dict) -> dict | None:

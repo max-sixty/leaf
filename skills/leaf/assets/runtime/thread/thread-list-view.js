@@ -36,6 +36,7 @@ import { isFolding } from "./folding.js";
 import { threadKey } from "./model.js";
 import { seenRect, whenOffScreen } from "../geometry.js";
 import { gesturedOn } from "./held-news.js";
+import { readingIsContinuous } from "../reading-continuity.js";
 
 const TAG = "leaf-thread-list";
 
@@ -128,9 +129,11 @@ class ThreadListView extends RetainedFace {
     if (this.#intent !== intent || !view?.model.visible || view.model.folding)
       return null;
     const news = view.model.kept ? view.model.kept === "news" : !gesturedOn(thread);
-    const seen = view.node.open
-      ? this.checkVisibility()
-      : Boolean(seenRect(view.node, new Map()));
+    const seen =
+      readingIsContinuous() &&
+      (view.node.open
+        ? this.checkVisibility()
+        : Boolean(seenRect(view.node, new Map())));
     const draft = draftHasContent("reply:" + key);
     if (news && (seen || draft)) return "news";
     return draft ? "draft" : null;

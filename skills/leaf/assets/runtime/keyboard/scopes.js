@@ -15,6 +15,9 @@
    Normal element and page command declarations share native button activation. A
    sequence's `control` is a travel destination and arrival seat, not an activation
    declaration; native editing scopes may likewise name only the input's key route.
+   An executable command owns its button's availability through its predicates;
+   disabled attributes are outputs. ARIA refusal retains keyboard standing while
+   activation checks the current command. Withdrawal returns both original attributes.
    Preserve the order of that list because the dispatcher and shortcut bar walk inward to
    outward while the full reference groups the same scopes for reading. */
 import {
@@ -43,6 +46,7 @@ import { nativeClaimAt } from "./text-entry.js";
 import { focused, onLabelPress } from "../focus.js";
 import { hostIn, upFrom } from "../shadow.js";
 import { repaint } from "../repaint.js";
+import { keeps } from "../keeps.js";
 
 // The scopes still owed a first paint. A declaration joins here and `reflectShortcuts`
 // takes it out again, so one reading is owed per declaration whether that reading stands
@@ -127,6 +131,13 @@ function buttonCommands() {
   }
   return found;
 }
+// Getter-named buttons may arrive after declaration. Claim their output fields before
+// availability readers project commands; otherwise their initial disabled paint is
+// mistaken for an input until the next frame. Readers may materialize more controls,
+// which the ordinary button pass below then claims and presents.
+function claimButtons() {
+  for (const control of buttonCommands().keys()) claimButton(control);
+}
 function reflectButtons() {
   const commands = buttonCommands();
   for (const ref of scopeRefs) {
@@ -134,8 +145,9 @@ function reflectButtons() {
     if (!control) continue;
     buttonReadings.delete(control);
     if (buttonBaselines.has(control) && !commands.has(control)) {
-      const disabled = buttonBaselines.get(control);
+      const { disabled, ariaDisabled } = buttonBaselines.get(control);
       if (control.disabled !== disabled) control.disabled = disabled;
+      keeps(control, "aria-disabled", ariaDisabled);
       buttonBaselines.delete(control);
       controlAvailabilityOutput(control, BUTTON_AVAILABILITY);
       reflectElementShortcuts(control);
@@ -144,20 +156,33 @@ function reflectButtons() {
     }
   }
   for (const [control, command] of commands) {
-    if (!buttonBaselines.has(control)) buttonBaselines.set(control, control.disabled);
-    controlAvailabilityOutput(control, BUTTON_AVAILABILITY, { disabled: true });
+    claimButton(control);
     const { scope, row, entry } = command;
     const disabled = Boolean(
       (scope.when && !scope.when()) ||
       !commandAvailable(row, entry === row ? null : entry),
     );
-    if (control.disabled !== disabled) control.disabled = disabled;
+    keeps(control, "aria-disabled", disabled ? "true" : null);
     buttonReadings.set(control, command);
     rememberScopedElement(control);
     wireButton(control);
   }
 }
+function claimButton(control) {
+  if (!buttonBaselines.has(control))
+    buttonBaselines.set(control, {
+      disabled: control.disabled,
+      ariaDisabled: control.getAttribute("aria-disabled"),
+    });
+  controlAvailabilityOutput(control, BUTTON_AVAILABILITY, {
+    disabled: true,
+    ariaDisabled: true,
+  });
+  if (control.disabled) control.disabled = false;
+  rememberScopedElement(control);
+}
 function wireButton(control) {
+  claimButton(control);
   if (wiredButtons.has(control)) return;
   wiredButtons.add(control);
   control.addEventListener("click", (event) => {
@@ -637,6 +662,7 @@ function reflectElementShortcuts(element) {
 // Ahead of standing content, so an ambiguous declaration is refused under its own title
 // rather than under whichever surface reads its rows first.
 export function reflectFirstScopes() {
+  claimButtons();
   reflectCommandAvailability();
   reflectButtons();
   for (const scope of [...unpainted]) {
@@ -652,6 +678,7 @@ let keysDirty = true;
 export function reflectKeys() {
   if (!keysDirty) return;
   keysDirty = false;
+  claimButtons();
   reflectCommandAvailability();
   reflectButtons();
   pruneScopedElements();

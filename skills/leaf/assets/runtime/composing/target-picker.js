@@ -4,7 +4,7 @@ import { aimTargets, anchoringIsReady } from "../anchor-resolution.js";
 import { bindings } from "../keyboard/bindings.js";
 import { el, LAYOUT } from "../widget-elements.js";
 import { coarsePointer } from "../pointer.js";
-import { html, nothing, render, repeat } from "../../vendor/browser-runtime.js";
+import { html, nothing, render } from "../../vendor/browser-runtime.js";
 
 import {
   contextAround,
@@ -16,9 +16,10 @@ import {
   selectEnds,
   segmentBlock,
 } from "../passages.js";
-import { bannerFoot, shownParts } from "../geometry.js";
+import { bannerFoot, shownBox, shownParts } from "../geometry.js";
 import { repaint } from "../repaint.js";
-import { watchScrolls } from "../arrivals.js";
+import { anchorFor } from "../anchor-names.js";
+import { paintSet } from "../target-paint-geometry.js";
 import { handBack, releaseFocus, focusDestination, focused } from "../focus.js";
 import {
   createHintSession,
@@ -33,7 +34,7 @@ import {
   progressStates,
 } from "../keyboard/presentation.js";
 import { announce } from "../notifications.js";
-import { keepsHidden, layoutPx } from "../keeps.js";
+import { keepsHidden } from "../keeps.js";
 import { beginWalk, walkPosition } from "../walk-position.js";
 
 import {
@@ -49,6 +50,9 @@ import {
 // of one.
 export const targetPickerHintLayer = el("div", "lf-ui lf-target-picker-hints");
 targetPickerHintLayer.setAttribute("aria-hidden", "true");
+const hintRoot = el("div", "lf-key-chips");
+const markRoot = el("div", "lf-key-chips");
+targetPickerHintLayer.append(hintRoot, markRoot);
 export const pageSearchSurface = el("div", "lf-ui lf-page-search");
 pageSearchSurface.setAttribute("role", "search");
 pageSearchSurface.hidden = true;
@@ -119,8 +123,11 @@ export function createTargetPicker({
   // Target elements and text coordinates stay outside the immutable readings. Lit receives
   // only opaque primitive identities, retaining unchanged hint and keycap nodes on repaint.
   const hintRenderKey = renderKeys();
-
-  const matchRenderKey = (identity, index) => `${identity}\u0000${index}`;
+  // The open search's mark stands over its words in the frames that cut them, carried
+  // by what carries the words (target-paint-geometry.js, `paintSet`), so no scroll
+  // writes it.
+  const marks = paintSet(markRoot);
+  const markBoxes = [];
 
   // One reading of the room the user has, shared by every member of a pass: the clips
   // over their common ancestors are walked once, and admission, exposure, and paint read
@@ -474,7 +481,7 @@ export function createTargetPicker({
   // The picker's hints and the open search's marks are two faces in one layer, and only
   // one of them stands at a time: search covers the map that opened it.
   const hints = createHintSession({
-    layer: targetPickerHintLayer,
+    layer: hintRoot,
     walk: "target-picker",
     read: visibleTargets,
     identity: (target) => target.element,
@@ -520,43 +527,43 @@ export function createTargetPicker({
     chrome: hintChrome,
   });
 
+  // A mark for each box the match's words take, while a covering surface leaves any of
+  // it in sight, standing over what holds the words and carried by what carries them
+  // (`anchorFor`).
   function paintSearchMatches() {
     const segments = matches[active];
     const owner = segments && matchIsRangeable(segments) ? matchOwner(segments) : null;
     const reading = room();
     const clip = owner ? reading.clipOver(owner) : null;
-    const plans = [];
-    if (clip)
-      for (const [index, box] of [...rangeOf(segments).getClientRects()].entries()) {
-        const rect = reading.clearPart(box, clip);
-        if (!reading.exposes(null, rect)) continue;
-        plans.push({
-          key: matchRenderKey(
-            matchIdentity(pageSearchInput.value.trim(), segments),
-            index,
-          ),
-          rect,
-        });
-      }
-    render(
-      html`${repeat(
-        plans,
-        ({ key }) => key,
-        () => html`<span class="lf-page-search-match"></span>`,
-      )}`,
-      targetPickerHintLayer,
+    const boxes = clip
+      ? [...rangeOf(segments).getClientRects()].filter((box) =>
+          reading.exposes(null, reading.clearPart(box, clip)),
+        )
+      : [];
+    const anchor = owner && anchorFor(segments[0].node);
+    // A line's box can reach past the block that holds it; the mark keeps to the block.
+    const own = owner && shownBox(owner);
+    while (markBoxes.length < boxes.length)
+      markBoxes.push(el("span", "lf-page-search-match"));
+    marks.place(
+      boxes.map((box, index) => ({
+        node: markBoxes[index],
+        target: owner,
+        held: true,
+        anchor,
+        rect: {
+          left: Math.max(box.left, own.left),
+          top: Math.max(box.top, own.top),
+          right: Math.min(box.right, own.right),
+          bottom: Math.min(box.bottom, own.bottom),
+        },
+      })),
     );
-    for (const [index, { rect }] of plans.entries()) {
-      const mark = targetPickerHintLayer.children[index];
-      mark.style.left = layoutPx(rect.left);
-      mark.style.top = layoutPx(rect.top);
-      mark.style.width = layoutPx(rect.width);
-      mark.style.height = layoutPx(rect.height);
-    }
   }
 
   function paintTargetPickerHints() {
     if (pickerOpen && pageSearchOpen) return paintSearchMatches();
+    marks.place([]);
     hints.paint();
   }
 
@@ -730,15 +737,9 @@ export function createTargetPicker({
   function mount() {
     pageSearchInput.addEventListener("input", search);
     hints.mount();
-    // The open search's mark is page-attached paint in a layer no ancestor scrolls, so it
-    // follows the page only while something asks for a frame. The hint session's own door
-    // answers for the map, and a slash pressed from the page arms no map — so search asks
-    // for its own, from every box that scrolls (arrivals.js, `watchScrolls`).
-    const followMatch = () => {
+    addEventListener("resize", () => {
       if (pageSearchOpen) repaint();
-    };
-    watchScrolls(followMatch);
-    addEventListener("resize", followMatch);
+    });
     document.addEventListener(LAYOUT, refreshMatchWalk);
   }
   pageScope("page search", PAGE_SEARCH_SCOPE);

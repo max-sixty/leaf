@@ -18,7 +18,6 @@ from .contract import (
     RegistryError,
     deciding_outcomes,
     deciding_verb,
-    declares_string,
     reference_relation_error,
     state_specs,
     visual_part_attribute,
@@ -70,6 +69,8 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
                 f"{path}: <{tag}> registry extensions are invalid: {errors[0].message}"
             )
         for verb, spec in state_specs(entry):
+            if spec.get("record"):
+                continue
             try:
                 Draft202012Validator.check_schema(spec["detail"])
             except SchemaError as error:
@@ -109,34 +110,10 @@ def validate_widget_schemas(declarations: dict, data: dict, path) -> None:
                     "required and additionalProperties and nothing else, so the "
                     "keys a verb can carry are the ones it names"
                 )
-            if update := spec.get("update"):
-                detail = spec["detail"]
-                field = detail.get("properties", {}).get(update)
-                if field is None:
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` update field "
-                        f"`{update}` is not declared by its detail schema"
-                    )
-                if update not in detail.get("required", []):
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` update field "
-                        f"`{update}` must be required — every report in the feed "
-                        "needs words"
-                    )
-                if not declares_string(field):
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` update field "
-                        f"`{update}` must be a string"
-                    )
-                if field.get("minLength", 0) < 1:
-                    raise RegistryError(
-                        f"{path}: <{tag}> x-state verb `{verb}` update field "
-                        f"`{update}` must set minLength to at least 1"
-                    )
 
 
 def validate_widget_relations(
-    registry: dict, declarations: dict, data: dict, slots: dict, path
+    registry: dict, declarations: dict, data: dict, path
 ) -> None:
     for tag, entry in declarations.items():
         properties, said = _validate_widget_structure(
@@ -149,7 +126,7 @@ def validate_widget_relations(
             tag, entry, properties, said, registry, declarations, path
         )
         validate_deciding_verb(tag, entry, path)
-        validate_widget_retirement(tag, entry, slots, declarations, path)
+        validate_widget_retirement(tag, entry, declarations, path)
 
 
 def _validate_widget_structure(
@@ -160,6 +137,13 @@ def _validate_widget_structure(
             f"{path}: <{tag}> x-owners names unknown element declarations {unknown}"
         )
     properties = entry.get("properties", {})
+    if entry.get("x-initial"):
+        if not entry["x-upgrade"]:
+            raise RegistryError(f"{path}: <{tag}> x-initial requires x-upgrade: true")
+        if entry.get("x-prepaint") is not None:
+            raise RegistryError(
+                f"{path}: <{tag}> declares both x-initial and x-prepaint"
+            )
     if (prepaint := entry.get("x-prepaint")) is not None:
         if isinstance(prepaint, dict):
             named = declarations.get(prepaint["as"], {}).get("x-prepaint")
@@ -510,13 +494,9 @@ def _validate_widget_interactions(
             "not the boolean `overruled` "
             "attribute a version overrules a standing report with"
         )
-    # The same rule for the user's verbs: a version that rewrites what a
-    # decision rested on must say `restated` on the element ($restated),
-    # and a closed schema without the attribute is a widget whose every
-    # rewrite is unpublishable — the words gate demands an attribute the
-    # widget's own schema refuses. Held only where a verb folds on the
-    # widget itself: a verb folding per child (move's "card") rests its
-    # decisions on elements this declaration doesn't name.
+    # A user decision folded on the widget needs an explicit withdrawal route:
+    # `restated` names that intent; ordinary source edits leave the decision in
+    # force. Child-folding verbs place it on elements this declaration does not name.
     folds_whole = any(
         spec["unit"] == "widget" for _verb, spec in state_specs(entry, writer="user")
     )

@@ -10,6 +10,7 @@
 export { LitElement, html, repeat } from "../vendor/browser-runtime.js";
 export { keyed, unsafeHTML } from "../vendor/lit.js";
 export { widgetController } from "./widget-controller.js";
+export { initialRender } from "./initial-render.js";
 export { watchOwner } from "./arrivals.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
@@ -28,7 +29,13 @@ export { authoredScope } from "./passages.js";
 export { navigateToDatum } from "./application.js";
 // Experimental: one widget marking part of another (indication.js).
 export { indicate } from "./indication.js";
-export { landingInsets, shownBand, shownBox, shownParts } from "./geometry.js";
+export {
+  landingInsets,
+  shownBand,
+  shownBox,
+  shownParts,
+  shownWindow,
+} from "./geometry.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
 export { inUi, uiInside, upFrom } from "./shadow.js";
@@ -194,6 +201,7 @@ export {
   measure,
   motionPreview,
   offer,
+  offerElement,
   offered,
   quoted,
   reachedForWords,

@@ -119,7 +119,9 @@ import {
   focusDestination,
   focused,
 } from "../focus.js";
+import { commandScope, projectCommandScope } from "../keyboard/scopes.js";
 import { shadowHost, under } from "../shadow.js";
+import { nativeLayers } from "../keyboard/layer-stack.js";
 import { heldAsk } from "../standing-target.js";
 
 import { coarsePointer, pointerAt } from "../pointer.js";
@@ -180,7 +182,6 @@ export function createResponseSurface({
 
   // ---------- selection → comment ----------
   let fabAnchor = null;
-  let fabOrigin = null;
   // The row inside the target the gesture that opened this bar pointed at, which the bar
   // stands level with (pointed-place.js).
   let fabPoint = null;
@@ -348,29 +349,23 @@ export function createResponseSurface({
       scrollToElement,
       scrollToRange,
     }) ?? null;
-  // Where a bar on this anchor hands the user back: the control the gesture stood them
-  // on, or the visual proxy for the same anchor where that control has gone, found
-  // by identity so a repaint cannot strand it. A bar no gesture stood them on has nowhere
-  // of its own and the user lands on the page — the element the bar is about is not a
-  // landing merely for being named, an ⌥-aimed press having never stood them on it.
-  const returnDestination = (anchor, origin) =>
-    anchor && !anchor.quote && origin
-      ? origin.isConnected
-        ? origin
-        : visualActionAnchor(anchor)
-      : null;
+  // An element response exits to its subject, or the declared proxy representing it.
+  // Resolve that structural parent from the current anchor, so c from an Ask and an
+  // aimed press on the same Ask unwind alike. There is no saved pre-command focus:
+  // standing on an option comments on its Ask, and closing returns to the Ask itself.
+  // A quoted selection clears to the page; a removed subject has no parent to land on.
+  const returnPlaces = (anchor) =>
+    anchor && !anchor.quote ? [visualActionAnchor(anchor), anchorTargetAt(anchor)] : [];
   function showFab(
     anchor,
-    { returnFocus = "target", origin = null, place = true, point = undefined } = {},
+    { returnFocus = "target", place = true, point = undefined } = {},
   ) {
     const previous = fabAnchor;
-    const previousOrigin = fabOrigin;
     const previousFloating = usesPlacement;
     const leavingBar = !anchor && fabBar.contains(fabFocused());
     const returnToPanel = leavingBar && panelIsOpen() && !(placement?.fits() ?? true);
-    const returnTarget = leavingBar
-      ? returnDestination(previous, previousOrigin)
-      : null;
+    const returnTargets =
+      leavingBar || (!anchor && returnFocus === "page") ? returnPlaces(previous) : [];
     const keptInline = Boolean(
       fabInlineOutlet?.isConnected &&
       anchor &&
@@ -402,17 +397,6 @@ export function createResponseSurface({
       stopFabPositioning({ reset: true });
     fabAnchor = anchor;
     usesPlacement = Boolean(placement) && (!fabAnchor || (place && !keptInline));
-    // A call that names the anchor already standing and supplies no control is the same
-    // bar being re-placed — the other-responses toggle, leaving react mode, a scroll —
-    // rather than a fresh gesture that stood the user nowhere. It keeps the control the
-    // opening gesture stood them on; otherwise the way out of a bar the user opened
-    // from a proxy would depend on what they did inside it.
-    fabOrigin =
-      fabAnchor && origin?.isConnected
-        ? origin
-        : fabAnchor && previous && sameAnchor(previous, fabAnchor)
-          ? previousOrigin
-          : null;
     fabBar.toggleAttribute("data-lf-target-only", Boolean(fabAnchor && !composerOpen));
     fabBar.style.display = fabAnchor
       ? "var(--lf-response-display, inline-flex)"
@@ -440,7 +424,6 @@ export function createResponseSurface({
           placement?.withhold();
         else {
           fabAnchor = null;
-          fabOrigin = null;
           placement?.release();
           stopFabPositioning({ reset: true });
           resetResponseOptions();
@@ -462,13 +445,12 @@ export function createResponseSurface({
     repaint(); // the c row names this anchor, so the line is one more rendering of it
     if (!fabAnchor && returnFocus !== "none") {
       if (returnToPanel) focusDestination(threadsBox, "return");
-      // The proxy may have gone hidden since the gesture opened the box — a fold that
-      // closed under it, a row that re-rendered — and the page is the landing then, as it
-      // is for a box that had no proxy to begin with.
-      else if (leavingBar && returnFocus === "target") handBack(returnTarget);
+      // The shared return tests each representative: a hidden or rebuilt proxy cannot
+      // skip a subject that still takes focus. If none remains, it lands on the page.
+      else if (leavingBar && returnFocus === "target") handBack(...returnTargets);
       else if (
         leavingBar ||
-        (returnFocus === "page" && document.activeElement === previousOrigin)
+        (returnFocus === "page" && returnTargets.includes(document.activeElement))
       )
         letGo();
     }
@@ -523,7 +505,7 @@ export function createResponseSurface({
     (anchor?.quote && targetRange(resolveAnchor(anchor, pageText()))) ||
     anchorTargetAt(anchor);
   const fabTargetAt = () => anchorTargetAt(fabAnchor);
-  const fabReturnTo = () => returnDestination(fabAnchor, fabOrigin);
+  const fabReturnPlaces = () => returnPlaces(fabAnchor);
 
   // Opening Comment is an overlay gesture. Any visible part of its subject is
   // enough to open it: the physical presenter owns its attachment and measure.
@@ -537,11 +519,8 @@ export function createResponseSurface({
   // Every explicit target gesture ends here. The gesture has already resolved its stable
   // authored anchor; this command owns the one transition from that target into Comment.
   // Focusing the field drops any older browser selection, and an unsent draft follows the
-  // deliberate move. A visual proxy supplies its origin so Escape can return to it.
-  function commentOnTarget(
-    { anchor, element = null, point = null },
-    { origin = null } = {},
-  ) {
+  // deliberate move. Escape resolves the same structural parent for every entry route.
+  function commentOnTarget({ anchor, element = null, point = null }) {
     cancelRender(selectionUpdate);
     selectionUpdate = null;
     bringForward(element);
@@ -549,7 +528,6 @@ export function createResponseSurface({
     const selection = getSelection();
     if (selection?.rangeCount) selection.removeAllRanges();
     openComment(anchor, "", { carry: true, point });
-    if (origin) showFab(anchor, { origin });
     setTimeout(() => {
       targetActivation = false;
       // A browser command or touch handle can replace the visual target while its
@@ -855,7 +833,7 @@ export function createResponseSurface({
     // Opening or acting in chrome is a route away from the page, not a new selection
     // gesture. Keep the already-captured touch passage verbatim while focus moves
     // through the banner, its sibling popovers, and their controls.
-    if (offeredSelectionAnchor && inChrome(ev.target)) {
+    if (offeredSelectionAnchor && inChrome(ev.composedPath()[0])) {
       primaryPointerPressed = false;
       pointerSelecting = false;
       selectionGestureClaimed = false;
@@ -902,6 +880,8 @@ export function createResponseSurface({
   // through a click all the more — a drawer any press removes cannot be watched while
   // working, which is the drawer's point. Each closes by its own button, its key, or Esc.
   function standDown(target) {
+    // A native modal owns its press; the composer behind it remains inert.
+    if (nativeLayers().some((layer) => layer.kind === "modal")) return;
     const visual = visualAt(target);
     const sameVisual =
       visual &&
@@ -958,10 +938,13 @@ export function createResponseSurface({
       "pointerdown",
       (ev) => {
         if (drawModeActive()) return;
+        // Admission reads the press's origin across widget shadow roots. The host
+        // also contains runtime editors and controls, which are not page prose.
+        const target = ev.composedPath()[0];
         primaryPointerPressed = ev.isPrimary && ev.button === 0;
-        pointerSelecting = primaryPointerPressed && pageWords(ev.target);
+        pointerSelecting = primaryPointerPressed && pageWords(target);
         selectionPressIntent = pointerSelecting
-          ? retainUserIntent({ source: ev.target })
+          ? retainUserIntent({ source: target })
           : null;
         selectionDragged = false;
         selectionRangeDuringPress = null;
@@ -975,12 +958,12 @@ export function createResponseSurface({
         selectionStood = Boolean(stood);
         wordsAtPress = stood ? stood.toString() : "";
         const selection = pointerSelecting ? stood : null;
-        if (selection && pageRange(selection).intersectsNode(ev.target))
+        if (selection && pageRange(selection).intersectsNode(target))
           rememberPointerSelection();
         actionPress =
-          (offeredSelectionAnchor && inChrome(ev.target)) ||
-          ev.target === selectionComment ||
-          Boolean(ev.target.closest?.(".lf-react-surface, .lf-composer"));
+          (offeredSelectionAnchor && inChrome(target)) ||
+          target === selectionComment ||
+          Boolean(target.closest?.(".lf-react-surface, .lf-composer"));
       },
       true,
     );
@@ -1001,7 +984,7 @@ export function createResponseSurface({
       // The native touch event follows pointerdown and is the same selecting press.
       // Capture its input generation at that producer, before handles can adjust it.
       if (primaryPointerPressed && pointerSelecting)
-        selectionPressIntent = retainUserIntent({ source: ev.target });
+        selectionPressIntent = retainUserIntent({ source: ev.composedPath()[0] });
     });
     document.addEventListener("pointerup", finishPointerSelection);
     document.addEventListener("pointercancel", finishPointerSelection);
@@ -1017,7 +1000,7 @@ export function createResponseSurface({
       // Focus and action handoffs own the captured target while the browser collapses
       // its selection. Outside those handoffs, observe the browser's live passage;
       // only the completed page gesture above/below may replace the composer.
-      if (takesLetters(document.activeElement)) {
+      if (takesLetters(focused())) {
         offerSelection(null);
         return;
       }
@@ -1088,8 +1071,9 @@ export function createResponseSurface({
         if (ev.key === "Escape") return;
       }
       if (isReactArmed()) return;
-      if (takesLetters(ev.target) || inChrome(ev.target)) return;
-      if (!pageWords(ev.target) && !pageSelection()) return;
+      const target = ev.composedPath()[0];
+      if (takesLetters(target) || inChrome(target)) return;
+      if (!pageWords(target) && !pageSelection()) return;
       if (
         (ev.shiftKey &&
           [
@@ -1113,7 +1097,8 @@ export function createResponseSurface({
     });
     document.addEventListener("click", (ev) => {
       if (drawModeActive()) return;
-      if (!pageWords(ev.target)) return;
+      const target = ev.composedPath()[0];
+      if (!pageWords(target)) return;
       // A press that ends holding words it did not begin with took them, and is that
       // selection's mouseup rather than a click on whatever lies under it: the user was
       // reaching for the words, and the 💬 is already up on them (updateFab, on the same
@@ -1141,8 +1126,8 @@ export function createResponseSurface({
       // at a widget host, since a Leaf surface the widget seats in its shadow tree answers
       // for itself (design.js).
       if (designModeActive()) {
-        const target = designTarget(ev.composedPath()[0]);
-        if (target) openOnDesign(target);
+        const design = designTarget(target);
+        if (design) openOnDesign(design);
         return;
       }
       // The record rather than this event's own coordinates, for the reason the record is
@@ -1327,20 +1312,26 @@ export function createResponseSurface({
     },
   });
 
+  // Tab opens responses from the editor, while attachments keep native traversal.
+  // Project this alongside the input owner's submit scope rather than replacing it.
+  const composerOptions = commandScope("In the composer", [
+    {
+      id: "comment.options",
+      keys: ["Tab"],
+      description: "Show other responses",
+      title: "other responses",
+      when: () => fabOptionsAvailable() && !responseOptionsAreOpen(),
+      run: () => showFabOptions(),
+    },
+  ]);
+  projectCommandScope(fabInput, composerOptions, composerOptions);
+
   // The composer's own rung is its own scope rather than the box's, because the box may not
   // have focus — the user clicked away and the composer still stands, holding their draft.
   pageScope("composer", {
     title: "In the composer",
     at: () => composerOpen && !placement?.withheld(),
     rows: [
-      {
-        id: "comment.options",
-        keys: ["Tab"],
-        description: "Show other responses",
-        title: "other responses",
-        when: () => fabOptionsAvailable() && !responseOptionsAreOpen(),
-        run: () => showFabOptions(),
-      },
       {
         id: "composer.close",
         keys: ["Escape"],
@@ -1385,7 +1376,7 @@ export function createResponseSurface({
     anchorTargetAt,
     anchorTravelAt,
     fabTargetAt,
-    fabReturnTo,
+    fabReturnPlaces,
     bringForward,
     commentOnTarget,
     focusFabComment,

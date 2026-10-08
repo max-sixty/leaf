@@ -9,7 +9,7 @@
    declares its public page root because a website module may live under an immutable
    release URL shared with a sample. All three resolve
    the same canonical `/media/…` text without rewriting durable content. The viewer's
-   native dialog remains a direct chrome child, with its title, retained Close control,
+   native dialog remains a retained chrome node, with its title, retained Close control,
    and image rendered synchronously by Lit. A queued close from an earlier opening
    leaves a reopened viewer's image and focus intact. */
 

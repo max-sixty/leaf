@@ -36,6 +36,11 @@ export function issueNode(node) {
   let owned = true;
   for (let root = node.getRootNode(); root.host; root = root.host.getRootNode())
     if (formControl(root.host)) owned = false;
+  // Read ownership before placing an embedded document's issue at the frame
+  // the page author can find. Cross-origin frames withhold that element.
+  const view = (n) => (n.ownerDocument ?? n).defaultView;
+  while (node && view(node) !== globalThis.top) node = view(node).frameElement;
+  if (!node) return null;
   return { at: at(node), owned };
 }
 

@@ -3,7 +3,6 @@
 import hashlib
 import json
 
-from .contract import retirement_slots
 from .layer import (
     required_layer_declarations,
     validate_event_contracts,
@@ -51,6 +50,5 @@ def _validate(registry: dict, source) -> None:
     validate_layer_declarations(registry, path, names, paths, tones, data, tokens)
     declarations = element_declarations(registry, path)
     validate_widget_schemas(declarations, data, path)
-    slots = retirement_slots(registry)
-    validate_widget_relations(registry, declarations, data, slots, path)
+    validate_widget_relations(registry, declarations, data, path)
     validate_answered_conditions(declarations, path)

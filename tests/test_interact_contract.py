@@ -35,8 +35,8 @@ from interact_support import (
     _body_record_with_nested_widget,
     _body_record_with_prose,
     _mutated_registry_check,
+    _report_authored_detail,
     _report_body_record,
-    _report_detail_drift,
     _report_no_record,
     _report_position_record,
     _report_says_attr,
@@ -194,7 +194,7 @@ def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation
                 "revision": files_model.latest_revision(page_dir),
                 "widget": "thread-picks",
                 "action": "choose",
-                "detail": {"options": ["thread-option"]},
+                "detail": {"value": ["thread-option"]},
             }
         ).encode(),
     )
@@ -301,7 +301,7 @@ def test_a_pick_names_only_options_its_group_holds():
     option nobody can see.
     """
     page = ModelPage(STATED_KIT)
-    pick = {**STATED_PICK, "widget": "live-pick", "detail": {"options": ["live-mine"]}}
+    pick = {**STATED_PICK, "widget": "live-pick", "detail": {"value": ["live-mine"]}}
 
     def admit(log, event):
         return event_contracts_model.admitted_event(page, log, dict(event))
@@ -321,7 +321,7 @@ def test_a_pick_names_only_options_its_group_holds():
     )
     assert add["meaning"]["unit"] == "live-mine"
     added = {**add, "id": "a1", "ts": "2026-09-19T12:01:00+00:00", "seq": 2}
-    assert admit([*STATED_LOG, added], pick)["detail"] == {"options": ["live-mine"]}
+    assert admit([*STATED_LOG, added], pick)["detail"] == {"value": ["live-mine"]}
 
 
 @pytest.mark.parametrize(
@@ -357,8 +357,8 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made(
     )
     pick = {"kind": "action", "widget": "route", "action": "choose"}
     events = (
-        {**pick, "detail": {"options": ["fast"]}},
-        {**pick, "detail": {"options": ["slow"]}},
+        {**pick, "detail": {"value": ["fast"]}},
+        {**pick, "detail": {"value": ["slow"]}},
         {"kind": "undo", "undoes": "e2"},
     )
 
@@ -399,7 +399,7 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
         "kind": "action",
         "widget": "route",
         "action": "choose",
-        "detail": {"options": ["route-mine"]},
+        "detail": {"value": ["route-mine"]},
     }
     events = (
         add("**Ship** half"),
@@ -434,13 +434,15 @@ def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
         return event_contracts_model.admitted_event(page, log, dict(event))
 
     first = admit(
-        [], {**STATED_SWIPE, "detail": {"card": "card-a", "to": "keep", "rank": "0i"}}
+        [],
+        {**STATED_SWIPE, "detail": {"unit": "card-a", "value": "keep", "rank": "0i"}},
     )
     assert first["meaning"]["unit"] == "card-a"
     assert "answer" not in first["meaning"]
     log = [{**first, "id": "s1", "ts": "2026-09-19T12:01:00+00:00", "seq": 1}]
     last = admit(
-        log, {**STATED_SWIPE, "detail": {"card": "card-b", "to": "keep", "rank": "0r"}}
+        log,
+        {**STATED_SWIPE, "detail": {"unit": "card-b", "value": "keep", "rank": "0r"}},
     )
     assert last["meaning"]["answer"] is None
 
@@ -449,10 +451,10 @@ def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
             log,
             {
                 **STATED_SWIPE,
-                "detail": {"card": "not-a-card", "to": "keep", "rank": "0r"},
+                "detail": {"unit": "not-a-card", "value": "keep", "rank": "0r"},
             },
         )
-    assert "unknown card 'not-a-card'" in str(refused.value)
+    assert "unknown unit 'not-a-card'" in str(refused.value)
 
 
 def test_admission_decides_from_the_markup_and_the_standing_log_alone():
@@ -478,14 +480,14 @@ def test_admission_decides_from_the_markup_and_the_standing_log_alone():
     choose_live = {
         **STATED_PICK,
         "widget": "live-pick",
-        "detail": {"options": ["live-gps"]},
+        "detail": {"value": ["live-gps"]},
     }
     assert admit(choose_live)["meaning"]["unit"] == "live-pick"
     assert (
         refusal({**choose_live, "revision": 2}) == "action revision must be one of [1]"
     )
     assert "stands inside an exhibit" in refusal(
-        {**STATED_PICK, "widget": "quoted-pick", "detail": {"options": ["quoted-gps"]}}
+        {**STATED_PICK, "widget": "quoted-pick", "detail": {"value": ["quoted-gps"]}}
     )
     answer = {"kind": "reply", "author": "agent", "revision": 1, "text": "The GPS."}
     assert refusal({**answer, "parent": "c9"}) == "unknown parent 'c9'"
@@ -620,7 +622,7 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
             "revision": 1,
             "widget": "picks",
             "action": "choose",
-            "detail": {"options": ["flag-first"]},
+            "detail": {"value": ["flag-first"]},
             "meaning": {
                 "scope": "page",
                 "unit": "picks",
@@ -858,11 +860,8 @@ def test_another_widget_s_answer_holds_a_thread_two_widgets_answered():
     assert held["widget"] == "sug-b"
 
 
-def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
-    """The log is append-only and a retired verb has no successor to map to, so
-    re-vendoring over one is how recorded decisions fall silent — annabels-drafts
-    holds fifteen `decide` events today's widgets would drop on the first reload.
-    The re-vendor is refused rather than offering a way to discard that history."""
+def test_init_allows_a_log_the_incoming_layer_no_longer_speaks(page_dir):
+    """Retiring a verb leaves its original events intact in the append-only log."""
     # This models a page made under an older registry where lf-draft declared
     # `decide`: the tag and widget id survive, but the incoming verb does not.
     version = page_dir / "index.html"
@@ -891,18 +890,15 @@ def test_init_refuses_a_log_the_incoming_layer_no_longer_speaks(page_dir):
         },
     )
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-    assert result.exit_code != 0
-    assert "no longer speaks" in result.output
-    assert "decide" in result.output
+    assert result.exit_code == 0, result.output
+
+    assert events_model.read_events(page_dir)
 
 
-def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
+def test_init_allows_a_log_holding_a_token_the_incoming_layer_dropped(
     page_dir, monkeypatch
 ):
-    """A layer may take a token off its bar (merge-patch `null`), and a page whose log
-    already holds a reaction on it is refused a re-vendor the way one holding a
-    retired verb is: the standing mark would have no glyph and no pill to take it
-    back by. A token the layer keeps re-vendors as before."""
+    """Removing a reaction token leaves its recorded gestures in history."""
     publish(page_dir)
     append_carried_log_record(
         page_dir,
@@ -927,8 +923,9 @@ def test_init_refuses_a_log_holding_a_token_the_incoming_layer_dropped(
             str(page_dir),
         ],
     )
-    assert result.exit_code != 0
-    assert "no longer speaks" in result.output and "`shorten`" in result.output
+    assert result.exit_code == 0, result.output
+
+    assert events_model.read_events(page_dir)
 
 
 def test_init_revendors_over_a_record_the_running_contract_would_not_admit(
@@ -958,8 +955,8 @@ def test_init_revendors_over_a_record_the_running_contract_would_not_admit(
     assert "Does this still mean anything?" in after.output
 
 
-def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
-    """Another tag using the same verb cannot keep a retired contract alive."""
+def test_init_allows_retiring_a_logged_widgets_verb(page_dir):
+    """A layer can remove one widget's verb while keeping another's same-named verb."""
     registry = json.loads((page_dir / "registry.json").read_text())
     board = registry["lf-board"]["x-example"]
     version = page_dir / "index.html"
@@ -975,7 +972,7 @@ def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
             "revision": 1,
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+            "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
         },
     )
 
@@ -1006,61 +1003,44 @@ def test_init_tracks_logged_verbs_by_the_widget_that_declared_them(page_dir):
         ],
     )
 
-    assert result.exit_code != 0
-    assert "no longer speaks" in result.output
-    assert "lf-board" in result.output and "move" in result.output
+    assert result.exit_code == 0, result.output
+
+    assert events_model.read_events(page_dir)
 
 
-def test_init_refuses_an_incoming_detail_contract_that_rejects_logged_actions(
-    page_dir,
-):
-    """Keeping a verb's spelling is not enough if its payload no longer replays."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    board = registry["lf-board"]["x-example"]
-    version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace("</section>", board + "\n</section>")
+def test_init_allows_a_destination_schema_that_rejects_recorded_values(page_dir):
+    """Re-vendoring allows a new payload domain without rewriting old events."""
+    declaration = _stateful_page_declaration(page_dir)
+    authored = page_dir / "page" / "registry.json"
+    authored.write_text(json.dumps({"lf-local": declaration}))
+    source = PAGE.replace(
+        "</section>", '<lf-local id="local-choice" value="a">Local</lf-local></section>'
     )
+    (page_dir / "index.html").write_text(source)
     publish(page_dir)
     append_command(
         page_dir,
         {
             "kind": "action",
             "author": "user",
-            "revision": 1,
-            "widget": "feeder-board",
-            "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+            "revision": files_model.latest_revision(page_dir),
+            "widget": "local-choice",
+            "action": "first",
+            "detail": {"value": "first"},
         },
     )
+    declaration["properties"]["value"]["maxLength"] = 1
+    authored.write_text(json.dumps({"lf-local": declaration}))
 
-    registry["lf-board"]["x-state"]["move"]["detail"]["properties"]["rank"][
-        "maxLength"
-    ] = 1
-    overlay = page_dir.parent / ".leaf"
-    overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(
-        json.dumps({"lf-board": registry["lf-board"]})
-    )
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "page",
-            "init",
-            *package_selection_args((*PAGE_PACKAGES, "./.leaf")),
-            str(page_dir),
-        ],
-    )
+    assert result.exit_code == 0, result.output
 
-    assert result.exit_code != 0
-    assert "no longer speaks" in result.output
-    assert "lf-board" in result.output and "move" in result.output
-    assert "detail" in result.output
+    assert events_model.read_events(page_dir)
 
 
 @pytest.mark.parametrize("mutation", ["drop", "words", "child"])
-def test_init_refuses_changed_generated_child_semantics(page_dir, mutation):
+def test_init_allows_changed_generated_child_semantics(page_dir, mutation):
     registry = json.loads((page_dir / "registry.json").read_text())
     options = (
         '<lf-ask id="route-decision"><h2>Which route?</h2>'
@@ -1112,15 +1092,13 @@ def test_init_refuses_changed_generated_child_semantics(page_dir, mutation):
         ],
     )
 
-    assert result.exit_code != 0
-    assert "no longer speaks" in result.output
+    assert result.exit_code == 0, result.output
+
+    assert events_model.read_events(page_dir)
 
 
-def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_dir):
-    """A report is the log's forever-contract exactly as an action is: an
-    incoming layer that drops the widget's agent verb strands every recorded
-    report, and the stamp refuses the re-vendor rather than let them fall
-    silent."""
+def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_dir):
+    """An agent verb can be retired while its original reports stay in the log."""
     version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
@@ -1134,7 +1112,7 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
         CliRunner()
         .invoke(
             cli_model.cli,
-            ["page", "report", str(page_dir), "t1", "status", "status=done"],
+            ["page", "report", str(page_dir), "t1", "status", "value=done"],
         )
         .exit_code
         == 0
@@ -1157,14 +1135,13 @@ def test_init_refuses_a_logged_report_the_incoming_layer_no_longer_speaks(page_d
         ],
     )
 
-    assert result.exit_code != 0
-    assert "no longer speaks" in result.output
-    assert "report contract" in result.output
-    assert "lf-task" in result.output and "status" in result.output
+    assert result.exit_code == 0, result.output
+
+    assert events_model.read_events(page_dir)
 
 
-def test_init_refuses_to_orphan_a_logged_visual_anchor(page_dir):
-    """A re-vendored provider must keep every semantic target the log names."""
+def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir):
+    """A provider can remove a visual target without deleting its original comment."""
     version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
@@ -1201,9 +1178,9 @@ def test_init_refuses_to_orphan_a_logged_visual_anchor(page_dir):
         ],
     )
 
-    assert result.exit_code != 0
-    assert "no longer speaks" in result.output
-    assert "visual anchor 'node:A'" in result.output
+    assert result.exit_code == 0, result.output
+
+    assert events_model.read_events(page_dir)
 
 
 def test_a_bare_re_vendor_replaces_a_broken_vendored_registry(page_dir):
@@ -1229,6 +1206,8 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
     """The preview holds replacement back; its writer finishes before the test
     releases the page, including when a preview assertion fails."""
     before = registry_storage.layer_generation(page_dir)
+    theme = page_dir / "theme.css"
+    theme.write_text(theme.read_text() + "\n/* repair this installed edit */\n")
     init_waiting = threading.Event()
     real_page_locked = vendoring_model.page_locked
 
@@ -1259,7 +1238,7 @@ def test_a_preview_holds_one_contract_until_it_closes(page_dir, monkeypatch):
     assert registry_storage.layer_generation(page_dir) != before
 
 
-def test_revendoring_cannot_pass_a_browser_action_still_entering_the_log(
+def test_revendoring_serializes_with_a_browser_action_entering_the_log(
     page_dir, server, monkeypatch
 ):
     registry = json.loads((page_dir / "registry.json").read_text())
@@ -1271,7 +1250,7 @@ def test_revendoring_cannot_pass_a_browser_action_still_entering_the_log(
     )
     publish(page_dir)
     board = registry["lf-board"]
-    board["x-state"]["move"]["detail"]["properties"]["rank"]["maxLength"] = 1
+    board["x-state"]["move"]["record"]["within"] = "lf-options"
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-board": board}))
@@ -1281,7 +1260,7 @@ def test_revendoring_cannot_pass_a_browser_action_still_entering_the_log(
             "revision": 1,
             "widget": "feeder-board",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-doing", "rank": "0i"},
+            "detail": {"unit": "card-baffle", "value": "col-doing", "rank": "0i"},
         }
     ).encode()
     (status, body), refusal = assert_revendor_serializes_writer(
@@ -1289,10 +1268,10 @@ def test_revendoring_cannot_pass_a_browser_action_still_entering_the_log(
     )
 
     assert status == 200, body
-    assert "no longer speaks" in refusal and "move" in refusal
+    assert refusal is None
 
 
-def test_revendoring_cannot_pass_a_worker_report_still_entering_the_log(
+def test_revendoring_serializes_with_a_worker_report_entering_the_log(
     page_dir, monkeypatch
 ):
     _tasks_version(page_dir, "active")
@@ -1308,16 +1287,18 @@ def test_revendoring_cannot_pass_a_worker_report_still_entering_the_log(
         monkeypatch,
         "report",
         lambda: thread_model.cmd_report(
-            page_dir, "t-parser", "status", ("status=review",)
+            page_dir, "t-parser", "status", ("value=review",)
         ),
     )
 
-    assert "no longer speaks" in refusal and "status" in refusal
+    assert refusal is None
     assert events_model.read_events(page_dir)[-1]["kind"] == "report"
-    assert "x-state" in json.loads((page_dir / "registry.json").read_text())["lf-task"]
+    assert (
+        "x-state" not in json.loads((page_dir / "registry.json").read_text())["lf-task"]
+    )
 
 
-def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
+def test_revendoring_serializes_with_thread_markup_entering_the_log(
     page_dir, monkeypatch
 ):
     overlay = page_dir.parent / ".leaf"
@@ -1341,13 +1322,13 @@ def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
         ),
     )
 
-    assert "lf-local-thread" in refusal
+    assert refusal is None
 
 
-def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
+def test_revendoring_can_change_frozen_thread_widget_vocabulary(
     page_dir,
 ):
-    """Frozen thread markup keeps the admission rules of its vendored vocabulary."""
+    """Re-vendoring can change a frozen widget's current declaration."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     append_carried_log_record(
@@ -1391,9 +1372,9 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
         ],
     )
 
-    assert result.exit_code != 0
-    assert "thread markup contract" in result.output
-    assert "lf-options" in result.output
+    assert result.exit_code == 0, result.output
+
+    assert events_model.read_events(page_dir)
 
 
 def test_check_refuses_a_malformed_registry(page_dir):
@@ -1592,7 +1573,7 @@ def test_late_gesture_wakes_for_the_active_vocabulary(page_dir, active_ask):
             "revision": original,
             "widget": "choice",
             "action": "choose",
-            "detail": {"options": ["first"]},
+            "detail": {"value": ["first"]},
         },
     )
     assert action["attention"] is active_ask
@@ -1685,20 +1666,14 @@ def _stateful_page_declaration(page_dir, tag="lf-local"):
         }
     )
     state = {
-        "detail": {
-            "type": "object",
-            "properties": {"value": {"type": "string"}},
-            "required": ["value"],
-            "additionalProperties": False,
-        },
         "unit": "widget",
-        "record": {"kind": "value", "attr": "value", "value": "value"},
+        "record": {"kind": "value", "attr": "value"},
     }
     declaration["x-state"] = {"first": state}
     return declaration
 
 
-def test_candidate_vocabulary_keeps_every_page_action_an_undo_can_expose(page_dir):
+def test_candidate_vocabulary_changes_leave_old_actions_in_captured_history(page_dir):
     """A superseded action can become the winner again if the later action is undone."""
     from leaf.projection import page_reading
     from leaf.revision_artifact import read_artifact
@@ -1759,8 +1734,8 @@ def test_candidate_vocabulary_keeps_every_page_action_an_undo_can_expose(page_di
     authored.write_text(json.dumps({"lf-local": declaration}))
     refused = revisioning_model.activate_source(page_dir)
 
-    assert refused.error and "does not declare action verb 'first'" in refused.error
-    assert refused.revision == revision and not refused.created
+    assert refused.error is None and refused.created
+    assert refused.revision == revision + 1
 
 
 def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(page_dir):
@@ -1856,7 +1831,7 @@ def test_revendoring_checks_the_effective_page_owned_vocabulary(page_dir):
     assert revendored.exit_code == 0, revendored.output
 
 
-def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_dir):
+def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
     """A thread widget keeps the contract under which its user command was admitted."""
     authored = page_dir / "page" / "registry.json"
     declaration = _stateful_page_declaration(page_dir, "lf-thread-local")
@@ -1890,8 +1865,8 @@ def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_di
 
     refused = revisioning_model.activate_source(page_dir)
 
-    assert refused.error and "does not declare action verb 'first'" in refused.error
-    assert refused.revision == revision and not refused.created
+    assert refused.error is None and refused.created
+    assert refused.revision == revision + 1
 
 
 @pytest.mark.parametrize(
@@ -2072,6 +2047,28 @@ def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
 
 
 @pytest.mark.parametrize(
+    ("upgrade", "prepaint", "message"),
+    [
+        (False, None, "x-initial requires x-upgrade: true"),
+        (True, "<span>Room</span>", "declares both x-initial and x-prepaint"),
+    ],
+)
+def test_initial_rendering_has_one_structure_owner(
+    page_dir, upgrade, prepaint, message
+):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    tag = next(tag for tag in registry if tag.startswith("lf-"))
+    entry = registry[tag]
+    entry.update({"x-initial": "/vendor/early.js", "x-upgrade": upgrade})
+    if prepaint is None:
+        entry.pop("x-prepaint", None)
+    else:
+        entry["x-prepaint"] = prepaint
+    with pytest.raises(registry_contract.RegistryError, match=message):
+        registry_validation.validate_registry(registry, "test registry")
+
+
+@pytest.mark.parametrize(
     ("change", "message"),
     [
         (
@@ -2115,14 +2112,8 @@ def test_a_measurement_timestamp_cannot_also_be_replay_writable(page_dir):
     widget["properties"]["restated"] = {"type": "boolean"}
     widget["x-state"] = {
         "retime": {
-            "detail": {
-                "type": "object",
-                "properties": {"at": widget["properties"]["at"]},
-                "required": ["at"],
-                "additionalProperties": False,
-            },
             "unit": "widget",
-            "record": {"kind": "value", "attr": "at", "value": "at"},
+            "record": {"kind": "value", "attr": "at"},
         }
     }
 
@@ -2142,14 +2133,8 @@ def test_a_data_source_attribute_cannot_also_be_replay_writable(page_dir):
     widget = registry["lf-test-data"]
     widget["x-state"] = {
         "rebind": {
-            "detail": {
-                "type": "object",
-                "properties": {"source": widget["properties"]["source"]},
-                "required": ["source"],
-                "additionalProperties": False,
-            },
             "unit": "widget",
-            "record": {"kind": "value", "attr": "source", "value": "source"},
+            "record": {"kind": "value", "attr": "source"},
         }
     }
 
@@ -2160,30 +2145,23 @@ def test_a_data_source_attribute_cannot_also_be_replay_writable(page_dir):
         registry_validation.validate_registry(registry, "test registry")
 
 
-def test_revendoring_cannot_forget_a_historical_data_binding(page_dir):
-    """Clearing a replaceable value does not erase the meaning a stamped version
-    gave its source id. An incoming layer must still understand that binding because a
-    pinned reader can keep consuming the page's current data store."""
-    declare_data_input(
-        page_dir,
-        "builds",
-        {"type": "array"},
-        contract="builds",
-    )
+def test_revendoring_can_drop_a_historical_data_binding(page_dir):
+    """Incoming layers are not constrained by old bindings, even with a live value."""
+    declare_data_input(page_dir, "builds", {"type": "array"}, contract="builds")
     data_model.cmd_data_set(page_dir, "builds", [])
 
-    refused = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    refreshed = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
-    assert refused.exit_code != 0
-    assert "source 'builds' loses its contract 'builds'" in refused.output
-    assert "preserve those bindings" in refused.output
-    cleared = CliRunner().invoke(
-        cli_model.cli, ["data", "clear", str(page_dir), "builds"]
+    assert refreshed.exit_code == 0, refreshed.output
+    historical = data_contracts_model.read_revision(page_dir, 1).registry
+    assert (
+        data_model.read_data(page_dir, historical)["sources"]["builds"]["value"] == []
     )
-    assert cleared.exit_code == 0, cleared.output
-    still_refused = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-    assert still_refused.exit_code != 0
-    assert "source 'builds' loses its contract 'builds'" in still_refused.output
+    current = read_page_data(page_dir)["sources"]["builds"]
+    assert "error" in current and "value" not in current
+    data_model.cmd_data_clear(page_dir, "builds")
+    refreshed = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    assert refreshed.exit_code == 0, refreshed.output
 
 
 def test_revendoring_keeps_a_new_binding_before_its_first_revision(page_dir):
@@ -2214,13 +2192,10 @@ def test_revendoring_keeps_a_new_binding_before_its_first_revision(page_dir):
 
 
 @pytest.mark.parametrize("contract_retained", [True, False])
-def test_revendoring_an_unreadable_edit_still_checks_historical_bindings(
+def test_revendoring_an_unreadable_edit_does_not_require_historical_bindings(
     page_dir, contract_retained
 ):
-    """An unreadable draft cannot activate or introduce a binding. A runtime
-    refresh still preserves the active history and refuses a lost historical contract.
-    Source validation keeps reporting the draft's encoding error.
-    """
+    """A runtime refresh is independent of an unreadable candidate's source error."""
     source = page_dir / "index.html"
     if contract_retained:
         source.write_text(
@@ -2247,8 +2222,9 @@ def test_revendoring_an_unreadable_edit_still_checks_historical_bindings(
             read_page_data(page_dir)["sources"]["report"]["value"] == "Retained report."
         )
     else:
-        assert result.exit_code != 0
-        assert "source 'builds' loses its contract 'builds'" in result.output
+        assert result.exit_code == 0, result.output
+        reading = read_page_data(page_dir)["sources"]["builds"]
+        assert "error" in reading and "value" not in reading
     assert files_model.list_revisions(page_dir) == revisions
     assert source.read_bytes() == b"\xff"
     checked = check(page_dir)
@@ -2319,11 +2295,12 @@ def _page_owned_deferred_source(page_dir):
 
 
 @pytest.mark.parametrize("change", ["schema", "records", "resources"])
-def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(
-    page_dir, change
-):
-    """A same-named contract cannot redirect old readers to a different field."""
+def test_page_owned_data_contracts_can_change_after_publication(page_dir, change):
+    """Current declarations can change; old documents retain their captured registry."""
     authored = _page_owned_deferred_source(page_dir)
+    old_registry = data_contracts_model.read_revision(
+        page_dir, files_model.list_revisions(page_dir)[-1]
+    ).registry
     declarations = json.loads(authored.read_text())
     contract = declarations["$data"]["contracts"]["local-files"]
     if change == "records":
@@ -2335,24 +2312,34 @@ def test_page_owned_data_contract_meaning_is_fixed_for_the_source_lifetime(
     authored.write_text(json.dumps(declarations))
 
     activation = revisioning_model.activate_source(page_dir)
-    assert "schema, record declaration, or resources change" in activation.error
-    with pytest.raises(data_model.DataError, match="record declaration, or resources"):
-        data_model.cmd_data_set(
-            page_dir,
-            "files",
-            {"files": [{"key": "app.py", "patch": "next", "body": "other"}]},
-        )
+    assert activation.error is None and activation.created
+    data_model.cmd_data_set(
+        page_dir,
+        "files",
+        {"files": [{"key": "app.py", "patch": "next", "body": "other"}]},
+    )
     revendored = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
-    assert revendored.exit_code != 0
-    assert "record declaration, or resources" in revendored.output
+    assert revendored.exit_code == 0, revendored.output
+    current_registry = registry_storage.require_registry(page_dir)
+    current = data_model.read_data(page_dir, current_registry)["sources"]["files"]
+    old = data_model.read_data(page_dir, old_registry)["sources"]["files"]
+    for registry, reading, field in [
+        (old_registry, old, "patch"),
+        (current_registry, current, "body" if change == "records" else "patch"),
+    ]:
+        deferred = data_model.deferred_value(
+            reading,
+            registry,
+            source="files",
+            revision=reading["revision"],
+            key="app.py",
+        )
+        assert deferred["value"] == reading["value"]["files"][0][field]
 
 
-def test_data_history_is_held_across_the_incoming_layer_interpretation(
-    page_dir, monkeypatch, tmp_path
+def test_data_binding_inventory_keeps_each_documents_captured_registry(
+    page_dir, tmp_path
 ):
-    """Re-vendoring reads each historical artifact once, retaining the registry
-    that makes frozen markup meaningful while judging incoming bindings separately.
-    """
     authored = _page_owned_deferred_source(page_dir)
     declarations = json.loads(authored.read_text())
     inputs = declarations["lf-local-data"]["x-data"]
@@ -2372,16 +2359,6 @@ def test_data_history_is_held_across_the_incoming_layer_interpretation(
             "markup": '<lf-local-data id="reply-data" source="reply-feed"></lf-local-data>',
         }
     ]
-    reads = []
-    read_revision = data_contracts_model.read_revision
-
-    def capture_revision(directory, revision):
-        reads.append(revision)
-        return read_revision(directory, revision)
-
-    monkeypatch.setattr(data_contracts_model, "read_revision", capture_revision)
-    vendoring_model._refuse_data_contract_drift(page_dir, events, registry)
-    assert reads == files_model.list_revisions(page_dir)
 
     inventory = data_contracts_model.page_data_binding_inventory(
         page_dir, registry, events
@@ -2393,8 +2370,6 @@ def test_data_history_is_held_across_the_incoming_layer_interpretation(
             "document": "event 'frozen-feed' markup",
         }
     ]
-
-    # Seeded markup on an unstamped page uses its initial registry.
     bootstrap = data_contracts_model.page_data_binding_inventory(
         tmp_path / "bootstrap", registry, [{**events[0], "revision": None}]
     )
@@ -2410,19 +2385,6 @@ def test_data_history_is_held_across_the_incoming_layer_interpretation(
             ],
         }
     }
-
-    incoming = deepcopy(registry)
-    incoming["lf-local-data"]["x-data"] = {}
-    reads.clear()
-    with pytest.raises(SystemExit) as refused:
-        vendoring_model._refuse_data_contract_drift(page_dir, events, incoming)
-    assert reads == files_model.list_revisions(page_dir)
-    assert str(refused.value) == (
-        "this page's documents do not keep one meaning for each data source:\n"
-        "  - source 'files' loses its contract 'local-files'\n"
-        "  - source 'reply-feed' loses its contract 'local-files'\n"
-        "preserve those bindings in the incoming registry before re-vendoring."
-    )
 
 
 @pytest.mark.parametrize("change", ["description", "empty-resources"])
@@ -2479,11 +2441,10 @@ def test_the_registry_door_holds_a_detail_schema_to_the_keys_it_names(page_dir):
     declaration rather than the event, so one unnamed key makes all of them
     approximate at once.
 
-    Asked of `lf-board`, whose `move` folds per card: the thread-answer door
-    holds a settling verb to the whole widget, and this is the way past it."""
+    The unrecorded `add` command owns its custom payload and fold unit."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    move = registry["lf-board"]["x-state"]["move"]
-    move["detail"]["patternProperties"] = {"^resolv": {"type": "string"}}
+    add = registry["lf-options"]["x-state"]["add"]
+    add["detail"]["patternProperties"] = {"^resolv": {"type": "string"}}
     (page_dir / "registry.json").write_text(json.dumps(registry))
     result = check(page_dir)
     assert result.exit_code != 0
@@ -2777,9 +2738,8 @@ def test_one_each_child_declarations_are_checked_whole(page_dir, mutation, messa
         # An x-says value is the page's words: replay writing one would change
         # what the page says while the file's reading held still.
         (_report_says_attr, "records x-says attribute `owner`"),
-        # One vocabulary: the detail field speaks the attribute's own schema,
-        # or the log's contract and the markup's drift apart.
-        (_report_detail_drift, "must carry attribute `status`'s own schema"),
+        # The destination owns the payload schema; a report cannot author another.
+        (_report_authored_detail, "registry extensions are invalid"),
         # `overruled` is how a version keeps its state over a report; without it
         # every contradiction is unpublishable.
         (_report_without_overruled, "not the boolean `overruled`"),
@@ -2813,14 +2773,13 @@ def test_check_refuses_a_widget_name_that_cannot_form_a_selector(page_dir, tag):
 
 def test_check_refuses_an_invalid_action_detail_schema(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-options"]["x-state"]["choose"]["detail"]["type"] = "not-a-type"
+    registry["lf-options"]["x-state"]["add"]["detail"]["type"] = "not-a-type"
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
     assert result.exit_code != 0
     assert (
-        "<lf-options> x-state verb `choose` has an invalid detail schema"
-        in result.output
+        "<lf-options> x-state verb `add` has an invalid detail schema" in result.output
     )
 
 
@@ -2884,134 +2843,274 @@ def test_action_detail_schemas_match_the_post_object_contract(page_dir):
     assert "detail schema must declare an object" in result.output
 
 
-@pytest.mark.parametrize("subschema", [True, False])
-def test_state_user_fields_reject_boolean_subschemas(page_dir, subschema):
+def test_unrecorded_fold_units_are_required_strings(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-options"]["x-state"]["choose"]["detail"]["properties"]["options"] = (
-        subschema
+    add = registry["lf-options"]["x-state"]["add"]
+    add.pop("creates")
+    add["detail"]["properties"]["option"] = {"type": "integer"}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    assert "fold unit `option` must be a string" in result.output
+
+
+@pytest.mark.parametrize(
+    ("tag", "verb", "unit"),
+    [
+        ("lf-options", "choose", "unit"),
+        ("lf-draft", "edit", "unit"),
+        ("lf-task", "status", "unit"),
+        ("lf-board", "move", "widget"),
+    ],
+)
+def test_recorded_effects_fix_their_fold_unit(page_dir, tag, verb, unit):
+    registry = json.loads((page_dir / "registry.json").read_text())
+    spec = registry[tag]["x-state"][verb]
+    spec["unit"] = unit
+    registry[tag]["properties"]["restated"] = {"type": "boolean"}
+    (page_dir / "registry.json").write_text(json.dumps(registry))
+
+    result = check(page_dir)
+
+    assert result.exit_code != 0
+    required = "unit" if spec["record"]["kind"] == "position" else "widget"
+    assert (
+        f"record `{spec['record']['kind']}` requires unit: {required!r}"
+        in result.output
+    ), result.output
+
+
+def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
+    """Each effect admits its fixed fields and refuses aliases, extras and wrong types."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    source = (
+        '<lf-options id="picks" choose><lf-option id="first">First</lf-option></lf-options>'
+        '<lf-draft id="draft"><pre>Initial words</pre></lf-draft>'
+        '<lf-board id="board"><lf-column id="todo" label="Todo">'
+        '<lf-card id="card">Card</lf-card></lf-column>'
+        '<lf-column id="done" label="Done"></lf-column></lf-board>'
     )
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    page = ModelPage(source, registry=registry)
+    for widget, action, valid, invalid in (
+        (
+            "picks",
+            "choose",
+            {"value": ["first"]},
+            (
+                {},
+                {"options": ["first"]},
+                {"value": "first"},
+                {"value": [1]},
+                {"value": ["first"], "animate": True},
+                {"value": ["missing"]},
+            ),
+        ),
+        (
+            "draft",
+            "edit",
+            {"value": "New words"},
+            (
+                {},
+                {"text": "New words"},
+                {"value": 1},
+                {"value": "New words", "text": "news"},
+            ),
+        ),
+        (
+            "board",
+            "move",
+            {"unit": "card", "value": "done", "rank": "0i"},
+            (
+                {"unit": "card", "value": "done"},
+                {"card": "card", "to": "done", "rank": "0i"},
+                {"unit": 1, "value": "done", "rank": "0i"},
+                {"unit": "card", "value": 1, "rank": "0i"},
+                {"unit": "card", "value": "done", "rank": 1},
+                {"unit": "card", "value": "done", "rank": "!"},
+                {"unit": "missing", "value": "done", "rank": "0i"},
+                {"unit": "card", "value": "missing", "rank": "0i"},
+            ),
+        ),
+    ):
+        command = {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": widget,
+            "action": action,
+        }
+        admitted = event_contracts_model.admitted_event(
+            page, [], {**command, "detail": valid}
+        )
+        assert admitted["detail"] == valid
+        assert admitted["meaning"]["unit"] == (
+            valid["unit"] if widget == "board" else widget
+        )
+        for detail in invalid:
+            with pytest.raises(events_model.EventRefused):
+                event_contracts_model.admitted_event(
+                    page, [], {**command, "detail": detail}
+                )
 
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert "record value `options` must be an array of strings" in result.output
 
-
-def test_fold_units_are_required_strings(page_dir):
+@pytest.mark.parametrize("writer", ["user", "agent"])
+def test_attribute_records_admit_only_sets_of_owned_members(page_dir, writer):
+    """Both writers may clear or select authored/generated members, once each."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    card = registry["lf-board"]["x-state"]["move"]["detail"]["properties"]["card"]
-    card["type"] = "integer"
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    options = registry["lf-options"]
+    if writer == "agent":
+        options.pop("x-awaits")
+        options["properties"]["overruled"] = {"type": "boolean"}
+        options["x-state"]["choose"]["writer"] = "agent"
+    registry_validation.validate_registry(registry, "test registry")
+    page = ModelPage(
+        '<lf-options id="owned" choose multiple>'
+        '<lf-option id="first">First</lf-option>'
+        '<lf-option id="second">Second</lf-option></lf-options>'
+        '<lf-options id="elsewhere" choose>'
+        '<lf-option id="foreign">Foreign</lf-option></lf-options>',
+        registry=registry,
+    )
+    added = event_contracts_model.admitted_event(
+        page,
+        [],
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "owned",
+            "action": "add",
+            "detail": {"option": "generated", "text": "Another route"},
+        },
+    )
+    log = [{**added, "seq": 1, "ts": "2026-10-06T12:00:00+00:00"}]
+    command = {
+        "kind": "action" if writer == "user" else "report",
+        "author": writer,
+        "revision": 1,
+        "widget": "owned",
+        "action": "choose",
+    }
+    for value in ([], ["first"], ["first", "second"], ["generated"]):
+        admitted = event_contracts_model.admitted_event(
+            page, log, {**command, "detail": {"value": value}}
+        )
+        assert admitted["detail"] == {"value": value}
+        assert set(admitted["meaning"]["depends"]) == {"owned", *value}
+    for value in (["foreign"], ["missing"], ["first", "foreign"], ["first", "first"]):
+        with pytest.raises(events_model.EventRefused):
+            event_contracts_model.admitted_event(
+                page, log, {**command, "detail": {"value": value}}
+            )
 
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert "fold unit `card` must be a string" in result.output
+
+def test_scalar_record_admission_inherits_the_destination_schema(page_dir):
+    """A destination constraint is also the event constraint, without a second declaration."""
+    registry = json.loads((page_dir / "registry.json").read_text())
+    declaration = _stateful_page_declaration(page_dir)
+    declaration["properties"]["value"] = {
+        "type": "string",
+        "enum": ["next", "forbidden"],
+        "maxLength": 4,
+    }
+    registry["lf-local"] = declaration
+    registry_validation.validate_registry(registry, "test registry")
+    page = ModelPage(
+        '<lf-local id="local" value="next">Local</lf-local>', registry=registry
+    )
+    command = {
+        "kind": "action",
+        "author": "user",
+        "revision": 1,
+        "widget": "local",
+        "action": "first",
+    }
+    admitted = event_contracts_model.admitted_event(
+        page, [], {**command, "detail": {"value": "next"}}
+    )
+    assert admitted["detail"] == {"value": "next"}
+    for value in ("forbidden", "other", 1):
+        with pytest.raises(events_model.EventRefused):
+            event_contracts_model.admitted_event(
+                page, [], {**command, "detail": {"value": value}}
+            )
 
 
 @pytest.mark.parametrize(
-    ("tag", "verb", "field"),
-    [
-        ("lf-options", "choose", "options"),
-        ("lf-draft", "edit", "text"),
-    ],
+    "mutation", ["detail", "record-value", "record-rank", "update-field"]
 )
-def test_per_part_state_records_positions(page_dir, tag, verb, field):
+def test_recorded_declarations_cannot_override_the_fixed_payload(page_dir, mutation):
     registry = json.loads((page_dir / "registry.json").read_text())
-    spec = registry[tag]["x-state"][verb]
-    spec["unit"] = field
-    spec["detail"]["properties"][field]["type"] = "string"
+    spec = registry["lf-board"]["x-state"]["move"]
+    if mutation == "detail":
+        spec["detail"] = {"type": "object", "additionalProperties": False}
+    elif mutation == "update-field":
+        registry["lf-agent"]["x-state"]["state"]["update"] = "doing"
+    else:
+        spec["record"][mutation.removeprefix("record-")] = "custom"
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
+
     assert result.exit_code != 0
-    assert f"<{tag}> x-state verb `{verb}` records per-part state" in result.output
-    assert "only position records support that" in result.output
-
-
-@pytest.mark.parametrize(
-    ("tag", "verb", "field", "wanted"),
-    [
-        # An attribute record names the set of elements wearing it, so its detail field
-        # is a list whatever the widget allows at once; the other two name one thing.
-        ("lf-options", "choose", "options", "must be an array of strings"),
-        ("lf-board", "move", "to", "must be a string"),
-        ("lf-draft", "edit", "text", "must be a string"),
-    ],
-)
-def test_record_values_have_the_type_the_user_uses(page_dir, tag, verb, field, wanted):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    spec = registry[tag]["x-state"][verb]
-    spec["detail"]["properties"][field] = {"type": "integer"}
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    result = check(page_dir)
-    assert result.exit_code != 0
-    assert f"<{tag}> x-state verb `{verb}` record value `{field}`" in result.output
-    assert wanted in result.output
-
-
-def test_recorded_actions_can_require_fields_beyond_the_record(page_dir):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    detail = registry["lf-options"]["x-state"]["choose"]["detail"]
-    detail["properties"]["animate"] = {"type": "boolean"}
-    detail["required"].append("animate")
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    result = check(page_dir)
-
-    assert result.exit_code == 0, result.output
+    assert "registry extensions are invalid" in result.output
 
 
 def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    numeric = {"type": "integer", "minimum": 0}
-    registry["lf-agent"]["properties"]["state"] = numeric
-    registry["lf-agent"]["x-state"]["state"]["detail"]["properties"]["state"] = numeric
+    registry["lf-agent"]["properties"]["state"] = {"type": "integer", "minimum": 0}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
 
     assert result.exit_code != 0
-    assert "record value `state` must be a string or string enum" in result.output
+    assert "record attribute `state` must be a string or string enum" in result.output
 
 
-@pytest.mark.parametrize(
-    ("change", "wanted"),
-    [
-        (
-            lambda spec: spec.update({"update": "missing"}),
-            "update field `missing` is not declared by its detail schema",
-        ),
-        (
-            lambda spec: spec["detail"]["required"].remove("doing"),
-            "update field `doing` must be required",
-        ),
-        (
-            lambda spec: spec["detail"]["properties"].update(
-                {"doing": {"type": ["string", "null"]}}
-            ),
-            "update field `doing` must be a string",
-        ),
-        (
-            lambda spec: spec["detail"]["properties"]["doing"].pop("minLength"),
-            "update field `doing` must set minLength to at least 1",
-        ),
-    ],
-)
-def test_report_update_words_are_declared_once(page_dir, change, wanted):
-    """The canonical feed may render one report detail as prose, so the registry
-    names that field explicitly and guarantees every report carries real words. A
-    consumer never guesses from a field name or string-shaped value."""
+def test_report_update_prose_is_required_only_when_declared(page_dir):
+    """The report flag fixes nonempty text; reports without it carry just their value."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    spec = registry["lf-agent"]["x-state"]["state"]
-    assert spec["update"] == "doing"
-    change(spec)
-    (page_dir / "registry.json").write_text(json.dumps(registry))
+    page = ModelPage(
+        '<lf-agent id="agent" state="working">Agent</lf-agent>', registry=registry
+    )
+    command = {
+        "kind": "report",
+        "author": "agent",
+        "revision": 1,
+        "widget": "agent",
+        "action": "state",
+    }
+    detail = {"value": "waiting", "text": "Ready for review."}
+    admitted = event_contracts_model.admitted_event(
+        page, [], {**command, "detail": detail}
+    )
+    assert admitted["detail"] == detail
+    for invalid in (
+        {"value": "waiting"},
+        {"value": "waiting", "text": ""},
+        {"value": "waiting", "text": None},
+    ):
+        with pytest.raises(events_model.EventRefused):
+            event_contracts_model.admitted_event(
+                page, [], {**command, "detail": invalid}
+            )
+    with pytest.raises(events_model.EventRefused):
+        event_contracts_model.admitted_event(
+            page, [], {**command, "kind": "action", "author": "user", "detail": detail}
+        )
 
-    result = check(page_dir)
-
-    assert result.exit_code != 0
-    assert wanted in result.output
+    del registry["lf-agent"]["x-state"]["state"]["update"]
+    page = ModelPage(
+        '<lf-agent id="agent" state="working">Agent</lf-agent>', registry=registry
+    )
+    admitted = event_contracts_model.admitted_event(
+        page, [], {**command, "detail": {"value": "waiting"}}
+    )
+    assert admitted["detail"] == {"value": "waiting"}
+    with pytest.raises(events_model.EventRefused):
+        event_contracts_model.admitted_event(page, [], {**command, "detail": detail})
 
 
 @pytest.mark.parametrize(
@@ -3067,9 +3166,7 @@ def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
     # A different host attribute is a different value slot on the same unit.
     task = registry["lf-task"]
     owner = json.loads(json.dumps(task["x-state"]["status"]))
-    owner["detail"]["properties"] = {"owner": {"type": "string"}}
-    owner["detail"]["required"] = ["owner"]
-    owner["record"] = {"kind": "value", "attr": "owner", "value": "owner"}
+    owner["record"] = {"kind": "value", "attr": "owner"}
     task["properties"]["owner"] = {"type": "string"}
     task.setdefault("required", []).append("owner")
     task["x-state"]["owner"] = owner
@@ -3079,13 +3176,6 @@ def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
         registry["lf-tasks"]["x-example"],
     )
 
-    # Placement is one slot only for a given declared unit.
-    board = registry["lf-board"]
-    arrange = json.loads(json.dumps(board["x-state"]["move"]))
-    arrange["unit"] = "to"
-    arrange["detail"]["properties"].pop("card")
-    arrange["detail"]["required"].remove("card")
-    board["x-state"]["arrange"] = arrange
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -3239,106 +3329,52 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
     else:
         # An agent verb never answers an Ask, so the suggestion stops asking one.
         suggestion.pop("x-awaits")
+        suggestion.pop("x-withdrawn-as")
         suggestion["properties"].pop("resolves")
         decide["writer"] = "agent"
-        decide["record"] = {"kind": "value", "attr": "outcome", "value": "outcome"}
-        suggestion["properties"]["outcome"] = decide["detail"]["properties"]["outcome"]
+        suggestion["properties"]["outcome"] = decide.pop("detail")["properties"][
+            "outcome"
+        ]
+        decide["record"] = {"kind": "value", "attr": "outcome"}
         suggestion["properties"]["overruled"] = {"type": "boolean"}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
     assert result.exit_code != 0
-    assert "<lf-suggestion> x-state verb `decide` declares detail field `outcome`" in (
-        result.output
-    )
-    assert "the deciding verb folds by widget" in result.output
+    if fault == "per-part":
+        assert "the deciding verb folds by widget" in result.output
+    else:
+        assert "declares no deciding x-state verb" in result.output
 
 
-def test_a_layers_own_outcome_licenses_the_ids_it_retires(trial_page):
-    """The version that honors a decision drops what the outcome retired, and
-    the licensing that lets it is written in terms of the registry's owner/member
-    relation — so a family the layer never heard of is licensed the day it is
-    declared. It used to be written in terms of the suggestion's own slots, and
-    a family like this one got every part of the loop except this: the door
-    refused the declaration outright rather than let the honoring version fail
-    here with "ids dropped"."""
-    (trial_page / "index.html").write_text(
-        trial_version(ADOPTED, TRIAL_LOG, PILOT_PURGE)
-    )
-
-    refused = check(trial_page)
-    assert refused.exit_code == 1
-    assert "cache-daily" in refused.output and "cache-now" in refused.output
-    # The wrapper with them: this version keeps the proposal as settled prose, so
-    # the withdrawal that would have licensed the wrapper isn't one.
-    assert "trial-cache" in refused.output
-
-    decide(trial_page, "adopt", widget="trial-cache")
-
-    honored = stamp(trial_page, "adopted")
+def test_custom_retirement_holders_can_be_revised_without_an_answer(trial_page):
+    """The same free editing applies to a layer's own outcome widgets."""
+    for source in (
+        trial_version(ADOPTED, TRIAL_LOG, PILOT_PURGE),
+        trial_version(TRIAL_CACHE, SHELVED, PILOT_PURGE),
+        trial_version(TRIAL_CACHE, PILOT_PURGE),
+        trial_version(TRIAL_CACHE, TRIAL_LOG),
+    ):
+        (trial_page / "index.html").write_text(source)
+        revised = check(trial_page)
+        assert revised.exit_code == 0, revised.output
+    decide(trial_page, "shelve", widget="pilot-purge")
+    honored = stamp(trial_page, "answered")
     assert honored.exit_code == 0, honored.output
     assert live_versions(trial_page) == [1, 2]
 
 
-def test_a_layers_own_widget_withdraws_as_its_entry_declares(trial_page):
-    """Nothing was decided, so the author may take the question back — and
-    `x-withdrawn-as` is what says which half of it was theirs to take. The other
-    half is the page's own words, which only the user's own `adopt` consents
-    to losing, so a version dropping that is refused while the same version's
-    withdrawal stands."""
-    (trial_page / "index.html").write_text(
-        trial_version(TRIAL_CACHE, SHELVED, PILOT_PURGE)
-    )
-    withdrawn = check(trial_page)
-    assert withdrawn.exit_code == 0, withdrawn.output
-
-    # v2 published nothing, so v3 stands against v1 like v2 did.
-    (trial_page / "index.html").write_text(trial_version(TRIAL_CACHE, PILOT_PURGE))
-    result = check(trial_page)
-    assert result.exit_code == 1
-    issues = "\n".join(
-        line for line in result.output.splitlines() if line.startswith("  -")
-    )
-    assert "log-daily" in issues
-    assert "log-hourly" not in issues
-    assert "ids dropped from revision r1: ['log-hourly', 'trial-log']" in result.output
-
-
-def test_a_widget_declaring_no_withdrawal_holds_its_ids_until_it_is_answered(
-    trial_page,
-):
-    """A withdrawal is declared, never assumed: a family that doesn't say what
-    taking its question back would mean keeps every id until the user answers
-    it. <lf-proposed> is the same slot under the same verb in both families, so
-    what differs is the pair — which is the shape the licensing reads, and the
-    reason the declaration sits on the widget that holds the slot rather than on
-    the slot."""
-    (trial_page / "index.html").write_text(trial_version(TRIAL_CACHE, TRIAL_LOG))
-
-    refused = check(trial_page)
-    assert refused.exit_code == 1
-    assert "pilot-purge" in refused.output and "purge-weekly" in refused.output
-
-    decide(trial_page, "shelve", widget="pilot-purge")
-
-    answered = check(trial_page)
-    assert answered.exit_code == 0, answered.output
-
-
-def test_the_registry_door_refuses_a_withdrawal_that_retires_nothing(trial_page):
-    """A withdrawal outcome no slot of the widget retires under promises the
-    author a taking-back that would leave every id in place — and the version
-    that tried it would fail as "ids dropped", a typo's distance from the
-    declaration and three versions after it."""
+def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
     registry = json.loads((trial_page / "registry.json").read_text())
-    registry["lf-trial"]["x-withdrawn-as"] = "shelved"
+    registry["lf-trial"]["x-withdrawn-as"] = "pause"
     (trial_page / "registry.json").write_text(json.dumps(registry))
-
     result = check(trial_page)
-    assert result.exit_code != 0
-    assert "<lf-trial> x-withdrawn-as `shelved` retires none of its slots" in (
-        result.output
-    )
+    assert result.exit_code == 0, result.output
+    registry["lf-trial"]["x-withdrawn-as"] = "missing"
+    (trial_page / "registry.json").write_text(json.dumps(registry))
+    invalid = check(trial_page)
+    assert invalid.exit_code != 0
+    assert "not a deciding outcome" in invalid.output
 
 
 @pytest.mark.parametrize(
@@ -3456,40 +3492,20 @@ def test_a_position_record_places_a_part_and_never_the_widget(page_dir):
     container can read, so a widget cannot record its own position."""
     registry = json.loads((page_dir / "registry.json").read_text())
     registry["lf-options"]["x-state"]["move"] = {
-        "detail": {
-            "type": "object",
-            "properties": {"to": {"type": "string"}, "rank": {"type": "string"}},
-            "required": ["to", "rank"],
-            "additionalProperties": False,
-        },
         "unit": "widget",
-        "record": {
-            "kind": "position",
-            "within": "lf-column",
-            "value": "to",
-            "rank": "rank",
-        },
+        "record": {"kind": "position", "within": "lf-column"},
     }
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
 
     assert result.exit_code != 0
-    assert "its unit must be the part it places, not the widget" in result.output
+    assert "record `position` requires unit: 'unit'" in result.output
 
 
 def _value_verb(attr):
     """A widget-unit verb that records one attribute's value."""
-    return {
-        "detail": {
-            "type": "object",
-            "properties": {attr: {"type": "string"}},
-            "required": [attr],
-            "additionalProperties": False,
-        },
-        "unit": "widget",
-        "record": {"kind": "value", "attr": attr, "value": attr},
-    }
+    return {"unit": "widget", "record": {"kind": "value", "attr": attr}}
 
 
 @pytest.mark.parametrize(
@@ -3543,7 +3559,7 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
                 "revision": revision,
                 "widget": "board",
                 "action": "move",
-                "detail": {"card": "card", "to": "done", "rank": "0i"},
+                "detail": {"unit": "card", "value": "done", "rank": "0i"},
             }
         ).encode(),
     )
@@ -4763,7 +4779,7 @@ def test_sample_body_declarations_use_the_child_document_boundary(page_dir):
     [
         ("<noscript>invisible</noscript>", "the browser renders none of its content"),
         ('<lf-unknown id="bad">Unknown</lf-unknown>', "unknown widget"),
-        ('<lf-draft id="change" restated><pre>Text</pre></lf-draft>', "restated"),
+        ('<lf-draft id="change" restated><pre>Text</pre></lf-draft>', None),
         ("<template data-sample><h1>Child</h1></template>", "needs a stable id"),
         ('<p id="duplicate">One</p><p id="duplicate">Two</p>', "duplicate"),
         (
@@ -4780,6 +4796,9 @@ def test_check_validates_each_sample_document(page_dir, markup, error):
         )
     )
     result = check(page_dir)
+    if error is None:
+        assert result.exit_code == 0, result.output
+        return
     assert result.exit_code != 0, result.output
     assert "sample 'practice'" in result.output
     assert error in result.output
@@ -4838,13 +4857,15 @@ def test_sample_data_bindings_use_copied_data_but_not_parent_history(page_dir):
     result = check(page_dir)
     assert result.exit_code == 0, result.output
 
-    # A child may bind the same name differently, but cannot reinterpret the stored
-    # value it copies from the parent.
+    # A child may rebind the copied source. An incompatible current value is an
+    # error under its declaration, never passed off as a valid child payload.
     data_model.cmd_data_set(page_dir, "shared", "parent value")
     result = check(page_dir)
-    assert result.exit_code != 0
-    assert "sample 'practice'" in result.output
-    assert "it was recorded with 'parent'" in result.output
+    assert result.exit_code == 0, result.output
+    registry = registry_storage.require_registry(page_dir)
+    reading = data_model.read_source(page_dir, "shared", "child", registry)
+    assert "error" in reading and "value" not in reading
+    assert data_model.read_contracts(page_dir)["shared"] == "parent"
 
 
 @pytest.mark.parametrize("seeded", [False, True])
@@ -5000,7 +5021,7 @@ def test_date_time_format_is_an_absolute_rfc3339_instant(value, valid):
     assert registry_schema.json_validator(schema).is_valid(value) is valid
 
 
-def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
+def test_init_allows_to_drop_the_contract_of_a_held_comment(page_dir):
     """A hold is recorded against the declaration that admitted it."""
     package = page_dir.parent / "mutable-command-hub"
     shutil.copytree(COMMAND_HUB_PACKAGE, package)
@@ -5046,9 +5067,9 @@ def test_init_refuses_to_drop_the_contract_of_a_held_comment(page_dir):
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
 
-    assert result.exit_code != 0
-    assert "no longer speaks" in result.output
-    assert "x-thread-seat hold target" in result.output
+    assert result.exit_code == 0, result.output
+
+    assert events_model.read_events(page_dir)
 
 
 def test_shared_package_declarations_compose_by_member():
@@ -5372,18 +5393,9 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
 def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     server, page_dir
 ):
-    """Recorded identities become dependencies, literal detail text does not, and a
-    re-vendor may not change the fold unit or record form the fold reads the
-    admitted command through."""
-    from copy import deepcopy
-
+    """Recorded identities become dependencies and keep their admitted fold and effect."""
     from leaf.files import latest_revision
-    from leaf.validation.compatibility import candidate_vocabulary_gaps
 
-    registry = json.loads((page_dir / "registry.json").read_text())
-    choose = registry["lf-options"]["x-state"]["choose"]
-    choose["detail"]["properties"]["annotation"] = {"type": "string"}
-    (page_dir / "registry.json").write_text(json.dumps(registry))
     source = PAGE.replace("<lf-options>", '<lf-options id="picks" choose>')
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
@@ -5393,10 +5405,7 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
         "revision": revision,
         "widget": "picks",
         "action": "choose",
-        "detail": {
-            "options": ["flag-first"],
-            "annotation": "plan-choice-decision",
-        },
+        "detail": {"value": ["flag-first"]},
         "attempt": "named-dependencies",
         "attention": False,
     }
@@ -5418,22 +5427,6 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     moved = {**within, "flag-first": ("elsewhere", "flag-first")}
     assert not event_folds_model.action_retracted(
         accepted, {"flag-first": revision + 1}, moved
-    )
-    document = structure_model.SourceDocument(source)
-    assert (
-        candidate_vocabulary_gaps(page_dir, events, document, registry, revision) == []
-    )
-    recordless = deepcopy(registry)
-    del recordless["lf-options"]["x-state"]["choose"]["record"]
-    assert "changes its admitted record form" in "\n".join(
-        candidate_vocabulary_gaps(page_dir, events, document, recordless, revision)
-    )
-    # The fold unit decides the shape a verb's state takes, so a candidate that moves
-    # it would fold the admitted command into a different reading.
-    reunited = deepcopy(registry)
-    reunited["lf-options"]["x-state"]["choose"]["unit"] = "annotation"
-    assert "changes its admitted fold unit" in "\n".join(
-        candidate_vocabulary_gaps(page_dir, events, document, reunited, revision)
     )
 
 
@@ -5460,14 +5453,17 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
         "widget": "sug-a",
         "action": "label",
         "detail": {},
-        "meaning": {
-            "scope": "page",
-            "unit": "sug-a",
-            "depends": ["sug-a"],
-        },
     }
-    events = [{**COMMENT, "seq": 1}, {**ACCEPT, "id": "accept1", "seq": 2}, event]
-    html = '<lf-suggestion id="sug-a"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
+    html = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
+    stated = ModelPage(html, registry=registry)
+    events = [{**COMMENT, "seq": 1}]
+    accepted = event_contracts_model.admitted_event(
+        stated,
+        events,
+        {key: value for key, value in ACCEPT.items() if key != "meaning"},
+    )
+    events.append({**accepted, "id": "accept1", "seq": 2})
+    events.append(event_contracts_model.admitted_event(stated, events, event))
     page = page_reading(
         passages_model.SourceReading(structure_model.SourceDocument(html), registry),
         events,
@@ -5551,7 +5547,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
             "document or message widget id",
         ),
         (
-            '[{"kind":"action","widget":"absent","action":"choose","detail":{"options":[]}}]',
+            '[{"kind":"action","widget":"absent","action":"choose","detail":{"value":[]}}]',
             'type="application/json"',
             'data-sample-events="fixture"',
             "unknown action widget",
@@ -5678,3 +5674,103 @@ def test_sample_fixture_anchors_are_captured_in_the_child_reading(
     if not valid:
         assert "sample 'practice'" in result.output
         assert complaint in result.output
+
+
+@pytest.mark.parametrize(
+    "change", ["slot", "enum", "pattern", "description", "broaden"]
+)
+def test_revised_state_definitions_keep_original_history_and_admit_new_typed_state(
+    page_dir, change
+):
+    from interact_support import state_json
+    from leaf.projection import page_reading
+    from leaf.revision_artifact import read_revision
+
+    declaration = _stateful_page_declaration(page_dir)
+    declaration["properties"]["value"] = {
+        "type": "string",
+        "enum": ["old", "new"],
+        "description": "Original meaning.",
+    }
+    declaration["properties"]["target"] = {"type": "string"}
+    authored = page_dir / "page" / "registry.json"
+    source = page_dir / "index.html"
+    authored.write_text(json.dumps({"lf-local": declaration}))
+    source.write_text(
+        PAGE.replace(
+            "</section>",
+            '<lf-local id="local-choice" value="old" target="new">Local</lf-local></section>',
+        )
+    )
+    publish(page_dir)
+    original = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "local-choice",
+            "action": "first",
+            "detail": {"value": "old"},
+        },
+    )
+    assert original["meaning"]["state"]["record"] == {"kind": "value", "attr": "value"}
+    next_value = "new"
+    if change == "slot":
+        declaration["x-state"]["first"]["record"]["attr"] = "target"
+    elif change == "enum":
+        declaration["properties"]["value"]["enum"] = ["new"]
+    elif change == "broaden":
+        declaration["properties"]["value"]["enum"].append("later")
+    elif change == "pattern":
+        declaration["properties"]["value"] = {"type": "string", "pattern": "^new$"}
+    else:
+        declaration["properties"]["value"]["description"] = "Clarified explanation."
+    authored.write_text(json.dumps({"lf-local": declaration}))
+    source.write_text(
+        source.read_text().replace('value="old"', f'value="{next_value}"')
+    )
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None, activated.error
+    current = state_json(page_dir)["state"]
+    assert bool(current) == (change in {"description", "broaden"})
+    historical = page_reading(
+        read_revision(page_dir, 1), events_model.read_events(page_dir), 1
+    )
+    assert (
+        historical.projection.desired["local-choice", "local-choice", "first"][0]["id"]
+        == original["id"]
+    )
+    revised = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": activated.revision,
+            "widget": "local-choice",
+            "action": "first",
+            "detail": {"value": next_value},
+        },
+    )
+    [standing] = state_json(page_dir)["state"]
+    assert standing["detail"] == {"value": next_value}
+    assert (
+        revised["meaning"]["state"] != original["meaning"]["state"]
+        or change == "description"
+    )
+    assert original in events_model.read_events(page_dir)
+
+
+@pytest.mark.parametrize(
+    "case",
+    json.loads((Path(__file__).with_name("state_definition_cases.json")).read_text()),
+    ids=lambda case: case["id"],
+)
+def test_state_definition_identity_matches_the_browser_cases(case):
+    from leaf.registry.contract import same_state_definition, state_definition
+
+    definitions = [
+        state_definition("lf-local", {}, {"unit": "widget", "detail": case[key]})
+        for key in ("before", "after")
+    ]
+    assert same_state_definition(*definitions) is case["same"]

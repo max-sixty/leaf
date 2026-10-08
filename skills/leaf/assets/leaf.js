@@ -11,7 +11,7 @@ import {
   annotationMode,
 } from "./runtime/context.js";
 import { initializeServedDocument } from "./runtime/document-identity.js";
-import { chromeRoot } from "./runtime/chrome.js";
+import { chromeRoot, chromeForeground } from "./runtime/chrome.js";
 import { landingPlace } from "./runtime/reading-place.js";
 import { mountHistory } from "./runtime/history.js";
 import { holdArrivingBounds } from "./runtime/bounds.js";
@@ -152,7 +152,6 @@ if (validationEntry) {
 import { overflowMenu } from "./runtime/banner-toolbar.js";
 import {
   leavesOffered,
-  othersLinks,
   presentLeaves,
   renderOthers,
   declareLeavesKeys,
@@ -270,7 +269,7 @@ let pageGeometry;
 let goToSequence;
 
 const auxiliarySurfaces = createAuxiliarySurfaces({
-  chromeRoot,
+  envelope: chromeForeground,
   band: shortcutBarEl,
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
@@ -279,9 +278,10 @@ const auxiliarySurfaces = createAuxiliarySurfaces({
     repaint();
     anchorPaint?.refreshHover();
   },
-  // A comment box seated where a surface now stands, or in its home in a surface now
-  // gone, moves to the seat the user can reach: presenting the page again seats it.
+  // Auxiliary reach changes exposure without moving the retained message bodies.
+  // A comment box displaced by that reading also asks presentation for its new seat.
   reachChanged: () => {
+    app.read.exposureChanged();
     if (responseSurface.fabAnchorAt()) void app.invalidateDom();
   },
 });
@@ -370,6 +370,7 @@ pageGeometry = createPageGeometry({
   visualMarkPaint,
   shiftDrawings: drawingPaint.shifted,
   queueLegend: designMode.queueLegend,
+  legendScrolled: designMode.legendScrolled,
   activeActionAnchor: () => responseSurface.fabAnchorAt(),
   refreshActionBar: () => responseSurface.refreshFab(),
 });
@@ -605,8 +606,6 @@ panelKeys = createThreadPanelKeys({
   setPanel: (...args) => threadPanelController.setPanel(...args),
   panelIsOpen,
   stepThread: (...args) => navigation.stepThread(...args),
-  firstUnread: () => app.read.firstUnread(),
-  unreadCount: () => app.read.unreadCount(),
 });
 pageComment = createPageComment({
   wireInput: inputs.wireInput,
@@ -700,7 +699,7 @@ reactions = createReactionController({
   hideComposer: selectionComposer.hideComposer,
   syncResponseOptions: selectionComposer.syncResponseOptions,
   fabAnchorAt: responseSurface.fabAnchorAt,
-  fabReturnTo: responseSurface.fabReturnTo,
+  fabReturnPlaces: responseSurface.fabReturnPlaces,
   fabTargetAt: responseSurface.fabTargetAt,
   hasPageSelectionTarget: responseSurface.hasPageSelectionTarget,
   showFab: responseSurface.showFab,
@@ -815,19 +814,17 @@ const writingResume = createWritingResume({
 });
 goToSequence = createGoToSequence({
   panelIsOpen,
-  elements: { banner, toggleBtn, threadsBox },
+  elements: { banner, toggleBtn },
   hintChrome,
   directDestinations: () => [
     version.PICKER,
     writingResume,
     passageSelection.command,
     navigation.alignTop,
+    app.read.firstUnreadCommand,
   ],
-  setPanel: threadPanelController.setPanel,
-  setOpenDrawer: drawers.setOpenDrawer,
   scrollToElement: anchorTravel.scrollToElement,
   leavesOffered,
-  othersLinks,
   activateMarginEntry: app.overlay?.activateMarginEntry,
   marginEntryKind: app.overlay?.marginEntryKind,
   visibleMarginEntries: app.overlay?.visibleMarginEntries,
@@ -836,9 +833,6 @@ goToSequence = createGoToSequence({
   seenScroller: navigation.seenScroller,
   stopGlide,
   coveringAuxiliarySurface: auxiliarySurfaces.coveringSurface,
-  enterPageMap: pageMapDialog.enterPageMap,
-  leavePageMap: pageMapDialog.leavePageMap,
-  pageMapIsActive: pageMapDialog.pageMapIsActive,
 });
 const standing = createStanding({
   markHere: asks.markHere,
@@ -877,30 +871,31 @@ if (!offlineInteractive) {
     chromeSheet,
     marksSheet,
   ];
-  chromeRoot.append(
-    banner,
+  // One permanent home for auxiliary surfaces and their permitted foreground. Native
+  // modality changes at this ancestor; none of these live descendants is reparented.
+  chromeForeground.append(
     overflowMenu,
     versionMenu,
     othersPanel,
     queuePanel,
     panel,
-    legendRoot,
-    goToHintLayer,
-    commandHintLayer,
-    targetPickerHintLayer,
     pageSearchSurface,
-    ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
-    drawingPaint.layer,
     targetPaint.targetTraceLayer,
     targetPaint.aimLayer,
-    fabBar,
     liveEl,
     mediaViewer,
     commandReferenceDialog,
-    auxiliarySurfaces.scrim,
     bottomStatusEl,
     shortcutBarEl,
     inspectEl,
+  );
+  chromeRoot.append(
+    banner,
+    legendRoot,
+    ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
+    drawingPaint.layer,
+    fabBar,
+    chromeForeground,
   );
   document.body.prepend(skipToChrome);
   document.body.append(chromeRoot);
@@ -916,7 +911,7 @@ if (!offlineInteractive) {
   // resolve updateComplete until connection, and keyboard registration needs that input.
   narrowing.mount();
   await panelKeys.mount();
-  pageComment.mount(chromeRoot);
+  pageComment.mount(chromeForeground);
   selectionComposer.mount();
   responseSurface.mount();
   holdToRead();
@@ -928,13 +923,16 @@ if (!offlineInteractive) {
   anchorPaint?.mount();
   anchorControls.mount();
   pageGeometry.mount();
-  pageMapDialog.mount(chromeRoot);
+  pageMapDialog.mount(chromeForeground);
   asks.mount();
   queueWalk.mount();
   queue.mount();
   commandHints.mount();
   app.mountAnnotations();
   app.overlay?.mount();
+  // Margin rows insert before the permanent foreground home, so these chips are laid
+  // out after every target they name while retaining their native modal ancestor.
+  chromeForeground.append(goToHintLayer, commandHintLayer, targetPickerHintLayer);
   app.mountThread();
   app.mountRead();
   wireThreadLanding(threadsBox);
@@ -945,12 +943,6 @@ if (!offlineInteractive) {
   mountShortcutBar({
     placeBottomStatus: layout.syncBottomStatus,
     setGoToSequence: goToSequence.setGoToSequence,
-    setReact: reactions.setReact,
-  });
-  mountKeyboard({
-    goToSequenceActive: goToSequence.goToSequenceActive,
-    setGoToSequence: goToSequence.setGoToSequence,
-    reactArmed: reactions.isReactArmed,
     setReact: reactions.setReact,
   });
   declareLeavesKeys();
@@ -968,6 +960,15 @@ if (!offlineInteractive) {
   // own box shows: an options group's addition field paints there as it does live.
   mountRepaint({ paintStandingGeometry: inputs.paintInputs, reflectKeys });
 }
+
+// Widget commands belong to interactive documents, including offline exports.
+// The register admits page and chrome commands only in a live document.
+mountKeyboard({
+  goToSequenceActive: goToSequence.goToSequenceActive,
+  setGoToSequence: goToSequence.setGoToSequence,
+  reactArmed: reactions.isReactArmed,
+  setReact: reactions.setReact,
+});
 
 const replayReady = passiveSample
   ? import("./runtime/interaction-gallery-frame.js").then(({ mountReplay }) =>

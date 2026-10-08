@@ -128,9 +128,9 @@ function declaredStack(origin) {
   const referenceRows = (scope) =>
     scope.rows.map((row) => [
       referenceIdentity(scope, row),
-      scope.sequence
-        ? { ...row, sequence: scope.sequencePrefix ?? scope.sequence }
-        : row,
+      // Presentation metadata belongs beside the registered row. Cloning a sequence
+      // row loses the identity used by the dispatcher's route-availability snapshot.
+      { row, sequence: scope.sequencePrefix ?? scope.sequence ?? row.sequence },
     ]);
   for (const scope of pageScopes().toReversed()) {
     if (scope !== ELEMENTS) {
@@ -169,7 +169,9 @@ function declaredStack(origin) {
   const exit = (row) => (bindings(row).includes("Escape") ? 1 : 0);
   return [...sections.values()].map((section) => ({
     ...section,
-    rows: [...section.rows.values()].sort((left, right) => exit(left) - exit(right)),
+    rows: [...section.rows.values()].sort(
+      (left, right) => exit(left.row) - exit(right.row),
+    ),
   }));
 }
 
@@ -242,12 +244,12 @@ function captureCommandReferenceCatalog() {
       const inScope = userIn(scope) || scope.liveInCommandReference;
       const rows = scope.rows
         .filter(
-          (row) =>
+          ({ row }) =>
             !inScope ||
             (row.commandReferenceWhen ? row.commandReferenceWhen() : live(row)),
         )
-        .map((row) => {
-          const sequence = [...(word(row.sequence) ?? [])];
+        .map(({ row, sequence: prefix }) => {
+          const sequence = [...(word(prefix) ?? [])];
           const declared = [...allBindings(row)];
           const referenceRow = { ...row, keys: declared };
           const rowBindings = [...bindings(row)];
@@ -285,9 +287,13 @@ function captureCommandReferenceCatalog() {
       : alternatives.some((binding) => routes.has(binding));
   };
 
-  // One command id is one capability. Prefer its reachable presentation over an earlier
-  // unreachable one, as when an Ask digit replaces a shadowed intrinsic binding.
+  // One command id is one capability, with potentially several ways to reach it.
+  // Teach a keyboard route rather than an unbound control; among keyboard routes,
+  // prefer the reachable one (an Ask digit can replace a shadowed intrinsic key).
+  // Invoking the reference names the capability, so any executable route makes the
+  // entry available even when its displayed sequence has not been entered yet.
   const preferred = new Map();
+  const executable = new Set();
   for (const { rows } of referenceScopes)
     for (const rowInfo of rows)
       for (const { id, route } of rowInfo.presentations) {
@@ -295,9 +301,15 @@ function captureCommandReferenceCatalog() {
           row: rowInfo.row,
           binding: route?.binding ?? null,
           available: available(rowInfo, route),
+          keyed: rowInfo.declared.length > 0,
         };
+        if (candidate.available) executable.add(id);
         const prior = preferred.get(id);
-        if (!prior || (!prior.available && candidate.available))
+        if (
+          !prior ||
+          (!prior.keyed && candidate.keyed) ||
+          (prior.keyed === candidate.keyed && !prior.available && candidate.available)
+        )
           preferred.set(id, candidate);
       }
 
@@ -329,7 +341,7 @@ function captureCommandReferenceCatalog() {
           ...completeRowSteps(rowInfo.referenceRow, route),
         ];
         const alternatives = route ? [route.binding] : rowInfo.declared;
-        const isAvailable = available(rowInfo, route);
+        const isAvailable = executable.has(id);
         const spokenSteps = spokenReferenceSteps(
           rowInfo.row,
           route,

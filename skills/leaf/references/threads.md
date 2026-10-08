@@ -106,9 +106,9 @@ leaf thread reply <page> --section <diagram-id> --part node:<source-id> --text "
 ```
 
 When the subject itself leaves the page, detach the thread instead of moving it onto
-nearby surviving content. A thread with no surviving section needs an explicit move
-or detachment before that revision can activate; the check names the thread and the
-reply that corrects it:
+nearby surviving content. Activation automatically detaches a thread with no
+surviving section. You can also detach it explicitly in the reply that reports
+the removal:
 
 ```bash
 leaf thread reply <page> --detach --text "Removed this; the thread no longer has a page target."
@@ -171,7 +171,7 @@ A widget whose registry entry declares a local `x-awaits` is already an Ask, a t
 on the user, and keeps its thread "On you" while that Ask stands. Leaf refuses
 `--awaits` beside such markup; the widget's state is the one reading.
 
-Correct one of this session's sent messages without adding another turn:
+Correct an agent-authored message, including a predecessor's, without adding another turn:
 
 ```bash
 leaf thread edit <page> <comment-or-reply-id> --text "Corrected wording."
@@ -207,9 +207,15 @@ not read yet needs no follow-up from you, and a read one is not an answer.
 
 ## Summarize a long discussion
 
-New input in a long thread may carry a suggested range to summarize. Choose whether
-and when a summary would help the user navigate the discussion; the suggestion adds
-no response obligation. Read the original messages with
+Keep the current topic easy to find as a thread grows. Summarize earlier discussion
+when the topic has moved on or settled detail obscures the current exchange. Do this
+as part of answering new input, without waiting for the user to ask. Keep messages
+whose individual wording or reasoning still matters to the current exchange directly
+readable.
+
+New input in a long thread may carry `summary_hint`, a suggested range. Use it to
+review the earlier discussion, choosing endpoints that fit the topic. Read the
+original messages with
 `leaf page state <page> <thread-id>` and select a contiguous range whose endpoints are spoken
 messages rather than reactions. Summarize its decisions,
 reasoning, and remaining questions. Keep the current exchange outside the range

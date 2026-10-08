@@ -720,6 +720,12 @@ const land = (landing) => {
     restoring = was;
   }
 };
+// A native layer's own opening and closing steps, as a dialog's `showModal` or a
+// popover's `hidePopover`, which move focus the platform's way and not through
+// `focusDestination`. Whatever they do with focus is the layer's return to every reader
+// of standing, and no newer word to a hold waiting across them, so the owner re-seating
+// its layers can put the user back where they stood.
+export const nativeLayerSteps = (steps) => placed("return", () => land(steps));
 
 const TYPED_TYPES = new Set([
   "text",

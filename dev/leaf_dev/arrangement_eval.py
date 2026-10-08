@@ -8,8 +8,9 @@ The sample's output is what a judge needs: the user's request and each version's
 screenshots by width, written to `shots`, the one directory its judge may read.
 `rubrics` are the Promptfoo `agent-rubric` assertions the judge grades from it by
 opening the screenshots; the fixed checks cover execution and the render gate.
-Leaf also seeds a choice after the common comparison, asks a fresh reader for its
-current state, and checks that a separate resumed revision preserves that choice.
+For a task that asks for a decision, Leaf also seeds a choice after the common
+comparison, asks a fresh reader for its current state, and checks that a separate
+resumed revision preserves that choice. Readable records have no invented decision.
 """
 
 import json
@@ -39,11 +40,11 @@ from leaf_dev.browser import chrome, load, settle, tab
 from leaf_dev.usability_eval import admit
 
 TASKS = ROOT / "evals"
-CASES = ("document", "dashboard", "queue")
 PHASES = (1, 2)
 WIDTHS = {
     "laptop": ((1440, 900), "a 1440px laptop window"),
     "narrow": ((900, 900), "a 900px window"),
+    "short": ((900, 600), "a short 900px by 600px window"),
     "phone": ((390, 844), "a 390px phone"),
 }
 PREFERENCE = (
@@ -69,6 +70,31 @@ VOCAB = {
 
 
 @dataclass(frozen=True)
+class Scenario:
+    choice: bool
+    quality: str = ""
+
+
+CASES = {
+    "document": Scenario(choice=True),
+    "dashboard": Scenario(choice=True),
+    "queue": Scenario(choice=True),
+    "sidebar-page-at-900px": Scenario(
+        choice=False,
+        quality=(
+            "The completed rollout's forty entries must remain readable in the "
+            "document's scroll, rather than showing only one screen of a separate "
+            "listing. At both 900px window heights, all six checks and their failing "
+            "result stay accessible beside the log as it scrolls. Page navigation "
+            "and any supporting sidebar content remain reachable; a sticky box must "
+            "not hold them below the window. On a phone, the regions stack without covering "
+            "the log or hiding its entries."
+        ),
+    ),
+}
+
+
+@dataclass(frozen=True)
 class Run:
     subject: str
     payload: Path
@@ -76,6 +102,10 @@ class Run:
     shots: Path
     harness: str = ClaudeCodeHarness.name
     condition: str = "leaf"
+
+    @property
+    def needs_choice(self) -> bool:
+        return self.condition == "leaf" and CASES[self.subject].choice
 
     @property
     def work(self) -> Path:
@@ -110,9 +140,10 @@ def first_prompt(payload: Path, page: Path, subject: str, condition="leaf") -> s
     return f"""{tooling}
 
 Write the page at {page}/index.html. This run is non-interactive: nobody will
-answer in the page. Produce a finished record with readable evidence and usable
-choices. You may use the browser tooling available on this machine. Do not start
-an agent feedback watcher or wait for input. Reply with one line naming the path.
+answer in the page. Produce a finished record with readable evidence and the
+choices or navigation the request needs. You may use the browser tooling available
+on this machine. Do not start an agent feedback watcher or wait for input. Reply
+with one line naming the path.
 
 The user's request follows.
 
@@ -186,12 +217,7 @@ def author(run: Run, cwd: Path) -> None:
             run.directory / "page",
             ignore=shutil.ignore_patterns("service.json", "*.lock"),
         )
-    if (
-        run.condition == "leaf"
-        and page.exists()
-        and completed(first)
-        and completed(second)
-    ):
+    if run.needs_choice and page.exists() and completed(first) and completed(second):
         seed_and_read_choice(run)
         continuation = (
             f"The user has reviewed {page}. Add a short Review status note saying "
@@ -241,7 +267,7 @@ def seed_and_read_choice(run: Run) -> None:
                 "widget": widget,
                 "action": "choose",
                 "revision": state["active"]["revision"],
-                "detail": {"options": [chosen]},
+                "detail": {"value": [chosen]},
                 "attempt": "authored-choice-0001",
             },
         )
@@ -348,7 +374,9 @@ def trace_scores(stream: Path) -> dict:
         "is_error": done.get("is_error"),
         "cost_usd": done.get("total_cost_usd"),
         "cost_known": done.get("total_cost_usd") is not None,
-        "minutes": round(done.get("duration_ms", 0) / 60000, 1),
+        "minutes": round(done["duration_ms"] / 60000, 1)
+        if "duration_ms" in done
+        else None,
         **token_counts(trace),
         "checks": checks,
         "renders": renders,
@@ -480,7 +508,8 @@ def rubrics(scenario: str) -> list[dict]:
                 "value": JUDGING.format(phase=phase)
                 + f"Pass only if, at every width, version {phase} keeps the request's "
                 "substantive information, lets the user find and read the evidence, and "
-                "provides the decisions or navigation the request needs.",
+                "provides the decisions or navigation the request needs. "
+                + CASES[scenario].quality,
             }
             for phase in PHASES
         ),
@@ -515,7 +544,7 @@ def expected_checks(case: str, *, condition="leaf") -> list[str]:
                 "choice-revised",
                 "choice-preserved",
             ]
-            if condition == "leaf"
+            if condition == "leaf" and CASES[case].choice
             else []
         ),
     ]
@@ -543,7 +572,7 @@ def execute_scenario(
     costs = []
     with tempfile.TemporaryDirectory(prefix="leaf-author-") as temporary:
         author(run, Path(temporary) / "cwd")
-        if condition == "leaf":
+        if run.needs_choice:
             choice_path = work / "choice.json"
             choice = json.loads(choice_path.read_text()) if choice_path.exists() else {}
             diagnostics["choice"] = choice
@@ -583,7 +612,7 @@ def execute_scenario(
                     and r["holder"]["attrs"].get("id") == choice["widget"]
                 ]
                 checks["choice-preserved"] = (
-                    standing[0]["detail"]["options"] if standing else authored_choice
+                    standing[0]["detail"]["value"] if standing else authored_choice
                 ) == choice["options"]
                 reader_trace = choice["trace"]
                 costs.append(reader_trace["cost_usd"])

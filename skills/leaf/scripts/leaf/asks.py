@@ -240,7 +240,7 @@ def projected_action_holders(
         record = spec.get("record") or {}
         if record.get("kind") != "position" or event["id"] in projection.absorbed:
             continue
-        target = byid.get(event["detail"][record["value"]])
+        target = byid.get(event["detail"]["value"])
         unit_rec = byid.get(unit)
         if target and unit_rec:
             holder = target if target["tag"] in registry else target.get("holder")

@@ -54,8 +54,8 @@
     "copier-config": "# Copier settings\n[copy]\nmax_parallel_copies = 6\nverify_checksums = true\n\n[throttle]\nmax_write_mb_per_s = 180\n"
   },
   "moves": [
-    {"kind": "action", "revision": 1, "widget": "cutover-mode", "action": "choose", "detail": {"options": ["mode-shard"]}},
-    {"kind": "action", "revision": 1, "widget": "cutover-mode", "action": "choose", "detail": {"options": ["mode-dual"]}},
+    {"kind": "action", "revision": 1, "widget": "cutover-mode", "action": "choose", "detail": {"value": ["mode-shard"]}},
+    {"kind": "action", "revision": 1, "widget": "cutover-mode", "action": "choose", "detail": {"value": ["mode-dual"]}},
     {"kind": "undo", "undoes": "previous"}
   ]
 }

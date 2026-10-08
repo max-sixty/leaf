@@ -3659,7 +3659,7 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
     right = page.locator("#right-reading > div")
     left.evaluate("el => el.scrollTop = 180")
     right.evaluate("el => el.scrollTop = 360")
-    page.locator("#right-subject").focus()
+    page.locator("#right-subject").click()
     before = page.locator("#right-landmark").evaluate(
         """el => el.getBoundingClientRect().top -
           el.closest('lf-pane > div').getBoundingClientRect().top"""

@@ -309,15 +309,18 @@ function scrollerIdentity(scroller) {
 
 export function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
   if (!view || !currentIntent()) return;
+  const box = region ? effectiveScroller(region) : pageScroller;
   const standing = focusedPlace(view);
+  // A focus that remains visible after its region joins a different scroller can
+  // still be far from the passage's old reading band. Restore the landmark there.
   if (
     standing &&
+    rawOffsetFits(view, box) &&
     under(standing, region?.body ?? document.querySelector("body > main"))
   ) {
     scrollIntoReadingBand(standing, standing, "nearest", "instant");
     return;
   }
-  const box = region ? effectiveScroller(region) : pageScroller;
   if (view.end) {
     scrollToEnd(box);
     return;

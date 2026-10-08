@@ -3139,7 +3139,10 @@ def test_a_selection_that_reaches_the_layer_stops_at_the_page(browser, serve):
     copyable = page.evaluate(
         """() => {
           const out = {};
-          for (const [name, sel] of [['quote', '.lf-quote'], ['reply', '.lf-msg-body']]) {
+          for (const [name, sel] of [
+            ['quote', '.lf-thread-panel.open .lf-thread .lf-quote'],
+            ['reply', '.lf-thread-panel.open .lf-thread .lf-msg-body'],
+          ]) {
             const range = document.createRange();
             range.selectNodeContents(document.querySelector(sel));
             const selection = getSelection();

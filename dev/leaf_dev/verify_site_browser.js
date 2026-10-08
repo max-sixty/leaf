@@ -91,9 +91,7 @@
     });
     const observe = () => {
       recordThreadActivity();
-      for (const message of document.querySelectorAll(
-        ".lf-thread .lf-msg.agent[data-mid]",
-      )) {
+      for (const message of document.querySelectorAll(".lf-msg.agent[data-mid]")) {
         if (
           seen.get(message) !== message.dataset.mid &&
           message.querySelector(".lf-msg-text")?.textContent.trim()

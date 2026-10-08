@@ -124,17 +124,18 @@ def cmd_hook(harness: str, payload: dict) -> None:
         # Empty-input resume can reach Stop without executing another tool.
         if event == "PostToolUse":
             mark_step_hook(sid)
-        from .codex import offer_hook_delivery
-        from .harness import HOOK_HARNESSES
+        if owned_pages(sid):
+            from .codex import offer_hook_delivery
+            from .harness import HOOK_HARNESSES
 
-        if owned_pages(sid) and (prompt := offer_hook_delivery(sid, turn_id)):
-            import json
+            if prompt := offer_hook_delivery(sid, turn_id):
+                import json
 
-            print(json.dumps(HOOK_HARNESSES[harness].hook_context(event, prompt)))
-            return
-        # Offering renews the observed turn even on a quiet page. Carry the
-        # resulting revision into Stop's independent response-debt check.
-        expected = session_record(sid)
+                print(json.dumps(HOOK_HARNESSES[harness].hook_context(event, prompt)))
+                return
+            # Offering renews the observed turn even on a quiet page. Carry the
+            # resulting revision into Stop's independent response-debt check.
+            expected = session_record(sid)
     if event == "PostToolUse":
         return
     # Retained claims may need reconnecting after active ownership expired.

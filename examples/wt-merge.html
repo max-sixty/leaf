@@ -22,6 +22,151 @@
         gap: 10px;
         align-content: start;
       }
+      lf-merge-film .film-phone,
+      lf-merge-film .film-caption,
+      lf-merge-film .film-previous,
+      lf-merge-film .film-next {
+        display: none;
+      }
+      lf-merge-film[data-phone] .film-caption {
+        display: block;
+        margin: 0;
+        min-height: 4.5em;
+        font: 16px / 1.5 var(--sans);
+        order: -2;
+      }
+      lf-merge-film[data-phone] .film-caption[data-tone="bad"] {
+        color: var(--danger-ink);
+      }
+      lf-merge-film[data-phone] .film-bar {
+        order: -1;
+      }
+      lf-merge-film .film-settings summary {
+        display: none;
+      }
+      lf-merge-film[data-phone] .film-settings {
+        order: 0;
+      }
+      lf-merge-film[data-phone] .film-settings summary {
+        display: list-item;
+        min-height: 44px;
+        padding: 10px 12px;
+        font: 14px / 1.5 var(--sans);
+        cursor: pointer;
+        border-block: 1px solid var(--rule);
+      }
+      lf-merge-film[data-phone] .film-stage {
+        order: 1;
+      }
+      lf-merge-film[data-phone] .film-previous,
+      lf-merge-film[data-phone] .film-next {
+        display: block;
+      }
+      lf-merge-film[data-phone] .film-bar {
+        grid-template-columns: 1fr 1fr 1fr auto;
+        gap: 6px;
+      }
+      lf-merge-film[data-phone] .film-scrub {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        min-height: 32px;
+      }
+      lf-merge-film[data-phone] .film-inspect-next {
+        grid-column: 1 / -1;
+        grid-row: 3;
+      }
+      lf-merge-film[data-phone] .film-bar button {
+        min-height: 44px;
+        min-width: 0;
+        padding: 6px;
+        font: 14px var(--sans);
+        color: var(--ink);
+        background: var(--card);
+        border: 1px solid var(--border-2);
+        border-radius: var(--r);
+        cursor: pointer;
+      }
+      lf-merge-film[data-phone] .film-bar button:disabled {
+        color: var(--muted);
+        cursor: default;
+      }
+      lf-merge-film .film-stage[data-phone] {
+        line-height: 1.5;
+      }
+      lf-merge-film .film-stage[data-phone] > svg {
+        display: none;
+      }
+      lf-merge-film .film-stage[data-phone] .film-phone {
+        display: block;
+      }
+      lf-merge-film .film-phone-context {
+        padding: 0 16px;
+      }
+      lf-merge-film .film-phone-tree {
+        display: grid;
+        gap: 2px;
+        padding: 10px 0;
+        border-top: 1px solid var(--rule);
+        font: 14px / 1.4 var(--sans);
+      }
+      lf-merge-film .film-phone-tree code {
+        font-size: 16px;
+      }
+      lf-merge-film .film-phone-tree[data-here="true"] {
+        color: var(--accent);
+      }
+      lf-merge-film .film-phone-tree[data-gone="true"] {
+        color: var(--muted);
+      }
+      lf-merge-film .film-phone-tree[data-gone="true"] code {
+        text-decoration: line-through;
+      }
+      lf-merge-film .film-phone-hook {
+        margin: 0;
+        padding: 10px 0;
+        font: 14px / 1.5 var(--mono);
+      }
+      lf-merge-film .film-phone-hook[data-tone="fail"] {
+        color: var(--danger-ink);
+      }
+      lf-merge-film .film-phone-latest {
+        margin: 0;
+        padding: 12px 16px;
+        font: 14px / 1.5 var(--mono);
+        color: var(--code-ink);
+        background: var(--pre-bg);
+        overflow-wrap: anywhere;
+      }
+      lf-merge-film .film-phone-terminal {
+        font: 14px / 1.5 var(--mono);
+      }
+      lf-merge-film .film-phone-terminal summary {
+        padding: 10px 16px;
+        min-height: 44px;
+        cursor: pointer;
+      }
+      lf-merge-film .film-phone-terminal > div {
+        max-height: 16rem;
+        overflow: auto;
+      }
+      lf-merge-film .film-phone-line {
+        display: block;
+        width: 100%;
+        min-height: 44px;
+        padding: 8px 16px;
+        border: 0;
+        border-top: 1px solid var(--rule);
+        background: var(--pre-bg);
+        color: var(--code-ink);
+        text-align: left;
+        font: inherit;
+        overflow-wrap: anywhere;
+        cursor: pointer;
+      }
+      lf-merge-film[data-phone] .film-flags label {
+        min-height: 44px;
+        font-size: 14px;
+      }
       #lede code {
         white-space: nowrap;
       }
@@ -57,6 +202,9 @@
         box-shadow: 0 8px 24px var(--shade);
         pointer-events: none;
       }
+      lf-merge-film[data-phone] .film-inspect {
+        max-width: calc(100% - 20px);
+      }
       lf-merge-film .film-inspect strong {
         font-family: var(--mono);
       }
@@ -65,7 +213,7 @@
       }
       lf-merge-film .film-bar {
         display: grid;
-        grid-template-columns: auto 1fr auto;
+        grid-template-columns: auto minmax(0, 1fr) auto auto;
         gap: 12px;
         align-items: center;
       }
@@ -74,7 +222,8 @@
         accent-color: var(--accent);
       }
       lf-merge-film .film-play,
-      lf-merge-film .film-speed {
+      lf-merge-film .film-speed,
+      lf-merge-film .film-inspect-next {
         min-width: 5.5em;
         padding: 4px 10px;
         font: inherit;
@@ -84,6 +233,21 @@
         background: var(--card);
         color: var(--ink);
         cursor: pointer;
+      }
+      @media (pointer: coarse) {
+        lf-merge-film .film-bar {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        lf-merge-film .film-scrub {
+          grid-column: 1 / -1;
+          grid-row: 2;
+          min-height: 44px;
+        }
+        lf-merge-film .film-play,
+        lf-merge-film .film-speed,
+        lf-merge-film .film-inspect-next {
+          min-height: 44px;
+        }
       }
       lf-merge-film .film-flags {
         display: flex;
@@ -222,9 +386,9 @@
             <p id="lede">
               Worktrunk's <code>wt merge</code> takes a finished branch to main in one
               command. The film draws each step from the flags below it, so ticking
-              <code>--no-ff</code> or a failing test re-plots the run. Hover a commit,
-              branch, worktree or hook to see what it is; Alt-click one to comment on
-              it.
+              <code>--no-ff</code> or a failing test re-plots the run. Tap or hover a
+              commit, branch, worktree or hook to read its details; Inspect cycles
+              through them. Alt-click a part to comment on it.
             </p>
             <lf-merge-steps id="merge-steps" for="merge-film">
               <ol>

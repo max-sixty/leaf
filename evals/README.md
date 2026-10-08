@@ -49,17 +49,38 @@ each sample's `metadata.work` names its directory. A judged sample's screenshots
 are under `screenshots/`, in a directory of the same name. `results.json` there
 holds the whole run.
 
+Executor turns, live sessions, and native Codex provider calls allow six hours;
+the outer workflow provider allows a day for multiple turns and artifact checks.
+Elapsed time is diagnostic, separate from correctness. Promptfoo records
+provider-call duration in `latencyMs`.
+Native duration, where a workflow reports it, is unknown when its trace lacks
+completion timing; it is never filled in as zero.
+
 ## Case format
 
 A short case is one prompt with native assertions: `vars.prompt` carries the
 request, and `assert` holds `regex`, `llm-rubric` or JavaScript assertions. The
-runner prepends a line telling the agent to use the Leaf skill. The agent may only
+runner prepends a line telling the agent to use the Leaf skill for shipped-skill
+cases. The agent may only
 read (Claude Code's Skill and Read tools; Codex's read-only sandbox), so a prompt
 that needs a page asks for its HTML in the reply, and one that grades what the
 agent would do asks for the commands it would run. Opus 5.5's safeguards refuse a
 prompt asking for its tool calls with their JSON input. The leading comment records
 where the case came from and what it measured, `metadata.purpose` the behavior it
 pins, and `metadata.tags` its area.
+
+Internal instruction cases declare `metadata.instructions`, a source path in
+that arm. The native provider receives its contents and source file location as
+system/developer context, retaining the origin of its linked references;
+the case grades the resulting behavior. These columns end in `/instructions`.
+Shipped-skill cases instead let the agent load its skill and references. Both kinds
+score the resulting answer against the task. Reading a named file is not a scored
+requirement; native traces retain tool calls for diagnosing instruction loading.
+
+Grader controls set `providerOutput` to a fixed answer and reuse the case's rubric,
+with `not-llm-rubric` for an answer the judge should reject. Promptfoo skips agent
+generation and grades that answer; `review-shows-the-change/grader-*` exercises
+this path. These scores measure the judge, not the agent's behavior.
 
 A complete task instead names `metadata.executor`, a `leaf_dev` module, and
 `metadata.scenario`, a key of that module's `CASES`. The executor builds fixtures, runs the agent
@@ -73,21 +94,29 @@ directory it is given, the only place the judge may read. `metadata.conditions` 
 
 | Executor | Runs |
 | --- | --- |
-| `arrangement_eval` | Authors and revises a page from `request.md` and screenshots each version at three widths for the judge, and on Leaf seeds a user choice, has a fresh reader report it, and checks a further revision keeps it. |
+| `arrangement_eval` | Authors, checks and revises a page from `request.md`; screenshots each version on a laptop, at 900px with tall and short windows, and on a phone. For tasks that request a decision, Leaf also seeds a user choice, has a fresh reader report it, and checks a further revision keeps it. |
 | `usability_eval` | Seeded pages read, resumed and revised, and live handoffs where the harness posts user moves through the served page. Fixtures are in `usability/fixtures/`. |
 | `delivery_eval` | Comments posted between turns and mid-turn, each of which must be picked up, started and answered. |
 | `reader_eval` | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards. |
 
-The assertion helpers live here: `reference-read.cjs` passes when the agent read a
-file matching `config.path` (Codex shell reads are matched heuristically, so read
-the trace when it matters); `text-regex.cjs` is a regex with flags and negation;
-`scenario-check.cjs` reads an executor's check.
+`sidebar-page-at-900px` runs the complete authoring and render loop. Its
+`/instructions` diagnostic retains the read-only source probe, and `/live` checks
+the contrasting bounded live stream. The primary judge reads the rendered record:
+the completed log grows in document flow, and checks and navigation stay reachable
+while reading, including in the short window. Source-property checks in the
+instruction diagnostic do not establish that rendered behavior.
+
+Case-insensitive patterns use native `regex` or `not-regex` assertions with
+`transform: output.toLowerCase()`. Workflow checks use inline JavaScript over the
+provider's check metadata.
 
 ## Isolation and models
 
 Every provider runs in a fresh workspace outside the repository, under a home of its
-own holding only a copy of the host's login, so runs spend the signed-in accounts'
-usage and never an API key. `harness.MODELS` pins the models: Opus for Claude
+own seeded only with a copy of the host's login, so runs spend the signed-in accounts'
+usage and never an API key. Native Codex probes install the complete arm through the
+host Codex CLI's plugin installer in that home, and use the same CLI to run the
+read-only task. `harness.MODELS` pins the models: Opus for Claude
 Code, `gpt-6.1-sol` at medium reasoning for Codex, Sonnet for `llm-rubric`, which
 grades text and opens nothing, and `gpt-6.1-sol` for the screenshot judge. That
 judge runs on the installed `codex` under a permission profile that lets it read

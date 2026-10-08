@@ -19,7 +19,7 @@ package authors continue to use native JavaScript without a build.
   `check:browser` confirms the merge equals a rebuild; `runtime-bundle.mjs`
   minifies it for delivery. `browser/generated/` holds the build's manifest.
 - `initial.mjs` builds each package's synchronous initial drawing from its
-  `runtime/initial.js` into the one bundle its registry declares with `x-initial`;
+  `initial.js` into the one bundle its registry declares with `x-initial`;
   `build:browser` and `check:browser` include these outputs.
 - `vendor.py` rebuilds every third-party bundle outside the framework. Where upstream publishes a loadable file
   it copies it; `pierre/` and `webawesome/` are the inputs of the bundles it has

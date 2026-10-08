@@ -15,11 +15,13 @@ from jsonschema import Draft202012Validator
 from leaf import cli as cli_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
+from leaf import layer as layer_model
 from leaf import service as service_model
 from leaf.registry import validation as registry_validation
 from leaf.structure import SourceDocument
 from leaf.validation import compatibility as validation_model
 from leaf_dev import record_demo
+from leaf_dev.page_fixtures import source_packages
 from PIL import Image
 
 ROOT = Path(__file__).parent.parent
@@ -93,16 +95,13 @@ def test_every_published_source_says_what_its_page_is():
     assert len(set(descriptions.values())) == len(descriptions)
 
 
-def test_docs_pages_use_only_registered_widgets():
-    package_names = json.loads((ROOT / "examples" / "layer.json").read_text())
+def test_docs_pages_use_only_registered_widgets(monkeypatch):
+    monkeypatch.chdir(ROOT)
     registries = [
-        ASSETS / "registry.json",
-        DEFAULT_PACKAGE / "registry.json",
-        *(
-            ROOT / "skills" / "leaf" / "packages" / name / "registry.json"
-            for name in package_names
-        ),
-        DOCS / "package" / "registry.json",
+        package / "registry.json"
+        for package in layer_model.layer_inputs(
+            tuple(source_packages(DOCS / "index.html"))
+        )
     ]
     registry = {}
     for source in registries:
@@ -197,15 +196,18 @@ def shown_log(records: list[dict]) -> str:
     """Stored records as the event-log page prints them: each record's JSON as
     `leaf page events` writes it, broken before and after each object-valued field and
     before `id`, so a record reads in a few lines rather than one wide one. An
-    object too long for one line puts each of its members on a line of its own."""
+    object too long for one line puts each of its members on a line of its own,
+    including nested state definitions and their detail schemas."""
     width = 96
 
-    def field(key, value):
+    def field(key, value, indent=0):
         line = f"{json.dumps(key)}: {json.dumps(value)}"
-        if not isinstance(value, dict) or len(line) <= width:
+        if not isinstance(value, dict) or len(line) + indent <= width:
             return line
-        members = [f"{json.dumps(k)}: {json.dumps(v)}" for k, v in value.items()]
-        return f"{json.dumps(key)}: {{" + ",\n   ".join(members) + "}"
+        members = [field(k, v, indent + 2) for k, v in value.items()]
+        return (
+            f"{json.dumps(key)}: {{" + (",\n" + " " * (indent + 3)).join(members) + "}"
+        )
 
     shown = []
     for record in records:

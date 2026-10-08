@@ -36,6 +36,7 @@ from leaf.state import (
     close_session_turn,
     ensure_session,
     flocked,
+    fsync_parents,
     now_iso,
     open_session_turn,
     page_key,
@@ -60,8 +61,42 @@ def delivery_reply_attempt(delivery_id: str) -> str:
 
 
 def claim_path(page_dir: Path) -> Path:
-    """The one ownership record for a resolved page path."""
-    return state_home() / "claims" / f"{page_key(page_dir)}.json"
+    """The page's one canonical payload, also written by resident page servers."""
+    return state_home().resolve() / "claims" / f"{page_key(page_dir)}.json"
+
+
+def session_claims(session_id: str) -> Path:
+    """This session's discovery locators; payloads remain canonical by page."""
+    return state_home().resolve() / "claims" / session_file(session_id, "claims").stem
+
+
+def publish_claim(page_dir: Path, claim: dict) -> None:
+    """Commit the canonical payload, then publish this session's locator.
+
+    Discovery validates the payload's owner against the partition. A transfer's
+    old locator therefore stops standing at the canonical commit; publishing the
+    new locator only exposes that committed ownership. Resident writers retain
+    the same flat payload path, so their atomic updates cannot destroy discovery.
+    """
+    path = claim_path(page_dir)
+    previous = read_json(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_json(path, claim)
+    locator = session_claims(claim["id"]) / path.name
+    locator.parent.mkdir(parents=True, exist_ok=True)
+    staged = locator.with_name(f".{secrets.token_hex(8)}.tmp")
+    try:
+        staged.symlink_to(Path("..") / path.name)
+        os.replace(staged, locator)
+        fsync_parents([locator])
+    finally:
+        staged.unlink(missing_ok=True)
+    if (
+        isinstance(previous, dict)
+        and isinstance(previous.get("id"), str)
+        and previous["id"] != claim["id"]
+    ):
+        (session_claims(previous["id"]) / path.name).unlink(missing_ok=True)
 
 
 # What a reader takes straight off a claim: these fields by name, one of the
@@ -159,7 +194,7 @@ def claim_names_session(claim: dict | None, session_id: str) -> bool:
     return record is not None and record["ended"] is None
 
 
-def claimant_matches(claim: dict | None, harness: "Harness | None") -> bool:
+def claimant_matches(claim: dict | None, harness: Harness | None) -> bool:
     """Whether the record names this harness, or neither names a claimant.
 
     Harness identity is independent of liveness: readers pass the active claim
@@ -217,7 +252,7 @@ def _touched_recently(page_dir: Path, claimed_at: str) -> bool:
                 newest = max(newest, entry.stat().st_mtime)
             except OSError:  # replaced under us; the next pass sees its successor
                 continue
-    except (FileNotFoundError, NotADirectoryError):
+    except FileNotFoundError, NotADirectoryError:
         return False  # the page is gone, and a claim on it owns nothing
     return time.time() - newest < ACTIVITY_GRACE_SECS
 
@@ -230,15 +265,27 @@ def claim_records(session_id: str | None = None) -> list:
     claim here could erase the successor's ownership. Fresh page initialization
     clears the prior claim under the page lock instead.
 
-    When a session is named, unrelated records need no harness validation or
-    lifetime reading."""
-    directory = state_home() / "claims"
+    Payloads are canonical by page. A named lookup enumerates only that
+    session's locators, checking the canonical payload owner before admitting it.
+    No unrelated claim files are opened or page directories inspected."""
+    directory = (
+        session_claims(session_id) if session_id else state_home().resolve() / "claims"
+    )
     if not directory.is_dir():
         return []
     claims = []
     for path in directory.glob("*.json"):
         record = read_json(path)
         page = record.get("page") if isinstance(record, dict) else None
+        if isinstance(page, str) and claim_path(Path(page)) != path.resolve():
+            continue
+        if (
+            session_id is not None
+            and isinstance(record, dict)
+            and isinstance(record.get("id"), str)
+            and path.parent != session_claims(record["id"])
+        ):
+            continue
         if isinstance(page, str) and not Path(page).is_dir():
             continue
         elif (
@@ -291,7 +338,7 @@ class PageTransaction:
         claim = self.claim
         return claim if claim_names_session(claim, session_id) else None
 
-    def take_claim(self, harness: "Harness") -> tuple[dict | None, dict]:
+    def take_claim(self, harness: Harness) -> tuple[dict | None, dict]:
         """Record this session as the page's watcher.
 
         The record carries the claimant's harness as well as its id, so every
@@ -318,10 +365,8 @@ class PageTransaction:
                     "the prepared acquisition no longer has a live session"
                 )
             previous = self.claim
-            path = claim_path(self.page_dir)
-            path.parent.mkdir(parents=True, exist_ok=True)
             yield previous, projected
-            write_json(path, claim)
+            publish_claim(self.page_dir, claim)
             # Lets Codex's tool hook skip a session that never held a page
             # (`state.hook_needed`).
             session_file(claim["id"], CLAIMED_SUFFIX).touch()
@@ -333,9 +378,10 @@ class PageTransaction:
         path = claim_path(self.page_dir)
         if previous is None:
             path.unlink(missing_ok=True)
+            (session_claims(expected["id"]) / path.name).unlink(missing_ok=True)
         else:
-            write_json(
-                path,
+            publish_claim(
+                self.page_dir,
                 {
                     key: value
                     for key, value in previous.items()
@@ -344,7 +390,7 @@ class PageTransaction:
                 },
             )
 
-    def owned_by(self, harness: "Harness | None") -> bool:
+    def owned_by(self, harness: Harness | None) -> bool:
         """Whether this transaction may act for the given waiter."""
         return claimant_matches(self.active_claim, harness)
 
@@ -687,7 +733,7 @@ class PageTransaction:
     def cursor(self) -> int:
         return read_cursor(self.page_dir)
 
-    def watch_state(self, harness: "Harness | None") -> str:
+    def watch_state(self, harness: Harness | None) -> str:
         if not self.owned_by(harness):
             return "lost"
         return "ended" if self.status["state"] == "idle" else "watching"
@@ -702,7 +748,7 @@ def _held_by(binding: dict | None, session_id: str, attempt: str) -> bool:
     )
 
 
-def prepare_claim(harness: "Harness", page_dir: Path) -> dict:
+def prepare_claim(harness: Harness, page_dir: Path) -> dict:
     """Capture an unpublished acquisition in the claimant's process.
 
     Lifetime and cwd come from the launching harness, not a detached child. Preparing

@@ -245,13 +245,10 @@ def journey(
             "the user turn did not start its sleep command",
         )
     post(page, "mid-turn")
-    final_seen = False
     if transport == "queue":
 
         def before_final(turn: str) -> None:
-            nonlocal final_seen
             if turn == user_turn:
-                final_seen = True
                 require(
                     bool(answers(page, "mid-turn")),
                     "the agent sent its final response before answering the active comment",
@@ -267,7 +264,10 @@ def journey(
     require(named, f"the claim never named the user's turn {user_turn} while it ran")
     task.on_final = None
     if transport == "queue":
-        require(final_seen, "the active turn emitted no final response to check")
+        require(
+            user_turn in task.final_answers,
+            "the active turn emitted no final response to check",
+        )
         require(
             bool(answers(page, "mid-turn")), "the active turn ended without answering"
         )

@@ -13,6 +13,7 @@
     "skills/leaf/assets/runtime/pending/model.js",
     "skills/leaf/assets/runtime/projection/model.js",
     "skills/leaf/assets/runtime/queues.js",
+    "skills/leaf/assets/runtime/registry-contract.js",
     "skills/leaf/assets/runtime/thread/identity.js",
     "skills/leaf/assets/runtime/thread/model.js",
     "skills/leaf/assets/runtime/thread/workflow.js"

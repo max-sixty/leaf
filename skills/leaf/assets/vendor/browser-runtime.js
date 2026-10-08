@@ -577,6 +577,99 @@ function foldWidgetStates(authoredSnapshots, projection) {
   return states;
 }
 
+// skills/leaf/assets/runtime/registry-contract.js
+function semanticSchema(schema) {
+  if (!schema || typeof schema !== "object" || Array.isArray(schema)) return schema;
+  const annotations = /* @__PURE__ */ new Set([
+    "title",
+    "description",
+    "$comment",
+    "default",
+    "examples",
+    "deprecated",
+    "readOnly",
+    "writeOnly"
+  ]);
+  const maps = /* @__PURE__ */ new Set([
+    "properties",
+    "patternProperties",
+    "$defs",
+    "definitions",
+    "dependentSchemas"
+  ]);
+  const single = /* @__PURE__ */ new Set([
+    "additionalProperties",
+    "unevaluatedProperties",
+    "propertyNames",
+    "items",
+    "additionalItems",
+    "unevaluatedItems",
+    "contains",
+    "not",
+    "if",
+    "then",
+    "else",
+    "contentSchema"
+  ]);
+  const sequences = /* @__PURE__ */ new Set(["allOf", "anyOf", "oneOf", "prefixItems"]);
+  return Object.fromEntries(
+    Object.entries(schema).filter(([key]) => !annotations.has(key)).map(([key, value]) => [
+      key,
+      key === "enum" || key === "const" ? value : maps.has(key) ? Object.fromEntries(
+        Object.entries(value).map(([name, child]) => [
+          name,
+          semanticSchema(child)
+        ])
+      ) : sequences.has(key) ? value.map(semanticSchema) : single.has(key) ? semanticSchema(value) : value
+    ])
+  );
+}
+function detailSchema(entry, spec) {
+  const record = spec.record;
+  if (!record) return spec.detail;
+  const value = record.kind === "value" ? entry.properties[record.attr] : record.kind === "attribute" ? { type: "array", items: { type: "string" }, uniqueItems: true } : { type: "string" };
+  const properties = { value };
+  if (record.kind === "position")
+    Object.assign(properties, { unit: { type: "string" }, rank: { type: "string" } });
+  if (spec.update) properties.text = { type: "string", minLength: 1 };
+  return {
+    type: "object",
+    properties,
+    required: Object.keys(properties),
+    additionalProperties: false
+  };
+}
+function stateDefinition(origin, entry, spec) {
+  return {
+    origin,
+    unit: spec.unit,
+    record: spec.record ?? null,
+    creates: spec.creates ?? null,
+    update: spec.update ?? false,
+    detail: semanticSchema(detailSchema(entry, spec))
+  };
+}
+function sameStateDefinition(recorded, current) {
+  if (recorded === current) return true;
+  if (!recorded || !current || typeof recorded !== "object" || typeof current !== "object" || Array.isArray(recorded) !== Array.isArray(current))
+    return false;
+  const keys = Object.keys(recorded);
+  return keys.length === Object.keys(current).length && keys.every(
+    (key) => Object.hasOwn(current, key) && (typeof recorded[key] === "object" ? sameStateDefinition(recorded[key], current[key]) : recorded[key] === current[key])
+  );
+}
+function sameStateOperation(recorded, current) {
+  if (!recorded || !current) return false;
+  const { detail: _recordedDetail, ...recordedOperation } = recorded;
+  const { detail: _currentDetail, ...currentOperation } = current;
+  return sameStateDefinition(recordedOperation, currentOperation);
+}
+function eventSpec(entry, event) {
+  const spec = entry["x-state"]?.[event.action];
+  const writer = { action: "user", report: "agent" }[event.kind];
+  return spec && (spec.writer ?? "user") === writer ? spec : null;
+}
+
 // skills/leaf/assets/runtime/thread/identity.js
 var PENDING = "pending:";
 
@@ -878,7 +971,7 @@ function advance(entry, signal, admitted = null) {
   if (state === "accepted:presented" && entry.event.kind !== "action") return null;
   return { ...entry, state, admitted: entry.admitted ?? admitted };
 }
-function normalizedProjection(view, thread) {
+function normalizedProjection(view, thread, descriptors) {
   const entries = [];
   const actionIds = [];
   const reportIds = [];
@@ -887,6 +980,13 @@ function normalizedProjection(view, thread) {
     if (!projection) continue;
     for (const wire of projection.entries ?? []) {
       const e2 = wire.event;
+      const descriptor = descriptors?.get(e2.widget);
+      const currentSpec = descriptor && eventSpec(descriptor.declaration, e2);
+      if (descriptor && (!currentSpec || !sameStateOperation(
+        e2.meaning?.state,
+        stateDefinition(descriptor.tag, descriptor.declaration, currentSpec)
+      )))
+        continue;
       const coordinate = JSON.stringify(wire.coordinate);
       entries.push({
         coordinate,
@@ -1059,12 +1159,26 @@ function createSemanticApplication({
       const target = unresolved.find((entry2) => entry2.event.attempt === attempt);
       return target ? target.admitted?.id ?? null : receipts.find((receipt) => receipt.attempt === attempt)?.id ?? null;
     };
-    const localProjections = local.filter((entry2) => entry2.projection).map(
+    const compatiblePending = (projection2) => {
+      const operation = projection2.kind === "undo" ? projection2.target : projection2;
+      const descriptor = document.descriptors.get(operation.e.widget);
+      if (!descriptor) return false;
+      const currentSpec = eventSpec(descriptor.declaration, operation.e);
+      return currentSpec && sameStateDefinition(
+        operation.e.meaning?.state,
+        stateDefinition(descriptor.tag, descriptor.declaration, currentSpec)
+      );
+    };
+    const localProjections = local.filter((entry2) => entry2.projection && compatiblePending(entry2.projection)).map(
       (entry2) => entry2.projection.kind === "undo" ? { ...entry2.projection, targetId: namedTarget(entry2.undoTarget) } : entry2.projection
     );
     const served = state?.browser.views[String(document.revision)];
     const view = served ? (({ basis: _basis, ...rest }) => rest)(served) : null;
-    const admitted = normalizedProjection(view, state?.browser.thread);
+    const admitted = normalizedProjection(
+      view,
+      state?.browser.thread,
+      document.descriptors
+    );
     const projection = foldProjection({
       ...admitted,
       pendingEntries: localProjections
@@ -1406,7 +1520,18 @@ function createSemanticApplication({
         spec,
         coordinate: JSON.stringify([event.widget, unit, event.action]),
         localOrder,
-        e: { ...event, id: localId },
+        e: {
+          ...event,
+          id: localId,
+          meaning: {
+            ...event.meaning,
+            state: stateDefinition(
+              widget.tag,
+              before.document.registry[widget.tag],
+              spec
+            )
+          }
+        },
         value: spec.record ? foldedValue(event, spec.record) : event.action
       } : null;
       publish({

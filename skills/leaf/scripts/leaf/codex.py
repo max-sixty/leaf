@@ -1669,7 +1669,7 @@ def finish_codex_batch(
                 "page": Path(batch["page"]),
                 "events": tuple(event["id"] for event in batch["events"]),
             }
-    except (FileNotFoundError, ReceiptRefused):
+    except FileNotFoundError, ReceiptRefused:
         pass
     with flocked(delivery_lock_path(batch["session"])):
         record = read_record(path)
@@ -1776,7 +1776,7 @@ def finish_abandoned_batch(path: Path, batch_index: int, batch: dict) -> None:
                 session=session_id,
                 failure=UNCONFIRMED_DELIVERY,
             )
-    except (FileNotFoundError, ReceiptRefused):
+    except FileNotFoundError, ReceiptRefused:
         pass
     with flocked(delivery_lock_path(session_id)):
         record = read_record(path)

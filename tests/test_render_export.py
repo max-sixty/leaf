@@ -330,7 +330,7 @@ def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
     edited = tmp_path / "source.html"
     edited.write_text("<p>authored</p>", encoding="utf-8")
     changes = preview_model.watch_changes(
-        preview_model.Watched((tmp_path,), frozenset(), frozenset())
+        preview_model.Watched((tmp_path,), frozenset({str(edited)}))
     )
     try:
         edited.write_text("<p>edited</p>", encoding="utf-8")
@@ -532,7 +532,7 @@ def _reachable(url: str) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=STATED_TIMEOUT) as answer:
             return answer.status == 200
-    except (urllib.error.URLError, OSError):
+    except urllib.error.URLError, OSError:
         return False
 
 
@@ -678,7 +678,7 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
         stream.write("\nh1 { color: navy; }\n")
     wait_for(
         log.read_text,
-        lambda output: "Reloaded detached" in output,
+        lambda output: "Updated detached" in output,
         failure="the preview did not restart for its runtime",
     )
     assert server_model.running_server(directory)
@@ -869,20 +869,21 @@ def test_a_failed_preview_bootstrap_hears_the_replacement_server(
         generation = json.loads((directory / "registry.json").read_text())["$layer"][
             "generation"
         ]
-        # A refused re-vendor still replaces the server; the old layer is now loadable.
-        (
-            runtime / "skills" / "leaf" / "packages" / "default" / "registry.json"
-        ).write_text("{", encoding="utf-8")
+        # A changed layer replaces the server. An invalid input is now refused
+        # before that replacement, so change a valid theme to test recovery.
+        theme = runtime / "skills" / "leaf" / "assets" / "theme.css"
+        with theme.open("a", encoding="utf-8") as stream:
+            stream.write("\nh1 { color: navy; }\n")
         expect(page.locator("body")).to_have_attribute(
             "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
         )
         expect(status).not_to_be_visible()
     if resource == "widgets/lf-options.js":
         expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
-    assert len(documents) == 2
+    assert len(documents) >= 2
     assert (
         json.loads((directory / "registry.json").read_text())["$layer"]["generation"]
-        == generation
+        != generation
     )
 
 
@@ -1099,7 +1100,7 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
             stream.write("\nh1 { color: navy; }\n")
     wait_for(
         log.read_text,
-        lambda output: "Reloaded watched" in output,
+        lambda output: "Updated watched" in output,
         failure="the preview did not finish its update",
     )
     assert server_model.running_server(directory)

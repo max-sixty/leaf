@@ -25,7 +25,9 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    resized,
     round_trip,
+    scroll_settled,
     select,
     sending,
     take_browser_errors,
@@ -580,7 +582,8 @@ def test_visible_message_waits_for_whole_document_presentation(browser, serve):
     ]
 
 
-def test_keyboard_first_unread_exposes_authored_reply(browser, serve):
+@pytest.mark.parametrize("origin", ["page", "panel", "reference"])
+def test_keyboard_first_unread_exposes_authored_reply(browser, serve, origin):
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "The earlier user thread.")
     root = thread_model.cmd_comment(
@@ -596,11 +599,24 @@ def test_keyboard_first_unread_exposes_authored_reply(browser, serve):
         "</lf-options></lf-ask>",
     )["id"]
     page = open_page(browser, url)
-    page.locator(".lf-threads-toggle").click()
-    panel_settled(page)
-    page.locator(".lf-threads").focus()
+    if origin == "panel":
+        page.keyboard.press("g")
+        page.keyboard.press("Shift+t")
+        panel_settled(page)
+    if origin == "reference":
+        page.keyboard.press("?")
+        page.keyboard.press("?")
+        page.get_by_role("combobox", name="Search commands").fill("g u")
+        route = page.locator(
+            '.lf-command-reference tr[data-lf-command="thread.unread.first"]'
+        )
+        expect(route.locator(".lf-binding-sequence > kbd")).to_have_text(["g", "u"])
     with sending(page, "authored reply read"):
-        page.keyboard.press("u")
+        if origin == "reference":
+            route.get_by_role("button").click()
+        else:
+            page.keyboard.press("g")
+            page.keyboard.press("u")
     card = page.locator(f'.lf-thread[data-id="{root}"]')
     expect(card).to_have_attribute("open", "")
     expect(card.locator(f'.lf-msg[data-mid="{root}"]')).to_be_focused()
@@ -608,6 +624,66 @@ def test_keyboard_first_unread_exposes_authored_reply(browser, serve):
     assert _read_events(serve.page_dir)[-1]["messages"] == [
         {"message": root, "version": root}
     ]
+
+
+@pytest.mark.parametrize("unread", [False, True])
+def test_threads_keep_the_scroll_pair_separate_from_first_unread(
+    browser, serve, unread
+):
+    """Unread availability cannot steal the upward half of the reading pair. The
+    separate Go-to route remains text in an editor, just like every letter route."""
+    url = serve(
+        leaf_page(
+            "Reading and unread",
+            "<h1>Reading and unread</h1><p>Page reading starts here.</p>"
+            '<div style="height: 2200px"></div><p>The final page passage.</p>',
+        )
+    )
+    for number in range(18):
+        panel_comment(serve.page_dir, f"User thread {number}.")
+    last = panel_comment(
+        serve.page_dir, "The unread destination.", author="agent" if unread else "user"
+    )
+    page = open_page(browser, url)
+    page.keyboard.press("d")
+    page.wait_for_function("() => document.scrollingElement.scrollTop > 0")
+    scroll_settled(page)
+    page_top = page.evaluate("document.scrollingElement.scrollTop")
+    page.keyboard.press("u")
+    page.wait_for_function(f"() => document.scrollingElement.scrollTop < {page_top}")
+    scroll_settled(page)
+    page_top = page.evaluate("document.scrollingElement.scrollTop")
+
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    panel_settled(page)
+    threads = page.locator(".lf-threads")
+    page.keyboard.press("d")
+    page.wait_for_function("() => document.querySelector('.lf-threads').scrollTop > 0")
+    scroll_settled(page, ".lf-threads")
+    down = threads.evaluate("el => el.scrollTop")
+    page.keyboard.press("u")
+    page.wait_for_function(
+        f"() => document.querySelector('.lf-threads').scrollTop < {down}"
+    )
+    scroll_settled(page, ".lf-threads")
+    assert page.evaluate("document.scrollingElement.scrollTop") == page_top
+    expect(page.locator(f'.lf-thread[data-id="{last}"]')).not_to_have_attribute(
+        "open", ""
+    )
+    if unread:
+        expect(page.locator(".lf-first-unread")).to_be_visible()
+    else:
+        expect(page.locator(".lf-first-unread")).to_be_hidden()
+
+    editor = page.locator(".lf-general leaf-text")
+    editor.focus()
+    page.keyboard.press("u")
+    page.keyboard.press("g")
+    page.keyboard.press("u")
+    assert editor.evaluate("el => el.value") == "ugu"
+    expect(editor).to_be_focused()
+    expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
 
 
 def test_read_converges_across_two_tabs(browser, serve):
@@ -685,6 +761,7 @@ def _open_first_unread(page, child):
     is left to keep it unread."""
     page.keyboard.press("Enter")
     expect(child.locator(".lf-threads")).to_be_visible()
+    page.keyboard.press("g")
     page.keyboard.press("u")
     expect(child.locator(f'.lf-thread[data-id="{SAMPLE_READER}"]')).to_have_attribute(
         "open", ""
@@ -765,6 +842,22 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
     }""")
     _still_unread(child)
     page.evaluate("scrollBy(0, 700)")
+    _read_by_the_sample(page, child)
+
+
+def test_a_sample_in_a_native_modal_escapes_inherited_inertness(browser, serve):
+    page, _, child = _sample_reading_page(
+        browser,
+        serve,
+        "<h1>Native owner boundary</h1><section inert>"
+        '<dialog id="owner-modal" open>{sample}</dialog></section>',
+        "#owner-modal { width: 900px; height: 750px; }",
+    )
+    page.locator("#owner-modal").evaluate(
+        "dialog => { dialog.close(); dialog.showModal(); }"
+    )
+    child.locator(".lf-threads-toggle").focus()
+    _open_first_unread(page, child)
     _read_by_the_sample(page, child)
 
 
@@ -1070,11 +1163,11 @@ def test_a_reopening_in_a_page_seat_waits_where_reopen_stood(browser, serve, poi
     """An agent's reply to a resolved thread reopens it. Drawn at once, the reopened
     thread grew in place under the reader: its new turn and its reply box pushed the
     page after it down. It stands as drawn, resolved, and its resolved row says what is
-    waiting in Reopen's place and face, at the row's height under either pointer (a
-    chip's face stood 6px shorter than Reopen at a fine pointer). On a phone a tap opens
-    it; on the desktop `r` on the thread, which reopens a resolved thread, does. The
-    thread shows open, with the new turn after the earlier ones and a reply box. Nothing
-    before the opening is input, so the shift watch checks that the hold moved nothing."""
+    waiting in Reopen's place, preserving the row's height under either pointer. On a
+    phone a tap opens it; on the desktop `r` on the thread, which reopens a resolved
+    thread, does. The thread shows open, with the new turn after the earlier ones and
+    a reply box. Nothing before the opening is input, so the shift watch checks that
+    the hold moved nothing."""
     context = (
         browser.new_context(
             viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
@@ -1308,6 +1401,7 @@ ROUTE_LINE = '["app/routes.py","new",201]'
         "started",
         "left",
         "standing",
+        "returned",
     ],
 )
 def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marker(
@@ -1322,8 +1416,10 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
     shows when the user replies in it from the margin's card, when they resolve it
     there, when they start a thread on the same line, which shows after it, and when
     they scroll the line below the window, unless they are writing in its card, which
-    stays with them. The news lands well past Chrome's half second of recent input, so
-    the shift watch checks that holding the thread moved nothing."""
+    stays with them. Returning from a hidden tab reveals current messages while
+    preserving that composing margin card. The news lands well past Chrome's half
+    second of recent input, so the shift watch checks that holding the thread moved
+    nothing."""
     context = (
         browser.new_context(
             viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
@@ -1383,6 +1479,50 @@ def test_a_thread_the_agent_starts_on_a_bare_diff_line_waits_at_its_margin_marke
         expect(outlet).to_have_count(0)
         expect(marker).to_be_visible()
         marker.click()
+    elif end == "returned":
+        page.keyboard.press("t")
+        card = page.locator(f'.lf-margin-thread .lf-page-thread[data-thread="{held}"]')
+        expect(card).to_be_focused()
+        box = card.locator(":scope > .lf-thread-reply leaf-text")
+        words = "Only if the old name stays usable."
+        write(box, words)
+        box.evaluate("""box => {
+          box.setSelectionRange(8, 8);
+          window.__returnDiffEditor = box;
+        }""")
+        page.evaluate("""() => {
+          window.__lfTestVisibility = 'hidden';
+          Object.defineProperty(document, 'visibilityState', {
+            configurable: true, get: () => window.__lfTestVisibility,
+          });
+          document.dispatchEvent(new Event('visibilitychange'));
+        }""")
+        answer = append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Codex",
+                "revision": 1,
+                "parent": held,
+                "text": "The old name will stay usable.",
+            },
+        )
+        with page.expect_request("**/api/news"):
+            page.evaluate("""() => {
+              window.__lfTestVisibility = 'visible';
+              document.dispatchEvent(new Event('visibilitychange'));
+            }""")
+        told(page)
+        rendered(page)
+        expect(outlet).to_have_count(0)
+        expect(card.locator(f'.lf-msg[data-event="{answer["id"]}"]')).to_be_visible()
+        expect(card.locator(".lf-thread-news")).to_have_count(0)
+        expect(box).to_be_focused()
+        expect(box).to_have_js_property("value", words)
+        assert box.evaluate("""field => field === window.__returnDiffEditor
+          && field.selectionStart === 8 && field.selectionEnd === 8""")
+        return
     elif end == "standing":
         # A user writing in the margin's card keeps it as they scroll the line away.
         page.keyboard.press("t")
@@ -1561,13 +1701,15 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
     assert receipt(), "the answer shown whole was never marked read"
 
 
-def test_modal_blocks_exposure_until_user_returns_to_threads(browser, serve):
+@pytest.mark.parametrize("width", [1200, 400])
+def test_modal_blocks_exposure_until_user_returns_to_threads(browser, serve, width):
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "The earlier user thread.")
     root = panel_comment(
         serve.page_dir, "A short answer behind the dialog.", author="agent"
     )
     page = open_page(browser, url)
+    resized(page, width, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.locator(".lf-threads-toggle").focus()

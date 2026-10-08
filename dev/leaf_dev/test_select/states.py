@@ -27,7 +27,7 @@ def provenance(before, after, changed, regeneration_proof=None):
         for path in sorted(p for p in index.paths if p.endswith("manifest.json")):
             try:
                 manifest = json.loads(index.source(path))
-            except (json.JSONDecodeError, UnicodeDecodeError):
+            except json.JSONDecodeError, UnicodeDecodeError:
                 continue
             if (
                 not isinstance(manifest, dict)

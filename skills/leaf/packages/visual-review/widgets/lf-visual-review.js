@@ -111,7 +111,7 @@ customElements.define(
     #inspector = null;
     #layoutFrame = null;
     #mode = "compare";
-    #onResize = () => this.#scheduleEvidenceLayout();
+    #onGeometryChange = () => this.#scheduleEvidenceLayout();
     #opacity = 50;
     #progress = null;
     #queue = null;
@@ -138,7 +138,7 @@ customElements.define(
       this.#sizes.observe(this);
       for (const stage of this.querySelectorAll(".lf-vr-shot-host"))
         this.#sizes.observe(stage);
-      window.addEventListener("resize", this.#onResize);
+      window.addEventListener("resize", this.#onGeometryChange);
       this.#threadSurface ??= placeThreads(this, (targets) =>
         targets.map((target) => this.#threadOutlet(target)),
       );
@@ -151,7 +151,7 @@ customElements.define(
       this.#threadSurface = null;
       this.#sizes?.disconnect();
       this.#sizes = null;
-      window.removeEventListener("resize", this.#onResize);
+      window.removeEventListener("resize", this.#onGeometryChange);
       if (this.#layoutFrame !== null) cancelRender(this.#layoutFrame);
       this.#layoutFrame = null;
       this.#stopEvidence?.();
@@ -344,8 +344,10 @@ customElements.define(
           frame.prepend(label);
         }
       }
+      // The selected case already declares its focus geometry. Allocate it in
+      // this paint, before an undecoded shot can draw the wrong comparison shape.
+      this.#paintEvidenceLayout();
       layoutChanged(this);
-      this.#scheduleEvidenceLayout();
       paintKeys();
     }
 
@@ -368,29 +370,29 @@ customElements.define(
       const fallbackHeight = capture.viewport.height;
       const images = frames.map((frame) => frame.querySelector("img"));
       const heights = images.map((image) => {
-        if (!image.complete)
-          image.addEventListener("load", () => this.#scheduleEvidenceLayout(), {
-            once: true,
-          });
+        if (!image.complete) {
+          image.addEventListener("load", this.#onGeometryChange, { once: true });
+          image.addEventListener("error", this.#onGeometryChange, { once: true });
+        }
         return image.naturalHeight ? image.naturalHeight / ratio : fallbackHeight;
       });
       const widths = images.map((image) =>
         image.naturalWidth ? image.naturalWidth / ratio : capture.viewport.width,
       );
       const focus = entry.record.focus;
-      if (
-        focus &&
-        images.some((image) => !image.naturalWidth || !image.naturalHeight)
-      ) {
-        if (images.every((image) => image.complete))
-          failSoft(
-            entry.shotHost,
-            new Error(`case '${entry.record.id}' focus needs two decoded images`),
-          );
+      const decoded = images.every(
+        (image) => image.naturalWidth && image.naturalHeight,
+      );
+      if (focus && !decoded && images.every((image) => image.complete)) {
+        failSoft(
+          entry.shotHost,
+          new Error(`case '${entry.record.id}' focus needs two decoded images`),
+        );
         return;
       }
       if (
         focus &&
+        decoded &&
         images.some(
           (image) =>
             focus.x + focus.width > image.naturalWidth / ratio ||
@@ -469,11 +471,10 @@ customElements.define(
           `${focus.height * scale}px`,
         );
         frames.forEach((frame, index) => {
-          const image = images[index];
           frame.style.setProperty(
             "--lf-vr-focus-view",
-            `inset(${focus.y * ratio}px ${image.naturalWidth - (focus.x + focus.width) * ratio}px ` +
-              `${image.naturalHeight - (focus.y + focus.height) * ratio}px ${focus.x * ratio}px)`,
+            `inset(${focus.y * ratio}px ${(widths[index] - focus.x - focus.width) * ratio}px ` +
+              `${(heights[index] - focus.y - focus.height) * ratio}px ${focus.x * ratio}px)`,
           );
         });
       }

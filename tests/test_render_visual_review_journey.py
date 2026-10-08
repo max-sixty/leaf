@@ -11,6 +11,7 @@ from leaf import event_log as events_model
 from leaf import exporting as exporting_model
 from leaf import hosting as hosting_model
 from leaf import media as media_model
+from leaf.render_checks import rendered
 from playwright.sync_api import expect
 from render_cases_layout import (
     ring_faults,
@@ -19,8 +20,10 @@ from render_cases_layout import (
 from render_harness import (
     CORPUS_SOURCES,
     consume_browser_errors,
+    holding,
     leaf_page,
     open_page,
+    refuse,
     resized,
     scroll_settled,
     sending,
@@ -724,6 +727,81 @@ def test_a_visual_review_keeps_its_own_frame_where_a_pane_grid_meets_at_hairline
     for pane in ("#queue", "#detail"):
         ring = page.locator(pane).evaluate("node => getComputedStyle(node).boxShadow")
         assert ring == f"{frame['rule']} 0px 0px 0px 1px", (pane, ring)
+
+
+def test_visual_review_allocates_focused_evidence_before_images_decode(browser, serve):
+    """The declared focus sizes the first comparison, even over a slow media load."""
+    url = serve(VISUAL_REVIEW_GALLERY)
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
+    )
+    held = []
+    context.route("**/media/*.png", lambda route: held.append(route))
+    try:
+        page = context.new_page()
+        page.goto(url, wait_until="domcontentloaded")
+        widget = page.locator("#visual-review-run")
+        expect(widget.locator(".lf-vr-case-title").first).to_be_visible()
+        expect(widget).to_have_attribute("data-compare-layout", "stack")
+        host = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
+        geometry = """node => ({
+          host: node.getBoundingClientRect().toJSON(),
+          frames: [...node.querySelectorAll('.lf-shotframe')]
+            .map(frame => frame.getBoundingClientRect().toJSON()),
+        })"""
+        before = host.evaluate(geometry)
+        assert before["frames"][0]["height"] > 500, before
+        assert before["frames"][1]["top"] >= before["frames"][0]["bottom"], before
+        assert host.locator("img").evaluate_all(
+            "images => images.every(image => image.naturalWidth === 0)"
+        )
+        for route in held:
+            route.continue_()
+        context.unroute("**/media/*.png")
+        expect(host.locator("img").first).to_have_js_property("naturalWidth", 780)
+        expect(host.locator("img").last).to_have_js_property("naturalWidth", 780)
+        page.wait_for_function("document.body.hasAttribute('data-lf-presented')")
+        after = host.evaluate(geometry)
+        assert after == before, {"before": before, "after": after}
+    finally:
+        context.close()
+
+
+def test_visual_review_reports_an_image_failure_after_its_peer_has_loaded(
+    browser, serve
+):
+    """A late decode failure replaces reserved focus geometry with a visible error."""
+    url = serve(VISUAL_REVIEW_GALLERY)
+    run = json.loads(
+        data_model.source_file(serve.page_dir, "gallery-visual-run").read_text()
+    )
+    failed_source = run["cases"][0]["after"]
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True
+    )
+    held = []
+    context.route(f"**{failed_source}", lambda route: held.append(route))
+    try:
+        page = context.new_page()
+        page.goto(url, wait_until="domcontentloaded")
+        host = page.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host")
+        images = host.locator("img")
+        expect(images.first).to_have_js_property("naturalWidth", 780)
+        holding(page, held, 1, "the second selected capture")
+        # Finish the first image's layout while its peer is still pending. The
+        # later failure cannot borrow that load's invalidation or a stage resize.
+        rendered(page)
+        expect(images.last).to_have_js_property("complete", False)
+        assert host.evaluate("node => node.clientHeight") > 1000
+        expect(host.locator(".lf-error")).to_have_count(0)
+        refuse(held[0])
+        expect(host.locator(".lf-error")).to_contain_text(
+            "focus needs two decoded images"
+        )
+        expect(host.locator("img")).to_have_count(0)
+        consume_browser_errors(page, "focus needs two decoded images")
+    finally:
+        context.close()
 
 
 def test_visual_review_leads_with_evidence_and_walks_only_remaining_cases(

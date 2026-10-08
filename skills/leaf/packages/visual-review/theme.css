@@ -115,6 +115,15 @@
   cursor: pointer;
 }
 
+/* The inspector is a toolbar disclosure within the review, not another prose
+ * panel. Its summary keeps the shared hit target; the case grid owns spacing. */
+.lf-vr-inspection {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+
 .lf-vr-inspection[open] > .lf-vr-inspector {
   margin-block: var(--sp-2);
 }
@@ -157,23 +166,31 @@
 .lf-vr-opacity-control {
   display: none;
   align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--sp-2);
   min-width: 0;
   flex: 1 1 11rem;
 }
 
 .lf-vr-opacity-control[data-active="true"] {
-  display: flex;
+  display: grid;
+}
+
+.lf-vr-opacity-control > .lf-vr-inspector-label {
+  grid-column: 1 / -1;
+  margin: 0;
+  white-space: normal;
 }
 
 .lf-vr-opacity {
   width: 100%;
-  min-width: 5.5rem;
+  min-width: 0;
   margin: 0;
 }
 
 .lf-vr-opacity-value {
   min-width: 3ch;
-  margin-left: var(--sp-2);
+  margin: 0;
   color: var(--ink-2);
   font: var(--t-6) / 1.3 var(--mono);
   text-align: end;

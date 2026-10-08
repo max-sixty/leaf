@@ -15,6 +15,11 @@ a new capability.
 
 ## Public API
 
+Rendering work that reaches a resting state uses `nextRender`, `nextFrame` and
+`cancelRender`. Continuous mechanical motion, such as recording playback, uses
+`nextAnimation` and `cancelAnimation`: it schedules browser frames without holding
+page readiness open. Cancel it when the motion stops or its owner leaves.
+
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
 query private chrome, or duplicate a runtime helper inside itself. Resolve canonical
@@ -358,6 +363,12 @@ the module can already draw is drawn in the gesture rather than after a wait.
 A temporary yellow cue calls `backgroundFlash(element, ms)`. It supplies only the
 starting tint; the browser fades to the element's live CSS background, including any
 hover or theme change during the cue, and shares `motion`'s gates and cleanup.
+
+A mechanical surface that must stop motion before a review gesture is handled uses
+`onUserInput(callback)`. The shared input owner calls it synchronously during capture
+for pointer, key, input, wheel, touch and window blur events; the callback observes and
+does not claim the event. Filter the events belonging to the surface and release the
+returned subscription when it disconnects. Keyboard commands still use `commands()`.
 
 A module implementing its own navigation captures `retainUserIntent()` in the gesture
 that starts it, before its

@@ -392,6 +392,7 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     tabs = page.locator("#root-tabs")
     plan = tabs.get_by_role("tab", name="Plan", exact=True)
     evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
+    summary = tabs.get_by_role("tab", name="Summary", exact=True)
 
     def switch(tab):
         # Locator.click would scroll a sticky tab back to its static-flow box.
@@ -426,11 +427,16 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     expect(plan).to_have_attribute("aria-selected", "true")
     assert settled() == 0
     # With the header on screen, a switch leaves it there.
+    assert switch(summary) == 0
     assert switch(evidence) == 0
     assert page.url.endswith("#evidence-tab")
     # Read Evidence past its start; Plan, never read, opens at its start under the
     # stuck strip rather than at the top of the page.
     evidence_read = read_at(450)
+    # Even a view shorter than the window keeps enough page below the sticky strip
+    # for the browser to land its start without pulling the strip downward.
+    assert 0 < switch(summary) < evidence_read
+    stuck_at_start("#summary-tab")
     plan_start = switch(plan)
     assert 0 < plan_start < evidence_read
     stuck_at_start("#plan-tab")
@@ -2937,7 +2943,9 @@ def test_live_widget_subscription_releases_and_reconnects(browser, serve):
 """,
     )
     page = open_page(browser, serve(source))
-    before = page.locator("#watched").evaluate("section => section.innerHTML")
+    before = page.locator("#watched-draft .lf-draft-body").get_attribute(
+        "data-lf-source-words"
+    )
     page.evaluate(
         """() => {
           window.__lfWatchedSection = document.querySelector('#watched');
@@ -2956,7 +2964,17 @@ def test_live_widget_subscription_releases_and_reconnects(browser, serve):
         },
     )
     told(page)
-    assert page.evaluate("window.__lfWatchedSection.innerHTML") == before
+    assert (
+        page.evaluate("""() => window.__lfWatchedSection
+      .querySelector('#watched-draft .lf-draft-body')
+      .getAttribute('data-lf-source-words')""")
+        == before
+    )
+    assert (
+        page.evaluate("""() => window.__lfWatchedSection
+      .querySelector('.lf-draft-history > summary')""")
+        is None
+    )
 
     page.evaluate("document.querySelector('main').append(window.__lfWatchedSection)")
     expect(page.locator("#watched-draft .lf-draft-history > summary")).to_have_text(

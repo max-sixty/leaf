@@ -3918,7 +3918,7 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
     right = page.locator("#right-reading > div")
     left.evaluate("el => el.scrollTop = 180")
     right.evaluate("el => el.scrollTop = 360")
-    page.locator("#right-subject").focus()
+    page.locator("#right-subject").click()
     before = page.locator("#right-landmark").evaluate(
         """el => el.getBoundingClientRect().top -
           el.closest('lf-pane > div').getBoundingClientRect().top"""
@@ -3939,6 +3939,49 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
           parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)"""
     )
     assert abs(after - before) <= 4, (before, after)
+
+
+def test_revision_keeps_a_focused_control_visible_without_a_text_landmark(
+    browser, serve
+):
+    """A focused control remains the place when its pane has no quotable text."""
+    content = """
+<header><h1>Control workspace</h1></header>
+<div id="reading-split">
+  <lf-pane id="left-reading" label="Left reading"><div>
+    <p>Another pane's reading does not name the active control.</p>
+  </div></lf-pane>
+  <lf-pane id="right-reading" label="Right reading"><div>
+    <div style="height: 1100px"></div>
+    <button id="right-subject">Right subject</button>
+    <div style="height: 500px"></div>
+  </div></lf-pane>
+</div>
+"""
+    split = regions_side_by_side("reading-split")
+    first = leaf_page(
+        "Focused control continuity", content, head=split, layout="workspace"
+    )
+    page = open_page(browser, live_url(serve(first)))
+    resized(page, 900, 760)
+    pane_posture(page, page.locator("#right-reading"), "bounded")
+    page.locator("#right-subject").click()
+
+    revised = leaf_page(
+        "Focused control continuity",
+        '<div style="height: 1000px"></div>' + content,
+        head=split,
+    )
+    stamp_page(serve.page_dir, revised, "put the workspace in the document")
+    wait_for_revision(page, 2)
+    pane_posture(page, page.locator("#right-reading"), "flow")
+    visible = page.locator("#right-subject").evaluate(
+        """el => {
+          const rect = el.getBoundingClientRect();
+          return rect.top >= 0 && rect.bottom <= innerHeight;
+        }"""
+    )
+    assert visible
 
 
 def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser, serve):

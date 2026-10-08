@@ -267,19 +267,21 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    flow, or state their own height.
 
    Declared pressables join by their offer, rather than by adding their class here.
+   A resting skip control is transparent and has no pointer route; it takes its aim
+   size from chrome.css only when focus reveals it.
    Native and selectable choice marks keep their enclosing labelled target; squeezing-prone button
    faces and version rows keep the padding floor described above. Inline offered words
    remain inline: like links in prose, their words determine their target.
 
    .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
    chip as well as a press and a chip is not something to aim at. */
-[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer="checkbox"], [data-lf-offer="radio"])),
+[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer="checkbox"], [data-lf-offer="radio"], .lf-skip)),
 .lf-btn, .button, .lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-react-trigger,
 .lf-margin-entry,
 .lf-thread-action, .lf-preview, .lf-layer-reference, .lf-version-diff, .lf-version-row,
 .lf-command-reference-command, .lf-quote {
   min-width: var(--aim-floor); }
-[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer="checkbox"], [data-lf-offer="radio"], .lf-btn, .lf-version-row, .lf-version-diff)),
+[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer="checkbox"], [data-lf-offer="radio"], .lf-skip, .lf-btn, .lf-version-row, .lf-version-diff)),
 .lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-react-trigger,
 .lf-margin-entry, .lf-thread-action, .lf-command-reference-command, .lf-quote {
   min-height: var(--aim-floor); }
@@ -1015,11 +1017,13 @@ button.lf-media-open { cursor: zoom-in; }
   .lf-fab-bar[data-lf-presentation="inline"] { display: none !important; }
 }
 :is(.lf-btn, .button):is(.on, [aria-pressed="true"]) { border-color: var(--accent); color: var(--accent); background: var(--chip); }
-/* Draw mode takes page-widget presses before their controls can act. This rule is in
-   this file because document selectors do not cross a declared shadow root. */
+/* Draw mode takes page-word presses while offered controls keep their gestures.
+   Document selectors do not cross a declared shadow root. */
 :host-context(html[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
 :host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
-:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat * {
+:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat *,
+:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer],
+:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer] * {
   cursor: auto !important; }
 /* Copy floats over the code's corner without changing its box or scrolling text.
    Pointer and keyboard intent reveal it; touch keeps the control available. */

@@ -9075,7 +9075,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     page.keyboard.press("?")
     page.keyboard.press("?")
     edit = page.locator('.lf-command-reference-command[data-lf-command="draft.edit"]')
-    expect(edit).to_have_text("Edit…")
+    expect(edit).to_have_text("Edit")
     edit.click()
     expect(page.locator("#note leaf-text")).to_be_focused()
 
@@ -9084,9 +9084,7 @@ def test_numbered_ask_routes_follow_replaced_controls(browser, serve):
     expect(save).to_be_focused()
     page.keyboard.press("?")
     assert active_digit_bindings(page) == "1–2"
-    expect(save).to_have_attribute(
-        "aria-keyshortcuts", "Enter Meta+Enter Control+Enter Escape 1"
-    )
+    expect(save).to_have_attribute("aria-keyshortcuts", "Meta+Enter Control+Enter 1")
     page.keyboard.press("?")
     cancel = page.locator(
         '.lf-command-reference-command[data-lf-command="draft.cancel"]'
@@ -14086,7 +14084,7 @@ def test_typing_in_a_selected_comment_wins_over_page_shortcuts(browser, serve):
 
 
 def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser, serve):
-    """Every durable editor inserts a newline with Shift+Enter and submits with Enter."""
+    """The composer sends with Enter; the draft saves with its advertised Mod+Enter."""
     html = TARGETS_PAGE.replace(
         "</main>", '<lf-draft id="plan"><pre>Ship it.</pre></lf-draft></main>'
     )
@@ -14127,8 +14125,11 @@ def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser,
     expect(editor).to_have_js_property(
         "value", "Save through the visible control.\nKeep the second line."
     )
+    expect(editor).to_have_attribute(
+        "aria-keyshortcuts", "Meta+Enter Control+Enter Escape"
+    )
     with sending(page, "the draft shortcut"):
-        page.keyboard.press("Enter")
+        page.keyboard.press("ControlOrMeta+Enter")
     expect(page.locator("#plan .lf-draft-body")).to_contain_text(
         "Keep the second line."
     )

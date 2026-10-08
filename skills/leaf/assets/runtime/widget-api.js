@@ -88,6 +88,8 @@ export { repaint } from "./repaint.js";
 export {
   afterScript,
   cancelRender,
+  cancelAnimation,
+  nextAnimation,
   nextFrame,
   nextRender,
   sizeObserver,
@@ -188,7 +190,7 @@ export {
 } from "./target-references.js";
 export { projectData } from "./application.js";
 export { copyCodeBlock } from "./code-copy.js";
-export { retainUserIntent } from "./user-intent.js";
+export { onUserInput, retainUserIntent } from "./user-intent.js";
 export { keepView, openingView, tabStore } from "./storage.js";
 export {
   ensureSyntaxLanguage,

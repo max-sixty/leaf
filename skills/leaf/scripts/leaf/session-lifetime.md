@@ -165,7 +165,7 @@ of its life unheld and picks up again when a session takes it.
 ## The hook
 
 The `hook` command, registered on SessionStart/resume, Stop, UserPromptSubmit,
-SessionEnd, and Codex's PostToolUse and Interrupt, and called at the run boundaries by Leaf's Pi
+SessionEnd, and Codex's PostToolUse and Interrupt, and called at the accepted run boundaries by Leaf's Pi
 extension (`hooks/pi.ts`), keeps a turn from ending while it leaves one of this session's pages unwatched
 (a page whose watcher is a process of its own; Claude Code's watch is its next
 Stop hook)
@@ -192,6 +192,12 @@ every other ending is silent. Where the user turns on the plugin's `hooks_module
 option and Claude Code loads hooks modules, Leaf's module (`hooks/claude-code.ts`)
 runs the watch itself and marks the Stop payload it passes on, and the registration
 given a marked payload stands down (`hooks/scripts/loop-guard.py`).
+Pi opens its lifecycle with `TurnStart` only after the SDK accepts the run. That
+hook reads no page and receives no input. Accepted incoming messages are
+finalized with context before the first model request; later live turn boundaries
+return persisted context entries. Preparation or a cleared wake notification
+cannot confirm receipt.
+
 Its unanswered-work guard reads `activity.turn_obligations` over the page's
 activity, selected from the same `workflows` projection the browser reads; it does not reconstruct threads
 itself. The hook planner reads each page once under its transaction, including
@@ -340,13 +346,18 @@ watch, a model wait, the adapter, or the host:
   one line.
 - A hook watch under Pi: the same watch, which Leaf's extension (`hooks/pi.ts`) starts as the
   session starts and as each run settles. When the watch exits with input and no
-  run is going, the extension calls the prompt hook and sends its context, which
-  starts a run; during a run it calls the prompt hook at the run's next turn end
-  and adds the context to the session there, since a steer waits in a queue
-  Escape clears, and the hook confirms only what is in the session's context.
+  run is going, the extension sends an unreceived notification to start one.
+  The accepted run opens its lifecycle without receipt; its incoming message
+  finalization calls the prompt hook and commits context before the first model
+  request. Later input enters through its next live turn end. A canceled
+  turn end receives nothing, since a steer waits in a queue Escape clears and
+  receipt belongs to context that enters the session.
   After an interrupted run it starts the watch with the
   Interrupt payload, which first answers the Interrupt hook, closing the turn,
-  and then wakes only for input admitted after its first look.
+  and then wakes for input that never entered the stopped turn. The completed
+  receipt advances its cursor before the hook returns context; an opened pickup
+  without that cursor write does not prove delivery.
+  Settled thread input stays in its next delivery batch without waking alone.
 - A model wait: a sequence of `leaf wait` runs the model itself starts, where the
   wait prints the batch (a Codex task's own loop, a bare shell, a Claude Code
   session under plain `--print`): `leaf wait --ack <delivery-id>` advances the

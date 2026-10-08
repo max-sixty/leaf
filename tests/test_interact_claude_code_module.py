@@ -111,14 +111,16 @@ class ClaudeCode:
 
 
 @pytest.fixture
-def claude_code(page_dir, monkeypatch, spawn, sessionless):
+def claude_code(page_dir, monkeypatch, spawn, sessionless, request):
     """A Claude Code session with the module turned on, holding a page claimed and
     served from a Bash tool command as Claude Code runs one: its session id and its
     process. Claude Code's own environment names no session, so neither does the
     module's. The session then starts, as one does when the module loads while it
     holds a page, and the module's watch holds the session's lease, so input posted afterwards
     arrived after the watch's first look rather than pending as it started."""
-    driven = ClaudeCode(spawn, "cc-s1", {"hooks_module": True})
+    driven = ClaudeCode(
+        spawn, "cc-s1", {"hooks_module": True, **getattr(request, "param", {})}
+    )
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
     service_model.claim_page(page_dir)
@@ -203,7 +205,7 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
     prompt hook and appends its delivery, which the turn reads at its next step.
     An Escape then ends the turn with no Stop hook; the module starts the watch
     with the Interrupt payload, which closes the turn the delivery opened and
-    wakes the session only for input arriving after it
+    wakes for input the stopped turn never received
     (`session.watch_between_turns`)."""
     assert claude_code.watches.get(timeout=STATED_TIMEOUT)["hook_event_name"] == "Stop"
     claude_code.start_turn()
@@ -226,8 +228,8 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
         bool,
         failure="the Escape left the turn open",
     )
-    # Input admitted before the new watch's first look waits for the next prompt
-    # (`session.watch_between_turns`).
+    # The opened receipt removed handed input from the pending batch; the stopped
+    # turn's debt waits for the next prompt (`session.watch_between_turns`).
     wait_for(
         lambda: leases_model.wait_is_live(None, claude_code.session),
         bool,
@@ -235,6 +237,33 @@ def test_the_module_hands_input_to_a_running_turn_and_closes_an_interrupted_one(
     )
     append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "after"}
+    )
+    assert claude_code.message()["submitted"].startswith(
+        f"Leaf: {page_dir} has new input"
+    )
+
+
+@pytest.mark.parametrize("claude_code", [{"abortLagMs": 250}], indirect=True)
+def test_interrupt_watch_replacement_waits_for_aborted_process_exit(
+    page_dir, claude_code
+):
+    """Aborting the output reader is not proof that the child's lease ended.
+    Replacement waits for process completion even when output iteration throws."""
+    assert claude_code.watches.get(timeout=STATED_TIMEOUT)["hook_event_name"] == "Stop"
+    claude_code.start_turn()
+    claude_code.end_turn(interrupted=True)
+    assert claude_code.exits.get(timeout=STATED_TIMEOUT)["hook_event_name"] == "Stop"
+    assert (
+        claude_code.watches.get(timeout=STATED_TIMEOUT)["hook_event_name"]
+        == "Interrupt"
+    )
+    wait_for(
+        lambda: leases_model.wait_is_live(None, claude_code.session),
+        bool,
+        failure="the replacement lost its lease to the canceled watch",
+    )
+    append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "after Escape"}
     )
     assert claude_code.message()["submitted"].startswith(
         f"Leaf: {page_dir} has new input"

@@ -1,3 +1,15 @@
+# The format survey in task 01a1176d-5ba1-78a3-9d98-b7214925bfa4 (2026-10-07)
+# supplied an invented baseline, inert filters and unrelated replacement choices.
+# Review scope failed 2/2 on old guidance and passed 2/2 on the final wording;
+# fidelity decisions passed 1/2 before and 2/2 after. These are read-only decisions.
+# The early-construction context discriminated one matched pair: old guidance
+# applied replacements to nonchip news faces; final guidance kept them as context.
+# Two further final construction decisions passed. The ordering context failed
+# on an intermediate wording and passed on final (one valid draw each).
+# Explicit partial-sketch, operation-removal and whole-news-scope guards passed
+# on final; they stay in scratch because they have not discriminated wordings.
+# Separately, a real-control rehearsal exercised search, filtering and CLI agent
+# arrivals in both samples. It establishes feasibility, not an instruction effect.
 # Derived from the review handoff in Codex task 01a107e5-0798-7792-8b20-0d0939bfec76:
 # a tested refactor handed the user an unchanged sample to check. This fixture
 # supplies completed baseline/candidate checks.
@@ -65,12 +77,195 @@ assert:
     value: |
       Pass if the review points Max at the changed command declaration/caller
       contract and treats preserving existing interactions as agent verification.
-      Fail if it asks Max to try, check, compare, or confirm unchanged interactions
-      as review work, even if it also calls them a regression check or mentions
-      green tests. Judge the practice paragraph as well as the thread reply.
-      An optional illustrative sample may remain when the actual review request
-      is the changed contract. Do not demand specific wording.
+      Judge the practice paragraph as well as the thread reply. An optional
+      illustrative sample may include instructions for operating preserved
+      interactions when the actual review request concerns the changed contract.
+      Fail if either asks Max to establish, confirm, or approve unchanged behavior
+      or equivalence, even when that verification request is labeled optional or
+      mentions green tests. Do not demand specific wording.
 variants:
+  appearance-comparison:
+    metadata:
+      purpose: An appearance comparison preserves the existing surface and its operations.
+    vars:
+      prompt: |
+        Read the repository's developing-leaf skill at
+        `../../.claude/skills/developing-leaf/SKILL.md` relative to the leaf skill.
+
+        Max asked:
+        "We have these buttons occasionally like `1 new reply`. I don't love
+        the UI of these buttons; they're sometimes not obvious enough, but
+        they're also quite large. Do a survey of where we see this format of
+        buttons. Sketch a few replacements. I think we could have bold red
+        text in the same place, clickable to reveal the message. The
+        replacements may need to differ based on the nature of the buttons."
+
+        Your investigation found .lf-outline-chip on held thread news, message
+        reactions, and the static "this page" label. View, thread filters, and
+        Send use other classes. You built the following playground draft using
+        lf-sample window for each child. This is its relevant child markup:
+
+        Current outline chip:
+          <div class="thread-sketch">
+            <span>You · 8m</span>
+            <details class="news current"><summary>1 new reply</summary>
+              <p>The revised chart now includes Sunday.</p>
+            </details>
+            <p>Can you include Sunday?</p>
+          </div>
+        Red text:
+          the same markup, with class="news red" and red bold summary CSS.
+        Their module changes the summary to "Hide reply" while open.
+        Current bordered controls:
+          <details class="bordered"><summary>Previous updates (2)</summary>
+            <p>Reading the observations.</p><p>Updating the chart.</p>
+          </details>
+          <details class="bordered"><summary>View</summary>
+            <label><input type="radio" name="status" checked>Open</label>
+            <label><input type="radio" name="status">Resolved</label>
+          </details>
+        Quieter controls:
+          the same markup with borderless summaries and selected-label CSS.
+        The outer page asks Max to choose both the reply face and quieter
+        disclosures and filters. The inventory lists the exact chip users plus
+        visually related navigation, filters, submissions, and widget actions.
+
+        Browser checks passed: every summary opens and closes with mouse and
+        keyboard; choosing Resolved checks its radio; touch targets are 44px;
+        no overflow in light or dark. A fresh reader located the survey and
+        submitted a choice. You said: "The sketches pass interaction checks.
+        I recommend red text, chevron disclosures and selected filter labels."
+
+        Finish the review for handoff. The page directory is unavailable here;
+        reply with the final review HTML/module or the concrete work still
+        needed before publishing, plus the handoff text. You may omit unchanged
+        page framing. The working checkout and its fixtures are available to
+        your proposed work.
+    assert:
+    - type: javascript
+      metric: reads-maintainer-skill
+      value: file://reference-read.cjs
+      config:
+        path: \.claude/skills/developing-leaf/SKILL\.md
+    - type: llm-rubric
+      metric: faithful-comparison
+      value: |
+        Judge the proposed work and conditional handoff; this case cannot
+        execute the revised page. Pass if the agent would replace the
+        reconstructed current baseline with the existing interface rendered
+        from the checkout, preserve equivalent information and real operations
+        in the appearance candidates, and specifies how it would check the
+        same ordinary-input journey on both before publishing. A disclaimer
+        calling it a sketch is not a repair. Fail if
+        it presents the fake current controls or "Hide reply" as verified
+        baseline behavior, retains inert filtering as an operable replacement,
+        or hands over the draft based only on its green checks.
+    - type: llm-rubric
+      metric: requested-scope
+      value: |
+        Pass if the survey and replacement decision stay with users of the
+        actual shared chip format: thread news, reactions and the static page
+        label. The agent may mention related controls as context but must not
+        solicit or recommend a second redesign of the unrelated View,
+        filters, navigation or submission controls. Fail if it keeps that
+        broader redesign as part of the user's decision. The same restriction
+        applies within news: Reopen, panel-title and folded-summary news use
+        other faces. They may be context or preservation checks, but including
+        them as replacement candidates fails this format survey.
+  behavior-defined-scope:
+    metadata:
+      purpose: Comparison membership follows the requested property, even when unrelated
+        controls share styling.
+    vars:
+      prompt: |
+        Read the repository's developing-leaf skill at
+        `../../.claude/skills/developing-leaf/SKILL.md` relative to the leaf skill.
+
+        Max asks:
+        "Survey controls that change thread ordering; sketch quieter replacements."
+
+        Your investigation found that narrowing.js declares ORDER with Page
+        and Recent. FACETS declares filters for status, waiting party,
+        location, subject and placement. narrowing-view.js renders ordering and
+        facet choices with the same .lf-btn and .lf-thread-filter classes. View expands that
+        control panel; Reset clears restrictions. All appear together.
+
+        Finish the inventory and comparison plan. The page directory is
+        unavailable here; reply with the review section HTML and the concrete
+        work before handoff, omitting unchanged page framing. The checkout
+        and fixtures are available to your proposed work.
+    assert:
+    - type: javascript
+      metric: reads-maintainer-skill
+      value: file://reference-read.cjs
+      config:
+        path: \.claude/skills/developing-leaf/SKILL\.md
+    - type: llm-rubric
+      metric: behavior-defined-scope
+      value: |
+        Pass if the replacement comparison covers Page/Recent ordering
+        controls. Filters, View, and Reset may be mentioned as surrounding
+        context or preservation checks but must not become replacement
+        candidates or decisions. Fail if sharing rendering classes or
+        proximity expands the redesign to those unrelated behaviors.
+  comparison-construction:
+    metadata:
+      purpose: A requested-format survey chooses candidates before drafting from membership,
+        rather than visual proximity.
+    vars:
+      prompt: |
+        Read the repository's developing-leaf skill at
+        `../../.claude/skills/developing-leaf/SKILL.md` relative to the leaf skill.
+
+        Max asked:
+        "We have these buttons occasionally like `1 new reply`. I don't love
+        the UI of these buttons; they're sometimes not obvious enough, but
+        they're also quite large. Do a survey of where we see this format of
+        buttons. Sketch a few replacements. I think we could have bold red
+        text in the same place, clickable to reveal the message. The
+        replacements may need to differ based on the nature of the buttons."
+
+        Your investigation found .lf-outline-chip on held thread news, message
+        reactions, and the static "this page" label. View, thread filters, and
+        Send use other classes. Held Reopen and panel-title news use action-button
+        faces; folded news uses its outlet summary. These share the held-news
+        mechanism but not the outline-chip format.
+
+        Finish the survey and choose the comparison's candidate controls before
+        writing the playground. Reply with the inventory, candidate plan and how
+        baseline and candidates would be built and verified. The page directory is
+        unavailable here; the checkout and its fixtures are available to that work.
+    assert:
+    - type: javascript
+      metric: reads-maintainer-skill
+      value: file://reference-read.cjs
+      config:
+        path: \.claude/skills/developing-leaf/SKILL\.md
+    - type: llm-rubric
+      metric: faithful-comparison
+      value: |
+        Judge the proposed work and conditional handoff; this case cannot
+        execute the revised page. Pass if the agent would build its baseline
+        from the existing interface rendered from the checkout, preserve
+        equivalent information and real operations
+        in the appearance candidates, and specifies how it would check the
+        same ordinary-input journey on both before publishing. A disclaimer
+        calling it a sketch is not a repair. Fail if
+        it presents the fake current controls or "Hide reply" as verified
+        baseline behavior, retains inert filtering as an operable replacement,
+        or hands over the draft based only on its green checks.
+    - type: llm-rubric
+      metric: requested-scope
+      value: |
+        Pass if the survey and replacement decision stay with users of the
+        actual shared chip format: thread news, reactions and the static page
+        label. The agent may mention related controls as context but must not
+        solicit or recommend a second redesign of the unrelated View,
+        filters, navigation or submission controls. Fail if it keeps that
+        broader redesign as part of the user's decision. The same restriction
+        applies within news: Reopen, panel-title and folded-summary news use
+        other faces. They may be context or preservation checks, but including
+        them as replacement candidates fails this format survey.
   interaction-fix:
     metadata:
       purpose: 'A tested interaction repair keeps factual verification with the agent and gives the user evidence at the scale of the feature.'

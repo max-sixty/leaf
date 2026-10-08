@@ -15,9 +15,11 @@
    advises bounding the block instead, and nothing here searches the DOM for scrollers.
 
    A region's scroller can change without any gesture: a window crossing the workspace
-   threshold, a tab showing, a panel opening. Each region's host is watched for size, and
-   a region whose scroller is no longer the one last seen is announced to watchers as a
-   `shift`, after the new geometry exists. Continuity owners record the user's place
+   threshold, a tab showing, a panel opening. A region whose width changes keeps its
+   scroller but rewraps, which moves its words under the reader just the same. Each
+   region's host is watched for size, and a region whose scroller is no longer the one
+   last seen, or whose width is not, is announced to watchers as a `shift`, after the new
+   geometry exists. Continuity owners record the user's place
    continuously and restore it on a shift; this module stores no landmarks or scroll
    offsets. `preserveReadingRegions` brackets a composition change with the same
    watchers, as `before` and `after`, retaining only scrollers inside that composition
@@ -66,7 +68,7 @@ export function registerReadingRegion({ id, host, body }) {
     throw new Error("leaf: a reading region needs id, host, and body");
   if (live(regions.get(id)))
     throw new Error(`leaf: reading region ${id} is already live`);
-  const region = { id, host, body, scroller: null };
+  const region = { id, host, body, scroller: null, width: null };
   const stopReaching = reachReadingScroller(body);
   regions.set(id, region);
   sizes.observe(host);
@@ -305,33 +307,44 @@ export async function preserveReadingRegions(owner, change) {
   }
 }
 
-// Whether every region is still scrolled by the box last seen for it. A layout that has
-// handed a region to another scroller, before the observer below has announced it, is
-// not a place to record the user's position in: the old scroller has already let go
-// of it (a flow page clamps as its content leaves).
-export const scrollersSettled = () =>
+// Whether a region is scrolled by the box last seen for it, at the width last seen.
+const asSeen = (region, scroller, width) =>
+  region.scroller === scroller && region.width === width;
+
+// Whether every region stands as last seen. A layout that has handed a region to another
+// scroller or rewrapped it, before the observer below has announced it, is not a place
+// to record the user's position in: the words have already moved under the reader (a
+// flow page clamps as its content leaves), and the restore the announcement brings
+// would return them to that moved place. A region hidden from layout shows no words to
+// move, and measuring one in skipped content would lay out what it skips.
+export const regionsSettled = () =>
   [...regions.values()].every(
     (region) =>
       !live(region) ||
       !region.scroller ||
-      effectiveScroller(region) === region.scroller,
+      !shown(region) ||
+      asSeen(region, effectiveScroller(region), region.host.offsetWidth),
   );
 
-// Every region's scroller as last seen, so a size change that hands a region to a
-// different scroller is announced once, after layout has produced it. Read on the
-// observer's delivery, which follows layout; nothing here writes a box it observes.
+// Every shown region's scroller and width as last seen, so a size change that hands a
+// region to a different scroller, or rewraps it, is announced once, after layout has
+// produced it. A hidden region keeps what was last seen of it and is compared again once
+// it shows. Read on the observer's delivery, which follows layout; nothing here writes a
+// box it observes.
 const sizes = sizeObserver(() => {
   const shifted = [];
   for (const region of regions.values()) {
-    if (!live(region)) continue;
+    if (!live(region) || !shown(region)) continue;
     const scroller = effectiveScroller(region);
-    if (region.scroller && region.scroller !== scroller)
+    const width = region.host.offsetWidth;
+    if (region.scroller && !asSeen(region, scroller, width))
       shifted.push({
         region: regionRecord(region),
         from: region.scroller,
         to: scroller,
       });
     region.scroller = scroller;
+    region.width = width;
   }
   if (shifted.length) notify({ phase: "shift", shifted });
 });

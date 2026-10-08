@@ -66,12 +66,16 @@ theme's tokens. Follow
 selection and exploration elements, present the candidates, and submit a task
 saying what to build.
 
-When the subject already exists and the candidates are to be implemented,
-implement each in the runtime and theme that own the surface and present it
-through a shipped example or fixture. A sketch without implementation is
-page-local markup derived from the current surface's controls, copy, and
-styling, shown beside that surface as the baseline. For a live Leaf interface,
-embed the baseline and candidates as `lf-sample window` children in the playground.
+For an existing-interface comparison, the property the user named defines which
+controls and states the survey covers. Find it in its defining code; it can
+cross owners or select part of one owner's interface. Candidates share the
+current interface except for the requested change. Use this checkout's rendered
+interface as the baseline in the review state. Implement runtime candidates in
+the runtime and theme that own the surface; an appearance sketch can restyle
+the live surface. A separate sketch keeps the same contract unless the user
+requested a partial demonstration. Verify the comparison by operating the
+baseline and candidates through the same journey before handoff. For a live
+Leaf interface, embed them as `lf-sample window` children.
 The outer page carries the configuration and feedback; the children carry practice
 interactions. Start their fictional histories with `data-sample-events`, sharing
 one parent-local JSON fixture when the candidates need the same conversation
@@ -81,6 +85,9 @@ one parent-local JSON fixture when the candidates need the same conversation
 
 Prefer outputs that are quick for the user to review. Perform reviews yourself
 when you can do them as well as the user, and report the results.
+
+Choose the review decisions from the user's request, then revise the page's
+choices to match.
 
 Present visible and interaction changes using the proof below.
 
@@ -135,14 +142,9 @@ uv run leaf-dev trace-server \
 The command prints the viewer URL and stays running. Link that URL in the review
 page; open a desktop browser only when the user asks to watch.
 
-When showing a timeline in Leaf, select the optional `playwright` package and
-read its author instructions. Bind `lf-trace` to the original archive's imported
-`playwright-trace` source; that contract's producer instructions own the import
-command. The widget combines action checkpoints and optional intermediate frames
-in one chronological timeline, with comments on images and saved accessibility
-elements, and a direct link to the
-same recording in the running Trace Viewer. The viewer supplies DOM, source,
-console and network inspection. Keep both previews running and verify that the
+Show the trace on the Leaf page in `lf-trace`, as
+`skills/leaf/references/authoring-evidence.md`, "Source files and media", says,
+importing it with that viewer URL. Keep both previews running and verify that the
 viewer URL reaches the user's browser before handing it over.
 
 For an important result, perform the input and use a Playwright expectation to
@@ -313,7 +315,7 @@ To make an existing page exercise the current checkout, re-vendor it with the
 checkout launcher (`<root>/skills/leaf/references/serving-pages.md`); fix or
 report a compatibility refusal rather than falling back to the installed plugin.
 A page that explains how a Leaf interface behaves lets the user operate it
-(`references/sample-explainers.md`).
+(`references/page-authoring.md`, "Live samples").
 
 ## Score an instruction change
 

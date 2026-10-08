@@ -36,6 +36,7 @@ import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, nullcontext
 from pathlib import Path
+from typing import Literal
 
 from .files import read_json
 from .harness import claim_harness, session_harness
@@ -169,7 +170,9 @@ def current_responses(page_dir: Path, events: list[dict]) -> dict[str, dict]:
     }
 
 
-def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
+def batch_data(
+    page_dir: Path, transaction, batch: list[dict], *, responses: dict | None = None
+) -> dict:
     """Capture one complete ordered page batch, less what `freeze_delivery` writes
     for its transport: the address of a thread reply, and the `handling` that follows
     from it."""
@@ -194,7 +197,8 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
         thread_widgets(thread_structure(events), names),
         within,
     )
-    responses = current_responses(page_dir, events)
+    if responses is None:
+        responses = current_responses(page_dir, events)
     by_id = {event["id"]: event for event in events}
     words = GestureWords(events, registry, revisions_on_disk(page_dir))
 
@@ -413,6 +417,38 @@ def cmd_delivery_read(delivery_id: str) -> None:
     if payload["acknowledge"] is None and harness is not None:
         harness.receive_pointer(payload)
     print(json.dumps(payload, indent=2, ensure_ascii=False))
+
+
+def pickup_receipts(
+    events: list[dict],
+    *,
+    phase: Literal["queued", "opened", "failed"] | None,
+    input_id: str | None = None,
+) -> list[dict]:
+    """Select admitted receipts for an explicit transport reading, in log order.
+
+    Keep each complete receipt: its exact input batch, session, turn and timestamp
+    belong together. Queued transport acceptance and failed delivery do not prove
+    context entry; readers checking pickup must request ``opened``. This reading
+    establishes transport evidence only, never work or a successful response.
+    ``phase=None`` selects every transport milestone recorded for the input.
+    """
+    return [
+        event
+        for event in events
+        if event["kind"] == "pickup"
+        and (phase is None or event["phase"] == phase)
+        and (input_id is None or input_id in event["events"])
+    ]
+
+
+def opened_input_ids(events: list[dict]) -> set[str]:
+    """The exact attention inputs recorded as entering a harness's context."""
+    return {
+        input_id
+        for receipt in pickup_receipts(events, phase="opened")
+        for input_id in receipt["events"]
+    }
 
 
 def record_pickup(

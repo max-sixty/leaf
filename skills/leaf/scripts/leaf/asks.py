@@ -1,4 +1,6 @@
-"""Declaration-driven page and thread ask projections."""
+"""Page and thread Asks, and the shared lifecycle of prose questions."""
+
+from dataclasses import dataclass
 
 from leaf.events import conversation_turns, is_reaction
 from leaf.projection import (
@@ -30,56 +32,91 @@ def settles(reaction: dict, turn: str, tokens: dict) -> bool:
     )
 
 
-def thread_awaits_user(
+@dataclass(frozen=True)
+class ThreadQuestions:
+    """Prose questions and their settlement from one standing thread.
+
+    Each record retains its source message, content version, state and settling
+    event. Widget Asks have their own reading and never become prose questions.
+    `prompt` selects the latest unanswered prose question unless the thread is
+    closed or an open widget Ask owns attention. Earlier unanswered questions
+    remain available when a later one is settled; a user turn answers all that
+    precede it. Consumers select these facts rather than recognizing questions
+    or interpreting their answers again.
+    """
+
+    questions: list[dict]
+    prompt: dict | None
+
+
+def thread_questions(
     thread_id: str,
     thread: dict,
     registry: dict,
-    awaiting: dict[str, bool],
     structure,
     open_ask_threads: set[str],
-    ended: set[str],
-) -> tuple[bool, dict | None]:
-    """The unanswered widget Ask or textual prompt this thread holds for the user.
+    ends: dict[str, dict],
+) -> ThreadQuestions:
+    """Read implicit opening questions and explicit `awaits` replies identically.
 
-    A prompt is a task on the user under its message's id (`tasks.page_tasks`), so a
-    `task_end` naming that message, among `ended`, settles it as a settling reaction
-    does."""
-    if thread["resolved"]:
-        return False, None
-    if thread_id in open_ask_threads:
-        return True, None
+    A user's next conversational turn or a settling reaction answers the question;
+    an admitted task end supplies its declared outcome. Withdrawn messages and
+    task ends are already absent from the standing thread and `ends` readings.
+    A resolution with no answer hides the question until reopening, rather than
+    inventing an answer for it.
+    """
     turns = conversation_turns(thread)
+    user_turns = {message["id"] for message in turns if message["author"] == "user"}
     tokens = registry.get("$reactions", {}).get("tokens", {})
-    for index in range(len(turns) - 1, -1, -1):
-        message = turns[index]
+    questions = []
+    for message in turns:
         if message["author"] != "agent":
             continue
-        later = turns[index + 1 :]
-        if any(entry["author"] != "agent" for entry in later):
-            continue
         fragment = structure.fragments.get(message["id"])
-        asks = [
-            rec["attrs"].get("id")
+        if any(
+            local_ask_entry(registry.get(rec["tag"]) or {})
             for rec in (fragment.lf_elements if fragment else [])
-            if local_ask_entry(registry.get(rec["tag"]) or {})
-        ]
-        structural = (
-            any(awaiting.get(identity, False) for identity in asks) if asks else None
-        )
-        settled = message["id"] in ended or any(
-            settles(reaction, message["id"], tokens) for reaction in thread["msgs"]
-        )
-        if message["kind"] != "reply":
-            if structural is False:
-                continue
-        elif structural is False or (structural is None and not message.get("awaits")):
+        ):
             continue
-        if not settled:
-            return True, {
-                "message": message["id"],
+        if message["kind"] == "reply" and not message.get("awaits"):
+            continue
+        answer = next(
+            (
+                entry
+                for entry in thread["msgs"]
+                if entry["seq"] > message["seq"]
+                and (entry["id"] in user_turns or settles(entry, message["id"], tokens))
+            ),
+            None,
+        )
+        ending = ends.get(message["id"])
+        settlement, state = (
+            (ending, ending["state"])
+            if ending and (answer is None or ending["seq"] < answer["seq"])
+            else (answer, "done" if answer else "open")
+        )
+        questions.append(
+            {
+                "message": message,
                 "version": content_version(message),
+                "state": state,
+                "settlement": settlement,
             }
-    return False, None
+        )
+    open_ask = thread_id in open_ask_threads
+    prompt = (
+        next(
+            (
+                {"message": question["message"]["id"], "version": question["version"]}
+                for question in reversed(questions)
+                if question["state"] == "open"
+            ),
+            None,
+        )
+        if not thread["resolved"] and not open_ask
+        else None
+    )
+    return ThreadQuestions(questions, prompt)
 
 
 def asking(attrs: dict, when: dict) -> bool:
@@ -490,14 +527,6 @@ class _AskReducer:
             )
         )
 
-    def awaiting(self) -> dict[str, bool]:
-        """Each identified Ask source's own awaiting value, with no seats."""
-        return {
-            record["attrs"]["id"]: self._awaits(record, set())
-            for record in self.records
-            if record["attrs"].get("id")
-        }
-
 
 def page_ask_readings(
     source,
@@ -603,5 +632,4 @@ def thread_ask_readings(
         "all": seated(reducer.inventory(set())),
         "user": seated(asks),
         "unanswered": seated(asks),
-        "awaiting": reducer.awaiting(),
     }

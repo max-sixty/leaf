@@ -1042,22 +1042,17 @@ img { aspect-ratio: attr(width type(<number>)) / attr(height type(<number>)); }
 table { display: block; overflow-x: auto; container-type: inline-size scroll-state; --lf-top: 0px;
         border-collapse: collapse;
         font: var(--t-5)/1.5 var(--sans); margin: 18px 0; font-variant-numeric: tabular-nums; }
-/* A table standing in a drawn frame (a panel, a callout, a pane, a cell) fills it. The
-   frame's inner edge is a line the eye measures the rules against, so a table that
-   kept to its content there read as cut short: live-progress's Checks rules stopped
-   158px before the panel's edge. In the column the same shortfall is only the measure,
-   and the rule above keeps it, so a box that only trims (`--lf-block-frame: trim`: `main`,
-   a page tab's panel) draws nothing to fill and leaves the table to its content.
+/* A table's painted grid fills an explicit spatial allocation or a drawn frame.
+   The allocation may belong to the table or a containing block. Without either,
+   the grid keeps its columns' natural width; a frame that only trims draws no edge
+   to fill (`--lf-block-frame: trim`).
 
-   The grid is an anonymous box inside the block that scrolls, which no rule can size,
-   and a table box doesn't stretch as a flex or grid item. What it does do is grow to
-   its widest caption, so the frame asks through an empty generated one as wide as the
-   table's own box (100cqi). The automatic layout shares the leftover among the columns
-   in proportion to what each holds. A table too wide for the frame is already the
-   frame's width, so the caption changes nothing there and the columns still scroll.
-   Registered so the claim stays on the table and a table nested deeper in it asks its
-   own holder. */
+   The grid is an anonymous box inside the scrolling block, so CSS cannot size it
+   directly. An empty caption as wide as the scrollport (100cqi) supplies its minimum;
+   automatic table layout distributes that width among the columns. Wider content
+   still scrolls. The claim stays on each table, so a nested table asks its own frame. */
 @property --lf-fills-frame { syntax: "<integer>"; inherits: false; initial-value: 0; }
+table:where([data-lf-space], [data-lf-space] *) { --lf-fills-frame: 1; }
 @container style(--lf-block-frame: 1) {
   table { --lf-fills-frame: 1; }
 }
@@ -1435,8 +1430,8 @@ lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo
  * survivor gives up its padding over the same span — a block slot's 10px is the sentence
  * the user is looking at stepping sideways, which is the jerk the fold is there to
  * remove, only smaller. Declared on the slot rather than on the decided state, because a
- * transition is read from the state the element is leaving; the reduced-motion guard at
- * the foot of this file takes it with everything else.
+ * transition is read from the state the element is leaving; the shared reduced-motion
+ * guard in shadow.css takes it with everything else.
  *
  * Padding alone. The tint going is paint, which a state change may do freely, and a
  * transitioned background is the thing the choose group's own comment above warns
@@ -1646,35 +1641,6 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
    answers paper itself. */
 .lf-error pre { margin: 8px 0 0; white-space: pre; }
 @media print { .lf-error pre { white-space: pre-wrap; } }
-
-/* Reduced motion: one global guard covers every animation and transition in the
- * theme and the injected layers (!important outranks inline styles, so
- * JS-driven transitions stop too). JS-driven motion goes through the runtime's
- * motion() and the live motion readings, which answer the same preference themselves.
- *
- * The two halves are not written alike, because a duration is a way of keeping
- * an animation and no way at all of keeping a transition. An animation is
- * declared and named, and `animationend` is how the layer knows one has run —
- * the thread list takes `grow` off a card that way — so the near-zero duration
- * keeps that event and spends no time on it. It runs once, since an endless
- * animation at that duration repeats on every frame, showing a different point
- * of its keyframes each time: a pulse becomes a flicker, and the page never
- * rests. A transition is declared by
- * nobody: `transition-property` is `all` until something says otherwise, so a
- * duration on every element makes a transition out of every property that
- * changes, on every element, and none of them is a transition this theme
- * wrote. Nothing listens for `transitionend`, so they were kept for no one and
- * were not free: a running transition's animated value is what the platform
- * reports for the property, so for the frames one of these took, every reading
- * of a box's style — the render gate's included — was told the value the
- * property was leaving rather than the one on screen. */
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: .01ms !important;
-    animation-iteration-count: 1 !important;
-    transition: none !important;
-  }
-}
 
 /* A pane is one task region: an optional header, one body element, an optional footer,
  * with no generated wrappers. It is whatever element declares `x-reading-role: pane`,

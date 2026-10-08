@@ -57,6 +57,7 @@ from typing import NamedTuple
 from urllib.parse import urljoin, urlsplit
 
 import click
+from leaf.delivery import pickup_receipts
 from leaf.events import build_threads
 from leaf.harness import ClaudeCodeHarness, CodexHarness
 from leaf.tasks import start_reading
@@ -203,13 +204,11 @@ def recorded_steps(events: list[dict], comment: dict, published: dict) -> dict:
     """
     admitted = instant(comment["ts"])
     thread = comment["id"]
-    pickups = [
-        event
-        for event in events
-        if event["kind"] == "pickup" and thread in event["events"]
-    ]
     transport = {
-        phase: next((e["ts"] for e in pickups if e["phase"] == phase), None)
+        phase: next(
+            (e["ts"] for e in pickup_receipts(events, phase=phase, input_id=thread)),
+            None,
+        )
         for phase in ("queued", "opened")
     }
     started = next(

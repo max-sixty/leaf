@@ -139,7 +139,6 @@ def native_provider(harness: str, payload: Path, work: Path) -> dict:
             "approval_policy": "never",
             "persist_threads": False,
             "ephemeral": True,
-            "reuse_server": False,
             "turn_timeout_ms": 300000,
             "cli_env": {
                 "HOME": str(home),

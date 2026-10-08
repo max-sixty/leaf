@@ -70,7 +70,7 @@
 #        text: A design comment is about how the page looks or behaves rather than
 #              what it says. Its anchor's `section` is a widget's id or, when it
 #              starts `lf-`, a part of Leaf's own chrome, such as `lf-banner`,
-#              `lf-threads` (the Threads panel), `lf-queue` (the Queue panel),
+#              `lf-threads` (the Threads panel), `lf-queue` (the Questions panel),
 #              `lf-versions` or `lf-composer`; `part`, when present, names the control
 #              the click landed on. Find the source that produces what it names and
 #              fix it in this page's own source, unless the behavior belongs to a
@@ -491,15 +491,15 @@ design comment:
         A design comment is about how the page looks or behaves rather than what
         it says. Its anchor's `section` is a widget's id or, when it starts `lf-`,
         a part of Leaf's own chrome, such as `lf-banner`, `lf-threads` (the Threads
-        panel), `lf-queue` (the Queue panel), `lf-versions` or `lf-composer`; `part`,
-        when present, names the control the click landed on. Find the source that
-        produces what it names and fix it in this page's own source, unless the
-        behavior belongs to a package's widget or the user asks for a wider fix:
-        then change the package as the Leaf skill's `references/packages.md` says,
-        re-vendor, and note the re-vendor on the stamp. A fix that belongs in Leaf
-        itself is the user's to raise, as the Leaf skill's "Improve Leaf through
-        use" says. The stamped version that carries the fix is the result the reply
-        reports.
+        panel), `lf-queue` (the Questions panel), `lf-versions` or `lf-composer`;
+        `part`, when present, names the control the click landed on. Find the source
+        that produces what it names and fix it in this page's own source, unless
+        the behavior belongs to a package's widget or the user asks for a wider
+        fix: then change the package as the Leaf skill's `references/packages.md`
+        says, re-vendor, and note the re-vendor on the stamp. A fix that belongs
+        in Leaf itself is the user's to raise, as the Leaf skill's "Improve Leaf
+        through use" says. The stamped version that carries the fix is the result
+        the reply reports.
     - when: {"properties": {"answer": {"properties": {"writer": {"const": "agent"}}}}}
       text: >-
         When the event asks for work, say in its thread what you will do before

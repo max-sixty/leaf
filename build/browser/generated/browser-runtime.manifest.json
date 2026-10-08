@@ -9,7 +9,6 @@
     "build/browser/presentation.ts",
     "build/browser/snapshot.ts",
     "skills/leaf/assets/runtime/anchor-coordinate.js",
-    "skills/leaf/assets/runtime/collapse.js",
     "skills/leaf/assets/runtime/pending/model.js",
     "skills/leaf/assets/runtime/projection/model.js",
     "skills/leaf/assets/runtime/queues.js",
@@ -24,7 +23,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "5b5e0964b386e1cdc96a788da3f8f438454cf3564048d0eac5b918229eab29c0",
+  "lockfileSha256": "b3386dd7d5fad99e90ed9f3216ea4b6f2b0ab842a19747a94c5dafa03a55c66e",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -55,7 +54,8 @@
     "happy-dom": "20.14.5",
     "lit": "3.3.3",
     "lit-html": "3.3.0",
-    "marked": "18.0.14",
+    "markdown-it": "14.3.2",
+    "markdown-it-task-lists": "2.1.1",
     "photoswipe": "5.4.4",
     "sortablejs": "1.15.7",
     "typescript": "7.0.2"

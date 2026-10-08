@@ -145,6 +145,25 @@ ACTION_ON_ASK = {
         "unit": "bracket",
         "depends": ["br-steel", "bracket"],
         "answer": None,
+        "state": {
+            "origin": "lf-options",
+            "unit": "widget",
+            "record": {"kind": "attribute", "attr": "chosen"},
+            "creates": None,
+            "update": False,
+            "detail": {
+                "type": "object",
+                "properties": {
+                    "value": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "uniqueItems": True,
+                    }
+                },
+                "required": ["value"],
+                "additionalProperties": False,
+            },
+        },
     },
 }
 RECEIPT_PHASES = {
@@ -600,8 +619,9 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     drawn, but at 1100 it stands over the rail, so the banner offers the Page Map in the
     markers' place; at 1920 the rail stands clear of it and the margin stays the way in.
     The Map is read as offered rather than as visible, since the toolbar may fold it behind
-    the More door at a width the banner is crowded at. The Queue panel stands over the left
-    of the window, away from the rail, so it leaves the markers and the margin alone."""
+    the More door at a width the banner is crowded at. The Questions panel stands on the
+    Threads panel's edge, so it is read the same way: drawn over, the rail is still drawn,
+    and the banner offers the map in its place."""
     comment = {
         "kind": "comment",
         "author": "user",
@@ -648,7 +668,10 @@ def test_a_surface_over_the_rail_hands_the_user_the_map(browser, serve):
     toggle_queue(page)
     margins_laid_out(page)
     expect(marker).to_be_visible()
-    assert not page.evaluate(offered), "the drawer on the left withdrew the rail"
+    assert page.evaluate(offered), (
+        "the Questions panel stands over the rail and the page offered the user nothing "
+        "in its place"
+    )
 
 
 @pytest.mark.parametrize("touch", [False, True], ids=["mouse", "finger"])
@@ -1291,11 +1314,11 @@ def test_ask_binding_badges_follow_the_feature_gallery_s_visible_margin_entries(
     # Three times: the gallery's core surfaces open on a decision, which is the page's
     # first ask and carries no binding of its own, then a task on the user beside it,
     # and the suggestions this case is about begin after them.
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#bg-choice-ask")).to_be_focused()
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#bg-task-on-you")).to_be_focused()
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#bg-replace")).to_be_focused()
     expect(
         page.locator(".lf-command-binding-badges .lf-command-binding-badge")
@@ -1364,7 +1387,7 @@ def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
     page = open_page(browser, serve(ASK_PAGE))
     resized(page, 1440, 900)
 
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     first = page.locator("#jobs-decision")
     expect(first).to_be_focused()
     first_marker = page.locator(
@@ -1375,7 +1398,7 @@ def test_the_standing_ask_marks_its_selected_margin_reading(browser, serve):
     assert first_marker.evaluate(
         "marker => getComputedStyle(marker).borderTopColor"
     ) == first.evaluate("ask => getComputedStyle(ask).outlineColor")
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#bracket-decision")).to_be_focused()
     expect(first_marker).not_to_have_attribute(
         "data-lf-target-selected", re.compile(".*")
@@ -2864,6 +2887,49 @@ def test_g_hints_address_the_visible_window_and_g_shift_m_opens_the_complete_pag
     assert page.evaluate("() => document.scrollingElement.scrollTop") == before_sheet
 
 
+@pytest.mark.parametrize("viewport", [(1440, 900), (390, 844), (1440, 300)])
+def test_page_map_filtering_keeps_search_and_close_in_place(browser, serve, viewport):
+    """Filtering changes the list below the search, keeping the sheet's top and the
+    controls the user is operating fixed. A full list still reaches its final row."""
+    page = open_page(browser, serve(PAGE_MAP_PAGE, events=PAGE_MAP_EVENTS))
+    resized(page, *viewport)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
+    search = dialog.get_by_role(
+        "searchbox", name="Find an action, status, or location in Page Map"
+    )
+    close = dialog.get_by_role("button", name="Close Page Map", exact=True)
+    groups = dialog.locator(".lf-page-map-group:visible")
+    expect(groups).to_have_count(12)
+    expect(search).to_be_focused()
+    before = {"search": search.bounding_box(), "close": close.bounding_box()}
+    top = dialog.bounding_box()["y"]
+
+    for query, count in [("Map note 12", 1), ("No such map entry", 0), ("", 12)]:
+        search.fill(query)
+        expect(groups).to_have_count(count)
+        rendered(page)
+        assert search.bounding_box() == before["search"]
+        assert close.bounding_box() == before["close"]
+        assert dialog.bounding_box()["y"] == top
+        assert (
+            dialog.bounding_box()["y"] + dialog.bounding_box()["height"] <= viewport[1]
+        )
+
+    page.keyboard.press("ArrowDown")
+    page.keyboard.press("End")
+    rows = dialog.locator("button.lf-page-map-action")
+    expect(rows.last).to_be_focused()
+    rendered(page)
+    list_box = dialog.locator(".lf-page-map-list").bounding_box()
+    last = rows.last.bounding_box()
+    assert last["y"] >= list_box["y"]
+    assert last["y"] + last["height"] <= list_box["y"] + list_box["height"] + 1
+    assert dialog.locator(".lf-page-map-list").evaluate("node => node.scrollTop") > 0
+    assert close.bounding_box() == before["close"]
+
+
 def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
     """The dialog is a list under a search: Down leaves the search for the first row,
     Up and Down then step between rows rather than scrolling the page behind the modal,
@@ -2911,7 +2977,7 @@ def test_the_page_map_dialog_walks_its_rows_from_the_search(browser, serve):
 
 def test_the_chrome_names_an_ask_by_its_question(browser, serve):
     """An Ask is named by its heading, not its heading run into its options and their
-    chips: the Queue panel row, and the Page Map group for it, whose one row says why the
+    chips: the Questions panel row, and the Page Map group for it, whose one row says why the
     Ask is there rather than naming it a second time."""
     page = open_page(browser, serve(ASK_PAGE))
     page.keyboard.press("g")
@@ -8551,9 +8617,11 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
 
 
 def test_the_thread_card_survives_drawers_and_authored_sidebars(browser, serve):
-    """A drawer or authored sidebar does not turn the contextual card into a panel."""
+    """The Questions panel or an authored sidebar does not turn the contextual card into
+    the Threads panel. The Questions panel stands on the right edge, over the rail at a
+    desk's width, so the window is wide enough to leave the marker clear of it."""
     page = open_page(browser, serve(ASK_PAGE, events=[ACTION_ON_ASK, COMMENT_ON_ASK]))
-    resized(page, 1440, 900)
+    resized(page, 2100, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.click()
     expect(page.locator(".lf-margin-thread")).to_have_count(1)
@@ -8720,7 +8788,7 @@ def test_a_folded_compact_map_closes_its_banner_overflow_with_it(browser, serve)
     do is stay open behind it, promising a door the user has already been through."""
     page = open_page(browser, serve(FEATURE_GALLERY))
     resized(page, 390, 700)
-    more = page.get_by_role("button", name="More page controls", exact=True)
+    more = page.get_by_role("button", name="More page controls, questions waiting")
     more.click()
     toggle = page.locator(".lf-page-map-toggle")
     expect(toggle).to_be_visible()
@@ -9937,7 +10005,7 @@ def test_an_ask_arrival_reveals_its_pin_while_annotations_are_hidden(browser, se
 
     # The passage follows both Asks: forward navigation clamps to the last one.
     page.locator("#gap").click()
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#sug-card")).to_be_focused()
     rendered(page)
     expect(pin).to_be_visible()

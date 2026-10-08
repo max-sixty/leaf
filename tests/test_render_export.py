@@ -330,7 +330,7 @@ def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
     edited = tmp_path / "source.html"
     edited.write_text("<p>authored</p>", encoding="utf-8")
     changes = preview_model.watch_changes(
-        preview_model.Watched((tmp_path,), frozenset({str(edited)}))
+        preview_model.Watched((tmp_path,), frozenset({str(edited)}), frozenset())
     )
     try:
         edited.write_text("<p>edited</p>", encoding="utf-8")
@@ -341,7 +341,7 @@ def test_a_watch_subscription_collects_before_its_first_read(tmp_path):
             assert time.monotonic() < deadline, (
                 f"the edit was never reported: {reported}"
             )
-            reported |= {path for _, path in next(changes)}
+            reported |= next(changes)
     finally:
         changes.close()
 
@@ -1394,7 +1394,7 @@ def test_authored_video_and_audio_play_seek_and_export_offline(
 def test_interactive_export_with_an_ask_reaches_application_presentation(
     browser, serve, tmp_path
 ):
-    """Offline mode omits thread chrome without leaving its ticket pending."""
+    """Offline mode omits page controls without leaving their ticket pending."""
     serve(ROOT / "examples" / "notification-playground.html")
     interactive = tmp_path / "interactive-with-ask.html"
     result = CliRunner().invoke(
@@ -1418,11 +1418,14 @@ def test_interactive_export_with_an_ask_reaches_application_presentation(
     expect(page.locator("body")).to_have_attribute(
         "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
     )
-    expect(page.locator(".lf-chrome")).to_have_count(0)
+    expect(page.locator(".lf-chrome > #lf-media-viewer:not([open])")).to_have_count(1)
+    expect(page.locator("#lf-banner, .lf-thread-panel, .lf-queue-panel")).to_have_count(
+        0
+    )
 
 
 def test_an_interactive_export_paints_a_widget_owned_text_box(browser, serve, tmp_path):
-    """A text box paints in the standing paint, which an export mounts without chrome.
+    """A text box paints in the standing paint, which an export mounts without page controls.
 
     A choosable group builds its addition field offline too. Its placeholder, disabled
     Add and empty-field flag are that paint's; focus alone repaints the placeholder with
@@ -1519,7 +1522,10 @@ def test_interactive_export_runs_captured_local_behavior_without_a_host(
     page.goto(document_url, wait_until="load")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(page.locator("#offline-widget #choice")).to_have_text("chosen")
-    expect(page.locator(".lf-chrome")).to_have_count(0)
+    expect(page.locator(".lf-chrome > #lf-media-viewer:not([open])")).to_have_count(1)
+    expect(page.locator("#lf-banner, .lf-thread-panel, .lf-queue-panel")).to_have_count(
+        0
+    )
     assert (
         page.locator("#offline-widget #local").evaluate(
             "control => getComputedStyle(control).color"
@@ -1651,7 +1657,12 @@ def test_playground_examples_keep_their_offline_interaction_mode(
     )
     offline.goto(document_url, wait_until="load")
     expect(offline.locator("body")).to_have_attribute("data-lf-presented", "1")
-    expect(offline.locator(".lf-chrome")).to_have_count(0)
+    expect(offline.locator(".lf-chrome > #lf-media-viewer:not([open])")).to_have_count(
+        1
+    )
+    expect(
+        offline.locator("#lf-banner, .lf-thread-panel, .lf-queue-panel")
+    ).to_have_count(0)
     expect(offline.locator(".lf-playground-submit")).to_be_disabled()
     expect(offline.locator(".lf-playground-unavailable")).to_have_text(
         "Submission unavailable: no agent or server is available."

@@ -398,22 +398,47 @@ def state(dir: str, target: str | None, after: int | None, limit: int | None) ->
 @click.argument("dir", metavar="PAGE")
 @click.option("--text", help="changelog text (default: stdin)")
 @click.option(
+    "--from-directory",
+    type=click.Path(exists=True, file_okay=False, path_type=Path),
+    help="replace index.html and page/ together from this candidate directory",
+)
+@click.option(
+    "--if-source",
+    help="expected authored-input digest, required with --from-directory",
+)
+@click.option(
     "--completes",
     multiple=True,
     metavar="WIDGET",
     help="a widget whose open tasks this version completes (repeatable)",
 )
-def stamp(dir: str, text: str, completes: tuple[str, ...]) -> None:
+def stamp(
+    dir: str,
+    text: str,
+    completes: tuple[str, ...],
+    from_directory: Path | None,
+    if_source: str | None,
+) -> None:
     """Stamp PAGE/index.html with a changelog.
 
     Checks the exact source first, then records it as the next public version. Repeat
     --completes for each widget whose open tasks this version completes, which ends
     them done, citing the version. A task otherwise remains open, including when a
-    revision removes its widget.
+    revision removes its widget. --from-directory replaces index.html and the
+    complete page/ tree atomically with stamping; --if-source is the authored-input
+    digest read through leaf.publishing, refusing a competing edit.
     """
     from leaf.publishing import cmd_stamp
 
-    _print_records(cmd_stamp(resolve_dir(dir), text, completes))
+    _print_records(
+        cmd_stamp(
+            resolve_dir(dir),
+            text,
+            completes,
+            from_directory=from_directory,
+            if_source=if_source,
+        )
+    )
 
 
 @page.command(short_help="Export a stamped version to one HTML file.")

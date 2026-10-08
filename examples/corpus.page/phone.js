@@ -66,6 +66,12 @@ export class PhonePainter {
     return this.visible;
   }
 
+  terminalLine(at) {
+    const button = this.lines.get(at);
+    if (button?.isConnected && !this.terminal.open) this.terminal.open = true;
+    return button;
+  }
+
   keyed(id, make) {
     if (!this.pool.has(id)) this.pool.set(id, make());
     this.seen.add(id);
@@ -228,10 +234,12 @@ export class PhonePainter {
         node.remove();
         this.pool.delete(id);
       }
-    const lines = fr.lines.map((line, i) => {
-      if (!this.lines.has(i)) this.lines.set(i, offer("button", "film-phone-line"));
-      const button = this.lines.get(i);
-      keeps(button, "data-at", line.at);
+    const lines = fr.lines.map((line) => {
+      if (!this.lines.has(line.at))
+        this.lines.set(line.at, offer("button", "film-phone-line"));
+      const button = this.lines.get(line.at);
+      keeps(button, "data-line", line.at);
+      keeps(button, "data-at", line.seekAt);
       keepsText(button, `${line.kind === "cmd" ? "$ " : ""}${line.text}`);
       return button;
     });

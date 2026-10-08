@@ -5,23 +5,28 @@
 // commit's ancestry. A click or tap on a part pauses the film and reads its details;
 // Inspect and `i` cycle through parts when the drawing is too small to aim at. A tap
 // on empty stage or Escape closes inspection. Leaf's own target gestures (Alt-click,
-// or `s` after pointing) comment on a part. Terminal lines seek to their printed moment.
+// or `s` after pointing) comment on a part. Terminal lines hold the result of the scene they report.
 // A narrow stage reads the same frame as vertical history, worktree rows and a
 // terminal disclosure, with step buttons holding each outcome.
 //
 // The film opens paused on its poster, the fully drawn branch just before `wt merge`
-// runs, so a first look (or a capture) reads the setup at once; Play runs it from the
-// start.
+// runs, so a first look (or a capture) reads the setup at once. Play continues from
+// the displayed moment; Replay restarts a finished film.
 //
 // Every paint dispatches `film-frame` with the chapter, its caption and the run's status,
 // so the page can tell the current step beside the film.
 
 import {
+  compoundReadingRegionId,
+  holdFocus,
   keeps,
   keepsHidden,
   keepsText,
+  layoutChanged,
   offer,
   once,
+  preserveReadingRegions,
+  registerReadingRegion,
   registerVisualParts,
   scrollIntoReadingBand,
   sizeObserver,
@@ -52,22 +57,29 @@ customElements.define(
     #flags = { ...DEFAULT_FLAGS };
     #film = compile(this.#flags, EXAMPLE);
     #t = this.#poster();
-    #fresh = true;
     #playing = false;
     #speed = 1;
     #last = 0;
     #raf = 0;
     #focus = null;
     #inspected = null;
+    #stopTerminalReading = null;
 
     connectedCallback() {
       if (once(this)) this.#build();
+      this.#stopTerminalReading ??= registerReadingRegion({
+        id: compoundReadingRegionId(this, "terminal"),
+        host: this.phonePainter.terminal,
+        body: this.phonePainter.log,
+      });
       this.sizing.observe(this.stage);
       this.#paint();
     }
 
     disconnectedCallback() {
       this.sizing.disconnect();
+      this.#stopTerminalReading?.();
+      this.#stopTerminalReading = null;
       cancelAnimationFrame(this.#raf);
       this.#playing = false;
     }
@@ -76,7 +88,7 @@ customElements.define(
       const stage = document.createElement("div");
       stage.className = "film-stage";
       this.svg = document.createElementNS(SVG, "svg");
-      this.svg.setAttribute("role", "img");
+      this.svg.setAttribute("role", "group");
       this.svg.setAttribute("aria-label", "wt merge, animated");
       stage.append(this.svg);
       this.desktopPainter = new Painter(this.svg);
@@ -110,16 +122,17 @@ customElements.define(
       );
       this.playBtn.title =
         "k play/pause · ←/→ steps · j/l ±2s · i inspect the next element · Esc close";
-      this.playBtn.addEventListener("click", () => this.#toggle());
+      this.playBtn.addEventListener("click", () => {
+        this.#toggle();
+        this.#paint();
+      });
       this.scrub = offer("input", "film-scrub", "", "range");
       this.scrub.name = "film-position";
       this.scrub.setAttribute("aria-label", "Film position");
       this.scrub.min = 0;
       this.scrub.step = 0.01;
       this.scrub.addEventListener("input", () => {
-        this.#pause();
-        this.#t = Number(this.scrub.value);
-        this.#inspect(null);
+        this.#pauseAt(Number(this.scrub.value));
         this.#paint();
       });
       this.speedBtn = offer("button", "film-speed", "1×");
@@ -137,19 +150,21 @@ customElements.define(
         [this.next, 1],
       ])
         button.addEventListener("click", () => {
-          this.#pause();
           this.#holdChapter(direction);
           this.#paint();
         });
       const inspectBtn = offer("button", "film-inspect-next", "Inspect");
       inspectBtn.setAttribute("aria-label", "Inspect next element");
       inspectBtn.setAttribute("aria-keyshortcuts", "i");
-      inspectBtn.addEventListener("click", () => this.#cycle());
+      inspectBtn.addEventListener("click", () => {
+        this.#cycle();
+        this.#paint();
+      });
       bar.append(
         this.playBtn,
         this.previous,
-        this.scrub,
         this.next,
+        this.scrub,
         this.speedBtn,
         inspectBtn,
       );
@@ -191,22 +206,27 @@ customElements.define(
     }
 
     seek(t) {
-      this.#pause();
-      this.#inspect(null);
-      this.#t = Math.max(0, Math.min(this.#film.total, t));
+      this.#pauseAt(Math.max(0, Math.min(this.#film.total, t)));
       this.#paint();
       this.#reveal();
     }
 
     seekChapter(key) {
-      const at = this.#film.starts[key];
-      if (at === undefined) return;
-      this.#inspect(null);
-      this.#fresh = false;
-      this.#t = at;
+      if (this.#film.starts[key] === undefined) return;
+      this.#hold(key);
       this.#paint();
-      if (!this.#playing) this.#play();
       this.#reveal();
+    }
+
+    // Selecting a step holds its result for reading; Play resumes the timeline.
+    #hold(key) {
+      this.#pauseAt(chapterEnd(this.#film, key) - 0.01);
+    }
+
+    #pauseAt(t) {
+      this.#t = t;
+      this.#pause();
+      this.#inspect(null);
     }
 
     #reveal() {
@@ -226,9 +246,8 @@ customElements.define(
       const start = this.#film.starts[chapter];
       const progress = (this.#t - start) / (chapterEnd(this.#film, chapter) - start);
       this.#film = compile(this.#flags, EXAMPLE);
-      this.#t = this.#fresh
-        ? this.#poster()
-        : this.#film.starts[chapter] !== undefined
+      this.#t =
+        this.#film.starts[chapter] !== undefined
           ? this.#film.starts[chapter] +
             progress * (chapterEnd(this.#film, chapter) - this.#film.starts[chapter])
           : Math.min(this.#t, this.#film.total);
@@ -246,16 +265,14 @@ customElements.define(
     #click(e) {
       const line = e.target.closest?.("[data-at]");
       if (line) {
-        this.#pause();
-        this.#inspect(null);
-        this.#t = Number(line.dataset.at);
-        this.#paint();
+        this.#pauseAt(Number(line.dataset.at));
       } else {
         const part = this.#partAt(e.target);
         if (part) this.#pause();
         // Alt-click belongs to Leaf's visual comment route.
         if (!e.altKey) this.#inspect(part?.id ?? null);
       }
+      this.#paint();
     }
 
     #hover(e) {
@@ -277,10 +294,10 @@ customElements.define(
     // The inspector sits beside its part, in stage pixels, and follows it while the
     // film plays; it closes when the part leaves the frame.
     #placeInspector() {
-      const part =
-        this.#inspected && this.painter.parts().find((p) => p.id === this.#inspected);
-      for (const p of this.painter.parts())
-        p.element.classList.toggle("film-picked", p === part);
+      const parts = this.painter.parts();
+      const part = this.#inspected && parts.find((p) => p.id === this.#inspected);
+      for (const p of parts)
+        p.element.classList.toggle("film-picked", p.id === this.#inspected);
       if (!part) {
         keepsHidden(this.inspector, true);
         if (this.#inspected) this.#inspect(null);
@@ -313,7 +330,11 @@ customElements.define(
     // uses for itself (arrows on the scrubber, Space on a button) stay the control's.
     #key(e) {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.target === this.scrub && e.key.startsWith("Arrow")) return;
+      if (
+        e.target === this.scrub &&
+        (e.key.startsWith("Arrow") || e.key === "Home" || e.key === "End")
+      )
+        return;
       const handled = {
         k: () => this.#toggle(),
         Escape: () => (this.#inspected ? this.#inspect(null) : null),
@@ -321,15 +342,14 @@ customElements.define(
         Home: () => (this.#t = 0),
         j: () => (this.#t = Math.max(0, this.#t - 2)),
         l: () => (this.#t = Math.min(this.#film.total, this.#t + 2)),
-        ArrowRight: () => this.#stepChapter(1),
-        ArrowLeft: () => this.#stepChapter(-1),
+        ArrowRight: () => this.#holdChapter(1),
+        ArrowLeft: () => this.#holdChapter(-1),
       }[e.key];
       if (!handled) return;
       // Escape with nothing open belongs to Leaf, which returns focus to the page.
       if (e.key === "Escape" && !this.#inspected) return;
       e.preventDefault();
       e.stopPropagation();
-      if (e.key !== "k") this.#fresh = false;
       if (["Home", "j", "l"].includes(e.key)) this.#inspect(null);
       handled();
       this.#paint();
@@ -348,25 +368,12 @@ customElements.define(
       this.#inspect(next.id);
     }
 
-    #stepChapter(dir) {
-      this.#inspect(null);
-      const starts = [...new Set(Object.values(this.#film.starts))].sort(
-        (a, b) => a - b,
-      );
-      this.#t =
-        dir > 0
-          ? (starts.find((s) => s > this.#t + 0.05) ?? this.#t)
-          : (starts.findLast((s) => s < this.#t - 0.6) ?? 0);
-    }
-
-    // The phone's step buttons hold the outcome, rather than the first frame of a
-    // transition. Playback and the keyboard's timeline keys retain their own routes.
+    // Every step route holds the result; j/l and the scrubber seek exact time.
     #holdChapter(direction) {
-      this.#inspect(null);
       const keys = Object.keys(this.#film.starts);
       const current = keys.indexOf(frame(this.#film, this.#t).chapter);
       const chapter = keys[Math.max(0, Math.min(keys.length - 1, current + direction))];
-      this.#t = chapterEnd(this.#film, chapter) - 0.01;
+      this.#hold(chapter);
     }
 
     #toggle() {
@@ -374,11 +381,9 @@ customElements.define(
     }
 
     #play() {
-      if (this.#fresh || this.#t >= this.#film.total - 0.01) this.#t = 0;
-      this.#fresh = false;
+      if (this.#t >= this.#film.total - 0.01) this.#t = 0;
       this.#playing = true;
       this.#last = performance.now();
-      this.playBtn.textContent = "Pause";
       const tick = (now) => {
         if (!this.#playing) return;
         this.#t += ((now - this.#last) / 1000) * this.#speed;
@@ -394,21 +399,48 @@ customElements.define(
     }
 
     #pause() {
-      this.#fresh = false;
       this.#playing = false;
       cancelAnimationFrame(this.#raf);
-      keepsText(this.playBtn, this.#t >= this.#film.total - 0.01 ? "Replay" : "Play");
     }
 
     #paint() {
+      const narrow = this.stage.clientWidth < 560;
+      const painter = narrow ? this.phonePainter : this.desktopPainter;
+      if (painter !== this.painter)
+        void preserveReadingRegions(this, () => {
+          this.#draw(narrow, painter);
+          return layoutChanged(this);
+        });
+      else this.#draw(narrow, painter);
+    }
+
+    #draw(narrow, painter) {
       const fr = frame(this.#film, this.#t);
+      keepsText(
+        this.playBtn,
+        this.#playing
+          ? "Pause"
+          : this.#t >= this.#film.total - 0.01
+            ? "Replay"
+            : "Play",
+      );
       const width = this.stage.clientWidth;
-      const narrow = width < 560;
-      if (this.hasAttribute("data-phone") !== narrow) this.settings.open = !narrow;
+      const changing = painter !== this.painter;
+      const active = document.activeElement;
+      const line = active?.closest("[data-line]")?.dataset.line;
+      const disclosure = active?.closest("details");
+      const restoreFocus = changing ? holdFocus(this) : null;
+      if (this.hasAttribute("data-phone") !== narrow)
+        this.settings.toggleAttribute(
+          "open",
+          !narrow ||
+            (disclosure === this.settings &&
+              active !== this.settings.firstElementChild),
+        );
       else if (!narrow && !this.settings.open) this.settings.open = true;
       this.stage.toggleAttribute("data-phone", narrow);
       this.toggleAttribute("data-phone", narrow);
-      this.painter = narrow ? this.phonePainter : this.desktopPainter;
+      this.painter = painter;
       if (narrow) this.painter.paint(this.#film, fr, width);
       else this.painter.paint(this.#film, fr, this.#focus);
       keepsText(this.caption, fr.caption);
@@ -432,6 +464,18 @@ customElements.define(
           },
         }),
       );
+      // The composition replaces controls, so hand the user's place across under
+      // the same line identity; the focus owner handles an already-moved user.
+      if (
+        restoreFocus?.(
+          () => this.painter.terminalLine(Number(line)),
+          () => disclosure?.querySelector('[data-lf-offer]:not([data-lf-offer=""])'),
+          this.playBtn,
+        )
+      ) {
+        const destination = document.activeElement;
+        scrollIntoReadingBand(destination, destination, "nearest", "instant");
+      }
     }
   },
 );

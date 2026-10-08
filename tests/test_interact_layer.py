@@ -5275,7 +5275,7 @@ def test_an_installed_package_runs_its_own_scripts_by_name(tmp_path, monkeypatch
     assert json.loads(failed.stdout) == {"args": ["--fail"], "lines": 2}
     assert missing.returncode == 1
     assert missing.stderr == (
-        "package 'tally' has no script 'total.py'; available: count.py\n"
+        "Error: package 'tally' has no script 'total.py'; available: count.py\n"
     )
     assert unknown.returncode == 1
     assert "unknown package 'tallies'" in unknown.stderr
@@ -5326,7 +5326,7 @@ def test_package_check_refuses_a_script_that_would_run_in_the_callers_project(
     installed = CliRunner().invoke(cli_model.cli, ["package", "install", str(source)])
 
     assert checked.exit_code == 1
-    assert checked.output.startswith(str(script))
+    assert checked.output.startswith(f"Error: {script}")
     assert message in checked.output
     assert installed.exit_code == 1
     assert message in installed.output

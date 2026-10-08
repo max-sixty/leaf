@@ -4532,7 +4532,7 @@ def test_two_standard_thread_lists_share_updates_but_not_local_state(browser, se
             const { panel, threadsBox, narrowingView } = elements;
             panel.style.cssText = 'position:relative; inset:auto; width:420px; height:560px; margin:0';
             host.append(panel);
-            panel.show();
+            panel.classList.add('open');
             const controller = createThreadListController(elements);
             let handle;
             const narrowing = createThreadNarrowing({

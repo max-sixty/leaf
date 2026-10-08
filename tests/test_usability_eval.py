@@ -267,7 +267,7 @@ def test_native_opening_requires_page_response_evidence_during_handling():
 
 @pytest.mark.parametrize("membership", ["together", "split", "missing-error"])
 def test_mixed_delivery_requires_the_admitted_native_error_in_the_same_batch(
-    tmp_path, membership
+    tmp_path, membership, _browser
 ):
     run = Run("mixed", ROOT, tmp_path)
     run.state.mkdir()
@@ -306,7 +306,9 @@ def test_mixed_delivery_requires_the_admitted_native_error_in_the_same_batch(
         {"type": "eval_received", "round": 1},
         {"type": "result"},
     ]
-    assert score_mixed(run, trace)["one_delivery"] == (membership == "together")
+    assert score_mixed(run, trace, _browser)["one_delivery"] == (
+        membership == "together"
+    )
 
 
 @pytest.mark.parametrize(
@@ -543,7 +545,7 @@ def test_handoff_url_must_match_the_server_observed_by_the_live_run():
     assert not handed_page_url([], url)
 
 
-def test_copy_repair_requires_the_button_to_copy(tmp_path):
+def test_copy_repair_requires_the_button_to_copy(tmp_path, _browser):
     from leaf_dev.usability_eval import copy_summary_works
 
     run = Run("mixed", ROOT, tmp_path)
@@ -552,10 +554,10 @@ def test_copy_repair_requires_the_button_to_copy(tmp_path):
     build_fixture(run, "mixed", page)
     source = page / "index.html"
     original = source.read_text()
-    assert not copy_summary_works(run, page)
+    assert not copy_summary_works(run, page, _browser)
     source.write_text(original.replace("/\\s+/", "/\\s+/g"))
     run.leaf("page", "stamp", str(page), "--text", "Repair copy", check=True)
-    assert copy_summary_works(run, page)
+    assert copy_summary_works(run, page, _browser)
     source.write_text(
         original.replace("/\\s+/", "/\\s+/g").replace(
             '"click", () => {',
@@ -563,9 +565,9 @@ def test_copy_repair_requires_the_button_to_copy(tmp_path):
         )
     )
     run.leaf("page", "stamp", str(page), "--text", "Async copy", check=True)
-    assert copy_summary_works(run, page)
+    assert copy_summary_works(run, page, _browser)
     source.write_text(
         original[: original.index('<script type="module">')] + "</main></body></html>"
     )
     run.leaf("page", "stamp", str(page), "--text", "Remove behavior", check=True)
-    assert not copy_summary_works(run, page)
+    assert not copy_summary_works(run, page, _browser)

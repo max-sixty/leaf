@@ -21,6 +21,7 @@ from leaf.event_log import read_events
 from leaf.harness import ClaudeCodeHarness
 from leaf.service import requires_agent_attention
 from leaf.thread import successful_replies
+from playwright.sync_api import Browser
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
 from leaf_dev import ROOT
@@ -1333,7 +1334,7 @@ def score_handoff(run: Run, trace: list[dict]) -> dict:
     return out
 
 
-def score_mixed(run: Run, trace: list[dict]) -> dict:
+def score_mixed(run: Run, trace: list[dict], browser: Browser) -> dict:
     page = run.work / "page"
     events = page_events(page)
     rounds = live_rounds(trace)
@@ -1405,16 +1406,15 @@ def score_mixed(run: Run, trace: list[dict]) -> dict:
         "reaction_unreplied": not successful_replies(events, reaction["id"]),
         "undo_kept": "card-lag-alert" in column_cards(html, "col-open")
         and column_cards(html, "col-done") == [],
-        "error_fixed": copy_summary_works(run, page),
+        "error_fixed": copy_summary_works(run, page, browser),
     }
     return out
 
 
-def copy_summary_works(run: Run, page: Path) -> bool:
+def copy_summary_works(run: Run, page: Path, browser: Browser) -> bool:
     """Exercise the repaired control; deleting its behavior cannot pass."""
     with (
         serving(run.payload, run.state, page) as url,
-        chrome() as browser,
         tab(browser) as view,
     ):
         view.context.grant_permissions(["clipboard-read", "clipboard-write"])
@@ -1517,7 +1517,7 @@ def score_elided(run: Run, trace: list[dict]) -> dict:
     }
 
 
-LIVE_SCORES = {"handoff": score_handoff, "mixed": score_mixed, "elided": score_elided}
+LIVE_SCORES = {"handoff": score_handoff, "elided": score_elided}
 
 # These declarations remain complete when a scorer exits early or a round never
 # arrives. Missing observations fail instead of silently shrinking the assertion set.
@@ -1690,6 +1690,9 @@ def score_run(
     run: Run, traces: list[list[dict]], replies: list[str], calls: list[str]
 ) -> dict:
     """Apply the scenario's semantic reading to its complete native trajectory."""
+    if run.case == "mixed":
+        with chrome() as browser:
+            return score_mixed(run, traces[0], browser)
     if run.case in LIVE_SCORES:
         return LIVE_SCORES[run.case](run, traces[0])
     if run.case == "package":

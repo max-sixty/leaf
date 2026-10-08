@@ -3130,9 +3130,9 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     def held_append_record(page, event):
         if event.get("kind") == "note" and event.get("version") == 2:
             at_commit.set()
-            assert resume.wait(
-                timeout=STATED_TIMEOUT
-            ), "the report did not enter the publish gap"
+            assert resume.wait(timeout=STATED_TIMEOUT), (
+                "the report did not enter the publish gap"
+            )
         return original_append_record(page, event)
 
     monkeypatch.setattr(
@@ -3140,9 +3140,9 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
     )
     with ThreadPoolExecutor(max_workers=2) as executor:
         publishing = executor.submit(publishing_model.cmd_stamp, page_dir, "absorb")
-        assert at_commit.wait(
-            timeout=STATED_TIMEOUT
-        ), "publish never reached its note commit"
+        assert at_commit.wait(timeout=STATED_TIMEOUT), (
+            "publish never reached its note commit"
+        )
         serialized = leases_model.lock_is_held(page_dir / "events.jsonl")
         reporting = executor.submit(
             thread_model.cmd_report,
@@ -3266,9 +3266,9 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
 
     # The moved card written where the user put it, an untouched card rewritten.
     write([("card-y", "", "Wire the importer and its backfill")], [X])
-    assert (
-        check(page_dir).exit_code == 0
-    ), "an untouched card is not the gate's business"
+    assert check(page_dir).exit_code == 0, (
+        "an untouched card is not the gate's business"
+    )
 
     # The moved card left where the previous version had it: the move's column is
     # authored as before, so the move still lands where the user dropped it.
@@ -3287,9 +3287,9 @@ def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir)
     result = check(page_dir)
     assert result.exit_code == 1
     assert "card-x" in result.output and "move on r1" in result.output
-    assert (
-        "card-y" not in result.output
-    ), "the gate named a card nobody had decided about"
+    assert "card-y" not in result.output, (
+        "the gate named a card nobody had decided about"
+    )
 
     write([("card-x", " restated", "Guard the delete behind the flag"), Y], [])
     assert check(page_dir).exit_code == 0
@@ -5274,9 +5274,9 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
 
     for scheme, half in (("light", 0), ("dark", 1)):
         steps, paper = _palette(theme, half)
-        assert (
-            len(steps) == declared
-        ), f"{scheme} paints {len(steps)} series and $series.steps says {declared}"
+        assert len(steps) == declared, (
+            f"{scheme} paints {len(steps)} series and $series.steps says {declared}"
+        )
         faint = [c for c in steps if _contrast(c, paper) < 3.0]
         assert not faint, f"{scheme}: {faint} under 3:1 against {paper}"
         pairs = [(a, b) for i, a in enumerate(steps) for b in steps[i + 1 :]]
@@ -5284,13 +5284,13 @@ def test_the_series_palette_clears_the_floors_it_claims_to():
             (min(_apart(a, b, "protan"), _apart(a, b, "deutan")), a, b)
             for a, b in pairs
         )
-        assert (
-            blind[0] >= 8.0
-        ), f"{scheme}: {blind[1]} and {blind[2]} are {blind[0]:.1f} apart to a dichromat"
+        assert blind[0] >= 8.0, (
+            f"{scheme}: {blind[1]} and {blind[2]} are {blind[0]:.1f} apart to a dichromat"
+        )
         seen = min((_apart(a, b), a, b) for a, b in pairs)
-        assert (
-            seen[0] >= 15.0
-        ), f"{scheme}: {seen[1]} and {seen[2]} are {seen[0]:.1f} apart"
+        assert seen[0] >= 15.0, (
+            f"{scheme}: {seen[1]} and {seen[2]} are {seen[0]:.1f} apart"
+        )
 
 
 def test_page_inspection_places_cards_among_identified_siblings(page_dir):

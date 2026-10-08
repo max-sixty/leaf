@@ -50,7 +50,16 @@ def test_delivery_requires_every_comment_and_a_completed_reply_turn():
 
 def test_delivery_uses_successful_turns_and_accepted_exact_thread_claims(tmp_path):
     # Native CC stream and Leaf start record shapes, recorded at the scorer boundary.
-    status = {"kind": "start", "item": "comment", "text": "editing"}
+    status = {
+        "attention": False,
+        "id": "a1b2c3d4",
+        "author": "agent",
+        "seq": 1,
+        "ts": "2026-10-02T00:00:02.500+00:00",
+        "kind": "start",
+        "item": "comment",
+        "text": "editing",
+    }
     records = [
         {
             "type": "eval_post",

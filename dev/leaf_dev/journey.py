@@ -56,8 +56,8 @@ from typing import NamedTuple
 from urllib.parse import urljoin, urlsplit
 
 import click
-from leaf.harness import ClaudeCodeHarness, CodexHarness
 from leaf.events import build_threads
+from leaf.harness import ClaudeCodeHarness, CodexHarness
 from playwright.sync_api import BrowserContext, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -67,8 +67,8 @@ from leaf_dev.arms import (
     PAYLOAD,
     LiveChild,
     build_arm,
-    run_directory,
     read_page_state,
+    run_directory,
     run_leaf,
     scratch,
 )

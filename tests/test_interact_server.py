@@ -47,8 +47,8 @@ from interact_support import (
     page_state,
     publish,
     read_page_data,
-    response_reference,
     record_claim,
+    response_reference,
     running_http_server,
     spawn_probe,
     thread_records,
@@ -3586,9 +3586,9 @@ hosting.cmd_serve(Path(os.environ["PAGE"]), standing=True, harness=None)
             target=lambda: (hosting_model.cmd_stop(page_dir), ended.set()), daemon=True
         )
         stopping.start()
-        assert ended.wait(
-            STATED_TIMEOUT
-        ), "a transaction-blocked row read held server stop"
+        assert ended.wait(STATED_TIMEOUT), (
+            "a transaction-blocked row read held server stop"
+        )
     stopping.join(timeout=STATED_TIMEOUT)
     assert not stopping.is_alive(), "server stop never returned"
     assert child.wait(timeout=STATED_TIMEOUT) == 0
@@ -3784,9 +3784,9 @@ def test_temporary_server_close_is_bounded_by_an_idle_connection(page_dir):
         assert answered.status == 200, "the server did not accept the connection"
         closer.start()
         closer_started = True
-        assert closed.wait(
-            timeout=STATED_TIMEOUT
-        ), "an idle connection prevented server close"
+        assert closed.wait(timeout=STATED_TIMEOUT), (
+            "an idle connection prevented server close"
+        )
     finally:
         if client is not None:
             client.close()
@@ -4756,9 +4756,9 @@ def test_a_start_waits_for_uncommitted_preparation_before_reusing(page_dir, spaw
         assert files_model.read_json(page_dir / "service.json") is None
         assert not server_rows_model.row_path(page_dir).exists()
         starting.start()
-        assert attempting.wait(
-            STATED_TIMEOUT
-        ), "the successor never attempted the held server lease"
+        assert attempting.wait(STATED_TIMEOUT), (
+            "the successor never attempted the held server lease"
+        )
         assert leases_model.lock_is_held(page_dir / "server.lock")
         caller.close()  # Abandon the private listener; the successor must bind its own.
         assert child.wait(timeout=STATED_TIMEOUT) == 0
@@ -5623,16 +5623,16 @@ def test_stamp_keeps_its_checked_log_snapshot_until_the_note(monkeypatch, page_d
     }
     publisher = threading.Thread(target=run_stamp)
     publisher.start()
-    assert entered.wait(
-        STATED_TIMEOUT
-    ), "the publisher never reached its held source check"
+    assert entered.wait(STATED_TIMEOUT), (
+        "the publisher never reached its held source check"
+    )
     writer = threading.Thread(target=lambda: append_command(page_dir, action))
     monkeypatch.setattr(fcntl, "flock", observed_flock)
     try:
         writer.start()
-        assert requested.wait(
-            STATED_TIMEOUT
-        ), "the browser writer never attempted the held snapshot lock"
+        assert requested.wait(STATED_TIMEOUT), (
+            "the browser writer never attempted the held snapshot lock"
+        )
         assert writer.is_alive(), "the browser writer crossed the checked snapshot"
     finally:
         release.set()
@@ -5711,15 +5711,15 @@ def test_a_thread_whose_opening_message_was_torn_away_still_reads(page_dir):
     log.write_text("\n".join(lines), encoding="utf-8")
 
     events = event_model.read_events(page_dir)
-    assert [e["id"] for e in events if e["kind"] == "reply"] == [
-        "r-kept"
-    ], "the tear took the reply with it, so nothing below is being read"
+    assert [e["id"] for e in events if e["kind"] == "reply"] == ["r-kept"], (
+        "the tear took the reply with it, so nothing below is being read"
+    )
     names = thread_context_model.thread_names(events)
     assert (names["r-kept"], names["c-lost"]) == ("c-lost", "c-lost")
     threads = event_folds_model.build_threads(events, {})  # nothing published to sit on
-    assert list(threads) == [
-        "c-lost"
-    ], f"the two readings put the reply in different threads: {list(threads)}"
+    assert list(threads) == ["c-lost"], (
+        f"the two readings put the reply in different threads: {list(threads)}"
+    )
     assert [m["id"] for m in threads["c-lost"]["msgs"]] == ["r-kept"]
     # The lost id names the thread; its root is the reply that survived, under that
     # reply's own id, because a reply or resolve addressed to the root has to name a

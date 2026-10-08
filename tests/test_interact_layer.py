@@ -279,9 +279,9 @@ def test_the_python_instructions_name_every_module_they_own():
     )
     assert modules, "no modules read — an empty set names itself"
     packages = sorted({m.parent.as_posix() for m in modules} - {"."})
-    assert not set(packages) - set(
-        within
-    ), f"packages with no Within paragraph: {sorted(set(packages) - set(within))}"
+    assert not set(packages) - set(within), (
+        f"packages with no Within paragraph: {sorted(set(packages) - set(within))}"
+    )
 
     unnamed = [
         module.as_posix()
@@ -2885,9 +2885,9 @@ def test_concurrent_page_init_serializes_creation(tmp_path, monkeypatch):
             bool,
             failure="the second init neither waited on the page lock nor began creating",
         )
-        assert (
-            not second_entered.is_set()
-        ), "the second init began creating while the first held the page"
+        assert not second_entered.is_set(), (
+            "the second init began creating while the first held the page"
+        )
     finally:
         release_first.set()
         first.join(timeout=STATED_TIMEOUT)

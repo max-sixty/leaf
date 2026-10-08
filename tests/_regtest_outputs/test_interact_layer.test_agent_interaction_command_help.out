@@ -100,9 +100,9 @@ Usage: leaf thread reply [OPTIONS] PAGE THREAD
 
   Post a new agent message to THREAD (--text or stdin).
 
-  An ordinary message is refused while the thread owes a response; answer its
-  delivery reference with `leaf response reply`. --ephemeral posts progress.
-  Saved page edits are validated and activated before posting.
+  A message is refused while the thread owes a response; answer its delivery
+  reference with `leaf response reply`. --ephemeral posts progress. Saved page
+  edits are validated and activated before posting.
 
 Options:
   --title TEXT   name the thread for the panel unless it has a name: a few
@@ -123,10 +123,11 @@ Usage: leaf response reply [OPTIONS] REFERENCE
   Answer the exact REFERENCE printed in a delivery's answer.ref.
 
   Text, frozen widgets, prose questions, titles and anchor moves share this
-  command. It validates and activates saved page edits before posting. A stale
-  input or a reply reserved for a provider final is refused. Repeating an
-  ordinary reply's reference returns its earlier record; --attempt names retries
-  of progress.
+  command. It validates saved page edits. An active provider reservation
+  prepares full content for that turn's completed final, which activates and
+  commits it. Without that reservation, this command activates edits and commits
+  the reply. Repeating a committed reply's reference returns its earlier record;
+  --attempt names retries of progress.
 
 Options:
   --attempt TEXT  retry identity (ordinary replies default to the reference)

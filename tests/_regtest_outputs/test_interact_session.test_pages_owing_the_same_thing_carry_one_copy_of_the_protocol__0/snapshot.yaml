@@ -8,4 +8,4 @@ Stop:
       - <first-page>: 1 acknowledged user update with no answer (`leaf response reply <answer.ref>` for c1).
       - <second-page>: 1 acknowledged user update with no answer (`leaf response reply <answer.ref>` for c2).
 
-      Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
+      Each update takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.

@@ -19,13 +19,14 @@ from pathlib import Path
 import click
 from leaf.harness import ClaudeCodeHarness
 from leaf.service import requires_agent_attention
+from leaf.tasks import start_reading
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     URL,
     LiveChild,
     PageClient,
-    accepted_starts,
+    accepted_command_records,
     blocks,
     commands,
     completed,
@@ -1318,8 +1319,10 @@ def ran_between(trace: list[dict], start: int, end: int) -> list[str]:
 
 
 def claimed_first(trace: list[dict], thread: str) -> bool:
-    """An accepted command start or a native reply opened before the first tool.
+    """Fresh command work before its accepted final, or a native first-tool opening.
 
+    Command evidence compares canonical log sequence on the scenario's one page
+    and exact input; command spelling and unrelated replies do not set the cutoff.
     Native commentary counts only when the canonical workflow confirms that
     the exact input has an active response with text at the first-tool boundary.
     A chat message alone cannot establish that the page showed progress.
@@ -1349,19 +1352,23 @@ def claimed_first(trace: list[dict], thread: str) -> bool:
                 and response["has_text"]
             ):
                 return True
-    reply = next(
+    records = [event for _index, _call, event in accepted_command_records(trace)]
+    reply = min(
         (
-            index
-            for index, record in enumerate(trace)
-            if any(
-                re.search(r"\b(?:thread|response) reply\b", c)
-                and "--ephemeral" not in c
-                for c in commands(record)
-            )
+            event["seq"]
+            for event in records
+            if event["kind"] == "reply"
+            and event["author"] == "agent"
+            and not event.get("ephemeral")
+            and thread in (event["parent"], event.get("responds"))
         ),
-        len(trace),
+        default=None,
     )
-    return any(index < reply for index in accepted_starts(trace, thread).values())
+    return any(
+        start["item"] == thread and (reply is None or start["seq"] < reply)
+        for event in records
+        if (start := start_reading(event)) is not None
+    )
 
 
 def answered(events: list[dict], event_id: str) -> list[dict]:

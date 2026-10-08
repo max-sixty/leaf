@@ -93,8 +93,8 @@ owners. The shared glossary defines the vocabulary; this note keeps no second ta
 `layout-sidebar` and `aside.sidebar` retain their separate meanings and distinct
 descriptions. Blind desktop and phone use verified mixed input, undo, neighboring
 pages, versions and actual CLI recovery. The paired banner comparison and live
-candidate are on the review page. Startup uses the same request count; timing is
-diagnostic rather than an acceptance threshold.
+candidate are on the review page. Startup uses the same code request count;
+timing is diagnostic rather than an acceptance threshold.
 
 ## Phase 6: Example subjects
 

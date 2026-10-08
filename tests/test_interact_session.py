@@ -57,9 +57,9 @@ from interact_support import (
     page_state,
     publish,
     record_claim,
-    response_reference,
     release_codex_command,
     release_held,
+    response_reference,
     serving,
     spawn_probe,
     stamp,
@@ -178,9 +178,9 @@ def codex_loop(monkeypatch):
 
 def codex_start_announcement(process) -> str:
     """Wait for committed CLI output before transferring the fake harness lifetime."""
-    assert select.select([process.stdout], [], [], 30)[
-        0
-    ], "Codex start did not report completion"
+    assert select.select([process.stdout], [], [], 30)[0], (
+        "Codex start did not report completion"
+    )
     line = process.stdout.readline()
     assert json.loads(line)["task"] == "codex-thread"
     return line
@@ -8221,9 +8221,9 @@ def test_ack_rearms_the_wait_after_releasing_the_cursor_transaction(
     )
 
     assert files_model.read_json(page_dir / "cursor.json") == {"seq": 1}
-    assert leases_model.lock_is_held(
-        lease_path
-    ), "acknowledgement returned without holding the next wait"
+    assert leases_model.lock_is_held(lease_path), (
+        "acknowledgement returned without holding the next wait"
+    )
     status_before_delivery = (page_dir / "status.json").read_bytes()
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c2", "author": "user", "text": "two"}
@@ -8852,9 +8852,9 @@ def test_a_watch_wakes_on_what_its_pass_read_moving(page_dir):
     try:
         mark = watch.mark()
         list(watch.tick())
-        assert watch.await_news(
-            mark, timeout=STATED_TIMEOUT
-        ), "the watch never woke on the page its mark had not read"
+        assert watch.await_news(mark, timeout=STATED_TIMEOUT), (
+            "the watch never woke on the page its mark had not read"
+        )
 
         # With nothing moved, the watch wakes on its timeout: that expiry is the
         # subject, and how long it is changes nothing a slower machine could see.
@@ -8871,9 +8871,9 @@ def test_a_watch_wakes_on_what_its_pass_read_moving(page_dir):
             (page_dir, {"kind": "comment", "author": "user", "text": "hi"}),
         )
         appending.start()
-        assert watch.await_news(
-            mark, timeout=STATED_TIMEOUT
-        ), "the watch never woke on the append"
+        assert watch.await_news(mark, timeout=STATED_TIMEOUT), (
+            "the watch never woke on the append"
+        )
         appending.join()
         assert events_model.read_events(page_dir)[-1]["text"] == "hi"
     finally:
@@ -9287,9 +9287,9 @@ def test_the_stop_hook_watch_wakes_the_session_only_for_input(
         # The lease is acquired before the initial log snapshot. A comment sent
         # after acquisition can still enter that snapshot as pre-existing input;
         # the first completed pass proves this watch can now read later arrivals.
-        assert initialized.wait(
-            STATED_TIMEOUT
-        ), "the watch never completed its first pass"
+        assert initialized.wait(STATED_TIMEOUT), (
+            "the watch never completed its first pass"
+        )
         assert leases_model.wait_is_live(claimed, "s1")
         return watch
 
@@ -10729,9 +10729,9 @@ def test_codex_serializes_later_input_behind_the_offered_delivery(
         )
     )
     offering.start()
-    assert queue_started.wait(
-        timeout=STATED_TIMEOUT
-    ), "the offer never reached the Codex queue"
+    assert queue_started.wait(timeout=STATED_TIMEOUT), (
+        "the offer never reached the Codex queue"
+    )
     assert files_model.read_json(first_path)["state"] == "offering"
 
     # A parallel step hook leaves the in-flight queue offer to its owner and
@@ -12184,18 +12184,18 @@ def test_a_fresh_init_does_not_delete_a_concurrently_created_pages_claim(
 
     def held_composed_sheets(sources):
         reached_layer.set()
-        assert resume.wait(
-            timeout=STATED_TIMEOUT
-        ), "the concurrent init never released its peer"
+        assert resume.wait(timeout=STATED_TIMEOUT), (
+            "the concurrent init never released its peer"
+        )
         return original_composed_sheets(sources)
 
     monkeypatch.setattr(layer_model, "composed_sheets", held_composed_sheets)
     executor = ThreadPoolExecutor(max_workers=1)
     first = executor.submit(vendoring_model.cmd_init, page)
     try:
-        assert reached_layer.wait(
-            timeout=STATED_TIMEOUT
-        ), "the first init never reached its held read"
+        assert reached_layer.wait(timeout=STATED_TIMEOUT), (
+            "the first init never reached its held read"
+        )
         requested = tmp_path / "second-init-requested"
         second = spawn_probe(
             spawn,
@@ -12634,13 +12634,13 @@ def test_a_stable_lock_serializes_waiting_takers_and_retains_its_file(
     with cleanup_model.flocked(path):
         identity = path.stat()
         taker.start()
-        assert attempting.wait(
-            STATED_TIMEOUT
-        ), "the taker never attempted the held lock"
+        assert attempting.wait(STATED_TIMEOUT), (
+            "the taker never attempted the held lock"
+        )
         assert not entered.is_set()
-    assert entered.wait(
-        STATED_TIMEOUT
-    ), "the taker never entered the lock once it was free"
+    assert entered.wait(STATED_TIMEOUT), (
+        "the taker never entered the lock once it was free"
+    )
     assert leases_model.lock_is_held(path)
     assert leases_model.take_lease(path) is None
     release.set()
@@ -12740,22 +12740,22 @@ def test_a_page_lock_is_its_directory_and_follows_a_page_made_again(
     def take():
         with leases_model.page_locked(page):
             entered.set()
-            assert release.wait(
-                STATED_TIMEOUT
-            ), "the replacement lock was never released"
+            assert release.wait(STATED_TIMEOUT), (
+                "the replacement lock was never released"
+            )
 
     taker = threading.Thread(target=take)
     try:
         with leases_model.page_locked(page):
             taker.start()
-            assert requested.wait(
-                STATED_TIMEOUT
-            ), "the taker never opened the old directory"
+            assert requested.wait(STATED_TIMEOUT), (
+                "the taker never opened the old directory"
+            )
             shutil.rmtree(page)
             page.mkdir()
-        assert entered.wait(
-            STATED_TIMEOUT
-        ), "the taker never locked the replacement directory"
+        assert entered.wait(STATED_TIMEOUT), (
+            "the taker never locked the replacement directory"
+        )
         fd = os.open(page, os.O_RDONLY)
         try:
             with pytest.raises(BlockingIOError):
@@ -15194,9 +15194,9 @@ codex.set_stream_activity("s1", expected["turn"], {"kind": "working", "detail": 
         stderr=subprocess.PIPE,
         text=True,
     )
-    assert select.select([writer.stdout], [], [], STATED_TIMEOUT)[
-        0
-    ], "the task writer never acquired its first page"
+    assert select.select([writer.stdout], [], [], STATED_TIMEOUT)[0], (
+        "the task writer never acquired its first page"
+    )
     assert writer.stdout.readline() == "writer holds first page\n"
     publisher = spawn(
         [
@@ -15220,9 +15220,9 @@ hooks.cmd_hook("codex", {"hook_event_name": "SessionStart", "session_id": "s1", 
         stderr=subprocess.PIPE,
         text=True,
     )
-    assert select.select([publisher.stdout], [], [], STATED_TIMEOUT)[
-        0
-    ], "the reconnect publisher never contended on the writer's held page"
+    assert select.select([publisher.stdout], [], [], STATED_TIMEOUT)[0], (
+        "the reconnect publisher never contended on the writer's held page"
+    )
     assert publisher.stdout.readline() == "publisher waiting for first page\n"
     output, error = writer.communicate("continue\n", timeout=STATED_TIMEOUT)
     assert writer.returncode == 0, f"{output}{error}"
@@ -17516,9 +17516,9 @@ def test_connection_stop_waits_for_its_receiver_and_rejects_queued_commands():
 
     stopper = threading.Thread(target=stop)
     stopper.start()
-    assert connection.stop_event.wait(
-        STATED_TIMEOUT
-    ), "stop never signalled its receiver"
+    assert connection.stop_event.wait(STATED_TIMEOUT), (
+        "stop never signalled its receiver"
+    )
     assert not stopped.is_set()
     assert not result.done()
     release.set()
@@ -17852,9 +17852,9 @@ def test_hook_snapshot_serializes_receipt_and_reply(claimed, monkeypatch):
         writer = threading.Thread(target=settle, daemon=True)
         writers.append(writer)
         writer.start()
-        assert lock_proved.wait(
-            timeout=STATED_TIMEOUT
-        ), "the settlement writer never tried the held lock"
+        assert lock_proved.wait(timeout=STATED_TIMEOUT), (
+            "the settlement writer never tried the held lock"
+        )
         return projected(page_dir, events)
 
     monkeypatch.setattr(hook_transport_model, "full_state", read_while_settlement_waits)
@@ -18109,9 +18109,9 @@ def test_a_hooks_receipt_commits_pickup_and_cursor_before_session_end(
 
     def pickup_while_end_attempts(*args, **kwargs):
         thread.start()
-        assert attempting.wait(
-            STATED_TIMEOUT
-        ), "the session end never attempted its lock"
+        assert attempting.wait(STATED_TIMEOUT), (
+            "the session end never attempted its lock"
+        )
         # Observe the actual lock ownership, rather than relying on scheduling
         # an end call to happen before this short receipt transaction completes.
         with (
@@ -18809,6 +18809,20 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
 def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
     page_dir, monkeypatch
 ):
+    def cli_refuses(reference, text, reason):
+        args = ["response", "reply", reference, "--text", text]
+        refused = CliRunner().invoke(cli_model.cli, args)
+        assert refused.exit_code == 1
+        assert refused.stderr.startswith("Error: ")
+        assert reason in refused.stderr
+        assert isinstance(refused.exception, SystemExit)
+        launched = subprocess.run(
+            [*LEAF_COMMAND, *args], capture_output=True, text=True, check=False
+        )
+        assert launched.returncode == 1, (launched.stdout, launched.stderr)
+        assert launched.stdout == ""
+        assert launched.stderr == refused.stderr
+
     revisioning_model.activate_source(page_dir)
     original = append_command(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "Use A."}
@@ -18832,6 +18846,7 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
     )
     with pytest.raises(delivery_model.ReceiptRefused, match="matches its page log"):
         thread_model.post_response(fresh, "Old log")
+    cli_refuses(fresh, "Old log", "matches its page log")
     # A new owned delivery cannot be answered by another session, even if the id fits.
     event = events_model.read_events(page_dir)[0]
     reference = response_reference(page_dir, event)
@@ -18842,6 +18857,7 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
         thread_model.post_response(
             reference, "Foreign", identity={"session": "foreign"}
         )
+    cli_refuses(reference, "Foreign", "response page is claimed by another session")
     prepared = codex_model.prepare_codex_delivery(
         page_dir, harness_model.EmbeddedHarness("owner", "Owner", os.getpid())
     )
@@ -18851,6 +18867,40 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
         turn_ref, "Answer before reservation", identity={"session": "owner"}
     )
     assert answer["responds"] == event["id"]
+
+    # CLI presentation adapts known refusals only; failures and numeric status
+    # from another owner retain their identity and meaning.
+    for failure in (RuntimeError("unexpected writer failure"), SystemExit(7)):
+
+        def fail(*_args, _failure=failure, **_kwargs):
+            raise _failure
+
+        with monkeypatch.context() as patched:
+            patched.setattr(thread_model, "post_response", fail)
+            result = CliRunner().invoke(
+                cli_model.cli, ["response", "reply", reference, "--text", "Control"]
+            )
+        assert result.exception is failure
+        assert result.exit_code == (7 if isinstance(failure, SystemExit) else 1)
+        assert result.output == ""
+
+    light_help = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from click.testing import CliRunner; from leaf.cli import cli; import sys; "
+                "assert 'leaf.delivery' not in sys.modules; "
+                "result = CliRunner().invoke(cli, ['response', 'reply', '--help']); "
+                "assert result.exit_code == 0, result.output; "
+                "assert 'leaf.delivery' not in sys.modules"
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert light_help.returncode == 0, (light_help.stdout, light_help.stderr)
 
 
 def test_response_api_records_failure_without_reopening_thread(page_dir):
@@ -18970,7 +19020,7 @@ def test_provider_response_authors_full_content_and_commits_it_after_reconnect(
 
 
 def test_failed_provider_discards_authored_content_without_answering(page_dir):
-    comment, target, delivery_id, stream = _reserved_author_response(page_dir)
+    comment, target, _delivery_id, stream = _reserved_author_response(page_dir)
     thread_model.post_response(
         target["ref"],
         "My prepared question?",
@@ -19054,7 +19104,7 @@ def test_codex_ignores_obsolete_addressed_envelopes_and_recaptures_input(
 
 
 def test_prepared_rich_reply_rechecks_source_at_final_without_fallback(page_dir):
-    comment, target, delivery_id, stream = _reserved_author_response(page_dir)
+    _comment, target, delivery_id, stream = _reserved_author_response(page_dir)
     thread_model.post_response(
         target["ref"],
         "Prepared answer",
@@ -19073,7 +19123,7 @@ def test_prepared_rich_reply_rechecks_source_at_final_without_fallback(page_dir)
 
 
 def test_prepared_content_stays_on_older_binding_after_new_displayed_reply(page_dir):
-    comment, target, delivery_id, old = _reserved_author_response(page_dir)
+    comment, target, _delivery_id, old = _reserved_author_response(page_dir)
     identity = {"session": "codex-thread", "agent": "Codex"}
     thread_model.post_response(
         target["ref"], "Older prepared question?", awaits=True, identity=identity
@@ -19110,7 +19160,7 @@ def test_prepared_content_stays_on_older_binding_after_new_displayed_reply(page_
 
 
 def test_invalid_rich_preparation_does_not_replace_existing_author_content(page_dir):
-    comment, target, delivery_id, stream = _reserved_author_response(page_dir)
+    _comment, target, _delivery_id, stream = _reserved_author_response(page_dir)
     identity = {"session": "codex-thread", "agent": "Codex"}
     thread_model.post_response(
         target["ref"], "Valid question?", awaits=True, identity=identity
@@ -19257,7 +19307,7 @@ def test_prepared_failure_yields_to_user_settlement(page_dir):
 
 @pytest.mark.parametrize("settled", [False, True])
 def test_old_provider_final_yields_to_new_reservation_for_same_input(page_dir, settled):
-    comment, target, delivery_id, old = _reserved_author_response(page_dir)
+    comment, _target, _delivery_id, old = _reserved_author_response(page_dir)
     # A later delivery reserves the same captured input under a different attempt.
     with service_model.PageTransaction(page_dir) as transaction:
         batch = delivery_model.batch_data(page_dir, transaction, [comment])

@@ -1478,13 +1478,13 @@ def test_duplicate_attaches_share_one_delivery_start(page_dir, monkeypatch):
 
     second = threading.Thread(target=attach_second)
     first.start()
-    assert started.wait(
-        timeout=STATED_TIMEOUT
-    ), "the first attach never started its turn"
+    assert started.wait(timeout=STATED_TIMEOUT), (
+        "the first attach never started its turn"
+    )
     second.start()
-    assert second_called.wait(
-        timeout=STATED_TIMEOUT
-    ), "the second attach was never called"
+    assert second_called.wait(timeout=STATED_TIMEOUT), (
+        "the second attach was never called"
+    )
     release.set()
     first.join(timeout=STATED_TIMEOUT)
     assert not first.is_alive(), "the first attach never returned"
@@ -1519,20 +1519,20 @@ def test_the_website_harness_prewarms_app_server_and_leaf_cli_in_the_background(
 
     thread = harness.prewarm()
 
-    assert app_started.wait(
-        timeout=STATED_TIMEOUT
-    ), "the prewarm never began starting the app server"
-    assert leaf_started.wait(
-        timeout=STATED_TIMEOUT
-    ), "the prewarm never began warming the leaf CLI"
+    assert app_started.wait(timeout=STATED_TIMEOUT), (
+        "the prewarm never began starting the app server"
+    )
+    assert leaf_started.wait(timeout=STATED_TIMEOUT), (
+        "the prewarm never began warming the leaf CLI"
+    )
     assert thread.is_alive()
     release_app.set()
     thread.join(timeout=STATED_TIMEOUT)
     assert not thread.is_alive()
     release_leaf.set()
-    assert leaf_finished.wait(
-        timeout=STATED_TIMEOUT
-    ), "the leaf CLI warm-up never finished"
+    assert leaf_finished.wait(timeout=STATED_TIMEOUT), (
+        "the leaf CLI warm-up never finished"
+    )
 
 
 def test_the_leaf_cli_prewarm_runs_the_installed_command(monkeypatch):
@@ -1664,9 +1664,9 @@ module.main(["--port", "0"])
     assert adapter.wait(timeout=STATED_TIMEOUT) == -signal.SIGTERM
     deadline = time.monotonic() + STATED_TIMEOUT
     while pid_alive(app_server):
-        assert (
-            time.monotonic() < deadline
-        ), "the App Server outlived the adapter that started it"
+        assert time.monotonic() < deadline, (
+            "the App Server outlived the adapter that started it"
+        )
         time.sleep(0.05)
     assert not (socket_dir / "app-server.sock").exists()
 
@@ -3315,9 +3315,9 @@ def test_a_receipt_waits_for_external_turn_acceptance_to_be_recorded(
 
     with ThreadPoolExecutor(max_workers=2) as pool:
         attached = pool.submit(harness.attach, page_dir, comment["id"])
-        assert turn_started.wait(
-            timeout=STATED_TIMEOUT
-        ), "the attach never started its turn"
+        assert turn_started.wait(timeout=STATED_TIMEOUT), (
+            "the attach never started its turn"
+        )
         settled = pool.submit(
             harness.failure_receipt,
             page_dir,
@@ -3325,9 +3325,9 @@ def test_a_receipt_waits_for_external_turn_acceptance_to_be_recorded(
             "startup_failed",
         )
 
-        assert receipt_waiting.wait(
-            timeout=STATED_TIMEOUT
-        ), "the receipt never waited on the harness lock"
+        assert receipt_waiting.wait(timeout=STATED_TIMEOUT), (
+            "the receipt never waited on the harness lock"
+        )
         record_acceptance.set()
         assert attached.result(timeout=STATED_TIMEOUT) == "hosted-thread"
         assert settled.result(timeout=STATED_TIMEOUT) is None

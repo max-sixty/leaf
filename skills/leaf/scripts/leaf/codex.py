@@ -61,8 +61,8 @@ from .delivery import (
     read_delivery,
     readable_delivery,
     receive_batch,
-    stream_reply_target,
     record_pickup,
+    stream_reply_target,
     validate_delivery_id,
 )
 from .files import read_json

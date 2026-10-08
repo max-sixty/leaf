@@ -59,9 +59,10 @@ def _leaf_root(ctx: click.Context, _param: click.Parameter, value: bool) -> None
 class LeafGroup(click.Group):
     """Present domain refusals like Click errors at the command boundary.
 
-    Domain writers also serve harnesses and raise SystemExit with their reason.
-    Only a textual exit is a refusal; numeric statuses (including a package
-    script's status) retain their meaning and output.
+    Domain writers also serve harnesses and raise SystemExit with their reason
+    or ReceiptRefused for delivery custody and captured-log refusals.
+    Numeric exit statuses (including a package script's status) retain their
+    meaning and output; unexpected exceptions still surface.
     """
 
     def invoke(self, ctx: click.Context):
@@ -70,6 +71,14 @@ class LeafGroup(click.Group):
         except SystemExit as error:
             if isinstance(error.code, str):
                 raise click.ClickException(error.code) from error
+            raise
+        except (click.exceptions.Exit, click.Abort):
+            raise
+        except RuntimeError as error:
+            from leaf.delivery import ReceiptRefused
+
+            if isinstance(error, ReceiptRefused):
+                raise click.ClickException(str(error)) from error
             raise
 
 

@@ -5,7 +5,7 @@
 idle before pickup:
   exit: 1
   output: |
-    1 event nobody has picked up, so the page cannot idle yet. Leaf's hook puts them in your context at your next turn.
+    Error: 1 event nobody has picked up, so the page cannot idle yet. Leaf's hook puts them in your context at your next turn.
 
 the watch wakes the session: >-
   <page> has new input; Leaf's prompt hook puts it in your context with this notification
@@ -90,12 +90,12 @@ acknowledged at stop:
       Leaf needs attention:
       - <page>: 1 acknowledged user update with no answer (`leaf response reply <answer.ref>` for event-2).
 
-      Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
+      Each update takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
 
 idle before answer:
   exit: 1
   output: |
-    1 acknowledged user update with no answer (`leaf response reply <answer.ref>` for event-2); answer before idling. Each move takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
+    Error: 1 acknowledged user update with no answer (`leaf response reply <answer.ref>` for event-2); answer before idling. Each update takes the answer named for it. Read current obligations with `leaf page state <page>` and thread history with `leaf page state <page> <id>`.
 
 answer:
   kind: reply

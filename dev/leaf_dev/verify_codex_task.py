@@ -54,8 +54,8 @@ from leaf.codex import private_app_server
 from leaf.event_log import read_events
 from leaf.events import build_threads
 from leaf.leases import adapter_is_live, lock_is_held, titles_log
-from leaf.server import running_server
 from leaf.revision_artifact import active_enclosing
+from leaf.server import running_server
 from leaf.service import page_claim
 from leaf.thread_titles import TIMEOUT
 
@@ -240,15 +240,19 @@ def journey(
     for rich, request in (
         (
             "choice",
-            "I need to decide whether to ship or wait. Give me two clickable choices "
-            "inside this thread, not on the page. Explain the decision in a short "
-            "question, and move this thread to the release rationale section.",
+            (
+                "I need to decide whether to ship or wait. Give me two clickable choices "
+                "inside this thread, not on the page. Explain the decision in a short "
+                "question, and move this thread to the release rationale section."
+            ),
         ),
         (
             "question",
-            "Ask me whether I can own the release check, as a prose question in this "
-            "thread. Keep it waiting for my answer and move the thread to the release "
-            "rationale section.",
+            (
+                "Ask me whether I can own the release check, as a prose question in this "
+                "thread. Keep it waiting for my answer and move the thread to the release "
+                "rationale section."
+            ),
         ),
     ):
         started = time.monotonic()
@@ -269,12 +273,12 @@ def journey(
             if event.get("attempt") == f"verify-rich-{rich}"
         )
 
-        def rich_answers():
+        def rich_answers(responds=posted):
             return [
                 event
                 for event in read_events(page)
                 if event["kind"] == "reply"
-                and event.get("responds") == posted
+                and event.get("responds") == responds
                 and "failure" not in event
             ]
 

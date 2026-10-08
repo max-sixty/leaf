@@ -34,6 +34,7 @@
 import { html, render, repeat } from "../vendor/browser-runtime.js";
 import { el } from "./widget-elements.js";
 import { repaint } from "./repaint.js";
+import { afterScript } from "./rendering.js";
 import {
   deepFocus,
   focusDestination,
@@ -304,14 +305,17 @@ export function registerBannerControl({
 
 /**
  * Say whether a control's news is urgent, which puts More's dot up while the control
- * stands behind it. `urgent` is the words More's name adds for it, or null.
+ * stands behind it. `urgent` is the words More's name adds for it, or null. Only the
+ * door's name and dot read it, so several owners marking in one script paint the door
+ * once, when the script ends: an answer that settles the last question and opens the
+ * approval would otherwise take the dot down and put it straight back.
  */
 export function markBannerControl(control, urgent) {
   const prior = controls.get(control);
   if (!prior) throw new TypeError("Banner control is not registered");
   if (prior.urgent === urgent) return;
   replaceEntry(prior, Object.freeze({ ...prior, urgent }));
-  paint();
+  afterScript(paint);
 }
 
 /** Show or hide one retained contribution without changing its registered identity. */

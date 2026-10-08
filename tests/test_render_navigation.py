@@ -2813,7 +2813,7 @@ def test_firefox_paints_a_natural_color_cue(firefox_browser, serve, target):
         quality=100,
         size=page.viewport_size,
     ):
-        page.keyboard.press("a" if target == "tab" else "Enter")
+        page.keyboard.press("q" if target == "tab" else "Enter")
         page.wait_for_function(
             "() => window.__colorCue.point || window.__colorCue.error"
         )
@@ -3724,7 +3724,7 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
     rows = page.evaluate(QUEUE_ROW_SAYS)
     assert [(row["list"], row["word"], row["title"]) for row in rows] == [
         ("you", "Ask", "Which channel first?"),
-        ("you", "Question", "Weekly?"),
+        ("you", "Thread", "Weekly?"),
         ("agent", "Reply", "Tighten this."),
         ("agent", "Task", "Rebuild the notes"),
         ("done", "Task", "Retitle the release"),
@@ -9055,13 +9055,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Next Ask, thread, to-do or move to resend waiting on you",
+            has_text="Next Ask, thread, to-do or update to send again waiting on you",
         ).locator("kbd")
     ).to_have_text("q")
     expect(
         page.locator(
             ".lf-command-reference tr",
-            has_text="Previous Ask, thread, to-do or move to resend waiting on you",
+            has_text="Previous Ask, thread, to-do or update to send again waiting on you",
         ).locator("kbd")
     ).to_have_text("Q")
     page.keyboard.press("Escape")
@@ -14243,7 +14243,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     expect(help_el).not_to_contain_text("Previous open thread")
     expect(help_el).not_to_contain_text("In a thread")
     expect(help_el).not_to_contain_text(
-        "thread, to-do or move to resend waiting on you"
+        "thread, to-do or update to send again waiting on you"
     )
     # A first version has a menu and a way out, but no neighbouring version to walk.
     expect(help_el).to_contain_text("The versions, and what each one changed")
@@ -14284,7 +14284,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
     ).to_have_attribute("aria-label", "g then Shift+t")
     expect(help_el).not_to_contain_text("link on screen")
     expect(help_el).not_to_contain_text(
-        "thread, to-do or move to resend waiting on you"
+        "thread, to-do or update to send again waiting on you"
     )
     expect(help_el).to_contain_text("Next open thread")
     expect(help_el).to_contain_text("Previous open thread")

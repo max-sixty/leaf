@@ -72,6 +72,7 @@ from urllib.parse import urljoin, urlsplit
 
 import click
 from leaf.events import build_threads
+from leaf.tasks import start_reading
 from leaf.thread import successful_replies
 from playwright.sync_api import BrowserContext, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -168,14 +169,13 @@ class TurnReading(NamedTuple):
 
 class AgentProfile:
     """What the browser observed of one request: each ask's admitted comment and
-    acknowledgement, the page's activity, when its thread first showed the agent on
-    it, and when the reply showed, all from the first send."""
+    acknowledgement, the page's activity, and when the reply showed, all from the
+    first send. Transport and authored work milestones come from the event log."""
 
     def __init__(self) -> None:
         self.started = time.monotonic()
         self.visible_reply_started_ms: float | None = None
         self.acknowledged: list[float] = []
-        self.work_visible_s: float | None = None
         self.visible_reply_s: float | None = None
         self.activities: list[tuple[float, str, str]] = []
         self.ask_count = 0
@@ -207,12 +207,33 @@ def instant(ts: str) -> float:
 
 
 def recorded_steps(events: list[dict], comment: dict, published: dict | None) -> dict:
-    """Seconds after `comment`'s admission at which the page server titled its
-    thread, admitted the agent's first progress update in it, activated the
-    `published` revision and admitted the answer, or None for a step it never
-    reached or a comment that asked for no revision."""
+    """Seconds after `comment`'s admission for its recorded milestones.
+
+    Pickup records name exact inputs: queued is held by the harness, opened is in
+    its context. A start is an authored work claim for this input. Neither implies
+    visible feedback or that the model has begun reasoning. Title, explicit progress,
+    publication and answer retain their server timestamps; absent steps are None,
+    as is publication for a comment that asked for no revision.
+    """
     admitted = instant(comment["ts"])
     thread = comment["id"]
+    pickups = [
+        event
+        for event in events
+        if event["kind"] == "pickup" and thread in event["events"]
+    ]
+    transport = {
+        phase: next((e["ts"] for e in pickups if e["phase"] == phase), None)
+        for phase in ("queued", "opened")
+    }
+    started = next(
+        (
+            e["ts"]
+            for e in events
+            if (start := start_reading(e)) and start["item"] == thread
+        ),
+        None,
+    )
     titled = next(
         (
             event["ts"]
@@ -228,6 +249,9 @@ def recorded_steps(events: list[dict], comment: dict, published: dict | None) ->
     return {
         step: None if at is None else round(instant(at) - admitted, 3)
         for step, at in (
+            ("queued", transport["queued"]),
+            ("pickedUp", transport["opened"]),
+            ("started", started),
             ("titled", titled),
             ("progress", progress),
             ("published", published and published["activated_at"]),
@@ -311,7 +335,6 @@ def agent_profile(profile: AgentProfile, steps: dict) -> dict:
         "sinceAdmissionMs": {step: ms(seconds) for step, seconds in steps.items()},
         "sinceSendMs": {
             "acknowledged": [ms(at) for at in profile.acknowledged],
-            "workVisible": ms(profile.work_visible_s),
             "responseVisible": ms(profile.visible_reply_s),
         },
         "activity": [
@@ -603,14 +626,6 @@ def run_journey(session: Session, version: str) -> dict:
         profile.visible_reply_s = (
             visible_reply_at - profile.visible_reply_started_ms
         ) / 1000
-    # Read before the reload below, which starts a document of its own.
-    work_visible_at = page.evaluate(
-        "thread => window.__leafVerifier.workVisibleAt(thread)", answer["parent"]
-    )
-    if work_visible_at is not None:
-        profile.work_visible_s = (
-            work_visible_at - profile.visible_reply_started_ms
-        ) / 1000
     comment = agent_profile(profile, steps)
     if session.records is not None:
         comment["turn"] = turn_phases(
@@ -773,16 +788,11 @@ class User:
                 f"the reply to `{name}` never became visible in Threads; the page "
                 f"reports {json.dumps(page.evaluate('window.__leafVerifier.visibleReplyDebug'))}",
             )
-            for field, reading, subject in (
-                ("visible_reply_s", "visibleReplyAt", answer["id"]),
-                ("work_visible_s", "workVisibleAt", answer["parent"]),
-            ):
-                at = page.evaluate(
-                    f"id => window.__leafVerifier.{reading}(id)", subject
-                )
-                if at is not None:
-                    seconds = (at - profile.visible_reply_started_ms) / 1000
-                    setattr(profile, field, seconds)
+            at = page.evaluate(
+                "id => window.__leafVerifier.visibleReplyAt(id)", answer["id"]
+            )
+            if at is not None:
+                profile.visible_reply_s = (at - profile.visible_reply_started_ms) / 1000
         return True
 
     def passed(self, name: str, started: float, *details: str) -> None:
@@ -967,13 +977,12 @@ def journey(
     print(f"kept in {samples}", file=sys.stderr)
 
 
-# What the user sees after a comment, in the order it appears, and where each sample
-# records it. Send and admission are within `acknowledged` of each other, tens of
-# milliseconds, so one axis carries both clocks.
+# Exact-input milestones on the page server's clock, from comment admission.
 SIGNS = (
     ("title", "sinceAdmissionMs", "titled", "var(--series-2)"),
-    ("shown working", "sinceSendMs", "workVisible", "var(--series-5)"),
-    ("first words", "sinceAdmissionMs", "progress", "var(--series-4)"),
+    ("picked up", "sinceAdmissionMs", "pickedUp", "var(--series-5)"),
+    ("work started", "sinceAdmissionMs", "started", "var(--series-1)"),
+    ("progress", "sinceAdmissionMs", "progress", "var(--series-4)"),
     ("reply", "sinceAdmissionMs", "replied", "var(--series-3)"),
 )
 TARGET_NAMES = {
@@ -1055,7 +1064,7 @@ def chart_markup(rows: list[dict]) -> str:
 
 @click.command("journey-chart")
 def journey_chart() -> None:
-    """Print an `lf-chart` of when the user saw each sign of the agent's work, for
+    """Print an `lf-chart` of recorded delivery and work milestones, for
     the latest code version each target ran in this machine's kept samples."""
     path = samples_path()
     if not path.exists():

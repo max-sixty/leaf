@@ -29,7 +29,6 @@ COMMANDS = {
     "refresh-previews": "example_previews",
     "site": "site",
     "stills": "stills",
-    "test-select": "test_select.command",
     "thread-snapshots": "thread_snapshots",
     "trace-server": "trace_server",
     "verify-site": "verify_site",

@@ -662,7 +662,7 @@ def test_a_comment_box_opens_where_a_panel_beside_the_page_leaves_it_in_sight(
     page.locator(".lf-threads-toggle").click()
     expect(panel).to_be_visible()
     page_at_rest(page)
-    edge = panel.locator(".lf-edge").first.bounding_box()
+    edge = page.locator(".lf-thread-panel > .lf-edge").bounding_box()
     middle = edge["y"] + edge["height"] / 2
     page.mouse.move(edge["x"] + edge["width"] / 2, middle)
     page.mouse.down()

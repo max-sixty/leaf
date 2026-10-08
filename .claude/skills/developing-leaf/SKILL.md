@@ -289,7 +289,9 @@ harness promises:
   titles each thread, the claim names the user's turn while it runs and the task's
   last turn by App Server's id after, and rich requests get clickable choices and a
   question awaiting the user. On `codex-queue` a comment sent during the user's turn
-  must also enter that turn and be answered before its final response. Run both
+  must also enter that turn and be answered before its final response, and one sent
+  while an interrupted turn resumes with empty input must enter the resumed turn.
+  Run both
   after a change to `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`,
   or the claim's turn in `service.py`. For a change to preview startup or lifetime,
   add `--preview`: setup starts the canonical user preview, every step checks the

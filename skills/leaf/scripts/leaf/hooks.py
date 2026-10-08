@@ -7,9 +7,10 @@ empty turn. SessionEnd retires the harness instance without reading pages;
 activity-backed desktop chats retain their generation across instance unloads.
 
 Codex's synchronous prompt hook records the provider turn even before the session
-claims a page. Once the session has claimed one (`state.hook_needed`), its tool
-hook can identify an unknown session turn once, offer a pointer between steps, and
-leave receipt to the agent's actual delivery read.
+claims a page. Its native transcript also records turns resumed without input,
+which run no prompt hook. Hooks reconcile that provider evidence before checking
+their turn identity, then offer a pointer between steps or before Stop and leave
+receipt to the agent's actual delivery read.
 An accepted TurnStart opens the same lifecycle as UserPromptSubmit without
 reading or receiving page input. Pi calls it after its SDK reserves the run;
 accepted message finalization or a live turn boundary confirms the receipt.
@@ -22,8 +23,8 @@ as the Interrupt from Pi's extension or Leaf's Claude Code hooks module does, an
 then leaves a turn opened or renewed since open.
 
 Hooks with no retained claim avoid page reading. Page-owning prompt and Stop hooks
-reach `hook_transport`; Codex's tool hook reaches the delivery records in `codex`;
-and a second Claude Code Stop hook watches between turns (`cmd_watch`). The
+reach `hook_transport`; Codex's tool and Stop hooks reach its delivery records
+in `codex`; a second Claude Code Stop hook watches between turns (`cmd_watch`). The
 application entry routes `leaf hook` here before loading the CLI.
 
 Resume and prompt hooks also inspect retained claims for disconnected pages
@@ -62,6 +63,10 @@ def cmd_hook(harness: str, payload: dict) -> None:
     if not sid:
         return
     expected = session_record(sid)
+    if harness == "codex" and expected is not None and event != "UserPromptSubmit":
+        from .codex_state import sync_transcript_turn
+
+        expected = sync_transcript_turn(sid, payload.get("transcript_path"))
     if event == "SessionStart":
         if payload.get("source") == "resume":
             from .harness import HOOK_HARNESSES
@@ -85,6 +90,10 @@ def cmd_hook(harness: str, payload: dict) -> None:
         expected = prompt_turn(sid, turn_id)
         if expected is None or event == "TurnStart":
             return
+        if harness == "codex":
+            from .codex_state import sync_transcript_turn
+
+            expected = sync_transcript_turn(sid, payload.get("transcript_path"))
     elif turn_id:
         # A first trusted step can identify an unknown session-scoped turn.
         # Once a prompt/provider named it, late callbacks cannot replace it.
@@ -110,21 +119,24 @@ def cmd_hook(harness: str, payload: dict) -> None:
             sid, turn_id, expected=expected, ended_at=payload.get("ended_at")
         )
         return
+    if harness == "codex" and event in {"PostToolUse", "Stop"} and turn_id:
+        # Both boundaries offer through Codex's one transport reservation.
+        # Empty-input resume can reach Stop without executing another tool.
+        if event == "PostToolUse":
+            mark_step_hook(sid)
+        if owned_pages(sid):
+            from .codex import offer_hook_delivery
+            from .harness import HOOK_HARNESSES
+
+            if prompt := offer_hook_delivery(sid, turn_id):
+                import json
+
+                print(json.dumps(HOOK_HARNESSES[harness].hook_context(event, prompt)))
+                return
+            # Offering renews the observed turn even on a quiet page. Carry the
+            # resulting revision into Stop's independent response-debt check.
+            expected = session_record(sid)
     if event == "PostToolUse":
-        # Only Codex registers this hook (`hooks/codex.json`). Its output can
-        # enter an active turn, but it cannot wake an idle one.
-        if not turn_id:
-            return
-        mark_step_hook(sid)
-        if not owned_pages(sid):
-            return
-        from .codex import offer_hook_delivery
-        from .harness import HOOK_HARNESSES
-
-        if prompt := offer_hook_delivery(sid, turn_id):
-            import json
-
-            print(json.dumps(HOOK_HARNESSES[harness].hook_context(event, prompt)))
         return
     # Retained claims may need reconnecting after active ownership expired.
     retained = event == "UserPromptSubmit" and any(

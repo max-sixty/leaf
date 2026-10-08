@@ -27,6 +27,9 @@ The steps, in order:
   names the user's turn while it runs; on `codex-queue` the comment must also enter
   that turn and be answered before its first final response, starting no turn of
   its own;
+- `resume`, on `codex-queue`: a turn interrupted during its shell command is resumed
+  with empty input, as the desktop app resumes one, and a comment sent while the
+  resumed turn runs enters it, starting no turn of its own;
 - `restart`: with the adapter killed, the user's next turn ends with the agent having
   started it again, and a comment sent afterwards is answered.
 
@@ -89,6 +92,11 @@ from leaf_dev.review_scenario import (
 )
 
 RESTART_TURN = "Reply with the single word OK."
+RESUME_TURN = (
+    f"Run `python3 -c 'import time; {SLEEP}'` in the shell, then in a separate tool "
+    "call run `printf 'verified\\n'`, then say done. If interrupted and resumed, "
+    "skip the remaining shell command and report the interruption."
+)
 # Where the queue wrapper finds the private App Server the task's `codex queue` reaches.
 ENDPOINT = "LEAF_JOURNEY_CODEX_ENDPOINT"
 
@@ -354,6 +362,55 @@ def steps(
             "the mid-turn comment started another turn instead of entering the active one",
         )
     step("mid-turn", started, details)
+
+    if transport == "queue":
+        started = time.monotonic()
+        interrupted = task.say(RESUME_TURN)
+        codex.await_command(SLEEP, "the turn to interrupt did not start its command")
+        task.request("turn/interrupt", {"threadId": task.thread, "turnId": interrupted})
+        codex.until(
+            lambda: interrupted not in task.running, "the interrupted turn did not end"
+        )
+        # Aborted command items need not emit item/completed. They cannot stand
+        # in for execution of the resumed turn's first command.
+        task.running_commands.clear()
+        previous_turns = len(task.started)
+        resumed = task.request(
+            "turn/start",
+            {
+                "threadId": task.thread,
+                "input": [],
+                "turnTrigger": "resume_interrupted_task",
+            },
+        )["turn"]["id"]
+        codex.until(
+            lambda: resumed in task.started, "the empty-input resume did not start"
+        )
+        require(resumed in task.running, "the empty-input resume already ended")
+        # Resume can continue tools or simply report the interruption. Send while
+        # that native turn is open, before its first delivery hook.
+        during = user.comment("resume")
+        codex.settle(
+            lambda: user.answered("resume"),
+            "the comment sent during resume was not answered",
+        )
+        sent.append("resume")
+        details = check_step()
+        require(
+            task.started[previous_turns:] == [resumed],
+            "the resumed-turn comment started another turn",
+        )
+        require(
+            any(
+                event["kind"] == "pickup"
+                and event["phase"] == "opened"
+                and event["turn"] == resumed
+                and during in event["events"]
+                for event in read_events(page)
+            ),
+            "the comment did not enter the empty-input resumed turn",
+        )
+        step("resume", started, details)
 
     started = time.monotonic()
     for process in adapter_processes(executable):

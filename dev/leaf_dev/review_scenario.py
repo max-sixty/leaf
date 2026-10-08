@@ -30,6 +30,7 @@ COMMENTS = {
     "restart": ("triage-lede", "Anything else I should check before we ship?"),
     "reconnect": ("triage-lede", "Is the same review still connected?"),
     "escape": ("triage-why", "Did the interrupted check change anything?"),
+    "resume": ("triage-why", "Did resuming the check change anything?"),
     "held-escape": (
         "triage-lede",
         "If the migration slips, which work can still ship?",

@@ -7844,7 +7844,7 @@ def test_clamped_leaf_lists_share_the_walk_position(browser, serve, live_leaf):
     page.keyboard.press("Shift+l")
     expect(page.locator("a.lf-others-row").first).to_be_focused()
     page.keyboard.press("ArrowDown")
-    expect(position).to_have_text("Leaf 2 of 2")
+    expect(position).to_have_text("Page 2 of 2")
     leaves_boxes = page.evaluate(
         """() => {
           const drawer = document.querySelector('.lf-others-panel').getBoundingClientRect();

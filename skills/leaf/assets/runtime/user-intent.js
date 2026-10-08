@@ -14,6 +14,7 @@
    which is `blur`. */
 import { focused } from "./keyboard/scopes.js";
 import { onStanding } from "./focus.js";
+import { onReadingInput } from "./reading-regions.js";
 
 let intent = 0;
 const leave = () => intent++;
@@ -36,6 +37,10 @@ addEventListener("keydown", () => (placeInput = "focus"), {
 });
 onStanding((node) => {
   if (node) placeInput = "focus";
+});
+// A repeated click can choose the focused destination without moving focus.
+onReadingInput((node) => {
+  placeInput = focused()?.contains(node) ? "focus" : "pointer";
 });
 export const recentPlaceInput = () => placeInput;
 

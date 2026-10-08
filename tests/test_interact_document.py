@@ -41,6 +41,7 @@ from interact_support import (
     decide,
     declare_data_input,
     fresh_process,
+    lock_contention,
     model_layer,
     publish,
     read_page_data,
@@ -96,6 +97,88 @@ def test_check_accepts_authored_module_scripts(page_dir):
     result = check(page_dir)
 
     assert result.exit_code == 0, result.output
+
+
+def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
+    page_dir, tmp_path, monkeypatch
+):
+    """HTTP activation cannot capture a partially installed replacement.
+
+    Hold a valid first module write while another reader reaches the actual page
+    transaction. A later missing dependency refuses stamp; the reader must see the
+    previous complete input set after rollback, with no intermediate revision.
+    """
+    authored = page_dir / "page"
+    authored.mkdir(exist_ok=True)
+    (authored / "a.js").write_text("export const a = 1;")
+    (authored / "b.js").write_text("export const b = 1;")
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "</head>",
+            '<script type="module" src="/page/a.js"></script>'
+            '<script type="module" src="/page/b.js"></script></head>',
+        )
+    )
+    publishing_model.cmd_stamp(page_dir, "Original")
+    previous = publishing_model.authored_files(page_dir / "index.html", authored)
+    expected = publishing_model.authored_digest(previous)
+    first = files_model.latest_revision(page_dir)
+    log = (page_dir / "events.jsonl").read_bytes()
+    candidate = tmp_path / "candidate"
+    (candidate / "page").mkdir(parents=True)
+    publishing_model.write_authored_files(candidate, previous, {})
+    (candidate / "page/a.js").write_text("export const a = 2;")
+    (candidate / "page/b.js").write_text("import './missing.js';")
+    reached = threading.Event()
+    release = threading.Event()
+    original_write = Path.write_bytes
+
+    def hold_first_write(path, data):
+        result = original_write(path, data)
+        if path == authored / "a.js" and data == b"export const a = 2;":
+            reached.set()
+            assert release.wait(timeout=STATED_TIMEOUT)
+        return result
+
+    monkeypatch.setattr(Path, "write_bytes", hold_first_write)
+    blocked = lock_contention(monkeypatch, page_dir / "events.jsonl")
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        replacing = executor.submit(
+            publishing_model.cmd_stamp,
+            page_dir,
+            "Candidate",
+            from_directory=candidate,
+            if_source=expected,
+        )
+        try:
+            assert reached.wait(timeout=STATED_TIMEOUT)
+            activating = executor.submit(revisioning_model.activate_source, page_dir)
+            assert blocked.wait(timeout=STATED_TIMEOUT), (
+                "source activation did not wait for the complete replacement"
+            )
+        finally:
+            release.set()
+        with pytest.raises(SystemExit, match="missing.js"):
+            replacing.result(timeout=STATED_TIMEOUT)
+        activated = activating.result(timeout=STATED_TIMEOUT)
+    assert activated.revision == first and not activated.created
+    assert (
+        publishing_model.authored_files(page_dir / "index.html", authored) == previous
+    )
+    assert (page_dir / "events.jsonl").read_bytes() == log
+
+    (candidate / "page/b.js").write_text("export const b = 2;")
+    publishing_model.cmd_stamp(
+        page_dir, "Complete", from_directory=candidate, if_source=expected
+    )
+    assert files_model.latest_revision(page_dir) > first
+    assert artifact_model.read_artifact(page_dir, first).resources[
+        "/page/a.js"
+    ].data == (b"export const a = 1;")
+    with pytest.raises(SystemExit, match="authored inputs changed"):
+        publishing_model.cmd_stamp(
+            page_dir, "Stale", from_directory=candidate, if_source=expected
+        )
 
 
 def test_a_revision_captures_the_complete_dependency_graph(page_dir):

@@ -171,7 +171,7 @@ def test_the_door_refuses_a_task_off_the_page_and_an_outcome_twice(page_dir):
     assert events_model.read_events(page_dir) == before
 
 
-def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir):
+def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir, sessionless):
     """An Ask is a task on the user, and so is an agent turn in a thread that asks in
     prose (`--awaits`), under that turn's id; answering the prose question ends it
     and hands the thread to the agent."""
@@ -210,6 +210,7 @@ def test_on_you_lists_open_asks_and_questions_left_in_prose(page_dir):
         for message in thread["msgs"]
         if message["id"] == question["id"]
     )
+    assert question.get("agent") is None
     assert asked["agent"] == named_question["agent"]
 
     warm = append_carried_log_record(

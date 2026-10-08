@@ -683,9 +683,7 @@ def record_claim(page, /, harness="claude-code", **fields):
     }
     record["generation"] = session["generation"]
     record["acquisition"] = fields.get("acquisition", secrets.token_hex(16))
-    path = service_model.claim_path(page)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    cleanup_model.write_json(path, record)
+    service_model.publish_claim(page, record)
     return service_model.page_claim(page)
 
 
@@ -1304,12 +1302,37 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     this sweep stopped every server standing there (tests/AGENTS.md, "A process
     the suite starts ends with the run")."""
     yield
+    retire_test_services(tmp_path, isolated_session)
+
+
+def retire_test_services(tmp_path, isolated_session):
+    """End the test's harnesses before removing their coordination files.
+
+    Detached adapters hold session leases outside any subprocess group. Their
+    lifecycle must end while its state directory still exists, so they can
+    retire normally rather than retry a deleted startup lock forever.
+    """
     while HELD_LEASES:
         leases_model.release_lease(HELD_LEASES.pop())
+    for path in (isolated_session / "sessions").glob(
+        f"*.{cleanup_model.SESSION_SUFFIX}"
+    ):
+        record = files_model.read_json(path)
+        if isinstance(record, dict) and isinstance(record.get("id"), str):
+            cleanup_model.end_session(record["id"])
     for root in (tmp_path, isolated_session):
         for lease in root.rglob("server.lock"):
             if server_model.running_server(lease.parent):
                 hosting_model.cmd_stop(lease.parent)
+    wait_for(
+        lambda: [
+            path.name
+            for path in (isolated_session / "sessions").glob("*.adapter")
+            if leases_model.lock_is_held(path)
+        ],
+        lambda held: not held,
+        failure="a detached adapter outlived its test's ended sessions",
+    )
 
 
 @contextmanager

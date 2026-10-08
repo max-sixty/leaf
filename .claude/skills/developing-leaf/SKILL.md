@@ -106,6 +106,10 @@ Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
 appear. A Playwright screenshot of an element taller than the viewport draws
 fixed overlays in the wrong place; crop a viewport capture instead.
 
+Close a browser session you created for a review when its final reading is
+finished. The user's review preview and a browser borrowed from another owner
+keep their own lifetimes.
+
 Before declaring a visible change complete, derive its required visual relationships
 from the reader's task, rather than treating the implementation's passing checks as
 the complete target. For each ordinary input, state which content and controls the

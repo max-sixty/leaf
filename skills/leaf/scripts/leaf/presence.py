@@ -9,6 +9,7 @@ from pathlib import Path
 
 from .activity import Turn, current_turn, declared_at
 from .event_log import read_cursor
+from .file_changes import FileChanges, existing_root, subscription_key
 from .files import (
     entry_stamps,
     file_stamp,
@@ -30,20 +31,48 @@ from .server import running_server
 from .service import (
     claim_is_active,
     claim_path,
-    claim_records,
     page_claim,
     read_status,
     unacknowledged,
 )
-from .state import now_iso, page_key
+from .state import now_iso
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
 # a changed page file invalidates it immediately.
 PRESENCE_CACHE_S = 2.0
-# (state-home stamp, resolved candidate pages): the machine's, so one slot.
+# (row-directory stamp, producer publications): the machine's, so one slot.
 _candidates = ((), ())
 _candidates_lock = threading.Lock()
+_row_files = {}
+_row_subscription = None
+_row_home = None
+_row_roots = None
+
+
+class _Neighbors:
+    """One page's other-row observation; its own publication cannot invalidate it."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.token = None
+
+
+def _neighbor_reading(page_dir: Path) -> list:
+    """Local page writes do not invalidate a machine's neighbor observation.
+
+    Producer writes invalidate it immediately; kernel lease changes have the same
+    bounded two-second observation interval as the page's other live facts.
+    """
+    candidates = neighbor_candidates()
+    own = page_dir.resolve()
+    stamp = tuple((path, record) for path, record in candidates if path != own)
+    now = time.monotonic()
+    kept = memo(page_dir, _Neighbors)
+    with kept.lock:
+        if kept.token is None or kept.token[0] != stamp or now >= kept.token[1]:
+            kept.token = (stamp, now + PRESENCE_CACHE_S, other_leaves(page_dir))
+        return kept.token[2]
 
 
 class _Presence:
@@ -79,33 +108,62 @@ def _page_stamp(page_dir: Path, claim: dict | None = None) -> tuple:
 
 
 def neighbor_candidates() -> tuple:
-    """Every page on this machine that could be serving: the conventional pages/
-    home and every claim record, which is what finds a page served from a
-    session's scratch directory. Released and dead claims stay useful here as
-    provenance.
+    """Serving publishers discover themselves through their disposable rows.
 
-    The set moves when an entry in one of those two directories does, or when a
-    page it holds is deleted, which for a claimed scratch page moves neither. So
-    it is read again only then: keyed on the two stamps, the way `leaf wait` keys
-    its ownership set on the claims directory's, and on each held page still
-    being there, so the read drops a deleted page from the candidates after its
-    deletion. Whether each page is serving is the caller's question, asked fresh
-    every time."""
-    global _candidates
+    Claims and directories holding idle pages are not a directory of servers.
+    Every server already publishes a row, including pages outside pages/, so its
+    publication is the one discovery surface. Atomic replacements move rows/'s
+    stamp; readers hold the parsed envelopes until a producer changes them.
+    Server leases are still checked on every observation, independent of files.
+    """
+    global _candidates, _row_home, _row_subscription, _row_files, _row_roots
     home = state_home()
-    claims, pages = home / "claims", home / "pages"
-    stamp = (home, file_stamp(claims), file_stamp(pages))
+    rows = home / "rows"
+    stamp = (home, file_stamp(rows))
     with _candidates_lock:
-        if _candidates[0] == stamp and all(page.is_dir() for page in _candidates[1]):
+        roots = {existing_root(rows.parent): False, existing_root(rows): False}
+        root_key = subscription_key(roots)
+        if _row_home != rows or _row_roots != root_key:
+            if _row_subscription is not None:
+                _row_subscription.close()
+            _row_subscription = FileChanges(
+                roots,
+                lambda changed: (
+                    changed == rows
+                    or (changed.parent == rows and changed.suffix == ".json")
+                ),
+                collect=True,
+            )
+            if _row_home != rows:
+                _row_files = {}
+            _row_home, _row_roots = rows, root_key
+        changes = {Path(path) for path in _row_subscription.batch(0)}
+        if _candidates[0] == stamp and not changes:
             return _candidates[1]
-        found = [d for d in pages.iterdir() if d.is_dir()] if pages.is_dir() else []
-        found += (Path(claim["page"]) for claim in claim_records())
-        resolved = dict.fromkeys(
-            page for page in (path.resolve() for path in found) if page.is_dir()
-        )
-        # Keyed on the stamp taken before the read, so an entry written during it
-        # moves the stamp and the next call reads again.
-        _candidates = (stamp, tuple(resolved))
+        # Atomic producer publications move the directory stamp. Native batches
+        # normally identify the changed files; a read ahead of notification
+        # delivery still observes the directory's authoritative changed listing.
+        if _candidates[0] != stamp or rows in changes:
+            current = set(rows.glob("*.json")) if rows.is_dir() else set()
+            for path in _row_files.keys() - current:
+                del _row_files[path]
+            changes |= current
+        for path in changes:
+            if path.parent != rows or path.suffix != ".json":
+                continue
+            key = file_stamp(path)
+            if key is None:
+                _row_files.pop(path, None)
+            elif path not in _row_files or _row_files[path][0] != key:
+                try:
+                    _row_files[path] = (key, read_json(path))
+                except (OSError, ValueError):
+                    _row_files[path] = (key, None)
+        found = []
+        for _key, record in _row_files.values():
+            if isinstance(record, dict) and isinstance(record.get("page"), str):
+                found.append((Path(record["page"]), record))
+        _candidates = (stamp, tuple(found))
         return _candidates[1]
 
 
@@ -125,7 +183,7 @@ def other_leaves(page_dir: Path) -> list:
 
     others = []
     own = page_dir.resolve()
-    for candidate in neighbor_candidates():
+    for candidate, record in neighbor_candidates():
         if candidate == own:
             continue
         # A neighbour's fault stays its own. This is the one read of state some
@@ -136,10 +194,14 @@ def other_leaves(page_dir: Path) -> list:
             info = running_server(candidate)
             if info is None:
                 continue
-            row = read_row(candidate, info)
+            row = read_row(candidate, info, record=record)
             if row is not None:
                 others.append(
-                    {**row, "page_key": page_key(candidate), "url": info["url"]}
+                    {
+                        **row,
+                        "page_key": record["page_key"],
+                        "url": info["url"],
+                    }
                 )
         except Exception:  # noqa: BLE001, S112 - whatever shape its fault takes
             continue
@@ -280,7 +342,8 @@ def presence_reading(page_dir: Path) -> str:
     reading once the bounded cache interval has elapsed.
     """
     claim = page_claim(page_dir)
-    stamp = _page_stamp(page_dir, claim)
+    neighbors = _neighbor_reading(page_dir)
+    stamp = (_page_stamp(page_dir, claim), neighbors)
     now = time.monotonic()
     kept = memo(page_dir, _Presence)
     with kept.lock:
@@ -291,8 +354,6 @@ def presence_reading(page_dir: Path) -> str:
         # Keep the lock while observing the neighbours. Concurrent freshness reads
         # then share one complete reading instead of racing into one each; the
         # lock and pid checks remain part of this fresh observation.
-        reading = presence_fingerprint(
-            live_facts(page_dir, claim), other_leaves(page_dir)
-        )
+        reading = presence_fingerprint(live_facts(page_dir, claim), neighbors)
         kept.token = (stamp, now + PRESENCE_CACHE_S, reading)
         return reading

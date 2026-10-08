@@ -137,8 +137,15 @@ other page files and the external state listed below.
   listener cannot advertise a prior incarnation. `hosting.py` waits for release
   on stop, after sockets close. The stable file remains after release.
 
-- `<state-home>/claims/` — one atomic claim per resolved page, independent of its page
-  directory. Scans ignore claims for missing pages; fresh page initialization clears
+- `<state-home>/claims/<page-key>.json` — the page's one atomic canonical claim
+  payload. `<state-home>/claims/<session-key>/<page-key>.json` is a symlink
+  locating that payload for the owning session's discovery. The payload commits
+  before its session locator; discovery admits a locator only when the payload
+  names that partition's session, so a stale locator cannot reclaim a transferred page.
+  Named discovery reads only that session's partition; global observation reads
+  the canonical payloads directly. Atomic updates by existing
+  page-server writers retain the payload's path and leave discovery intact.
+  Scans ignore claims for missing pages; fresh page initialization clears
   the prior claim under the page lock. [session-lifetime.md](session-lifetime.md) owns
   claimant identity, release, harness, and lifetime.
 

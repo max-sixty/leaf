@@ -146,6 +146,8 @@
             >
               <pre>
 sequenceDiagram
+  accTitle: Agent, Leaf server and browser exchange
+  accDescr: The agent sends authored files and commands to Leaf. Leaf sends the page and state to the browser, receives comments and decisions, and delivers the event batch back to the agent through its harness.
   participant Agent as agent session
   participant Leaf as leaf server
   participant Browser as your browser
@@ -1180,6 +1182,8 @@ python -m leaf server _serve &lt;page&gt; --handshake &lt;fd&gt;</code></pre>
             >
               <pre>
 flowchart TD
+  accTitle: Checks before an agent turn ends
+  accDescr: New input is handed into the turn. Otherwise Leaf checks whether it already extended the turn, whether a delivered move remains unanswered, and whether a watcher runs or the page is closed; it either lets the turn end or reminds the agent to continue.
   Stop(["the agent ends its turn"]) --&gt; New(["a move that needs an answer arrived?"])
   New -- yes --&gt; Hand["Leaf hands it into this turn"]
   New -- no --&gt; Again(["Leaf kept this turn going already?"])
@@ -1284,6 +1288,8 @@ flowchart TD
             >
               <pre>
 flowchart LR
+  accTitle: Agent commands and visible outcomes
+  accDescr: Replies appear in threads, tasks in the Queue panel, stamped versions on the page, reports on their widgets, and status in the banner and nearby labels.
   subgraph Sources["Who writes it"]
     Reply["agent: leaf thread reply · leaf thread open"]
     Awaits["agent: leaf thread reply --awaits · leaf task open --on user"]
@@ -1477,6 +1483,8 @@ flowchart LR
             >
               <pre>
 flowchart TD
+  accTitle: How Leaf describes agent activity
+  accDescr: Idle closes the page and a stopped session has no owner. An active session is classified by current work, input acceptance, stale starts and stalled input into working, waiting, stalled, nudge or away states.
   Idle(["status idle?"]) -- no --&gt; Alive(["session running?"])
   Idle -- yes --&gt; Closed["Leaf closed"]
   Alive -- no --&gt; Unheld["No session"]
@@ -3568,6 +3576,8 @@ flowchart TD
             >
               <pre>
 flowchart TD
+  accTitle: Page files, event log and external data produce current state
+  accDescr: Authored edits create immutable revisions, browser and command actions append to the event log, and external processes replace source files. Their combined reading supplies the browser and agent; view state and drafts remain local to the browser.
   subgraph Writers["Who writes"]
     Agent["agent edits index.html"]
     You["you, in the browser"]

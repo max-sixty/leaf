@@ -93,6 +93,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    opened_tab,
     pane_posture,
     panel_settled,
     plant_quiet_word,
@@ -2351,16 +2352,35 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
     expect(log).to_contain_text("14:24:49 observer  checkout remains healthy")
 
 
-def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser, serve):
+def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(
+    browser, serve, one_user
+):
     """The specialized report's signature path reaches reviewable source evidence."""
     example = Path(__file__).parent.parent / "examples" / "pr-walkthrough.html"
-    page = open_page(browser, live_url(serve(example)))
+    page = open_page(browser, live_url(serve(example)), context=one_user)
 
     page.get_by_role("tab", name="CallDiff").click()
     call_diff = page.locator("#pr-call-diagram")
     expect(call_diff.locator(".lf-call-line")).to_have_count(30)
     location = call_diff.get_by_role("link", name="src/summary.rs:259").first
     expect(location).to_be_visible()
+    # Source links keep the platform's separate-tab route for root and child calls.
+    # The original tab must keep its semantic view until an ordinary activation.
+    before = page.url
+    destination = before.split("#")[0] + "#pr-exact-patch"
+    for link in [call_diff.locator(".lf-call-root-location a").first, location]:
+        tab = opened_tab(
+            page, destination, lambda link=link: link.click(modifiers=["ControlOrMeta"])
+        )
+        expect(tab.locator("#pr-exact-patch")).to_be_visible()
+        tab.close()
+        expect(page).to_have_url(before)
+        expect(page.get_by_role("tab", name="CallDiff")).to_have_attribute(
+            "aria-selected", "true"
+        )
+    tab = opened_tab(page, destination, lambda: location.click(button="middle"))
+    expect(tab.locator("#pr-exact-patch")).to_be_visible()
+    tab.close()
     location.click()
 
     line = page.locator(
@@ -2388,6 +2408,61 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser,
         if event["kind"] == "comment" and event.get("text")
     ]
     assert comments[-1]["anchor"]["datum"] == '["src/summary.rs","new",259]'
+
+
+def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
+    """Readable part details survive a tap, including a move across commit branches."""
+    example = Path(__file__).parent.parent / "examples" / "wt-merge.html"
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(browser, serve(example), context=context)
+    film = page.locator("lf-merge-film")
+    inspector = film.locator(".film-inspect")
+    commits = film.locator('g[data-label^="commit "]')
+    first, last = commits.first, commits.last
+    labels = [first.get_attribute("data-label"), last.get_attribute("data-label")]
+    assert labels[0] != labels[1]
+    for part, label in zip([first, last], labels, strict=True):
+        part.locator("circle").tap()
+        expect(inspector).to_be_visible()
+        expect(inspector.locator("strong")).to_have_text(label)
+        expect(inspector.locator("span")).to_have_text(part.get_attribute("data-info"))
+        expect(film.locator(".film-play")).to_have_text("Play")
+    film.locator("svg").tap(position={"x": 3, "y": 3})
+    expect(inspector).to_be_hidden()
+    inspect_next = film.get_by_role("button", name="Inspect next element")
+    inspect_next.tap()
+    expect(inspector).to_be_visible()
+    expect(inspector.locator("strong")).to_have_text(labels[0])
+    assert inspect_next.bounding_box()["height"] >= 44
+    play = film.locator(".film-play")
+    play.focus()
+    play.press("i")
+    expect(inspector).to_be_visible()
+    play.press("Escape")
+    expect(inspector).to_be_hidden()
+    play.press("i")
+    expect(inspector).to_be_visible()
+    scrub = film.get_by_role("slider", name="Film position")
+    scrub.focus()
+    scrub.press("End")
+    expect(inspector).to_be_hidden()
+    assert float(scrub.input_value()) == pytest.approx(
+        float(scrub.get_attribute("max"))
+    )
+    scrub.press("Home")
+    expect(scrub).to_have_value("0")
+    play.focus()
+    play.press("ArrowRight")
+    play.press("i")
+    expect(inspector).to_be_visible()
+    play.press("ArrowRight")
+    expect(inspector).to_be_hidden()
+    play.press("i")
+    expect(inspector).to_be_visible()
+    film.get_by_label("--no-squash", exact=True).check()
+    expect(inspector).to_be_hidden()
 
 
 @pytest.mark.parametrize("destination", ["call", "patch"])
@@ -11910,6 +11985,62 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
             page.wait_for_timeout(25)
         assert len(reported) == 1 and reported[0].startswith(report), reported
         assert said[chart_id] in reported[0], reported
+
+
+def test_a_tree_draws_its_wrapped_hierarchy_before_runtime_upgrade(browser, serve):
+    """First paint uses the real nested rows, so long paths and badges cannot move
+    the paragraph the reader has already reached when the runtime starts."""
+    source = leaf_page(
+        "File tree",
+        '<h1>File changes</h1><lf-tree id="paths"><pre>root/\n'
+        "  very_long_file_name_with_many_identifiers_and_no_break_opportunities_in_a_long_path.py +245 -93\n"
+        "  nested/\n    deeper/\n"
+        "      one_more_long_descriptive_file_name_with_no_whitespace_breaks.toml +3\n"
+        '</pre></lf-tree><p id="after-tree">Review the file changes.</p>',
+    )
+    measure = """() => Object.fromEntries(['paths', 'after-tree'].map(id => {
+      const r = document.getElementById(id).getBoundingClientRect();
+      return [id, {x:r.x, y:r.y, width:r.width, height:r.height}];
+    }))"""
+    for width in (320, 420, 1200):
+        context = browser.new_context(viewport={"width": width, "height": 900})
+        page = context.new_page()
+        boot = []
+        page.route("**/leaf.js", lambda route, _request, boot=boot: boot.append(route))
+        try:
+            with page.expect_request("**/leaf.js"):
+                page.goto(serve(source), wait_until="commit")
+            displayed(page)
+            first = page.evaluate(measure)
+            expect(page.locator("#paths li")).to_have_count(5)
+            page.evaluate(
+                "window.__firstTreeName = document.querySelector('#paths li > span')"
+            )
+            assert boot, "the runtime was not held"
+            boot.pop().continue_()
+            wait_until_ready(page)
+            assert page.evaluate(measure) == first, (width, first)
+            assert page.evaluate(
+                "window.__firstTreeName === document.querySelector('#paths li > span')"
+            ), "upgrade must retain the selectable drawing"
+            assert (
+                page.evaluate("""() => document.documentElement.lfInitial
+              .reading(document.getElementById('paths')).querySelector('pre').textContent""")
+                == (
+                    "root/\n"
+                    "  very_long_file_name_with_many_identifiers_and_no_break_opportunities_in_a_long_path.py +245 -93\n"
+                    "  nested/\n    deeper/\n"
+                    "      one_more_long_descriptive_file_name_with_no_whitespace_breaks.toml +3\n"
+                )
+            )
+            expect(page.locator("#paths .lf-tree-badge")).to_have_text(
+                ["+245", "-93", "+3"]
+            )
+            assert root_overflow(page) == 0
+        finally:
+            for route in boot:
+                route.continue_()
+            page.unroute_all(behavior="wait")
 
 
 def test_a_chart_body_is_plot_code_that_reads_the_width_it_is_drawn_at(browser, serve):

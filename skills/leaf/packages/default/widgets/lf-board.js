@@ -494,8 +494,8 @@ customElements.define(
         kind: "action",
         verb: "move",
         detail: {
-          card: card.id,
-          to: to.id,
+          unit: card.id,
+          value: to.id,
           rank: rankAt(
             this.#controller.read().state.move,
             to.id,

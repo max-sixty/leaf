@@ -1,11 +1,13 @@
 /* Comment on the page: the one place a page thread is started.
 
    The banner's Comment on the page control hangs the page comment card from its own
-   foot, its top edge on the banner's and its right edge on the control's. The control,
-   `c` with nothing to comment on, and Resume writing all open it, and it holds the
-   page's one general box, with its draft (`general`). Threads has no box of its own: it
-   is where a thread lives once started, not where one starts, and the card hangs over it
-   when it is open. In Design mode the box comments on the design.
+   foot, its top edge on the banner's and its right edge on the control's where that fits
+   the window, moving only far enough to remain inside the window otherwise. The editor
+   takes the room beneath the banner, and the card scrolls if its minimum controls
+   exhaust it. The control, `c` with nothing to comment on, and Resume writing all open
+   it, and it holds the page's one general box, with its draft (`general`). Threads has
+   no box of its own: it is where a thread lives once started, not where one starts, and
+   the card hangs over it when it is open. In Design mode the box comments on the design.
 
    The card is for starting a thread and nothing after. A send puts it away and flashes
    Threads, where the new thread now lives, without opening the panel; the Threads count
@@ -26,10 +28,11 @@ import { el } from "../widget-elements.js";
 import { iconElement } from "../icons.js";
 import { textField } from "../composing/text-field.js";
 import { loadDraft, mirrorDraft, saveDraft, sendMessage } from "../drafts.js";
-import { FLASH_MS, motion } from "../motion.js";
+import { FLASH_MS, backgroundFlash } from "../motion.js";
 import { keys } from "../keyboard/scopes.js";
 import { commandShortcut } from "../keyboard/control-keys.js";
 import { keeps } from "../keeps.js";
+import { registerReadingRegion } from "../reading-regions.js";
 import {
   BANNER_CONTROL_RANK,
   bannerControlDoor,
@@ -118,9 +121,12 @@ export function createPageComment({
   }
 
   let sync = () => {};
-  let stopMirror = () => {};
+  const stops = [];
   function mount(chromeRoot) {
     chromeRoot.append(card);
+    stops.push(
+      registerReadingRegion({ id: "lf-region:page-comment", host: card, body: card }),
+    );
     // `c` reaches this control's press from wherever nothing else is commented on,
     // which is everywhere the control can be pressed, so its name carries the key.
     // Not a `control` on the `c` row: that row answers for every destination, and a
@@ -145,11 +151,7 @@ export function createPageComment({
         // Open, Threads shows the thread where it lands, as it does an anchored comment's
         // (composing/selection.js); the user stays where the card left them.
         if (panelIsOpen()) void showThread(handle.id, { focus: false, flash: false });
-        motion(
-          threadsToggle,
-          [{ backgroundColor: "var(--hi-tint)" }, { backgroundColor: "transparent" }],
-          FLASH_MS,
-        );
+        backgroundFlash(threadsToggle, FLASH_MS);
         // A refusal can come long after the send, while delivery retries. The card opens
         // again on the words only where the user still stands where the send left them;
         // anywhere else it would take their keys, and the words wait in the draft for
@@ -161,9 +163,11 @@ export function createPageComment({
       },
     });
     sync();
-    stopMirror = mirrorDraft(input, sync, "general", {
-      resume: () => ({ where: input, input: () => input, open }),
-    });
+    stops.push(
+      mirrorDraft(input, sync, "general", {
+        resume: () => ({ where: input, input: () => input, open }),
+      }),
+    );
   }
 
   return {
@@ -175,6 +179,8 @@ export function createPageComment({
     // The box restates its hint and Send state when Design mode changes.
     sync: () => sync(),
     mount,
-    dispose: () => stopMirror(),
+    dispose: () => {
+      for (const stop of stops) stop();
+    },
   };
 }

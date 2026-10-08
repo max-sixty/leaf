@@ -6,6 +6,13 @@
  * without writing them. This module owns its source roots, outputs, and manifest;
  * Leaf installation, vendoring, activation, and export never invoke this tool.
  *
+ * Outputs are readable, unminified ESM with no source map, so two branches that
+ * change different parts of the framework merge the committed output as cleanly as
+ * they merge its source, and the check confirms the merged bytes equal a rebuild.
+ * The manifest records lineage, not output hashes, for the same reason. Delivery
+ * minifies these modules (`build/runtime-bundle.mjs`), so readable output costs
+ * installations and the website nothing.
+ *
  * The page's one copy of Lit is built here, as `vendor/lit.js`: every public Lit
  * module in one namespace, shaped like Lit's own `lit-all` bundle, where the
  * static-html tags are renamed `staticHtml`, `staticSvg`, and `staticMathml` so
@@ -23,6 +30,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { initialOutputs } from "../initial.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -32,6 +40,11 @@ const entry = "build/browser/index.ts";
 const modulePath = `${outputRoot}/browser-runtime.js`;
 const litPath = `${outputRoot}/lit.js`;
 const manifestPath = `${diagnosticsRoot}/browser-runtime.manifest.json`;
+const entryPoints = { "browser-runtime": entry, lit: "leaf:lit" };
+/** Layer paths of the modules this build writes, which delivery minifies. */
+export const frameworkModules = Object.keys(entryPoints).map(
+  (name) => `vendor/${name}.js`,
+);
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const relative = (file) => path.relative(root, file).split(path.sep).join("/");
 
@@ -106,7 +119,6 @@ export async function buildOutputs() {
   const lit = JSON.parse(
     await readFile(path.join(root, "node_modules/lit/package.json"), "utf8"),
   );
-  const entryPoints = { "browser-runtime": entry, lit: "leaf:lit" };
   const result = await build({
     absWorkingDir: root,
     entryPoints,
@@ -117,9 +129,6 @@ export async function buildOutputs() {
     format: "esm",
     target: "es2022",
     bundle: true,
-    minify: true,
-    sourcemap: "external",
-    sourcesContent: true,
     legalComments: "eof",
     metafile: true,
     write: false,
@@ -129,7 +138,7 @@ export async function buildOutputs() {
   const built = new Map(
     result.outputFiles.map((file) => [relative(file.path), Buffer.from(file.contents)]),
   );
-  const modules = new Set([...built.keys()].filter((name) => name.endsWith(".js")));
+  const modules = new Set(built.keys());
   const outputs = new Map();
   for (const name of [...modules].sort()) {
     const edges = result.metafile.outputs[name].imports.map((edge) =>
@@ -139,19 +148,6 @@ export async function buildOutputs() {
       throw new Error(`${name} has unbundled imports`);
     checkModule(built.get(name).toString(), name);
     outputs.set(name, built.get(name));
-    // Each output's map sits at its own path under the diagnostics root.
-    const mapPath = `${diagnosticsRoot}/${path.posix.relative(outputRoot, name)}.map`;
-    const sourceMap = JSON.parse(built.get(`${name}.map`));
-    sourceMap.sources = sourceMap.sources.map((source) =>
-      path
-        .relative(
-          path.join(root, path.dirname(mapPath)),
-          path.resolve(root, path.dirname(name), source),
-        )
-        .split(path.sep)
-        .join("/"),
-    );
-    outputs.set(mapPath, Buffer.from(JSON.stringify(sourceMap)));
   }
 
   const packageRoots = bundledPackages(result.metafile, root);
@@ -170,7 +166,7 @@ export async function buildOutputs() {
     Buffer.from(licenseNotices("browser-runtime", packageRoots)),
   );
   const manifest = {
-    format: "leaf-browser-build-v1",
+    format: "leaf-browser-build-v2",
     sourceRoots: ["build/browser"],
     sourceInputs: Object.keys(result.metafile.inputs)
       .filter(
@@ -201,14 +197,10 @@ export async function buildOutputs() {
     litExports: result.metafile.outputs[litPath].exports,
     pageModules:
       "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
-    outputs: Object.fromEntries(
-      [...outputs].map(([name, bytes]) => [
-        name,
-        { bytes: bytes.length, sha256: digest(bytes) },
-      ]),
-    ),
+    outputs: [...outputs.keys()].sort(),
   };
   outputs.set(manifestPath, Buffer.from(JSON.stringify(manifest, null, 2) + "\n"));
+  for (const [name, bytes] of await initialOutputs()) outputs.set(name, bytes);
   return outputs;
 }
 

@@ -166,6 +166,11 @@ kind of task goes in `/developing-leaf`.
 
 ### The install runs this tree
 
+Consumer installers follow the CI-built `prepared` Git branch. The browser kernel
+is compiled there; development branches keep its source modules. Installation,
+page authoring, custom packages, and export require no browser build or npm command.
+`dev/leaf_dev/distribution.py` owns preparation and publication.
+
 An install is the tracked tree copied into a harness's plugin cache, and nothing is
 built at install time: `bin/leaf` is `uv run --no-dev` on the tree, so the
 install must be writable, and Leaf writes nothing else there. Point Codex
@@ -264,8 +269,8 @@ the same underlying response obligations.
 
 The page directory is the durable record and deployment unit: mutable `index.html`,
 immutable revisions, an append-only event log, and one replaceable JSON file per
-external-data source under `data/`, whose source ids keep the contract `data.json`
-records for the page's lifetime. `skills/leaf/scripts/leaf/page-storage.md`
+external-data source under `data/`. `data.json` records each source's current
+contract; a later document may replace that binding. `skills/leaf/scripts/leaf/page-storage.md`
 defines the complete layout.
 
 ### Validate once and share readings

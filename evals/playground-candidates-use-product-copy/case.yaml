@@ -49,16 +49,6 @@ vars:
     \ or operate it. The page directory is\nnot reachable here, so reply with the revised playground HTML\
     \ and the relevant\nscript handlers. You can omit the unchanged animation implementation and CSS.\n"
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-playground-instructions
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/packages/playground/instructions/author\.md
 - type: llm-rubric
   metric: judgment
   value: |

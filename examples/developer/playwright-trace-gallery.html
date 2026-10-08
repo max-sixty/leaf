@@ -14,21 +14,44 @@
         <p>
           This ordinary website has two buttons named Review. Playwright recorded each
           click; Leaf's comments identify the captured action, image or saved element.
+          Play the captured sequence, or drag the blue handle to scrub and pause on a
+          detail.
         </p>
       </header>
       <section id="trace-review">
-        <lf-trace
-          id="release-trace"
-          source="release-journey"
-          data-height="720"
-        ></lf-trace>
+        <lf-trace id="release-trace" source="release-journey">
+          <lf-trace-bookmark
+            label="Documentation reviewed"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-4e380b5061c4982e-after"
+          ></lf-trace-bookmark>
+          <lf-trace-bookmark
+            label="API reviewed"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-0684e283ed722175-after"
+          ></lf-trace-bookmark>
+          <lf-trace-bookmark
+            label="Last filmstrip image"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-image-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-73"
+          ></lf-trace-bookmark>
+        </lf-trace>
       </section>
       <details id="trace-scenarios">
         <summary>Review scenarios</summary>
         <ul>
           <li>
-            Step through a click’s Before, Action and After checkpoints on one timeline.
-            Each image and saved tree shows its own capture time.
+            Select Page 1 or API calls above the timeline to switch recorded sources.
+            Tab reaches the selected source; arrow keys there change the source. Return
+            to the timeline controls to step through its checkpoints.
+          </li>
+          <li>
+            Select Documentation reviewed or API reviewed on the timeline. Hover or
+            focus each number to read its name and time; close moments stay separate.
+            Zoom in to spread their times and Whole recording to restore the overview.
+          </li>
+          <li>
+            Use Fit image, Actual size, or image zoom to inspect captured pixels. Drag
+            the image to pan, or focus it and use arrow keys. Step through a click’s
+            Before, Action and After checkpoints on one timeline. Each image and saved
+            tree shows its own capture time.
           </li>
           <li>
             Enable Show intermediate frames to include the browser’s filmstrip on that

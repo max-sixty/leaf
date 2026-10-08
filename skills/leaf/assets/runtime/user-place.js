@@ -30,9 +30,12 @@
    A mutation that spans tasks takes its hold with `take` and ends it with `finish`, which
    corrects once, then follows frame by frame while `following()` says the mutation is
    still running. Such a hold is the sole anchoring authority for its mutation:
-   `overflow-anchor: none` stands on the scroller for the hold's life and leaves on
-   release, so the browser and the hold never compensate the same reflow, and a user's
-   scroll between frames stays theirs. A hold taken while another stands on the same
+   `overflow-anchor: none` stands on the scroller for the hold's life and leaves at the
+   rendering pass after its release, so the browser and the hold never compensate the
+   same reflow, and a user's scroll between frames stays theirs. It leaves at that pass
+   rather than at the release because renders run back to back: one finishing and the
+   next taking its hold in the same script would take the property away and put it back,
+   a write that changes nothing. A hold taken while another stands on the same
    scroller inherits its reference, because a mutation in flight (a fold) has already
    moved whatever the pointer would now name.
 
@@ -43,7 +46,7 @@
    and the scroller's style is never written and taken back in the one task. So `mutate`
    moves no scroller itself: a `focus()` without `preventScroll` or a `scrollIntoView`
    inside it would be read as reflow and undone. */
-import { nextFrame } from "./rendering.js";
+import { cancelRender, nextFrame, nextRender } from "./rendering.js";
 import { headerInset, visibleBand } from "./geometry.js";
 import { focused } from "./keyboard/scopes.js";
 import { pointerAt } from "./pointer.js";
@@ -111,11 +114,20 @@ export function placeKeeper(scroller, { items, identity, active = () => true }) 
     return replacement ?? null;
   };
 
-  // Native anchoring is off exactly while a hold that spans tasks stands. A same-value
-  // property set and the removal of an absent one write nothing.
+  // Native anchoring is off while a hold that spans tasks stands, and comes back at the
+  // next rendering pass with none standing, before that frame lays anything out. A
+  // same-value property set writes nothing.
+  let returning = 0;
   function claim() {
-    if (standing?.spans) scroller.style.setProperty("overflow-anchor", "none");
-    else scroller.style.removeProperty("overflow-anchor");
+    if (standing?.spans) {
+      cancelRender(returning);
+      returning = 0;
+      scroller.style.setProperty("overflow-anchor", "none");
+    } else if (!returning && scroller.style.getPropertyValue("overflow-anchor"))
+      returning = nextRender(() => {
+        returning = 0;
+        if (!standing?.spans) scroller.style.removeProperty("overflow-anchor");
+      });
   }
 
   function release(hold) {

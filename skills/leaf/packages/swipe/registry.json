@@ -12,9 +12,7 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
     "x-required-members": {
       "lf-swipe-pile": {
@@ -25,32 +23,10 @@
     "x-upgrade": true,
     "x-state": {
       "swipe": {
-        "detail": {
-          "type": "object",
-          "properties": {
-            "card": {
-              "type": "string"
-            },
-            "to": {
-              "type": "string"
-            },
-            "rank": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "card",
-            "to",
-            "rank"
-          ],
-          "additionalProperties": false
-        },
-        "unit": "card",
+        "unit": "unit",
         "record": {
           "kind": "position",
-          "within": "lf-swipe-pile",
-          "value": "to",
-          "rank": "rank"
+          "within": "lf-swipe-pile"
         }
       }
     },
@@ -60,9 +36,7 @@
           "empty": {
             "within": "lf-swipe-pile",
             "when": {
-              "verdict": [
-                "unseen"
-              ]
+              "verdict": ["unseen"]
             }
           }
         }
@@ -81,21 +55,12 @@
       },
       "verdict": {
         "type": "string",
-        "enum": [
-          "unseen",
-          "pass",
-          "keep"
-        ]
+        "enum": ["unseen", "pass", "keep"]
       }
     },
-    "required": [
-      "id",
-      "verdict"
-    ],
+    "required": ["id", "verdict"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-swipe-deck"
-    ],
+    "x-owners": ["lf-swipe-deck"],
     "x-content": "members",
     "x-upgrade": false
   },
@@ -112,13 +77,9 @@
         "type": "boolean"
       }
     },
-    "required": [
-      "id"
-    ],
+    "required": ["id"],
     "additionalProperties": false,
-    "x-owners": [
-      "lf-swipe-pile"
-    ],
+    "x-owners": ["lf-swipe-pile"],
     "x-content": "markup",
     "x-upgrade": false
   }

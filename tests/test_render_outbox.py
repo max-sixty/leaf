@@ -270,7 +270,7 @@ def test_z_puts_a_card_back_where_the_version_had_it(browser, serve):
     log = events_model.read_events(serve.page_dir)
     (moved,) = actions(serve.page_dir)
     rank = moved["detail"].pop("rank")
-    assert moved["detail"] == {"card": "card-baffle", "to": "col-done"}
+    assert moved["detail"] == {"unit": "card-baffle", "value": "col-done"}
     assert projection_model.RANK.fullmatch(rank)
     assert [(e["kind"], e.get("undoes")) for e in log if e["kind"] == "undo"] == [
         ("undo", moved["id"])
@@ -410,20 +410,20 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
           const attempt = 'one-attempt-two-actions';
           const first = controller.dispatch({
             kind: 'action', verb: 'move', attempt,
-            detail: {card: 'card-heater', to: 'col-done', rank: '0i'},
+            detail: {unit: 'card-heater', value: 'col-done', rank: '0i'},
           });
           const second = controller.dispatch({
             kind: 'action', verb: 'move', attempt,
-            detail: {card: 'card-baffle', to: 'col-done', rank: '0i'},
+            detail: {unit: 'card-baffle', value: 'col-done', rank: '0i'},
           });
           return Promise.all([first?.delivery ?? null, second?.delivery ?? null]);
         }"""
     )
     round_trip(page)
 
-    assert outcome[0]["detail"]["card"] == "card-heater"
+    assert outcome[0]["detail"]["unit"] == "card-heater"
     assert outcome[1] is None
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-heater"
     ]
     assert _traffic(page).sends == 1
@@ -631,7 +631,7 @@ def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, 
                 "revision": 1,
                 "widget": "sprint",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-done", "rank": "0i"},
+                "detail": {"unit": "card-baffle", "value": "col-done", "rank": "0i"},
             },
         )
 
@@ -749,7 +749,7 @@ def test_a_newer_queued_action_survives_an_older_refusal(browser, serve):
     round_trip(page)
 
     heater, below, above = (event["detail"] for event in actions(serve.page_dir))
-    assert [(d["card"], d["to"]) for d in (heater, below, above)] == [
+    assert [(d["unit"], d["value"]) for d in (heater, below, above)] == [
         ("card-heater", "col-done"),
         ("card-baffle", "col-done"),
         ("card-baffle", "col-done"),
@@ -836,7 +836,7 @@ def test_refused_recorded_actions_restore_from_the_log_and_surviving_outbox(
     round_trip(page)
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-heater"
     ]
     consume_browser_errors(page, "400")
@@ -885,7 +885,7 @@ def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
     assert page.eval_on_selector_all(
         "#col-todo > lf-card", "cards => cards.map(card => card.id)"
     ) == ["card-baffle", "card-heater"]
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-baffle"
     ]
     motions = page.evaluate(
@@ -924,7 +924,7 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
             "revision": 1,
             "widget": "sprint",
             "action": "move",
-            "detail": {"card": "card-heater", "to": "col-todo", "rank": "k"},
+            "detail": {"unit": "card-heater", "value": "col-todo", "rank": "k"},
         },
     )
     page = open_page(browser, url)
@@ -942,8 +942,8 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
         page.evaluate(
             """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({widgetController}) => {
               const widget = document.querySelector('#sprint');
-              const detail = {card: 'card-baffle', to: 'col-todo', rank: 's'};
-              document.getElementById(detail.to).append(document.getElementById(detail.card));
+              const detail = {unit: 'card-baffle', value: 'col-todo', rank: 's'};
+              document.getElementById(detail.value).append(document.getElementById(detail.unit));
               widgetController(widget).dispatch({kind: 'action', verb: 'move', detail});
             }); }"""
         )
@@ -971,7 +971,7 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
         "card-third",
         "card-heater",
     ]
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-heater"
     ]
     consume_browser_errors(page, "400")
@@ -997,22 +997,10 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     )
     outer["x-state"] = {
         "move": {
-            "detail": {
-                "type": "object",
-                "properties": {
-                    "card": {"type": "string"},
-                    "to": {"type": "string"},
-                    "rank": {"type": "string"},
-                },
-                "required": ["card", "to", "rank"],
-                "additionalProperties": False,
-            },
-            "unit": "card",
+            "unit": "unit",
             "record": {
                 "kind": "position",
                 "within": "lf-column",
-                "value": "to",
-                "rank": "rank",
             },
         }
     }
@@ -1057,8 +1045,8 @@ customElements.define("lf-outer-board", class extends HTMLElement {
         page.evaluate(
             """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({widgetController}) => {
               const widget = document.querySelector('#outer');
-              const detail = {card: 'outer-card', to: 'outer-done', rank: '0i'};
-              document.getElementById(detail.to).append(document.getElementById(detail.card));
+              const detail = {unit: 'outer-card', value: 'outer-done', rank: '0i'};
+              document.getElementById(detail.value).append(document.getElementById(detail.unit));
               widgetController(widget).dispatch({kind: 'action', verb: 'move', detail});
             }); }"""
         )
@@ -1066,8 +1054,8 @@ customElements.define("lf-outer-board", class extends HTMLElement {
     page.evaluate(
         """() => { void window.__lfRuntimeImport('/runtime/widget-api.js').then(({widgetController}) => {
           const widget = document.querySelector('#inner');
-          const detail = {card: 'inner-card', to: 'inner-done', rank: '0i'};
-          document.getElementById(detail.to).append(document.getElementById(detail.card));
+          const detail = {unit: 'inner-card', value: 'inner-done', rank: '0i'};
+          document.getElementById(detail.value).append(document.getElementById(detail.unit));
           widgetController(widget).dispatch({kind: 'action', verb: 'move', detail});
         }); }"""
     )
@@ -1098,7 +1086,7 @@ customElements.define("lf-outer-board", class extends HTMLElement {
 
     expect(page.locator("#inner-done #inner-card")).to_have_count(1)
     assert [
-        (event["widget"], event["detail"]["card"]) for event in actions(serve.page_dir)
+        (event["widget"], event["detail"]["unit"]) for event in actions(serve.page_dir)
     ] == [("inner", "inner-card")]
     consume_browser_errors(page, "400")
 
@@ -1158,7 +1146,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
                 "revision": 1,
                 "widget": "sprint",
                 "action": "move",
-                "detail": {"card": "card-baffle", "to": "col-done", "rank": "0i"},
+                "detail": {"unit": "card-baffle", "value": "col-done", "rank": "0i"},
             },
         )
 
@@ -1206,7 +1194,7 @@ def test_refusal_does_not_overlay_an_accepted_attempt_already_in_the_log(
     assert page.eval_on_selector_all(
         "#col-done > lf-card", "cards => cards.map(card => card.id)"
     ) == ["card-baffle", "card-heater"]
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-heater",
         "card-baffle",
     ]
@@ -1247,7 +1235,7 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
             "revision": 1,
             "widget": "sprint",
             "action": "move",
-            "detail": {"card": "card-baffle", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-baffle", "value": "col-done", "rank": "0i"},
         },
     )
     cut.restore()
@@ -1266,7 +1254,7 @@ def test_accounting_an_action_projects_newer_same_widget_news_before_release(
         "#col-done > lf-card", "cards => cards.map(card => card.id)"
     ) == ["card-baffle", "card-heater"]
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("undo")
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-heater",
         "card-baffle",
     ]
@@ -1485,7 +1473,7 @@ def test_a_server_that_cannot_take_a_gesture_yet_says_so_and_keeps_it(browser, s
     starting["rollout"] = False
     round_trip(page)
     page.unroute("**/api/event")
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-baffle"
     ]
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
@@ -1542,7 +1530,7 @@ def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, 
         "Words the server never read"
     ]
     assert [e["detail"] for e in logged if e["kind"] == "action"] == [
-        {"options": ["opt-a"]}
+        {"value": ["opt-a"]}
     ]
     expect(pick).to_have_attribute("aria-checked", "true")
     expect(page.locator(".lf-status-text")).not_to_contain_text("Key refused")
@@ -1592,7 +1580,7 @@ def test_poll_proven_acceptance_advances_past_a_hung_post_response(browser, serv
         held[1].continue_()
     page.unroute("**/api/event")
 
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-baffle",
         "card-heater",
     ]
@@ -1677,14 +1665,14 @@ def test_a_lost_accepted_response_keeps_later_gestures_in_order(browser, serve):
     round_trip(page)
 
     assert accepted == [200]
-    assert [request["detail"]["card"] for request in requests] == [
+    assert [request["detail"]["unit"] for request in requests] == [
         "card-baffle",
         "card-baffle",
         "card-heater",
     ]
     assert requests[0]["attempt"] == requests[1]["attempt"]
     assert requests[2]["attempt"] != first_attempt
-    assert [event["detail"]["card"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["unit"] for event in actions(serve.page_dir)] == [
         "card-baffle",
         "card-heater",
     ]
@@ -1721,7 +1709,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
             "revision": 1,
             "widget": "note-cli",
             "action": "edit",
-            "detail": {"text": "Remote B"},
+            "detail": {"value": "Remote B"},
         },
     )
     told(page)
@@ -1746,7 +1734,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
     page.keyboard.press("Escape")
     expect(draft.locator("leaf-text")).to_have_count(0)
     expect(draft.locator(".lf-draft-body")).to_have_text("Remote B")
-    assert [event["detail"]["text"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["value"] for event in actions(serve.page_dir)] == [
         "Remote B"
     ]
     consume_browser_errors(page, "400")
@@ -1775,7 +1763,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
             "revision": 1,
             "widget": "note-cli",
             "action": "edit",
-            "detail": {"text": "Remote B"},
+            "detail": {"value": "Remote B"},
         },
     )
     told(page)
@@ -1789,7 +1777,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
     held[0].continue_()
     round_trip(page)
     expect(draft.locator(".lf-draft-body")).to_have_text("Local C")
-    assert [event["detail"]["text"] for event in actions(serve.page_dir)] == [
+    assert [event["detail"]["value"] for event in actions(serve.page_dir)] == [
         "Remote B",
         "Local C",
     ]
@@ -1829,8 +1817,8 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     log = events_model.read_events(serve.page_dir)
     edit, choose = actions(serve.page_dir)
     assert [(e["action"], e["detail"]) for e in (edit, choose)] == [
-        ("edit", {"text": "Rewritten."}),
-        ("choose", {"options": ["opt-a"]}),
+        ("edit", {"value": "Rewritten."}),
+        ("choose", {"value": ["opt-a"]}),
     ]
     assert [e["undoes"] for e in log if e["kind"] == "undo"] == [
         choose["id"],
@@ -2543,7 +2531,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
             "revision": 1,
             "widget": "sprint",
             "action": "move",
-            "detail": {"card": "card-heater", "to": "col-done", "rank": "0i"},
+            "detail": {"unit": "card-heater", "value": "col-done", "rank": "0i"},
         },
     )
     page = open_page(browser, url)

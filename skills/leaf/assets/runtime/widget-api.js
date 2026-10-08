@@ -10,6 +10,7 @@
 export { LitElement, html, repeat } from "../vendor/browser-runtime.js";
 export { keyed, unsafeHTML } from "../vendor/lit.js";
 export { widgetController } from "./widget-controller.js";
+export { initialRender } from "./initial-render.js";
 export { watchOwner } from "./arrivals.js";
 // The rank a position record carries for a unit dropped at an index in a container.
 export { rankAt } from "./projection/model.js";
@@ -20,7 +21,12 @@ export async function mountSample(frame, options) {
 export { dressSamples, wear } from "./dress.js";
 
 export { USER_VIEW_RESTORE_CASES } from "./restore-state.js";
-export { ADDRESSABLE, addressableLabel, addressableWord } from "./anchor-resolution.js";
+export {
+  ADDRESSABLE,
+  addressableLabel,
+  addressableWord,
+  projectedDatum,
+} from "./anchor-resolution.js";
 // The name Threads, the margin, and reactions give a comment's anchor.
 export { anchorLabel } from "./thread/messages.js";
 // The page's `main`, or the body of the message whose markup a node stands in.
@@ -28,7 +34,13 @@ export { authoredScope } from "./passages.js";
 export { navigateToDatum } from "./application.js";
 // Experimental: one widget marking part of another (indication.js).
 export { indicate } from "./indication.js";
-export { landingInsets, shownBand, shownBox, shownParts } from "./geometry.js";
+export {
+  landingInsets,
+  shownBand,
+  shownBox,
+  shownParts,
+  shownWindow,
+} from "./geometry.js";
 // Holding the user's place in a scroller whose contents a widget re-renders.
 export { placeKeeper } from "./user-place.js";
 export { inUi, uiInside, upFrom } from "./shadow.js";
@@ -76,6 +88,8 @@ export { repaint } from "./repaint.js";
 export {
   afterScript,
   cancelRender,
+  cancelAnimation,
+  nextAnimation,
   nextFrame,
   nextRender,
   sizeObserver,
@@ -95,6 +109,8 @@ export {
   loadMarkdown,
   markdownReady,
   markdownWords,
+  markdownSourceOffset,
+  paintMarkdown,
   renderInlineMarkdown,
   renderMarkdown,
 } from "./markdown.js";
@@ -152,6 +168,7 @@ export {
 } from "./registry.js";
 export {
   FOLD_MS,
+  backgroundFlash,
   motion,
   onMotionPreferenceChange,
   reducedMotion,
@@ -173,7 +190,7 @@ export {
 } from "./target-references.js";
 export { projectData } from "./application.js";
 export { copyCodeBlock } from "./code-copy.js";
-export { retainUserIntent } from "./user-intent.js";
+export { onUserInput, retainUserIntent } from "./user-intent.js";
 export { keepView, openingView, tabStore } from "./storage.js";
 export {
   ensureSyntaxLanguage,
@@ -195,6 +212,7 @@ export {
   measure,
   motionPreview,
   offer,
+  offerElement,
   offered,
   quoted,
   reachedForWords,

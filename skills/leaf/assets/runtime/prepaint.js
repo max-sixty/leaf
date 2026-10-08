@@ -72,12 +72,433 @@
   const scope = rootPath === "/" ? "" : rootPath;
   root.dataset.lfPageScope = scope;
 
+  // Tab memory has one storage policy, including before the module graph starts.
+  // Initial package drawings and their later controllers read the same values.
+  const stored = (open, name, prefix = "") => ({
+    read(key) {
+      try {
+        return { available: true, value: open().getItem(prefix + key) };
+      } catch {
+        return { available: false, value: null };
+      }
+    },
+    get(key) {
+      return this.read(key).value;
+    },
+    set(key, value) {
+      try {
+        if (value === null) open().removeItem(prefix + key);
+        else open().setItem(prefix + key, value);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    where(key) {
+      return { store: name, key: prefix + key };
+    },
+    keys() {
+      try {
+        return Object.keys(open())
+          .filter((key) => key.startsWith(prefix))
+          .map((key) => key.slice(prefix.length));
+      } catch {
+        return [];
+      }
+    },
+  });
+  const tabStore = stored(() => sessionStorage, "session", scope);
+  root.lfStorage = { stored, tabStore };
+
+  // A package's synchronous producer draws real instance markup before modules can
+  // run. Delivery calls paint just after the parser closes each declared host; the
+  // module calls it again to adopt those exact nodes, or to draw a later arrival.
+  // Only mechanical tab state enters this drawing. Semantic initial values still
+  // come from the authored document, so keep its original structure and node routes
+  // before a producer moves or replaces anything. These inert copies are the source
+  // of version comparison, never current application state.
+  const producers = new Map();
+  const drawings = new WeakMap();
+  const sources = new WeakMap();
+  const sourceScopes = new WeakSet();
+  const sourceShells = new WeakMap();
+  // Initial geometry writes root attributes and styles before modules exist. Later
+  // root writers adopt these registries, so revisions replace only the authored share.
+  const runtimeAttributes = new WeakMap();
+  const setRuntimeRootAttribute = (node, name, value) => {
+    let attributes = runtimeAttributes.get(node);
+    if (!attributes) runtimeAttributes.set(node, (attributes = new Set()));
+    attributes.add(name);
+    keepsAttribute(node, name, value);
+  };
+  const runtimeStyles = new WeakMap();
+  const setRuntimeRootStyle = (node, property, value, priority = "") => {
+    let properties = runtimeStyles.get(node);
+    if (!properties) runtimeStyles.set(node, (properties = new Set()));
+    properties.add(property);
+    if (
+      node.style.getPropertyValue(property) !== value ||
+      node.style.getPropertyPriority(property) !== priority
+    )
+      node.style.setProperty(property, value, priority);
+  };
+  const removeRuntimeRootStyle = (node, property) => {
+    runtimeStyles.get(node)?.delete(property);
+    if (node.style.getPropertyValue(property)) node.style.removeProperty(property);
+  };
+  const origins = new WeakMap();
+  const parents = new WeakMap();
+  // Null/undefined means absent; compare the string an attribute reads back. The
+  // module keeps.js adopts this same no-restatement door after initial producers.
+  const keepsAttribute = (node, name, value) => {
+    if (!node) return;
+    if (value == null) {
+      if (node.hasAttribute(name)) node.removeAttribute(name);
+    } else {
+      const said = String(value);
+      if (node.getAttribute(name) !== said) node.setAttribute(name, said);
+    }
+  };
+  const offerElement = (node, cls, pressable = false) => {
+    if (node instanceof HTMLButtonElement && !node.hasAttribute("type"))
+      keepsAttribute(node, "type", "button");
+    const face = node.localName.includes("-") ? "" : " lf-ui-face";
+    keepsAttribute(node, "class", `${cls ? `${cls} ` : ""}lf-ui${face}`);
+    keepsAttribute(node, "data-lf-gen", "1");
+    // Native summary is the browser's disclosure press, without a type property
+    // or a specialized HTML element class. Its offer must name that same control.
+    keepsAttribute(
+      node,
+      "data-lf-offer",
+      pressable
+        ? node.localName
+        : node instanceof HTMLButtonElement ||
+            node.localName === "summary" ||
+            (node.localName === "input" && ["checkbox", "radio"].includes(node.type))
+          ? (node.type ?? node.localName)
+          : "",
+    );
+    return node;
+  };
+  const offer = (tag, cls, label, inputType, pressable = false) => {
+    const node = document.createElement(tag);
+    if (inputType !== undefined) {
+      if (tag !== "input")
+        throw new TypeError("only an input offer can declare an input type");
+      node.type = inputType;
+    }
+    offerElement(node, cls, pressable);
+    if (label !== undefined) node.textContent = label;
+    return node;
+  };
+  const authoredCopy = (node, target = null) => {
+    if (target === null) {
+      // A cloned live document retains custom-element definitions, so attaching
+      // its source tree could run widget constructors and connected callbacks.
+      // Import into a document with no browsing context or widget registry instead.
+      target = document.implementation.createHTMLDocument("");
+      target.replaceChildren();
+    }
+    const source = sources.get(node) ?? node;
+    const copy =
+      source.nodeType === Node.DOCUMENT_NODE
+        ? target
+        : target.importNode(sourceShells.get(source) ?? source, false);
+    origins.set(copy, origins.get(source) ?? node);
+    copy.removeAttribute?.("data-lf-opening");
+    const held = source.localName === "template" ? source.content : source;
+    const into = copy.localName === "template" ? copy.content : copy;
+    if (source.localName === "template") origins.set(into, origins.get(held) ?? held);
+    for (const child of held.childNodes) {
+      if (child.matches?.("[data-lf-prepaint], script[data-lf-initial]")) continue;
+      into.append(authoredCopy(child, target));
+    }
+    return copy;
+  };
+  const rememberSource = (source) => {
+    sources.set(origins.get(source), source);
+    const held = source.localName === "template" ? source.content : source;
+    for (const child of held.childNodes) rememberSource(child);
+  };
+  // Margin residency is initial document geometry, not a widget upgrade. The parser
+  // observer seats authored residents before a frame can paint them in another
+  // posture; content-layout adopts this same computation for subsequent changes.
+  // The body's authored annotation declaration is the same executable fact the
+  // module graph reads, so rail admission needs no second delivery configuration.
+  const POSTURES = {
+    sidebar: ["left", "--sidebar"],
+    map: ["left", "--map"],
+    note: ["right", "--note"],
+  };
+  // A failed placement is a mechanical fit result, retried only when its inputs
+  // change. Keep authored sheet identities/rules too: two CSS declarations can draw
+  // the same unshifted tracks while only one responds to a requested shift.
+  const failedPlacements = new WeakMap();
+  const authoredSheets = () =>
+    [...document.styleSheets]
+      .filter((sheet) => !sheet.ownerNode?.hasAttribute("data-lf-runtime"))
+      .flatMap((sheet) => {
+        let rules;
+        try {
+          rules = [...sheet.cssRules].map((rule) => rule.cssText).join("\n");
+        } catch (error) {
+          // An opaque cross-origin sheet cannot be modified through CSSOM either.
+          if (error.name !== "SecurityError") throw error;
+          rules = null;
+        }
+        return [sheet, sheet.disabled, sheet.media.mediaText, rules];
+      });
+  // The nearest painted ancestor distinguishes skipped contents from a box the page
+  // hides itself. Geometry adopts this same reading with its composed-parent walk.
+  const skipped = (element, parent = (node) => node.parentElement) => {
+    if (element.checkVisibility()) return false;
+    let child = element;
+    let box = parent(element);
+    while (box && !box.checkVisibility()) {
+      child = box;
+      box = parent(box);
+    }
+    if (!box) return false;
+    if (box.localName === "details") return !box.open && child.localName !== "summary";
+    return getComputedStyle(box).contentVisibility === "hidden";
+  };
+  const residency = () => {
+    const body = document.body;
+    if (!body) return false;
+    const main = document.querySelector("main");
+    // CSS declares the column's requested shell, without making the runtime read a
+    // Layout class or making a root :has() re-check the whole page on every insertion.
+    const tracksRequested =
+      main?.parentElement === body &&
+      getComputedStyle(main).getPropertyValue("--lf-column-shell").trim() === "grid";
+    const shellChanged = body.hasAttribute("data-lf-column-shell") !== tracksRequested;
+    if (!sourceShells.has(body)) sourceShells.set(body, body.cloneNode(false));
+    setRuntimeRootAttribute(body, "data-lf-column-shell", tracksRequested ? "" : null);
+    if (!main) {
+      const shifted = body.style.getPropertyValue("--lf-column-shift") !== "";
+      removeRuntimeRootStyle(body, "--lf-column-shift");
+      return shellChanged || shifted;
+    }
+    const style = getComputedStyle(main);
+    const need = (token) => parseFloat(style.getPropertyValue(token)) || 0;
+    // Remove only the physical offset the shell's grid tracks actually apply. An
+    // author's relative offset remains part of the available room. Read rendered
+    // tracks rather than the last written shift, including under RTL.
+    const shellStyle = getComputedStyle(document.body);
+    const tracks = shellStyle.gridTemplateColumns.split(" ").map(parseFloat);
+    const canShift = shellStyle.display === "grid" && style.gridColumnStart === "2";
+    const gridShift = canShift
+      ? ((tracks[0] - tracks.at(-1)) / 2) * (shellStyle.direction === "rtl" ? -1 : 1)
+      : 0;
+    const shellWritten =
+      parseFloat(document.body.style.getPropertyValue("--lf-column-shift")) || 0;
+    const column = main.getBoundingClientRect();
+    const shell = document.body.getBoundingClientRect();
+    const room = {
+      left: column.left - gridShift - shell.left,
+      right: shell.right - column.right + gridShift,
+    };
+    const declared = new Map();
+    // A resident a box around it hides (a closed disclosure, a tab not chosen) needs no
+    // room. One the page hides itself stays a resident, since a page may hide it until it
+    // stands in the margin.
+    for (const aside of main.querySelectorAll("aside")) {
+      if (skipped(aside)) continue;
+      const own = getComputedStyle(aside);
+      const hiddenItself =
+        own.display === "none" && aside.parentElement.checkVisibility();
+      if (!aside.checkVisibility() && !hiddenItself) continue;
+      const postures = own
+        .getPropertyValue("--lf-resident")
+        .split(" ")
+        .filter((posture) => posture in POSTURES);
+      if (postures.length) declared.set(postures.join(" "), postures);
+    }
+    const side = (postures) => POSTURES[postures[0]][0];
+    const preferences = [...declared.values()].sort(
+      (a, b) => (side(a) === "left" ? 0 : 1) - (side(b) === "left" ? 0 : 1),
+    );
+    const inputs = (box = column, placement = shellStyle) => [
+      box.left,
+      box.right,
+      shell.left,
+      shell.right,
+      placement.gridTemplateColumns,
+      placement.direction,
+      placement.display,
+      main.getAttribute("style"),
+      document.body.getAttribute("style"),
+      main.className,
+      document.body.className,
+      root.className,
+      document.body.dataset.annotations,
+      document.body.dataset.rail,
+      ...Object.values(POSTURES).map(([, token]) => need(token)),
+      need("--rail"),
+      preferences.flat().join(" "),
+      ...authoredSheets(),
+    ];
+    const priorFailure = failedPlacements.get(main);
+    const currentInputs = priorFailure ? inputs() : null;
+    const sameFailure =
+      priorFailure &&
+      currentInputs.length === priorFailure.length &&
+      currentInputs.every((input, at) => input === priorFailure[at]);
+    const allocate = (room, movable) => {
+      const taken = { left: 0, right: 0 };
+      const standing = [];
+      if (
+        (document.body.dataset.annotations ?? "overlay") === "overlay" &&
+        document.body.getAttribute("data-rail") !== "none" &&
+        room.right >= need("--rail")
+      ) {
+        standing.push("rail");
+        taken.right = need("--rail");
+      }
+      for (const postures of preferences)
+        for (const posture of postures) {
+          const [at, token] = POSTURES[posture];
+          const wants = { ...taken, [at]: Math.max(taken[at], need(token)) };
+          if (wants.left + wants.right > room.left + room.right + 0.5) continue;
+          if (!movable && (wants.left > room.left || wants.right > room.right))
+            continue;
+          standing.push(posture);
+          Object.assign(taken, wants);
+          break;
+        }
+      const requested = Math.round(
+        taken.left > room.left
+          ? taken.left - room.left
+          : taken.right > room.right
+            ? room.right - taken.right
+            : 0,
+      );
+      // Auto margins can centre the column only while its track still holds it.
+      const reach = Math.max(0, (shell.width - column.width) / 2);
+      const shift = movable ? Math.max(-reach, Math.min(reach, requested)) : 0;
+      return { taken, standing, shift };
+    };
+    let allocation = allocate(
+      sameFailure
+        ? {
+            left: column.left - shell.left,
+            right: shell.right - column.right,
+          }
+        : room,
+      canShift && !sameFailure,
+    );
+    // CSS is the placement authority. An authored track override can ignore our
+    // requested shift even on a grid. Verify the supplied room before admitting it;
+    // when it cannot supply the request, withdraw it and allocate in actual flow.
+    const place = (shift) => {
+      if (shift) setRuntimeRootStyle(document.body, "--lf-column-shift", `${shift}px`);
+      else removeRuntimeRootStyle(document.body, "--lf-column-shift");
+    };
+    place(allocation.shift);
+    const supplied =
+      allocation.shift === shellWritten ? column : main.getBoundingClientRect();
+    if (
+      allocation.taken.left > supplied.left - shell.left + 0.5 ||
+      allocation.taken.right > shell.right - supplied.right + 0.5
+    ) {
+      place(0);
+      const actual = main.getBoundingClientRect();
+      allocation = allocate(
+        { left: actual.left - shell.left, right: shell.right - actual.right },
+        false,
+      );
+      failedPlacements.set(main, inputs(actual, getComputedStyle(document.body)));
+    } else if (!sameFailure) {
+      failedPlacements.delete(main);
+    }
+    const { shift, standing } = allocation;
+    const tokens = standing.join(" ");
+    const seated = (main.getAttribute("data-lf-margin") ?? "") !== tokens;
+    if (!seated && shift === shellWritten) return shellChanged;
+    // Source copies keep the authored shell before initial geometry writes to it;
+    // children still follow their original routes as the parser continues.
+    if (!sourceShells.has(main)) sourceShells.set(main, main.cloneNode(false));
+    if (seated) {
+      if (tokens) main.setAttribute("data-lf-margin", tokens);
+      else main.removeAttribute("data-lf-margin");
+    }
+    // Module-time adoption announces changed seats to reading-region discovery;
+    // before upgrade the same attributes already provide the final authored box.
+    return true;
+  };
+
+  root.lfInitial = {
+    keepsAttribute,
+    setRuntimeRootAttribute,
+    runtimeRootAttributes: (node) => new Set(runtimeAttributes.get(node) ?? []),
+    setRuntimeRootStyle,
+    removeRuntimeRootStyle,
+    runtimeRootStyles: (node) => new Set(runtimeStyles.get(node) ?? []),
+    authoredShell: (node) => sourceShells.get(node) ?? sources.get(node) ?? node,
+    residency,
+    skipped,
+    register(tag, render) {
+      // The widget loader imports unregistered producers for later revisions and
+      // thread markup that were absent from the initially delivered document.
+      if (!producers.has(tag)) producers.set(tag, render);
+    },
+    has(tag) {
+      return producers.has(tag);
+    },
+    paint(host) {
+      if (drawings.has(host)) return drawings.get(host);
+      const render = producers.get(host.localName);
+      if (!render) throw new Error(`no initial renderer for <${host.localName}>`);
+      for (const node of [host, ...host.querySelectorAll("*")])
+        if (!parents.has(node)) parents.set(node, node.parentElement);
+      rememberSource(authoredCopy(host));
+      for (let node = host; node; node = node.parentNode) sourceScopes.add(node);
+      const drawing = render(host, { tabStore, offer, offerElement });
+      if (drawing?.then)
+        throw new TypeError(
+          `initial renderer for <${host.localName}> must be synchronous`,
+        );
+      drawings.set(host, drawing);
+      return drawing;
+    },
+    mount(template) {
+      const host = template.content.firstElementChild;
+      // The host stays inert while any part of its source is still arriving. Put
+      // its complete source in place, then draw deepest-first in this same task:
+      // no frame can show an unfinished or uninitialized instance.
+      template.replaceWith(host);
+      for (const node of [host, ...host.querySelectorAll("*")].reverse())
+        if (producers.has(node.localName)) this.paint(node);
+    },
+    restoreSource(root) {
+      for (const template of root.querySelectorAll("template[data-lf-initial-source]"))
+        template.replaceWith(template.content);
+      for (const delivery of root.querySelectorAll("script[data-lf-initial]"))
+        delivery.remove();
+      for (const placeholder of root.querySelectorAll("[data-lf-prepaint]"))
+        placeholder.remove();
+      return root;
+    },
+    authoredCopy,
+    reading(node) {
+      return sources.get(node) ?? (sourceScopes.has(node) ? authoredCopy(node) : node);
+    },
+    offer,
+    offerElement,
+    origin(node) {
+      return origins.get(node);
+    },
+    parent(node) {
+      return parents.has(node) ? parents.get(node) : node.parentElement;
+    },
+  };
+
   // A holder that shows one member at a time (`x-views`, painted `data-lf-views`) opens
   // on the member holding the element the address's fragment names, else on the member
   // this browser tab last showed, else on its first member. A reload puts the member
   // last shown first, because the address need not have followed what was shown: a set
   // below the page's own tab strip changes its member and leaves the fragment.
-  const OPEN_KEY = `${scope}lf-open:`;
+  const OPEN_KEY = "lf-open:";
   const reloaded = performance.getEntriesByType("navigation")[0]?.type === "reload";
   const named = (members) => {
     if (!location.hash) return null;
@@ -90,12 +511,7 @@
     return target && members.find((member) => member.contains(target));
   };
   const kept = (holder, members) => {
-    let id;
-    try {
-      id = sessionStorage.getItem(OPEN_KEY + holder.id);
-    } catch {
-      return null;
-    }
+    const id = tabStore.get(OPEN_KEY + holder.id);
     return members.find((member) => member.id === id);
   };
   const choose = (holder, members) =>
@@ -118,43 +534,32 @@
           member.toggleAttribute(OPENING, member === open);
     }
   };
-  const parsing = new MutationObserver(mark);
+  const initialLayout = () => {
+    mark();
+    residency();
+  };
+  const parsing = new MutationObserver(initialLayout);
   parsing.observe(root, { childList: true, subtree: true });
   document.addEventListener(
     "readystatechange",
     () => {
-      mark();
+      initialLayout();
       parsing.disconnect();
     },
     { once: true },
   );
 
-  // The marks under `node` taken off, and what delivery wrote in for the first paint
-  // (`x-prepaint`, `data-lf-prepaint`). No revision's markup carries either, so a copy
-  // of the page taken to stand for what its author wrote is read without them.
-  const unmarked = (node) => {
-    for (const member of node.querySelectorAll(`[${OPENING}]`))
-      member.removeAttribute(OPENING);
-    for (const written of node.querySelectorAll("[data-lf-prepaint]")) written.remove();
-    return node;
-  };
-
   // The holder's module asks once, as it upgrades, which member opens, and from then on
   // shows that member itself, so the mark comes off. It records each member it shows,
   // which a reload reopens (storage.js).
   root.lfViews = {
-    unmarked,
     opening(holder, members) {
       for (const member of holder.querySelectorAll(`:scope > [${OPENING}]`))
         member.removeAttribute(OPENING);
       return choose(holder, members);
     },
     keep(holder, member) {
-      try {
-        sessionStorage.setItem(OPEN_KEY + holder.id, member.id);
-      } catch {
-        // A tab that cannot remember still shows the member.
-      }
+      tabStore.set(OPEN_KEY + holder.id, member.id);
     },
   };
 })();

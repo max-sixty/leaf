@@ -11,8 +11,8 @@
  *   hook --harness claude-code --watch`), which prints a line and exits once one
  *   of the session's pages has input;
  * - a turn the user interrupts ends with no Stop hook, so the module starts the
- *   watch with the Interrupt payload, which closes the turn and wakes only for
- *   input that arrives after it;
+ *   watch with the Interrupt payload, which closes the turn. Receipt distinguishes
+ *   input that entered that turn from input held outside its context;
  * - a watch that wakes an idle session submits its line as a prompt, whose
  *   prompt hook hands the input over; one that wakes during a turn calls the
  *   prompt hook itself and appends what it returns to that turn, which reads it
@@ -35,7 +35,7 @@
  * `hooks.json`.
  *
  * TODO: once Claude Code loads modules without an opt-in, make this module the
- * only carrier and drop the background Stop registration, `loop-guard.py`, and
+ * only watcher and transport and drop the background Stop registration, `loop-guard.py`, and
  * the interrupt half of the nudge.
  *
  * A module's processes inherit Claude Code's own environment, which names no
@@ -47,25 +47,21 @@
  */
 
 import type { EngineInterface, Register } from 'claude-code'
+import { WatchOwner } from './watch.ts'
 
 // `hooks.json`'s timeout for the prompt hook, inside which it confirms what it
-// hands over (`CONFIRM_WITHIN` in `hook_carrier.py`).
+// hands over (`CONFIRM_WITHIN` in `hook_transport.py`).
 const HOOK_TIMEOUT_MS = 20_000
-// The line an inline delivery opens with (`INLINE_DELIVERY` in `hook_carrier.py`),
+// The line an inline delivery opens with (`INLINE_DELIVERY` in `hook_transport.py`),
 // and the line the turn goes on with once the module has appended one.
 const INLINE_DELIVERY = 'Leaf has new input for your turn.'
 const DELIVERED = "Leaf added the page's new input to your context above; answer it before you end the turn."
 
 type Payload = { hook_event_name: string; session_id: string; ended_at?: number }
-type Watch = {
-  stop: () => Promise<unknown>
-  done: Promise<string>
-  interrupted: boolean
-}
 
 // Claude Code's process, read as the session starts.
 let claudePid = ''
-let watch: Watch | undefined
+let watch = new WatchOwner()
 // Whether a main-loop turn is going, from its start until its Stop hooks let it end.
 let running = false
 // The Stop hooks of a turn now ending, while they run.
@@ -94,50 +90,38 @@ async function hook($: EngineInterface, payload: Payload): Promise<string | unde
   }
 }
 
-async function stopWatch() {
-  const stopping = watch
-  watch = undefined
-  await stopping?.stop()
-  await stopping?.done
-}
-
-/** Keep one watch running for this ending. A watch at a Stop ending goes on past
- * another Stop ending; any other ending replaces it, and an interrupted one
- * always starts afresh, since its watch closes the turn and looks at the logs
- * anew. A watch is replaced only once the one before it has exited, since the
- * session's wait lease admits one, and one from before would read the closed
- * turn as the Stop hook's ending. Without Claude Code's process the module keeps
- * no watch, and leaves the turn's ending to the registrations beneath it. */
+/** The watch owner serializes endings; the adapter supplies Claude Code's process
+ * and wake operations. Without its parent process, the registration keeps watch. */
 async function ensureWatch($: EngineInterface, session: string, interrupted: boolean) {
-  // The watch closes the turn after this returns, so it states when it ended,
-  // in POSIX seconds.
   const ended = Date.now() / 1000
-  if (!claudePid || (watch && !watch.interrupted && !interrupted)) return
-  await stopWatch()
-  // Another ending may have started one while the old one exited.
-  if (watch) return
-  const payload: Payload = {
-    hook_event_name: interrupted ? 'Interrupt' : 'Stop',
-    session_id: session,
-    ended_at: ended,
-  }
-  const stream = $.process.spawn({
-    argv: [launcher($), 'hook', '--harness', 'claude-code', '--watch'],
-    env: environment(session),
-    input: JSON.stringify(payload),
-  })
-  const done = (async () => {
-    let out = ''
-    try {
-      for await (const chunk of stream) if (chunk.stream === 'stdout') out += chunk.text
-      return (await stream.result).code === 0 ? out.trim() : ''
-    } catch {
-      return ''
+  if (!claudePid) return
+  const owner = watch
+  await owner.ensure(interrupted, () => {
+    const payload: Payload = {
+      hook_event_name: interrupted ? 'Interrupt' : 'Stop',
+      session_id: session,
+      ended_at: ended,
     }
-  })()
-  const current = { stop: () => stream.return(undefined as never), done, interrupted }
-  watch = current
-  void done.then(woke => wake($, session, current, woke))
+    const stream = $.process.spawn({
+      argv: [launcher($), 'hook', '--harness', 'claude-code', '--watch'],
+      env: environment(session),
+      input: JSON.stringify(payload),
+    })
+    const done = (async () => {
+      let out = ''
+      try {
+        for await (const chunk of stream) if (chunk.stream === 'stdout') out += chunk.text
+      } catch {
+        // Cancellation can abort output before the process releases its lease.
+      }
+      try {
+        return (await stream.result).code === 0 ? out.trim() : ''
+      } catch {
+        return ''
+      }
+    })()
+    return { stop: () => stream.return(undefined as never), done }
+  }, (output, live) => wake($, session, owner, output, live))
 }
 
 /** Whether the turn goes on, once any Stop hooks now running have returned. They
@@ -152,21 +136,26 @@ function append($: EngineInterface, text: string) {
   return $.session.append({ message: { type: 'user', content: [{ type: 'text', text }] } })
 }
 
-async function wake($: EngineInterface, session: string, ended: Watch, woke: string) {
-  if (watch !== ended) return
-  watch = undefined
+async function wake($: EngineInterface, session: string, owner: WatchOwner, woke: string, live: () => boolean) {
   if (!woke) return
   try {
     // Claude Code refuses a plugin's prompt that starts with `/`, as the watch's
     // line, a page's path, does.
     const prompt = `Leaf: ${woke}`
-    if (await turnGoesOn()) {
+    const ongoing = await turnGoesOn()
+    if (!live()) return
+    if (ongoing) {
       const context = await hook($, { hook_event_name: 'UserPromptSubmit', session_id: session })
+      if (!owner.open) return
       // The hook has confirmed what it hands over, so that goes into the session
       // even where the turn ended while the hook ran: an idle session reads an
       // appended row at its next turn, which the prompt below starts.
       if (context) await append($, context)
-      if (await turnGoesOn()) {
+      const ongoing = await turnGoesOn()
+      // Confirmed input still needs an idle turn even if another watch started;
+      // a session that ended meanwhile owns neither an append nor a new prompt.
+      if (!owner.open || (!context && !live())) return
+      if (ongoing) {
         if (!context) await append($, prompt)
         return
       }
@@ -238,7 +227,11 @@ export const register: Register = (on, options) => {
   })
 
   on('session.end', async ($, e, next) => {
-    await stopWatch()
-    return next(e)
+    const owner = watch
+    await owner.close()
+    const ended = await next(e)
+    // /clear and resume keep the module loaded without another session.start.
+    if (watch === owner) watch = new WatchOwner()
+    return ended
   })
 }

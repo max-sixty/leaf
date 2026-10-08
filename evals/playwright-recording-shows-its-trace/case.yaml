@@ -1,0 +1,39 @@
+# From a maintainer session (2026-10-07) asked to show a recording of a bug it had
+# reproduced with Playwright: it put the screencast on the page as a <video> twice,
+# the second time after being asked for a Playwright recording, and reached
+# lf-trace only once the user said "I still see a movie?". On Claude Code the base
+# failed 3/3, putting the video on the page and leaving the trace off as "not page
+# media", and the routed media paragraph passed 3/3; Codex passed both arms
+# (2026-10-07). authored-recording is the guardrail: a screen recording with no
+# trace stays native video.
+description: playwright-recording-shows-its-trace
+metadata:
+  purpose: 'A browser journey recorded with Playwright is shown as its trace in lf-trace, not as its video.'
+  tags:
+  - evidence
+  - packages
+vars:
+  prompt: |
+    You reproduced a bug in a web app with a Playwright script: pressing Tab from a
+    half-written reply onto the next thread's title folds the first thread shut and
+    hides the reply. The script ran under the repository's recorder, which wrote
+    `.tmp/recording/video.webm`, `.tmp/recording/recording.gif` and
+    `.tmp/recording/trace.zip`.
+
+    The user has the Leaf page `~/pages/thread-review` open, initialized with no
+    extra packages, and asks: "show a recording of the bug so I can understand it?"
+
+    The page directory is unavailable here. Reply with the commands you would run,
+    in order, and the HTML of the section you would add.
+assert:
+- type: regex
+  metric: selects-playwright-package
+  value: 'page\s+init\b[^\n]*--package[\s=]+playwright\b'
+  transform: output.toLowerCase()
+- type: regex
+  metric: shows-the-trace
+  value: '<lf-trace(?=\s|>)(?=[^>]*\ssource\s*=\s*["''][^"'']+["''])[^>]*>'
+  transform: output.toLowerCase()
+- type: llm-rubric
+  metric: trace-is-the-recording
+  value: The section presents the recorded journey through an lf-trace widget bound to a source the commands fill by importing trace.zip with the playwright package's producer (import_trace.py, or a step reading the package's producer instructions for the command) and `leaf data set`. A video of the screencast may accompany the trace, but the reply does not offer the video as the recording on its own.

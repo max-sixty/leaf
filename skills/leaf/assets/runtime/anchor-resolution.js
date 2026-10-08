@@ -64,7 +64,7 @@ function currentDatums(source, key, identity = null, dataSource = null) {
   );
 }
 
-const currentDatum = (source, key) => {
+export const projectedDatum = (source, key) => {
   const matches = currentDatums(source, key);
   return matches.length === 1 ? matches[0] : null;
 };
@@ -117,7 +117,7 @@ export function addressedElements(source, key) {
     );
   const part = visualPart(source, key)?.element;
   if (part) return [part];
-  const datum = currentDatum(source, key) ?? suppliedDatum(source, key);
+  const datum = projectedDatum(source, key) ?? suppliedDatum(source, key);
   return datum ? [datum] : [];
 }
 
@@ -238,7 +238,19 @@ export function addressableAt(node) {
   return null;
 }
 
-export const annotationAt = (node) => blockAt(node) ?? addressableAt(node);
+// Markdown block structure is reading geometry, not authored annotation identity.
+// A whole-body formatter replaces one authored data record with paragraphs/lists;
+// its declared host remains the seat that comments and reactions can name durably.
+export function annotationAt(node) {
+  const formatted = tagsDeclaring(
+    (entry) => entry["x-text-format"] === "markdown",
+  ).join(",");
+  return (
+    (formatted && closestAcross(node, formatted)) ||
+    blockAt(node) ||
+    addressableAt(node)
+  );
+}
 
 const HTML_WORDS = {
   input: "control",
@@ -320,7 +332,7 @@ export function addressableName(element) {
   return declared || leadingTitle(element);
 }
 
-// What the chrome calls an element away from it: a Queue panel row, a Page Map heading,
+// What the chrome calls an element away from it: a Questions panel row, a Page Map heading,
 // a thread's anchor, a feed row. The element's name comes first: `addressableName`,
 // else its own caption, the `aria-label` its author gave it, or a control's <label>.
 // An element whose words are its own (a block of prose, anything holding text of its

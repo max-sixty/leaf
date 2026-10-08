@@ -12,11 +12,11 @@
    otherwise reads `document.activeElement` directly. `markHere` paints one `--focus-ring`
    around the semantic ask or control that contains focus. The ring is derived on
    each paint; it does not store the queue walk's position or move either reading surface.
-   An explicit Ask arrival reveals its matching Queue panel row; ordinary focus and
+   An explicit Ask arrival reveals its matching Questions panel row; ordinary focus and
    refresh preserve the place the user has chosen in that list.
 
-   The ring is therefore paintable on an ask the `a`/`A` queue walk will not step to.
-   The Queue panel lists an answered one under Done (queue-panel.js): the walk is the
+   The ring is therefore paintable on an ask the `q`/`Q` queue walk will not step to.
+   The Questions panel lists an answered one under Done (queue-panel.js): the walk is the
    user's worklist, while the panel also keeps the route back to each answered Ask. The
    Escape rung still reads focus rather than either list, so the way out is the one it
    always has.
@@ -43,8 +43,8 @@
    list of ask tags. Where a source is nested in an `x-ask-surface` region, the Ask is
    the region: its heading, context, and evidence are the ask the user is being sent
    to, while the source remains the owner of the answer, which `askAnswers` (answer.js)
-   reads for the Queue panel's Done rows. Every arrival at an Ask, from `a`, a Queue
-   panel row or a Page Map entry, travels through the one ask-arrival function
+   reads for the Questions panel's Done rows. Every arrival at an Ask, from `q`, a
+   Questions panel row or a Page Map entry, travels through the one ask-arrival function
    (`arriveAtAsk`), so they agree about focus, reveal, and arrival placement.
 
    An arrival stands the user on the ask, which is the element the scroll has just
@@ -85,7 +85,13 @@
 import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { createAskBannerControls } from "./banner-controls.js";
 import { decisionControls } from "../keyboard/bindings.js";
-import { closestAcross, elementById, inChrome, TEXT_BLOCK } from "../passages.js";
+import {
+  closestAcross,
+  elementById,
+  inChrome,
+  showsWords,
+  TEXT_BLOCK,
+} from "../passages.js";
 import { scrollerFor } from "../reading-regions.js";
 import { reserve } from "../widget-elements.js";
 import { keeps } from "../keeps.js";
@@ -283,11 +289,11 @@ export function createAskView({
     return presenter.present();
   }
 
-  // An answered Ask normally keeps semantic focus on its own element after a Queue row's
-  // arrival. A boxless answered widget cannot: its visible revision control is the only
-  // focus target. Remember that exact target for this arrival, and only while it still
-  // owns focus, so returning to the same control ordinarily does not promote it from its
-  // own local meaning to the whole Ask again.
+  // An answered Ask normally keeps semantic focus on its own element after a Questions
+  // panel row's arrival. A boxless answered widget cannot: its visible revision control
+  // is the only focus target. Remember that exact target for this arrival, and only while
+  // it still owns focus, so returning to the same control ordinarily does not promote it
+  // from its own local meaning to the whole Ask again.
   let reviewedThrough = null;
   function hasReviewedFocus() {
     if (reviewedThrough?.isConnected && focused() === reviewedThrough) return true;
@@ -310,8 +316,8 @@ export function createAskView({
   // their focus rested on — a second thread on the child rather than the next line of their
   // own. The agent's reply put both back. Nothing the user did moved either. An
   // answered ask leaves both worklists but stays in the active inventory: the
-  // Queue panel's Done rows can return the user to it, and standing there restores the same numeric
-  // action route so they can revise the recorded answer.
+  // Questions panel's Done rows can return the user to it, and standing there restores
+  // the same numeric action route so they can revise the recorded answer.
   //
   // Document focus rather than the inner control: a control staged in a shadow tree
   // retargets to its host, and the host is the place in the document this wants.
@@ -384,8 +390,8 @@ export function createAskView({
   // around the entire surface even though the focused control already shows the action.
   //
   // Keyed on focus and not on :focus-visible, which is a claim about the last input rather
-  // than about where the user is: a Queue row's press lands the focus by script after a
-  // click, and the ask it brought the user to would wear nothing at all.
+  // than about where the user is: a Questions panel row's press lands the focus by script
+  // after a click, and the ask it brought the user to would wear nothing at all.
   //
   // The ask wears it, and so does every box it shows through (shownParts): the ask is
   // what carries the id captureView writes down and the place the queue walk measures from,
@@ -396,7 +402,7 @@ export function createAskView({
   // ask itself, and the fallback answers the wrapper any page can still style boxless
   // in a line, the same way the thread's mark does (paintAnchors).
   //
-  // The Queue panel's row for the ask is a second surface showing this one fact, so it
+  // The Questions panel's row for the ask is a second surface showing this one fact, so it
   // is painted from this one reading rather than from a mark the panel keeps for itself —
   // and the ring is the chrome's as much as the page's (the [data-lf-ask] rule in the
   // stylesheet is written against the attribute, not against the page), so wearing the
@@ -437,10 +443,10 @@ export function createAskView({
 
   // The user's standing on an Ask, said in terms a replaced document can still answer.
   // Focus by shape does not cross a document replacement — version.js says why — but an
-  // Ask is not a shape. Its id is a declared identity that the inventory, the Queue rows,
-  // and the walk already resolve against whichever document is standing, so a user
-  // working an Ask when a revision lands is put back on the same Ask rather than dropped
-  // to `body`.
+  // Ask is not a shape. Its id is a declared identity that the inventory, the Questions
+  // panel's rows, and the walk already resolve against whichever document is standing,
+  // so a user working an Ask when a revision lands is put back on the same Ask rather
+  // than dropped to `body`.
   //
   // The id is the whole of what is captured, and the Ask itself is the whole of what is
   // handed back. Which control inside it they held is not something this can answer: the
@@ -451,9 +457,9 @@ export function createAskView({
   // place that cannot misfire, because it holds a lent tab stop rather than a decision:
   // the widget's context routes are live there and Space decides nothing.
   //
-  // Chrome is excluded because it has nothing to restore: a Queue row and a margin entry
-  // for the same Ask are keyed by that id already, so a patch hands each of them back as
-  // the same element, still holding the focus the user put on it.
+  // Chrome is excluded because it has nothing to restore: a Questions panel row and a
+  // margin entry for the same Ask are keyed by that id already, so a patch hands each of
+  // them back as the same element, still holding the focus the user put on it.
   function captureStanding() {
     const held = documentFocused();
     if (!held || held === document.body || inChrome(held)) return null;
@@ -538,8 +544,8 @@ export function createAskView({
     // the host climb below for the order, which together let an ask staged inside a
     // shadow tree take the heading standing over its host.
     //
-    // `hidden` goes with `inChrome`: content-visibility leaves real rects behind, so a
-    // block behind a shut disclosure otherwise measures like one the user can see.
+    // `showsWords` goes with `inChrome`: a block behind a shut disclosure keeps its
+    // boxes, so it would otherwise measure like one the user can see.
     //
     // Order is asked of the ask as the block's own tree sees it, which for a
     // ask staged in a shadow tree is its host and not the ask. Two nodes in
@@ -555,7 +561,7 @@ export function createAskView({
       return (
         from &&
         !inChrome(block) &&
-        !block.closest("[hidden]") &&
+        showsWords(block) &&
         !under(ask, block) &&
         block.parentElement &&
         under(ask, block.parentElement) &&
@@ -586,8 +592,8 @@ export function createAskView({
     );
   }
 
-  // Standing on one ask: what a and Shift+a do once the queue walk has decided on an Ask
-  // (queue-walk.js), what a Queue panel row does, and what a Page Map entry does having
+  // Standing on one ask: what q and Shift+q do once the queue walk has decided on an Ask
+  // (queue-walk.js), what a Questions panel row does, and what a Page Map entry does having
   // been told outright. One
   // function because it is one act — a second would be a second answer to "how do I put
   // the user on an ask", and the two would drift the first time either the reveal or the

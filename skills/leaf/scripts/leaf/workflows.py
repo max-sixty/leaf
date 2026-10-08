@@ -15,13 +15,13 @@ an owed move holds the agent's turn is `activity.turn_obligations`'s to say.
 Answers are one of:
 
 - `{"kind": "reply", "to": <message>, "for": <event>}` — a thread input, or a
-  move in an answered Ask in frozen thread markup, answered by `leaf thread reply --for`;
-- `{"kind": "turn", "to", "for", "attempt": <reply attempt>}` — the same reply
-  once it is bound to the claimant's App Server turn, which writes it with its own
-  opening and final messages. The binding lives in the page's stream status, so
-  `activity` routes the answer while the binding stands
-  (`activity.reply_binding_stands`), and a delivery frozen for App Server routes it
-  ahead of the binding; `leaf thread reply` refuses every writer but that attempt;
+  move in an answered Ask in frozen thread markup, answered through its exact delivery reference by `leaf response reply`;
+  Final-message custody is independent of the operation: `activity` adds
+  `writer: "turn"` and its attempt while the provider's reply binding stands.
+  Delivery captures the same writer policy ahead of that binding, and emits an
+  exact response reference. Direct commands and provider finals resolve that
+  reference through the same rich reply writer; only the bound attempt may
+  commit while its provider owns the final.
 - `{"kind": "markup", "action": <action>}` — a page action that is part of its
   widget's answered Ask and the authored markup does not yet record, answered by
   a stamped version that writes it in.
@@ -36,7 +36,7 @@ in: on the page, until the markup records it or a later version supersedes it
 (`page_action_unsettled`); in frozen thread markup, which no version rewrites,
 until the agent's next spoken turn in that thread or a resolution after it.
 Delivery is separate from workflows. Admission records whether a user's move
-changes outstanding Asks, pending answers, work in hand or approval; carriers keep
+changes outstanding Asks, pending answers, work in hand or approval; delivery keeps
 that decision even after these workflows settle.
 
 A user move on a widget whose own Ask the user has not finished answering — a
@@ -52,12 +52,9 @@ answered with a failed response, whose next actor is the user, until the user
 moves again or the markup records the move anyway.
 """
 
-from .asks import ask_answered, part_of_ask, thread_ask_readings, thread_awaits_user
-from .document_reading import read_document
+from .asks import ask_answered, part_of_ask
 from .events import (
-    build_threads,
     conversation_turns,
-    standing_approvals,
     unanswered_turns,
 )
 from .projection import (
@@ -66,12 +63,8 @@ from .projection import (
     recorded_state,
 )
 from .tasks import (
+    TaskReading,
     ask_tasks,
-    canonical_tasks,
-    item_starts,
-    owed_tasks,
-    page_tasks,
-    task_ends,
 )
 
 
@@ -79,65 +72,16 @@ def admission_workflows(readings) -> tuple[list[dict], dict]:
     """The workflows one admission reads, beside the threads they were folded from:
     the page's newest revision and the frozen thread document, over the log as it
     stands."""
-    page = (
-        readings.page(readings.view.revisions[-1]) if readings.view.revisions else None
-    )
-    threads = build_threads(readings.events, page.within if page is not None else {})
-    workflows = canonical_workflows(
-        threads, readings.thread, page=page, events=readings.events
-    )
-    return workflows, threads
-
-
-def _thread_questions(readings, threads: dict) -> tuple[dict, dict[str, dict]]:
-    """The frozen threads' Ask reading, and each open thread's question prompt
-    (`asks.thread_awaits_user`) by thread id, over the log as it stands."""
-    events = readings.events
-    thread_asks = thread_ask_readings(
-        events,
-        readings.registry,
-        {identity for identity, held in threads.items() if held["resolved"]},
-        reading=readings.thread,
-    )
-    open_ask_threads = {ask["thread"] for ask in thread_asks["user"]}
-    ended = set(task_ends(events))
-    prompts = {}
-    for identity, held in threads.items():
-        _awaiting, prompt = thread_awaits_user(
-            identity,
-            held,
-            readings.registry,
-            thread_asks["awaiting"],
-            readings.thread.structure,
-            open_ask_threads,
-            ended,
-        )
-        if prompt is not None:
-            prompts[identity] = prompt
-    return thread_asks, prompts
+    work = readings.work
+    return work.workflows, work.threads
 
 
 def admission_tasks(readings) -> list[dict]:
-    """Every task on the page, open and ended, as `page_tasks` and `ask_tasks` read
-    them for the newest revision: what admission reads to say who may end one."""
-    page = (
-        readings.page(readings.view.revisions[-1]) if readings.view.revisions else None
-    )
-    events = readings.events
-    threads = build_threads(events, page.within if page is not None else {})
-    thread_asks, prompts = _thread_questions(readings, threads)
-    standing, ended = page_tasks(
-        [{**task, "thread": None} for task in canonical_tasks(events)],
-        thread_asks,
-        [
-            {"id": identity, "msgs": held["msgs"], "user_prompt": prompts.get(identity)}
-            for identity, held in threads.items()
-        ],
-        task_ends(events),
-        readings.registry.get("$reactions", {}).get("tokens", {}),
-    )
+    """All tasks under the admission vocabulary, including document Asks."""
+    work = readings.work
+    standing, ended = work.page_tasks()
     page_standing, page_ended = (
-        ask_tasks(read_document(page, threads).asks) if page is not None else ([], [])
+        ask_tasks(work.document.asks) if work.document is not None else ([], [])
     )
     return page_standing + page_ended + standing + ended
 
@@ -152,20 +96,19 @@ def obligation_reading(readings) -> dict:
     changing a pick under ongoing work changes that work before Done. Admission
     compares this reading on either side of the append and stores the result.
     """
-    page = (
-        readings.page(readings.view.revisions[-1]) if readings.view.revisions else None
-    )
-    thread = readings.thread
-    events = readings.events
-    workflows, threads = admission_workflows(readings)
-    thread_asks, prompts = _thread_questions(readings, threads)
+    work = readings.work
+    page = work.page
+    thread = work.thread
+    workflows = work.workflows
+    thread_asks = work.asks
+    prompts = work.prompts
     in_hand = [
         (item["id"], item["subject"])
         for item in workflows
         if item["stage"] == "working"
     ] + [
         (task["id"], task["subject"])
-        for task in owed_tasks(events)
+        for task in work.log.owed
         if task["subject"]["kind"] != "page"
     ]
     inputs = [
@@ -177,9 +120,7 @@ def obligation_reading(readings) -> dict:
     ]
     return {
         "asks": {
-            "page": [
-                ask["id"] for ask in read_document(page, threads).asks["unanswered"]
-            ]
+            "page": [ask["id"] for ask in work.document.asks["unanswered"]]
             if page is not None
             else [],
             "thread": [ask["id"] for ask in thread_asks["unanswered"]],
@@ -189,7 +130,7 @@ def obligation_reading(readings) -> dict:
             # The tasks the agent put on the user, which their Done ends.
             "tasks": [
                 task["id"]
-                for task in canonical_tasks(events)
+                for task in work.log.tasks
                 if task["owner"] == "user" and task["state"] == "open"
             ],
         },
@@ -210,7 +151,7 @@ def obligation_reading(readings) -> dict:
             }
             for identity, subject in in_hand
         ],
-        "approvals": [event["id"] for event in standing_approvals(events)],
+        "approvals": [event["id"] for event in work.approvals],
     }
 
 
@@ -258,6 +199,7 @@ def canonical_workflows(
     *,
     page: PageReading | None = None,
     events: list | None = None,
+    task_reading: TaskReading | None = None,
 ) -> list[dict]:
     """The unsettled user inputs and strongest evidence held for each.
 
@@ -302,9 +244,10 @@ def canonical_workflows(
         for event_id in event["events"]:
             deliveries.setdefault(event_id, {})[event["phase"]] = event
 
-    starts = item_starts(events)
+    log = task_reading or TaskReading(events)
+    starts = log.starts
     widget_starts: dict[str, list[dict]] = {}
-    for task in owed_tasks(events):
+    for task in log.owed:
         if task["running"] and task["subject"]["kind"] == "widget":
             widget_starts.setdefault(task["subject"]["id"], []).append(task["running"])
 

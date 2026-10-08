@@ -10,7 +10,7 @@ import hashlib
 import json
 import shutil
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from leaf import event_log
@@ -170,7 +170,7 @@ def test_message_delivery_appearance_and_first_frame(
     browser, serve, image_snapshot, request, case, monkeypatch, thread_expected_store
 ):
     """One journey supplies both the contract observations and reviewed pixels."""
-    now = datetime(2026, 9, 7, 18, tzinfo=timezone.utc)
+    now = datetime(2026, 9, 7, 18, tzinfo=UTC)
     monkeypatch.setattr(event_log, "now_iso", lambda: now.isoformat())
     monkeypatch.setattr(served_context, "now_iso", lambda: now.isoformat())
     context = browser.new_context(

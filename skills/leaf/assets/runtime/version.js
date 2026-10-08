@@ -72,7 +72,7 @@ import {
 } from "./drafts.js";
 import { heldThreadId, replyDestination } from "./thread/focus.js";
 import { restoreReplyEditing } from "./thread/replies.js";
-import { focusDestination } from "./focus.js";
+import { focusDestination, onStanding } from "./focus.js";
 import { restrictUserIntent, retainUserIntent } from "./user-intent.js";
 import { patchTree } from "./dom-children.js";
 import { labelOf, PRESS } from "./keyboard/bindings.js";
@@ -90,21 +90,26 @@ import {
   wrote,
 } from "./passages.js";
 import { registry, stateSpecs, tagsDeclaring } from "./registry.js";
-import { prepareDeclaredInlineMarkdown } from "./markdown.js";
+import {
+  paintMarkdown,
+  prepareDeclaredMarkdown,
+  formatDeclaredMarkdown,
+} from "./markdown.js";
 import { pageScroller } from "./scrolling.js";
-import { TEXT_BOX } from "./control-selectors.js";
 import {
   containingReadingRegionFor,
   effectiveScroller,
+  onReadingInput,
   readingPosture,
   readingRegionFor,
   readingRegions,
   recentReadingRegion,
-  scrollersSettled,
+  regionsSettled,
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 import { LIVE_ROOT, PAGE_SCOPE, tabStore, unmarkedCopy } from "./storage.js";
+import { initialOrigin, restoreInitialSource } from "./initial-render.js";
 import { alignInlineText } from "./text-alignment.js";
 import { el, layoutChanged, quoted, reveal } from "./widget-elements.js";
 import { keeps } from "./keeps.js";
@@ -138,7 +143,7 @@ import {
   versionMenuIsOpen,
 } from "./version-picker.js";
 import {
-  importWidgets,
+  preloadWidgets,
   patchDocument,
   reindexPassageOwners,
   rememberPassageParts,
@@ -167,6 +172,7 @@ const PRIVATE_REVISION_PARAM = "_leaf-revision";
 // early runtime state for page source. An activation can then replace exactly that share
 // without erasing the presentation, layout, and mode facts the surviving runtime owns.
 function authoredAttributes(root) {
+  root = document.documentElement.lfInitial.authoredShell(root);
   const attributes = new Map();
   for (const { name, value } of root.attributes) {
     if (name.startsWith("data-lf-")) continue;
@@ -195,22 +201,26 @@ const versionedHeadNode = (node) =>
 // applies the difference between two revisions, so it needs the revision the page is
 // standing on as source — not the page, which by then carries a tokenizer's spans, a
 // user's open disclosure, a tab stop the runtime lent, and whatever a page module
-// built. The module graph can define chrome-only elements before this clone, but authored
-// markup cannot contain those tags, so the authored main is untouched but for the marks
-// the prepaint painted for the first paint and the structure delivery wrote in for it
-// (`data-lf-prepaint`), which the copy takes off. Runtime-owned head nodes carry
-// `data-lf-runtime` and are excluded from the separate head baseline above. The source
-// and live main are therefore the same tree but for what delivery wrote in, which the
-// pairing below walks past, so it is a plain walk of the two together.
+// built. The early coordinator keeps the source of each initially rendered host
+// before its package moves or replaces anything. unmarkedCopy uses those sources
+// and removes delivery's placeholders and invocation scripts. Each copied source
+// node retains its route to the original live node, so pairing still works when a
+// producer has rearranged children. Runtime-owned head nodes carry data-lf-runtime
+// and are excluded from the separate head baseline above. A later arriving source
+// that has not been initially rendered pairs by the ordinary parallel walk.
 const pairSources = (source, live, pairs) => {
+  live = initialOrigin(source) === source ? live : initialOrigin(source);
   pairs.set(source, live);
   const held = source.localName === "template" ? source.content : source;
   const shown = live.localName === "template" ? live.content : live;
   const children = [...shown.childNodes].filter(
-    (child) => !child.matches?.("[data-lf-prepaint]"),
+    (child) => !child.matches?.("[data-lf-prepaint], script[data-lf-initial]"),
   );
-  for (const [at, child] of [...held.childNodes].entries())
-    if (children[at]) pairSources(child, children[at], pairs);
+  for (const [at, child] of [...held.childNodes].entries()) {
+    const original = initialOrigin(child);
+    const peer = original === child ? children[at] : original;
+    if (peer) pairSources(child, peer, pairs);
+  }
   return pairs;
 };
 // Where a delivered document's captured resources are addressed: the directory its
@@ -281,7 +291,7 @@ export function createVersionController({
   // Keep it to one stable version token (or Draft) through disclosure and comparison;
   // those states remain in the menu, class, title, and accessible name. A state arriving
   // on the poll therefore cannot resize this control and displace controls to its left.
-  // The picker view reserves this compact token range once at load.
+  // The visible label prefixes this token with Showing; comparisons keep the bare token.
   const currentVersionToken = () =>
     runtime.currentStamp === null ? "Draft" : `v${runtime.currentStamp}`;
 
@@ -573,7 +583,7 @@ export function createVersionController({
     return Object.freeze({
       picker: Object.freeze({
         offered,
-        token: currentVersionToken(),
+        token: `Showing ${currentVersionToken()}`,
         compared: diffOn || diffPendingBase !== null,
         news: behind,
         keyTitle: offered
@@ -715,8 +725,15 @@ export function createVersionController({
     const pairs = [];
     const [blocks, opaque] = [diffBlockSel(), diffOpaqueSel()];
     const authoredHere = authored(root);
+    // A data body is one source value. Its formatted paragraphs are its reading,
+    // not independent source units; comparing the source also detects changed emphasis.
+    for (const body of root.querySelectorAll(".lf-markdown-body")) {
+      const owner = body.parentElement;
+      if (inChrome(owner) || owner.closest(opaque)) continue;
+      pairs.push([owner, `markdown:${body.dataset.lfSourceWords}`]);
+    }
     for (const b of root.querySelectorAll(blocks)) {
-      if (inChrome(b) || b.closest(opaque)) continue;
+      if (inChrome(b) || b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
       if (b.querySelector(blocks)) continue; // leaf blocks only, or nesting double-marks
       let key = diffWords(b);
       // An x-says value is the page's words at the element's edge (renderSaid), so it
@@ -763,6 +780,24 @@ export function createVersionController({
     return answer.browser;
   }
   function applyDiff(doc, baseVersion, baseReading) {
+    const baseRevision = stamped(baseVersion)?.revision;
+    if (baseRevision == null)
+      throw new Error(`version v${baseVersion} has no revision`);
+    const baseView = baseReading?.views?.[String(baseRevision)];
+    if (!baseView) throw new Error(`revision r${baseRevision} has no projection`);
+    const baseProjection = projectView(baseView, baseReading.thread);
+    // The before surface holds the same accepted body projection as its version
+    // would show. Use the event's exact source, never its collapsed comparison value.
+    for (const { tag, verb, spec } of stateSpecs()) {
+      if (spec.record?.kind !== "body") continue;
+      for (const widget of doc.querySelectorAll(tag)) {
+        const body = widget.querySelector(":scope > .lf-markdown-body");
+        const writer = baseProjection.desired.get(
+          stateCoordinate(widget.id, widget.id, verb),
+        );
+        if (body && writer) paintMarkdown(body, writer.e.detail.value);
+      }
+    }
     // Multiset membership rather than an alignment: an unchanged block that
     // merely moved stays unmarked; a changed or new one has no base twin.
     const base = new Map();
@@ -782,12 +817,6 @@ export function createVersionController({
     // just as an action did, so what the user saw includes it) against the
     // live DOM, which already wears the current folds. Body records are words and
     // the block keys above own them.
-    const baseRevision = stamped(baseVersion)?.revision;
-    if (baseRevision == null)
-      throw new Error(`version v${baseVersion} has no revision`);
-    const baseView = baseReading?.views?.[String(baseRevision)];
-    if (!baseView) throw new Error(`revision r${baseRevision} has no projection`);
-    const baseProjection = projectView(baseView, baseReading.thread);
     for (const { tag, verb, spec } of stateSpecs()) {
       if (!spec.record || spec.record.kind === "body") continue;
       for (const widget of document.body.querySelectorAll(tag)) {
@@ -1046,7 +1075,7 @@ export function createVersionController({
         if (runtime.lastEventSeq === throughSeq) break;
       }
       if (mine !== diffRequest) return;
-      await prepareDeclaredInlineMarkdown(doc);
+      await prepareDeclaredMarkdown(doc);
     } catch {
       if (mine === diffRequest) {
         diffPendingBase = null;
@@ -1091,10 +1120,8 @@ export function createVersionController({
     const doc = new DOMParser().parseFromString(await response.text(), "text/html");
     if (doc.querySelectorAll("body > main").length !== 1)
       throw new Error(`${url} has no single authored main`);
-    // Delivery wrote it in for a first paint, and no revision's author did.
-    for (const written of doc.querySelectorAll("body > main [data-lf-prepaint]"))
-      written.remove();
-    return doc;
+    // First-paint delivery wrappers have no place in the authored revision.
+    return restoreInitialSource(doc);
   }
   // Repeated comparisons of the same immutable revision share its document fetch.
   const revisionDocuments = new Map();
@@ -1367,6 +1394,7 @@ export function createVersionController({
         // patch and matching server reading are admitted together, so this descriptor
         // cannot borrow the old widget's semantic state during preparation.
         commitWidgetDescriptors(descriptors);
+        formatDeclaredMarkdown(arriving);
         arrived.push(arriving);
       }
       return arriving;
@@ -1530,7 +1558,7 @@ export function createVersionController({
       // spends nothing on a fetch while the user is looking at the page. Inside this
       // try, because the loader keeps a rejected import: one 404 on a module an arriving
       // revision introduces would otherwise reject every later state read for good.
-      await importWidgets(doc.querySelector("body > main"));
+      await preloadWidgets(doc.querySelector("body > main"));
     } catch (error) {
       reportPageError(
         `revision ${target.revision} failed to load: ${error?.message ?? error}`,
@@ -1691,7 +1719,7 @@ export function createVersionController({
       recordQueued = false;
       const moved = scrolled.has(undefined) ? null : new Set(scrolled);
       scrolled.clear();
-      if (!compositionChanges.size && scrollersSettled()) recordRegions(moved);
+      if (!compositionChanges.size && regionsSettled()) recordRegions(moved);
     });
   };
 
@@ -1742,8 +1770,8 @@ export function createVersionController({
 
   // A region handed to another scroller keeps the reading recorded before the handover.
   // Focus can remain on a control the user has since scrolled past, so a posture change
-  // restores that reading. A visible editor is itself a live reading landmark;
-  // focus retained on a field the reader scrolled past is not.
+  // restores that reading. A visible focused element is itself a live reading landmark;
+  // focus retained on an element the reader scrolled past is not.
   // A composition change in progress owns any shift inside it.
   function restoreShifted(shifted, currentIntent) {
     if (compositionChanges.size) return;
@@ -1815,15 +1843,19 @@ export function createVersionController({
     readingContinuityInstalled = true;
     watchReadingRegionTransitions(readingRegionTransition);
     document.addEventListener("scroll", queueRecord, { capture: true, passive: true });
-    // Opening or editing a native field changes the reading place even when no
-    // scroller moves. Record after its seat commits, through the same frame door.
-    const recordEditing = () => {
+    // Arriving or editing changes the reading place even when no scroller moves.
+    // Keep the intact place now: an immediate resize can invalidate geometry before
+    // the queued record runs. Record again after any seat or layout commits.
+    const recordStanding = () => {
       const at = focused();
-      if (at?.matches(TEXT_BOX) && under(at, document.querySelector("body > main")))
+      if (at && under(at, document.querySelector("body > main"))) {
+        if (!compositionChanges.size && regionsSettled()) recordRegions();
         queueRecord();
+      }
     };
-    document.addEventListener("focusin", recordEditing);
-    document.addEventListener("input", recordEditing);
+    onStanding(recordStanding);
+    onReadingInput(recordStanding);
+    document.addEventListener("input", recordStanding);
     queueRecord();
   }
 

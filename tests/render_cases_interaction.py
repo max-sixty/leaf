@@ -667,7 +667,7 @@ ASK_IN_A_CARD_PAGE = leaf_page(
 # shows through — every shipped widget draws one, and a wrapper a page styles boxless
 # hangs it on the boxes its contents make — so what says the walk is in one place is
 # the outermost page element wearing it, never the count of elements that do. Scoped to
-# main because the Queue panel's row mirrors the same fact in the chrome.
+# main because the Questions panel's row mirrors the same fact in the chrome.
 STANDING_ASK = "main [data-lf-ask]:not([data-lf-ask] [data-lf-ask])"
 # Every widget that measures a number off a live box, authored into the page and sent in
 # a reply, so the two readings of each can be compared instead of pinned to a number. The
@@ -704,7 +704,7 @@ MESSAGE_ROOM_PAGE = leaf_page(
 )
 
 
-# What each Queue panel row says, with the list it stands in ("you", "agent" or "done").
+# What each Questions panel row says, with the list it stands in ("you", "agent" or "done").
 # Rows under a closed Done fold are in the document and measure as nothing.
 QUEUE_ROW_SAYS = """() => [...document.querySelectorAll('button.lf-queue-row')].map((r) => ({
   at: r.getAttribute('data-lf-at'),
@@ -1032,7 +1032,7 @@ def stale_report(page_dir, widget, doing, hours, state="working"):
             "agent": "wren",
             "widget": widget,
             "action": "state",
-            "detail": {"state": state, "doing": doing},
+            "detail": {"value": state, "text": doing},
             "revision": 1,
             "ts": (datetime.now().astimezone() - timedelta(hours=hours)).isoformat(
                 timespec="seconds"
@@ -1151,16 +1151,16 @@ diff --git a/ab/bracket.py b/ab/bracket.py
 # ranks are the ones lf-board sends: importer before the authored notes ("1"), then
 # notes before importer.
 STANDING_ACTIONS = [
-    ("ab-pick", "choose", {"options": ["ab-stage"]}),
+    ("ab-pick", "choose", {"value": ["ab-stage"]}),
     ("ab-pick", "answer", {}),
     ("ab-pick", "add", {"option": "ab-rewrite", "text": "Rewrite the callers first"}),
-    ("ab-work", "move", {"card": "ab-importer", "to": "ab-done", "rank": "0i"}),
-    ("ab-work", "move", {"card": "ab-notes", "to": "ab-done", "rank": "09"}),
-    ("ab-email", "edit", {"text": "The words as the user rewrote them."}),
+    ("ab-work", "move", {"unit": "ab-importer", "value": "ab-done", "rank": "0i"}),
+    ("ab-work", "move", {"unit": "ab-notes", "value": "ab-done", "rank": "09"}),
+    ("ab-email", "edit", {"value": "The words as the user rewrote them."}),
     ("ab-sug-410", "decide", {"outcome": "accept"}),
     ("ab-sug-logs", "decide", {"outcome": "reject"}),
-    ("ab-triage", "swipe", {"card": "ab-expiry", "to": "ab-pass", "rank": "i"}),
-    ("ab-triage", "swipe", {"card": "ab-capacity", "to": "ab-keep", "rank": "i"}),
+    ("ab-triage", "swipe", {"unit": "ab-expiry", "value": "ab-pass", "rank": "i"}),
+    ("ab-triage", "swipe", {"unit": "ab-capacity", "value": "ab-keep", "rank": "i"}),
     ("ab-patch", "review", {"file": "ab/bracket.py", "reviewed": True}),
     (
         "ab-visual",
@@ -1264,14 +1264,8 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
     declarations["lf-drift"]["properties"]["restated"] = {"type": "boolean"}
     declarations["lf-drift"]["x-state"] = {
         "settle": {
-            "detail": {
-                "type": "object",
-                "properties": {"offset": {"type": "string", "pattern": "^[0-9]+$"}},
-                "required": ["offset"],
-                "additionalProperties": False,
-            },
             "unit": "widget",
-            "record": {"kind": "value", "attr": "offset", "value": "offset"},
+            "record": {"kind": "value", "attr": "offset"},
         }
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
@@ -1330,7 +1324,7 @@ TWO_HOLDER_SPARE_PAGE = TWO_HOLDER_PAGE.replace(
 </lf-trial>
 </main>""",
 )
-MARKDOWN_REPLY = """Two things, then the fix — details in https://example.com/notes:
+MARKDOWN_REPLY = """Two things, then the fix — details in https://example.com/notes.
 
 - the poll drops a response **behind** the one already rendered
 - `lastEventSeq` is what it compares, a Vec<T> of them

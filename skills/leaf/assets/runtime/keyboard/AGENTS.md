@@ -49,9 +49,11 @@ browser's order.
 - An auxiliary surface contains its own state, such as the Threads narrowing.
   Page-side selections, targets, clusters, and the page composer coexist beside
   it, and focus decides which answers first.
-- A composer, reply box, or find box exits to its container; a reply box returns
-  to its thread, and the thread to the panel's rungs, which clear narrowing before
-  closing.
+- A composer, reply box, or find box exits to its container. An element comment
+  composer returns to the subject its anchor resolves, or that subject's declared
+  response proxy; an Ask remains a separate step before the document. A reply box
+  returns to its thread, and the thread to the panel's rungs, which clear narrowing
+  before closing.
 - A reply, or the first comment that starts a thread, leaves the user standing on
   the thread once sent. A thread in the margin card leaves them on the element it
   is about, with the card still up, so one Escape takes the card down and moving
@@ -61,9 +63,13 @@ browser's order.
 - Threads selects one thread whenever it shows any, and focus on the list is focus
   on that thread's title: `g T`, and an Escape from its find box, land there.
   The list stands alone only while it shows no thread. A title selects the same
-  thread as its body, and focus on a title selects its thread, however it arrived,
-  so the focused thread is always the open one and its reply box is the one `c`
-  names. Enter or Space keeps it selected.
+  thread as its body, and the user's move onto a title selects its thread, by any
+  route, so the focused thread is always the open one and its reply box is the one
+  `c` names. The runtime putting them back on a title chooses nothing: it returns them
+  to the title they had chosen, or to the open one the list stands in with when a
+  change took theirs away, and a hold put back after the choice moved under it, which
+  leaves them on a closed title, is the one place the two part. Enter or Space keeps it
+  selected.
 - The versions menu opens from inside More, so More is its parent whichever route
   opened it (`g V` included), and Escape steps back to the version picker there.
 - A selected destination (thread, Ask, heading) has a let-go step back to the
@@ -107,7 +113,7 @@ state, and press come from the one row the key uses.
 
 Every page command declares `touch`, and the register refuses one that does not; `false`
 says a finger reaches the result directly. Walks, paging, scrolling, and Go-to move the
-reader, which a finger does by scrolling and by tapping the Threads list, the Queue panel,
+reader, which a finger does by scrolling and by tapping the Threads list, the Questions panel,
 or the Page Map. `n` walks a search that has closed, which a finger searches again from
 More. Choosing a match is the soft keyboard's Enter, or selecting the marked words.
 The ⌥ aim names a target, which a finger does by selecting words or through Select
@@ -134,8 +140,8 @@ scopes), `register.js` (scope order, page commands, the Escape ladder),
 (the `g` grammar), `control-keys.js`,
 `presentation.js`, `shortcut-bar.js`, `command-reference.js`, `hints.js`,
 `command-hints.js` (inline hints from reachable command bindings),
-`key-badge-placement.js`, `disclosure.js`, and `touch-controls.js` (a finger's stand-ins
-for the keys).
+`key-badge-placement.js`, `chip-seats.js` (where key chips stand), `disclosure.js`,
+and `touch-controls.js` (a finger's stand-ins for the keys).
 
 Test a changed binding inside and outside its scope and inside any native editor
 the scope contains, and check entry and exit symmetry against the whole register.

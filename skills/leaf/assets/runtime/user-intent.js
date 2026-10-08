@@ -13,9 +13,21 @@
    scroll `touchstart`, a key `keydown`, and find-in-page takes focus from the window,
    which is `blur`. */
 import { focused } from "./keyboard/scopes.js";
+import { onStanding } from "./focus.js";
+import { onReadingInput } from "./reading-regions.js";
 
+const inputReaders = new Set();
+// Mechanical owners may stop motion at the input edge, before a command or drawing
+// handler consumes it. Observation adds no binding and never claims the event.
+export function onUserInput(read) {
+  inputReaders.add(read);
+  return () => inputReaders.delete(read);
+}
 let intent = 0;
-const leave = () => intent++;
+const leave = (event) => {
+  intent++;
+  for (const read of inputReaders) read(event);
+};
 for (const type of ["pointerdown", "keydown", "input", "wheel", "touchstart"])
   addEventListener(type, leave, { capture: true, passive: true });
 addEventListener("blur", leave);
@@ -29,11 +41,17 @@ for (const type of ["pointermove", "pointerdown", "wheel"])
     capture: true,
     passive: true,
   });
-for (const type of ["focusin", "keydown"])
-  addEventListener(type, () => (placeInput = "focus"), {
-    capture: true,
-    passive: true,
-  });
+addEventListener("keydown", () => (placeInput = "focus"), {
+  capture: true,
+  passive: true,
+});
+onStanding((node) => {
+  if (node) placeInput = "focus";
+});
+// A repeated click can choose the focused destination without moving focus.
+onReadingInput((node) => {
+  placeInput = focused()?.contains(node) ? "focus" : "pointer";
+});
 export const recentPlaceInput = () => placeInput;
 
 // Focus a repaint took from the source and dropped on a container holding it, as a

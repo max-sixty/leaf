@@ -383,9 +383,80 @@ export const semanticStoreOwnershipRule = {
   },
 };
 
+// Where the user stands, and what moved them there, is focus.js's one reading
+// (`onStanding`). A `focusin` or `focusout` listener hears nothing of a move between two
+// nodes of one shadow tree beneath it, and a reader that tells the runtime's returns or
+// the keyboard's arrivals apart for itself answers a question focus.js already answers.
+// So the two event names appear nowhere else, in a listener, a list of event types, a
+// comparison or a Lit binding, and `focus` and `blur` are not heard on the document or
+// captured anywhere, which would hear every element beneath. An element's own `focus`
+// or `blur`, and the window's, which is the system's focus, are other questions. The option names,
+// by path from the repository root, the files that may still name a focus event, each
+// with the reason in the config that grants it.
+const standingRepoRoot = path.dirname(fileURLToPath(import.meta.url));
+const STANDING_MESSAGE =
+  "Read where the user stands from onStanding (runtime/focus.js): a focusin or focusout listener misses moves inside a shadow tree beneath it and guesses its own cause.";
+export const standingListenersRule = {
+  meta: {
+    type: "problem",
+    schema: [{ type: "object", additionalProperties: { type: "array" } }],
+  },
+  create(context) {
+    const file = path
+      .relative(standingRepoRoot, context.filename ?? context.getFilename())
+      .split(path.sep)
+      .join("/");
+    const allowed = new Set(context.options[0]?.[file] ?? []);
+    const named = (node, type) => {
+      if (!allowed.has(type)) context.report({ node, message: STANDING_MESSAGE });
+    };
+    // Capturing `focus` or `blur` on any node hears every element beneath it, the
+    // window's included.
+    const capturing = (options) =>
+      (options?.type === "Literal" && options.value === true) ||
+      (options?.type === "ObjectExpression" &&
+        options.properties.some(
+          (property) =>
+            property.key?.name === "capture" &&
+            property.value.type === "Literal" &&
+            property.value.value === true,
+        ));
+    const documentReceiver = (callee) =>
+      callee.type === "MemberExpression" &&
+      callee.object.type === "Identifier" &&
+      callee.object.name === "document";
+    return {
+      Literal(node) {
+        if (node.value === "focusin" || node.value === "focusout")
+          named(node, node.value);
+      },
+      TemplateElement(node) {
+        for (const [, type] of node.value.raw.matchAll(/@(focusin|focusout)\s*=/gu))
+          named(node, type);
+      },
+      CallExpression(node) {
+        const { callee } = node;
+        const method =
+          callee.type === "MemberExpression" && !callee.computed
+            ? callee.property.name
+            : null;
+        const type = node.arguments[0];
+        if (
+          method === "addEventListener" &&
+          (documentReceiver(callee) || capturing(node.arguments[2])) &&
+          type?.type === "Literal" &&
+          (type.value === "focus" || type.value === "blur")
+        )
+          named(node, type.value);
+      },
+    };
+  },
+};
+
 const architecturePlugin = {
   rules: {
     "semantic-store-ownership": semanticStoreOwnershipRule,
+    "standing-listeners": standingListenersRule,
     "root-state-ownership": {
       meta: { type: "problem", schema: [] },
       create(context) {
@@ -707,11 +778,25 @@ export default [
     rules: publicRuntimeBoundary,
   },
   {
-    // The runtime's own fold tests. A private owner is what they are about, so the
-    // facade rule would forbid their subject; the entry stays out of reach, because a
+    // Compiler tests load their newly generated temporary output. Those paths
+    // are build results, not authored browser imports hiding dependency edges.
+    files: ["build/**/*.test.mjs"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        ...publicRuntimeBoundary["no-restricted-syntax"]
+          .slice(1)
+          .filter(
+            (rule) => rule.selector !== 'ImportExpression:not([source.type="Literal"])',
+          ),
+      ],
+    },
+  },
+  {
+    // The browser framework's and runtime's own fold tests exercise private owners,
+    // which the facade rule would forbid; the entry stays out of reach, because a
     // test is not a page and booting one would import the whole layer to read one fold.
-    files: ["tests/runtime/**/*.mjs"],
-    languageOptions: { globals: browserGlobals },
+    files: ["tests/runtime/**/*.mjs", "build/browser/**/*.test.mjs"],
     rules: {
       "no-restricted-imports": [
         "error",
@@ -726,9 +811,18 @@ export default [
           selector: 'ImportExpression[source.value="/leaf.js"]',
           message: entryMessage,
         },
+        {
+          selector: "ImportExpression[source.value=/^\\.{1,2}\\/(?:.*\\/)?leaf\\.js$/]",
+          message: entryMessage,
+        },
       ],
-      "no-undef": "error",
     },
+  },
+  {
+    // Runtime tests exercise browser owners; compiler tests run in Node.
+    files: ["tests/runtime/**/*.mjs"],
+    languageOptions: { globals: browserGlobals },
+    rules: { "no-undef": "error" },
   },
   {
     files: ["build/pierre/*.mjs"],
@@ -751,9 +845,9 @@ export default [
     rules: { "no-undef": "error" },
   },
   {
-    // The site verifier resolves the release-scoped runtime URL from the page under
-    // test. That URL is data, so its two imports cannot be static dependency edges.
-    files: ["dev/leaf_dev/verify_site_browser.js"],
+    // Browser diagnostics resolve published runtime entries from the page under
+    // test. Those scoped URLs are data rather than static dependency edges.
+    files: ["dev/leaf_dev/verify_site_browser.js", "dev/leaf_dev/bench_latency.js"],
     languageOptions: { globals: browserGlobals, sourceType: "script" },
     rules: {
       "no-undef": "error",
@@ -834,11 +928,11 @@ export default [
     files: [
       "skills/leaf/scripts/leaf/render-checks/replay.js",
       "skills/leaf/scripts/leaf/render-checks/runtime.js",
+      "skills/leaf/scripts/leaf/render-checks/widgets.js",
     ],
     rules: {
-      // Render checks compare the publisher's historical selections. That validation
-      // reading is deliberately private rather than part of the package-facing widget
-      // controller.
+      // Render checks use their diagnostic adapter alongside the public widget API.
+      // Validation and visual-part owners remain private to the kernel.
       "no-restricted-imports": [
         "error",
         {
@@ -850,8 +944,8 @@ export default [
           ],
           patterns: [
             {
-              regex: "^/runtime/(?!widget-api\\.js$|validation\\.js$)",
-              message: "Render checks use the public API or validation adapter.",
+              regex: "^/runtime/(?!widget-api\\.js$|check-api\\.js$)",
+              message: "Render checks use the public API or diagnostic adapter.",
             },
             {
               regex: "^\\.{1,2}/(?:.*/)?runtime/",
@@ -912,6 +1006,36 @@ export default [
             (property) => ({ object, property, message: RENDERING_MESSAGE }),
           ),
         ),
+      ],
+    },
+  },
+  {
+    files: ["skills/leaf/assets/**/*.js", "skills/leaf/packages/*/**/*.js"],
+    ignores: ["skills/leaf/assets/vendor/**", "skills/leaf/packages/*/vendor/**"],
+    plugins: { architecture: architecturePlugin },
+    rules: {
+      "architecture/standing-listeners": [
+        "error",
+        {
+          // The owner of every focus event.
+          "skills/leaf/assets/runtime/focus.js": ["focusin", "focusout"],
+          // Records the raw events of a session for the interaction log, the one
+          // exception that is not one element's or one subtree's own question: it is a
+          // recorder of events, and reads no standing from them.
+          "skills/leaf/assets/runtime/interaction-log.js": ["focusin", "focusout"],
+          // A reply row's own entry begins its composition. The box's host is in the
+          // row's tree, so entering its shadow tree reaches the row, and a move inside
+          // it is no new entry.
+          "skills/leaf/assets/runtime/thread/replies.js": ["focusin"],
+          // Whether focus is anywhere inside a cluster, or inside the card's reply row:
+          // leaving one closes what it opened. Their controls stand in their own tree.
+          "skills/leaf/packages/default/runtime/annotation-overlay/margin-projection.js":
+            ["focusout"],
+          // A widget's own subtree, whose controls stand in its tree: whether focus is
+          // within the gloss, and the contents link the user last stood on.
+          "skills/leaf/packages/default/widgets/lf-gloss.js": ["focusin", "focusout"],
+          "skills/leaf/packages/default/widgets/lf-toc.js": ["focusin"],
+        },
       ],
     },
   },

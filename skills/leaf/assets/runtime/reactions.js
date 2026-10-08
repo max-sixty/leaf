@@ -108,7 +108,7 @@ export function createReactionController({
   hideComposer,
   syncResponseOptions,
   fabAnchorAt,
-  fabReturnTo,
+  fabReturnPlaces,
   fabTargetAt,
   hasPageSelectionTarget,
   showFab,
@@ -168,8 +168,8 @@ export function createReactionController({
     // The bar owns what that answer is. `setReact(false)` runs after the bar goes and the
     // palette makes a return of its own, so the user lands once, when everything has
     // settled, rather than once as the bar goes and again after the palette.
-    const returnTo = fabReturnTo();
-    const restoreTargetFocus = () => handBack(returnTo);
+    const returnTo = fabReturnPlaces();
+    const restoreTargetFocus = () => handBack(...returnTo);
     if (!anchor) return;
     let sent;
     if (standing) sent = commands.withdrawReaction(standing);
@@ -340,7 +340,6 @@ export function createReactionController({
             // off screen. Keep the semantic anchor without
             // asking a floating bar to find geometry; the shared element is the surface.
             showFab(target.target.anchor, {
-              origin: reactFrom,
               place: false,
             });
             reactRaised = true;
@@ -629,6 +628,6 @@ function reactionPlace(event) {
 export const undoSentence = (undoable) => {
   const event = undoable();
   return event?.token
-    ? `Take back: ${event.token} on ${reactionPlace(event)}`
-    : "Take back the last change you made here";
+    ? `Undo: ${event.token} reaction on ${reactionPlace(event)}`
+    : "Undo your latest update";
 };

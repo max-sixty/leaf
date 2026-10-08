@@ -54,7 +54,6 @@ from render_harness import (
     consume_browser_errors,
     draft_control,
     draft_key,
-    draft_owner,
     example_media,
     expect_banner_control_offered,
     expect_comment_notes,
@@ -63,7 +62,6 @@ from render_harness import (
     hold_selection,
     holding,
     leaf_page,
-    margin_entry,
     open_page,
     panel_settled,
     primed,
@@ -90,14 +88,20 @@ from test_render_threads import hold_visible_thread_presentation
 
 
 @pytest.mark.parametrize(
-    ("unique", "tall"),
-    [(True, False), (False, False), (False, True)],
-    ids=["unique", "repeated", "tall-repeated"],
+    ("unique", "tall", "control"),
+    [
+        (True, False, "editor"),
+        (False, False, "editor"),
+        (False, True, "editor"),
+        (False, False, "checkbox"),
+        (False, False, "button"),
+    ],
+    ids=["unique", "repeated", "tall-repeated", "checkbox", "button"],
 )
-def test_a_visible_editor_is_the_reading_place_until_the_reader_scrolls_away(
-    browser, serve, unique, tall
+def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls_away(
+    browser, serve, unique, tall, control
 ):
-    """A pane carries live editing across posture changes without pulling back old focus."""
+    """A pane carries visible focus across posture changes without pulling back old focus."""
 
     def context(prefix):
         return "".join(
@@ -108,19 +112,35 @@ def test_a_visible_editor_is_the_reading_place_until_the_reader_scrolls_away(
     before = context("Reading")
     after = context("Following" if unique else "Reading")
     field_height = ' style="height:1000px"' if tall else ""
+    field_markup = {
+        "editor": f'<textarea aria-label="Working draft"{field_height}></textarea>',
+        "checkbox": '<label><input type="checkbox">Working choice</label>',
+        "button": '<button type="button">Working action</button>',
+    }[control]
     source = leaf_page(
         "Editing in a reading region",
         f'<lf-pane id="editor-pane" label="Working text"><div>{before}'
-        f'<textarea aria-label="Working draft"{field_height}></textarea>'
+        f"{field_markup}"
         f"{after}</div></lf-pane>",
         layout="workspace",
     )
     page = open_page(browser, serve(source))
     resized(page, 1366, 768)
-    field = page.get_by_role("textbox", name="Working draft")
+    role, name = {
+        "editor": ("textbox", "Working draft"),
+        "checkbox": ("checkbox", "Working choice"),
+        "button": ("button", "Working action"),
+    }[control]
+    field = page.get_by_role(role, name=name)
     field.click()
-    page.keyboard.type("The reader is working here")
+    if control == "editor":
+        page.keyboard.type("The reader is working here")
     rendered(page)
+    if control != "editor":
+        # Activation can keep focus on the same node without emitting an input.
+        # Settle the focus record first so it cannot accidentally cover the key.
+        field.press("Space" if control == "checkbox" else "Enter")
+        rendered(page)
 
     def in_view():
         return field.evaluate(
@@ -138,11 +158,21 @@ def test_a_visible_editor_is_the_reading_place_until_the_reader_scrolls_away(
     resized(page, 390, 760)
     rendered(page)
     expect(field).to_be_focused()
-    expect(field).to_have_value("The reader is working here")
-    assert in_view(), "the new page scroller lost the live editing place"
+    if control == "editor":
+        expect(field).to_have_value("The reader is working here")
+    assert in_view(), "the new page scroller lost the live focused place"
+    if control == "button":
+        # Clicking the same focused control must name it again, even though the
+        # browser has no new focus transition to announce.
+        field.click()
+        rendered(page)
+        resized(page, 1366, 768)
+        rendered(page)
+        expect(field).to_be_focused()
+        assert in_view(), "a repeated click lost the focused reading place"
 
     # Focus alone is not a reading place: scrolling elsewhere deliberately leaves
-    # the same editor focused, and the next posture must retain that new reading.
+    # the same element focused, and the next posture must retain that new reading.
     page.mouse.wheel(0, -10000)
     page.wait_for_function("document.scrollingElement.scrollTop === 0")
     scroll_settled(page)
@@ -152,7 +182,7 @@ def test_a_visible_editor_is_the_reading_place_until_the_reader_scrolls_away(
     resized(page, 1366, 768)
     rendered(page)
     expect(field).to_be_focused()
-    assert not in_view(), "a stale focused editor displaced the reader's new place"
+    assert not in_view(), "stale focus displaced the reader's new place"
 
 
 @pytest.mark.parametrize("bounded", [False, True])
@@ -650,10 +680,7 @@ def test_page_round_trip(browser, serve):
     draft.locator(".lf-draft-body").dblclick()
     write(draft.locator("leaf-text"), DRAFT_EDITED)
     draft_control(page, "save", "draft-ops").click()
-    page.wait_for_function(
-        "t => document.querySelector('#draft-ops .lf-draft-body').textContent === t",
-        arg=DRAFT_EDITED,
-    )
+    expect(draft.locator(".lf-draft-body")).to_have_text(DRAFT_EDITED)
 
     # Every gesture above must be in the log before v2's note lands, or the trail below
     # would interleave. The page posted them, so the page is what says they are all in:
@@ -675,10 +702,7 @@ def test_page_round_trip(browser, serve):
     ), "the passage moved and the comment lost it"
     # v2's markup carries the original draft text — Claude hasn't honored the
     # edit — so the user's words must arrive by replay, not visibly revert.
-    page.wait_for_function(
-        "t => document.querySelector('#draft-ops .lf-draft-body').textContent === t",
-        arg=DRAFT_EDITED,
-    )
+    expect(draft.locator(".lf-draft-body")).to_have_text(DRAFT_EDITED)
 
     # The trail those gestures left, exactly — kinds, authorship (the server
     # stamps browser events `user`), the anchor, and the move's placement.
@@ -895,7 +919,9 @@ def test_opening_a_visible_line_in_a_long_draft_preserves_the_reading_position(
     scroll_settled(page)
     point = page.locator("#long-draft .lf-draft-body").evaluate(
         """el => {
-          const node = el.firstChild, word = 'Line 30:';
+          const word = 'Line 30:', walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          let node;
+          while ((node = walker.nextNode()) && !node.data.includes(word)) {}
           const at = node.data.indexOf(word), range = document.createRange();
           range.setStart(node, at + 3); range.setEnd(node, at + 4);
           const b = range.getBoundingClientRect();
@@ -924,7 +950,7 @@ def test_opening_a_visible_line_in_a_long_draft_preserves_the_reading_position(
 def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(
     browser, serve, viewport
 ):
-    """Markdown remains source through click-to-edit, undo, Cancel and Save."""
+    """Formatted reading retains exact Markdown through caret placement and editing."""
     text = (
         "A **bold invitation**, `literal code`, and [a link](https://example.com). " * 3
     ).strip()
@@ -941,16 +967,22 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(
     resized(page, *viewport)
     draft = page.locator("#source")
     point = draft.locator(".lf-draft-body").evaluate("""body => {
-      const node=body.firstChild, at=node.data.indexOf('literal code');
-      const r=new Range();r.setStart(node,at+3);r.setEnd(node,at+4);
-      const b=r.getBoundingClientRect();return [b.x+b.width/2,b.y+b.height/2,at];
+      const node=body.querySelector('code').firstChild;
+      const r=new Range();r.setStart(node,3);r.setEnd(node,4);
+      const b=r.getBoundingClientRect();return [b.x+b.width/2,b.y+b.height/2];
     }""")
+    expect(draft.locator(".lf-draft-body strong")).to_have_count(3)
+    expect(draft.locator(".lf-draft-body code")).to_have_count(3)
+    expect(draft.locator(".lf-draft-body a[href='https://example.com']")).to_have_count(
+        3
+    )
     page.mouse.click(point[0], point[1])
     editor = draft.locator("leaf-text")
     expect(editor).to_be_focused()
     expect(editor).to_have_attribute("aria-label", "Edit source")
     caret = editor.evaluate("el=>el.selectionStart")
-    assert point[2] <= caret <= point[2] + len("literal code")
+    at = text.index("literal code")
+    assert at <= caret <= at + len("literal code")
     page.keyboard.insert_text("changed ")
     expect(editor).to_have_js_property(
         "value", text[:caret] + "changed " + text[caret:]
@@ -959,7 +991,7 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(
     expect(editor).to_have_js_property("value", text)
     write(editor, "Discard **this**.")
     draft_control(page, "cancel", "source").click()
-    expect(draft.locator(".lf-draft-body")).to_have_text(text.strip())
+    expect(draft.locator(".lf-draft-body strong")).to_have_count(3)
     draft_control(page, "edit", "source").click()
     expect(editor).to_have_js_property("value", text)
     saved = "Keep **this** and `that` exactly.\nA second line."
@@ -967,7 +999,11 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(
     draft_control(page, "save", "source").click()
     round_trip(page)
     expect(editor).to_have_count(0)
-    expect(draft.locator(".lf-draft-body")).to_have_text(saved)
+    expect(draft.locator(".lf-draft-body strong")).to_have_text("this")
+    expect(draft.locator(".lf-draft-body code")).to_have_text("that")
+    expect(draft.locator(".lf-draft-body")).to_have_text(
+        "Keep this and that exactly. A second line."
+    )
     edits = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -977,6 +1013,40 @@ def test_a_draft_uses_shared_editing_and_saves_exact_markdown_source(
     page.locator("#exhibit .lf-draft-body").click()
     expect(page.locator("#exhibit leaf-text")).to_have_count(0)
     expect(page.locator("#exhibit .lf-draft-body")).to_have_text("Read-only source.")
+
+
+def test_a_rendered_continuation_click_edits_the_exact_source_position(browser, serve):
+    """Parser-expanded indentation keeps the native pointer's source coordinate."""
+    sources = ["- first\n\tcontinued **target**", "1. first\n\tcontinued **target**"]
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Continuation carets",
+                "<h1>Continuation carets</h1>"
+                + "".join(
+                    f'<lf-draft id="continuation-{i}"><pre>{source}</pre></lf-draft>'
+                    for i, source in enumerate(sources)
+                ),
+            )
+        ),
+    )
+    for i, source in enumerate(sources):
+        draft = page.locator(f"#continuation-{i}")
+        point = draft.locator(".lf-draft-body strong").evaluate("""strong => {
+          const node=strong.firstChild, range=new Range();
+          range.setStart(node,2);range.setEnd(node,3);
+          const box=range.getBoundingClientRect(),x=box.x+0.01,y=box.y+box.height/2;
+          return {x,y,offset:document.caretPositionFromPoint(x,y).offset};
+        }""")
+        page.mouse.click(point["x"], point["y"])
+        editor = draft.locator("leaf-text")
+        expect(editor).to_be_focused()
+        at = source.index("target") + point["offset"]
+        expect(editor).to_have_js_property("selectionStart", at)
+        page.keyboard.insert_text("here")
+        expect(editor).to_have_js_property("value", source[:at] + "here" + source[at:])
+        draft_control(page, "cancel", f"continuation-{i}").click()
 
 
 def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
@@ -997,7 +1067,7 @@ def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
     )
     question = page.locator("#note-decision")
     editor = page.locator("#note leaf-text")
-    hints = page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    hints = question.locator(".lf-draft-action .lf-key-badge")
 
     def return_to_question():
         question.evaluate(
@@ -1008,12 +1078,12 @@ def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
         )
         expect(question).to_be_focused()
 
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(question).to_be_focused()
     expect(draft_control(page, "edit", "note")).to_have_attribute(
         "aria-keyshortcuts", "1"
     )
-    expect(hints).to_have_text(["1"])
+    expect(hints).to_have_count(0)
     page.keyboard.press("1")
     expect(editor).to_be_focused()
     write(editor, "Keep **these** digits: ")
@@ -1026,13 +1096,10 @@ def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
     assert "2" not in hints.all_text_contents()
 
     return_to_question()
-    expect(hints).to_have_text(["1", "2"])
+    expect(hints).to_have_count(0)
     for action, key in [("save", "1"), ("cancel", "2")]:
-        assert (
-            key
-            in draft_control(page, action, "note")
-            .get_attribute("aria-keyshortcuts")
-            .split()
+        expect(draft_control(page, action, "note")).to_have_attribute(
+            "aria-keyshortcuts", re.compile(rf"(?:^| ){key}(?: |$)")
         )
     page.keyboard.press("?")
     page.keyboard.press("?")
@@ -1047,7 +1114,7 @@ def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
     page.keyboard.press("1")
     round_trip(page)
     expect(editor).to_have_count(0)
-    expect(page.locator("#note .lf-draft-body")).to_have_text(saved)
+    expect(page.locator("#note .lf-draft-body")).to_have_text("Keep these digits: 123")
 
     # The answered Ask remains an association while the source offers another edit.
     return_to_question()
@@ -1057,7 +1124,7 @@ def test_a_draft_forwards_edit_save_and_cancel_without_consuming_native_digits(
     return_to_question()
     page.keyboard.press("2")
     expect(editor).to_have_count(0)
-    expect(page.locator("#note .lf-draft-body")).to_have_text(saved)
+    expect(page.locator("#note .lf-draft-body")).to_have_text("Keep these digits: 123")
     edits = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -1131,9 +1198,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
     told(page)
     expect(page.locator("#col-done #card-x")).to_have_count(1)
     expect(editor).to_have_js_property("value", "Local unsent words.")
-    expect(draft.locator(".lf-draft-history > summary")).to_have_text(
-        "Changes · 0 edits"
-    )
+    expect(draft.locator(".lf-draft-history")).to_have_count(0)
 
     page.route("**/api/state*", refuse)
     page.keyboard.press("Escape")
@@ -1291,10 +1356,7 @@ def test_a_draft_wait_only_paints_after_the_shared_busy_delay(browser, serve):
           }, 700));
         }"""
     )
-    page.locator(
-        '[data-lf-margin-for="draft-ops"] '
-        + margin_entry(draft_owner("draft-ops"), "save")
-    ).click()
+    draft_control(page, "save", "draft-ops").click()
     frames = page.evaluate("() => window.__lfBusyFrames")
     holding(page, held, 1, "the draft edit")
 
@@ -1331,20 +1393,16 @@ def test_a_refused_draft_keeps_text_and_offers_retry_without_a_details_pane(
         ),
     )
     draft_control(page, "save", "draft-ops").click()
-    item = page.locator('[data-lf-margin-for="draft-ops"]')
-    expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
-    expect(item).to_have_attribute("data-lf-state", "failed")
+    item = draft.locator(".lf-draft-footer")
+    expect(item.get_by_role("status")).to_have_text("Save failed. Your edit is kept.")
     expect(editor).to_have_js_property("value", "Keep these unsent words.")
     expect(item.get_by_role("button", name="Retry", exact=True)).to_be_visible()
     expect(item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
-    expect(item.locator(".lf-margin-more")).to_be_hidden()
-    expect(page.locator(".lf-margin-preview")).to_be_hidden()
 
     write(editor, "Keep the revised unsent words.")
-    expect(item.locator(".lf-margin-receipt")).to_have_count(0)
-    expect(item).to_have_attribute("data-lf-state", "engaged")
+    expect(item.locator(".lf-draft-status")).to_be_empty()
     item.get_by_role("button", name="Save", exact=True).click()
-    expect(item.locator(".lf-margin-receipt")).to_have_text("Failed")
+    expect(item.get_by_role("status")).to_have_text("Save failed. Your edit is kept.")
     page.unroute("**/api/event")
     item.get_by_role("button", name="Retry", exact=True).click()
     round_trip(page)
@@ -4031,7 +4089,7 @@ def test_tab_browsing_continues_a_displaced_reply_without_an_annotation_overlay(
           const present = list.present.bind(list);
           const held = Promise.withResolvers();
           list.present = model => {
-            if (!document.querySelector('.lf-thread-panel').open) return present(model);
+            if (!document.querySelector('.lf-thread-panel').classList.contains('open')) return present(model);
             window.replyContinuationHeld = true;
             return held.promise.then(() => present(model));
           };
@@ -5253,7 +5311,8 @@ def test_the_draft_box_is_its_own_door(browser, serve):
     # row and the edit box are both things `offer` built and neither names a kind.
     inside = page.evaluate(
         """() => [...document.querySelectorAll('#draft-ops [data-lf-offer=""]')]
-             .map((el) => [el.localName, getComputedStyle(el).cursor])"""
+             .filter(el => !el.closest("button"))
+        .map((el) => [el.localName, getComputedStyle(el).cursor])"""
     )
     assert inside, "the draft built no generated chrome, so this proves nothing"
     assert all(cursor != "pointer" for _tag, cursor in inside), (
@@ -5773,18 +5832,21 @@ def test_a_fresh_revision_caret_failure_does_not_strand_deferred_arrivals(
     assert "Revision continuity failed" in errors[0], errors
 
 
-def test_first_draft_save_and_refusal_keep_the_history_allocation(browser, serve):
-    """Current text and the zero-edit history keep one box through a refused first Save."""
-    source = leaf_page(
-        "First draft refusal",
-        "<h1>First draft refusal</h1>"
-        '<lf-draft id="first-draft"><pre>Original words.</pre></lf-draft>'
-        '<p id="following">The following passage stays where the reader found it.</p>',
+def test_first_draft_save_and_refusal_keep_the_local_editor_controls(browser, serve):
+    """A failed first save retains exact source and usable controls without empty history."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "First draft refusal",
+                "<h1>First draft refusal</h1>"
+                '<lf-draft id="first-draft"><pre>Original words.</pre></lf-draft>'
+                '<p id="following">The following passage stays where the reader found it.</p>',
+            )
+        ),
     )
-    page = open_page(browser, serve(source))
     draft = page.locator("#first-draft")
-    history = draft.locator(".lf-draft-history > summary")
-    expect(history).to_have_text("Changes · 0 edits")
+    expect(draft.locator(".lf-draft-history")).to_have_count(0)
     draft_control(page, "edit", "first-draft").click()
     write(draft.locator("leaf-text"), "Changed words.")
     before = page.locator("#following").bounding_box()
@@ -5793,18 +5855,52 @@ def test_first_draft_save_and_refusal_keep_the_history_allocation(browser, serve
     draft_control(page, "save", "first-draft").click()
     holding(page, held, 1, "the refused first draft Save")
     expect(draft.locator(".lf-draft-body")).to_have_text("Changed words.")
-    expect(draft.locator(".lf-draft-current")).to_contain_text(
-        "This version → standing text"
-    )
-    assert page.locator("#following").bounding_box() == before
     held[0].fulfill(
         status=400, json={"ok": False, "final": True, "error": "refused first edit"}
     )
     expect(draft.locator("leaf-text")).to_have_js_property("value", "Changed words.")
     expect(draft.locator(".lf-draft-body")).to_have_text("Original words.")
-    expect(history).to_have_text("Changes · 0 edits")
+    expect(draft_control(page, "retry", "first-draft")).to_be_visible()
+    expect(draft_control(page, "cancel", "first-draft")).to_be_visible()
+    expect(draft.locator(".lf-draft-history")).to_have_count(0)
     assert page.locator("#following").bounding_box() == before
     consume_browser_errors(page, "400")
+
+
+def test_draft_controls_survive_hiding_annotations_and_close_keeps_source(
+    browser, serve
+):
+    """Editing operations stay in their box while the annotation layer is hidden."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Local draft controls",
+                "<h1>Local draft controls</h1>"
+                '<lf-draft id="local"><pre>Saved **source**.</pre></lf-draft>',
+            )
+        ),
+    )
+    draft = page.locator("#local")
+    edit = draft_control(page, "edit", "local")
+    edit.click()
+    editor = draft.locator("leaf-text")
+    write(editor, "Unsent `source`.")
+    page.keyboard.press("Tab")
+    expect(draft_control(page, "save", "local")).to_be_focused()
+    page.keyboard.press("o")
+    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
+    expect(draft_control(page, "save", "local")).to_be_visible()
+    expect(draft_control(page, "cancel", "local")).to_be_visible()
+    draft_control(page, "close", "local").click()
+    expect(editor).to_have_count(0)
+    expect(edit).to_be_focused()
+    edit.press("Enter")
+    expect(editor).to_have_js_property("value", "Unsent `source`.")
+    draft_control(page, "cancel", "local").click()
+    expect(edit).to_be_focused()
+    edit.click()
+    expect(editor).to_have_js_property("value", "Saved **source**.")
 
 
 def test_resume_writing_keeps_editor_identity_caret_and_sent_conversation(
@@ -6031,3 +6127,200 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     page.keyboard.press("i")
     expect(edit).to_be_focused()
     expect(edit).to_have_js_property("value", "")
+
+
+def test_document_edit_enter_adds_a_line_and_modified_enter_saves_exact_source(
+    browser, serve
+):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Markdown source editing",
+                "<h1>Markdown source editing</h1>"
+                '<lf-draft id="source"><pre>Original **source**.</pre></lf-draft>',
+            )
+        ),
+    )
+    draft = page.locator("#source")
+    draft_control(page, "edit", "source").click()
+    editor = draft.locator("leaf-text")
+    write(editor, "First **paragraph**.")
+    editor.press("End")
+    editor.press("Enter")
+    editor.press("Enter")
+    page.keyboard.insert_text("Second `paragraph`.")
+    exact = "First **paragraph**.\n\nSecond `paragraph`."
+    expect(editor).to_have_js_property("value", exact)
+    assert not [
+        e for e in events_model.read_events(serve.page_dir) if e.get("action") == "edit"
+    ]
+    editor.press("ControlOrMeta+Enter")
+    expect(editor).to_have_count(0)
+    expect(draft.locator(".lf-draft-body > p")).to_have_count(2)
+    expect(draft.locator(".lf-draft-body strong")).to_have_text("paragraph")
+    expect(draft.locator(".lf-draft-body code")).to_have_text("paragraph")
+    edits = [
+        e for e in events_model.read_events(serve.page_dir) if e.get("action") == "edit"
+    ]
+    assert [e["detail"]["value"] for e in edits] == [exact]
+
+
+def test_draft_comparison_detects_format_changes_but_not_the_same_standing_edit(
+    browser, serve
+):
+    first = leaf_page(
+        "Markdown revision comparison",
+        "<h1>Markdown revision comparison</h1>"
+        '<lf-draft id="source"><pre>Keep **these** words.</pre></lf-draft>'
+        '<p id="following">Following passage.</p>',
+    )
+    url = serve(first)
+    _publish(
+        serve.page_dir, 2, first.replace("**these**", "*these*"), "Change emphasis"
+    )
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+    compare_with(page)
+    expect(page.locator("#source")).to_have_class(re.compile(r"lf-ins-block"))
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 2,
+            "widget": "source",
+            "action": "edit",
+            "detail": {"value": "Standing **edit**."},
+        },
+    )
+    _publish(
+        serve.page_dir,
+        3,
+        first.replace("**these**", "*these*").replace(
+            "Following passage.", "Revised following passage."
+        ),
+        "Revise following prose",
+    )
+    page.goto(url.replace("v1.html", "v3.html"))
+    wait_until_ready(page)
+    compare_with(page)
+    expect(page.locator("#following")).to_have_class(re.compile(r"lf-ins-block"))
+    expect(page.locator("#source")).not_to_have_class(re.compile(r"lf-ins-block"))
+    expect(page.locator("#source .lf-draft-body strong")).to_have_text("edit")
+
+
+@pytest.mark.parametrize("action", ["edit", "save", "cancel", "close"])
+@pytest.mark.parametrize("edge", ["left", "right"])
+def test_a_draft_button_keeps_its_target_when_pointerdown_focuses_it(
+    browser, serve, action, edge
+):
+    """Raw pointer down must not move the button before the matching up arrives."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Stable draft",
+                '<h1>Release note</h1><lf-draft id="note"><pre>Keep `this` note.</pre></lf-draft>',
+            )
+        ),
+    )
+    draft = page.locator("#note")
+    if action != "edit":
+        draft_control(page, "edit", "note").click()
+        write(draft.locator("leaf-text"), "Keep `the corrected` note.")
+    page.get_by_role("heading", name="Release note").click()
+    rendered(page)
+    controls = draft.locator("[data-lf-draft-action]:visible")
+    before = controls.evaluate_all(
+        "ns => ns.map(n=>({action:n.dataset.lfDraftAction,box:n.getBoundingClientRect().toJSON()}))"
+    )
+    button = draft_control(page, action, "note")
+    box = button.bounding_box()
+    x = box["x"] + (2 if edge == "left" else box["width"] - 2)
+    page.mouse.move(x, box["y"] + box["height"] / 2)
+    page.mouse.down()
+    expect(button).to_be_focused()
+    rendered(page)
+    assert (
+        controls.evaluate_all(
+            "ns => ns.map(n=>({action:n.dataset.lfDraftAction,box:n.getBoundingClientRect().toJSON()}))"
+        )
+        == before
+    )
+    expect(draft.locator("button .lf-key-badge")).to_have_count(0)
+    page.mouse.up()
+    if action == "edit":
+        expect(draft.locator("leaf-text")).to_be_focused()
+    else:
+        expect(draft.locator("leaf-text")).to_have_count(0)
+        expect(draft.locator(".lf-draft-body")).to_have_text(
+            "Keep the corrected note." if action == "save" else "Keep this note."
+        )
+        round_trip(page)
+        edits = [
+            e
+            for e in events_model.read_events(serve.page_dir)
+            if e.get("action") == "edit"
+        ]
+        assert len(edits) == (1 if action == "save" else 0)
+
+
+def test_a_delayed_draft_close_yields_to_a_newer_page_selection(browser, serve):
+    """Returning editor focus cannot overwrite a real gesture made before that handoff."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Close focus",
+                '<p id="reading">Another passage for the reader to select.</p>'
+                '<lf-draft id="local"><pre>Editable source.</pre></lf-draft>',
+            )
+        ),
+        init_script="""(() => {
+          const frame=requestAnimationFrame.bind(window);
+          window.heldFrames=[];window.holdFrames=false;
+          window.requestAnimationFrame=callback=>frame(now=>{
+            if(window.holdFrames)heldFrames.push(callback);else callback(now);
+          });
+          window.releaseFrames=()=>{
+            window.holdFrames=false;
+            const callbacks=heldFrames.splice(0);
+            frame(now=>callbacks.forEach(callback=>callback(now)));
+          };
+        })();""",
+    )
+    draft_control(page, "edit", "local").click()
+    expect(page.locator("#local leaf-text")).to_be_focused()
+    rendered(page)
+    page.evaluate("""async()=>{
+      const {observeQueuedWork}=await window.__lfRuntimeImport('/runtime/queued-work.js');
+      window.closeJobs=new Set();window.captureClose=true;
+      window.stopCloseObserver=observeQueuedWork((phase,job)=>{
+        if(phase==='enqueue'&&captureClose)closeJobs.add(job);
+        if(phase==='finish'||phase==='cancel')closeJobs.delete(job);
+      });
+      window.holdFrames=true;
+    }""")
+    page.keyboard.press("Escape")
+    page.evaluate("window.captureClose=false")
+    expect(page.locator("#local leaf-text")).to_have_count(0)
+    page.wait_for_function("heldFrames.length>0", polling=20)
+    assert page.evaluate("closeJobs.size") > 0
+    start, end = page.locator("#reading").evaluate("""p=>[2,24].map(at=>{
+      const range=new Range();range.setStart(p.firstChild,at);range.setEnd(p.firstChild,at+1);
+      const box=range.getBoundingClientRect();return [box.left+0.01,box.top+box.height/2];
+    })""")
+    page.mouse.move(*start)
+    page.mouse.down()
+    page.mouse.move(*end, steps=5)
+    page.mouse.up()
+    selected = page.evaluate("getSelection().toString()")
+    assert selected
+    assert page.evaluate("document.activeElement===document.body")
+    page.evaluate("releaseFrames()")
+    page.wait_for_function("closeJobs.size===0", polling=20)
+    rendered(page)
+    assert page.evaluate("document.activeElement===document.body")
+    # The shared selection owner may expand partial words; the newer passage remains.
+    assert selected in page.evaluate("getSelection().toString()")
+    page.evaluate("stopCloseObserver()")

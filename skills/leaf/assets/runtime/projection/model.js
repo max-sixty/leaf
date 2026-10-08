@@ -4,14 +4,9 @@
    This module combines those values without consulting the DOM, registry, runtime
    state, or delivery state. Authored snapshots have the same shape captured by
    projection/authored.js: a map from widget id to `{state, specs}`. */
-import { COLLAPSE } from "../collapse.js";
 
 export function foldedValue(event, record) {
   const value = event.detail.value;
-  if (record.kind === "body")
-    return String(value ?? "")
-      .replace(COLLAPSE, " ")
-      .trim();
   if (record.kind === "attribute") return [...value].sort().join(" ");
   return value ?? null;
 }
@@ -121,7 +116,6 @@ const authoredValue = (authoredSnapshots, coordinate) => {
   const record = spec.record;
   const value = authored.state[verb].value;
   if (record?.kind === "attribute") return value.join(" ");
-  if (record?.kind === "body") return value.replace(COLLAPSE, " ").trim();
   if (record?.kind === "position")
     return (
       Object.keys(value).find((container) => value[container].includes(unit)) ?? null

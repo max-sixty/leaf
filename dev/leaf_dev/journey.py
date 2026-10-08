@@ -48,6 +48,7 @@ import sys
 import threading
 import time
 from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -56,7 +57,11 @@ from typing import NamedTuple
 from urllib.parse import urljoin, urlsplit
 
 import click
+from leaf.delivery import pickup_receipts
+from leaf.events import build_threads
 from leaf.harness import ClaudeCodeHarness, CodexHarness
+from leaf.tasks import start_reading
+from leaf.thread import successful_replies
 from playwright.sync_api import BrowserContext, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -64,9 +69,9 @@ from leaf_dev import ROOT
 from leaf_dev.arms import (
     HARNESSES,
     PAYLOAD,
-    URL,
     LiveChild,
     build_arm,
+    read_page_state,
     run_directory,
     run_leaf,
     scratch,
@@ -152,14 +157,13 @@ class TurnReading(NamedTuple):
 
 class AgentProfile:
     """What the browser observed of one request: each ask's admitted comment and
-    acknowledgement, the page's activity, when its thread first showed the agent on
-    it, and when the reply showed, all from the first send."""
+    acknowledgement, the page's activity, and when the reply showed, all from the
+    first send. Transport and authored work milestones come from the event log."""
 
     def __init__(self) -> None:
         self.started = time.monotonic()
         self.visible_reply_started_ms: float | None = None
         self.acknowledged: list[float] = []
-        self.work_visible_s: float | None = None
         self.visible_reply_s: float | None = None
         self.activities: list[tuple[float, str, str]] = []
         self.ask_count = 0
@@ -191,26 +195,48 @@ def instant(ts: str) -> float:
 
 
 def recorded_steps(events: list[dict], comment: dict, published: dict) -> dict:
-    """Seconds after `comment`'s admission at which the page server titled its
-    thread, admitted the agent's first progress update in it, activated the
-    `published` revision and admitted the answer, or None for a step it never
-    reached."""
+    """Seconds after `comment`'s admission for its recorded milestones.
+
+    Pickup records name exact inputs: queued is held by the harness, opened is in
+    its context. A start is an authored work claim for this input. Neither implies
+    visible feedback or that the model has begun reasoning. Title, explicit progress,
+    publication and answer retain their server timestamps; absent steps are None.
+    """
     admitted = instant(comment["ts"])
     thread = comment["id"]
-    titled = next(
+    transport = {
+        phase: next(
+            (e["ts"] for e in pickup_receipts(events, phase=phase, input_id=thread)),
+            None,
+        )
+        for phase in ("queued", "opened")
+    }
+    started = next(
         (
             e["ts"]
             for e in events
-            if e["kind"] == "thread_title" and e["thread"] == thread
+            if (start := start_reading(e)) and start["item"] == thread
+        ),
+        None,
+    )
+    titled = next(
+        (
+            event["ts"]
+            for index, event in enumerate(events)
+            if build_threads(events[: index + 1], {}).get(thread, {}).get("title")
+            is not None
         ),
         None,
     )
     replies = [e for e in events if e["kind"] == "reply" and e.get("parent") == thread]
     progress = next((e["ts"] for e in replies if e.get("ephemeral")), None)
-    replied = deployment_answer(replies)
+    replied = deployment_answer(events, comment["id"])
     return {
         step: None if at is None else round(instant(at) - admitted, 3)
         for step, at in (
+            ("queued", transport["queued"]),
+            ("pickedUp", transport["opened"]),
+            ("started", started),
             ("titled", titled),
             ("progress", progress),
             ("published", published["activated_at"]),
@@ -288,7 +314,6 @@ def agent_profile(profile: AgentProfile, steps: dict) -> dict:
         "sinceAdmissionMs": {step: ms(seconds) for step, seconds in steps.items()},
         "sinceSendMs": {
             "acknowledged": [ms(at) for at in profile.acknowledged],
-            "workVisible": ms(profile.work_visible_s),
             "responseVisible": ms(profile.visible_reply_s),
         },
         "activity": [
@@ -308,17 +333,9 @@ def turn_failed(replies: list[dict]) -> bool:
     return any("failure" in reply for reply in replies)
 
 
-def deployment_answer(replies: list[dict]) -> dict | None:
-    """Return the agent's answer, rather than a progress update or a
-    harness-generated failure receipt."""
-    return next(
-        (
-            reply
-            for reply in replies
-            if "failure" not in reply and not reply.get("ephemeral")
-        ),
-        None,
-    )
+def deployment_answer(events: list[dict], for_event: str) -> dict | None:
+    """Return the first successful agent answer to this exact input."""
+    return next(iter(successful_replies(events, for_event)), None)
 
 
 def check_turn_answered(
@@ -436,7 +453,7 @@ def await_turn(
             for event in current.get("events", [])
             if event.get("kind") == "reply" and event.get("parent") == comment["id"]
         ]
-        answer = deployment_answer(replies)
+        answer = deployment_answer(current.get("events", []), comment["id"])
         active = current["active"]
         if published is None and active["revision"] > revision:
             # The turn may publish a checkpoint first, so read the document for the
@@ -461,8 +478,12 @@ def await_turn(
     return TurnReading(current, published, replies, answer)
 
 
-def titled(events: list[dict], thread: str) -> bool:
-    return any(e["kind"] == "thread_title" and e["thread"] == thread for e in events)
+def titled(state: dict, thread: str) -> bool:
+    """Read the thread's title from the canonical browser projection."""
+    return any(
+        item["id"] == thread and item["title"] is not None
+        for item in state["thread"]["threads"]
+    )
 
 
 def await_title(session: Session, thread: str, state: dict) -> dict:
@@ -470,7 +491,7 @@ def await_title(session: Session, thread: str, state: dict) -> dict:
     last reading. The page server names a thread beside the agent's turn rather than
     within it, so the title can land after the reply that ended the turn."""
     deadline = time.monotonic() + TITLE_PATIENCE
-    while not titled(state["events"], thread) and time.monotonic() < deadline:
+    while not titled(state, thread) and time.monotonic() < deadline:
         time.sleep(1)
         state = read_state(session)
     return state
@@ -575,14 +596,6 @@ def run_journey(session: Session, version: str) -> dict:
     if visible_reply_at is not None:
         profile.visible_reply_s = (
             visible_reply_at - profile.visible_reply_started_ms
-        ) / 1000
-    # Read before the reload below, which starts a document of its own.
-    work_visible_at = page.evaluate(
-        "thread => window.__leafVerifier.workVisibleAt(thread)", answer["parent"]
-    )
-    if work_visible_at is not None:
-        profile.work_visible_s = (
-            work_visible_at - profile.visible_reply_started_ms
         ) / 1000
     comment = agent_profile(profile, steps)
     if session.stream is not None:
@@ -695,67 +708,73 @@ def harness_session(browser, harness: str) -> Iterator[tuple[Session, str, dict]
     of the login, is removed. The first comment goes out once the setup turn has
     ended and the page reports a watcher listening."""
     run = run_directory(ROOT / ".tmp" / "journey")
-    arm, state, work = run / "arm", run / "state", scratch()
-    page_dir = work / "page"
-    version = working_version(build_arm(None, arm))
-    prepare(arm, state, page_dir)
-    found: dict[str, str] = {}
-    setup_ended = threading.Event()
-    with (
-        LiveChild(
-            work,
-            REQUEST,
-            "--plugin-dir",
-            str(arm),
-            stderr=run / "stderr.txt",
-            limit=SETUP_LIMIT + TURN_LIMIT,
-            timed_out=run / "timed-out",
-            dirs=[arm],
-            env={"XDG_STATE_HOME": str(state)},
-            harness=harness,
-        ) as child,
-        (run / "stream.jsonl").open("w") as stream,
-    ):
-
-        def record() -> None:
-            for line in child.records():
-                stream.write(json.dumps(line) + "\n")
-                stream.flush()
-                if "url" not in found and (served := URL.search(json.dumps(line))):
-                    found["url"] = served[0]
-                if line.get("type") == "result":
-                    setup_ended.set()
-
-        reader = threading.Thread(target=record, daemon=True)
-        reader.start()
-        deadline = time.monotonic() + SETUP_LIMIT
+    arm, state = run / "arm", run / "state"
+    with scratch() as work:
+        page_dir = work / "page"
+        version = working_version(build_arm(None, arm))
+        prepare(arm, state, page_dir)
+        setup_ended = threading.Event()
         try:
-            while not (
-                setup_ended.is_set()
-                and "url" in found
-                and page_state(arm, state, page_dir)["listening"]
+            with (
+                (run / "stream.jsonl").open("w") as stream,
+                LiveChild(
+                    work,
+                    REQUEST,
+                    "--plugin-dir",
+                    str(arm),
+                    stderr=run / "stderr.txt",
+                    limit=SETUP_LIMIT + TURN_LIMIT,
+                    timed_out=run / "timed-out",
+                    dirs=[arm],
+                    env={"XDG_STATE_HOME": str(state)},
+                    harness=harness,
+                ) as child,
+                ThreadPoolExecutor(max_workers=1) as observer,
             ):
-                check(
-                    reader.is_alive() and time.monotonic() < deadline,
-                    f"the {harness} session stopped or ran past {SETUP_LIMIT} s "
-                    "before its page had a watcher listening; its stream is "
-                    f"{run / 'stream.jsonl'}",
-                )
-                time.sleep(1)
-            session = local_session(browser, found["url"])
-            named = {"target": harness, "harness": harness}
-            if child.transport is not None:
-                named["transport"] = child.transport
-            yield session._replace(stream=run / "stream.jsonl"), version, named
+
+                def record() -> None:
+                    for line in child.records():
+                        stream.write(json.dumps(line) + "\n")
+                        stream.flush()
+                        if line.get("type") == "result":
+                            setup_ended.set()
+
+                reader = observer.submit(record)
+                deadline = time.monotonic() + SETUP_LIMIT
+                try:
+                    while True:
+                        current = read_page_state(arm, state, page_dir)
+                        if (
+                            setup_ended.is_set()
+                            and current["server"]
+                            and current["listening"]
+                        ):
+                            break
+                        if reader.done():
+                            reader.result()
+                        check(
+                            not reader.done() and time.monotonic() < deadline,
+                            f"the {harness} session stopped or ran past {SETUP_LIMIT} s "
+                            "before its page had a watcher listening; its stream is "
+                            f"{run / 'stream.jsonl'}",
+                        )
+                        time.sleep(1)
+                    session = local_session(browser, current["server"]["url"])
+                    named = {"target": harness, "harness": harness}
+                    if child.transport is not None:
+                        named["transport"] = child.transport
+                    yield session._replace(stream=run / "stream.jsonl"), version, named
+                except BaseException:
+                    child.abort()
+                    raise
+                else:
+                    # Failed work is joined by the executor as its error escapes.
+                    # Successful work also surfaces an observation failure.
+                    child.close()
+                    reader.result()
         finally:
-            child.close()
-            # A turn in progress ends on its own once stdin closes; the context's
-            # exit kills whatever outlasts this.
-            reader.join(60)
             run_leaf(arm, state, "server", "stop", str(page_dir))
             shutil.copy(page_dir / "events.jsonl", run / "events.jsonl")
-            for scratch_dir in (work, work.with_name(f"{work.name}-home")):
-                shutil.rmtree(scratch_dir, ignore_errors=True)
 
 
 def working_version(commit: str) -> str:
@@ -767,12 +786,6 @@ def working_version(commit: str) -> str:
         check=True,
     ).stdout
     return f"{commit}+working-tree" if changed else commit
-
-
-def page_state(arm: Path, state: Path, page_dir: Path) -> dict:
-    return json.loads(
-        run_leaf(arm, state, "page", "state", str(page_dir), check=True).stdout
-    )
 
 
 def local_session(browser, url: str) -> Session:
@@ -864,13 +877,12 @@ def journey(target: str, release: str | None) -> None:
     print(f"kept in {samples}", file=sys.stderr)
 
 
-# What the user sees after a comment, in the order it appears, and where each sample
-# records it. Send and admission are within `acknowledged` of each other, tens of
-# milliseconds, so one axis carries both clocks.
+# Exact-input milestones on the page server's clock, from comment admission.
 SIGNS = (
     ("title", "sinceAdmissionMs", "titled", "var(--series-2)"),
-    ("shown working", "sinceSendMs", "workVisible", "var(--series-5)"),
-    ("first words", "sinceAdmissionMs", "progress", "var(--series-4)"),
+    ("picked up", "sinceAdmissionMs", "pickedUp", "var(--series-5)"),
+    ("work started", "sinceAdmissionMs", "started", "var(--series-1)"),
+    ("progress", "sinceAdmissionMs", "progress", "var(--series-4)"),
     ("reply", "sinceAdmissionMs", "replied", "var(--series-3)"),
 )
 HARNESS_NAMES = {
@@ -942,7 +954,7 @@ def chart_markup(rows: list[dict]) -> str:
 
 @click.command("journey-chart")
 def journey_chart() -> None:
-    """Print an `lf-chart` of when the user saw each sign of the agent's work, for
+    """Print an `lf-chart` of recorded delivery and work milestones, for
     the latest code version each target ran in this machine's kept samples."""
     path = samples_path()
     if not path.exists():

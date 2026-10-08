@@ -10,7 +10,7 @@ from .contract import (
     state_specs,
     verb_writer,
 )
-from .schema import json_validator
+from .schema import json_validator, json_value, schema_error_message
 
 
 def validate_widget_state_relations(
@@ -163,7 +163,7 @@ def validate_widget_record_contracts(
             if nested:
                 raise RegistryError(
                     f"{path}: <{tag}> x-state verb `{verb}` records "
-                    f"its body but admits nested widgets {nested}; a "
+                    f"its body but admits nested widgets {json_value(nested)}; a "
                     "text statement cannot reconstruct their state"
                 )
         if kind == "value":
@@ -194,20 +194,13 @@ def validate_widget_record_contracts(
                 )
 
 
-def validate_widget_retirement(
-    tag: str, entry: dict, slots: dict, declarations: dict, path
-) -> None:
-    # Withdrawal is the author taking an unanswered question back, and the
-    # declaration says which of its own outcomes that leaves the page in
-    # (retirable_ids). A verb no slot of this widget retires under would
-    # license nothing but the wrapper, so the withdrawal it promises would
-    # fail as "ids dropped" on the version that tried it — the misdeclaration
-    # is invisible until then, and this is where its author is standing.
+def validate_widget_retirement(tag: str, entry: dict, declarations: dict, path) -> None:
+    # Withdrawal names a declared deciding outcome; it does not require slots
+    # whose historical ids a future revision must retain.
     withdrawn = entry.get("x-withdrawn-as")
-    if withdrawn is not None and withdrawn not in slots.get(tag, {}):
+    if withdrawn is not None and withdrawn not in deciding_outcomes(entry):
         raise RegistryError(
-            f"{path}: <{tag}> x-withdrawn-as `{withdrawn}` retires none of its "
-            "slots; withdrawing it would leave their ids on the page"
+            f"{path}: <{tag}> x-withdrawn-as `{withdrawn}` is not a deciding outcome"
         )
     retired = entry.get("x-retired-when")
     if retired is None:
@@ -230,7 +223,7 @@ def validate_deciding_verb(tag: str, entry: dict, path) -> None:
     deciding = deciding_verbs(entry)
     if len(deciding) > 1:
         raise RegistryError(
-            f"{path}: <{tag}> x-state verbs {deciding} all declare detail field "
+            f"{path}: <{tag}> x-state verbs {json_value(deciding)} all declare detail field "
             "`outcome`, a reserved name only one deciding verb may carry"
         )
     if not deciding:
@@ -314,6 +307,6 @@ def validate_answered_conditions(declarations: dict, path) -> None:
                     ):
                         raise RegistryError(
                             f"{path}: <{tag}> x-awaits answering verb `{verb}` tests "
-                            f"<{within}> `{attr}` at {value!r}, which its schema "
-                            f"does not admit: {errors[0].message}"
+                            f"<{within}> `{attr}` at {json_value(value)}, which its schema "
+                            f"does not admit: {schema_error_message(errors[0])}"
                         )

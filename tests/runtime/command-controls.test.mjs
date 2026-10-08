@@ -33,7 +33,8 @@ test("a command owns its native button across availability, replacement and reco
   available = false;
   paintKeys();
   reflectKeys();
-  assert.equal(control.disabled, true);
+  assert.equal(control.getAttribute("aria-disabled"), "true");
+  assert.equal(control.disabled, false);
   control.click();
   assert.equal(count, 1);
   available = true;
@@ -59,7 +60,8 @@ test("a command owns its native button across availability, replacement and reco
   available = false;
   paintKeys();
   reflectKeys();
-  assert.equal(control.disabled, true);
+  assert.equal(control.getAttribute("aria-disabled"), "true");
+  assert.equal(control.disabled, false);
   keys(owner, "Replacement", [
     { id: "probe.other", title: "Other", keys: ["x"], run: () => (count += 10) },
   ]);
@@ -266,6 +268,68 @@ test("a shared button selects its live state and context-only routes retain thei
   owner.remove();
 });
 
+// Getter controls are claimed at reflection, so their previous attributes must not
+// leave a projected command one reading behind its native source.
+test("a getter button and its contribution agree on their first and replacement readings", async () => {
+  const { live } =
+    await import("../../skills/leaf/assets/runtime/keyboard/bindings.js");
+  const { registerContribution } =
+    await import("../../skills/leaf/assets/runtime/contributions.js");
+  const { contributionEntry } =
+    await import("../../skills/leaf/assets/runtime/contribution-controls.js");
+  const owner = document.createElement("section");
+  let source = document.createElement("button");
+  source.disabled = true;
+  owner.append(source);
+  document.body.append(owner);
+  let runs = 0;
+  const row = {
+    id: "probe.getter-reading",
+    title: "Apply",
+    control: () => source,
+    run: () => runs++,
+  };
+  const scope = commandScope("Getter source", [row]);
+  keys(owner, scope);
+  const registration = registerContribution({
+    key: "getter-reading-probe",
+    target: owner,
+    read: () => ({
+      entries: [
+        contributionEntry({
+          key: "apply",
+          icon: "check",
+          label: "Apply",
+          activation: row.id,
+          scope,
+        }),
+      ],
+    }),
+  });
+  try {
+    const available = () => {
+      assert.equal(live(row), true);
+      assert.equal(source.disabled, false);
+      assert.equal(registration.entry("apply").disabled, false);
+      assert.equal(registration.activate("apply"), true);
+    };
+    reflectFirstScopes();
+    available();
+    const previous = source;
+    source = document.createElement("button");
+    source.disabled = true;
+    source.setAttribute("aria-disabled", "true");
+    previous.replaceWith(source);
+    paintKeys();
+    reflectKeys();
+    available();
+    assert.equal(runs, 2);
+  } finally {
+    registration.unregister();
+    owner.remove();
+  }
+});
+
 test("source constraints and derived disabled output share one availability reading", async () => {
   const { live } =
     await import("../../skills/leaf/assets/runtime/keyboard/bindings.js");
@@ -325,9 +389,18 @@ test("source constraints and derived disabled output share one availability read
     assert.equal(projection.getAttribute("aria-disabled"), "true");
     assert.equal(registration.activate("apply"), false);
   };
+  // Owned attributes are presentation, not a second source of command availability.
   source.setAttribute("aria-disabled", "true");
+  refresh();
+  assert.equal(live(row), true);
+  assert.equal(source.getAttribute("aria-disabled"), null);
+  const input = document.createElement("input");
+  owner.append(input);
+  row.control = input;
+  input.setAttribute("aria-disabled", "true");
   refused();
-  source.removeAttribute("aria-disabled");
+  input.removeAttribute("aria-disabled");
+  row.control = source;
   available = false;
   refused();
   available = true;
@@ -491,7 +564,8 @@ test("page command scopes share native activation and hand removed controls back
   available = false;
   paintKeys();
   reflectKeys();
-  assert.equal(control.disabled, true);
+  assert.equal(control.getAttribute("aria-disabled"), "true");
+  assert.equal(control.disabled, false);
   remove();
   reflectKeys();
   assert.equal(control.disabled, false);
@@ -518,7 +592,8 @@ test("a projected scope withdrawal preserves a native control's pending handback
     },
   ]);
   reflectFirstScopes();
-  assert.equal(control.disabled, true);
+  assert.equal(control.getAttribute("aria-disabled"), "true");
+  assert.equal(control.disabled, false);
   const projection = commandScope("Projected keys", [
     { id: "probe.projected-only", title: "Project", keys: ["y"], run: () => {} },
   ]);
@@ -584,4 +659,53 @@ test("a disappearing projected command refuses instead of becoming a generic act
   assert.equal(runs, 3);
   registration.unregister();
   owner.remove();
+});
+
+// Filling a child shortcut face can resize its native click target before activation.
+test("a lent hint rejects button children and keeps its external seat after withdrawal", async () => {
+  const { createCommandHints } =
+    await import("../../skills/leaf/assets/runtime/keyboard/command-hints.js");
+  const { registerCoveringAuxiliarySurface } =
+    await import("../../skills/leaf/assets/runtime/keyboard/register.js");
+  registerCoveringAuxiliarySurface(() => null);
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  const badge = document.createElement("kbd");
+  control.append(badge);
+  owner.append(control);
+  document.body.append(owner);
+  keys(owner, "Hint ownership", [
+    {
+      id: "probe.hint-seat",
+      title: "Apply",
+      keys: ["x"],
+      control,
+      bindingBadge: badge,
+      run: () => {},
+    },
+  ]);
+  reflectFirstScopes();
+  control.focus();
+  const hints = createCommandHints({ presentedControl: () => null });
+  try {
+    assert.throws(() => hints.paint(), {
+      name: "TypeError",
+      message: "leaf: probe.hint-seat binding badge must be outside native buttons",
+    });
+    const shadowHost = document.createElement("span");
+    control.append(shadowHost);
+    shadowHost.attachShadow({ mode: "open" }).append(badge);
+    assert.throws(() => hints.paint(), {
+      name: "TypeError",
+      message: "leaf: probe.hint-seat binding badge must be outside native buttons",
+    });
+    control.before(badge);
+    hints.paint();
+    assert.equal(badge.classList.contains("lf-binding-seat"), true);
+    hints.destroy();
+    assert.equal(badge.classList.contains("lf-binding-seat"), true);
+    assert.equal(control.contains(badge), false);
+  } finally {
+    owner.remove();
+  }
 });

@@ -4,6 +4,7 @@ import itertools
 import json
 import re
 import threading
+from html import escape
 from urllib.parse import urlsplit
 
 import pytest
@@ -34,7 +35,6 @@ from leaf.validation import compatibility as validation_model
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    ASKS_PAGE,
     CHANGE_SHAPES_PAGE,
     PANEL_PAGE,
     panel_comment,
@@ -54,6 +54,7 @@ from render_cases_layout import (
     LOOSE_SCROLLER_PAGE,
     NOTE_BESIDE_A_CHANGE,
     OVER_ITS_CONTAINER,
+    QUESTIONS,
     RESIZE_LOOP_EVENT,
     SCROLLED_CONTAINER,
     SHADOW_HOST_PAGE,
@@ -68,6 +69,7 @@ from render_cases_layout import (
     banner_control,
     draw_edge,
     edge_settled,
+    edge_world,
     geometry,
     motions,
     moved_at,
@@ -1134,8 +1136,8 @@ def test_the_gate_reports_a_devtools_issue_the_page_owns(browser, serve):
 
     The page owns an image it authors in a form-associated control's light DOM, and
     a frame it embeds, whose issue is placed at the frame. The same image in the
-    control's shadow tree is the control's implementation, so the page is not refused
-    for it."""
+    control's shadow tree is the control's implementation, even inside a frame,
+    so the page is not refused for it."""
     src = SHOT_SRC["before"]
     control = f"""<script type="module">
 customElements.define("field-host", class extends HTMLElement {{
@@ -1147,6 +1149,9 @@ customElements.define("field-host", class extends HTMLElement {{
   }}
 }});
 </script></head>"""
+    shadow_frame = escape(
+        "<head>" + control + "<body><field-host></field-host></body>", quote=True
+    )
     source = LONG_PAGE.replace("</head>", control).replace(
         '<h1 id="t">Long</h1>',
         f"""<h1 id="t">Long</h1>
@@ -1154,7 +1159,8 @@ customElements.define("field-host", class extends HTMLElement {{
 <img id="sized" src="{src}" alt="A panel" loading="lazy" width="600" height="300">
 <field-host id="host"><img id="authored" src="{src}" alt="" loading="lazy"></field-host>
 <iframe id="frame" title="A frame" srcdoc='<img src="{src}" alt="" loading="lazy">'>
-</iframe>""",
+</iframe>
+<iframe id="shadow-frame" title="A control’s shadow tree" srcdoc="{shadow_frame}"></iframe>""",
     )
 
     failures = render_gate_model.render_version(
@@ -1163,13 +1169,40 @@ customElements.define("field-host", class extends HTMLElement {{
 
     # Delivery serves media under the revision, so the issue names that URL.
     assert sorted(
-        re.sub(r"url=\S*(/media/)", r"url=\1", failure)
+        re.sub(r'url="[^"]*(/media/[^"]+)"', r'url="\1"', failure)
         for failure in failures
         if "DevTools issue" in failure
     ) == sorted(
-        f"[{scheme}] DevTools issue LazyLoadImageIssue at {where} (url={src})"
+        f'[{scheme}] DevTools issue LazyLoadImageIssue at {where} (url="{src}")'
         for scheme in ("light", "dark")
         for where in ("<img id=unsized>", "<img id=authored>", "<iframe id=frame>")
+    )
+
+
+def test_a_devtools_issue_inside_nested_cross_origin_frames_is_unplaced(browser):
+    """A same-origin inner frame cannot lend access through its outer boundary."""
+    context = browser.new_context()
+    context.route(
+        "http://issue-top.local/**",
+        lambda route: route.fulfill(
+            body='<iframe src="http://issue-other.local/frame"></iframe>',
+            content_type="text/html",
+        ),
+    )
+    context.route(
+        "http://issue-other.local/**",
+        lambda route: route.fulfill(
+            body="<iframe srcdoc='<img alt=\"An issue node\">'></iframe>",
+            content_type="text/html",
+        ),
+    )
+    page = context.new_page()
+    page.goto("http://issue-top.local/")
+    node = page.frame_locator("iframe").frame_locator("iframe").locator("img")
+    expect(node).to_have_count(1)
+    assert (
+        node.evaluate(f"node => ({render_gate_readings._ISSUE_NODE}).call(node)")
+        is None
     )
 
 
@@ -1308,6 +1341,19 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
                     "unit": "sug-rewrite",
                     "depends": ["sug-rewrite"],
                     "answer": None,
+                    "state": {
+                        "origin": "lf-suggestion",
+                        "unit": "widget",
+                        "record": None,
+                        "creates": None,
+                        "update": False,
+                        "detail": {
+                            "type": "object",
+                            "properties": {"outcome": {"enum": ["accept", "reject"]}},
+                            "required": ["outcome"],
+                            "additionalProperties": False,
+                        },
+                    },
                 },
             }
         ],
@@ -3220,7 +3266,7 @@ SURFACES = {
     "go-to": (["g"], None),
     "thread card": (["t"], '.lf-threads-toggle:text-matches("Threads: [1-9]")'),
     "threads panel": (["g", "Shift+t"], None),
-    "queue panel": (["g", "Shift+q"], ".lf-btn.lf-queue"),
+    "questions panel": (["g", "Shift+q"], ".lf-btn.lf-queue"),
     "leaves drawer": (["g", "Shift+l"], ".lf-btn.lf-others"),
     "page map": (["g", "Shift+m"], None),
     "versions menu": (["g", "Shift+v"], None),
@@ -3265,6 +3311,17 @@ def surface_findings(page):
             rendered(page)
         return reader_state(page)
 
+    def settled_state(reading):
+        # The live region retains the last spoken command. A panel can mark a
+        # message read after Go-to announces its routes, so its next announcement
+        # correctly has different words even though the closed page is unchanged.
+        # The announcement is still part of the opening check above.
+        stable = reading.copy()
+        for line in page.locator(".lf-live").aria_snapshot(boxes=True).splitlines():
+            if line in stable:
+                stable.remove(line)
+        return stable
+
     findings = []
     left = reader_state(page)
     for surface, (keys, door) in SURFACES.items():
@@ -3272,7 +3329,7 @@ def surface_findings(page):
             continue
         press(keys)
         opened = reader_state(page) != left
-        first = left = unwind()
+        first = settled_state(left := unwind())
         if not opened:
             findings.append(f"{'+'.join(keys)} opened no {surface}")
             continue
@@ -3281,14 +3338,16 @@ def surface_findings(page):
             press(keys)
             left = unwind()
             trips.append(live_counts(page))
-            if changes := state_changes(first, left):
+            if changes := state_changes(first, settled_state(left)):
                 findings.append(
                     f"the {surface} closed again leaving\n" + "\n".join(changes[:12])
                 )
                 break
         for what in trips[0]:
             held = [trip[what] for trip in trips]
-            if all(later > earlier for earlier, later in itertools.pairwise(held)):
+            if len(trips) == AGAIN + 1 and all(
+                later > earlier for earlier, later in itertools.pairwise(held)
+            ):
                 findings.append(
                     f"the {surface} leaks {what}: {held} after each round trip"
                 )
@@ -4014,7 +4073,7 @@ def test_a_widget_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar
             '<lf-call-diff id="calls" source="calls-data" diff="patch"></lf-call-diff>'
             '<lf-diff id="patch" source="patch-data"><pre></pre></lf-diff>',
         ),
-        packages=("pr-review", "diff"),
+        packages=("diff",),
     )
     wide = "_".join(["argument"] * 40)
     data_model.cmd_data_set(
@@ -4051,6 +4110,10 @@ FRAMED_TABLES_PAGE = leaf_page(
     """
 <h1 id="t">Checks</h1>
 <table id="bare"><tr><th scope="row">Error rate</th><td><code>0.11%</code></td></tr></table>
+<table id="allocated" data-width="wide"><tr><th>Session</th><td>9:00</td></tr></table>
+<figure data-width="available">
+<table id="figure-table"><tr><th>Session</th><td>9:00</td></tr></table>
+</figure>
 <section class="panel" id="checks">
 <h2>Checks</h2>
 <table id="framed"><thead><tr><th>Check</th><th>Observed</th></tr></thead>
@@ -4064,12 +4127,14 @@ FRAMED_TABLES_PAGE = leaf_page(
 )
 
 
-def test_a_table_in_a_drawn_frame_fills_it_and_a_bare_one_keeps_to_its_content(
+def test_a_table_fills_its_declared_allocation_or_frame_and_a_bare_one_keeps_its_content(
     browser, serve
 ):
     """A table directly in a panel runs its rules to the panel's inner edge, where they
-    used to stop short and read as a table cut off; the same table in the column keeps
-    to what its columns hold. A table too wide for the panel still scrolls inside it.
+    used to stop short and read as a table cut off. An explicit allocation, on the
+    table or its figure, also sizes the painted rows, not just their scrollport.
+    The same table with no allocation keeps to what its columns hold. A table too
+    wide for the panel still scrolls inside it.
     Code in a cell is set relative to the cell's text rather than at the chip size."""
     url = serve(FRAMED_TABLES_PAGE)
     page = open_page(browser, url)
@@ -4083,7 +4148,12 @@ def test_a_table_in_a_drawn_frame_fills_it_and_a_bare_one_keeps_to_its_content(
         const bare = document.querySelector('#bare'), framed = document.querySelector('#framed');
         const wide = document.querySelector('#wide-framed');
         const cell = framed.querySelector('td'), code = cell.querySelector('code');
+        const allocated = ['allocated', 'figure-table'].map(id => {
+            const table = document.getElementById(id);
+            return Math.round(inner(table) - rowEnd(table));
+        });
         return {
+            allocated,
             framedShort: Math.round(inner(framed.parentElement) - rowEnd(framed)),
             bareShort: Math.round(inner(bare.parentElement) - rowEnd(bare)),
             wideScrolls: wide.scrollWidth - wide.clientWidth,
@@ -4094,6 +4164,7 @@ def test_a_table_in_a_drawn_frame_fills_it_and_a_bare_one_keeps_to_its_content(
     }"""
     )
     assert abs(measured["framedShort"]) <= 1, measured
+    assert all(abs(short) <= 1 for short in measured["allocated"]), measured
     assert measured["bareShort"] > 100, "the bare table fills its column"
     assert measured["wideScrolls"] > 0 and measured["wideInside"] >= 0, measured
     assert measured["codeRatio"] == pytest.approx(0.9, abs=0.01), measured
@@ -4906,7 +4977,7 @@ def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser,
 
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
-def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
+def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge, request):
     """A thread about a table wants room a thread about a sentence does not,
     and a drawer of long names wants room a drawer of short ones does not; only the user
     looking at one knows which this is. So each region's edge is a thing they take hold
@@ -4915,6 +4986,7 @@ def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     Then the same edge from the keyboard, because a user who is not holding a pointer is
     still reading the same page, and then a reload, because a width set once and lost on
     the next version is a width they would have to set on every revision."""
+    edge_world(request, edge)
     page = open_page(browser, serve(edge.html(), comments=edge.comments))
     edge.stand(page)
     edge_settled(page, edge)
@@ -4959,10 +5031,13 @@ def test_the_user_draws_an_edge_to_the_width_they_want(browser, serve, edge):
     )
 
 
-@pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
 @pytest.mark.parametrize("pointer", ["mouse", "touch", "touch-cancel"])
-def test_dragging_an_edge_preserves_user_state(browser, serve, edge, pointer):
-    """Resizing owns its gesture, leaving drafts, selections, and arrow keys intact."""
+def test_dragging_an_edge_preserves_user_state(browser, serve, pointer):
+    """Resizing owns its gesture, leaving drafts, selections, and arrow keys intact.
+
+    On the right edge, the one that leaves the page live beside it: the left one's Leaves
+    drawer covers the page, so there is no draft or selection beside it to keep."""
+    edge = EDGES[0]
     context = browser.new_context(
         viewport={"width": 1400, "height": 900}, has_touch=pointer != "mouse"
     )
@@ -5066,8 +5141,9 @@ def test_dragging_an_edge_preserves_user_state(browser, serve, edge, pointer):
 
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
-def test_edge_resizing_belongs_to_one_primary_pointer(browser, serve, edge):
+def test_edge_resizing_belongs_to_one_primary_pointer(browser, serve, edge, request):
     """Other buttons, outside presses, and a second touch cannot take a resize."""
+    edge_world(request, edge)
     context = browser.new_context(
         viewport={"width": 1400, "height": 900}, has_touch=True
     )
@@ -5088,7 +5164,9 @@ def test_edge_resizing_belongs_to_one_primary_pointer(browser, serve, edge):
     assert geometry(page, edge)["width"] == before
     page.mouse.up(button="right")
 
-    page.mouse.move(x - 150 if edge.side == "right" else x + 150, y)
+    # A press that starts inside the region, which is open on either edge: past a
+    # covering drawer it would land on the scrim, which puts the drawer away.
+    page.mouse.move(x + 150 if edge.side == "right" else x - 150, y)
     page.mouse.down()
     page.mouse.move(x, y)
     page.mouse.up()
@@ -5126,7 +5204,7 @@ def test_edge_resizing_belongs_to_one_primary_pointer(browser, serve, edge):
 
 @pytest.mark.parametrize("edge", EDGES, ids=EDGE_IDS)
 def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
-    browser, serve, edge
+    browser, serve, edge, request
 ):
     """A region may take the window and no more, and one that leaves no usable page
     beside it covers the page rather than taking a strip from it. A window that shrinks
@@ -5138,6 +5216,7 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     they came back to, which is the failure this reading is here to catch — the third
     geometry below is the whole of it."""
     narrow, stands = edge.squeeze
+    edge_world(request, edge)
     page = open_page(browser, serve(edge.html(), comments=edge.comments))
     edge.stand(page)
     edge_settled(page, edge)
@@ -5168,35 +5247,35 @@ def test_a_window_with_no_room_for_a_chosen_width_does_not_un_choose_it(
     )
 
 
-def test_both_drawers_stand_on_the_one_edge_the_user_drew(browser, serve, other_leaf):
-    """Leaves and decisions are the same furniture at two scopes, one at a time on one side of
-    the window, so the width is the side's rather than either drawer's. A user who drew
-    the edge out to read long names has drawn the edge, and finding the other drawer back
-    at its default would be one fact kept in two places — which is what a width per drawer
-    would have been, and what the shared property is instead.
-
-    The `other_leaf` fixture is the whole reason there is a second drawer to swap to: a
-    drawer of one — the page the user is already on — is not worth a control, so without
-    a neighbour `g L` is unavailable."""
-    page = open_page(browser, serve(ASKS_PAGE))
-    drawers = EDGES[1]
-    drawers.stand(page)
-    edge_settled(page, drawers)
-    draw_edge(page, drawers, 160)
+def test_threads_and_questions_stand_on_the_one_edge_the_user_drew(browser, serve):
+    """Threads and Questions are two views of one side panel, one at a time on the right
+    of the window, so the width is the side's rather than either panel's. A user who drew
+    the edge out to read a long question has drawn the edge, and finding Threads back at
+    its default would be one fact kept in two places — which is what a width per panel
+    would have been, and what the shared property is instead. The handle names the side
+    panel it sizes, whichever view stands."""
+    page = open_page(browser, serve(QUESTIONS.html(), comments=1))
+    QUESTIONS.stand(page)
+    edge_settled(page, QUESTIONS)
+    handle = page.locator(f"{QUESTIONS.region} .lf-edge")
+    expect(handle).to_have_attribute("aria-label", "Side panel width")
+    draw_edge(page, QUESTIONS, 160)
+    drawn = geometry(page, QUESTIONS)
 
     page.keyboard.press("g")
-    page.keyboard.press("Shift+l")
-    expect(page.locator(".lf-others-panel")).to_be_visible()
-    page.wait_for_function(
-        "() => document.querySelector('.lf-others-panel').getAnimations().length === 0"
+    page.keyboard.press("Shift+t")
+    threads = EDGES[0]
+    edge_settled(page, threads)
+    expect(page.locator(QUESTIONS.region)).to_be_hidden()
+    expect(page.locator(f"{threads.region} .lf-edge")).to_have_attribute(
+        "aria-label", "Side panel width"
     )
-    leaves = page.evaluate(
-        "() => document.querySelector('.lf-others-panel').getBoundingClientRect().width"
-    )
+    panel = geometry(page, threads)
     page.close()
 
-    assert round(leaves) == drawers.wide + 160, (
-        f"the second drawer came up at a width the user had already moved: {leaves}"
+    assert drawn["width"] == QUESTIONS.wide + 160, f"the drag did not land: {drawn}"
+    assert panel["width"] == drawn["width"], (
+        f"Threads came up at a width the user had already moved: {panel}"
     )
 
 

@@ -30,6 +30,29 @@ jq 'select(has("lf-shot"))."lf-shot"' \
   skills/leaf/assets/registry.json skills/leaf/packages/*/registry.json
 ```
 
+## Review a UI change
+
+For browser API and rendering support, maintain
+[`notes/browser-support.md`](../../../notes/browser-support.md), following its
+"Recording and assessing a gap" section.
+
+Before handing over a change to browser controls, navigation, focus, motion,
+forms or layout, read and follow `/ui-sweep` at `../ui-sweep/SKILL.md` on
+the changed surface and its dependent interactions. Its "External review"
+section owns selection and use of the tools below.
+
+### External UI skills
+
+These are optional external installs, separate from Leaf's plugin. Check the
+harness's available skills before invoking one; each upstream link supplies its
+installation instructions and complete references.
+
+| Install | Use in a UI review |
+| --- | --- |
+| [Impeccable](https://github.com/pbakaus/impeccable#installation) | `/impeccable critique` for hierarchy, grouping and clarity; `audit` for technical UI quality. Its focused workflows include `layout`, `typeset`, `clarify`, `adapt`, `harden` and `distill`. |
+| [Web Design Guidelines](https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines) | `/web-design-guidelines` for interface conventions, accessibility, navigation, forms and motion. |
+| [Frontend Design](https://github.com/anthropics/skills/tree/main/skills/frontend-design) | `/frontend-design` for new compositions or an intentional redesign. |
+
 ## Leave taste to the authoring agent
 
 Code enforces only what Leaf needs to work: a contract between modules, or a guarantee
@@ -53,10 +76,11 @@ needs re-vendoring, and doesn't list reviving it as follow-up work.
 Whenever the user is to choose among designs for a visual or interaction
 question, whether options for a new interface, alternatives to a shipped one, or
 sketches they asked for, put the candidates in one playground, where the user
-operates each, comments on it, and submits a choice. The submitted configuration
-or feedback chooses the one implementation the change keeps. First look in the
-shipped examples and `notes/` for an exploration of the same surface, and extend
-its playground when it owns the same decision.
+compares them, tries the interactions needed to decide, comments, and submits a
+choice. The submitted configuration or feedback chooses the one implementation
+the change keeps. First look in the shipped examples and `notes/` for an
+exploration of the same surface, and extend its playground when it owns the same
+decision.
 
 A playground is one HTML file, like a standalone sketch. Write it under `.tmp/`
 and serve it with `uv run leaf-dev preview --source <file> --user` ("Preview a
@@ -72,10 +96,13 @@ cross owners or select part of one owner's interface. Candidates share the
 current interface except for the requested change. Use this checkout's rendered
 interface as the baseline in the review state. Implement runtime candidates in
 the runtime and theme that own the surface; an appearance sketch can restyle
-the live surface. A separate sketch keeps the same contract unless the user
-requested a partial demonstration. Verify the comparison by operating the
-baseline and candidates through the same journey before handoff. For a live
-Leaf interface, embed them as `lf-sample window` children.
+the live surface. A separate sketch follows "Decision fidelity" in the
+playground author instructions. When a reviewer checks the comparison, give them
+the user's question and the baseline and candidate views, and ask first whether
+those views are enough to make that choice; ask for a preference only once they
+are. Operate an interactive comparison's baseline and candidates through the
+same journey before handoff. For a live Leaf interface, embed them as
+`lf-sample window` children.
 The outer page carries the configuration and feedback; the children carry practice
 interactions. Start their fictional histories with `data-sample-events`, sharing
 one parent-local JSON fixture when the candidates need the same conversation
@@ -83,31 +110,54 @@ one parent-local JSON fixture when the candidates need the same conversation
 
 ## Choose what the user reviews
 
-Choose the review decisions from the user's request, then revise the page's
-choices to match. Show the requested change or unresolved choice, with the
-comparison and tradeoff needed to assess it. Name the feedback sought. When
-nothing needs their judgment, hand over the verified result.
+Prefer outputs that are quick for the user to review. Perform reviews yourself
+when you can do them as well as the user, and report the results.
 
-Verify behavior expected to stay unchanged against the baseline yourself and
-report what you checked and found. An unchanged sample can explain a changed
-contract; make it optional to operate and keep regression verification with the
-agent. Present visible and interaction changes using the proof below.
+Choose the review decisions from the user's request, then revise the page's
+choices to match.
+
+Present visible and interaction changes using the proof below.
 
 ## Prove and hand off a visible change
 
-The handoff lets the user inspect the changed behavior. Open the exact preview
-URL in a fresh browser context and verify that the review state is visible on
-arrival or reached by the route the handoff names. Setup from a private probe
-that the user cannot repeat belongs in the fixture or a replay control.
+Define the user's task and each step's expected visible outcome before choosing
+the controls or their checks. A reader should be able to associate related
+labels, symbols and destinations before activating them. Exercise each route
+from the reachable states that change its effect, including when its destination
+is already open or a different selection is active. A reader completing the task
+through one route proves only that route.
+
+Open the exact preview URL in a fresh browser context and verify those outcomes
+on arrival and through ordinary input. Setup from a private probe that the user
+cannot repeat belongs in the fixture or a replay control.
+
+Judge legibility and layout in the visible states ordinary input produces, in
+the affected color schemes. Within an open surface, inspect the item under the
+pointer or targeted by keyboard navigation against its current background;
+focus can remain on the trigger.
+Pause before the next input replaces or dismisses that state.
+Every candidate and optional surface retained in the page belongs to that review.
 
 Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
 "Layout and motion"), and capture the viewport when fixed chrome should
 appear. A Playwright screenshot of an element taller than the viewport draws
 fixed overlays in the wrong place; crop a viewport capture instead.
 
-Re-vendor before trusting a browser result after a runtime, theme, registry, or
-widget change. A green suite does not judge visual quality; run `/ui-sweep` or
-look at a composed page.
+Close a browser session you created for a review when its final reading is
+finished. The user's review preview and a browser borrowed from another owner
+keep their own lifetimes.
+
+Before declaring a visible change complete, derive its required visual relationships
+from the reader's task, rather than treating the implementation's passing checks as
+the complete target. For each ordinary input, state which content and controls the
+reader needs to keep in view or reach next, then verify their computed geometry
+before and after that input in the delivered page, including embedded views. Judge
+reflow by whether it serves that task and keeps the reader oriented. Make the
+relationships hold as content and sizes change through layout constraints or
+positions derived from one shared coordinate or dimension. Check those constraints
+in the source as well; a screenshot alone can hide a small alignment error.
+Re-vendor after a runtime, theme, registry, or widget change, then judge the
+composed page visually as well.
 
 To ask a page a question, such as where an element sits, what style it computes, or
 what holds focus after a key, run `uv run leaf-dev probe` rather than writing a
@@ -149,10 +199,12 @@ Show the trace on the Leaf page in `lf-trace`, as
 importing it with that viewer URL. Keep both previews running and verify that the
 viewer URL reaches the user's browser before handing it over.
 
-For an important result, perform the input and use a Playwright expectation to
-establish the intended browser state. Review the successful expectation's After
-checkpoint; returning from the input alone does not prove an asynchronous update
-finished. Native tracing groups name those operations without adding captures.
+For an important result, perform the input and use a Playwright expectation for
+the outcome defined from the user's task. Disclosure and focus prove their own
+effects; they do not prove a change to the content the user came to inspect.
+Review the successful expectation's After checkpoint; returning from the input
+alone does not prove an asynchronous update finished. Native tracing groups name
+those operations without adding captures.
 Add `--checkpoint-images` alongside `--record` when the review needs native PNG images
 at those checkpoints. Taking them adds capture work and briefly hides the live
 caret, so omit it when ordinary motion and caret behavior are the evidence.
@@ -171,13 +223,14 @@ the same difference. Check them all, show the difference once, in the state wher
 it reads most clearly, and say in a line which other states repeat it, since the
 user reads every pair and a repeat tells them nothing new. A dark-scheme or phone
 pair belongs only where the change looks different there, as a change to a colour
-or theme token does in the dark scheme. For an
-interaction-only change, serve both versions ("Compare checkout versions" below),
-keep both previews live, and hand off the labeled URL pair with the action that
-reveals the difference. Exercise the same journey in both at the same fragment,
-viewport, theme, and interaction state. A live preview handed to the user
-carries the fragment of the semantic block it is about (a titled section's own
-id) and stays running.
+or theme token does in the dark scheme.
+
+For an interaction-only change, compare the same journey on both versions
+("Compare checkout versions" below), at the same fragment, viewport, theme,
+and interaction state. Choose the handoff materials using "Choose what the user
+reviews" above, and use the recorded journey for motion evidence. A live preview
+handed to the user carries the fragment of the semantic block it is about
+(a titled section's own id) and stays running.
 
 ## Preview a page
 
@@ -329,7 +382,7 @@ base and the working tree:
 
 ```bash
 npm ci --prefix evals
-uv run leaf-dev eval [CASE]... --base [--harness claude-code|codex] [--repeat N]
+uv run leaf-dev eval [CASE]... --base --harness claude-code|codex [--repeat N]
 npm run view --prefix evals
 ```
 
@@ -343,10 +396,12 @@ case nearly fits, extend it with an assertion, a criterion, or context in its pr
 Add a new case only where the change needs measuring and no existing case can carry
 the behavior. What the suite holds then scores later edits, whether fixes or cuts,
 against the behaviors earlier edits had to produce. Keep a case small: one prompt
-carrying only the context the behavior needs, and a few assertions. Measure with
-whatever scenarios and guardrails the change needs, and keep what you add whether or
-not it separated the arms. The leading comment says
-whether the case told two wordings apart or has only guarded.
+carrying only the context the behavior needs, and a few assertions. Explore whatever
+scenarios the change needs, then retain only cases that cover distinct failures or
+necessary controls. Internal maintainer evals stay small and
+sparse; exploratory variants and their evidence stay in the run directory. Remove
+contexts another retained case already covers. The leading comment records the
+case's origin and whether it distinguished the instructions.
 
 The prompt never states the behavior under test. A prompt pointing at a file beyond
 the references names that file from the skill's base directory. Grade a fixed form
@@ -356,8 +411,9 @@ states the passing reading without requiring particular wording.
 Run cold, a case that states the situation plainly usually passes on both arms: the
 failing session had its own earlier turns or a competing instruction pulling the
 other way, so paste those into the prompt. A rule that loses only to a long
-session's context needs a replay of that session instead. Keep a task's diagnostic
-contexts until its complete workflow detects their original failures.
+session's context needs a replay of that session instead. Retain the smallest replay
+that detects the failure; a diagnostic does not need a complete workflow to earn or
+retire its place.
 
 ## Refresh the public catalog stills
 
@@ -385,6 +441,7 @@ them when they fail (`tests/AGENTS.md`, "Run what the change needs").
 is a fast-forward failure.
 
 Installed sessions load harness caches, not the checkout. Claude Code picks up a
-push on its marketplace sweep; the post-merge hook refreshes an installed Codex
-plugin, and after a merge that skipped hooks, run
+push on its marketplace sweep; Codex refreshes configured Git marketplaces and
+installed plugins at startup. Both follow the configured ref (`prepared` for
+consumer installs). For an immediate Codex refresh in a running session, run
 `codex plugin marketplace upgrade leaf`.

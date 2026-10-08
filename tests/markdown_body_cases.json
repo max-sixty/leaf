@@ -1,0 +1,74 @@
+[
+  {
+    "source": "**Keep** `--dry-run`.\n\n- One\n- Two",
+    "words": "Keep --dry-run. One Two"
+  },
+  {
+    "source": "- [x] Done\n- [ ] Todo",
+    "words": "Done Todo"
+  },
+  {
+    "source": "https://example.com and reader@example.com",
+    "words": "https://example.com and reader@example.com"
+  },
+  {
+    "source": "<div>\n**bold**\n</div>",
+    "words": "<div> bold </div>"
+  },
+  {
+    "source": "<div>\nHeading\n---",
+    "words": "<div> Heading"
+  },
+  {
+    "source": "<span>**bold**</span>",
+    "words": "<span>bold</span>"
+  },
+  {
+    "source": "| Column | Count |\n| --- | --- |\n| **Ready** | 2 |",
+    "words": "Column Count Ready 2"
+  },
+  {
+    "source": "~~gone~~ and H~2~O",
+    "words": "gone and H~2~O"
+  },
+  {
+    "source": "[unsafe label](javascript:alert(1)) ![unsafe alt](data:text/html,boom)",
+    "words": "unsafe label unsafe alt"
+  },
+  {
+    "source": "first  \nsecond",
+    "words": "first second"
+  },
+  {
+    "source": "```html\n<div>**literal**</div>\n```",
+    "words": "<div>**literal**</div>"
+  },
+  {
+    "source": "> **Quoted** words\n>\n> - One\n> - Two",
+    "words": "Quoted words One Two"
+  },
+  {
+    "source": "www.example.com and reader@example.com",
+    "words": "www.example.com and reader@example.com"
+  },
+  {
+    "source": "![**alt**](data:text/html,unsafe)",
+    "words": "alt"
+  },
+  {
+    "source": "![`alt`](javascript:boom)",
+    "words": "alt"
+  },
+  {
+    "source": "![alt &amp; more](javascript:boom)",
+    "words": "alt & more"
+  },
+  {
+    "source": "![*alt*](data:x)",
+    "words": "alt"
+  },
+  {
+    "source": "![A ![B &amp; `code`](https://example.com/b.svg) C](data:text/html,unsafe)",
+    "words": "A B & code C"
+  }
+]

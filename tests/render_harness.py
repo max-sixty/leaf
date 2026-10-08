@@ -39,7 +39,7 @@ import shutil
 import subprocess
 import time
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
 from types import SimpleNamespace
@@ -597,9 +597,7 @@ def serve(tmp_path, monkeypatch, initialized_page):
             for index in range(len(lines) - 1, -1, -1):
                 event = json.loads(lines[index])
                 if event["kind"] == "note":
-                    event["ts"] = datetime.now(timezone.utc).isoformat(
-                        timespec="seconds"
-                    )
+                    event["ts"] = datetime.now(UTC).isoformat(timespec="seconds")
                     lines[index] = json.dumps(event, separators=(",", ":"))
                     log.write_text("\n".join(lines) + "\n", encoding="utf-8")
                     break
@@ -1269,7 +1267,9 @@ def clean_browser(test=None):
 def judge_watches():
     """Judge every layout shift each watched page makes, once the frames the test's
     last act changed have painted (`shift_watch.js`, `lfShiftsJudged`), and then every
-    loss of typed words so far (`words_watch.js`, `lfWordsJudged`).
+    loss of typed words so far (`words_watch.js`, `lfWordsJudged`). The driver reads
+    frame-owner visibility across origins: an opaque child cannot inspect the
+    ancestor that suppresses its paint (`window.frameElement` is null there).
 
     Chrome hands a frame's shifts to the observer only after it paints, so a test whose
     last act moves the page or takes words away would end before the report. Judgement
@@ -1281,15 +1281,54 @@ def judge_watches():
     for page, _ in _BROWSER_PROBLEM_LISTS or ():
         if not page.is_closed() and page.lf_java_script_enabled:
             for frame in page.frames:
-                frame.wait_for_function(
-                    """async () => {
-                        await window.lfShiftsJudged?.();
-                        await window.lfWordsJudged?.();
-                        return true;
+                frame.evaluate(
+                    """ancestorsDrawn => {
+                        const judgement = window.lfWatchJudgement = {
+                          ancestorsDrawn, complete: false, error: null,
+                        };
+                        Promise.resolve().then(async () => {
+                          await window.lfShiftsJudged?.();
+                          await window.lfWordsJudged?.();
+                        }).then(() => { judgement.complete = true; },
+                          error => { judgement.error = error; });
                     }""",
-                    timeout=render_checks_model.SERVED_TIMEOUT_MS,
-                    polling=100,
+                    _frame_owners_drawn(frame),
                 )
+                deadline = (
+                    time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
+                )
+                while True:
+                    complete = frame.evaluate(
+                        """ancestorsDrawn => {
+                            const judgement = window.lfWatchJudgement;
+                            judgement.ancestorsDrawn = ancestorsDrawn;
+                            if (judgement.error) throw judgement.error;
+                            return judgement.complete;
+                        }""",
+                        _frame_owners_drawn(frame),
+                    )
+                    if complete:
+                        break
+                    if time.monotonic() >= deadline:
+                        raise PlaywrightTimeout(
+                            f"health sensors did not drain: {frame.url}"
+                        )
+                    page.wait_for_timeout(100)
+                frame.evaluate("delete window.lfWatchJudgement")
+
+
+def _frame_owners_drawn(frame):
+    """Read current ancestor visibility across origin boundaries for the sensor."""
+    ancestor = frame
+    while ancestor.parent_frame is not None:
+        owner = ancestor.frame_element()
+        try:
+            if not owner.evaluate("element => element.checkVisibility()"):
+                return False
+        finally:
+            owner.dispose()
+        ancestor = ancestor.parent_frame
+    return True
 
 
 def watched(page, *, java_script_enabled=True):
@@ -1543,7 +1582,7 @@ def open_versions(page):
 def banner_control(page, selector):
     """Return a banner control, opening its fixed menu seat when needed.
 
-    Approval and Threads stand on the row; every secondary control stands in More at
+    Approval, Questions and Threads stand on the row; every secondary control stands in More at
     every width, and a gesture's next step stands on the row in their place. A caller
     reaching a gesture step reads it off the row rather than through this, since opening
     More would hide a step that had wrongly been seated there. A caller may already have
@@ -1578,7 +1617,7 @@ def expect_banner_control_offered(control, *, offered=True):
 
 
 # How many of the page's active Asks are answered, as "answered/total": the publisher's
-# own Ask reading, which the Queue panel's Done list and the `a` walk select from. Before
+# own Ask reading, which the Questions panel's Done list and the `q` walk select from. Before
 # the page has admitted a state answer the reading is empty, which is no count at all.
 _ASKS_ANSWERED = """async () => {
   const { readApplication } = await window.__lfRuntimeImport('/runtime/semantic-state.js');
@@ -1974,8 +2013,12 @@ def suggestion_owner(suggestion_id: str) -> str:
 
 
 def draft_control(scope, key: str, draft_id: str, *, visible=True):
-    """The draft `draft_id`'s margin entry `key` (edit, save, cancel)."""
-    return margin_control(scope, draft_owner(draft_id), key, visible=visible)
+    """A draft's local command button (edit, save, cancel, close or retry)."""
+    action = "save" if key == "retry" else key
+    return scope.locator(
+        f'lf-draft[id="{draft_id}"] [data-lf-draft-action="{action}"]'
+        + (":visible" if visible else "")
+    )
 
 
 def suggestion_control(scope, suggestion_id: str, key=None, *, visible=True):
@@ -1993,11 +2036,13 @@ def any_owner_entry(kind: str, key: str | None = None) -> str:
 
 
 def any_draft_control(scope, key: str | None = None, *, visible=True):
-    """Any draft's margin entry `key` on the page, for the same reason `any_owner_entry`
+    """Any draft's local control `key` on the page, for the same reason `any_owner_entry`
     exists rather than `draft_control`."""
-    return scope.locator(
-        any_owner_entry("draft", key) + (":visible" if visible else "")
-    )
+    action = "save" if key == "retry" else key
+    selector = "lf-draft [data-lf-draft-action]"
+    if action is not None:
+        selector += f'[data-lf-draft-action="{action}"]'
+    return scope.locator(selector + (":visible" if visible else ""))
 
 
 def any_suggestion_control(scope, key: str | None = None, *, visible=True):
@@ -2040,12 +2085,12 @@ def panel_settled(page, open=True):
 
     The panel stands over the page, so opening or closing it moves nothing else; its own
     slide is the one motion, finished rather than waited out for `edge_settled`'s reason.
-    Closed means the dialog itself has closed."""
+    Closed means the retained panel is no longer visible."""
     page.wait_for_function(
         """(open) => {
           const panel = document.querySelector('.lf-thread-panel');
           for (const move of panel.getAnimations()) move.finish();
-          return panel.classList.contains('open') === open && panel.open === open
+          return panel.classList.contains('open') === open && panel.checkVisibility() === open
             && panel.getAnimations().length === 0;
         }""",
         arg=open,
@@ -2350,23 +2395,73 @@ def scroll_writes(page, steps, scroller="document.scrollingElement"):
     )
 
 
-def scroll_followers(writes):
-    """The places a scroll writes on more than two of its steps, as findings.
+_GESTURE = """async ([scroller, by, sample]) => {
+  const box = eval(scroller);
+  const read = sample ? eval(sample) : () => null;
+  let frame = 0;
+  let ended = false;
+  const samples = [];
+  const end = () => { ended = true; };
+  document.addEventListener('scrollend', end, {capture: true, once: true});
+  window.lfWrites = [];
+  window.lfWriteStep = frame;
+  const tick = () => {
+    window.lfWriteStep = ++frame;
+    if (!ended) {
+      samples.push({scrolled: box.scrollTop, read: read()});
+      requestAnimationFrame(tick);
+    }
+  };
+  box.scrollBy({top: by, behavior: 'smooth'});
+  requestAnimationFrame(tick);
+  while (!ended) await new Promise(requestAnimationFrame);
+  return {frames: frame, samples};
+}"""
+
+
+def gesture_writes(page, by, scroller="document.scrollingElement", sample=None):
+    """Scroll `scroller` (a page expression) by `by` in one smooth gesture, as a wheel
+    or a key does, and return each DOM write it caused, numbered by the frame it came
+    in, with what its settle wrote under its last, and how many frames it took. The
+    pointer is moved off the page's controls first, so the scroll brings nothing new
+    under it. With `sample`, a page function, it returns that function's reading on
+    each frame before the settle too, beside how far the scroller had gone."""
+    page.mouse.move(2, 300)
+    rendered(page)
+    start = page.evaluate(f"() => {scroller}.scrollTop")
+    gesture = page.evaluate(_GESTURE, [scroller, by, sample])
+    rendered(page)
+    assert page.evaluate(f"() => {scroller}.scrollTop") == pytest.approx(
+        start + by, abs=1
+    ), "the scroll did not go where the gesture leads"
+    writes = page.evaluate(
+        "() => { const w = window.lfWrites; window.lfWrites = null; return w; }"
+    )
+    if sample:
+        return writes, gesture["frames"], gesture["samples"]
+    return writes, gesture["frames"]
+
+
+def scroll_followers(writes, frames=None):
+    """The places a scroll writes on more than two of its steps, or on more than a
+    third of a gesture's `frames`, as findings.
 
     A state the scroll changes crosses a small pass at most once each way, while a
     position written from scroll events is written on every step, a frame behind the
     browser, which carries a box that CSS lays out (an anchor, a sticky offset, a scroll
-    timeline) with the scroll itself. A write that changes nothing needs no reading
-    here: the browser fixture fails it wherever it happens (`write_watch.js`)."""
+    timeline) with the scroll itself. A gesture takes as many frames as its speed gives
+    it, and crosses more as it goes further, as a tag steps clear of each neighbour
+    crossing beside it, so it is allowed a share of them. A write that changes nothing needs no reading here: the browser fixture
+    fails it wherever it happens (`write_watch.js`)."""
     places = {}
     for w in writes:
         places.setdefault(w["key"], []).append(w)
     found = []
     for written in places.values():
         what = f"{written[0]['type']} {written[0]['attribute'] or ''} on {written[0]['target']}"
-        steps = {w["step"] for w in written}
-        if len(steps) > 2:
-            found.append(f"{what} follows the scroll, written on {len(steps)} steps")
+        on = {w["step"] for w in written}
+        if len(on) > max(2, (frames or 0) / 3):
+            found.append(f"{what} follows the scroll, written on {len(on)} steps")
     return found
 
 

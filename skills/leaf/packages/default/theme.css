@@ -43,17 +43,27 @@
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 .lf-gloss-popover {
+  --lf-gloss-gap: 8px;
   position: fixed; inset: auto; position-area: block-end center;
   position-try-fallbacks: flip-block, flip-inline;
   box-sizing: border-box;
   width: max-content; max-width: min(22rem, calc(100vw - 24px));
-  margin: 8px 0; padding: 10px 13px 11px;
+  margin: var(--lf-gloss-gap) 0; padding: 10px 13px 11px;
   border: 1px solid var(--border-2);
   border-radius: var(--r); background: var(--card); color: var(--ink);
   box-shadow: 0 10px 28px var(--shade);
   font-family: var(--serif); font-size: var(--t-5); line-height: 1.45;
   text-align: left; white-space: normal;
   overflow-wrap: anywhere;
+  overflow: visible;
+}
+/* Keep the space to the phrase inside the card's hover region, above and below
+ * so CSS anchor flipping preserves the same pointer route. */
+@media screen {
+  .lf-gloss-popover::before {
+    content: ""; position: absolute;
+    inset: calc(-1 * var(--lf-gloss-gap)) 0; z-index: -1;
+  }
 }
 .lf-gloss-popover::backdrop { background: transparent; }
 @media print {
@@ -450,8 +460,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
    & > lf-option[chosen] > .lf-pick::before {
                      width: auto; height: auto; border: 0; background: transparent;
                      color: inherit; }
-   & > lf-option > .lf-key-badge,
-   & > lf-options-done > .lf-done > .lf-key-badge {
+   & > lf-option > .lf-key-badge {
                      inset-inline-start: auto; inset-inline-end: var(--sp-2); }
    & > lf-option > .lf-key-badge { top: var(--sp-2); }
    /* An empty draft offers only the route into its field, so that binding badge occupies
@@ -563,13 +572,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * final cell on the page and in a thread. */
 :scope:is(lf-options) > lf-options-done > .lf-done[aria-pressed="true"] { color: var(--ok-ink);
                      border-color: var(--ok); background: var(--ok-tint); }
-/* Its Ask binding badge stands where the rows' do: in the binding column, centred on the
- * press, inside the cell rather than hung off its corner. */
 :scope:is(lf-options) > lf-options-done { display: grid; padding: 0; }
-:scope:is(lf-options) > lf-options-done > .lf-done { position: relative; width: 100%; }
-:scope:is(lf-options) > lf-options-done > .lf-done > .lf-key-badge { position: absolute; z-index: 1;
-                     inset-inline-start: var(--lf-key-badge-start);
-                     top: 0; bottom: 0; margin: auto 0; }
+:scope:is(lf-options) > lf-options-done > .lf-done { width: 100%; }
 /* A group under `choose` is one control, not a set of options standing near each other.
  * Deleting the offer word left the question of what says a decision is waiting, and the
  * answer is the group rather than another thing drawn on every member: a group offers and
@@ -1031,13 +1035,21 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * inset is padding, so it stays inside the column the list keeps (`x-space`), as
  * lf-chronology's does. */
 :scope:is(lf-milestones) { display: block; margin: 14px 0; padding-inline-start: 8px; }
-:scope:is(lf-milestone) { display: block; position: relative; padding: 0 0 16px 26px;
-               border-left: 2px solid var(--rule); --lf-block-frame: 1; }
+/* Each row's border owns the rail width. A marker centres on that border from
+ * the padding-box origin, independent of the marker's diameter or border. */
+:scope:is(lf-milestone, lf-chronology-entry) {
+  --lf-timeline-rule: 2px;
+  display: block; position: relative; padding: 0 0 16px 26px;
+  border-left: var(--lf-timeline-rule) solid var(--rule); --lf-block-frame: 1;
+}
+:scope:is(lf-milestone)::before, :scope:is(lf-chronology-entry)::after {
+  content: ""; position: absolute;
+  left: calc(var(--lf-timeline-rule) / -2); top: 0.5lh;
+  transform: translate(-50%, -50%); box-sizing: border-box;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--paper); border: 2px solid var(--muted);
+}
 :scope:is(lf-milestone):last-child { border-left-color: transparent; padding-bottom: 2px; }
-:scope:is(lf-milestone)::before { content: ""; position: absolute; left: -7px;
-                       top: calc(0.5lh - 7px);
-                       width: 10px; height: 10px; border-radius: 50%;
-                       background: var(--paper); border: 2px solid var(--muted); }
 :scope:is(lf-milestone)[status="done"]::before   { background: var(--ok); border-color: var(--ok); }
 :scope:is(lf-milestone)[status="active"]::before { border-color: var(--accent);
                                         box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
@@ -1071,21 +1083,21 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 /* lf-chronology / lf-chronology-entry: a chronology on a rail. The dot is ::after, absolute,
  * colored by kind; the time label is the `at` attribute, said above the title. */
 :scope:is(lf-chronology) { display: block; margin: 14px 0; padding-inline-start: 8px; }
-:scope:is(lf-chronology-entry) { display: block; position: relative; padding: 0 0 16px 26px;
-           border-left: 2px solid var(--rule); --lf-block-frame: 1; }
 :scope:is(lf-chronology-entry):last-child { border-left-color: transparent; padding-bottom: 2px; }
-:scope:is(lf-chronology-entry)::after { content: ""; position: absolute; left: -7px; top: 4px;
-                  width: 10px; height: 10px; border-radius: 50%;
-                  background: var(--paper); border: 2px solid var(--muted); }
+/* A timestamp is the row's first line. Its marker uses the same font size and
+ * inherited leading so 0.5lh names that line's centre before and after upgrade. */
+:scope:is(lf-chronology-entry)[at]:not([at=""])::after { font-size: var(--t-6); }
 :scope:is(lf-chronology-entry)[kind="observation"]::after    { background: var(--muted); }
 :scope:is(lf-chronology-entry)[kind="intervention"]::after  { background: var(--accent); border-color: var(--accent); }
 :scope:is(lf-chronology-entry)[kind="warning"]::after { background: var(--warn); border-color: var(--warn); }
 :scope:is(lf-chronology-entry)[kind="failure"]::after { background: var(--danger); border-color: var(--danger); }
-:scope:is(lf-chronology-entry)[at]::before,
+:scope:is(lf-chronology-entry)[at]:not([at=""])::before,
 :scope:is(lf-chronology-entry) > [data-lf-said="at"] { display: block; font-family: var(--mono);
                        font-size: var(--t-6); color: var(--muted); margin-bottom: 1px; }
-:scope:is(lf-chronology-entry)[at]::before { content: attr(at); }
-:scope:is(lf-chronology-entry):has(> [data-lf-said="at"])::before { content: none; }
+:scope:is(lf-chronology-entry)[at]:not([at=""]):not(:has(> [data-lf-said="at"]))::before {
+  content: attr(at);
+}
+:scope:is(lf-chronology-entry) > [data-lf-said="at"]:empty { display: none; }
 :scope:is(lf-chronology-entry) > strong { margin-right: 6px; }
 
 /* lf-compare / lf-variant: labeled columns; exhibition, not decision.
@@ -1978,7 +1990,9 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * the one reading of the route and keeps every word the map says; the open outline on
  * screen sits under the title and leaves it out. It is still navigation apparatus, so
  * weight and ink distinguish it within the same sans voice as the section labels. Their common inset then reads as one route rather than two typographic systems.
- * Depth changes only the labels' inset. Labels stop at two lines, so prose never
+ * The title and top-level sections use 9px and 6px rings; deeper sections use 3px
+ * dots. The current destination fills its marker. All markers share the spine's
+ * centre, while depth also changes the labels' inset. Labels stop at two lines, so prose never
  * distorts the document-scale rows.
  * The open and paper forms retain the complete words. */
 :scope:is(lf-toc) { display: block; margin: var(--sp-4) 0 30px; }
@@ -2042,6 +2056,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
                            transition: background-color .24s ease-out; }
       :scope:is(lf-toc) .lf-toc-heading { display: none; }
       :scope:is(lf-toc) .lf-toc-rows { position: relative; display: flex; height: 100%;
+                            --lf-toc-spine-width: 1px;
                             flex-direction: column; }
       /* At rest the map takes presses on its spine alone, a strip one step wide, so it
        * never stands over the page's words beside it (the column claims no margin for
@@ -2056,12 +2071,13 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
         :is(:scope:is(lf-toc), :scope:is(lf-toc) .lf-toc-nav){ pointer-events: auto; }
       }
       :scope:is(lf-toc) .lf-toc-rows::before { content: ""; position: absolute;
-                                    z-index: 0; top: 0; bottom: 0; left: 0; width: 1px;
+                                    z-index: 0; top: 0; bottom: 0; left: 0;
+                                    width: var(--lf-toc-spine-width);
                                     background: var(--border-2); }
       /* One pixel tall, scaled to the lens's length by the widget's scroll-driven
        * animation, which the compositor runs. */
       :scope:is(lf-toc) .lf-toc-window { display: block; position: absolute; z-index: 1;
-                              top: 0; left: 0; width: 1px; height: 1px;
+                              top: 0; left: 0; width: var(--lf-toc-spine-width); height: 1px;
                               transform-origin: top; background: var(--ink-2); }
       /* A row is a span of the spine, and its link hangs from the row's top and may run
        * past the row's foot when rows are dense. The row takes no presses, so the next
@@ -2076,12 +2092,19 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
       :scope:is(lf-toc) .lf-toc-start::before, :scope:is(lf-toc) li::before {
         content: ""; position: absolute; z-index: 2;
         top: var(--lf-toc-row-shift, 0px);
-        transform: translateY(-50%);
-        left: -1px; width: 3px; height: 3px; border-radius: 50%;
+        transform: translate(-50%, -50%);
+        left: calc(var(--lf-toc-spine-width) / 2);
+        box-sizing: border-box; width: 3px; height: 3px; border-radius: 50%;
         background: var(--muted);
       }
+      :scope:is(lf-toc) .lf-toc-start::before { width: 9px; height: 9px; }
+      :scope:is(lf-toc) li[data-lf-depth="0"]::before { width: 6px; height: 6px; }
+      :scope:is(lf-toc) .lf-toc-start::before,
+      :scope:is(lf-toc) li[data-lf-depth="0"]::before {
+        border: 1px solid var(--muted); background: var(--paper);
+      }
       :scope:is(lf-toc) :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
-        background: var(--ink-2);
+        background: var(--ink-2); border-color: var(--ink-2);
       }
       :scope:is(lf-toc) li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
       :scope:is(lf-toc) li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
@@ -2161,12 +2184,15 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 }
 @media (forced-colors: active) {
   :scope:is(lf-toc) .lf-toc-rows::before,
-  :scope:is(lf-toc) .lf-toc-start::before, :scope:is(lf-toc) li::before {
-    forced-color-adjust: none; background: CanvasText;
+  :scope:is(lf-toc) .lf-toc-start::before, :scope:is(lf-toc) li::before,
+  :scope:is(lf-toc) li[data-lf-depth="0"]::before {
+    forced-color-adjust: none; background: CanvasText; border-color: CanvasText;
   }
+  :scope:is(lf-toc) .lf-toc-start::before,
+  :scope:is(lf-toc) li[data-lf-depth="0"]::before { background: Canvas; }
   :scope:is(lf-toc) .lf-toc-window,
   :scope:is(lf-toc) :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
-    forced-color-adjust: none; background: Highlight;
+    forced-color-adjust: none; background: Highlight; border-color: Highlight;
   }
 }
 
@@ -2506,17 +2532,6 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-tree) ul { list-style: none; margin: 0; padding-left: 0; }
 :scope:is(lf-tree) ul ul { padding-left: 18px; border-left: 1px solid var(--rule); margin-left: 5px; }
 :scope:is(lf-tree) li { margin: 3px 0; }
-/* Where the runtime runs, each line of the body stands at the pitch its rendered row will (a
- * row, and the 3px between rows), so the tree takes its height from the first paint.
- * The line's half of the gap above the first row and below the last stays inside the
- * box, as the rendered rows' outer margins leave it. */
-@scope (html[data-lf-interactive] :scope) {
-  :scope:is(lf-tree):not(.lf-rendered){ display: flow-root; }
-}
-@scope (html[data-lf-interactive] :scope) {
-  :scope:is(lf-tree):not(.lf-rendered) > pre{
-    line-height: calc(var(--code-line) + 3px); margin-block: -1.5px; }
-}
 :scope:is(lf-tree) .lf-tree-dir { font-weight: 600; }
 /* nowrap because the module appends name and badges with no whitespace between them and
  * spaces them by margin, so a line is one word to the breaker: told it may break inside
@@ -2640,8 +2655,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 @media screen {
   :scope:is(lf-text-document)[data-lf-bound] { max-block-size: none; overflow: visible;
     --lf-top: inherit; }
-  :scope:is(lf-text-document)[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
-    overflow: auto; overscroll-behavior: contain; --lf-bound-box: 1; --lf-top: 0px; }
+  :scope:is(lf-text-document):not([preview])[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
+    overflow: auto; --lf-bound-box: 1; --lf-top: 0px; }
 }
 /* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
    Keep its generic focus ring inside that frame: the figure clips at its rounded
@@ -2650,83 +2665,52 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   outline-offset: calc(-1 * var(--focus-ring-w));
 }
 
-/* A draft keeps the page's type and frame while its shared Markdown editor opens.
-   Plain text retains its reading geometry; Markdown takes the field's common face.
-   Keep the reading body in flow until the editor has content, so its initial layout
-   cannot collapse a scrolled page or pane. Edit, Save and Cancel belong to the target's
-   contribution surface; native history keeps its allocated row below the text.
-   The frame carries the inset focus ring, and print keeps the saved reading body
-   while dropping editing controls. */
-:scope:is(lf-draft) { display: block; border: 1px dashed var(--border-2); border-radius: 6px;
-           padding: 10px 14px; margin: 12px 0; background: var(--card); }
-.lf-draft-body, .lf-draft-edit.lf-ui { white-space: pre-wrap; }
-/* The authored <pre> stands where the drawn body will, so it wraps as that body does
-   and drops what the module's decoder drops (`decodeBodyRecord`, projection/authored.js):
-   the indentation the HTML around it gave every line, and the line of spaces before an
-   indented closing tag. pre-line keeps the draft's line breaks and drops both, so the first
-   paint has the drawn body's lines; it reads otherwise only where the draft's own lines
-   are indented relative to one another or hold runs of spaces. */
+/* Drafts read as Markdown, with editor operations in their own stable footer.
+   Reserve that footer before upgrade; actual history shares it rather than adding
+   an empty Changes row. The frame holds focus, and print retains saved prose. */
+:scope:is(lf-draft) { display: block; border: 1px solid var(--border-2); border-radius: 6px;
+  padding: 10px 14px; margin: 12px 0; background: var(--card);
+  font-size: max(var(--entry-floor), 1em); }
+.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body { white-space: normal; }
+:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :first-child { margin-top: 0; }
+:is(.lf-draft-body, :scope:is(lf-draft) > .lf-markdown-body) > :last-child { margin-bottom: 0; }
 :scope:is(lf-draft) > pre { white-space: pre-line; }
-.lf-draft-pencil { opacity: 1; }
-/* The one control whose face is deliberately the document's: the box shows the page's
-   words in the page's serif, or the word under the press reflows out from under the
-   pointer the moment the box opens. Stated unlayered, so it outranks the runtime's layered
-   UA-clearing and the chrome face .lf-ui would otherwise put on it. */
 .lf-draft-edit.lf-ui { display: block; width: 100%; padding: 0; border: 0; background: none;
-           font: inherit; min-height: 0; max-height: none; overflow: hidden; }
-/* The editor is a field, so on a touch screen it stands on --entry-floor (shadow.css);
-   the box holds its shown words on the same floor, or a draft in a 14px sidenote opens a
-   size larger than the words it showed. */
-:scope:is(lf-draft) { font-size: max(var(--entry-floor), 1em); }
+  font: inherit; min-height: 0; max-height: none; overflow: hidden; }
 .lf-draft-edit.lf-ui:is(:focus, .lf-focus) { outline: none; box-shadow: none;
-           --lf-focus-ring: none; }
-.lf-draft-history { display: none; }
+  --lf-focus-ring: none; }
+.lf-draft-footer { display: none; }
 @media screen {
-
-    /* The box is the door (lf-draft.js), so the box answers the pointer: the dashed
-       edge it already wears to say "editable" sharpens under the aim, the way the
-       layer's own pressables warm their ground. Not the ground here — the user is
-       about to type on it, and the words have to stay the page's words while they
-       decide. A quoted draft is an exhibit with no door and gets none of this. */
-  :scope:is(lf-draft):not(:where([data-lf-exhibit]) *):not(:has(.lf-draft-edit)):hover {
-    border-color: var(--muted); }
-  :scope:is(lf-draft):has(.lf-draft-edit) { border-style: solid;
-    border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
-    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+  @scope (html[data-lf-interactive] :scope) {
+    :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
+      display: grid;
+      grid-template-rows: minmax(min-content, auto) minmax(max(32px, var(--aim-floor)), auto);
+      gap: 8px;
+    }
+  }
+  :scope:is(lf-draft):has(.lf-draft-edit) { border-color: var(--muted); }
   :scope:is(lf-draft):has(.lf-draft-edit:focus) { outline: var(--focus-ring);
     --lf-focus-ring: draft-editor;
     outline-offset: calc(-1 * (var(--focus-ring-w) + var(--focus-ring-gap))); }
   :scope:is(lf-draft):has(.lf-draft-edit:state(ready)) > .lf-draft-body { display: none; }
-  .lf-draft-history { display: block; }
-
-  /* The live draft's second row belongs to its native history disclosure from the
-     parser's first paint. The complete reading supplies the real summary; until
-     then the same row is empty. Its minimum is the native details spacing and one
-     chrome line, so opening history can grow it without a measured-height cache.
-     The text row keeps its content minimum even when the shared field clips overflow,
-     so a bounded draft scrolls its words instead of shrinking that row. */
-  @scope (html[data-lf-interactive] :scope) {
-    :scope:is(lf-draft):not(:where([data-lf-exhibit], [data-lf-exhibit] *)) {
-      display: grid;
-      grid-template-rows: minmax(min-content, auto) minmax(calc(3 * var(--details-padding-block) +
-        var(--details-margin-block) + 2 * var(--details-border) +
-        var(--t-5) * var(--lf-ui-lh)), auto);
-    }
-  }
-
+  .lf-draft-footer { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 8px 12px;
+    min-width: 0; font: var(--t-5)/var(--lf-ui-lh) var(--sans); }
+  .lf-draft-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-inline-start: auto; }
+  .lf-draft-action { min-height: max(32px, var(--aim-floor)); }
+  .lf-draft-status { color: var(--danger-ink); align-self: center; }
+  .lf-draft-status:empty { display: none; }
+  .lf-draft-history { flex: 1; min-width: 0; margin: 0; padding: 0; border: 0;
+    --lf-block-frame: 1; font: inherit; color: var(--ink-2); }
+  .lf-draft-history[hidden] { display: none; }
+  .lf-draft-history > summary { width: max-content; max-width: 100%; cursor: pointer;
+    padding-block: 5px; color: var(--muted); }
+  .lf-draft-history > summary:hover { color: var(--ink-2); }
 }
 @media (forced-colors: active) {
-  :scope:is(lf-draft):has(.lf-draft-edit:focus){
+  :scope:is(lf-draft):has(.lf-draft-edit:focus) {
     outline: 2px solid Highlight; outline-offset: -5px; box-shadow: none;
   }
 }
-.lf-draft-history { margin-top: var(--details-padding-block);
-                    padding-top: var(--details-padding-block);
-                    border-top: var(--details-border) solid var(--rule);
-                    --lf-block-frame: 1;
-                    font-size: var(--t-5); color: var(--ink-2); }
-.lf-draft-history > summary { width: max-content; cursor: pointer; color: var(--muted); }
-.lf-draft-history > summary:hover { color: var(--ink-2); }
 .lf-draft-current { margin: 10px 0; }
 .lf-draft-current > strong { display: block; margin-bottom: 4px; }
 .lf-draft-revisions { margin: 0; padding-left: 20px; }
@@ -2738,3 +2722,31 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 .lf-draft-delta ins { background: var(--add-tint); color: var(--ok-ink);
                       text-decoration: none; }
 .lf-draft-restore { flex: none; font-size: var(--t-6); }
+
+/* Source and preview share one inspection viewport. Its height is independent of
+   either reading's length, so switching keeps the strip and following page still. */
+:scope:is(lf-text-document)[preview] > .lf-text-document-view {
+  background: var(--paper);
+}
+:scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs {
+  margin: 0; border: 0; border-radius: 0;
+}
+:scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs > lf-tab {
+  margin: 0; padding: 0;
+}
+:scope:is(lf-text-document) div.lf-text-document-preview {
+  padding: var(--sp-4); overflow-wrap: anywhere;
+}
+:scope:is(lf-text-document) iframe.lf-text-document-preview {
+  display: block; inline-size: 100%; block-size: var(--lf-bound, 28rem); border: 0;
+  background: white;
+}
+@media screen {
+  :scope:is(lf-text-document)[preview] .lf-text-document-view > lf-tabs > lf-tab:not([hidden]) {
+    block-size: var(--lf-bound, 28rem);
+    overscroll-behavior: auto;
+  }
+  :scope:is(lf-text-document) iframe.lf-text-document-preview {
+    block-size: 100%;
+  }
+}

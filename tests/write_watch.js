@@ -19,6 +19,12 @@
 // While `window.lfWrites` is an array, every write is also appended to it, numbered by
 // `window.lfWriteStep`, for a test that reads what a gesture wrote (scroll_writes).
 (() => {
+  // An isolated preview is an external document, outside Leaf's DOM-write contract.
+  // Its opaque origin also hides its sandbox flags from this injected script; a
+  // scripting-disabled frame refuses MutationObserver callbacks with console errors.
+  // Keep watching the parent that owns the frame, and leave opaque child DOM alone.
+  if (window !== window.top && globalThis.origin === "null") return;
+
   // An element by its tag, id and classes, one with neither by where it stands, and one
   // in a shadow tree by the tree's host too.
   const place = (node) => {
@@ -68,6 +74,9 @@
     // Sortable takes a dragged card's ghost class off and puts it back as the drag
     // crosses into another lane.
     /^class on .*\.lf-ghost/,
+    // PhotoSwipe reasserts its root's zoom and pointer classes while handling
+    // gestures and viewport changes, including when those classes already stand.
+    /^class on div\.pswp(?:\.|$)/,
   ];
   const reported = new Set();
   const report = (what) => {
@@ -88,6 +97,37 @@
   // its pane shows (margin-layout.js, `layoutMarginRows`).
   const tokens = (value) => new Set([...(value ?? "").split(" "), "lf-withheld"]);
   const sameTokens = (a, b) => a.size === b.size && [...a].every((t) => b.has(t));
+  // Native dialog posture and its focusing steps are browser state, not the reflected
+  // `open` attribute. close→showModal changes a nonmodal dialog to modal while `open`
+  // returns to the same value; lending inertness during an opening suppresses the
+  // platform's focus transfer. Track those actual operations until their mutations
+  // arrive, so plain attribute restatements still have no exemption.
+  let dialogTransitions = new WeakMap();
+  const posture = (dialog) =>
+    dialog.matches(":modal") ? "modal" : dialog.open ? "nonmodal" : "closed";
+  for (const method of ["show", "showModal", "close"]) {
+    const native = HTMLDialogElement.prototype[method];
+    HTMLDialogElement.prototype[method] = function (...args) {
+      const before = posture(this);
+      const inert = this.inert;
+      const result = native.apply(this, args);
+      const after = posture(this);
+      if (after !== before) {
+        const transition = dialogTransitions.get(this) ?? { focusedInert: false };
+        transition.focusedInert ||= inert && method !== "close";
+        dialogTransitions.set(this, transition);
+      }
+      return result;
+    };
+  }
+  const nativeTransition = (record) => {
+    const transition = dialogTransitions.get(record.target);
+    return (
+      transition &&
+      (record.attributeName === "open" ||
+        (record.attributeName === "inert" && transition.focusedInert))
+    );
+  };
   const putBack = ({ record, through }) =>
     (record.attributeName === "tabindex" &&
       record.oldValue === null &&
@@ -109,11 +149,13 @@
       if (
         valueOf(record) === record.oldValue &&
         !reflected(record) &&
+        !nativeTransition(record) &&
         !(through.length && putBack(write))
       )
         report(`${record.attributeName ?? "text"} on ${place(record.target)}`);
     }
     started.clear();
+    dialogTransitions = new WeakMap();
   };
   const watch = (records) => {
     for (const record of records) {

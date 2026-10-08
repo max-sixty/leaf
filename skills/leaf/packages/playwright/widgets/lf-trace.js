@@ -18,8 +18,9 @@
  * on manual navigation, hiding or retirement. Captured frames can join that
  * same timeline. Initial selection prefers its first nonempty saved tree, then
  * its first image; empty earlier stops stay navigable. Following a visual part restores its exact
- * stop and page. Scope choices and the bounded, always-visible Moments list keep
- * evidence at a stable origin. The timeline sits directly above the capture; image
+ * stop and page. Visible source choices use the shared Web Awesome radio group;
+ * source switching and timeline stepping have separate keyboard focus. Scope choices
+ * and the bounded, always-visible Moments list keep evidence at a stable origin. The timeline sits directly above the capture; image
  * inspection controls follow it. One page-sized viewport reserves empty and captured
  * states alike; pixel surfaces never own surrounding geometry. Same-page capture changes retain an inspected
  * image scale and origin, even across empty points and replay; fitted captures continue to fit.
@@ -303,9 +304,11 @@ customElements.define(
 
     #build() {
       this.controls = offer("div", "lf-trace-controls");
-      this.pageChoices = el("div", "lf-trace-pages");
-      this.pageChoices.setAttribute("role", "group");
-      this.pageChoices.setAttribute("aria-label", "Recorded page or API stream");
+      this.sources = offer("wa-radio-group", "lf-trace-sources");
+      this.sources.name = `${this.id}-page`;
+      this.sources.label = "Recorded page or API stream";
+      this.sources.size = "s";
+      this.sources.orientation = "horizontal";
       this.framesToggle = offer("input", "lf-trace-frames", undefined, "checkbox");
       this.framesToggle.name = `${this.id}-frames`;
       const framesLabel = document.createElement("label");
@@ -363,7 +366,7 @@ customElements.define(
       const stepper = offer("div", "lf-trace-stepper");
       stepper.append(this.timeline);
       const choices = offer("div", "lf-trace-choices");
-      choices.append(this.pageChoices, this.viewer);
+      choices.append(this.sources, this.viewer);
       this.positionLabel = el("span", "lf-trace-position");
       this.selectionLabel = el("span", "lf-trace-selection");
       const position = el("div", "lf-trace-position-row");
@@ -536,6 +539,11 @@ customElements.define(
         },
         { capture: true },
       );
+      this.sources.addEventListener("change", () => {
+        if (this.#page === this.sources.value) return;
+        this.#selectPage(this.sources.value);
+        this.#draw();
+      });
       this.framesToggle.addEventListener("change", () => {
         this.#pause(false);
         const point = this.#items()[this.#position()];
@@ -799,7 +807,7 @@ customElements.define(
         this.#drawPages([]);
       }
       this.#draw();
-      restore?.(this.pageChoices.querySelector("[aria-pressed=true]"));
+      restore?.(this.sources);
     }
 
     #pageChoices() {
@@ -826,23 +834,16 @@ customElements.define(
 
     #drawPages(choices) {
       const prior = new Map(
-        [...this.pageChoices.children].map((button) => [button.dataset.page, button]),
+        [...this.sources.children].map((choice) => [choice.value, choice]),
       );
       setChildren(
-        this.pageChoices,
+        this.sources,
         choices.map(([value, label]) => {
-          let button = prior.get(value);
-          if (!button) {
-            button = offer("button", "lf-trace-page");
-            button.dataset.page = value;
-            button.onclick = () => {
-              if (this.#page === value) return;
-              this.#selectPage(value);
-              this.#draw();
-            };
-          }
-          keepsText(button, label);
-          return button;
+          const choice = prior.get(value) ?? offer("wa-radio", "lf-trace-source");
+          choice.appearance = "button";
+          keeps(choice, "value", value);
+          keepsText(choice, label);
+          return choice;
         }),
       );
     }
@@ -1437,10 +1438,9 @@ customElements.define(
       const position = Math.max(0, Math.min(this.#position(), items.length - 1));
       const point = items[position];
       this.#selected = point?.id ?? null;
-      for (const button of this.pageChoices.children) {
-        keeps(button, "aria-pressed", String(button.dataset.page === this.#page));
-        keeps(button, "disabled", !this.#trace || quoted(this) ? "" : null);
-      }
+      if (this.sources.value !== (this.#page ?? ""))
+        this.sources.value = this.#page ?? "";
+      keeps(this.sources, "disabled", !this.#trace || quoted(this) ? "" : null);
       this.framesToggle.checked =
         this.#frames().length > 0 &&
         (this.#intermediates || !this.#checkpoints().length);

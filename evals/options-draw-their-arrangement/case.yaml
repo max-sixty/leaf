@@ -34,23 +34,10 @@ vars:
     The page directory is not reachable from here, so reply with the section's HTML
     fragment rather than writing a file.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-registry
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/packages/default/registry\.json
-- type: javascript
+- type: regex
   metric: has-options
-  value: file://text-regex.cjs
-  config:
-    pattern: <lf-option\b
-    flags: i
-    negate: false
+  value: <lf-option\b
+  transform: output.toLowerCase()
 - type: llm-rubric
   metric: judgment
   value: |

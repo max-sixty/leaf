@@ -47,7 +47,7 @@ import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../keeps.js";
 import { motion } from "../motion.js";
 
-export const loadMarked = () =>
+export const loadMessageMarkdown = () =>
   loadMarkdown((error) =>
     reportPageError(`markdown renderer failed to load: ${error?.message ?? error}`),
   );

@@ -61,6 +61,9 @@ The result opens in a browser page; its comments return to the same agent task.
 <details>
 <summary>Browser and environment requirements</summary>
 
+Known functional limitations and accepted visual differences in current browsers
+are recorded in [Browser support gaps](notes/browser-support.md).
+
 The first run syncs the plugin's uv environment through your configured package
 index. Render checks use the executable named by
 `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN`, then installed Google

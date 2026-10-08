@@ -1,5 +1,5 @@
 {
-  "format": "leaf-browser-build-v1",
+  "format": "leaf-browser-build-v2",
   "sourceRoots": [
     "build/browser"
   ],
@@ -9,10 +9,10 @@
     "build/browser/presentation.ts",
     "build/browser/snapshot.ts",
     "skills/leaf/assets/runtime/anchor-coordinate.js",
-    "skills/leaf/assets/runtime/collapse.js",
     "skills/leaf/assets/runtime/pending/model.js",
     "skills/leaf/assets/runtime/projection/model.js",
     "skills/leaf/assets/runtime/queues.js",
+    "skills/leaf/assets/runtime/registry-contract.js",
     "skills/leaf/assets/runtime/thread/identity.js",
     "skills/leaf/assets/runtime/thread/model.js",
     "skills/leaf/assets/runtime/thread/workflow.js"
@@ -23,7 +23,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "5cc058420ee32fc5e60bca5998f45b9f7a8f3826f1a63292a246450fc2866807",
+  "lockfileSha256": "b3386dd7d5fad99e90ed9f3216ea4b6f2b0ab842a19747a94c5dafa03a55c66e",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -54,7 +54,9 @@
     "happy-dom": "20.14.5",
     "lit": "3.3.3",
     "lit-html": "3.3.0",
-    "marked": "18.0.14",
+    "markdown-it": "14.3.2",
+    "markdown-it-task-lists": "2.1.1",
+    "photoswipe": "5.4.4",
     "sortablejs": "1.15.7",
     "typescript": "7.0.2"
   },
@@ -160,26 +162,9 @@
     "withStatic"
   ],
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
-  "outputs": {
-    "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 30612,
-      "sha256": "748aeccf706e19df94f8631a4f57b14addc1805ed39e905c7aa33e597b0ce33a"
-    },
-    "build/browser/generated/browser-runtime.js.map": {
-      "bytes": 200523,
-      "sha256": "2c8585d052ecb611728426582784bc42f1670dc83244d343352bcf5a0f288bea"
-    },
-    "skills/leaf/assets/vendor/lit.js": {
-      "bytes": 32081,
-      "sha256": "8cb5658593f000150114b55a76dca639bff7d514095224cf8940f7aeeff948bd"
-    },
-    "build/browser/generated/lit.js.map": {
-      "bytes": 362839,
-      "sha256": "5f0b4fc2f8add5a0ef43c5600d56f949626bd0fc3c5ca5412d6da6647b368395"
-    },
-    "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt": {
-      "bytes": 5873,
-      "sha256": "a354a25f57b61684e0ac1e048bca6a115795b3ea02338fd131eb1b3e03161416"
-    }
-  }
+  "outputs": [
+    "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt",
+    "skills/leaf/assets/vendor/browser-runtime.js",
+    "skills/leaf/assets/vendor/lit.js"
+  ]
 }

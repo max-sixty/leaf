@@ -807,8 +807,9 @@ def test_selection_hints_do_not_name_page_content_behind_a_covering_panel(
 
     page.locator(".lf-threads-toggle").click()
     expect(page.locator(".lf-thread-panel")).to_be_visible()
-    assert page.locator("main").evaluate("el => el.inert")
-    expect(page.locator(".lf-thread-panel")).to_have_attribute("aria-modal", "true")
+    assert page.locator(".lf-thread-panel").evaluate(
+        "surface => surface.closest('dialog').matches(':modal')"
+    )
     page.keyboard.press("s")
     assert page.locator(".lf-target-picker-hint").count() == 0, (
         "page target selection crossed the covering auxiliary surface boundary"
@@ -847,15 +848,20 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
     expect(search).to_be_focused()
     status = page.locator(".lf-page-search-status")
     expect(status).to_be_empty()
+    search_box = search.bounding_box()
     search.fill("words absent from this page")
     expect(status).to_have_text("No matches")
+    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
     search.fill("")
     expect(status).to_be_empty()
+    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
     page.keyboard.type("b")
     expect(status).to_have_text(re.compile(r"\d+ of \d+"))
+    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     search.fill("button the key")
     expect(status).to_have_text("1 of 1")
+    assert search.bounding_box() == pytest.approx(search_box, abs=0.5)
     expect(page.locator(".lf-page-search-match")).not_to_have_count(0)
     expect(page.locator(".lf-shortcut-bar")).to_contain_text("select match")
     page.keyboard.press("Tab")
@@ -1204,10 +1210,10 @@ def test_hint_browsing_forgets_a_target_that_scrolls_out_of_the_map(browser, ser
 
 
 def test_a_scroll_with_no_scrollend_still_refreshes_the_target_map(browser, serve):
-    """A page can move and never send `scrollend`: a programmatic scroll written a frame
-    at a time, and the scroll a replaced scene restores, both end without one. The map
-    freezes its membership for the length of a scroll, so with nothing to settle it the
-    chips go on naming the scene the first frame left behind.
+    """A page can move and never send `scrollend`: the scroll a replaced scene restores
+    ends without one. The map freezes its membership for the length of a scroll, so
+    with nothing to settle it the chips go on naming the scene the first frame left
+    behind.
 
     A hidden target is dropped from the paint either way; the codes are what say whether
     the map was read again, because a fresh reading gives the survivors the head of the
@@ -1223,7 +1229,7 @@ def test_a_scroll_with_no_scrollend_still_refreshes_the_target_map(browser, serv
     page.evaluate(
         """() => {
           document.querySelector('#t').style.display = 'none';
-          dispatchEvent(new Event('scroll'));
+          document.dispatchEvent(new Event('scroll'));
         }"""
     )
 
@@ -1500,21 +1506,15 @@ def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
     page.evaluate(
         """() => {
           const originalRect = Element.prototype.getBoundingClientRect;
-          const originalVisibility = Element.prototype.checkVisibility;
-          let rectReads = 0;
-          let visibilityReads = 0;
+          let hiddenRectReads = 0;
           Element.prototype.getBoundingClientRect = function (...args) {
-            rectReads += 1;
+            if (this.id.startsWith('hidden-'))
+              hiddenRectReads += 1;
             return originalRect.apply(this, args);
           };
-          Element.prototype.checkVisibility = function (...args) {
-            visibilityReads += 1;
-            return originalVisibility.apply(this, args);
-          };
           addEventListener('scrollend', () => requestAnimationFrame(() => {
-            window.lfHintScrollReads = {rectReads, visibilityReads};
+            window.lfHintScrollReads = {hiddenRectReads};
             Element.prototype.getBoundingClientRect = originalRect;
-            Element.prototype.checkVisibility = originalVisibility;
           }), {capture: true, once: true});
           document.scrollingElement.scrollTo({top: 600, behavior: 'smooth'});
         }"""
@@ -1522,8 +1522,7 @@ def test_scrolling_target_hints_does_not_measure_hidden_targets(browser, serve):
     page.wait_for_function("() => window.lfHintScrollReads")
     reads = page.evaluate("() => window.lfHintScrollReads")
 
-    assert reads["rectReads"] < hidden_count, reads
-    assert reads["visibilityReads"] < hidden_count * 3, reads
+    assert reads["hiddenRectReads"] == 0, reads
 
 
 def test_cancelling_page_search_restores_the_control_that_opened_it(browser, serve):

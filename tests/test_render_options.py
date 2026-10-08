@@ -399,7 +399,7 @@ def test_standalone_options_own_their_digit_bindings(browser, serve, cards):
     page.keyboard.press("2")
     rendered(page)
     expect(page.locator("#two")).not_to_have_attribute("chosen", "")
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(group).to_be_focused()
     hints = group.locator(".lf-key-badge[data-lf-binding-badge]")
     expect(hints).to_have_text(["1", "2", "3", "4"])
@@ -434,7 +434,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     group = page.locator("#choices")
     field = group.get_by_role("textbox", name="Another option")
     added = group.locator(":scope > lf-option[data-lf-added]")
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#question")).to_be_focused()
     write(field, "First addition")
     group.get_by_role("button", name="Add and select option").click()
@@ -442,7 +442,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     expect(added).to_have_count(1)
     first_id = added.get_attribute("id")
     group.get_by_role("button", name=re.compile("^Done:")).focus()
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#question")).to_be_focused()
     expect(added.locator(".lf-pick")).to_have_attribute(
         "aria-keyshortcuts", re.compile(r"(^| )5($| )")
@@ -461,7 +461,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     expect(added).to_have_count(1)
     assert added.get_attribute("id") != first_id
     group.get_by_role("button", name=re.compile("^Done:")).focus()
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#question")).to_be_focused()
     expect(added.locator(".lf-pick")).to_have_attribute(
         "aria-keyshortcuts", re.compile(r"(^| )6($| )")
@@ -652,7 +652,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     url = serve(ASK_WITH_CONTEXT_PAGE)
     page = open_page(browser, url)
 
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     mark = page.locator("#storage-evict .lf-pick")
     line = shortcut_bar_text(page)
     # The Ask's own numbered actions are what the line offers, under the one context the
@@ -678,7 +678,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     page.close()
 
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     mark = page.locator("#storage-evict .lf-pick")
     box = page.locator("#storage-options > .lf-another leaf-text")
     page.keyboard.press("Tab")
@@ -721,7 +721,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     page.close()
 
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     page.keyboard.press("Tab")
     mark = page.locator("#storage-evict .lf-pick")
     expect(mark).to_be_focused()
@@ -759,7 +759,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
     # make none — under reduced motion `scrollBehavior()` is `instant`, both scrolls land
     # inside the press, and there is no settling frame for the presses below to race.
     page.emulate_media(reduced_motion="reduce")
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     covered = page.evaluate(clearance)
     assert covered < 0, f"the arrival left the add field {covered}px clear of the line"
     for _ in range(3):
@@ -773,7 +773,7 @@ def test_a_selected_question_keeps_one_action_context_while_tab_reaches_its_fiel
 def test_ask_addresses_are_screen_only_apparatus(browser, serve):
     """An Ask's key hints stay out of selected page words and off paper."""
     page = open_page(browser, serve(ASK_WITH_CONTEXT_PAGE))
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     badges = page.locator("#storage-options > lf-option > .lf-key-badge")
     expect(badges).to_have_text(["1", "2"])
     expect(badges.first).to_be_visible()
@@ -1679,7 +1679,7 @@ def test_only_bound_cards_yield_their_header_state_to_the_ask(browser, serve):
     )
     resized(page, 900, 1200)
 
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#routes > lf-option > .lf-key-badge")).to_have_count(10)
     expect(
         page.locator("#routes > lf-option > .lf-key-badge[data-lf-binding-badge]")
@@ -1727,7 +1727,7 @@ def test_a_nested_questions_commands_belong_only_to_their_own_ask(browser, serve
     breaks the shortcut bar or lends its answers to the wrong Ask.
     """
     page = open_page(browser, serve(NESTED_ASK_PAGE))
-    page.keyboard.press("a")
+    page.keyboard.press("q")
 
     expect(page.locator("#outer-decision")).to_be_focused()
     outer_hints = page.locator("#outer > lf-option > .lf-key-badge")
@@ -2906,16 +2906,12 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
     )
 
 
-def test_a_thread_questions_done_press_wears_its_address_and_one_workflow(
-    browser, serve
-):
-    """Done is a cell of the joined control, and the message shows one workflow.
+def test_a_thread_questions_done_press_keeps_its_keys_and_one_workflow(browser, serve):
+    """Done keeps its native button clear while the bar and ARIA expose its keys.
 
-    The Ask projection writes each option's key into the binding slot the row keeps
-    for it; Done kept none, so its chip was hung at the button's corner, half outside
-    the group's frame — a stray `4` a blind drive could not place. And a tick followed
-    by Done are two coordinates. The message carries their shared strongest workflow
-    once rather than painting two independent receipt classifiers."""
+    A tick followed by Done are two coordinates. The message carries their shared
+    strongest workflow once rather than painting two receipt classifiers.
+    """
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
     )
@@ -2931,18 +2927,14 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_workflow(
     round_trip(page)
     done = question.locator(".lf-done")
     done.focus()
-    chip = done.locator(":scope > .lf-key-badge")
-    expect(chip).to_be_visible()
+    expect(done).to_have_attribute("aria-keyshortcuts", re.compile(r"\b4\b"))
+    expect(question.locator(":scope > lf-options-done .lf-key-badge")).to_have_count(0)
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("Done")
     frame = question.bounding_box()
     done_row = question.locator(":scope > lf-options-done").bounding_box()
     assert frame["y"] + frame["height"] - done_row["y"] - done_row[
         "height"
     ] == pytest.approx(1, abs=1)
-    box = chip.bounding_box()
-    assert (
-        frame["x"] <= box["x"]
-        and box["x"] + box["width"] <= frame["x"] + frame["width"]
-    ), f"Done's binding badge {box} stands outside the group {frame}"
     expect(
         page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_count(0)
@@ -2968,7 +2960,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
         browser, serve(next(p for p in EXAMPLES if p.stem == "alert-review"))
     )
     resized(page, 1440, 900)
-    page.keyboard.press("a")
+    page.keyboard.press("q")
     expect(page.locator("#ar-canary-decision")).to_be_focused()
     page.keyboard.press("2")
     expect(page.locator("#ar-canary-suppress")).to_have_attribute("chosen", "")
@@ -2988,7 +2980,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     assert all(seat["worn"] and seat["seat"] for seat in seats), seats
     assert len({round(seat["top"]) for seat in seats}) == 1, seats
     expect(
-        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_count(0)
     page.keyboard.press("1")
     chosen = page.locator("#ar-canary-consecutive")
@@ -3009,8 +3001,8 @@ def test_an_ask_digit_hangs_off_a_corner_clear_of_its_neighbours(browser, serve)
         browser, serve(next(p for p in EXAMPLES if p.stem == "notification-playground"))
     )
     resized(page, 1024, 768)
-    page.keyboard.press("a")
-    chip = page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    page.keyboard.press("q")
+    chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     expect(chip).to_have_count(1)
     reading = chip.evaluate(
         """chip => {

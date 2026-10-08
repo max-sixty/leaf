@@ -185,8 +185,10 @@ def test_a_drawing_is_sent_and_replayed_as_an_ordinary_comment(browser, serve):
     assert drawn["x"] + drawn["width"] > target_box["x"] + target_box["width"]
     assert drawn["y"] < target_box["y"]
     assert page.evaluate("document.documentElement.scrollWidth") == scroll_width
-    stacking = page.locator(".lf-drawings").evaluate(
-        "el => ({classes: el.getAttribute('class'), z: getComputedStyle(el).zIndex})"
+    # Ink stacks as page paint, under a covering surface, in the stand that carries it.
+    stacking = mark.evaluate(
+        "el => ({stand: el.closest('.lf-paint-stand')?.className,"
+        " z: getComputedStyle(el.closest('.lf-paint-stand')).zIndex})"
     )
     assert stacking["z"] == "8890", stacking
     stable_mark = mark.element_handle()

@@ -28,7 +28,7 @@ name stands.
 
 ```bash
 leaf thread open <page> --section <element-id> --title "Afternoon workshop" --text "…"
-leaf thread reply <page> --title "Afternoon workshop" --text "…"
+leaf response reply <answer.ref> --title "Afternoon workshop" --text "…"
 ```
 
 A delivery carries each thread's current title, null until named. Titles are plain
@@ -65,8 +65,8 @@ a file and redirect it to stdin, where its paragraphs and list items are visible
 you write them.
 
 ```bash
-leaf thread reply <page> --text "…"
-leaf thread reply <page> < reply.md
+leaf response reply <answer.ref> --text "…"
+leaf response reply <answer.ref> < reply.md
 ```
 
 A user may paste an image into any thread text box, and a delivered message that
@@ -76,14 +76,36 @@ refuses a `/media/…` link or image the page directory cannot answer, in text a
 markup, because the log is append-only and a broken image posted to it stays broken;
 a path mentioned in a sentence stays prose.
 
-With one reply obligation in the current turn's opened delivery, Leaf infers its event
-and address. When that delivery contains several, select one with `--for <event-id>`;
-Leaf derives its response address and rechecks both against current state, so a
-response captured before a newer user correction cannot settle the correction. When
-the delivery is no longer the freshest reading, `leaf page state <page> <thread-id>` shows what
-each move in the thread still owes as its workflow's `answer`. When the source
-changed, the reply validates and activates it before posting, so an edit and its
-answer cross one command boundary.
+Every delivered answer carries an exact `ref`, qualified by the delivery and its
+page batch. Copy that complete value into `leaf response reply <answer.ref>`;
+no page path or message id is needed. The writer keeps the captured thread
+destination, including inputs on widgets frozen in an earlier thread message,
+and rechecks the exact input against current state. A response captured before a
+newer user correction cannot settle that correction. A replaced log or a page
+claimed by another session refuses the write.
+
+The same command supports `--markup`, `--awaits`, `--title`, `--quote`, `--section`,
+`--part`, `--detach`, and `--ephemeral`. A saved source edit is validated and
+activated in the reply transaction, so the edit and its answer cross one command
+boundary. Repeating an ordinary reply's reference returns its previous record
+without appending another message. Use `--attempt` to name retries of a progress
+update. `--failure <code>` posts a failure receipt when no answer is coming; it
+settles the input without reopening a closed thread.
+
+The delivery's `writer` records the automatic reply route at capture. With
+`writer: "turn"`, Leaf streams the provider's opening and commits its completed
+final text unless an explicit reply has already answered the input. Use the same
+response command for an explicit answer, including markup, a question, a title or
+relocation: it validates saved edits and commits immediately. Its author, retry
+identity and content remain in the log even if the provider later fails or
+reconnects. The provider's final yields to that successful answer. A failure
+receipt is refused while an active provider reservation still promises an answer.
+Forward the response reference to a command hub worker as that
+package’s coordinator instructions direct; the worker speaks under its own
+session while the page’s captured logical owner remains the last claimant.
+That authorization survives the owner’s release or process restart; another
+session’s claim supersedes it even after that successor releases or ends.
+Retry keys deduplicate author writes; they never grant provider custody.
 
 ## Preserve revised anchors
 
@@ -100,18 +122,18 @@ and a diagram should use its declared stable visual part. A bare replacement quo
 can also move a thread whose old element the edit removes:
 
 ```bash
-leaf thread reply <page> --section <element-id> --quote "<new passage>" --text "Updated this and moved the thread to the result."
-leaf thread reply <page> --section <element-id> --text "Updated this and moved the thread here."
-leaf thread reply <page> --section <diagram-id> --part node:<source-id> --text "Updated this node and moved the thread here."
+leaf response reply <answer.ref> --section <element-id> --quote "<new passage>" --text "Updated this and moved the thread to the result."
+leaf response reply <answer.ref> --section <element-id> --text "Updated this and moved the thread here."
+leaf response reply <answer.ref> --section <diagram-id> --part node:<source-id> --text "Updated this node and moved the thread here."
 ```
 
 When the subject itself leaves the page, detach the thread instead of moving it onto
-nearby surviving content. A thread with no surviving section needs an explicit move
-or detachment before that revision can activate; the check names the thread and the
-reply that corrects it:
+nearby surviving content. Activation automatically detaches a thread with no
+surviving section. You can also detach it explicitly in the reply that reports
+the removal:
 
 ```bash
-leaf thread reply <page> --detach --text "Removed this; the thread no longer has a page target."
+leaf response reply <answer.ref> --detach --text "Removed this; the thread no longer has a page target."
 ```
 
 The reply records the active revision and its anchor transition atomically. The opening
@@ -134,28 +156,29 @@ Add `--awaits` when the reply's prose asks the user to answer; the reply is then
 task on them, under the reply's id, until they answer in the thread:
 
 ```bash
-leaf thread reply <page> --awaits --text "Which store should own it?"
+leaf response reply <answer.ref> --awaits --text "Which store should own it?"
 ```
 
-To add an agent-initiated turn to a thread that currently owes no reply, name the
-thread instead of `--for`: `leaf thread reply <page> <message-id>`. Leaf refuses
-an ordinary reply this way while any event in that thread has a standing reply
-obligation. Progress updates below can name the thread while its answer is due.
+To add an agent-initiated turn to a thread that currently owes no reply, use
+`leaf thread reply <page> <message-id>`. This proactive command takes the same
+content and anchor options. Leaf refuses an ordinary proactive reply while the
+thread owes a response; copy that response's delivery reference instead.
+Use the captured response reference for progress on an owed input too.
 
 ### Progress updates
 
 Use `--ephemeral` for an interim update that is useful while work is underway:
 
 ```bash
-leaf thread reply <page> --for <event-id> --ephemeral --text "Checking the keyboard route."
+leaf response reply <answer.ref> --ephemeral --text "Checking the keyboard route."
 ```
 
 This posts progress without answering the input. Progress on a move you owe also
 takes that move in hand, as `leaf task start` does, with the update as its
 **Working** line beside the thread and in the banner, so it is one line.
 [Conversation handoff](conversation-loop.md#when-to-write), "When to write", makes
-the first one your first command after a delivery. You can also name the thread to
-post progress there. The updates stay visible until the
+the first one your first command after a delivery. A proactive progress update
+names a thread with no response due. The updates stay visible until the
 next non-ephemeral agent reply in that thread, then fold under “Previous updates”
 without summary prose. The original messages remain available to expand and edit.
 Intervening user messages remain visible; separate runs of updates fold separately.
@@ -171,7 +194,7 @@ A widget whose registry entry declares a local `x-awaits` is already an Ask, a t
 on the user, and keeps its thread "On you" while that Ask stands. Leaf refuses
 `--awaits` beside such markup; the widget's state is the one reading.
 
-Correct one of this session's sent messages without adding another turn:
+Correct an agent-authored message, including a predecessor's, without adding another turn:
 
 ```bash
 leaf thread edit <page> <comment-or-reply-id> --text "Corrected wording."
@@ -179,9 +202,10 @@ leaf thread edit <page> <comment-or-reply-id> --text "Corrected wording."
 
 The page labels the message `edited`. Leaf keeps the original and every revision
 in the append-only event log. Only text is revised; any widget markup stays frozen.
-Every `leaf thread` write prints the records it appended, one JSON line each, as
-`leaf page events` prints them; a `--title` that names the thread adds a
-`thread_title` record after the message. A refusal lists the ids it knows.
+A committed reply or `leaf thread` write prints the records it appended, one JSON
+line each, as `leaf page events` prints them. A first `--title` travels in the same
+message record; an explicit `leaf thread edit <page> <thread-id> --title` is a separate naming gesture.
+A refusal lists the ids it knows.
 
 An ordinary reply leaves the thread open, or reopens a resolved thread, so the user
 can inspect the answer or revised page. Reactions, ephemeral updates and failure receipts do not reopen it. The user closes it by default. Resolve it yourself only when the

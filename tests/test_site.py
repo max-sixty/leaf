@@ -38,10 +38,12 @@ from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
 from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
 from leaf.render_gate import version as render_gate_model
+from leaf.revision_artifact import read_artifact
 from leaf.structure import SourceDocument
 from leaf_dev import site as site_build
 from leaf_dev.example_data import catalog_sources, data_operations, example_versions
 from leaf_dev.leaf_assets import pinned_assets, raw_prefix, specification
+from leaf_dev.page_fixtures import source_packages
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_layout import banner_control
@@ -245,12 +247,12 @@ def opened(page, url):
     navigate(page, url, wait_until="load")
 
 
-def test_product_pages_vendor_the_composed_theme(site):
-    """Every authored product source becomes an independent complete page."""
-    packages = tuple(json.loads((EXAMPLES / "layer.json").read_text()))
-    inputs = [*layer_model.layer_inputs(packages), DOCS / "package"]
-    expected_theme = layer_model.composed_sheets(inputs)["theme.css"]
+def test_product_pages_vendor_the_composed_theme(site, monkeypatch):
+    """Publication and local previews compose the product source's same layer."""
+    monkeypatch.chdir(ROOT)
     for page in pages_under(DOCS):
+        inputs = layer_model.layer_inputs(tuple(source_packages(page)))
+        expected_theme = layer_model.composed_sheets(inputs)["theme.css"]
         target = site_build.product_page(site, page.name)
         published = (target / "index.html").read_text()
         source_markup = page.read_text()
@@ -300,6 +302,7 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
 
 
 def test_product_pages_are_published_as_complete_page_records(site):
+    """Each page retains its layer, history, and every captured media input."""
     sources = pages_under(DOCS)
     assert {source.name for source in sources} == set(site_build.PRODUCT_ROUTES)
     for source in sources:
@@ -313,13 +316,16 @@ def test_product_pages_are_published_as_complete_page_records(site):
             assert (page / name).is_file(), f"{source.name}: no {name}"
         for name in (
             "instructions",
-            "media",
             "revisions",
             "runtime",
             "vendor",
             "widgets",
         ):
             assert list((page / name).iterdir()), f"{source.name}: {name}/ is empty"
+        artifact = read_artifact(page, files_model.latest_revision(page))
+        for path, resource in artifact.resources.items():
+            if path.startswith("/media/"):
+                assert (page / path.lstrip("/")).read_bytes() == resource.data
         assert json.loads((page / "status.json").read_text())["state"] == "idle"
 
 
@@ -356,6 +362,8 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     """The edge gets served Leaf documents and browser assets, never session state."""
     assets = site_build.asset_site(site)
     pinned = pinned_assets()
+    root_media = SourceDocument((ROOT / "docs" / "index.html").read_text()).media_refs
+    root_media.add(media_url(pinned / site_build.SOCIAL_CARD))
     product_media = {
         Path(media_url(source)).name: source
         for source in (
@@ -365,6 +373,7 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
                 for page in catalog_sources()
             ),
         )
+        if media_url(source) in root_media
     }
     assert {path.name for path in (assets / "media").iterdir()} == set(product_media)
     for name, source in product_media.items():
@@ -601,7 +610,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
         for version, revision in sorted(mappings.items())
     ]
     page = open_page(browser, url)
-    expect(page.locator(".lf-version")).to_have_text("v2")
+    expect(page.locator(".lf-version")).to_have_text("Showing v2")
     current = page.evaluate("() => fetch('api/state').then(r => r.json())")
     assert current["active"]["revision"] == mappings[2]
     assert current["active"]["version"] == 2
@@ -623,7 +632,7 @@ def test_a_website_example_keeps_its_version_identity_and_history(
     )
     wait_until_ready(page)
 
-    expect(page.locator(".lf-version")).to_have_text("v1")
+    expect(page.locator(".lf-version")).to_have_text("Showing v1")
     expect(page.locator("#ret-cost-keep")).to_have_count(0)
     markup = page.evaluate(
         "() => fetch('../versions/v1.html').then(response => response.text())"
@@ -648,7 +657,7 @@ def test_a_nested_page_keeps_one_draft_across_its_version_addresses(
     write(page.locator(".lf-general leaf-text"), "Kept across addresses")
 
     opened(page, f"{url}versions/v1.html")
-    expect(page.locator(".lf-version")).to_have_text("v1")
+    expect(page.locator(".lf-version")).to_have_text("Showing v1")
     # The open panel is the user's standing arrangement, so it is open here too.
     expect(page.locator(".lf-general leaf-text")).to_have_js_property(
         "value", "Kept across addresses"
@@ -1059,6 +1068,7 @@ def test_the_product_diagram_fits_without_its_own_scroll(hosted, browser):
     page = browser.new_page()
     page.set_viewport_size({"width": 1200, "height": 900})
     page.goto(product_url(hosted, "how-it-works.html"), wait_until="load")
+    wait_until_ready(page)
     diagram = page.locator("#arch")
     expect(diagram).to_be_visible()
     width = diagram.evaluate(
@@ -2003,7 +2013,9 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
             _, url = served_example(source.stem)
             opened(page, url)
         newest = len(example_versions(source))
-        expect(page.locator(".lf-banner-menu > .lf-version")).to_have_text(f"v{newest}")
+        expect(page.locator(".lf-banner-menu > .lf-version")).to_have_text(
+            f"Showing v{newest}"
+        )
         expect(page.locator(".lf-status-text")).to_have_text(
             "This is an example on the Leaf website. The agent replies and "
             "revises this private copy. Other examples Install Leaf"

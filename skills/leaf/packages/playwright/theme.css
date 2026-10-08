@@ -18,13 +18,33 @@
 }
 .lf-trace-body { min-inline-size: 0; }
 .lf-trace-controls { min-inline-size: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); margin-block-end: var(--sp-3); }
-.lf-trace-choices { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
-.lf-trace-pages { display: flex; gap: 4px; min-inline-size: 0; flex: 1; overflow-x: auto; scrollbar-width: thin; }
-.lf-trace-page { flex: 0 0 auto; min-block-size: 44px; padding: 8px 12px; border: 0; border-radius: var(--r); background: none; color: var(--muted); font: inherit; cursor: pointer; white-space: nowrap; }
-.lf-trace-page:hover { background: var(--paper-2); color: var(--ink); }
-.lf-trace-page[aria-pressed="true"] { background: var(--accent-tint); color: var(--accent); }
-.lf-trace-page:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.lf-trace-page:disabled { cursor: default; }
+.lf-trace-choices { min-inline-size: 0; flex-wrap: wrap; display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
+/* Keep source names visible and let the shared control own keyboard selection.
+ * Retain its accessible group label without adding a toolbar heading. */
+.lf-trace-sources {
+  --wa-form-control-height: 44px;
+  flex: 0 1 auto;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+.lf-trace-sources::part(form-control-input) { flex-wrap: wrap; gap: var(--sp-2); }
+.lf-trace-sources::part(form-control-label) {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.lf-trace-source {
+  margin: 0;
+  border-radius: var(--r);
+  min-block-size: 44px;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  box-sizing: border-box;
+}
+.lf-trace-source::part(label) { white-space: normal; overflow-wrap: anywhere; }
 .lf-trace-viewer:not([hidden]) { white-space: nowrap; min-block-size: 44px; display: inline-flex; align-items: center; font-size: var(--t-6); }
 .lf-trace-position-row { display: flex; align-items: baseline; gap: var(--sp-2); min-inline-size: 0; flex: 1; }
 .lf-trace-position { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }

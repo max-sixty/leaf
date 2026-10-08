@@ -642,7 +642,7 @@ export function createDrawingController({
         id: "draw.mode.undo",
         keys: UNDO_STROKE,
         title: "undo stroke",
-        description: "Take back the last stroke drawn",
+        description: "Undo the last stroke drawn",
         touch: "Undo stroke",
         when: () => Boolean(undoTarget()),
         run: () => undoStroke(),

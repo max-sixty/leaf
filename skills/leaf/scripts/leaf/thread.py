@@ -63,20 +63,18 @@ class ReplyContent:
     title: str | None = None
 
 
-def authored_reply(
-    page, session: str, attempt: str, responds: str
-) -> ReplyContent | None:
-    """Read full author intent from its exact response binding, never display state."""
+def authored_reply(page, session: str, attempt: str, responds: str) -> dict | None:
+    """Read full author operation from its exact response binding, never display state."""
     stream = page.status.get("stream") or {}
     binding = (stream.get("reply_bindings") or {}).get(responds)
     if (
         binding is None
         or binding["session"] != session
         or binding["attempt"] != attempt
-        or "authored" not in binding
+        or "author_reply" not in binding
     ):
         return None
-    return ReplyContent(**binding["authored"])
+    return binding["author_reply"]
 
 
 def _messages(events: list) -> dict[str, dict]:
@@ -281,18 +279,13 @@ class DeliveryReply:
     def _commit(self, text: str) -> dict | None:
         page_dir = Path(self.target["page"])
         try:
-            accepted = next(
-                iter(
-                    post_response(
-                        self.target["ref"],
-                        text,
-                        provider=True,
-                        attempt=self.attempt,
-                        identity={"session": self.session_id},
-                        claimed_session=self.session_id,
-                    )
-                ),
-                None,
+            accepted = post_response(
+                self.target["ref"],
+                text,
+                reservation=self.attempt,
+                attempt=self.attempt,
+                identity={"session": self.session_id},
+                claimed_session=self.session_id,
             )
             with PageTransaction(page_dir) as page:
                 page.clear_delivery_reply_binding(
@@ -426,18 +419,30 @@ def cmd_comment(
         return append_admitted(page, event)
 
 
+def successful_replies(events: list[dict], for_event: str) -> list[dict]:
+    """Agent answers to this exact input, excluding progress and failure receipts.
+
+    A thread parent locates presentation; only ``responds`` names the input an
+    answer settles. User replies, progress and failures do not assert an answer.
+    """
+    return [
+        event
+        for event in events
+        if event["kind"] == "reply"
+        and event["author"] == "agent"
+        and event.get("responds") == for_event
+        and not event.get("ephemeral")
+        and "failure" not in event
+    ]
+
+
 def answered_by_reply(events: list[dict], for_event: str) -> bool:
     """A successful exact reply wins over every later delivery completion.
 
     Failure receipts and user settlement do not assert a provider answer, so a
     recovered final message may still answer that original delivered address.
     """
-    return any(
-        event["kind"] == "reply"
-        and event.get("responds") == for_event
-        and "failure" not in event
-        for event in events
-    )
+    return bool(successful_replies(events, for_event))
 
 
 @contract_writer
@@ -462,12 +467,13 @@ def post_reply(
     claimed_session: str | None = None,
     ephemeral: bool = False,
     captured_input: dict | None = None,
+    captured_claim: str | None = None,
     title: str | None = None,
     preparation: str | None = None,
-    provider: bool = False,
-) -> list[dict]:
+    reservation: str | None = None,
+) -> dict | None:
     """Post one complete threaded reply, optionally moving or detaching its anchor;
-    the records appended, or the earlier reply a repeated `attempt` names, or none
+    the appended record, or the earlier reply a repeated `attempt` names, or none
     when `when_settled` leaves nothing to write.
 
     ``for_event`` fences the write to the exact current obligation. Its response
@@ -507,14 +513,6 @@ def post_reply(
     )
     posting_identity = message_identity() if identity is None else identity
     with PageTransaction(page_dir) as page:
-        if provider:
-            prepared = authored_reply(
-                page, posting_identity["session"], attempt, for_event
-            )
-            if prepared is not None:
-                content = prepared
-            if content.failure is not None:
-                when_settled = "skip"
         if claimed_session is not None:
             claim = page.claim_of(claimed_session)
             if claim is None:
@@ -522,12 +520,19 @@ def post_reply(
                     f"page is no longer claimed by session {claimed_session!r}"
                 )
             posting_identity = {"agent": claim["agent"], "session": claim["id"]}
-        if (
-            captured_input is not None
-            and page.active_claim is not None
-            and posting_identity.get("session") != page.active_claim["id"]
-        ):
-            raise ReceiptRefused("response page is claimed by another session")
+        if captured_input is not None and captured_claim != page.delivery_owner:
+            raise ReceiptRefused("response page claim no longer matches its delivery")
+        provider_session = (
+            posting_identity.get("session") if reservation is not None else None
+        )
+        if reservation is not None:
+            prepared = authored_reply(page, provider_session, reservation, for_event)
+            if prepared is not None:
+                content = ReplyContent(**prepared["content"])
+                posting_identity = prepared["identity"]
+                attempt = prepared["attempt"]
+            if content.failure is not None:
+                when_settled = "skip"
         events = page.events
         if captured_input is not None and not any(
             event["id"] == captured_input["id"]
@@ -556,13 +561,13 @@ def post_reply(
                     or not same_scope
                 ):
                     sys.exit(f"attempt {attempt!r} already belongs to another event")
-                return [existing]
+                return existing
         if (
             when_settled == "post"
             and for_event is not None
             and answered_by_reply(events, for_event)
         ):
-            return []
+            return None
         responses = current_responses(page_dir, events)
         if for_event is not None and to is None:
             expected = responses.get(for_event)
@@ -572,7 +577,7 @@ def post_reply(
                     held or f"this page's log holds no event {for_event!r}"
                 )
                 if when_settled == "skip":
-                    return []
+                    return None
                 sys.exit(refusal)
             to = expected["to"]
         assert to is not None
@@ -590,7 +595,7 @@ def post_reply(
                 or (expected["to"], expected["for"]) != (to, for_event)
             ):
                 if when_settled == "skip":
-                    return []
+                    return None
                 if when_settled != "post":
                     sys.exit(
                         f"event {for_event!r} no longer requires a reply to {to!r}; "
@@ -605,12 +610,12 @@ def post_reply(
             if claim and reply_binding_stands(
                 binding, claim["id"], claim["turn"], claim["turn_closed"]
             ):
-                if provider:
-                    if (posting_identity["session"], attempt) != (
+                if reservation is not None:
+                    if (provider_session, reservation) != (
                         binding["session"],
                         binding["attempt"],
                     ):
-                        return []
+                        return None
                 elif not ephemeral:
                     if preparation is None:
                         sys.exit(
@@ -618,7 +623,6 @@ def post_reply(
                             "finish the reply in your final message"
                         )
                     preparing = True
-                    attempt = binding["attempt"]
         else:
             standing = thread_obligation(events, responses, thread_id)
             if standing is not None and standing.get("writer") == "turn":
@@ -635,7 +639,7 @@ def post_reply(
             event["kind"] == "pickup" and for_event in event["events"]
             for event in events
         ):
-            return []
+            return None
         moving = bool(content.quote or content.section or content.part)
         if ephemeral and (
             content.awaits
@@ -828,23 +832,30 @@ def post_reply(
                 else {**event, "revision": reply_revision},
             )
             page.author_bound_reply(
-                posting_identity["session"], for_event, attempt, asdict(content)
+                binding["session"],
+                for_event,
+                binding["attempt"],
+                {
+                    "content": asdict(content),
+                    "identity": posting_identity,
+                    "attempt": attempt,
+                },
             )
-            return [{"kind": "response", "ref": preparation, "state": "prepared"}]
+            return {"kind": "response", "ref": preparation, "state": "prepared"}
         if not source_matches_active:
             from leaf.revisioning import publish_checked_event
 
-            records = [publish_checked_event(page, checked, event)]
+            record = publish_checked_event(page, checked, event)
         else:
-            records = [append_admitted(page, event)]
+            record = append_admitted(page, event)
         if in_hand is not None and page.status["state"] == "idle":
             page.set_status("waiting", "")
-        return records
+        return record
 
 
 def post_response(
-    reference: str, text, markup: str = "", *, provider: bool = False, **options
-) -> list[dict]:
+    reference: str, text, markup: str = "", *, reservation: str | None = None, **options
+) -> dict | None:
     """Author a complete reply at the delivery's exact captured response address.
 
     The reference chooses page, input and frozen thread destination. All rich reply
@@ -858,7 +869,7 @@ def post_response(
             f"response {reference!r} requires {answer_command(address)}, not a reply"
         )
     attempt = options.pop("attempt", None)
-    if not provider and (attempt is not None or not options.get("ephemeral")):
+    if reservation is None and (attempt is not None or not options.get("ephemeral")):
         # Public retry keys identify this addressed author's writes, never a
         # provider's reservation. The disjoint namespace prevents a progress
         # retry key from consuming its provider final's append identity too.
@@ -873,21 +884,16 @@ def post_response(
         markup,
         for_event=address["for"],
         captured_input=address["input"],
+        captured_claim=address["claim"],
         attempt=attempt,
-        when_settled="post" if provider else "refuse",
+        when_settled="post" if reservation is not None else "refuse",
         validate_source=True,
         preparation=reference
-        if not provider and not options.get("ephemeral")
+        if reservation is None and not options.get("ephemeral")
         else None,
-        provider=provider,
+        reservation=reservation,
         **options,
     )
-
-
-def cmd_reply(page_dir: Path, *args, **kwargs) -> dict | None:
-    """The reply `post_reply` posts, or the one a repeated `attempt` names; None when
-    it writes nothing."""
-    return next(iter(post_reply(page_dir, *args, **kwargs)), None)
 
 
 def fail_answer(
@@ -927,7 +933,7 @@ def fail_answer(
         return _fail_markup_answer(
             page_dir, responds, failure, only_if_unclaimed, claimed_session
         )
-    return cmd_reply(
+    return post_reply(
         page_dir,
         None,
         text,
@@ -1047,19 +1053,6 @@ def name_untitled(page, thread: str, title: str, identity: dict) -> dict | None:
     ):
         return None
     return append_admitted(page, title_event(thread, title, identity))
-
-
-@contract_writer
-def cmd_name(page_dir: Path, message: str, text: str) -> dict | None:
-    """Name the thread `message` reaches unless it has a name, as a message posted
-    with a title does; the record, or None where the thread was named already."""
-    with PageTransaction(page_dir) as page:
-        return name_untitled(
-            page,
-            thread_named(page_dir, page.events, message),
-            text,
-            message_identity(),
-        )
 
 
 @contract_writer

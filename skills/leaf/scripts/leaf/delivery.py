@@ -21,7 +21,10 @@ reply and markup requirements retain their meaning on every transport.
 Freeze emits an exact `answer.ref`, qualified by delivery, page batch and input.
 The immutable envelope is the only address store. Direct authors and provider
 finals resolve it through `response_address` before the rich durable reply writer
-rechecks ownership, captured input and standing obligation under the page lock.
+rechecks the captured logical owner, exact input and standing obligation under the
+page lock. An address may be forwarded to a worker without changing its own
+author identity; another session's claim supersedes its authorization even after
+release or end. The owning session's process restart preserves it.
 
 """
 
@@ -46,10 +49,11 @@ from .service import (
 )
 from .state import flocked, session_lock_path, session_record, write_json
 
-DELIVERY_FORMAT = "leaf-delivery-v4"
+DELIVERY_FORMAT = "leaf-delivery-v5"
 DELIVERY_ID = re.compile(r"[0-9a-f]{8}")
 _BATCH_FIELDS = (
     "page",
+    "claim",
     "through_seq",
     "threads",
     "handling",
@@ -216,6 +220,7 @@ def batch_data(page_dir: Path, transaction, batch: list[dict]) -> dict:
         captured.append(entry)
     return {
         "page": str(page_dir),
+        "claim": transaction.delivery_owner,
         "through_seq": max(event["seq"] for event in batch),
         "threads": batch_threads(events, batch, within),
         "events": captured,
@@ -230,6 +235,7 @@ def response_addresses(payload: dict) -> Iterator[dict]:
                 yield {
                     **answer,
                     "page": batch["page"],
+                    "claim": batch["claim"],
                     "input": {"id": event["id"], "seq": event["seq"]},
                 }
 

@@ -206,6 +206,14 @@ def test_a_thread_claim_must_be_accepted_for_the_comment_before_reply(reply_comm
         start({**started, "item": "another-thread"}) + reply, "comment"
     )
     assert not claimed_first(reply + later, "comment")
+    addressed_elsewhere = call(
+        "reply",
+        reply_command,
+        json.dumps({**answered, "parent": "root"}),
+        "2026-10-07T12:00:02-07:00",
+        "2026-10-07T12:00:03-07:00",
+    )
+    assert not claimed_first(addressed_elsewhere + later, "comment")
     noise = call(
         "noise",
         "printf '%s' 'thread reply'",
@@ -241,6 +249,10 @@ def test_a_thread_claim_must_be_accepted_for_the_comment_before_reply(reply_comm
         ("", False),
         (json.dumps({**answered, "ts": "2026-10-07T11:59:00-07:00"}), False),
         (json.dumps({**answered, "parent": "other", "responds": "other"}), False),
+        (json.dumps({**answered, "responds": "later-input"}), False),
+        (json.dumps({**answered, "ephemeral": True}), False),
+        (json.dumps({**answered, "failure": "turn_failed"}), False),
+        (json.dumps({**answered, "author": "user"}), False),
     ):
         not_final = call(
             "attempt",

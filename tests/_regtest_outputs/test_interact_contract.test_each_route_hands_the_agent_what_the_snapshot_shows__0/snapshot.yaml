@@ -72,7 +72,7 @@
 
 leaf wait:
   output:
-    format: leaf-delivery-v4
+    format: leaf-delivery-v5
     id: '11111111'
     created_at: 1790046750.29
     acknowledge: >-
@@ -84,6 +84,7 @@ leaf wait:
       as the next background task: it confirms this delivery and waits for the next.
     batches:
       - page: /path/to/page
+        claim: null
         through_seq: 2
         threads:
           - id: 1946b466
@@ -157,12 +158,13 @@ Claude Code hook:
     instruction: >-
       Leaf has new input for your turn. Read this complete delivery before answering.
     delivery:
-      format: leaf-delivery-v4
+      format: leaf-delivery-v5
       id: '44444444'
       created_at: 1790046750.29
       acknowledge: null
       batches:
         - page: /path/to/page
+          claim: claude-session
           through_seq: 2
           threads:
             - id: 1946b466
@@ -237,12 +239,13 @@ Codex queue:
     <leaf-delivery id="22222222" operation="delivery read" />
     ```
   leaf delivery read 22222222:
-    format: leaf-delivery-v4
+    format: leaf-delivery-v5
     id: '22222222'
     created_at: 1790046750.29
     acknowledge: null
     batches:
       - page: /path/to/page
+        claim: null
         through_seq: 2
         threads:
           - id: 1946b466
@@ -317,12 +320,13 @@ Codex App Server:
     toolOutput:
       name: leaf_delivery
       output:
-        format: leaf-delivery-v4
+        format: leaf-delivery-v5
         id: '33333333'
         created_at: 1790046750.29
         acknowledge: null
         batches:
           - page: /path/to/page
+            claim: codex-thread
             through_seq: 2
             threads:
               - id: 1946b466

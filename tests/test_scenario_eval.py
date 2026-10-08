@@ -117,7 +117,13 @@ def test_delivery_uses_successful_turns_and_accepted_exact_thread_claims(tmp_pat
             "events": ["comment"],
             "ts": records[1]["received_at"],
         },
-        {"kind": "reply", "parent": "comment", "ts": records[3]["received_at"]},
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": "comment",
+            "responds": "comment",
+            "ts": records[3]["received_at"],
+        },
     ]
     (tmp_path / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events))
 
@@ -128,6 +134,23 @@ def test_delivery_uses_successful_turns_and_accepted_exact_thread_claims(tmp_pat
         return grade("mid-turn", score(tmp_path))
 
     assert all(checks().values())
+    reply = events[-1]
+    for changes in (
+        {"ephemeral": True},
+        {"failure": "turn_failed"},
+        {"responds": "later-input"},
+        {"responds": None},
+        {"author": "user"},
+    ):
+        (tmp_path / "events.jsonl").write_text(
+            "\n".join(json.dumps(e) for e in [*events[:-1], {**reply, **changes}])
+        )
+        assert not checks()["replied-1"]
+    # Presentation can live under another root; the response address owns success.
+    (tmp_path / "events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in [*events[:-1], {**reply, "parent": "root"}])
+    )
+    assert checks()["replied-1"]
     records[-1]["is_error"] = True
     assert not checks()["completed"]
     assert not checks()["turn-ended-1"]
@@ -152,6 +175,46 @@ def test_delivery_uses_successful_turns_and_accepted_exact_thread_claims(tmp_pat
     )
     assert checks()["claimed-1"]
     assert score(tmp_path)[0]["before_claim"] == ["Read"]
+
+
+def test_success_readers_require_the_same_exact_agent_answer(tmp_path):
+    from leaf.thread import answered_by_reply, successful_replies
+    from leaf_dev import journey, review_scenario, usability_eval
+
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "id": "input",
+        "attempt": review_scenario.attempt("first"),
+    }
+    answer = {
+        "kind": "reply",
+        "author": "agent",
+        "seq": 2,
+        "parent": "root",
+        "responds": comment["id"],
+        "text": "Checked",
+    }
+    for changes, success in (
+        ({}, True),
+        ({"ephemeral": True}, False),
+        ({"failure": "turn_failed"}, False),
+        ({"parent": "input", "responds": "later-input"}, False),
+        ({"parent": "input", "responds": None}, False),
+        ({"author": "user"}, False),
+        ({"kind": "comment"}, False),
+    ):
+        reply = {**answer, **changes}
+        events = [comment, reply]
+        expected = [reply] if success else []
+        (tmp_path / "events.jsonl").write_text("\n".join(json.dumps(e) for e in events))
+        assert successful_replies(events, "input") == expected
+        assert answered_by_reply(events, "input") is success
+        assert usability_eval.answered(events, "input") == expected
+        assert review_scenario.answers(tmp_path, "first") == expected
+        assert journey.deployment_answer(events, "input") == (
+            reply if success else None
+        )
 
 
 def test_live_round_receipts_require_exact_admitted_user_inputs():

@@ -136,7 +136,7 @@ def reply_binding_stands(
     Server client will still commit the delivery turn's messages: its start may
     have produced no turn, or the client stopped reading. So the move is answered
     the ordinary way again, and a client that does commit late yields to that
-    answer (`thread.cmd_reply`, `post`). A client that is still reading commits before
+    answer (`thread.post_reply`, `post`). A client that is still reading commits before
     it closes the turn (`codex.TurnFold.commit`)."""
     return bool(
         binding

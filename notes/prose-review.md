@@ -3,8 +3,8 @@
 The Layout-tab and factual-correction phase landed in
 [PR #1476](https://github.com/max-sixty/leaf/pull/1476). The maintainer rewrite is
 written but unlanded and has no active owner. The agent-instruction rewrite is
-complete locally: the routed references now separate author operation, harness
-setup and maintainer mechanisms. UI vocabulary is complete locally; site and
+complete: the routed references now separate author operation, harness
+setup and maintainer mechanisms. UI vocabulary is complete; site and
 example selection still depend on the decisions below. Retire this note when the
 phases land and any standing rule has moved into its owning instructions.
 
@@ -30,8 +30,8 @@ branch rather than starting a second maintainer rewrite.
 
 ## Phase 2: Agent instructions
 
-The rewrite of `skills/leaf/SKILL.md` and its routed references is complete
-locally. Harness selection, initial work status and the final URL each have one
+The rewrite of `skills/leaf/SKILL.md` and its routed references is complete.
+Harness selection, initial work status and the final URL each have one
 canonical home. Event handling precedes transport details; setup lives in its
 own reference. Revision and margin instructions describe the author's actions,
 and command-hub instructions distinguish a terminal goal from a Leaf page.
@@ -78,7 +78,7 @@ product-page tests; compare the rendered candidate before deciding.
 
 ## Phase 5: UI and CLI vocabulary
 
-The vocabulary cutover is complete locally. “All pages” names the neighboring-page
+The vocabulary cutover is complete. “All pages” names the neighboring-page
 drawer, “Showing vN” names the visible version, and “comment box” names its editor.
 Saved input, an owed answer and observed work remain distinct. A page Ask needs an
 answer; messages in one thread need one reply. “Your updates are saved” describes

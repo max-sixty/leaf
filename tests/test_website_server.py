@@ -53,7 +53,7 @@ from leaf.served_state import page as served_page
 from leaf.service import delivery_reply_attempt
 from leaf.state import flocked, open_session_turn, session_record, start_session_turn
 from leaf.structure import SourceDocument
-from leaf.thread import cmd_reply, cmd_resolve
+from leaf.thread import cmd_resolve, post_reply
 from leaf_dev import example_previews, journey, startup, verify_site
 from playwright.sync_api import expect
 from render_harness import (
@@ -1737,7 +1737,7 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
 
     def refuse(*args, **kwargs):
         with pytest.raises(SystemExit, match="answered by this turn's messages"):
-            cmd_reply(
+            post_reply(
                 page_dir,
                 comment["id"],
                 "Competing tool reply",
@@ -3158,7 +3158,7 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     assert answer["responds"] == comment["id"]
     # Retrying the same delivery keeps one answer and its original response scope.
     assert (
-        cmd_reply(
+        post_reply(
             page_dir,
             comment["id"],
             "deployment verified",
@@ -3218,7 +3218,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         website_server.website_harness("hosted-thread", os.getpid()),
     )
     accept_in_turn("hosted-thread")
-    cmd_reply(
+    post_reply(
         page_dir,
         comment["id"],
         "Done.",
@@ -3733,7 +3733,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         ]
         assert [event["id"] for event in failures] == [reply["id"]]
         assert journey.startup_failed(failures)
-        assert journey.deployment_answer(failures) is None
+        assert journey.deployment_answer(failures, comment["id"]) is None
         repeated, _ = post(
             f"{root}/examples/decision/_leaf/agent/fail",
             {"event": comment["id"], "failure": "startup_failed"},
@@ -4329,7 +4329,7 @@ def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir, failure):
     assert event_record_error(contract, replies[0]) is None
     assert journey.turn_failed(replies)
     assert journey.startup_failed(replies) == (failure == "startup_failed")
-    assert journey.deployment_answer(replies) is None
+    assert journey.deployment_answer(replies, comment["id"]) is None
     assert not state["activity"]["obligations"]
     assert harness.attach(page_dir, comment["id"]) is None
 
@@ -4438,6 +4438,8 @@ class _FailedFirstTurn:
 
     def post(self, url: str, data: dict, **kwargs) -> _Read:
         comment = {
+            "kind": "comment",
+            "author": "user",
             "id": f"comment-{len(self.comments) + 1}",
             "attempt": data["attempt"],
             "revision": data["revision"],
@@ -4461,6 +4463,8 @@ class _FailedFirstTurn:
             {
                 "kind": "reply",
                 "parent": "comment-1",
+                "author": "agent",
+                "responds": "comment-1",
                 "text": "The harness could not start this task.",
                 "failure": self.failure,
             },
@@ -4472,7 +4476,13 @@ class _FailedFirstTurn:
                 "events": events,
             }
         events.append(
-            {"kind": "reply", "parent": "comment-2", "text": "deployment verified"}
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": "comment-2",
+                "responds": "comment-2",
+                "text": "deployment verified",
+            }
         )
         return {
             "active": {"revision": 2, "url": "revisions/2.html"},
@@ -4520,12 +4530,18 @@ def test_the_deploy_gate_reads_outcomes_independently_of_reply_wording():
         "I finished without posting a reply. Please send a new message to try again.",
         "This public demo is busy right now. Please wait a minute, then send a new message.",
     ):
-        answer = {"text": text}
-        assert journey.deployment_answer([answer]) is answer
+        answer = {
+            "kind": "reply",
+            "author": "agent",
+            "parent": "root",
+            "responds": "comment",
+            "text": text,
+        }
+        assert journey.deployment_answer([answer], "comment") is answer
         assert not journey.turn_failed([answer])
         for failure in ("startup_failed", "rate_limited"):
-            receipt = {"text": text, "failure": failure}
-            assert journey.deployment_answer([receipt]) is None
+            receipt = {**answer, "failure": failure}
+            assert journey.deployment_answer([receipt], "comment") is None
             assert journey.turn_failed([receipt])
 
 
@@ -4711,6 +4727,8 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
             {
                 "kind": "reply",
                 "parent": "comment-id",
+                "author": "agent",
+                "responds": "comment-id",
                 "text": "A newly worded harness failure.",
                 "failure": failure,
             }
@@ -4794,14 +4812,15 @@ def test_a_progress_update_is_timed_apart_from_the_answer():
     comment, _title, reply = TURN_LOG
     progress = {
         "kind": "reply",
+        "author": "agent",
         "id": "test-progress",
         "parent": comment["id"],
         "text": "Recording the release on the board.",
         "ephemeral": True,
         "ts": "2026-10-04T12:00:03.000-07:00",
     }
-    assert journey.deployment_answer([progress]) is None
-    assert journey.deployment_answer([progress, reply]) is reply
+    assert journey.deployment_answer([progress], comment["id"]) is None
+    assert journey.deployment_answer([progress, reply], comment["id"]) is reply
     published = {"activated_at": "2026-10-04T19:00:12+00:00"}
     assert journey.recorded_steps([comment, progress, reply], comment, published) == {
         "titled": None,
@@ -5236,7 +5255,9 @@ TURN_LOG = [
     {
         "kind": "reply",
         "id": "test-answer",
+        "author": "agent",
         "parent": "test-comment",
+        "responds": "test-comment",
         "text": "deployment verified",
         "ts": "2026-10-04T12:00:12.500-07:00",
     },

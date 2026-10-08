@@ -20,6 +20,7 @@ import click
 from leaf.harness import ClaudeCodeHarness
 from leaf.service import requires_agent_attention
 from leaf.tasks import start_reading
+from leaf.thread import successful_replies
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
@@ -1155,12 +1156,7 @@ def score_resume(run: Run, replies: list[str]) -> dict:
             for s in state.get("state", [])
         ),
         "no_restated": "restated" not in html,
-        "replied": any(
-            e.get("kind") == "reply"
-            and e.get("author") == "agent"
-            and e.get("parent") == batch_comment
-            for e in events
-        ),
+        "replied": bool(successful_replies(events, batch_comment)),
         "date_final": (
             re.search(r'id="cutover-date"[^>]*>(.*?)</p>', html, re.DOTALL)
             or [None, ""]
@@ -1354,14 +1350,7 @@ def claimed_first(trace: list[dict], thread: str) -> bool:
                 return True
     records = [event for _index, _call, event in accepted_command_records(trace)]
     reply = min(
-        (
-            event["seq"]
-            for event in records
-            if event["kind"] == "reply"
-            and event["author"] == "agent"
-            and not event.get("ephemeral")
-            and thread in (event["parent"], event.get("responds"))
-        ),
+        (event["seq"] for event in successful_replies(records, thread)),
         default=None,
     )
     return any(
@@ -1372,14 +1361,8 @@ def claimed_first(trace: list[dict], thread: str) -> bool:
 
 
 def answered(events: list[dict], event_id: str) -> list[dict]:
-    """The agent's replies to one event."""
-    return [
-        e
-        for e in events
-        if e["kind"] == "reply"
-        and e["author"] == "agent"
-        and event_id in (e.get("parent"), e.get("responds"))
-    ]
+    """The agent's successful replies to one exact input."""
+    return successful_replies(events, event_id)
 
 
 def handed_page_url(trace: list[dict], reply: str) -> bool:

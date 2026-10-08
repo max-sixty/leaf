@@ -21,12 +21,13 @@ def resolve_dir(dir_arg: str, must_exist: bool = True) -> Path:
     return page_dir
 
 
-def _print_records(*records: dict) -> None:
+def _print_records(*records: dict | None) -> None:
     """Print what a write appended, each record as `page events` prints it."""
     from leaf.event_log import jsonl_line
 
     for record in records:
-        print(jsonl_line(record))
+        if record is not None:
+            print(jsonl_line(record))
 
 
 def _leaf_version(ctx: click.Context, _param: click.Parameter, value: bool) -> None:
@@ -926,7 +927,7 @@ def response_reply(
 
     if attempt is not None:
         options["attempt"] = attempt
-    _print_records(*post_response(reference, failure=failure, **options))
+    _print_records(post_response(reference, failure=failure, **options))
 
 
 @thread.command("reply", short_help="Add an agent-initiated reply to a thread.")
@@ -943,7 +944,7 @@ def thread_reply(dir: str, thread: str, **options) -> None:
     from leaf.thread import post_reply
 
     _print_records(
-        *post_reply(
+        post_reply(
             resolve_dir(dir), thread, for_event=None, validate_source=True, **options
         )
     )

@@ -2195,15 +2195,18 @@ def test_response_belongs_to_the_session_with_the_opened_delivery(
             session=claim["id"],
             turn=claim["turn"],
         )
+    reference = response_reference(page_dir, "c1")
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "different-reporter")
+    service_model.claim_page(page_dir)
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
+        ["response", "reply", reference, "--text", "Updated."],
     )
 
     assert result.exit_code != 0
-    assert "claimed by another session" in str(result.exception)
+    assert result.stderr.startswith("Error: ")
+    assert "claim no longer matches its delivery" in result.stderr
 
 
 def test_response_address_survives_its_delivery_turn_closing(page_dir):
@@ -2251,7 +2254,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
         {"kind": "comment", "id": "c1", "author": "agent", "revision": 1, "text": "?"},
     )
     with pytest.raises(SystemExit) as refused:
-        thread_model.cmd_reply(
+        thread_model.post_reply(
             page_dir,
             "c1",
             "Answered.",
@@ -2291,8 +2294,8 @@ def test_response_attempt_is_idempotent(page_dir):
         )
 
     reference = response_reference(page_dir, comment)
-    [first] = thread_model.post_response(reference, "Updated.", attempt=attempt)
-    [retried] = thread_model.post_response(reference, "Updated.", attempt=attempt)
+    first = thread_model.post_response(reference, "Updated.", attempt=attempt)
+    retried = thread_model.post_response(reference, "Updated.", attempt=attempt)
 
     assert retried["id"] == first["id"]
     assert (
@@ -4333,7 +4336,7 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
             "text": "Show the feed here.",
         },
     )
-    reply = thread_model.cmd_reply(
+    reply = thread_model.post_reply(
         page_dir,
         "data-question",
         "Here it is.",
@@ -4383,7 +4386,7 @@ def test_thread_markup_cannot_rebind_a_page_source(page_dir):
     )
 
     with pytest.raises(SystemExit, match="use a new source id for the new meaning"):
-        thread_model.cmd_reply(
+        thread_model.post_reply(
             page_dir,
             "data-question",
             "Here it is.",
@@ -4439,7 +4442,7 @@ def test_thread_markup_cannot_rebind_a_draft_only_page_source(page_dir):
     )
 
     with pytest.raises(SystemExit, match="use a new source id for the new meaning"):
-        thread_model.cmd_reply(
+        thread_model.post_reply(
             page_dir,
             "draft-data-question",
             "Here it is.",

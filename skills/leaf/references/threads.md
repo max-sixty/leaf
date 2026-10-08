@@ -102,6 +102,12 @@ provider's completed final commits the prepared reply, including its text; witho
 a prepared reply it commits its own final text. A failed or interrupted turn leaves
 no durable prepared answer. Reconnect preserves preparation for the same response
 reservation. Without a standing provider reservation, the command commits immediately.
+The prepared operation retains its author’s voice and retry identity when the
+provider commits it. Forward its reference to a command hub worker as that
+package’s coordinator instructions direct; the worker speaks under its own
+session while the page’s captured logical owner remains the last claimant.
+That authorization survives the owner’s release or process restart; another
+session’s claim supersedes it even after that successor releases or ends.
 Retry keys deduplicate author writes; they never grant provider custody.
 
 ## Preserve revised anchors

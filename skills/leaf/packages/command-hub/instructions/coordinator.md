@@ -33,7 +33,7 @@ earlier run of the same operation before you start, merge, or remove anything. T
 
 Route an anchored comment to a worker only while the assigned row or task is
 nonterminal and its harness task is reachable: send the comment's text and anchor,
-with its event id as `EVENT`. Comments on terminal or unreachable assignments stay
+with its captured `answer.ref` as `RESPONSE`. Comments on terminal or unreachable assignments stay
 with you. The worker answers a routed comment itself. Each report it writes
 reaches you as a delivered event, and that event's `handling` says how the next
 stamped version of `index.html` answers it.

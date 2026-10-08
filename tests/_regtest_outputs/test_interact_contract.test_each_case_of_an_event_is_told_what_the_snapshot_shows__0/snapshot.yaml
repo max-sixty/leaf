@@ -145,13 +145,14 @@
 #    whole delivery, indented here (the hook writes it on one line):
 #
 #      {
-#        "format": "leaf-delivery-v4",
+#        "format": "leaf-delivery-v5",
 #        "id": "e8417b8a",
 #        "created_at": 1790046750.29,
 #        "acknowledge": null,
 #        "batches": [
 #          {
 #            "page": "/path/to/page",
+#            "claim": "page-session",
 #            "through_seq": 2,
 #            "threads": [
 #              {

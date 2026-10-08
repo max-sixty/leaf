@@ -51,6 +51,7 @@ if TYPE_CHECKING:
 # A repeated live detail carries only liveness. Renew it comfortably before the
 # fifteen-minute activity boundary without turning tool output into file churn.
 STREAM_ACTIVITY_RENEWAL = timedelta(minutes=5)
+AUTHOR_REPLY_FORMAT = "leaf-author-reply-v1"
 
 
 def delivery_reply_attempt(delivery_id: str) -> str:
@@ -286,6 +287,16 @@ class PageTransaction:
         claim = self.claim
         return claim if claim_is_active(claim) else None
 
+    @property
+    def delivery_owner(self) -> str | None:
+        """The last logical owner, even after release, end or process restart.
+
+        Another session's claim supersedes delivered authorizations; liveness
+        and process generations do not. Provider reservations control publication.
+        """
+        claim = self.claim
+        return claim["id"] if claim else None
+
     def claim_of(self, session_id: str) -> dict | None:
         """The claim, while the page is still `session_id`'s (`claim_names_session`)."""
         claim = self.claim
@@ -497,7 +508,9 @@ class PageTransaction:
         standing = stream.get("reply") or {}
         binding = (stream.get("reply_bindings") or {}).get(responds)
         authored = (
-            binding.get("authored") if _held_by(binding, session_id, attempt) else None
+            binding.get("author_reply")
+            if _held_by(binding, session_id, attempt)
+            else None
         )
         timestamp = (
             standing.get("ts")
@@ -512,12 +525,14 @@ class PageTransaction:
             "reply_to": reply_to,
             "responds": responds,
             "item": item_id,
-            "text": authored["text"] if authored is not None else text,
+            "text": authored["content"]["text"] if authored is not None else text,
             "state": state,
             "settles": settles,
-            # The claimant's name: a stream reply is the task that holds the page
-            # speaking, and `take_claim` always wrote one.
-            "agent": self.claim["agent"],
+            # Provider output speaks as the claimant until an authored operation
+            # supplies the content and its independent author voice.
+            "agent": authored["identity"].get("agent", UNNAMED_AGENT)
+            if authored is not None
+            else self.claim["agent"],
             "ts": timestamp or updated_at,
             "updated_at": updated_at,
         }
@@ -554,13 +569,17 @@ class PageTransaction:
             or not _held_by(binding, session_id, attempt)
         ):
             raise RuntimeError("response is not reserved by this active provider turn")
-        bindings[responds] = {**binding, "authored": content}
+        bindings[responds] = {
+            **binding,
+            "author_reply": {"format": AUTHOR_REPLY_FORMAT, **content},
+        }
         stream["reply_bindings"] = bindings
         reply = stream.get("reply") or {}
         if _held_by(reply, session_id, attempt):
             stream["reply"] = {
                 **reply,
-                "text": content["text"],
+                "text": content["content"]["text"],
+                "agent": content["identity"].get("agent", UNNAMED_AGENT),
                 "settles": False,
                 "updated_at": now_iso(),
             }
@@ -640,12 +659,14 @@ class PageTransaction:
             return False
         binding = (stream.get("reply_bindings") or {}).get(reply["responds"])
         authored = (
-            binding.get("authored") if _held_by(binding, session_id, attempt) else None
+            binding.get("author_reply")
+            if _held_by(binding, session_id, attempt)
+            else None
         )
         finished = {
             **reply,
             "item": None,
-            "text": authored["text"] if authored is not None else text,
+            "text": authored["content"]["text"] if authored is not None else text,
             "state": state,
             "settles": False,
             "updated_at": now_iso(),
@@ -811,6 +832,29 @@ def read_status(page_dir: Path) -> dict:
     record = read_json(page_dir / STATUS_FILE)
     if record is None or "state" not in record:
         return {"state": "waiting", "detail": ""}
+    stream = record.get("stream") or {}
+    bindings = stream.get("reply_bindings") or {}
+    for responds, binding in bindings.items():
+        authored = binding.get("author_reply")
+        if authored is not None and not (
+            isinstance(authored, dict)
+            and authored.get("format") == AUTHOR_REPLY_FORMAT
+            and {"content", "identity", "attempt"} <= authored.keys()
+            and isinstance(authored["content"], dict)
+            and "text" in authored["content"]
+            and isinstance(authored["identity"], dict)
+        ):
+            # Incompatible author state describes no current preparation. Custody
+            # is still the binding's, so its provider can finish its own answer.
+            clean = {
+                key: value for key, value in binding.items() if key != "author_reply"
+            }
+            record = {
+                **record,
+                "stream": {**stream, "reply_bindings": {**bindings, responds: clean}},
+            }
+            stream = record["stream"]
+            bindings = stream["reply_bindings"]
     return record
 
 

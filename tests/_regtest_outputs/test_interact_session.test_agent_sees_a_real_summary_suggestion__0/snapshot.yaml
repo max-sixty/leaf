@@ -1,12 +1,13 @@
 # The summary hint from real thread events and the delivery a hook hands the turn.
 
 delivery:
-  format: leaf-delivery-v4
+  format: leaf-delivery-v5
   id: <delivery>
   created_at: <time>
   acknowledge: null
   batches:
     - page: <page>
+      claim: <claim-session>
       through_seq: 8
       threads:
         - id: event-2

@@ -21,13 +21,14 @@ Every transport into your context presents an immutable object of the same shape
 
 ```json
 {
-  "format": "leaf-delivery-v4",
+  "format": "leaf-delivery-v5",
   "id": "a1b2c3d4",
   "created_at": 0,
   "acknowledge": "Whoever ran the `leaf wait` that printed this delivery acknowledges it; …",
   "batches": [
     {
       "page": "/absolute/page",
+      "claim": "page-session",
       "through_seq": 12,
       "threads": [],
       "handling": {},

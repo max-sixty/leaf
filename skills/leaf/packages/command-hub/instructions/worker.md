@@ -9,11 +9,11 @@ LEAF_AGENT="$WORKER" "$LEAF" page report "$PAGE" "$TASK" status value=active
 If a report fails, return its exact error through the harness task and run no other
 Leaf command. Report the row whenever the activity changes and often enough that
 silence means something: the page calls out a working row that goes quiet for the
-working grace, about a quarter of an hour. Both `state` and
-`doing` are required on an agent report.
+working grace, about a quarter of an hour. Report its state and current activity
+together, as `value` and `text` in the command above.
 
 - A blocker moves the agent and task to `blocked`, with the immediate blocker in
-  `doing`.
+  its activity text.
 - A completed handoff moves the task to `review` and the agent to `waiting`.
 - The coordinator records `done` only after review or landing.
 

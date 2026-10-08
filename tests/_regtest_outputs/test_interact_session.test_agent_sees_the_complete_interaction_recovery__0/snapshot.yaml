@@ -1,5 +1,5 @@
 # Complete agent-facing outputs through real hooks, wait and response commands.
-# Only page paths, event/delivery/attempt identities and timestamps are normalized.
+# Only page paths, event/delivery/attempt and claim identities, and timestamps are normalized.
 # A null hook output means the turn can end without a reminder.
 
 idle before pickup:
@@ -14,12 +14,13 @@ delivered at prompt:
   instruction: >-
     Leaf has new input for your turn. Read this complete delivery before answering.
   delivery:
-    format: leaf-delivery-v4
+    format: leaf-delivery-v5
     id: <delivery>
     created_at: <time>
     acknowledge: null
     batches:
       - page: <page>
+        claim: <claim-session>
         through_seq: 2
         threads:
           - id: event-2

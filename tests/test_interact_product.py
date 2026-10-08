@@ -973,19 +973,6 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
-    # Only the page owner answers a delivery; worker speech is proactive.
-    refused = CliRunner().invoke(
-        cli_model.cli,
-        ["response", "reply", reference, "--text", "indexing done"],
-    )
-    assert refused.exit_code != 0
-    assert "response page is claimed by another session" in str(refused.exception)
-    assert not any(
-        event["kind"] == "reply" for event in events_model.read_events(page_dir)
-    )
-
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "hub")
-    monkeypatch.setenv("LEAF_AGENT", "Hub")
     answered = CliRunner().invoke(
         cli_model.cli,
         ["response", "reply", reference, "--text", "The work is ready."],
@@ -993,8 +980,6 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert answered.exit_code == 0, answered.output
     assert json.loads(answered.output)["responds"] == "c1"
 
-    monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
-    monkeypatch.setenv("LEAF_AGENT", "Indexer")
     indexed = reply("indexing done")
     assert indexed.exit_code == 0, indexed.output
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
@@ -1008,7 +993,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     assert (report["agent"], report["session"]) == ("Indexer", "worker-1")
     replies = [e for e in events if e["kind"] == "reply"]
     assert [(e["agent"], e["session"]) for e in replies] == [
-        ("Hub", "hub"),
+        ("Indexer", "worker-1"),
         ("Indexer", "worker-1"),
         ("Crawler", "worker-2"),
     ]

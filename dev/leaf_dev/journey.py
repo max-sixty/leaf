@@ -58,6 +58,7 @@ from urllib.parse import urljoin, urlsplit
 import click
 from leaf.events import build_threads
 from leaf.harness import ClaudeCodeHarness, CodexHarness
+from leaf.thread import successful_replies
 from playwright.sync_api import BrowserContext, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -209,7 +210,7 @@ def recorded_steps(events: list[dict], comment: dict, published: dict) -> dict:
     )
     replies = [e for e in events if e["kind"] == "reply" and e.get("parent") == thread]
     progress = next((e["ts"] for e in replies if e.get("ephemeral")), None)
-    replied = deployment_answer(replies)
+    replied = deployment_answer(events, comment["id"])
     return {
         step: None if at is None else round(instant(at) - admitted, 3)
         for step, at in (
@@ -310,17 +311,9 @@ def turn_failed(replies: list[dict]) -> bool:
     return any("failure" in reply for reply in replies)
 
 
-def deployment_answer(replies: list[dict]) -> dict | None:
-    """Return the agent's answer, rather than a progress update or a
-    harness-generated failure receipt."""
-    return next(
-        (
-            reply
-            for reply in replies
-            if "failure" not in reply and not reply.get("ephemeral")
-        ),
-        None,
-    )
+def deployment_answer(events: list[dict], for_event: str) -> dict | None:
+    """Return the first successful agent answer to this exact input."""
+    return next(iter(successful_replies(events, for_event)), None)
 
 
 def check_turn_answered(
@@ -438,7 +431,7 @@ def await_turn(
             for event in current.get("events", [])
             if event.get("kind") == "reply" and event.get("parent") == comment["id"]
         ]
-        answer = deployment_answer(replies)
+        answer = deployment_answer(current.get("events", []), comment["id"])
         active = current["active"]
         if published is None and active["revision"] > revision:
             # The turn may publish a checkpoint first, so read the document for the

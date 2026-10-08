@@ -85,7 +85,7 @@ def logged_id(events: list, value: str, responses: dict) -> str | None:
     message is the one id whose writer turns on its thread rather than on
     itself — naming the thread for a proactive message is refused while the thread owes a
     response, whichever of its messages is owed it — so it is read through
-    `thread_obligation`, the same reading `cmd_reply`'s guard refuses on.
+    `thread_obligation`, the same reading `post_reply`'s guard refuses on.
 
     A thread's id is its opening comment's, so an agent holding a thread id names
     it as a message. Where the log lost that comment the id names no event, yet

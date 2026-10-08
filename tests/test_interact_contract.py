@@ -125,7 +125,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
         )
         assert threads["question"]["resolved"] is not None
 
-    answer = thread_model.cmd_reply(
+    answer = thread_model.post_reply(
         page_dir,
         "question",
         "Here is the completed answer.",
@@ -155,7 +155,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     )
     threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
     assert threads["question"]["resolved"] is None
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         page_dir,
         "question",
         "Additional detail on the original question.",
@@ -204,7 +204,7 @@ def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation
         page_dir, events_model.read_events(page_dir)
     )
     thread_model.cmd_resolve(page_dir, question["id"])
-    answer = thread_model.cmd_reply(
+    answer = thread_model.post_reply(
         page_dir,
         question["id"],
         "I applied your choice.",
@@ -1326,7 +1326,7 @@ def test_revendoring_cannot_pass_thread_markup_still_entering_the_log(
         page_dir,
         monkeypatch,
         "reply",
-        lambda: thread_model.cmd_reply(
+        lambda: thread_model.post_reply(
             page_dir, "c1", "Pick one:", markup, for_event="c1"
         ),
     )
@@ -1350,7 +1350,7 @@ def test_revendoring_cannot_turn_logged_thread_markup_into_a_settlement(
         '<lf-option id="thread-a">A</lf-option>'
         "</lf-options></lf-ask>"
     )
-    thread_model.cmd_reply(page_dir, "c1", "Pick one:", markup, for_event="c1")
+    thread_model.post_reply(page_dir, "c1", "Pick one:", markup, for_event="c1")
 
     registry = json.loads((page_dir / "registry.json").read_text())
     options = registry["lf-options"]
@@ -1851,7 +1851,7 @@ def test_candidate_vocabulary_preserves_commands_in_frozen_thread_markup(page_di
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "Choose."},
     )
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         page_dir,
         "c1",
         "Use this control.",
@@ -4119,6 +4119,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         record["id"]: "1946b466",
         record["ts"]: "2026-09-21T20:12:30-07:00",
         envelope["id"]: "e8417b8a",
+        batch["claim"]: "page-session",
         str(page_dir): "/path/to/page",
     }
     envelope["created_at"] = 1790046750.29
@@ -4329,6 +4330,7 @@ def test_each_route_hands_the_agent_what_the_snapshot_shows(
         queued.payload["id"]: "22222222",
         prepared.payload["id"]: "33333333",
         json.loads(hooked)["id"]: "44444444",
+        session: "claude-session",
         # The turn's reply attempt is derived from the delivery id.
         service_model.delivery_reply_attempt(
             prepared.payload["id"]
@@ -5471,7 +5473,7 @@ def test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares(
     assert "already been taken back" in answer["error"], body
     # Answered, the page reaction is a thread, and the withdrawal would orphan
     # the answer; the user's move is in the thread it opened.
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         page_dir,
         reaction["id"],
         "Which part is long?",

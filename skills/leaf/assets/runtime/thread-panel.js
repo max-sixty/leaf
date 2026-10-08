@@ -89,15 +89,18 @@ export function createThreadPanelController({
     pressedInlineThread = threadAtStanding();
   };
   const toggle = (event) => {
-    const pressed = pressIsKeyboardActivation(event) ? null : pressedInlineThread;
+    const keyboard = pressIsKeyboardActivation(event);
+    const pressed = keyboard ? null : pressedInlineThread;
     pressedInlineThread = null;
     if (panelIsOpen()) {
       setPanel(false);
       return;
     }
-    const inlineThread = pressed ?? threadAtStanding();
+    // A keyboard press enters the panel's standing thread. A pointer press may carry
+    // the page thread it began beside, even after focus moves to this door.
+    const inlineThread = keyboard ? null : (pressed ?? threadAtStanding());
     if (inlineThread) showThread(inlineThread, { focus: "thread" });
-    else setPanel(true, { focus: pressIsKeyboardActivation(event) });
+    else setPanel(true, { focus: keyboard });
   };
   function mountThreadPanel() {
     if (mounted) return;

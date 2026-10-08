@@ -2,6 +2,13 @@
 # Appearance scope failed 2/2 before, passed 2/2 after; fidelity passed 1/2 before
 # and 2/2 after. Ordering separated intermediate and final wording. Motion handoff
 # failed 2/2 before, passed 2/2 after. These score decisions, not executed artifacts.
+# Active-option follow-up (2026-10-07): explicit pointer/keyboard-target inspection
+# passed 2/2 menu plans against 0/2 on 89b38eee1. Drag-preview and interaction-fix
+# guards passed 2/2 each on both arms; the drag case is synthetic generalization
+# coverage, not a reconstruction of a live rectangle-tool failure.
+# Native fixed-output grader controls passed 3/3: reject an archived open/focus
+# plan, accept active-row inspection and a pointer-based equivalent. Scratch
+# calibration rejected five historical incomplete plans the old rubric accepted.
 description: review-shows-the-change
 metadata:
   purpose: 'Maintainer review: user reviews the change; agent verifies preservation.'
@@ -280,18 +287,106 @@ variants:
         Finish review and give the closeout. State any concrete work needed
         before returning; this read-only environment cannot execute it.
     assert:
-    - type: llm-rubric
+    - &intermediate_state_review
+      type: llm-rubric
       metric: reviews-intermediate-states
       value: |
-        Pass if the agent requires inspecting the compact picker's open menu
-        while it is being used, including highlighted options after navigation,
-        before handoff, and treats its presence in the retained comparison as
-        requiring review even though radios were selected. It must judge visible
-        legibility in that intermediate state, with relevant light/dark coverage.
-        A final screenshot, correct value/focus, automated pass, or claim that the
-        library supplies themes cannot establish that review. Fail if it returns
-        based on the supplied green reviews, drops the retained comparison to
-        evade review, or asks Max to establish the missing checks himself.
+        This read-only case scores proposed review work, not browser execution.
+        Pass only if the plan requires all of the following before handoff:
+        - Review the compact picker retained in the comparison, even though
+          radios were chosen.
+        - Inspect the active option's visible legibility while its menu remains
+          open, in light and dark.
+        - Keep this missing verification with the agent.
+        Accept equivalent descriptions: inspecting a highlighted row, or
+        navigating or hovering rows and judging their text against the active
+        background, establishes the same check. No particular wording or
+        commands are required.
+        Open-menu review plus trigger focus or a changed value after closing
+        does not establish active-option inspection. A general promise to check
+        every state is insufficient without identifying this check. Missing any
+        requirement fails, even if the rest of the review plan is sound.
+        Fail if the plan accepts supplied green reports as this evidence, drops
+        the comparison to evade review, or asks Max to do the missing verification.
+        An optional user preview after agent verification is not delegation.
+
+  grader-open-focus:
+    metadata:
+      purpose: The review grader rejects an archived open/focus plan that omits active options.
+    providerOutput: |
+      Visible choices remain the chosen implementation. The reported checks
+      support its behavior, responsiveness, and readability.
+
+      Before closeout, concrete work remains:
+      - Review the retained comparison through Your design choice, including
+        picker-open, keyboard-focus, and changed-selection states at desktop and
+        390px in both themes. Every retained candidate belongs to that review.
+      - Verify navigation from the existing source-design position to the
+        implementation and back into the comparison.
+      This read-only environment cannot execute those steps. The remaining
+      review work prevents an unconditional closeout.
+    assert:
+    - <<: *intermediate_state_review
+      type: not-llm-rubric
+      metric: grader-rejects-open-focus
+
+  grader-active-row:
+    metadata:
+      purpose: The review grader accepts direct inspection of the highlighted row.
+    providerOutput: |
+      Before handoff I will review the retained compact picker, although radios
+      were chosen. I will inspect the highlighted option's readability while
+      the menu stays open, in light and dark themes, and fix any findings.
+      Once my checks pass, Max can use the optional preview to inspect the result.
+    assert:
+    - *intermediate_state_review
+
+  grader-active-row-equivalent:
+    metadata:
+      purpose: The review grader accepts active-row inspection without requiring highlight keywords.
+    providerOutput: |
+      My review will include the compact picker in the retained comparison even
+      though the selected implementation uses radios. In each theme I will open
+      its menu, move the pointer across the rows and judge whether their labels
+      remain readable against the background under the pointer, before clicking.
+      I will complete that verification before handing over the result.
+    assert:
+    - *intermediate_state_review
+
+  drag-state-review:
+    metadata:
+      purpose: Visual review covers a drag preview before releasing the pointer removes it.
+    vars:
+      prompt: |
+        Max asked for a rectangle annotation tool on a chart. You implemented
+        pointer and keyboard routes with an imported drawing control. During a
+        pointer drag, a temporary rectangle shows the proposed bounds; release
+        replaces it with the saved annotation. Keyboard input edits those same
+        bounds before confirmation. The canvas keeps keyboard focus.
+
+        The tester reported: "Dragging from a chart corner creates the correct
+        rectangle. Resizing and keyboard confirmation save the expected bounds.
+        Cancellation leaves no annotation. Desktop and phone journeys pass;
+        screenshots of the saved annotations are readable in light and dark."
+        The exact preview is running, and its final screenshots and recordings
+        are available. Static checks and targeted browser tests passed.
+
+        Finish review and give the closeout. State concrete work needed before
+        returning; this read-only environment cannot execute it.
+    assert:
+    - type: llm-rubric
+      metric: reviews-drag-preview
+      value: |
+        This case scores proposed checks, not their execution. Pass if the plan
+        requires judging the temporary rectangle's visible legibility and layout
+        against the chart while dragging, before release removes it, in light
+        and dark. Reviewing keyboard adjustment before confirmation is also in
+        scope. Accept inspecting recorded intermediate frames or holding those
+        states in the browser; no particular wording or method is required.
+        Correct saved bounds, canvas focus, and saved-annotation screenshots
+        alone cannot establish that review. Fail if the plan closes out on that
+        evidence, gives only a general promise to inspect every state without
+        identifying the temporary preview, or asks Max to do missing verification.
 
   # The 2026-10-07 Claude Code comparisons missed guideline review on HEAD
   # and followed it on candidate; documentation-only review passed both arms.

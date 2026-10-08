@@ -17,7 +17,7 @@ from pathlib import Path
 
 import click
 from leaf.media import media_name
-from leaf.revision_artifact import capture_artifact, capture_local_resource
+from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
 from leaf.schema import MEDIA_DIR, MEDIA_TYPES
 from leaf.structure import SourceDocument
 
@@ -157,24 +157,24 @@ def import_referenced_media(
     lock = assets_lock(source)
     if assets is None and lock is None:
         return
-    selected = None
 
-    def read_resource(path: str):
-        nonlocal assets, selected
+    @functools.cache
+    def selected_media() -> dict[str, Path]:
+        """Index the selected asset tree only when a missing reference needs it."""
+        directory = assets if assets is not None else pinned_assets(lock.parent)
+        return {
+            media_name(candidate.read_bytes(), candidate.suffix): candidate
+            for candidate in sorted(directory.rglob("*"))
+            if candidate.is_file() and candidate.suffix.lower() in MEDIA_TYPES
+        }
+
+    def read_resource(path: str) -> Resource:
         if (
             path.startswith(f"/{MEDIA_DIR}/")
             and not (page / path.removeprefix("/")).is_file()
+            and (candidate := selected_media().get(path.removeprefix(f"/{MEDIA_DIR}/")))
         ):
-            if selected is None:
-                if assets is None:
-                    assets = pinned_assets(lock.parent)
-                selected = {
-                    media_name(candidate.read_bytes(), candidate.suffix): candidate
-                    for candidate in sorted(assets.rglob("*"))
-                    if candidate.is_file() and candidate.suffix.lower() in MEDIA_TYPES
-                }
-            if candidate := selected.get(path.removeprefix(f"/{MEDIA_DIR}/")):
-                run_leaf("page", "media", str(page), str(candidate))
+            run_leaf("page", "media", str(page), str(candidate))
         return capture_local_resource(page, path)
 
     registry = json.loads((page / "registry.json").read_text(encoding="utf-8"))

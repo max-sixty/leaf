@@ -1,7 +1,7 @@
 """Lossless bounded diff states with explicit generated-output provenance.
 
 Tracked build manifests may declare output-to-source lineage; this replaces
-redundant generated copies with their changed source inputs and hash witnesses.
+redundant generated copies with their changed source inputs.
 It does not assert that a regeneration was correct. An unaccounted generated
 change forces the broader all-tests selection instead of silently disappearing.
 Ordinary changes, including documentation and test artifacts, remain in chunks.
@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 from pathlib import Path
 
@@ -32,46 +31,18 @@ def provenance(before, after, changed, regeneration_proof=None):
                 continue
             if (
                 not isinstance(manifest, dict)
-                or not isinstance(manifest.get("outputs"), dict)
+                or not isinstance(manifest.get("outputs"), list)
                 or not isinstance(manifest.get("sourceInputs"), list)
             ):
                 continue
-            for output, metadata in manifest["outputs"].items():
+            for output in manifest["outputs"]:
                 if output not in changed or output not in index.paths:
-                    continue
-                actual = digest(index.source(output))
-                if not isinstance(metadata, dict) or metadata.get("sha256") != actual:
                     continue
                 input_hashes = {
                     source: digest(index.source(source))
                     for source in manifest["sourceInputs"]
                     if source in index.paths
                 }
-                map_checks = []
-                for map_path in manifest["outputs"]:
-                    if not map_path.endswith(".map") or map_path not in index.paths:
-                        continue
-                    source_map = json.loads(index.source(map_path))
-                    checked = []
-                    mismatched = []
-                    for source, content in zip(
-                        source_map.get("sources", []),
-                        source_map.get("sourcesContent", []),
-                    ):
-                        source_path = os.path.normpath(
-                            str(Path(map_path).parent / source)
-                        )
-                        if source_path in index.paths:
-                            checked.append(source_path)
-                            if content != index.source(source_path):
-                                mismatched.append(source_path)
-                    map_checks.append(
-                        {
-                            "path": map_path,
-                            "tracked_inputs_checked": checked,
-                            "mismatched_inputs": mismatched,
-                        }
-                    )
                 lockfile = manifest.get("lockfile")
                 lock_valid = bool(
                     lockfile in index.paths
@@ -81,10 +52,8 @@ def provenance(before, after, changed, regeneration_proof=None):
                 row[side] = {
                     "manifest": path,
                     "manifest_sha256": digest(index.source(path)),
-                    "output_sha256": actual,
-                    "output_hash_validated": True,
+                    "output_sha256": digest(index.source(output)),
                     "tracked_input_sha256": input_hashes,
-                    "source_map_input_checks": map_checks,
                     "lockfile_hash_validated": lock_valid,
                     "source_inputs": manifest["sourceInputs"],
                     "lockfile": manifest.get("lockfile"),
@@ -102,14 +71,7 @@ def provenance(before, after, changed, regeneration_proof=None):
         if (
             sides
             and changed_inputs
-            and all(
-                row["lockfile_hash_validated"]
-                and not any(
-                    check["mismatched_inputs"]
-                    for check in row["source_map_input_checks"]
-                )
-                for row in sides.values()
-            )
+            and all(row["lockfile_hash_validated"] for row in sides.values())
             and (path not in before.paths or "before" in sides)
             and (path not in after.paths or "after" in sides)
         ):
@@ -133,7 +95,6 @@ def provenance(before, after, changed, regeneration_proof=None):
                         rebuilt
                         and output.get("verified") is True
                         and output.get("committed_sha256") == expected
-                        and output.get("manifest_sha256") == expected
                         and output.get("checked_checkout_sha256") == expected
                         and output.get("rebuilt_sha256") == expected
                     )
@@ -152,7 +113,7 @@ def provenance(before, after, changed, regeneration_proof=None):
             unknown.append(
                 {
                     "path": path,
-                    "reason": "generated change lacks hash-verified manifest lineage to changed tracked inputs",
+                    "reason": "generated change lacks manifest lineage to changed tracked inputs",
                     "forced_selection": "all-tests",
                     "before_sha256": digest(before.source(path))
                     if path in before.paths

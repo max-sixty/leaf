@@ -1,5 +1,5 @@
 {
-  "format": "leaf-browser-build-v1",
+  "format": "leaf-browser-build-v2",
   "sourceRoots": [
     "build/browser"
   ],
@@ -162,26 +162,9 @@
     "withStatic"
   ],
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
-  "outputs": {
-    "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 33660,
-      "sha256": "a7113a13edd12dc530a840ad6c7da47d90475ab3d589ef6b76de4b71766931df"
-    },
-    "build/browser/generated/browser-runtime.js.map": {
-      "bytes": 215506,
-      "sha256": "d3331b0ef8df10bd2336bfa281ab9ca98bd9daa3e433e251d862c396e7d69d89"
-    },
-    "skills/leaf/assets/vendor/lit.js": {
-      "bytes": 32081,
-      "sha256": "8cb5658593f000150114b55a76dca639bff7d514095224cf8940f7aeeff948bd"
-    },
-    "build/browser/generated/lit.js.map": {
-      "bytes": 362839,
-      "sha256": "5f0b4fc2f8add5a0ef43c5600d56f949626bd0fc3c5ca5412d6da6647b368395"
-    },
-    "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt": {
-      "bytes": 5873,
-      "sha256": "a354a25f57b61684e0ac1e048bca6a115795b3ea02338fd131eb1b3e03161416"
-    }
-  }
+  "outputs": [
+    "skills/leaf/assets/vendor/browser-runtime.LICENSES.txt",
+    "skills/leaf/assets/vendor/browser-runtime.js",
+    "skills/leaf/assets/vendor/lit.js"
+  ]
 }

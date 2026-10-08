@@ -28,7 +28,7 @@ describe("published runtime bundle", () => {
     for (const revision of revisions) {
       const layer = join(directory, "examples", "study", "revisions", revision);
       const root = `${assetRoot}/revisions/${revision}`;
-      for (const sub of ["runtime", "widgets", "page"]) {
+      for (const sub of ["runtime", "widgets", "page", "vendor"]) {
         await mkdir(join(layer, sub), { recursive: true });
       }
       await writeFile(
@@ -58,6 +58,11 @@ describe("published runtime bundle", () => {
       await writeFile(
         join(layer, "page", "state.js"),
         `export const state = { revision: "${revision}" };`,
+      );
+      await writeFile(join(layer, "vendor", "lit.js"), "export const html = 1;\n");
+      await writeFile(
+        join(layer, "vendor", "browser-runtime.js"),
+        'export { html } from "./lit.js";\n',
       );
     }
 
@@ -105,6 +110,11 @@ describe("published runtime bundle", () => {
         await readFile(join(output, "runtime", "layer-client.js"), "utf8"),
       ).toBeTruthy();
       expect(bundled).not.toMatch(/from"\.\/runtime\/(?!bundle-)/);
+      // The framework is committed readable and delivered minified.
+      const framework = await readFile(join(output, "vendor", "browser-runtime.js"), "utf8");
+      expect(framework.length).toBeLessThan(
+        (await readFile(join(runtime, "vendor", "browser-runtime.js"), "utf8")).length / 1.5,
+      );
       expect(
         await readFile(join(output, "widgets", "lf-suggestion.js"), "utf8"),
       ).not.toContain("/runtime/widget-api.js");

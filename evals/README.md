@@ -6,10 +6,10 @@ config, and runs `promptfoo eval`; Promptfoo does the rest.
 
 ```sh
 npm ci --prefix evals
-uv run leaf-dev eval brief-document-needs-no-outline
-uv run leaf-dev eval reading document/resume --harness claude-code
-uv run leaf-dev eval task-outlasts-the-turn --base
-uv run leaf-dev eval document --condition both --repeat 3
+uv run leaf-dev eval brief-document-needs-no-outline --harness claude-code
+uv run leaf-dev eval reading document/resume --harness codex
+uv run leaf-dev eval task-outlasts-the-turn --harness claude-code --base
+uv run leaf-dev eval document --harness both --condition both --repeat 3
 npm run view --prefix evals
 ```
 
@@ -22,7 +22,10 @@ npm run view --prefix evals
   as a second arm, and `--base REF` adds that ref; put cases before it. An arm
   holds only the plugin payload, with no git history, so an agent can't look up
   another version of Leaf through it.
-- **Harnesses.** `--harness claude-code`, `codex` or `both` (the default).
+- **Harnesses.** `--harness claude-code`, `codex` or `both`, with no default. Run
+  the harness the motivating failure came from, or the one you are working in when
+  no session failed. Run `both` when the change is about how the harnesses differ,
+  such as a harness contract.
 - **Conditions.** `--condition html` runs the plain HTML control on the tasks that
   declare one (document, dashboard and queue); `both` runs it beside Leaf. The
   control gets the same request and judge with no Leaf skill, runtime or widgets.

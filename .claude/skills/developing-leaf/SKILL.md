@@ -106,11 +106,15 @@ Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
 appear. A Playwright screenshot of an element taller than the viewport draws
 fixed overlays in the wrong place; crop a viewport capture instead.
 
-Make required visual relationships hold as content and sizes change. Express
-them through layout constraints or positions derived from one shared coordinate
-or dimension. Derive the relationships from the source and check their computed
-geometry in the delivered page, including embedded views; a screenshot alone
-can hide a small alignment error.
+Before declaring a visible change complete, derive its required visual relationships
+from the reader's task, rather than treating the implementation's passing checks as
+the complete target. For each ordinary input, state which content and controls the
+reader needs to keep in view or reach next, then verify their computed geometry
+before and after that input in the delivered page, including embedded views. Judge
+reflow by whether it serves that task and keeps the reader oriented. Make the
+relationships hold as content and sizes change through layout constraints or
+positions derived from one shared coordinate or dimension. Check those constraints
+in the source as well; a screenshot alone can hide a small alignment error.
 Re-vendor after a runtime, theme, registry, or widget change, then judge the
 composed page visually as well.
 

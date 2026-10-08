@@ -7476,9 +7476,10 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
         f"the keyboard is not standing on the grip's own ring: {standing}"
     )
 
-    # A band under one run of the grip's ring and clear of the grip's own box, inside a
-    # holder beside the grip in the panel: the holder is what the reading can rank, and
-    # putting the band in the page instead would leave it with nothing to rank against.
+    # A band under the grip's right ring run and clear of its own box, inside a holder
+    # beside the grip in the panel: that run is within the panel's hit surface, whose
+    # enclosing auxiliary envelope takes no hits. The holder is what the reading can
+    # rank, and putting the band in the page leaves it with nothing to rank against.
     # Neither paints anything the grip does not already stand in front of, until the band
     # names the z-index that lifts it past.
     plant = """({z, wrap}) => {
@@ -7499,7 +7500,7 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
       const band = under.appendChild(document.createElement('div'));
       Object.assign(band.style, {
         position: 'fixed', background: 'red',
-        left: `${b.left - grow - 1}px`, top: `${mid - 20}px`,
+        left: `${b.right}px`, top: `${mid - 20}px`,
         width: `${grow + 1}px`, height: '40px',
       });
       if (z) band.style.zIndex = String(z);
@@ -7517,7 +7518,7 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
 
     page.evaluate(plant, {"z": 2, "wrap": False})
     covers = standing_ring(page)["covers"]
-    assert any("left edge is under" in c for c in covers), (
+    assert any("right edge is under" in c for c in covers), (
         f"the same band lifted past the grip by a z-index of its own read as {covers}, "
         "so the half above passed on a reading that answers nothing"
     )

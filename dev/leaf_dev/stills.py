@@ -117,7 +117,8 @@ def threads_panel(page: Page) -> None:
 def screenshot_comparison(page: Page) -> None:
     """Reach the comparison rail's standalone endpoint controls."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
-    page.locator("#bg-shot").scroll_into_view_if_needed()
+    # Anchor the unchanged guide, so a taller rail does not recenter the entire capture.
+    page.locator("#bg-shot-guide").scroll_into_view_if_needed()
 
 
 def image_preview(page: Page) -> None:

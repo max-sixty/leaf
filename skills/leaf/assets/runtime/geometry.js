@@ -673,6 +673,25 @@ export const declareOccluder = (surface) => {
   occluders.add(surface);
   return () => occluders.delete(surface);
 };
+// Where the surface standing at the window's right edge begins, or Infinity where none
+// stands: the side panel, Threads or Questions, whichever is open (drawers.js). What is
+// laid out beside the page, as the comment box is, keeps left of it, and a margin row it
+// reaches is one the user has lost (chrome-layout.js).
+export function rightCover() {
+  const edge = document.documentElement.clientWidth;
+  let left = Infinity;
+  for (const surface of occluders) {
+    if (
+      !surface.isConnected ||
+      surface.hasAttribute(LEAVING) ||
+      !surface.checkVisibility()
+    )
+      continue;
+    const box = standingBox(surface);
+    if (box.left > 0 && box.right >= edge - 1) left = Math.min(left, box.left);
+  }
+  return left;
+}
 // A clip pass that reads past some occluders. Travel asks what the page shows of a
 // destination beside the surface it leaves standing, which is the most any movement of
 // the page can show while that surface stands.

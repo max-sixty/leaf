@@ -3266,9 +3266,9 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
     takes, so the release-notes shot, the wide exhibit in the control, grows left only
     to stop short of it.
 
-    The Queue panel stands over the left margin and moves nothing in it. A narrow viewport
-    returns the aside to the flow, and print proves paper reserves no blank margin for a
-    posture it cannot use.
+    The Questions panel stands over the page from the right and moves nothing in the left
+    margin. A narrow viewport returns the aside to the flow, and print proves paper
+    reserves no blank margin for a posture it cannot use.
 
     A sidebar that holds only the map has nothing for a float to hold, so wherever the
     map stands in the margin that sidebar stands as the map alone and takes no room in
@@ -3386,8 +3386,8 @@ def test_a_left_sidebar_uses_the_margin_until_the_page_needs_it_back(browser, se
         "() => Number(getComputedStyle(document.querySelector('lf-toc a')).opacity) === 0"
     )
 
-    # The Queue panel stands over the page's left margin and moves nothing in it: the fixed
-    # ToC and the sidebar stay where the page put them, under the drawer while it stands.
+    # The Questions panel stands over the page from the right and moves nothing in the left
+    # margin: the fixed ToC and the sidebar stay where the page put them while it stands.
     resized(page, 1700, 900)
     margin = """() => {
           const sidebar = document.querySelector('aside.sidebar').getBoundingClientRect();
@@ -3690,7 +3690,7 @@ def test_margin_residents_stand_where_the_room_beside_the_column_holds_them(
         else:
             assert at["note"]["float"] == "none", (width, at)
 
-    # The Queue panel stands over the page and grants or withdraws no margin.
+    # The Questions panel stands over the page and grants or withdraws no margin.
     toggle_queue(page)
     panelled = page.evaluate(reading)
     assert panelled["sidebars"] == at["sidebars"]

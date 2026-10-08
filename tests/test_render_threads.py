@@ -3699,7 +3699,7 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
         expect(
             thread.get_by_role("button", name="1 new reply", exact=True)
         ).to_be_visible()
-        page.keyboard.press("a")
+        page.keyboard.press("q")
         expect(thread.locator("#held-question")).to_be_focused()
     expect(message).to_be_visible()
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
@@ -4577,7 +4577,7 @@ def test_the_panel_reads_the_thread_in_the_pages_own_order(browser, serve):
         "placeholder", "Reply"
     )
     # From no place on the page the walk starts at the list's first thread; a caret a
-    # click leaves is a place, as it is for `a`.
+    # click leaves is a place, as it is for `q`.
     page.evaluate(
         "() => { document.activeElement?.blur(); getSelection().removeAllRanges(); }"
     )
@@ -4831,7 +4831,7 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
 
     # The page's walk is the page's order whatever the panel shows.
     # From no place on the page, which is where the walk starts from its first thread:
-    # a caret a click leaves is a place, as it is for `a`.
+    # a caret a click leaves is a place, as it is for `q`.
     order.get_by_role("button", name="Recent").click()
     page.locator(".lf-threads-toggle").click()
     page.evaluate(
@@ -5182,7 +5182,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     page.keyboard.press("n")
     expect(theirs_title).to_be_focused()
     # The card the narrowing hides keeps its node. A widget an agent sent in a reply is
-    # instantiated once, in that card, and the Ask reading and the Queue find it by
+    # instantiated once, in that card, and the Ask reading and the Questions panel find it by
     # id in the document — hidden is the list's business, gone would be a claim about the
     # log (test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page).
     expect(
@@ -7132,7 +7132,7 @@ def test_a_delayed_accordion_reveal_yields_to_the_users_new_thread(browser, serv
     page.locator(".lf-threads").focus()
     # The thread the list shows asks the user a question too, so focus on the list is
     # standing on that item of their queue; the hidden Ask stands before it on the page.
-    page.keyboard.press("Shift+a")
+    page.keyboard.press("Shift+q")
     page.wait_for_function(
         "window.visibleThreadPresentationHeld === true", timeout=3000
     )
@@ -8537,7 +8537,7 @@ def test_the_line_offers_the_thread_g_t_lands_on_its_own_keys(browser, serve):
 def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     browser, serve
 ):
-    """The Ask reading and the Queue read the log; the panel's narrowing is a view.
+    """The Ask reading and the Questions panel read the log; the panel's narrowing is a view.
 
     A question an agent asks in a reply is a widget instantiated once, in the panel's
     card, and every other reading of it finds that widget by id in the document. So
@@ -8546,7 +8546,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     minute later — the narrowing let go — both came back, with nothing in the log
     having moved. A blind drive spent a locator timeout on the flip.
 
-    The card the narrowing hides is hidden, not gone, so the count and the Queue hold."""
+    The card the narrowing hides is hidden, not gone, so the count and the Questions panel hold."""
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
     )
@@ -10244,7 +10244,7 @@ def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser,
 
 
 def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve):
-    """A card the narrowing hid keeps its node, so the `a` walk can still name the
+    """A card the narrowing hid keeps its node, so the `q` walk can still name the
     question in it — and arriving there has to show it, the way showThread does:
     focus on a card with no box is a no-op and the announcement would say "1 of 2"
     over a list that shows something else. The thread the list shows asks the user a
@@ -10262,7 +10262,7 @@ def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve
     page.get_by_role("searchbox", name="Find in threads").fill("stay blocked")
     expect(card).to_have_attribute("hidden", "")
     page.locator(".lf-threads").focus()
-    page.keyboard.press("Shift+a")
+    page.keyboard.press("Shift+q")
     expect(card).not_to_have_attribute("hidden", "")
     expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value("")
     assert page.evaluate(

@@ -193,9 +193,12 @@ playground's stage, keys its rules on `@container style(--lf-full-height: 1)`. A
 module that composes regions out of boxes it generates, such as a playground's controls
 beside its preview, takes the pane rules by marking those boxes
 `data-lf-reading-role="pane"` and `data-lf-generated`, with the pane grammar of one
-header, one body, and one footer. Generated panes standing side by side make the
-workspace full-height as a page's grid does, and one alone, such as a visual review's
-evidence, flows with the page. A generated pane scrolls its body wherever it stands in
+header, one body, and one footer. Generated panes standing side by side in one box
+directly inside the widget make the workspace full-height as a page's grid does, where
+the widget fills the body: it is the body, or a box directly in the body, such as an
+Ask's answer. A widget deeper in the body, such as one in a tab of a side-list queue,
+flows with the region holding it, and one generated pane alone, such as a visual
+review's evidence, flows with the page. A generated pane scrolls its body wherever it stands in
 a full-height workspace, since its widget sizes it, and its widget draws the frame around
 it: the workspace joins only the panes a page wrote into its hairline grid. The
 attributes are the module's to write and never an author's, since `page check` refuses `data-lf-` markup. Keep the

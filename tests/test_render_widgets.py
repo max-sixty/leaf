@@ -1763,6 +1763,45 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     page = open_page(browser, serve(in_main))
     resized(page, 1280, 720)
     fills_the_window(page, page.locator("main"), False)
+    page.close()
+
+    # A playground's panes stand side by side, so a playground filling the body, as
+    # the body or as an Ask's answer, holds the workspace. In a tab of a side-list
+    # queue it is inside one of the queue's regions, as a pane in a section is, and
+    # the queue is still the one region the page carries.
+    playground = PLAYGROUND_PAGE.replace("<h1>Card playground</h1>\n", "")
+    for body, fills in (
+        (
+            lambda source: source.replace(
+                '<lf-ask id="card-playground-ask">\n  <h2>How should the card look?</h2>',
+                "",
+            ).replace("</lf-ask>", ""),
+            True,
+        ),
+        (lambda source: source, True),
+        (
+            lambda source: source.replace(
+                '<lf-ask id="card-playground-ask">',
+                '<lf-tabs id="queue" list="side"><lf-tab id="first" label="First">'
+                '<lf-ask id="card-playground-ask">',
+            ).replace(
+                "</lf-ask>",
+                '</lf-ask></lf-tab><lf-tab id="second" label="Second"><p>Next.</p>'
+                "</lf-tab></lf-tabs>",
+            ),
+            False,
+        ),
+    ):
+        source = body(playground).replace(
+            '<main class="layout-column">', '<main class="layout-workspace">'
+        )
+        page = open_page(browser, serve(source))
+        resized(page, 1280, 720)
+        expect(page.locator(".lf-playground-controls-region")).to_be_visible()
+        assert page.locator("main").evaluate(
+            "main => getComputedStyle(main).getPropertyValue('--lf-full-height')"
+        ) == ("1" if fills else ""), source
+        page.close()
 
 
 ZONE_PACKAGE = {

@@ -417,15 +417,18 @@
    *
    * Panes stand side by side where the body is the page's grid of regions, a pane among
    * its cells, as a log pane beside its chart or rows of panes are, or where a widget's
-   * generated panes are siblings and no pane the page wrote holds them. A body that is
-   * one pane is one region, whatever its own body holds.
+   * generated panes are siblings in a widget that fills the body: the body itself, or a
+   * box directly in it, such as an Ask's answer, with its panes in its own track box. A
+   * body that is one pane is one region, whatever its own body holds, and a widget deeper
+   * in the body, such as one in a tab of a side-list queue, stands inside one of the
+   * body's regions, as a pane inside a section does, and flows with it.
    *
    * Only `main` reads the panes, with a `:has()` on the box it styles; what stands under
    * it reads the answer from `--lf-full-height`, the token that tells a widget the body
    * has a definite height to fill, with a style query. A `:has()` on `main` ahead of a
    * rule for a box under it would restyle the whole page on every write below `main`
-   * (`test_no_has_rule_restyles_the_whole_document`). The `:has()` reaches the page's
-   * panes by child steps rather than searching every descendant: on a page of 40,000
+   * (`test_no_has_rule_restyles_the_whole_document`). The `:has()` reaches the panes
+   * by child steps rather than searching every descendant: on a page of 40,000
    * elements, a search for sibling panes at any depth added about half a millisecond to
    * each write inside a pane, and child steps add nothing measurable. */
   @media screen and (min-width: 720px) and (min-height: 480px) {
@@ -436,9 +439,11 @@
         > :not(header, footer, [data-lf-reading-role="pane"])
           > :not(script, style, template)
           ~ [data-lf-reading-role="pane"]:not([data-lf-generated]),
-        [data-lf-reading-role="pane"][data-lf-generated]:not(
-            [data-lf-reading-role="pane"]:not([data-lf-generated]) *
-          )
+        > :not(header, footer, [data-lf-reading-role="pane"])
+          > * > [data-lf-reading-role="pane"][data-lf-generated]
+          ~ [data-lf-reading-role="pane"][data-lf-generated],
+        > :not(header, footer, [data-lf-reading-role="pane"])
+          > * > * > [data-lf-reading-role="pane"][data-lf-generated]
           ~ [data-lf-reading-role="pane"][data-lf-generated]
       ) {
       --lf-full-height: 1;

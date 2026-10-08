@@ -577,8 +577,8 @@ const COLLAPSE_SHORTCUT_BAR = {
   run: () => collapseShortcutBar(),
 };
 
-// The expanded bar owns its own Escape. Its actual node states whether it stands above
-// the modal floor; the reference and a covering Threads panel both leave it below.
+// The expanded bar owns its own Escape. Its actual node states whether it is reachable:
+// the reference leaves it below the modal floor, and covering Threads makes it inert.
 pageScope("expanded shortcut bar", {
   title: "In the expanded shortcut bar",
   escape: "inner",

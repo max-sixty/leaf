@@ -270,18 +270,7 @@ let pageGeometry;
 let goToSequence;
 
 const auxiliarySurfaces = createAuxiliarySurfaces({
-  chromeRoot,
   band: shortcutBarEl,
-  foreground: [
-    bottomStatusEl,
-    goToHintLayer,
-    commandHintLayer,
-    targetPickerHintLayer,
-    targetPaint.targetTraceLayer,
-    targetPaint.aimLayer,
-    inspectEl,
-    liveEl,
-  ],
   syncLayout: () => layout.syncLayout(),
   afterChange: () => {
     app.renderAnnotations();
@@ -883,30 +872,34 @@ if (!offlineInteractive) {
     chromeSheet,
     marksSheet,
   ];
-  chromeRoot.append(
-    banner,
+  // One permanent home for auxiliary surfaces and their permitted foreground. Native
+  // modality changes at this ancestor; none of these live descendants is reparented.
+  auxiliarySurfaces.envelope.append(
     overflowMenu,
     versionMenu,
     othersPanel,
     queuePanel,
     panel,
-    legendRoot,
     goToHintLayer,
     commandHintLayer,
     targetPickerHintLayer,
     pageSearchSurface,
-    ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
-    drawingPaint.layer,
     targetPaint.targetTraceLayer,
     targetPaint.aimLayer,
-    fabBar,
     liveEl,
     mediaViewer,
     commandReferenceDialog,
-    auxiliarySurfaces.envelope,
     bottomStatusEl,
     shortcutBarEl,
     inspectEl,
+  );
+  chromeRoot.append(
+    banner,
+    legendRoot,
+    ...(visualMarkPaint ? [visualMarkPaint.layer] : []),
+    drawingPaint.layer,
+    fabBar,
+    auxiliarySurfaces.envelope,
   );
   document.body.prepend(skipToChrome);
   document.body.append(chromeRoot);
@@ -922,7 +915,7 @@ if (!offlineInteractive) {
   // resolve updateComplete until connection, and keyboard registration needs that input.
   narrowing.mount();
   await panelKeys.mount();
-  pageComment.mount(chromeRoot);
+  pageComment.mount(auxiliarySurfaces.envelope);
   selectionComposer.mount();
   responseSurface.mount();
   holdToRead();
@@ -934,7 +927,7 @@ if (!offlineInteractive) {
   anchorPaint?.mount();
   anchorControls.mount();
   pageGeometry.mount();
-  pageMapDialog.mount(chromeRoot);
+  pageMapDialog.mount(auxiliarySurfaces.envelope);
   asks.mount();
   queueWalk.mount();
   queue.mount();

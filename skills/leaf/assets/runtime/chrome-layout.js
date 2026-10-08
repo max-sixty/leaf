@@ -37,7 +37,6 @@
 // auxiliary surfaces, send commands, or reconcile thread DOM.
 import { sizeObserver } from "./rendering.js";
 import { drawnEdge } from "./drawn-edge.js";
-import { overlapsAcross } from "./rect.js";
 import { standsBeside } from "./auxiliary-surfaces.js";
 import { scheduleResidency } from "./content-layout.js";
 import { syncLayoutRegion } from "./reading-regions.js";
@@ -124,23 +123,19 @@ export function createChromeLayout({
     let occupied = panelFoot.getBoundingClientRect().height;
     if (panelCovers() && bottomStatusEl.checkVisibility()) {
       const list = threadsBox.getBoundingClientRect();
-      const status = bottomStatusEl.getBoundingClientRect();
-      // Reserve at the panel's standing position, as rail coverage above does. Its
-      // horizontal entrance slide must not first place visible feedback below a reply
-      // and then lift it when that same reply reaches the status's column.
-      const slideX = panel.getBoundingClientRect().left - panel.offsetLeft;
-      const statusColumn = { left: status.left + slideX, right: status.right + slideX };
+      const padding = parseFloat(getComputedStyle(threadsBox).paddingBottom);
+      // Reply rows can pin at the list's foot. Their height defines the clearance,
+      // whatever the current scroll position: reading through a long thread must not
+      // move a notice when its reply enters or leaves the viewport.
       for (const reply of threadsBox.querySelectorAll(
         ":scope > .lf-thread[open] > .lf-thread-reply",
       )) {
         const box = reply.getBoundingClientRect();
-        if (
-          reply.checkVisibility() &&
-          overlapsAcross(box, statusColumn) &&
-          box.bottom > list.top &&
-          box.top < list.bottom
-        )
-          occupied = Math.max(occupied, innerHeight - Math.max(box.top, list.top));
+        if (reply.checkVisibility())
+          occupied = Math.max(
+            occupied,
+            innerHeight - list.bottom + padding + box.height,
+          );
       }
     }
     bottomStatusEl.style.setProperty("--lf-panel-foot-h", `${occupied}px`);

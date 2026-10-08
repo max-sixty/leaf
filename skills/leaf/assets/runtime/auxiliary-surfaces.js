@@ -14,8 +14,9 @@
    (theme.css, `--lf-auxiliary-beside`); `standsBeside` is the runtime's one reading of it.
 
    The selected surface is seated in one native dialog, nonmodal beside the page and
-   modal where it covers. Its actual nodes, and the chrome foreground permitted above
-   the scrim, move with it without replacing their browser state. The browser excludes
+   modal where it covers. Its actual nodes and the chrome foreground permitted above
+   the scrim have permanent homes in that dialog: changing posture never disconnects
+   editors, disclosures, embedded documents or standing native layers. The browser excludes
    every background subtree, including one a page revision adds. The retained visual
    scrim stays inside the dialog so page and chrome targeting keep their paint planes.
 
@@ -56,9 +57,7 @@ export const standsBeside = () =>
   ) > 0;
 
 export function createAuxiliarySurfaces({
-  chromeRoot,
   band,
-  foreground,
   syncLayout,
   afterChange,
   reachChanged,
@@ -70,6 +69,10 @@ export function createAuxiliarySurfaces({
   scrim.setAttribute("aria-hidden", "true");
   const envelope = document.createElement("dialog");
   envelope.className = "lf-ui lf-auxiliary-envelope";
+  // Start as an ordinary nonmodal presentation group. Initial `open` markup performs
+  // no dialog focusing steps, so mounting chrome cannot borrow an author's focus.
+  envelope.setAttribute("open", "");
+  envelope.setAttribute("role", "presentation");
   envelope.append(scrim);
   let active = null;
   let standing = null;
@@ -79,69 +82,39 @@ export function createAuxiliarySurfaces({
   const place = (node) => {
     node.focus({ preventScroll: true });
   };
-  // The surface and its live foreground keep their actual native nodes. A placeholder
-  // carries each one's location while the native modal contains it.
-  const homes = new Map();
-  const portal = (node) => {
-    if (homes.has(node)) return;
-    const home = document.createComment("auxiliary foreground");
-    node.before(home);
-    homes.set(node, home);
-    envelope.moveBefore(node, null);
-  };
-  const restoreHomes = () => {
-    for (const [node, home] of homes) {
-      home.parentNode.moveBefore(node, home);
-      home.remove();
-    }
-    homes.clear();
-  };
-
   function seat(selected) {
     const next = selected?.covers() ? selected : null;
     if (standing === selected && active === next) return;
     const previous = active;
-    const samePosture = standing && selected && Boolean(active) === Boolean(next);
+    const changedPosture = Boolean(active) !== Boolean(next);
     if (next)
       for (const popover of openPopovers())
         if (!under(popover, next.surface)) popover.hidePopover();
     const held = holdFocus(document);
     returningFocus(() => {
-      restoreHomes();
-      if (envelope.open && !samePosture) envelope.close();
       if (previous) previous.surface.removeAttribute("data-lf-covered");
       active = next;
       standing = selected;
-      if (selected) {
-        keeps(envelope, "aria-label", selected.surface.getAttribute("aria-label"));
-        keeps(
-          envelope,
-          "aria-labelledby",
-          selected.surface.getAttribute("aria-labelledby"),
-        );
-        const nativeSurfaces = [...chromeRoot.children].filter(
-          (node) =>
-            node !== envelope &&
-            node.matches("[popover], dialog:not(.lf-thread-panel)"),
-        );
-        for (const node of [
-          selected.surface,
-          ...(next
-            ? [...foreground, ...nativeSurfaces, ...(next.underBand ? [band] : [])]
-            : []),
-        ])
-          portal(node);
-        if (next) keeps(next.surface, "data-lf-covered", "");
+      keeps(envelope, "role", selected ? null : "presentation");
+      keeps(envelope, "aria-label", selected?.surface.getAttribute("aria-label"));
+      keeps(
+        envelope,
+        "aria-labelledby",
+        selected?.surface.getAttribute("aria-labelledby"),
+      );
+      keeps(band, "inert", next && !next.underBand ? "" : null);
+      if (next) keeps(next.surface, "data-lf-covered", "");
+      if (changedPosture || !envelope.open) {
         // Opening a restored sample must not take focus from its containing page.
         // Native modality still begins while its own focusing steps are suppressed.
-        if (!envelope.open)
-          transitionNativeAncestor(envelope, () => {
-            const unfocused = !document.hasFocus();
-            if (unfocused) envelope.inert = true;
-            if (next) envelope.showModal();
-            else envelope.show();
-            if (unfocused) envelope.inert = false;
-          });
+        transitionNativeAncestor(envelope, () => {
+          if (envelope.open) envelope.close();
+          const unfocused = !document.hasFocus();
+          if (unfocused) envelope.inert = true;
+          if (next) envelope.showModal();
+          else envelope.show();
+          if (unfocused) envelope.inert = false;
+        });
       }
     });
     band.toggleAttribute("data-lf-over-covering", Boolean(next?.underBand));

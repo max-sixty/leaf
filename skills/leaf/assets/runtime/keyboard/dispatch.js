@@ -102,14 +102,21 @@ import {
   scopeIdentity,
 } from "./scopes.js";
 import { nativeLayers } from "./layer-stack.js";
-import { shadowHost, under } from "../shadow.js";
+import { shadowHost, under, upFrom } from "../shadow.js";
 
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
 // reference lists a scope the page *has* and filters its rows by liveness only where the user
 // is standing in it, while the dispatcher and the line want both at once. Spelled `!x || x()`
 // in three places before, which is a rule written three times and named nowhere.
 const pageHas = (scope) => !scope.when || scope.when();
-export const userIn = (scope) => !scope.at || scope.at();
+export const userIn = (scope) => {
+  // Native modality excludes everything below its layer floor. An explicitly inert
+  // subtree can also stand inside that floor (the suspended bottom bar in Threads),
+  // and none of its latent scopes may answer a key or advertise a live command.
+  for (let node = scopeRoot(scope); node; node = upFrom(node))
+    if (node.inert) return false;
+  return !scope.at || scope.at();
+};
 // Where the user is first, and what the page has second: both are pure and the and is
 // the same either way round, but `at` is a class check and a `when` may be the whole event
 // log folded — so the walk asks the cheap question of every scope and the dear one only of

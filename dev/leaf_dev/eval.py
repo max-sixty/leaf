@@ -292,9 +292,11 @@ def prepare(
                                     if harness == ClaudeCodeHarness.name
                                     else "developer_instructions"
                                 )
+                                source = payload / instructions
                                 configured["config"][field] = (
-                                    payload / instructions
-                                ).read_text()
+                                    f"Instructions from {source}:\n\n"
+                                    + source.read_text()
+                                )
                         providers[label] = {**configured, "label": label}
                     labels.append(label)
             if not labels:

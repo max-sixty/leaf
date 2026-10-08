@@ -1711,13 +1711,13 @@ def test_resolved_thread_has_one_surface_and_reopens_from_its_title(
     thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
     summary = thread.locator(".lf-thread-summary")
     reopen = thread.get_by_role("button", name="Reopen", include_hidden=True)
-    page.locator(f'.lf-thread[data-id="{other}"] > .lf-thread-summary').click()
-    rendered(page)
-    expect(thread).not_to_have_attribute("open", "")
-    expect(reopen).to_be_hidden()
+    collapsed = page.locator(f'.lf-threads > .lf-thread[data-id="{other}"]')
+    expect(collapsed).not_to_have_attribute("open", "")
+    expect(
+        collapsed.get_by_role("button", name="Reopen", include_hidden=True)
+    ).to_be_hidden()
+    expect(thread).to_have_attribute("open", "")
     assert reopen.evaluate("button => button.parentElement.tagName") == "DETAILS"
-    summary.click()
-    summary.focus()
     rendered(page)
     image = Image.open(io.BytesIO(thread.screenshot())).convert("RGB")
     start = int(summary.bounding_box()["height"]) + 4
@@ -2242,7 +2242,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
     url = serve(html)
     panel_comment(serve.page_dir, "Is this ready?", author="agent")
     page = open_page(browser, url)
-    expect(page.locator(".lf-others")).to_have_text("All leaves (2)")
+    expect(page.locator(".lf-others")).to_have_text("All pages (2)")
     expect(page.locator(".lf-signoff")).to_be_disabled()
     expect(page.locator(".lf-signoff")).to_have_attribute(
         "title", "Answer every Ask before approving this work"
@@ -2274,7 +2274,7 @@ def test_the_banner_reads_in_one_order_at_every_width(browser, serve, other_leaf
 
     # More follows the primary reading loop, with one order at every width.
     widest = max(orders.values(), key=len)
-    for wanted in ("All leaves", "Queue", "Accept all", "v1", "Approve version"):
+    for wanted in ("All pages", "Queue", "Accept all", "v1", "Approve version"):
         assert any(wanted in name for name in widest), (
             f"{wanted} was not on the row at all, so this order proves little: {widest}"
         )

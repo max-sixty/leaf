@@ -72,7 +72,7 @@
 
 leaf wait:
   output:
-    format: leaf-delivery-v3
+    format: leaf-delivery-v5
     id: '11111111'
     created_at: 1790046750.29
     acknowledge: >-
@@ -84,6 +84,7 @@ leaf wait:
       as the next background task: it confirms this delivery and waits for the next.
     batches:
       - page: /path/to/page
+        claim: null
         through_seq: 2
         threads:
           - id: 1946b466
@@ -107,22 +108,21 @@ leaf wait:
             its opening message by then, that name stands.
           h2: >-
             When the event asks for work, say in its thread what you will do before
-            any other command, including reading the source it concerns: `leaf thread
-            reply <page> --for <event-id> --ephemeral --text "<what you will do,
-            in a line>"`. The user reads it in the thread at once, and it takes
-            the move in hand: the move reads Working, and the line stands in the
-            banner until you answer. Do the work and put its result on the page,
-            with whatever shows it (captures, a figure, the numbers), then answer
-            with `leaf thread reply <page> --for <event-id> < reply.md`: what changed,
-            in a sentence or two, linking the section that shows it. When the event
-            asks for no work, as a question may not, answer it with that reply at
-            once. The page carries the work, and the thread only the conversation
-            about it. `leaf thread reply` checks any saved page edit and makes it
-            live before posting. If a revision removes what the thread is anchored
-            on, move the thread in the reply that reports it with `--section <id>`
-            (narrowed by `--quote` or `--part` if needed), or `--detach` it if its
-            subject has left the page. Add `--awaits` only if your reply's prose
-            asks the user something.
+            any other command, including reading the source it concerns: `leaf response
+            reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
+            The user reads it in the thread at once, and it takes the move in hand:
+            the move reads Working, and the line stands in the banner until you
+            answer. Do the work and put its result on the page, with whatever shows
+            it (captures, a figure, the numbers), then answer with `leaf response
+            reply <answer.ref> < reply.md`: what changed, in a sentence or two,
+            linking the section that shows it. When the event asks for no work,
+            as a question may not, answer it with that reply at once. The page carries
+            the work, and the thread only the conversation about it. `leaf response
+            reply` checks any saved page edit and makes it live before posting.
+            If a revision removes what the thread is anchored on, move the thread
+            in the reply that reports it with `--section <id>` (narrowed by `--quote`
+            or `--part` if needed), or `--detach` it if its subject has left the
+            page. Add `--awaits` only if your reply's prose asks the user something.
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -148,6 +148,8 @@ leaf wait:
               kind: reply
               to: 1946b466
               for: 1946b466
+              ref: 11111111:0:1946b466
+              writer: agent
 
 Claude Code hook:
   leaf wait output: /path/to/page has new input; Leaf's prompt hook puts it in your
@@ -156,12 +158,13 @@ Claude Code hook:
     instruction: >-
       Leaf has new input for your turn. Read this complete delivery before answering.
     delivery:
-      format: leaf-delivery-v3
+      format: leaf-delivery-v5
       id: '44444444'
       created_at: 1790046750.29
       acknowledge: null
       batches:
         - page: /path/to/page
+          claim: claude-session
           through_seq: 2
           threads:
             - id: 1946b466
@@ -186,21 +189,21 @@ Claude Code hook:
             h2: >-
               When the event asks for work, say in its thread what you will do before
               any other command, including reading the source it concerns: `leaf
-              thread reply <page> --for <event-id> --ephemeral --text "<what you
-              will do, in a line>"`. The user reads it in the thread at once, and
-              it takes the move in hand: the move reads Working, and the line stands
-              in the banner until you answer. Do the work and put its result on
-              the page, with whatever shows it (captures, a figure, the numbers),
-              then answer with `leaf thread reply <page> --for <event-id> < reply.md`:
-              what changed, in a sentence or two, linking the section that shows
-              it. When the event asks for no work, as a question may not, answer
-              it with that reply at once. The page carries the work, and the thread
-              only the conversation about it. `leaf thread reply` checks any saved
-              page edit and makes it live before posting. If a revision removes
-              what the thread is anchored on, move the thread in the reply that
-              reports it with `--section <id>` (narrowed by `--quote` or `--part`
-              if needed), or `--detach` it if its subject has left the page. Add
-              `--awaits` only if your reply's prose asks the user something.
+              response reply <answer.ref> --ephemeral --text "<what you will do,
+              in a line>"`. The user reads it in the thread at once, and it takes
+              the move in hand: the move reads Working, and the line stands in the
+              banner until you answer. Do the work and put its result on the page,
+              with whatever shows it (captures, a figure, the numbers), then answer
+              with `leaf response reply <answer.ref> < reply.md`: what changed,
+              in a sentence or two, linking the section that shows it. When the
+              event asks for no work, as a question may not, answer it with that
+              reply at once. The page carries the work, and the thread only the
+              conversation about it. `leaf response reply` checks any saved page
+              edit and makes it live before posting. If a revision removes what
+              the thread is anchored on, move the thread in the reply that reports
+              it with `--section <id>` (narrowed by `--quote` or `--part` if needed),
+              or `--detach` it if its subject has left the page. Add `--awaits`
+              only if your reply's prose asks the user something.
             h3: >-
               Your reply renders as Markdown in a narrow column: give each point
               its own short paragraph or list item, link a page section as `[its
@@ -226,6 +229,8 @@ Claude Code hook:
                 kind: reply
                 to: 1946b466
                 for: 1946b466
+                ref: 44444444:0:1946b466
+                writer: agent
     attention: ""
 
 Codex queue:
@@ -234,12 +239,13 @@ Codex queue:
     <leaf-delivery id="22222222" operation="delivery read" />
     ```
   leaf delivery read 22222222:
-    format: leaf-delivery-v3
+    format: leaf-delivery-v5
     id: '22222222'
     created_at: 1790046750.29
     acknowledge: null
     batches:
       - page: /path/to/page
+        claim: null
         through_seq: 2
         threads:
           - id: 1946b466
@@ -263,22 +269,21 @@ Codex queue:
             its opening message by then, that name stands.
           h2: >-
             When the event asks for work, say in its thread what you will do before
-            any other command, including reading the source it concerns: `leaf thread
-            reply <page> --for <event-id> --ephemeral --text "<what you will do,
-            in a line>"`. The user reads it in the thread at once, and it takes
-            the move in hand: the move reads Working, and the line stands in the
-            banner until you answer. Do the work and put its result on the page,
-            with whatever shows it (captures, a figure, the numbers), then answer
-            with `leaf thread reply <page> --for <event-id> < reply.md`: what changed,
-            in a sentence or two, linking the section that shows it. When the event
-            asks for no work, as a question may not, answer it with that reply at
-            once. The page carries the work, and the thread only the conversation
-            about it. `leaf thread reply` checks any saved page edit and makes it
-            live before posting. If a revision removes what the thread is anchored
-            on, move the thread in the reply that reports it with `--section <id>`
-            (narrowed by `--quote` or `--part` if needed), or `--detach` it if its
-            subject has left the page. Add `--awaits` only if your reply's prose
-            asks the user something.
+            any other command, including reading the source it concerns: `leaf response
+            reply <answer.ref> --ephemeral --text "<what you will do, in a line>"`.
+            The user reads it in the thread at once, and it takes the move in hand:
+            the move reads Working, and the line stands in the banner until you
+            answer. Do the work and put its result on the page, with whatever shows
+            it (captures, a figure, the numbers), then answer with `leaf response
+            reply <answer.ref> < reply.md`: what changed, in a sentence or two,
+            linking the section that shows it. When the event asks for no work,
+            as a question may not, answer it with that reply at once. The page carries
+            the work, and the thread only the conversation about it. `leaf response
+            reply` checks any saved page edit and makes it live before posting.
+            If a revision removes what the thread is anchored on, move the thread
+            in the reply that reports it with `--section <id>` (narrowed by `--quote`
+            or `--part` if needed), or `--detach` it if its subject has left the
+            page. Add `--awaits` only if your reply's prose asks the user something.
           h3: >-
             Your reply renders as Markdown in a narrow column: give each point its
             own short paragraph or list item, link a page section as `[its name](#section-id)`,
@@ -304,6 +309,8 @@ Codex queue:
               kind: reply
               to: 1946b466
               for: 1946b466
+              ref: 22222222:0:1946b466
+              writer: agent
 
 Codex App Server:
   turn/start:
@@ -313,12 +320,13 @@ Codex App Server:
     toolOutput:
       name: leaf_delivery
       output:
-        format: leaf-delivery-v3
+        format: leaf-delivery-v5
         id: '33333333'
         created_at: 1790046750.29
         acknowledge: null
         batches:
           - page: /path/to/page
+            claim: codex-thread
             through_seq: 2
             threads:
               - id: 1946b466
@@ -336,13 +344,16 @@ Codex App Server:
                 actions: []
             handling:
               h1: >-
-                Your turn's first and final messages are the reply, and `leaf thread
-                reply` refuses this event. Before your first tool call, open with
-                a short message to the user: the answer, or what you are about to
-                do. Leaf streams it into the thread at once, and later working messages
-                stay in Codex. Finish the reply in your final message: the answer,
-                or what changed and where it appears. The reply leaves the thread
-                on its anchor.
+                This reply belongs to your provider turn's final commitment. Before
+                your first tool call, open with a short message to the user: the
+                answer, or what you are about to do. Leaf streams it into the thread
+                at once, and later working messages stay in Codex. Finish with the
+                answer or what changed and where it appears. For widgets, a question
+                awaiting the user, a title or relocation, prepare the complete reply
+                with `leaf response reply <answer.ref>` and the rich options in
+                `references/threads.md`; your completed final commits that prepared
+                content, including its text. Without preparation, your opening and
+                final text become the reply.
               h2: >-
                 Your reply renders as Markdown in a narrow column: give each point
                 its own short paragraph or list item, link a page section as `[its
@@ -365,8 +376,9 @@ Codex App Server:
                 threads: [1946b466]
                 handling: [h1, h2]
                 answer:
-                  kind: turn
+                  kind: reply
                   to: 1946b466
                   for: 1946b466
-                  attempt: leaf-delivery-afb47e00531153e93808589e43d02c11
+                  ref: 33333333:0:1946b466
+                  writer: turn
     turnTrigger: leaf

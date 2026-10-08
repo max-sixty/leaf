@@ -7,7 +7,7 @@ before reply:
     detail: >-
       pick one
   note: |
-    1 user move with no answer (`leaf thread reply <page> --for event-1`); the page reads waiting once each has one
+    1 user update with no answer (`leaf response reply <answer.ref>` for event-1); the page reads waiting once each has one
 
 after reply:
   exit: 0

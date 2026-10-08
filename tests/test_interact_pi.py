@@ -214,7 +214,10 @@ def test_an_escape_leaves_input_handed_to_the_run_for_the_next_prompt(page_dir, 
     )
 
     prompt = pi.emit("before_agent_start", idle=True)
-    assert f"--for {comment['id']}" in prompt["message"]["content"]
+    assert (
+        f"`leaf response reply <answer.ref>` for {comment['id']}"
+        in prompt["message"]["content"]
+    )
     pickup = events_model.read_events(page_dir)[-1]
     assert (pickup["kind"], pickup["events"], pickup["turn"]) == (
         "pickup",

@@ -1068,6 +1068,7 @@ def test_the_product_diagram_fits_without_its_own_scroll(hosted, browser):
     page = browser.new_page()
     page.set_viewport_size({"width": 1200, "height": 900})
     page.goto(product_url(hosted, "how-it-works.html"), wait_until="load")
+    wait_until_ready(page)
     diagram = page.locator("#arch")
     expect(diagram).to_be_visible()
     width = diagram.evaluate(

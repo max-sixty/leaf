@@ -8083,14 +8083,20 @@ def test_inflight_native_paging_hides_hints_until_the_scene_settles(browser, ser
         ),
     )
 
-    # Hold the browser's paging animation and the hint settle timer at the first
-    # rendering frame. The installed clock starts advancing immediately, so
-    # pause at a future instant rather than its elapsed origin. Driver-side
-    # polling can otherwise begin after the 80 ms settle window and mistake
-    # the settled map for an in-flight one.
+    # Hold the hint settle timer and arm the scroll observation before the key.
+    # PageDown returns before its first native scroll event, so pressing g right
+    # after the driver returns can instead arm a map of the old, still scene.
     page.clock.install(time=0)
-    page.clock.pause_at(page.evaluate("() => (Date.now() + 1000) / 1000"))
+    page.clock.pause_at(page.evaluate("() => (Date.now() + 100) / 1000"))
+    page.evaluate(
+        """() => {
+          window.firstPageScroll = false;
+          document.addEventListener('scroll', () => { window.firstPageScroll = true; },
+            {once: true, capture: true});
+        }"""
+    )
     page.keyboard.press("PageDown")
+    page.wait_for_function("() => window.firstPageScroll", polling=20)
     page.keyboard.press("g")
     page.clock.run_for(20)
     expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")
@@ -15811,13 +15817,14 @@ def test_a_command_button_owns_activation_and_the_native_form_default(browser, s
           two.textContent = 'Second route';
           one.form.append(two);
           commandForm.routes = [];
+          commandForm.firstRouteAvailable = false;
           commands(one.form, 'Routed form', [{
             id: 'test.form-routes', keys: ['1', '2'], title: 'Apply route', control: one,
-            routes: [{id: 'test.form-one', title: 'First', binding: '1'},
+            routes: [{id: 'test.form-one', title: 'First', binding: '1',
+              when: () => commandForm.firstRouteAvailable},
               {id: 'test.form-two', title: 'Second', binding: '2', control: two}],
             run: binding => commandForm.routes.push(binding),
           }]);
-          one.setAttribute('aria-disabled', 'true');
           commandForm.invalidate();
         }"""
     )

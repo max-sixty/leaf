@@ -913,7 +913,6 @@ main {
   [data-lf-bound] {
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
-    overscroll-behavior: contain;
     --lf-top: 0px;
   }
 }

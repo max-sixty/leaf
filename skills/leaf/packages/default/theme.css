@@ -2641,7 +2641,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   :scope:is(lf-text-document)[data-lf-bound] { max-block-size: none; overflow: visible;
     --lf-top: inherit; }
   :scope:is(lf-text-document)[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
-    overflow: auto; overscroll-behavior: contain; --lf-bound-box: 1; --lf-top: 0px; }
+    overflow: auto; --lf-bound-box: 1; --lf-top: 0px; }
 }
 /* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
    Keep its generic focus ring inside that frame: the figure clips at its rounded

@@ -1,7 +1,10 @@
 /* A visual run is external evidence: one source supplies its cases, while Leaf's event
  * log owns case dispositions and threads. The module keeps browsing and inspection
  * choices local, projects each case with source provenance, and reshapes the existing
- * aligned lf-shot comparison without introducing another evidence model. */
+ * aligned lf-shot comparison without introducing another evidence model. Evidence
+ * precedes judgment; inspection is a local disclosure. Remaining-case navigation
+ * reads the same projected dispositions as their buttons, while the case picker
+ * retains every case so a reviewer can revisit a judgment. */
 import "/widgets/lf-shot.js";
 import "../vendor/webawesome.esm.js";
 
@@ -12,7 +15,9 @@ import {
   describeDifference,
   compoundReadingRegionId,
   placeThreads,
+  placeKeeper,
   failSoft,
+  focusDestination,
   holdFocus,
   keeps,
   keepsHidden,
@@ -27,6 +32,9 @@ import {
   registerReadingRegion,
   relabel,
   scopedMediaUrl,
+  scrollerFor,
+  scrollIntoReadingBand,
+  scrollBehavior,
   setChildren,
   shownWindow,
   sizeObserver,
@@ -108,6 +116,7 @@ customElements.define(
     #progress = null;
     #queue = null;
     #queueHost = null;
+    #reviewUnits = {};
     #run = null;
     #scale = "fit";
     #scope = "focus";
@@ -188,7 +197,14 @@ customElements.define(
     }
 
     #buildInspector() {
-      const inspector = offer("div", "lf-vr-inspector");
+      const inspector = make("details", "lf-vr-inspection");
+      const summary = offer(
+        "summary",
+        "lf-vr-inspection-summary",
+        "Inspect comparison",
+      );
+      const controls = offer("div", "lf-vr-inspector");
+      inspector.append(summary, controls);
       inspector.setAttribute("aria-label", "Inspection controls");
 
       for (const [kind, values] of [
@@ -230,7 +246,7 @@ customElements.define(
           ]);
           group.append(radio);
         }
-        inspector.append(group);
+        controls.append(group);
       }
 
       const opacity = offer("div", "lf-vr-opacity-control");
@@ -248,7 +264,7 @@ customElements.define(
       slider.addEventListener("input", () => this.#setOpacity(Number(slider.value)));
       const output = offer("output", "lf-vr-opacity-value", `${this.#opacity}%`);
       opacity.append(opacityLabel, slider, output);
-      inspector.append(opacity);
+      controls.append(opacity);
       return inspector;
     }
 
@@ -489,6 +505,17 @@ customElements.define(
           run: () => this.#step(1),
         },
         {
+          id: "visual.next-remaining",
+          control: () =>
+            this.#caseEntries
+              .get(this.#selected)
+              ?.article.querySelector(".lf-vr-next-remaining"),
+          keys: [],
+          title: "next unreviewed case",
+          when: () => this.#remaining().some(({ id }) => id !== this.#selected),
+          run: () => this.#nextRemaining(),
+        },
+        {
           id: "visual.previous-case",
           control: () => this.#queueHost.querySelector(".lf-vr-previous"),
           keys: ["ArrowUp"],
@@ -500,31 +527,44 @@ customElements.define(
     }
 
     #show(snapshot) {
+      const restoreFocus = holdFocus(this);
       const resume = this.#controller.defer();
       try {
-        this.#snapshot = snapshot;
-        this.#run = snapshot?.value ?? null;
-        // Drawn from its data, which lifts the height the page reserved (x-height),
-        // and held at that height again while the data is absent.
-        this.classList.toggle("lf-rendered", this.#run !== null);
-        if (!this.#run) {
-          this.#renderMissing(snapshot);
-          return;
-        }
-        keepsHidden(this.#inspector, false);
-        const ids = this.#run.cases.map(({ id }) => id);
-        if (new Set(ids).size !== ids.length)
-          throw new Error("visual run repeats a case id");
-        setText(this.#title, this.#run.title);
-        this.#reconcileCases(this.#run.cases);
-        this.#paintNavigation();
-        const fallback = this.#run.cases.find(
-          ({ classification }) => classification !== "clean",
-        );
-        if (!this.#caseEntries.has(this.#selected))
-          this.#selected = fallback?.id ?? ids[0];
-        this.#select(this.#selected);
-        this.#paintInspector();
+        const places = placeKeeper(scrollerFor(this), {
+          items: `#${CSS.escape(this.id)} :is(.lf-vr-case-title, .lf-vr-disposition, .lf-vr-next-remaining, .lf-vr-details-summary, .lf-vr-action, .lf-vr-result)`,
+          identity: (node) =>
+            `${node.closest(".lf-vr-case").dataset.lfDatum}/${node.dataset.disposition ?? [...node.classList].find((name) => name.startsWith("lf-vr-"))}`,
+        });
+        places.around(() => {
+          this.#snapshot = snapshot;
+          this.#run = snapshot?.value ?? null;
+          // Drawn from its data, which lifts the height the page reserved (x-height),
+          // and held at that height again while the data is absent.
+          this.classList.toggle("lf-rendered", this.#run !== null);
+          if (!this.#run) {
+            this.#renderMissing(snapshot);
+            return;
+          }
+          keepsHidden(this.#inspector, false);
+          const ids = this.#run.cases.map(({ id }) => id);
+          if (new Set(ids).size !== ids.length)
+            throw new Error("visual run repeats a case id");
+          setText(this.#title, this.#run.title);
+          this.#reconcileCases(this.#run.cases);
+          this.#paintNavigation();
+          const fallback = this.#run.cases.find(
+            ({ classification }) => classification !== "clean",
+          );
+          if (!this.#caseEntries.has(this.#selected))
+            this.#selected = fallback?.id ?? ids[0];
+          this.#select(this.#selected, false, null);
+          this.#paintInspector();
+        });
+        restoreFocus?.(() => {
+          if (!this.#selected) return false;
+          this.#landOnEvidence();
+          return true;
+        });
       } catch (error) {
         failSoft(this, error);
       } finally {
@@ -604,7 +644,7 @@ customElements.define(
       headingText.append(position, title);
       const review = make("div", "lf-vr-review");
       review.setAttribute("role", "group");
-      review.setAttribute("aria-label", "Case disposition");
+      review.setAttribute("aria-label", "Case review");
       const dispositions = make("div", "lf-vr-dispositions");
       for (const [value, text] of Object.entries(DISPOSITION)) {
         const button = offer("button", `lf-btn lf-vr-disposition lf-vr-${value}`, text);
@@ -613,8 +653,15 @@ customElements.define(
         button.addEventListener("click", () => this.#review(id, value));
         dispositions.append(button);
       }
-      review.append(dispositions);
-      heading.append(headingText, review);
+      const remaining = offer(
+        "button",
+        "lf-btn lf-vr-next-remaining",
+        "Next unreviewed",
+      );
+      remaining.type = "button";
+      const status = make("p", "lf-vr-review-status");
+      review.append(dispositions, remaining, status);
+      heading.append(headingText);
       const claim = make("dl", "lf-vr-claim");
       for (const [termClass, valueClass, term] of [
         ["lf-vr-action-term", "lf-vr-action", "Action"],
@@ -666,7 +713,8 @@ customElements.define(
           group.append(detail);
         }
       }
-      provenance.append(revisions);
+      const analysis = make("p", "lf-vr-analysis");
+      provenance.append(analysis, revisions);
       details.append(detailsSummary, provenance);
       const support = make("footer", "lf-vr-support");
       support.append(links, details);
@@ -676,7 +724,7 @@ customElements.define(
       const threadOutlet = make("section", "lf-vr-thread-outlet lf-ui");
       threadOutlet.dataset.lfGen = "1";
       threadOutlet.setAttribute("aria-label", "Threads on this visual case");
-      article.append(heading, claim, toolbar, shotHost, support, threadOutlet);
+      article.append(heading, toolbar, shotHost, claim, review, support, threadOutlet);
       const entry = {
         article,
         option,
@@ -722,8 +770,8 @@ customElements.define(
         `${record.capture.colorScheme} · ${record.capture.locale} · ${record.capture.timezone}`,
       );
       const observed = entry.article.querySelector(".lf-vr-observed");
-      setText(observed, this.#run.observedAt);
-      keeps(observed, "datetime", this.#run.observedAt);
+      setText(observed, record.capture.observedAt);
+      keeps(observed, "datetime", record.capture.observedAt);
       setText(
         entry.article.querySelector(".lf-vr-base-revision"),
         this.#run.base.revision,
@@ -734,8 +782,13 @@ customElements.define(
       );
       const base = entry.article.querySelector(".lf-vr-base-link");
       const candidate = entry.article.querySelector(".lf-vr-candidate-link");
-      keeps(base, "href", previewUrl(this.#run.base, record.path));
-      keeps(candidate, "href", previewUrl(this.#run.candidate, record.path));
+      for (const [control, target] of [
+        [base, this.#run.base],
+        [candidate, this.#run.candidate],
+      ]) {
+        keepsHidden(control, !target.url);
+        keeps(control, "href", target.url ? previewUrl(target, record.path) : null);
+      }
       const trace = entry.article.querySelector(".lf-vr-trace-link");
       keepsHidden(trace, !record.traceUrl);
       if (record.traceUrl) keeps(trace, "href", record.traceUrl);
@@ -747,8 +800,7 @@ customElements.define(
       if (
         !current ||
         current.getAttribute("before") !== before ||
-        current.getAttribute("after") !== after ||
-        current.getAttribute("alt") !== alt
+        current.getAttribute("after") !== after
       ) {
         const shot = document.createElement("lf-shot");
         // This generated presentation region has no authored semantic descriptor.
@@ -774,13 +826,13 @@ customElements.define(
           },
           () => {},
         );
-      }
+      } else keeps(current, "alt", alt);
     }
 
     // lf-shot's rail stays hidden outside Flip, and a focus crop hides the outlines,
-    // so the case's own position line states the reading in every view, with the
-    // changes the focus leaves out: a focus authored on an area that did not change
-    // says so here.
+    // so Capture details states the complete reading in every view, including
+    // changes outside a focus. The heading contains only captured facts: computing
+    // differences happens after presentation and must not move evidence or controls.
     #paintPosition(entry) {
       const { record, index, total, difference } = entry;
       const parts = [
@@ -806,7 +858,11 @@ customElements.define(
           describeDifference(difference) + (left ? ` (${left} outside the focus)` : ""),
         );
       }
-      setText(entry.article.querySelector(".lf-vr-case-position"), parts.join(" · "));
+      setText(
+        entry.article.querySelector(".lf-vr-case-position"),
+        `${parts.slice(0, 2).join(" · ")}${record.focus ? " · Focused capture" : ""}`,
+      );
+      setText(entry.article.querySelector(".lf-vr-analysis"), parts.join(" · "));
     }
 
     #syncCaptureWidth(entry) {
@@ -832,13 +888,8 @@ customElements.define(
         if (!image.complete) image.addEventListener("load", paint, { once: true });
     }
 
-    #select(id) {
+    #select(id, land = false, restoreFocus = holdFocus(this)) {
       if (!this.#caseEntries.has(id)) return;
-      const currentEntry = this.#caseEntries.get(this.#selected);
-      const restoreFocus = currentEntry && holdFocus(currentEntry.article);
-      const disposition = restoreFocus
-        ? document.activeElement.closest(".lf-vr-disposition")?.dataset.disposition
-        : null;
       if (id !== this.#selected) this.#scope = "focus";
       this.#selected = id;
       this.#queue.value = id;
@@ -854,15 +905,14 @@ customElements.define(
       layoutChanged(this);
       this.#scheduleEvidenceLayout();
       paintKeys();
-      // Moving the shared inspector between articles makes the browser drop its focus,
-      // which the hold hands back. A hidden case-local control instead lands on the
-      // corresponding disposition — or the primary disposition when it has no
-      // counterpart — rather than leaving a keyboard user on the document body.
-      restoreFocus?.(
-        disposition &&
-          selected.article.querySelector(`[data-disposition="${disposition}"]`),
-        selected.article.querySelector(".lf-vr-disposition"),
-      );
+      // Keep a surviving queue or shared inspector control. A hidden case-local
+      // destination hands the reader to the new case's evidence exactly once.
+      if (land) this.#landOnEvidence();
+      else
+        restoreFocus?.(() => {
+          this.#landOnEvidence();
+          return true;
+        });
     }
 
     #step(delta) {
@@ -871,6 +921,34 @@ customElements.define(
       const current = Math.max(0, ids.indexOf(this.#selected));
       const next = ids[(current + delta + ids.length) % ids.length];
       this.#select(next);
+    }
+
+    #disposition(id) {
+      return this.#reviewUnits[id]?.detail.disposition ?? null;
+    }
+
+    #remaining() {
+      return this.#run?.cases.filter(({ id }) => !this.#disposition(id)) ?? [];
+    }
+
+    #nextRemaining() {
+      const remaining = this.#remaining().filter(({ id }) => id !== this.#selected);
+      if (!remaining.length) return;
+      const current = this.#run.cases.findIndex(({ id }) => id === this.#selected);
+      const next =
+        remaining.find(
+          ({ id }) => this.#run.cases.findIndex((record) => record.id === id) > current,
+        ) ?? remaining[0];
+      this.#select(next.id, true);
+    }
+
+    #landOnEvidence() {
+      const heading = this.#caseEntries
+        .get(this.#selected)
+        .article.querySelector(".lf-vr-case-title");
+      focusDestination(heading);
+      const header = heading.closest(".lf-vr-case-head");
+      scrollIntoReadingBand(header, header, "start", scrollBehavior());
     }
 
     #paintNavigation() {
@@ -901,7 +979,7 @@ customElements.define(
 
     #paintOption(entry) {
       if (!entry.record) return;
-      const disposition = entry.article.dataset.disposition;
+      const disposition = this.#disposition(entry.record.id);
       const status = disposition
         ? DISPOSITION[disposition]
         : CLASSIFICATION[entry.record.classification];
@@ -921,9 +999,7 @@ customElements.define(
 
     #paintProgress() {
       const total = this.#caseEntries.size;
-      const reviewed = [...this.#caseEntries.values()].filter(
-        ({ article }) => article.dataset.disposition,
-      ).length;
+      const reviewed = total - this.#remaining().length;
       setText(
         this.#progress,
         total ? `${reviewed} of ${total} cases reviewed` : "No cases reviewed",
@@ -942,9 +1018,21 @@ customElements.define(
     }
 
     renderState(state) {
-      const units = state?.review?.units ?? {};
+      const units = (this.#reviewUnits = state?.review?.units ?? {});
       for (const id of this.#caseEntries.keys())
         this.#setDisposition(id, units[id]?.detail?.disposition ?? null);
+      const remaining = this.#remaining().length;
+      for (const [id, { article }] of this.#caseEntries) {
+        const disposition = this.#disposition(id);
+        setText(
+          article.querySelector(".lf-vr-review-status"),
+          remaining === 0
+            ? "All cases reviewed · revisit any case above"
+            : remaining === 1 && !disposition
+              ? "Current case is the last unreviewed"
+              : `${disposition ? DISPOSITION[disposition] : "Not reviewed"} · ${remaining} unreviewed`,
+        );
+      }
       this.#paintAvailability();
       return true;
     }

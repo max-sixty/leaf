@@ -1,5 +1,5 @@
 /* A visual run is one active-case review: a heading, then one evidence pane whose
- * header is the case navigation. Disposition stays above the evidence and supporting
+ * header is the case navigation. Disposition follows the evidence and supporting
  * capture facts follow it. The stage is as tall as its captures, so the page scrolls
  * through the evidence rather than a smaller box inside the review. */
 :scope:is(lf-visual-review) {
@@ -88,7 +88,7 @@
 .lf-vr-case-select,
 .lf-vr-inspector-group,
 .lf-vr-inspector-choice {
-  --wa-form-control-height: 30px;
+  --wa-form-control-height: max(30px, var(--aim-floor));
 }
 
 .lf-vr-case-select {
@@ -107,6 +107,16 @@
   flex-wrap: wrap;
   gap: var(--sp-2);
   min-width: 0;
+}
+
+.lf-vr-inspection-summary {
+  width: fit-content;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.lf-vr-inspection[open] > .lf-vr-inspector {
+  margin-block: var(--sp-2);
 }
 
 .lf-vr-toolbar-slot {
@@ -189,16 +199,12 @@
 }
 
 .lf-vr-case-head {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--sp-3);
+  min-width: 0;
 }
 
 .lf-vr-case-heading {
-  display: flex;
+  display: grid;
   align-items: baseline;
-  flex-wrap: wrap;
   gap: var(--sp-2);
   min-width: 0;
 }
@@ -271,6 +277,7 @@
 }
 
 .lf-vr-details {
+  grid-column: 1 / -1;
   box-sizing: border-box;
   min-width: 0;
   margin: 0;
@@ -282,7 +289,6 @@
 
 .lf-vr-details[open] {
   display: grid;
-  grid-column: 1 / -1;
   gap: var(--sp-2);
   width: auto;
 }
@@ -308,7 +314,7 @@
   font: var(--t-6) / 1.4 var(--sans);
 }
 
-.lf-vr-detail {
+.lf-vr-detail:not([hidden]) {
   display: grid;
   align-content: start;
   gap: 1px;
@@ -528,7 +534,22 @@
 }
 
 .lf-vr-review {
-  align-self: stretch;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding-block: var(--sp-2);
+}
+
+.lf-vr-review-status {
+  flex: 1 1 12rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--t-6);
+}
+
+.lf-vr-next-remaining {
+  min-height: max(38px, var(--aim-floor));
 }
 
 .lf-vr-disposition {
@@ -612,10 +633,10 @@
 }
 
 @media print {
-  .lf-vr-dispositions,
+  .lf-vr-review,
   .lf-vr-frame-label,
   .lf-vr-queue,
-  .lf-vr-inspector {
+  .lf-vr-inspection {
     display: none !important;
   }
 
@@ -650,4 +671,10 @@
   .lf-vr-head {
     background: transparent;
   }
+}
+
+.lf-vr-analysis {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
 }

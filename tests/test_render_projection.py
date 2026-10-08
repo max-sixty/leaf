@@ -860,6 +860,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     }
     url = live_url(serve(authored, packages=("visual-review",), media=media))
     capture = {
+        "observedAt": "2026-09-10T10:30:00-07:00",
         "browser": "Chrome",
         "browserVersion": "140.0.7339.80",
         "viewport": {"width": 900, "height": 373},
@@ -870,7 +871,6 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     }
     record = {
         "title": "Docs navigation · candidate 7b921ac",
-        "observedAt": "2026-09-10T10:30:00-07:00",
         "base": {"revision": "4c118aa", "url": "https://base.example/rev/"},
         "candidate": {
             "revision": "7b921ac",
@@ -975,6 +975,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(widget).to_have_attribute("data-inspection-mode", "compare")
     expect(widget).to_have_attribute("data-inspection-scale", "fit")
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
+    widget.get_by_text("Inspect comparison", exact=True).click()
     scope = widget.get_by_role("radiogroup", name="Scope")
     expect(scope).to_be_visible()
     expect(widget.get_by_role("radio", name="Focus change")).to_be_checked()
@@ -1117,7 +1118,7 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(first).to_have_attribute("data-disposition", "looks-right")
     expect(widget.locator(".lf-vr-progress")).to_have_text("1 of 2 cases reviewed")
 
-    next_button = widget.get_by_role("button", name="Next")
+    next_button = widget.get_by_role("button", name="Next", exact=True)
     page.keyboard.press("g")
     next_box = next_button.bounding_box()
     assert next_box
@@ -1137,6 +1138,10 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
     expect(second).to_be_visible()
     expect(second.locator(".lf-vr-trace-link")).to_be_hidden()
     expect(scope).to_be_hidden()
+    second.get_by_text("Capture details", exact=True).click()
+    expect(second.locator(".lf-vr-detail:has(.lf-vr-focus)")).to_have_count(1)
+    expect(second.locator(".lf-vr-detail:has(.lf-vr-focus)")).to_be_hidden()
+    second.get_by_text("Capture details", exact=True).click()
     expect(widget).to_have_attribute("data-inspection-scope", "full")
     expect(case_select).to_have_js_property("value", "run-detail")
     expect(case_select).not_to_be_focused()
@@ -1150,16 +1155,33 @@ def test_visual_review_guides_one_typed_still_run(browser, serve):
         "path": "/runs/middle",
     }
     changed = record | {
+        "base": {"revision": record["base"]["revision"]},
         "cases": [
             record["cases"][0],
             inserted_case,
             record["cases"][1]
-            | {"result": "The detail route remains stable after the rerun."},
-        ]
+            | {
+                "result": "The detail route remains stable after the rerun.",
+                "capture": capture | {"observedAt": "2026-10-08T10:00:00-07:00"},
+            },
+        ],
     }
     original = second.element_handle()
     data_model.cmd_data_set(serve.page_dir, "docs-run", changed)
     told(page)
+    expect(second.locator(".lf-vr-observed")).to_have_attribute(
+        "datetime", "2026-10-08T10:00:00-07:00"
+    )
+    expect(first.locator(".lf-vr-observed")).to_have_attribute(
+        "datetime", "2026-09-10T10:30:00-07:00"
+    )
+    expect(second.locator(".lf-vr-base-link")).to_be_hidden()
+    expect(second.locator(".lf-vr-base-link")).not_to_have_attribute("href")
+    expect(second.get_by_role("link", name="Open candidate")).to_have_attribute(
+        "href", "https://candidate.example/rev/runs/17"
+    )
+    expect(page.locator("#visual-pinned .lf-vr-base-link").first).to_be_visible()
+
     expect(second.locator(".lf-vr-result")).to_have_text(
         "The detail route remains stable after the rerun."
     )
@@ -1287,6 +1309,7 @@ def test_visual_review_controls_keep_keyboard_navigation_local(browser, serve):
           return nodes.every((node, index) => owner.querySelectorAll('*')[index] === node);
         }"""
     )
+    widget.get_by_text("Inspect comparison", exact=True).click()
     widget.get_by_role("radio", name="Compare").click()
     page.keyboard.press("ArrowDown")
     expect(widget).to_have_attribute("data-inspection-mode", "flip")
@@ -1326,7 +1349,7 @@ def test_visual_review_empty_navigation_is_unavailable(browser, serve):
     widget = page.locator("#visual-run")
     expect(widget.get_by_role("button", name="Previous")).to_be_disabled()
     expect(widget.get_by_role("combobox", name="Selected visual case")).to_be_disabled()
-    expect(widget.get_by_role("button", name="Next")).to_be_disabled()
+    expect(widget.get_by_role("button", name="Next", exact=True)).to_be_disabled()
     expect(widget.get_by_text("Waiting for visual-run data.")).to_be_visible()
 
 
@@ -1345,6 +1368,7 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
     }
     url = live_url(serve(authored, packages=("visual-review",), media=media))
     capture = {
+        "observedAt": "2026-09-10T10:30:00-07:00",
         "browser": "Chrome",
         "browserVersion": "140",
         "viewport": {"width": 900, "height": 373},
@@ -1357,7 +1381,6 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
     def run(before, after, *, viewport_width):
         return {
             "title": "Replacement run",
-            "observedAt": "2026-09-10T10:30:00-07:00",
             "base": {"revision": "base", "url": "https://base.example/"},
             "candidate": {
                 "revision": "candidate",
@@ -1461,7 +1484,7 @@ def test_visual_review_ignores_a_late_load_from_detached_evidence(browser, serve
 def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     """A focused review is a wide page, not prose followed by a narrow widget.
 
-    The case picker never taxes the evidence width, the disposition is available before
+    The case picker never taxes the evidence width, the disposition follows
     the pixels, and a tall mobile pair keeps its authored focus width side by side in an
     evidence stage as tall as the pair, which the page scrolls through. Capture facts
     follow the comparison rather than delaying it.
@@ -1469,6 +1492,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     resized(page, 1366, 768)
     widget = page.locator("#visual-review-run")
+    widget.get_by_text("Inspect comparison", exact=True).click()
     gallery_scope = widget.get_by_role("radiogroup", name="Scope")
     expect(gallery_scope).to_be_visible()
     expect(widget).to_have_attribute("data-inspection-scope", "focus")
@@ -1485,7 +1509,7 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
         }"""
     )
     assert geometry["widget"]["width"] > 1000
-    assert geometry["decision"]["bottom"] <= geometry["evidence"]["top"]
+    assert geometry["decision"]["top"] >= geometry["evidence"]["bottom"]
     assert geometry["capture"]["bottom"] <= geometry["evidence"]["bottom"] + 1, geometry
     # The capture opens at the stage's top edge, inside its border: the stage sets the
     # box of the lf-shot it holds over that widget's own block margin.
@@ -1524,27 +1548,20 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     )
     assert claim_geometry["actionTerm"]["bottom"] <= claim_geometry["action"]["top"]
     assert claim_geometry["resultTerm"]["bottom"] <= claim_geometry["result"]["top"]
-    links = case.locator(".lf-vr-links > a:visible")
-    link_tops = links.evaluate_all(
-        "nodes => nodes.map(node => node.getBoundingClientRect().top)"
-    )
-    assert max(link_tops) - min(link_tops) < 1
-    icon_geometry = links.first.evaluate(
-        """link => {
-          const mark = link.querySelector('.lf-external-mark').getBoundingClientRect();
-          const box = link.getBoundingClientRect();
-          return {width: mark.width, markMid: mark.top + mark.height / 2,
-                  linkMid: box.top + box.height / 2,
-                  text: parseFloat(getComputedStyle(link).fontSize)};
-        }"""
-    )
-    # Sized to the link's words at whatever density the page sets them.
-    assert icon_geometry["width"] >= 0.85 * icon_geometry["text"], icon_geometry
-    assert icon_geometry["markMid"] == pytest.approx(icon_geometry["linkMid"], abs=1)
+    # Archived captures keep pinned revisions without advertising invented destinations.
+    expect(case.locator(".lf-vr-links > a:visible")).to_have_count(0)
     expect(case.get_by_text("Capture details", exact=True)).to_be_visible()
     expect(case.locator(".lf-vr-provenance")).to_be_hidden()
-    case.get_by_text("Capture details", exact=True).click()
+    summary = case.get_by_text("Capture details", exact=True)
+    summary.scroll_into_view_if_needed()
+    scroll_settled(page)
+    summary_box = summary.bounding_box()
+    summary.click()
     expect(case.locator(".lf-vr-provenance")).to_be_visible()
+    assert summary.bounding_box() == summary_box, (
+        "opening capture facts moved their press"
+    )
+
     revision = case.locator(".lf-vr-candidate-revision")
     assert revision.evaluate("node => node.getClientRects().length") == 1
     details_box = case.locator(".lf-vr-details").bounding_box()

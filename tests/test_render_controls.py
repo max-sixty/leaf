@@ -2410,6 +2410,7 @@ CONTROL_ARCHETYPES = (
         # Compare, Overlay, and size neighbours stay under the user's pointer.
         "name": "visual-review-inspection",
         "source": VISUAL_REVIEW_GALLERY,
+        "open": ".lf-vr-inspection-summary",
         "target": '.lf-vr-mode-group > [data-mode="flip"]',
     },
     {
@@ -4508,6 +4509,8 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
         ),
     )
     page_at_rest(page)
+    if disclosure := archetype.get("open"):
+        page.locator(disclosure).click()
     page.evaluate(DEFINE_BOXES)
     control = page.locator(archetype["target"])
     expect(control).to_be_visible()

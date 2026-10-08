@@ -482,9 +482,14 @@ class State:
 
 
 STATES = (
-    State("contents-spine", "pr-walkthrough", at_rest),
-    State("contents-spine-keyboard", "pr-walkthrough", contents_by_keyboard),
-    State("contents-spine-dark", "pr-walkthrough", contents_by_keyboard, scheme="dark"),
+    State("contents-spine", "developer/feature-gallery", at_rest),
+    State("contents-spine-keyboard", "developer/feature-gallery", contents_by_keyboard),
+    State(
+        "contents-spine-dark",
+        "developer/feature-gallery",
+        contents_by_keyboard,
+        scheme="dark",
+    ),
     State("playground-controls", "notification-playground", playground_controls),
     State(
         "playground-controls-phone",

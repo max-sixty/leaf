@@ -7847,7 +7847,11 @@ RING_CASES = (
     # layer dresses in the chrome's chip face, and they are behind a press: the strip
     # shows a token nobody has pressed only while it is open, so a walk of the panel
     # that never opens one stands on the trigger and nothing under it.
-    ("a reaction palette", (), {"ship-review": ((".lf-react", "chip"),)}),
+    (
+        "a reaction palette",
+        (),
+        {"ship-review": ((".lf-react-palette:popover-open .lf-react", "chip"),)},
+    ),
     ("the Questions panel", (), {"ship-review": ((".lf-queue-row", "queue-row"),)}),
     ("the pages drawer", ("g", "Shift+l"), {"corpus": ((None, "others-row"),)}),
     ("page status", (), {"corpus": ((None, "status-detail"),)}),

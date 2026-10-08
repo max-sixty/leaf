@@ -1925,9 +1925,10 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
     switched the panel under it. Neither shows in the composer, which opens either way.
 
     So both halves are asserted together — the composer opens on the item that was
-    outlined, and the page is exactly as it was, in its markup and in where its focus
-    sits. The capture mechanism is layer-wide; these pages are retained for the distinct
-    downstream paths they put under it rather than for every repetition of those paths.
+    outlined, the press does not focus the control beneath it, and the page's markup
+    is as it was after the composer closes. The capture mechanism is layer-wide;
+    these pages stand for their distinct downstream paths rather than every repetition
+    of those paths.
     `required_paths` keeps that causal selection honest when an example changes.
     """
     url = serve(example)
@@ -2001,6 +2002,9 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
         )
         page.mouse.click(*point)
         page.keyboard.up("Alt")
+        assert not page.evaluate(FOCUS_IN_PAGE), (
+            f"⌥-clicking {label} in {case_name} focused the control under the aim"
+        )
         composer = page.locator(".lf-composer")
         bar = page.locator(".lf-fab-bar")
         if "suggestion control" in target_paths and promised:
@@ -2045,14 +2049,14 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
             # the outline, which is the one mark an aim is supposed to leave.
             page.keyboard.press("Escape")
             expect(composer).to_be_hidden()
+            # Closing the composer may hand focus back to its page subject. Release
+            # that focus before comparing markup, which can carry focus-only badges.
+            page.evaluate("() => document.activeElement.blur()")
+            rendered(page)
             aimed += 1
         assert page.evaluate(PAGE_MARKUP) == before, (
             f"⌥-clicking {label} in {case_name} changed the page, so a press the aim "
             "had taken reached a widget as well"
-        )
-        assert not page.evaluate(FOCUS_IN_PAGE), (
-            f"⌥-clicking {label} in {case_name} left the focus on the page, so the "
-            "press reached the control under it"
         )
         pressed += 1
     assert pressed, f"{case_name} pressed nothing, so it asserts nothing"

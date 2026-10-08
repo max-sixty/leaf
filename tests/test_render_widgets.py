@@ -18,6 +18,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.schema import ELEMENT_ID
 from leaf_dev.example_data import patch_manifest
+from leaf_dev.stills import targeting_menu
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ALL_ASKS_IN_ORDER,
@@ -93,6 +94,7 @@ from render_harness import (
     leaf_page,
     margins_laid_out,
     open_page,
+    opened_tab,
     pane_posture,
     panel_settled,
     plant_quiet_word,
@@ -2351,16 +2353,35 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
     expect(log).to_contain_text("14:24:49 observer  checkout remains healthy")
 
 
-def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser, serve):
+def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(
+    browser, serve, one_user
+):
     """The specialized report's signature path reaches reviewable source evidence."""
     example = Path(__file__).parent.parent / "examples" / "pr-walkthrough.html"
-    page = open_page(browser, live_url(serve(example)))
+    page = open_page(browser, live_url(serve(example)), context=one_user)
 
     page.get_by_role("tab", name="CallDiff").click()
     call_diff = page.locator("#pr-call-diagram")
     expect(call_diff.locator(".lf-call-line")).to_have_count(30)
     location = call_diff.get_by_role("link", name="src/summary.rs:259").first
     expect(location).to_be_visible()
+    # Source links keep the platform's separate-tab route for root and child calls.
+    # The original tab must keep its semantic view until an ordinary activation.
+    before = page.url
+    destination = before.split("#")[0] + "#pr-exact-patch"
+    for link in [call_diff.locator(".lf-call-root-location a").first, location]:
+        tab = opened_tab(
+            page, destination, lambda link=link: link.click(modifiers=["ControlOrMeta"])
+        )
+        expect(tab.locator("#pr-exact-patch")).to_be_visible()
+        tab.close()
+        expect(page).to_have_url(before)
+        expect(page.get_by_role("tab", name="CallDiff")).to_have_attribute(
+            "aria-selected", "true"
+        )
+    tab = opened_tab(page, destination, lambda: location.click(button="middle"))
+    expect(tab.locator("#pr-exact-patch")).to_be_visible()
+    tab.close()
     location.click()
 
     line = page.locator(
@@ -2388,6 +2409,61 @@ def test_pr_walkthrough_moves_from_semantic_call_to_exact_patch_comment(browser,
         if event["kind"] == "comment" and event.get("text")
     ]
     assert comments[-1]["anchor"]["datum"] == '["src/summary.rs","new",259]'
+
+
+def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
+    """Readable part details survive a tap, including a move across commit branches."""
+    example = Path(__file__).parent.parent / "examples" / "wt-merge.html"
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True
+    )
+    page = open_page(browser, serve(example), context=context)
+    film = page.locator("lf-merge-film")
+    inspector = film.locator(".film-inspect")
+    commits = film.locator('g[data-label^="commit "]')
+    first, last = commits.first, commits.last
+    labels = [first.get_attribute("data-label"), last.get_attribute("data-label")]
+    assert labels[0] != labels[1]
+    for part, label in zip([first, last], labels, strict=True):
+        part.locator("circle").tap()
+        expect(inspector).to_be_visible()
+        expect(inspector.locator("strong")).to_have_text(label)
+        expect(inspector.locator("span")).to_have_text(part.get_attribute("data-info"))
+        expect(film.locator(".film-play")).to_have_text("Play")
+    film.locator("svg").tap(position={"x": 3, "y": 3})
+    expect(inspector).to_be_hidden()
+    inspect_next = film.get_by_role("button", name="Inspect next element")
+    inspect_next.tap()
+    expect(inspector).to_be_visible()
+    expect(inspector.locator("strong")).to_have_text(labels[0])
+    assert inspect_next.bounding_box()["height"] >= 44
+    play = film.locator(".film-play")
+    play.focus()
+    play.press("i")
+    expect(inspector).to_be_visible()
+    play.press("Escape")
+    expect(inspector).to_be_hidden()
+    play.press("i")
+    expect(inspector).to_be_visible()
+    scrub = film.get_by_role("slider", name="Film position")
+    scrub.focus()
+    scrub.press("End")
+    expect(inspector).to_be_hidden()
+    assert float(scrub.input_value()) == pytest.approx(
+        float(scrub.get_attribute("max"))
+    )
+    scrub.press("Home")
+    expect(scrub).to_have_value("0")
+    play.focus()
+    play.press("ArrowRight")
+    play.press("i")
+    expect(inspector).to_be_visible()
+    play.press("ArrowRight")
+    expect(inspector).to_be_hidden()
+    play.press("i")
+    expect(inspector).to_be_visible()
+    film.get_by_label("--no-squash", exact=True).check()
+    expect(inspector).to_be_hidden()
 
 
 @pytest.mark.parametrize("destination", ["call", "patch"])
@@ -11912,6 +11988,62 @@ def test_a_body_the_module_cannot_draw_says_why_over_its_source(browser, serve):
         assert said[chart_id] in reported[0], reported
 
 
+def test_a_tree_draws_its_wrapped_hierarchy_before_runtime_upgrade(browser, serve):
+    """First paint uses the real nested rows, so long paths and badges cannot move
+    the paragraph the reader has already reached when the runtime starts."""
+    source = leaf_page(
+        "File tree",
+        '<h1>File changes</h1><lf-tree id="paths"><pre>root/\n'
+        "  very_long_file_name_with_many_identifiers_and_no_break_opportunities_in_a_long_path.py +245 -93\n"
+        "  nested/\n    deeper/\n"
+        "      one_more_long_descriptive_file_name_with_no_whitespace_breaks.toml +3\n"
+        '</pre></lf-tree><p id="after-tree">Review the file changes.</p>',
+    )
+    measure = """() => Object.fromEntries(['paths', 'after-tree'].map(id => {
+      const r = document.getElementById(id).getBoundingClientRect();
+      return [id, {x:r.x, y:r.y, width:r.width, height:r.height}];
+    }))"""
+    for width in (320, 420, 1200):
+        context = browser.new_context(viewport={"width": width, "height": 900})
+        page = context.new_page()
+        boot = []
+        page.route("**/leaf.js", lambda route, _request, boot=boot: boot.append(route))
+        try:
+            with page.expect_request("**/leaf.js"):
+                page.goto(serve(source), wait_until="commit")
+            displayed(page)
+            first = page.evaluate(measure)
+            expect(page.locator("#paths li")).to_have_count(5)
+            page.evaluate(
+                "window.__firstTreeName = document.querySelector('#paths li > span')"
+            )
+            assert boot, "the runtime was not held"
+            boot.pop().continue_()
+            wait_until_ready(page)
+            assert page.evaluate(measure) == first, (width, first)
+            assert page.evaluate(
+                "window.__firstTreeName === document.querySelector('#paths li > span')"
+            ), "upgrade must retain the selectable drawing"
+            assert (
+                page.evaluate("""() => document.documentElement.lfInitial
+              .reading(document.getElementById('paths')).querySelector('pre').textContent""")
+                == (
+                    "root/\n"
+                    "  very_long_file_name_with_many_identifiers_and_no_break_opportunities_in_a_long_path.py +245 -93\n"
+                    "  nested/\n    deeper/\n"
+                    "      one_more_long_descriptive_file_name_with_no_whitespace_breaks.toml +3\n"
+                )
+            )
+            expect(page.locator("#paths .lf-tree-badge")).to_have_text(
+                ["+245", "-93", "+3"]
+            )
+            assert root_overflow(page) == 0
+        finally:
+            for route in boot:
+                route.continue_()
+            page.unroute_all(behavior="wait")
+
+
 def test_a_chart_body_is_plot_code_that_reads_the_width_it_is_drawn_at(browser, serve):
     """The body is JavaScript, so what Plot takes as a function reaches it as one — here
     a tick format — and the body reads the width the host draws at, which is how it fits
@@ -12994,6 +13126,76 @@ def test_webawesome_chrome_loads_without_optional_controls(browser, serve):
     ), "the package theme must outrank the lazy vendor defaults"
 
 
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_webawesome_menu_text_stays_readable_as_the_current_option_moves(
+    browser, serve, color_scheme
+):
+    """Component-owned menu states remain readable through the shared theme.
+
+    The targeting picker is a second consumer of the same theme as the trace
+    prototype that exposed dark text on a solid blue active row.
+    """
+    source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    page = open_page(browser, serve(source), color_scheme=color_scheme)
+    targeting_menu(page)
+    control = page.locator("#code-comparison-targeting wa-select").first
+    options = control.locator("wa-option")
+
+    def contrast(option):
+        colors = option.evaluate("""async node => {
+          await Promise.all(node.getAnimations().map(animation => animation.finished));
+          const canvas = document.createElement('canvas');
+          canvas.width = canvas.height = 1;
+          const ctx = canvas.getContext('2d', {willReadFrequently: true});
+          const rgb = color => {
+            ctx.clearRect(0, 0, 1, 1);
+            ctx.fillStyle = color;
+            ctx.fillRect(0, 0, 1, 1);
+            return [...ctx.getImageData(0, 0, 1, 1).data];
+          };
+          const style = getComputedStyle(node);
+          return [rgb(style.color), rgb(style.backgroundColor)];
+        }""")
+        assert all(color[3] == 255 for color in colors), colors
+        luminances = [
+            sum(
+                (v / 12.92 if v <= 0.04045 else ((v + 0.055) / 1.055) ** 2.4) * weight
+                for v, weight in zip(
+                    (channel / 255 for channel in color[:3]),
+                    (0.2126, 0.7152, 0.0722),
+                    strict=True,
+                )
+            )
+            for color in colors
+        ]
+        assert (max(luminances) + 0.05) / (min(luminances) + 0.05) >= 4.5, colors
+
+    current = control.locator("wa-option:state(current)")
+    expect(current).to_be_visible()
+    contrast(current)
+    initial = current.get_attribute("value")
+    page.keyboard.press("ArrowDown")
+    expect(current).not_to_have_attribute("value", initial)
+    contrast(current)
+    options.first.hover()
+    contrast(options.first)
+    # Generated apparatus identity must not replace a component's state ink. This
+    # catches both a generic host face and upstream root color promoted to the host;
+    # merely choosing a pale menu background would let either defect survive.
+    for generated in (False, True):
+        current.evaluate(
+            """(node, generated) => {
+          node.classList.toggle('lf-ui', generated);
+          node.style.setProperty('--wa-color-brand-on-loud', 'rgb(11, 22, 33)');
+        }""",
+            generated,
+        )
+        assert (
+            current.evaluate("node => getComputedStyle(node).color")
+            == "rgb(11, 22, 33)"
+        )
+
+
 def test_webawesome_theme_reaches_a_declared_shadow_stage(browser, serve):
     page = _bound_diff(browser, serve)
     diff = page.locator("lf-diff")
@@ -13001,6 +13203,142 @@ def test_webawesome_theme_reaches_a_declared_shadow_stage(browser, serve):
     assert (
         diff.evaluate(f"el => ({WEB_AWESOME_SHEET})(el.shadowRoot.adoptedStyleSheets)")
         is True
+    )
+
+
+@pytest.mark.parametrize("motion", ["no-preference", "reduce"])
+def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, motion):
+    """A superseded close cannot hide a reopened popover or strand its API promise.
+
+    Select, color picker and tooltip share the library's animation continuation.
+    The real Enter/Space route exposed it; direct public requests exercise the
+    same owner in the other consumers and both interruption directions.
+    """
+    source = Path(__file__).parents[1] / "examples" / "code-comparison.html"
+    page = open_page(browser, serve(source))
+    page.emulate_media(reduced_motion=motion)
+    targeting_menu(page)
+    select = page.locator("#code-comparison-targeting wa-select").first
+    select.evaluate(
+        "n => { n.reopened = new Promise(r => n.addEventListener('wa-after-show', r, {once:true})); }"
+    )
+    page.keyboard.press("Enter")
+    page.keyboard.press("Space")
+    select.evaluate("n => n.reopened.then(() => true)")
+    expect(select.locator("wa-option:state(current)")).to_be_visible()
+    assert select.evaluate("n => n.open && n.popup.active && !n.listbox.hidden")
+    page.keyboard.press("Escape")
+
+    for tag in ("wa-select", "wa-color-picker", "wa-tooltip"):
+        page.evaluate(
+            """async tag => {
+          const {offer} = await import('/runtime/widget-api.js');
+          const holder = offer('div', 'transition-test');
+          const control = offer(tag, 'transition-control');
+          control.id = 'transition-control';
+          if (tag === 'wa-select') {
+            const option = offer('wa-option', '', 'First');
+            option.value = 'first'; control.append(option);
+          } else if (tag === 'wa-tooltip') {
+            control.trigger = 'manual'; control.content = 'Help';
+            control.append(offer('button', '', 'Help'));
+          }
+          holder.append(control); document.body.append(holder);
+          await control.updateComplete;
+          await control.show();
+        }""",
+            tag,
+        )
+        control = page.locator("#transition-control")
+        for final_open in (True, False):
+            control.evaluate(
+                """async (n, finalOpen) => {
+              if (n.open !== finalOpen) await (finalOpen ? n.show() : n.hide());
+              const interrupted = finalOpen ? n.hide() : n.show();
+              await n.updateComplete;
+              const latest = finalOpen ? n.show() : n.hide();
+              n.results = null;
+              Promise.all([interrupted, latest]).then(results => n.results = results);
+            }""",
+                final_open,
+            )
+            page.wait_for_function(
+                "document.querySelector('#transition-control').results !== null"
+            )
+            assert control.evaluate("n => n.results") == [False, True]
+            assert control.evaluate("n => n.open === n.popup.active")
+            assert control.evaluate("n => n.open") is final_open
+        for requests in ((True, False), (True, False, True)):
+            control.evaluate("n => n.hide()")
+            results = control.evaluate(
+                """async (n, requests) => {
+              return Promise.all(requests.map(open => open ? n.show() : n.hide()));
+            }""",
+                requests,
+            )
+            assert results == [False] * (len(requests) - 1) + [True]
+            assert control.evaluate("n => n.open === n.popup.active")
+            assert control.evaluate("n => n.open") is requests[-1]
+        control.evaluate("n => n.hide()")
+        assert (
+            control.evaluate("""async n => {
+          const pending = n.show(); n.open = false;
+          return pending;
+        }""")
+            is False
+        )
+        assert control.evaluate("n => !n.open && !n.popup.active")
+        if tag == "wa-color-picker":
+            control.evaluate("""n => {
+              const held = new Promise(resolve => n.releaseUpdate = resolve);
+              n.addEventListener('wa-show', () => {
+                Object.defineProperty(n, 'updateComplete', {configurable:true, get:()=>held});
+              }, {once:true});
+              n.interrupted = null;
+              n.show().then(result => n.interrupted = result);
+            }""")
+            page.wait_for_function(
+                "document.querySelector('#transition-control').releaseUpdate && Object.hasOwn(document.querySelector('#transition-control'), 'updateComplete')"
+            )
+            control.evaluate("n => { n.latest = n.hide(); }")
+            page.wait_for_function(
+                "document.querySelector('#transition-control').interrupted === false"
+            )
+            assert (
+                control.evaluate("""async n => {
+              delete n.updateComplete; n.releaseUpdate();
+              return n.latest;
+            }""")
+                is True
+            )
+            assert control.evaluate("n => !n.open && !n.popup.active && n.base.hidden")
+        control.evaluate("n => n.parentElement.remove()")
+
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    # Copy feedback consumes tooltip completion. Reopening its timed hide must
+    # release the copy lock even though the obsolete after-hide never fires.
+    page.evaluate("""async () => {
+      const {offer} = await import('/runtime/widget-api.js');
+      const copy = offer('wa-copy-button', 'copy-feedback');
+      copy.id = 'copy-feedback'; copy.value = 'copied value';
+      copy.tooltip = 'copy'; copy.feedbackDuration = 80;
+      document.body.append(copy); await copy.updateComplete;
+      copy.activeTooltip.addEventListener('wa-hide', () => copy.activeTooltip.show(), {once:true});
+      copy.copied = 0;
+      copy.addEventListener('wa-copy', () => copy.copied++);
+    }""")
+    copy = page.locator("#copy-feedback")
+    copy.get_by_role("button").click()
+    page.wait_for_function("document.querySelector('#copy-feedback').copied === 1")
+    page.wait_for_function("!document.querySelector('#copy-feedback').isCopying")
+    assert copy.evaluate(
+        "n => n.status === 'rest' && n.activeTooltip.open && !n.copyIcon.hidden"
+    )
+    copy.get_by_role("button").click()
+    page.wait_for_function("document.querySelector('#copy-feedback').copied === 2")
+    page.wait_for_function("!document.querySelector('#copy-feedback').isCopying")
+    assert copy.evaluate(
+        "n => n.status === 'rest' && !n.activeTooltip.open && !n.copyIcon.hidden"
     )
 
 

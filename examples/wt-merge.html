@@ -71,6 +71,10 @@
         grid-row: 2;
         min-height: 32px;
       }
+      lf-merge-film[data-phone] .film-inspect-next {
+        grid-column: 1 / -1;
+        grid-row: 3;
+      }
       lf-merge-film[data-phone] .film-bar button {
         min-height: 44px;
         min-width: 0;
@@ -198,6 +202,9 @@
         box-shadow: 0 8px 24px var(--shade);
         pointer-events: none;
       }
+      lf-merge-film[data-phone] .film-inspect {
+        max-width: calc(100% - 20px);
+      }
       lf-merge-film .film-inspect strong {
         font-family: var(--mono);
       }
@@ -206,7 +213,7 @@
       }
       lf-merge-film .film-bar {
         display: grid;
-        grid-template-columns: auto 1fr auto;
+        grid-template-columns: auto minmax(0, 1fr) auto auto;
         gap: 12px;
         align-items: center;
       }
@@ -215,7 +222,8 @@
         accent-color: var(--accent);
       }
       lf-merge-film .film-play,
-      lf-merge-film .film-speed {
+      lf-merge-film .film-speed,
+      lf-merge-film .film-inspect-next {
         min-width: 5.5em;
         padding: 4px 10px;
         font: inherit;
@@ -225,6 +233,21 @@
         background: var(--card);
         color: var(--ink);
         cursor: pointer;
+      }
+      @media (pointer: coarse) {
+        lf-merge-film .film-bar {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        lf-merge-film .film-scrub {
+          grid-column: 1 / -1;
+          grid-row: 2;
+          min-height: 44px;
+        }
+        lf-merge-film .film-play,
+        lf-merge-film .film-speed,
+        lf-merge-film .film-inspect-next {
+          min-height: 44px;
+        }
       }
       lf-merge-film .film-flags {
         display: flex;
@@ -363,9 +386,9 @@
             <p id="lede">
               Worktrunk's <code>wt merge</code> takes a finished branch to main in one
               command. The film draws each step from the flags below it, so ticking
-              <code>--no-ff</code> or a failing test re-plots the run. Hover a commit,
-              branch, worktree or hook to see what it is; Alt-click one to comment on
-              it.
+              <code>--no-ff</code> or a failing test re-plots the run. Tap or hover a
+              commit, branch, worktree or hook to read its details; Inspect cycles
+              through them. Alt-click a part to comment on it.
             </p>
             <lf-merge-steps id="merge-steps" for="merge-film">
               <ol>

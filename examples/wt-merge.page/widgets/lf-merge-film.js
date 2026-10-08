@@ -2,11 +2,12 @@
 //
 // The stage is a Leaf visual with parts, not a control, so it is neither an offer nor a
 // tab stop. Hovering a commit, ref, worktree or hook shows what it is and lights a
-// commit's ancestry. A click on a part pauses the film so it holds still; Leaf's own
-// target gestures (Alt-click, or `s` after pointing) comment on it. Terminal lines are
-// SVG links (native buttons in the narrow composition), so a click on one seeks to
-// the moment it printed. A narrow stage reads the same frame as vertical history,
-// worktree rows and a terminal disclosure, with step buttons holding each outcome.
+// commit's ancestry. A click or tap on a part pauses the film and reads its details;
+// Inspect and `i` cycle through parts when the drawing is too small to aim at. A tap
+// on empty stage or Escape closes inspection. Leaf's own target gestures (Alt-click,
+// or `s` after pointing) comment on a part. Terminal lines seek to their printed moment.
+// A narrow stage reads the same frame as vertical history, worktree rows and a
+// terminal disclosure, with step buttons holding each outcome.
 //
 // The film opens paused on its poster, the fully drawn branch just before `wt merge`
 // runs, so a first look (or a capture) reads the setup at once; Play runs it from the
@@ -92,9 +93,8 @@ customElements.define(
       stage.append(this.inspector);
       stage.addEventListener("click", (e) => this.#click(e));
       stage.addEventListener("pointermove", (e) => this.#hover(e));
-      stage.addEventListener("pointerleave", () => {
-        this.#inspect(null);
-        this.#setFocus(null);
+      stage.addEventListener("pointerleave", (e) => {
+        if (e.pointerType !== "touch") this.#inspect(null);
       });
       this.addEventListener("keydown", (e) => this.#key(e));
 
@@ -119,6 +119,7 @@ customElements.define(
       this.scrub.addEventListener("input", () => {
         this.#pause();
         this.#t = Number(this.scrub.value);
+        this.#inspect(null);
         this.#paint();
       });
       this.speedBtn = offer("button", "film-speed", "1×");
@@ -140,7 +141,18 @@ customElements.define(
           this.#holdChapter(direction);
           this.#paint();
         });
-      bar.append(this.playBtn, this.previous, this.scrub, this.next, this.speedBtn);
+      const inspectBtn = offer("button", "film-inspect-next", "Inspect");
+      inspectBtn.setAttribute("aria-label", "Inspect next element");
+      inspectBtn.setAttribute("aria-keyshortcuts", "i");
+      inspectBtn.addEventListener("click", () => this.#cycle());
+      bar.append(
+        this.playBtn,
+        this.previous,
+        this.scrub,
+        this.next,
+        this.speedBtn,
+        inspectBtn,
+      );
       this.caption = document.createElement("p");
       this.caption.className = "film-caption";
 
@@ -180,6 +192,7 @@ customElements.define(
 
     seek(t) {
       this.#pause();
+      this.#inspect(null);
       this.#t = Math.max(0, Math.min(this.#film.total, t));
       this.#paint();
       this.#reveal();
@@ -234,27 +247,31 @@ customElements.define(
       const line = e.target.closest?.("[data-at]");
       if (line) {
         this.#pause();
+        this.#inspect(null);
         this.#t = Number(line.dataset.at);
         this.#paint();
-      } else if (this.#partAt(e.target)) this.#pause();
+      } else {
+        const part = this.#partAt(e.target);
+        if (part) this.#pause();
+        // Alt-click belongs to Leaf's visual comment route.
+        if (!e.altKey) this.#inspect(part?.id ?? null);
+      }
     }
 
     #hover(e) {
+      if (e.pointerType === "touch") return;
       const part = this.#partAt(e.target);
       this.stage.classList.toggle("film-seekable", !!e.target.closest?.("[data-at]"));
       this.#inspect(part?.id ?? null);
-      this.#setFocus(part?.id.startsWith("commit:") ? part.id.slice(7) : null);
-    }
-
-    #setFocus(id) {
-      if (id === this.#focus) return;
-      this.#focus = id;
-      if (!this.#playing) this.#paint();
     }
 
     #inspect(id) {
       this.#inspected = id;
-      this.#placeInspector();
+      const focus = id?.startsWith("commit:") ? id.slice(7) : null;
+      if (focus !== this.#focus) {
+        this.#focus = focus;
+        this.#paint();
+      } else this.#placeInspector();
     }
 
     // The inspector sits beside its part, in stage pixels, and follows it while the
@@ -266,6 +283,7 @@ customElements.define(
         p.element.classList.toggle("film-picked", p === part);
       if (!part) {
         keepsHidden(this.inspector, true);
+        if (this.#inspected) this.#inspect(null);
         return;
       }
       const box = part.element.getBoundingClientRect();
@@ -277,12 +295,18 @@ customElements.define(
         box.right - stage.left + 10,
         stage.width - this.inspector.offsetWidth - 10,
       );
+      const bottom = this.hasAttribute("data-phone")
+        ? Math.min(stage.bottom, window.innerHeight)
+        : stage.bottom;
       const top = Math.min(
         box.top - stage.top,
-        stage.height - this.inspector.offsetHeight - 10,
+        bottom - stage.top - this.inspector.offsetHeight - 10,
       );
       this.inspector.style.left = `${Math.max(10, left)}px`;
-      this.inspector.style.top = `${Math.max(10, top)}px`;
+      const visibleTop = this.hasAttribute("data-phone")
+        ? Math.max(10, 10 - stage.top)
+        : 10;
+      this.inspector.style.top = `${Math.max(visibleTop, top)}px`;
     }
 
     // Film keys work from any of the film's controls. Keys a focused control already
@@ -306,18 +330,22 @@ customElements.define(
       e.preventDefault();
       e.stopPropagation();
       if (e.key !== "k") this.#fresh = false;
+      if (["Home", "j", "l"].includes(e.key)) this.#inspect(null);
       handled();
       this.#paint();
     }
 
     #cycle() {
       this.#pause();
+      if (this.hasAttribute("data-phone")) {
+        this.settings.open = false;
+        scrollIntoReadingBand(this.playBtn.parentElement, this, "start", "instant");
+      }
       const parts = this.painter.parts();
       if (!parts.length) return;
       const at = parts.findIndex((p) => p.id === this.#inspected);
       const next = parts[(at + 1) % parts.length];
       this.#inspect(next.id);
-      this.#setFocus(next.id.startsWith("commit:") ? next.id.slice(7) : null);
     }
 
     #stepChapter(dir) {
@@ -390,7 +418,7 @@ customElements.define(
       if (this.previous.disabled !== first) this.previous.disabled = first;
       if (this.next.disabled !== last) this.next.disabled = last;
       this.scrub.value = this.#t;
-      if (this.#inspected) this.#placeInspector();
+      this.#placeInspector();
       // Every paint can move a part, so Leaf re-reads the inventory and its geometry.
       this.parts.update();
       this.dispatchEvent(

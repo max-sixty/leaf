@@ -183,15 +183,16 @@
    widget wears. The chrome holds itself out instead, from inside its own scope. */
 body:is(.lf-aiming, [data-lf-design-mode]) { cursor: default; }
 body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item { cursor: pointer; }
-/* Every non-chrome point on the page accepts a drawing press. The crosshair therefore
-   belongs to the whole document plane; an aim box adds semantic context where one is
-   available but no longer decides whether the drag can begin. */
+/* Page words accept drawing presses; runtime surfaces and widget offers keep their
+   controls usable. An aim box adds semantic context where one is available. */
 html[data-lf-draw-mode],
 html[data-lf-draw-mode] body { cursor: crosshair; touch-action: none; }
 html[data-lf-draw-mode] main,
 html[data-lf-draw-mode] main * { cursor: crosshair !important; }
 html[data-lf-draw-mode] main [data-lf-runtime],
-html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
+html[data-lf-draw-mode] main [data-lf-runtime] *,
+html[data-lf-draw-mode] main [data-lf-offer],
+html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
 /* The glyphs of the reactions standing on a target — a margin entry per reaction,
    revealing a separately named removal action. */
 .lf-react-mark { text-align: center; }

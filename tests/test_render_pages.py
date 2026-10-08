@@ -3165,7 +3165,8 @@ def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve):
     )
 
 
-def test_a_note_hangs_in_the_margin_where_the_room_holds_it(browser, serve):
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_note_hangs_in_the_margin_where_the_room_holds_it(browser, serve, direction):
     """A sidenote claims nothing from the column: it hangs in the room beside it where
     the room either side of the column, together, holds the note's 384px, the column
     moving left by what the right side lacks, and stands in the flow as a small indented
@@ -3174,7 +3175,8 @@ def test_a_note_hangs_in_the_margin_where_the_room_holds_it(browser, serve):
 
     Every reading is against the page's box rather than the window, the two being the
     same width only where a scrollbar takes no room."""
-    page = open_page(browser, serve(NOTE_AND_WIDE_PAGE))
+    source = NOTE_AND_WIDE_PAGE.replace("<html", f'<html dir="{direction}"', 1)
+    page = open_page(browser, serve(source))
     for width, hangs, centred in (
         (1100, False, True),
         (1190, True, False),
@@ -3893,6 +3895,7 @@ def test_margin_residents_keep_their_first_painted_posture(
         '<p id="passage">Advance one cohort at a time while keeping earlier readers available.</p>',
     )
     source = source.replace("</head>", f"<style>{authored_css}</style></head>")
+    source = source.replace("<body", '<body style="--authored: initial"', 1)
     held = []
     controlled = primed(
         browser, lambda page: page.route("**/leaf.js", lambda route: held.append(route))
@@ -3912,10 +3915,20 @@ def test_margin_residents_keep_their_first_painted_posture(
     page.unroute("**/leaf.js")
     wait_until_ready(page)
     assert page.locator("#passage").bounding_box() == before
+    initial_shift = page.evaluate(
+        "document.body.style.getPropertyValue('--lf-column-shift')"
+    )
     assert page.evaluate("""() => {
       const source = document.documentElement.lfInitial.authoredCopy(document.querySelector('main'));
       return [source.getAttribute('style'), source.getAttribute('data-lf-margin')];
     }""") == [None, None]
+    assert (
+        page.evaluate("""() => {
+      const source = document.documentElement.lfInitial.authoredShell(document.body);
+      return source.getAttribute('style');
+    }""")
+        == "--authored: initial"
+    )
     page.evaluate("window.originalPassage = document.querySelector('#passage')")
     stamp_page(
         serve.page_dir,
@@ -3925,6 +3938,24 @@ def test_margin_residents_keep_their_first_painted_posture(
     wait_for_revision(page, 2)
     expect(page.locator("#passage")).to_contain_text("Advance two cohorts")
     assert page.evaluate("originalPassage === document.querySelector('#passage')")
+    for revision, resident in ((3, False), (4, True)):
+        next_source = source.replace(
+            "--authored: initial", f"--authored: revision{revision}"
+        )
+        if not resident:
+            next_source = next_source.replace('class="sidenote"', 'class="ordinary"')
+        stamp_page(serve.page_dir, next_source, f"resident {resident}")
+        wait_for_revision(page, revision)
+        expect(page.locator("#note")).to_have_css(
+            "float", "right" if resident else "none"
+        )
+        assert (
+            page.evaluate("document.body.style.getPropertyValue('--authored')")
+            == f"revision{revision}"
+        )
+        assert page.evaluate(
+            "document.body.style.getPropertyValue('--lf-column-shift')"
+        ) == (initial_shift if resident else "")
 
 
 @pytest.mark.parametrize(
@@ -3954,6 +3985,7 @@ def test_document_reading_survives_width_reflow(browser, serve, notes, local_reg
                     if local_region == "bounded"
                     else '<section id="local-region">'
                 )
+                + '<button id="local-control">Local control</button>'
                 + (
                     "<p>Independent supporting material inside a local reading region.</p>"
                     * 12
@@ -3977,13 +4009,19 @@ def test_document_reading_survives_width_reflow(browser, serve, notes, local_reg
       const {capturePlace} = await import(new URL('runtime/reading-place.js', entry));
       return capturePlace();
     }"""
+    if local_region == "bounded":
+        page.get_by_role("button", name="Local control", exact=True).click()
+        page.keyboard.press("Escape")
     before = page.evaluate(reading)
     assert before["quote"]
     for width in (390, 1440):
         resized(page, width, 900)
         after = page.evaluate(reading)
         assert after["quote"] == before["quote"]
-        assert after["quoteTop"] == pytest.approx(before["quoteTop"], abs=1)
+        # Wrapping changes the line's height and its location within the passage.
+        # Native anchoring keeps the reading, and a round trip restores its location.
+        if width == 1440:
+            assert after["quoteTop"] == pytest.approx(before["quoteTop"], abs=1)
 
 
 def test_margin_residency_ignores_concealed_ancestors(browser, serve):

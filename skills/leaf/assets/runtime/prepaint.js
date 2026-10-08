@@ -122,6 +122,23 @@
   const sources = new WeakMap();
   const sourceScopes = new WeakSet();
   const sourceShells = new WeakMap();
+  // Initial geometry writes a root style before modules exist. Later root writers
+  // adopt this same registry, so a revision replaces only the authored share.
+  const runtimeStyles = new WeakMap();
+  const setRuntimeRootStyle = (node, property, value, priority = "") => {
+    let properties = runtimeStyles.get(node);
+    if (!properties) runtimeStyles.set(node, (properties = new Set()));
+    properties.add(property);
+    if (
+      node.style.getPropertyValue(property) !== value ||
+      node.style.getPropertyPriority(property) !== priority
+    )
+      node.style.setProperty(property, value, priority);
+  };
+  const removeRuntimeRootStyle = (node, property) => {
+    runtimeStyles.get(node)?.delete(property);
+    if (node.style.getPropertyValue(property)) node.style.removeProperty(property);
+  };
   const origins = new WeakMap();
   const parents = new WeakMap();
   const keepsAttribute = (node, name, value) => {
@@ -214,13 +231,23 @@
     if (!main) return false;
     const style = getComputedStyle(main);
     const need = (token) => parseFloat(style.getPropertyValue(token)) || 0;
-    // The offset the column stands at, which is the written shift only where the Layout
-    // applies it: page CSS may override the offset, and under `dir="rtl"` it is `right`.
-    const shifted =
-      style.position === "relative"
-        ? parseFloat(style.left) || -parseFloat(style.right) || 0
+    // Remove the physical offset the shell's grid tracks actually apply, plus an
+    // author's relative offset. Read the rendered tracks rather than the last written
+    // shift: page CSS can override either placement, including under RTL.
+    const shellStyle = getComputedStyle(document.body);
+    const tracks = shellStyle.gridTemplateColumns.split(" ").map(parseFloat);
+    const gridShift =
+      shellStyle.display === "grid" && style.gridColumnStart === "2"
+        ? ((tracks[0] - tracks.at(-1)) / 2) * (shellStyle.direction === "rtl" ? -1 : 1)
         : 0;
+    const shifted =
+      gridShift +
+      (style.position === "relative"
+        ? parseFloat(style.left) || -parseFloat(style.right) || 0
+        : 0);
     const written = parseFloat(main.style.getPropertyValue("--lf-shift")) || 0;
+    const shellWritten =
+      parseFloat(document.body.style.getPropertyValue("--lf-column-shift")) || 0;
     const column = main.getBoundingClientRect();
     const shell = document.body.getBoundingClientRect();
     const room = {
@@ -274,10 +301,12 @@
     );
     const tokens = standing.join(" ");
     const seated = (main.getAttribute("data-lf-margin") ?? "") !== tokens;
-    if (!seated && shift === written) return false;
+    if (!seated && shift === written && shift === shellWritten) return false;
     // Source copies keep the authored shell before initial geometry writes to it;
     // children still follow their original routes as the parser continues.
     if (!sourceShells.has(main)) sourceShells.set(main, main.cloneNode(false));
+    if (!sourceShells.has(document.body))
+      sourceShells.set(document.body, document.body.cloneNode(false));
     if (seated) {
       if (tokens) main.setAttribute("data-lf-margin", tokens);
       else main.removeAttribute("data-lf-margin");
@@ -288,10 +317,16 @@
       if (shift) main.style.setProperty("--lf-shift", `${shift}px`);
       else main.style.removeProperty("--lf-shift");
     }
+    if (shift) setRuntimeRootStyle(document.body, "--lf-column-shift", `${shift}px`);
+    else removeRuntimeRootStyle(document.body, "--lf-column-shift");
     return true;
   };
 
   root.lfInitial = {
+    setRuntimeRootStyle,
+    removeRuntimeRootStyle,
+    runtimeRootStyles: (node) => new Set(runtimeStyles.get(node) ?? []),
+    authoredShell: (node) => sourceShells.get(node) ?? sources.get(node) ?? node,
     residency,
     skipped,
     register(tag, render) {

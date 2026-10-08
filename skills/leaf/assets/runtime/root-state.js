@@ -9,7 +9,6 @@
 import { keeps } from "./keeps.js";
 
 const runtimeAttributes = new WeakMap();
-const runtimeStyles = new WeakMap();
 
 function register(owners, root, name) {
   let names = owners.get(root);
@@ -25,21 +24,14 @@ export function setRuntimeRootAttribute(root, name, value) {
   keeps(root, name, value);
 }
 
-export function setRuntimeRootStyle(root, property, value, priority = "") {
-  register(runtimeStyles, root, property);
-  if (
-    root.style.getPropertyValue(property) !== value ||
-    root.style.getPropertyPriority(property) !== priority
-  )
-    root.style.setProperty(property, value, priority);
-}
-
-export function removeRuntimeRootStyle(root, property) {
-  runtimeStyles.get(root)?.delete(property);
-  if (root.style.getPropertyValue(property)) root.style.removeProperty(property);
-}
+// Root styles also exist before the module graph (initial margin placement).
+// Adopt that writer and ownership registry rather than starting a later one.
+export const setRuntimeRootStyle = (...args) =>
+  document.documentElement.lfInitial.setRuntimeRootStyle(...args);
+export const removeRuntimeRootStyle = (...args) =>
+  document.documentElement.lfInitial.removeRuntimeRootStyle(...args);
 
 export const runtimeRootState = (root) => ({
   attributes: new Set(runtimeAttributes.get(root) ?? []),
-  styles: new Set(runtimeStyles.get(root) ?? []),
+  styles: document.documentElement.lfInitial.runtimeRootStyles(root),
 });

@@ -27,9 +27,7 @@
    last seen, or whose width is not, is announced to watchers as a `shift`, after the new
    geometry exists. Continuity owners record the user's place
    continuously and restore it on a shift; this module stores no landmarks or scroll
-   offsets. The shared geometry reader also announces document-width changes without
-   registering the implicit page as a widget region. `preserveReadingRegions` brackets
-   a composition change with the same
+   offsets. `preserveReadingRegions` brackets a composition change with the same
    watchers, as `before` and `after`, retaining only scrollers inside that composition
    when regions become hidden or visible. Hidden connected regions remain registered and
    return null bounds. Cleanup removes live DOM bindings, so a replacement can reclaim an
@@ -301,18 +299,8 @@ export function shownRegionBounds(regionOrNode) {
 }
 
 export function watchReadingRegionTransitions(listener) {
-  if (!transitionWatchers.size) {
-    sizes.observe(document.documentElement);
-    window.addEventListener("resize", readSizes);
-  }
   transitionWatchers.add(listener);
-  return () => {
-    transitionWatchers.delete(listener);
-    if (!transitionWatchers.size) {
-      sizes.unobserve(document.documentElement);
-      window.removeEventListener("resize", readSizes);
-    }
-  };
+  return () => transitionWatchers.delete(listener);
 }
 
 const notify = (detail) => {
@@ -360,9 +348,7 @@ const asSeen = (region, scroller, width) =>
 // flow page clamps as its content leaves), and the restore the announcement brings
 // would return them to that moved place. A region hidden from layout shows no words to
 // move, and measuring one in skipped content would lay out what it skips.
-let pageWidth = null;
 export const regionsSettled = () =>
-  (pageWidth === null || document.documentElement.clientWidth === pageWidth) &&
   [...regions.values()].every(
     (region) =>
       !live(region) ||
@@ -376,13 +362,7 @@ export const regionsSettled = () =>
 // produced it. A hidden region keeps what was last seen of it and is compared again once
 // it shows. Read on the observer's delivery, which follows layout; nothing here writes a
 // box it observes.
-// Native viewport resize announces before animation-frame callbacks. The existing
-// nextRender continuity pass can then retain the page before that width paints;
-// observer delivery still announces later region-only geometry changes.
-function readSizes() {
-  const width = document.documentElement.clientWidth;
-  const pageShifted = pageWidth !== null && width !== pageWidth;
-  pageWidth = width;
+const sizes = sizeObserver(() => {
   const shifted = [];
   for (const region of regions.values()) {
     if (!live(region) || !shown(region)) continue;
@@ -397,7 +377,5 @@ function readSizes() {
     region.scroller = scroller;
     region.width = width;
   }
-  if (shifted.length || pageShifted)
-    notify({ phase: "shift", shifted, page: pageShifted });
-}
-const sizes = sizeObserver(readSizes);
+  if (shifted.length) notify({ phase: "shift", shifted });
+});

@@ -100,7 +100,6 @@ import {
   containingReadingRegionFor,
   effectiveScroller,
   onReadingInput,
-  pageReadingRegion,
   readingPosture,
   readingRegionFor,
   readingRegions,
@@ -173,6 +172,7 @@ const PRIVATE_REVISION_PARAM = "_leaf-revision";
 // early runtime state for page source. An activation can then replace exactly that share
 // without erasing the presentation, layout, and mode facts the surviving runtime owns.
 function authoredAttributes(root) {
+  root = document.documentElement.lfInitial.authoredShell(root);
   const attributes = new Map();
   for (const { name, value } of root.attributes) {
     if (name.startsWith("data-lf-")) continue;
@@ -1685,22 +1685,16 @@ export function createVersionController({
   // left to keep: its reading goes when the next reading is taken, so a page whose
   // blocks come and go carries only the regions it has.
   const regionViews = new Map();
-  let pageReading = null;
-  let pageSubject = null;
-  let pageRestorePending = false;
   const dropGoneRegions = () => {
     const standing = new Set(readingRegions().map(({ id }) => id));
     for (const id of regionViews.keys()) if (!standing.has(id)) regionViews.delete(id);
   };
 
-  // The document and its own regions keep only the reading whose scroller moved.
-  // Width changes can return authored residents to flow even on a document with no
-  // registered regions, so its implicit scrollport needs the same landmark continuity.
-  // `moved` names the scrollers that moved; none names every one.
+  // Only the page's own regions, only those a scroll moved, and only their own words: a
+  // scroll is frequent, and a page with no regions (most documents) records nothing and
+  // reads no text at all. `moved` names the scrollers that moved; none names every one.
   function recordRegions(moved = null) {
     dropGoneRegions();
-    pageSubject = pageReadingRegion()?.id ?? null;
-    if (!moved || moved.has(pageScroller)) pageReading = capturePlace();
     const main = document.querySelector("body > main");
     const shown = readingRegions().filter(
       (region) =>
@@ -1725,8 +1719,7 @@ export function createVersionController({
       recordQueued = false;
       const moved = scrolled.has(undefined) ? null : new Set(scrolled);
       scrolled.clear();
-      if (!compositionChanges.size && !pageRestorePending && regionsSettled())
-        recordRegions(moved);
+      if (!compositionChanges.size && regionsSettled()) recordRegions(moved);
     });
   };
 
@@ -1773,7 +1766,6 @@ export function createVersionController({
       restorePlace(reading, region, currentIntent);
       restored.add(box);
     }
-    return restored;
   }
 
   // A region handed to another scroller keeps the reading recorded before the handover.
@@ -1781,26 +1773,13 @@ export function createVersionController({
   // restores that reading. A visible focused element is itself a live reading landmark;
   // focus retained on an element the reader scrolled past is not.
   // A composition change in progress owns any shift inside it.
-  function restoreShifted(shifted, currentIntent, pageShifted) {
-    pageRestorePending = false;
+  function restoreShifted(shifted, currentIntent) {
     if (compositionChanges.size) return;
     if (!currentIntent()) return;
     const candidates = shifted
       .map(({ region }) => region)
-      .filter((region) => shownRegionBounds(region))
-      // Only the reading-input owner's subject represents the shared page. A later
-      // visible flow region cannot take over the document passage the user read.
-      .filter(
-        (region) =>
-          !pageShifted ||
-          effectiveScroller(region) !== pageScroller ||
-          region.id === pageSubject,
-      );
-    const restored = restoreRegions(candidates, currentIntent);
-    // A bounded region keeps its own scrollport and the surrounding document keeps
-    // its passage. A flow region already represents their shared page scrollport.
-    if (pageShifted && pageReading && !restored.has(pageScroller))
-      restorePlace(pageReading, null, currentIntent);
+      .filter((region) => shownRegionBounds(region));
+    restoreRegions(candidates, currentIntent);
     recordRegions();
   }
 
@@ -1811,15 +1790,12 @@ export function createVersionController({
     cancelled,
     retained,
     shifted,
-    page: pageShifted,
   }) {
-    // Viewport resize and observer delivery share the same nextRender correction.
-    // Restoring inside the observer could reveal a region and resize its watched box;
-    // the earlier viewport announcement lets that correction precede the width's paint.
+    // Announced from a resize observer's delivery; restoring there could reveal a
+    // region and resize what the observer watches, so it waits for the next frame.
     if (phase === "shift") {
       const currentIntent = retainUserIntent();
-      if (pageShifted) pageRestorePending = true;
-      nextRender(() => restoreShifted(shifted, currentIntent, pageShifted));
+      nextRender(() => restoreShifted(shifted, currentIntent));
       return;
     }
     // A composition change captures the intact view before hiding any region, and its

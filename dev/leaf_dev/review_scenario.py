@@ -24,17 +24,48 @@ REQUEST = (
     "and handle the comments I leave on it."
 )
 
+# Each step's comment, on the passage its user selects to comment on.
 COMMENTS = {
-    "mid-turn": "Is the migration the only blocker, or the first?",
-    "restart": "Anything else I should check before we ship?",
-    "reconnect": "Is the same review still connected?",
-    "escape": "Did the interrupted check change anything?",
-    "held-escape": "If the migration slips, which work can still ship?",
-    "woken": "Which item would you cut if we had to ship today?",
-    "after-wake": "And which one would you keep at any cost?",
-    "first": "Who owns the migration fix?",
-    "ending": "When could that fix land?",
+    "mid-turn": ("triage-why", "Is the migration the only blocker, or the first?"),
+    "restart": ("triage-lede", "Anything else I should check before we ship?"),
+    "reconnect": ("triage-lede", "Is the same review still connected?"),
+    "escape": ("triage-why", "Did the interrupted check change anything?"),
+    "held-escape": (
+        "triage-lede",
+        "If the migration slips, which work can still ship?",
+    ),
+    "woken": ("triage-lede", "Which item would you cut if we had to ship today?"),
+    "after-wake": ("triage-why", "And which one would you keep at any cost?"),
+    "first": ("triage-lede", "Who owns the migration fix?"),
+    "ending": ("triage-why", "When could that fix land?"),
+    # Real author intent exercises the rich interface without naming its commands.
+    "rich-choice": (
+        "triage-lede",
+        (
+            "I need to decide whether to ship or wait. Give me two clickable choices "
+            "inside this thread, not on the page. Explain the decision in a short "
+            "question, and move this thread to the release rationale section."
+        ),
+    ),
+    "rich-question": (
+        "triage-lede",
+        (
+            "Ask me whether I can own the release check, as a prose question in this "
+            "thread. Keep it waiting for my answer and move the thread to the release "
+            "rationale section."
+        ),
+    ),
 }
+
+# A turn of the user's own that runs a shell command long enough to comment, or press
+# Escape, during it. The command is one no other process on the host runs, so the
+# process table says the turn is in it.
+SLEEP = "time.sleep(25.17)"
+USER_TURN = (
+    f"Run `python3 -c 'import time; {SLEEP}'` in the shell, in the foreground. Then, "
+    "in a separate tool call, run `printf 'verified\\n'`. Then reply with the single "
+    "word done."
+)
 
 
 def prepare(arm: Path, state: Path, page: Path) -> None:

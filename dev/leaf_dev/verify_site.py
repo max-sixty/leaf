@@ -570,7 +570,7 @@ def local_adapter() -> Iterator[tuple[str, str]]:
     """Build the site and serve it with the website adapter under a temporary copy of
     the host's Codex login, removed with the adapter's pages and task history."""
     out = run_directory(ROOT / ".tmp" / "verify-site")
-    log = out / "website-agent-local.log"
+    log = out / "website-adapter.log"
     with (
         tempfile.TemporaryDirectory(prefix="leaf-site-agent.") as temporary,
         logged(log) as output,

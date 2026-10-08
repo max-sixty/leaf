@@ -309,7 +309,7 @@ debugging log. Live incidents use
 query builder.
 
 The local end-to-end journey (`leaf-dev journey website-adapter`) prints the same
-container records and leaves them at `.tmp/verify-site/run-*/website-agent-local.log` for a later
+container records and leaves them at `.tmp/verify-site/run-*/website-adapter.log` for a later
 agent to inspect. Each run builds its own site, binds an OS-assigned HTTP port, and gives
 each website harness a private App Server socket. It gives the child App
 Server a temporary plugin-free `CODEX_HOME` seeded with copies of the host login and

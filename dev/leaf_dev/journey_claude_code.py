@@ -10,8 +10,16 @@ in its terminal interface, with this working tree's payload as its plugin
 the host's login. `--hooks-module` turns the plugin's `hooks_module` option on, so
 Leaf's hooks module keeps the watch in place of `hooks.json`'s background Stop hook.
 The journey is then the user: it types into the session through a tmux pane,
-presses Escape, and sends comments through the page's Threads in Chrome. It reads
-the page's log and claim in process, and stops at the first check that fails.
+presses Escape, answers its permission prompts, and selects passages of the page in
+Chrome to comment on them. It reads the page's log and claim in process, and stops at
+the first check that fails.
+
+The session runs in Claude Code's default permission mode, as a user's does. Every
+tool is allowed, but Claude Code still asks before a command it reads as touching a
+sensitive file, such as one under the plugin; the journey answers Yes and records
+the prompt in the step (`ClaudeCode.approve`). Bypassing permissions instead would
+change what is under test: Claude Code then holds admission's nudge, which reaches
+the session as a message from another session (`crossSessionInbound`), unread.
 
 The steps, in order:
 
@@ -39,16 +47,12 @@ delivery shows in the terminal. Without it, what follows an Escape is reported
 rather than required: the watch from before goes on only if it has not woken, and
 otherwise admission's nudge carries the next comment.
 
-Each step prints when the session picked its comments up and answered them, counted
-from their admission, and whether the page nudged the session; a step with an
-Escape also prints whether it left the turn open, a watch running, and what the
-page's banner read. That is the reading that compares the two watchers.
-
+A step with comments also prints whether the page nudged the session, and a step
+with an Escape whether it left the turn open, a watch running, and what the page's
+banner read. That is the reading that compares the two watchers. The session's
+screen at the end of each step and Claude Code's debug log join the run's evidence.
 It needs tmux, and spends a few model turns on the host's Claude Code login, so CI
-does not run it. The session's screen at the end of each step, Claude Code's debug
-log and the page's log stay in a run directory under `.tmp/journey/`. The session's
-home, page and state home live in a temporary directory, removed when every check
-passes and kept, with its path printed, when one fails.
+does not run it.
 """
 
 import json
@@ -56,11 +60,9 @@ import os
 import shlex
 import shutil
 import subprocess
-import tempfile
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from datetime import datetime
 from pathlib import Path
 
 import click
@@ -73,54 +75,46 @@ from leaf.service import claim_is_active, page_claim
 from leaf.state import session_record
 
 from leaf_dev import ROOT
-from leaf_dev.arms import (
-    MODELS,
-    claude_environment,
-    claude_home,
-    extract_payload,
-    run_directory,
-    run_leaf,
-)
-from leaf_dev.codex_task import STEP_LIMIT
-from leaf_dev.journey import User, checkout_version, local_session
-from leaf_dev.review_scenario import REQUEST, answers, prepare, require, settled
-
-# A command no other process on the host runs, so its process says the user's turn
-# is in its shell step.
-SLEEP = "time.sleep(25.17)"
-USER_TURN = (
-    f"Run `python3 -c 'import time; {SLEEP}'` with the Bash tool in the foreground. "
-    "Then, in a separate tool call, run `printf 'verified\\n'`. Then reply with the "
-    "single word done."
+from leaf_dev.arms import MODELS, claude_environment, claude_home, run_leaf
+from leaf_dev.journey import Isolation, Terminal, User, isolated, user_at
+from leaf_dev.review_scenario import (
+    REQUEST,
+    SLEEP,
+    USER_TURN,
+    answers,
+    prepare,
+    require,
+    settled,
 )
 
 
-class ClaudeCode:
+class ClaudeCode(Terminal):
     """One interactive Claude Code session in a tmux pane, and the user at it."""
 
-    def __init__(
-        self, root: Path, run: Path, cwd: Path, argv: list[str], env: dict
-    ) -> None:
+    def __init__(self, place: Isolation, argv: list[str], env: dict) -> None:
+        super().__init__()
         self.pane = f"leaf-journey-claude-code-{os.getpid()}"
-        self.exited, self.kept = root / "exited", run / "screen.txt"
+        self.home = place.root / "home"
+        self.exited, self.kept = place.root / "exited", place.evidence / "screen.txt"
         self.session: str | None = None
         # The environment's values reach the pane through tmux, so no file holds
         # them; the script names them, and drops whatever else the tmux server's
         # own environment adds.
-        script = root / "claude.sh"
+        script = place.root / "claude.sh"
         script.write_text(
-            f"cd {shlex.quote(str(cwd))}\n"
+            f"cd {shlex.quote(str(place.work))}\n"
             # Claude Code reads its directory from the shell's PWD.
             f"keep=' {' '.join(env)} PWD '\n"
             "for name in $(compgen -e); do\n"
             '  [[ $keep == *" $name "* ]] || unset "$name" 2> /dev/null\n'
             "done\n"
-            f"{shlex.join(argv)} 2> {shlex.quote(str(run / 'stderr.txt'))}\n"
+            f"{shlex.join(argv)} 2> {shlex.quote(str(place.evidence / 'stderr.txt'))}\n"
             f"echo $? > {shlex.quote(str(self.exited))}\n"
         )
         assignments = [arg for item in env.items() for arg in ("-e", "=".join(item))]
         self.tmux("new-session", "-d", "-s", self.pane, "-x", "200", "-y", "50",
-                  "-c", str(cwd), *assignments, f"bash {shlex.quote(str(script))}")  # fmt: skip
+                  "-c", str(place.work), *assignments,
+                  f"bash {shlex.quote(str(script))}")  # fmt: skip
         try:
             self.until(
                 lambda: "? for shortcuts" in self.screen() or "❯" in self.screen(),
@@ -150,7 +144,11 @@ class ClaudeCode:
                 kept.write(f"──── {label} ────\n{shown}\n")
 
     def say(self, text: str) -> None:
-        """Type one prompt and send it."""
+        """Type one prompt and send it. An Escape puts the interrupted prompt back in
+        the box, so the user clears what it holds first (Ctrl+U)."""
+        boxes = [line for line in self.screen().splitlines() if line.startswith("❯")]
+        if boxes and boxes[-1].removeprefix("❯").strip():
+            self.tmux("send-keys", "-t", self.pane, "C-u")
         self.tmux("send-keys", "-t", self.pane, "-l", text)
         time.sleep(0.5)
         self.tmux("send-keys", "-t", self.pane, "Enter")
@@ -183,66 +181,63 @@ class ClaudeCode:
             == 0
         )
 
-    def until(
-        self, done: Callable[[], object], what: str, limit: float = STEP_LIMIT
-    ) -> None:
-        deadline = time.monotonic() + limit
-        while time.monotonic() < deadline:
-            if done():
-                return
-            require(not self.exited.exists(), f"Claude Code exited\n{self.screen()}")
-            self.approve()
-            time.sleep(0.5)
-        raise click.ClickException(f"{what} within {limit:.0f} s\n{self.screen()}")
+    def hear(self, seconds: float) -> None:
+        require(not self.exited.exists(), f"Claude Code exited\n{self.screen()}")
+        self.approve()
+        time.sleep(seconds)
+
+    def records(self) -> list[dict]:
+        return [] if self.session is None else transcript(self.home, self.session)
+
+    def failure(self, what: str, limit: float) -> click.ClickException:
+        return click.ClickException(f"{what} within {limit:.0f} s\n{self.screen()}")
 
     def approve(self) -> None:
-        """Answer a permission prompt Yes, as the user at the pane does. Every tool
-        is allowed, but Claude Code still asks before a command it reads as touching
-        a sensitive file, such as one under the plugin. Bypassing permissions
-        instead would hold admission's nudge, which reaches the session as a
-        message from another session (`crossSessionInbound`)."""
-        if "Do you want to proceed?" in (screen := self.screen()):
-            asked = next(
-                (line.strip() for line in screen.splitlines() if "permission" in line),
-                "a permission prompt",
-            )
-            click.echo(f"  approved: {asked}", err=True)
-            self.tmux("send-keys", "-t", self.pane, "Enter")
-            time.sleep(1)
+        """Answer a permission prompt Yes, as the user at the pane does, and record
+        it with how long it held the session. Every one of Claude Code's prompts asks
+        "Do you want to …?" above options starting "1. Yes", and "Esc to cancel":
+        "proceed" for a command, "make this edit to" or "create" a file for Edit and
+        Write."""
+        lines = [line.strip() for line in self.screen().splitlines()]
+        question = next(
+            (line for line in lines if line.startswith("Do you want to ")), None
+        )
+        if (
+            question is None
+            or not any(line.lstrip("❯ ").startswith("1. Yes") for line in lines)
+            or not any("Esc to cancel" in line for line in lines)
+        ):
+            return
+        started = time.monotonic()
+        self.tmux("send-keys", "-t", self.pane, "Enter")
+        while question in self.screen() and time.monotonic() - started < 10:
+            time.sleep(0.1)
+        self.approved.append(
+            {"prompt": question, "seconds": time.monotonic() - started}
+        )
 
     def close(self) -> None:
         self.tmux("kill-session", "-t", self.pane)
 
 
-def moment(stamp: str) -> datetime:
-    return datetime.fromisoformat(stamp)
-
-
-def timings(page: Path, comment: str, name: str) -> str:
-    """When the session picked a comment up and answered it, counted from its
-    admission."""
-    events = read_events(page)
-    sent = moment(next(e["ts"] for e in events if e["id"] == comment))
-    picked = next(
-        moment(e["ts"])
-        for e in events
-        if e["kind"] == "pickup" and comment in e["events"]
-    )
-    [reply] = answers(page, comment)
-    return (
-        f"`{name}` picked up after {(picked - sent).total_seconds():.1f} s, "
-        f"answered after {(moment(reply['ts']) - sent).total_seconds():.0f} s"
-    )
-
-
-def steps(cc: ClaudeCode, user: User, page: Path, state: Path, module: bool) -> None:
+def steps(cc: ClaudeCode, user: User, place: Isolation, module: bool) -> None:
     """The steps after setup, as the module docstring lists them."""
-    sent: list[str] = []
+    page, sent = place.page, []
 
     def activity() -> str:
         """What the page's banner reads: its canonical activity's kind."""
-        served = run_leaf(ROOT, state, "page", "state", str(page), check=True)
+        served = run_leaf(ROOT, place.state, "page", "state", str(page), check=True)
         return json.loads(served.stdout)["activity"]["kind"]
+
+    def user_turn(name: str) -> None:
+        """Type the user's own turn and wait for its shell command. Escape ends a
+        turn but not the command it ran, so an earlier one must be gone first or it
+        would read as this one's."""
+        cc.until(
+            lambda: not cc.sleeping(), f"{name}: an earlier turn's command still runs"
+        )
+        cc.say(USER_TURN)
+        cc.until(cc.sleeping, f"{name}: the user's turn did not start its command")
 
     def answered(*names: str) -> Callable[[], bool]:
         return lambda: all(user.answered(name) for name in names) and cc.idle()
@@ -271,9 +266,6 @@ def steps(cc: ClaudeCode, user: User, page: Path, state: Path, module: bool) -> 
         # The turn that answers ends with a watch running, under either watcher.
         cc.until(watched, f"{name}: no watch holds the session's pages", 60)
         details = [escaped] if escaped else []
-        details += [
-            timings(page, user.ids[sent_name], sent_name) for sent_name in names
-        ]
         if names:
             details.append("nudged" if nudged() != before else "not nudged")
         user.passed(name, started, *details)
@@ -302,17 +294,16 @@ def steps(cc: ClaudeCode, user: User, page: Path, state: Path, module: bool) -> 
     step("release", started, "release", before=before)
 
     started = time.monotonic()
-    cc.say(USER_TURN)
-    cc.until(cc.sleeping, "mid-turn: the user's turn did not start its command")
+    user_turn("mid-turn")
     turn = page_claim(page)["turn"]
     before = nudged()
-    user.comment("mid-turn")
+    mid_turn = user.comment("mid-turn")
     cc.until(answered("mid-turn"), "mid-turn: the comment was not answered")
     require(
         any(
             event["kind"] == "pickup"
             and event["turn"] == turn
-            and user.ids["mid-turn"] in event["events"]
+            and mid_turn in event["events"]
             for event in read_events(page)
         ),
         f"mid-turn: the comment was not picked up in the user's turn {turn}",
@@ -320,8 +311,7 @@ def steps(cc: ClaudeCode, user: User, page: Path, state: Path, module: bool) -> 
     step("mid-turn", started, "mid-turn", before=before)
 
     started = time.monotonic()
-    cc.say(USER_TURN)
-    cc.until(cc.sleeping, "ending: the user's turn did not start its command")
+    user_turn("ending")
     turn = page_claim(page)["turn"]
     before = nudged()
     first = user.comment("first")
@@ -348,8 +338,7 @@ def steps(cc: ClaudeCode, user: User, page: Path, state: Path, module: bool) -> 
     step("ending", started, "first", "ending", before=before)
 
     started = time.monotonic()
-    cc.say(USER_TURN)
-    cc.until(cc.sleeping, "escape: the user's turn did not start its command")
+    user_turn("escape")
     cc.escape()
     escaped = after_escape("escape")
     before = nudged()
@@ -358,8 +347,7 @@ def steps(cc: ClaudeCode, user: User, page: Path, state: Path, module: bool) -> 
     step("escape", started, "escape", before=before, escaped=escaped)
 
     started = time.monotonic()
-    cc.say(USER_TURN)
-    cc.until(cc.sleeping, "woken: the user's turn did not start its command")
+    user_turn("woken")
     turn = page_claim(page)["turn"]
     woken = user.comment("woken")
 
@@ -389,16 +377,11 @@ def steps(cc: ClaudeCode, user: User, page: Path, state: Path, module: bool) -> 
     )
     before = nudged()
     user.comment("after-wake")
-    cc.until(
-        lambda: user.answered("after-wake") and cc.idle(),
-        "woken: the comment after Escape was not answered",
-    )
+    cc.until(answered("after-wake"), "woken: the comment after Escape was not answered")
     if not answers(page, woken):
         # The comment the stopped turn was handed waits for the user's next prompt.
         cc.say("Carry on with the review.")
         cc.until(answered("woken"), "woken: the next prompt did not answer it")
-    else:
-        user.answered("woken")
     step("woken", started, "woken", "after-wake", before=before, escaped=escaped)
 
     started = time.monotonic()
@@ -418,7 +401,7 @@ def steps(cc: ClaudeCode, user: User, page: Path, state: Path, module: bool) -> 
 
 def transcript(home: Path, session: str) -> list[dict]:
     """The session's transcript so far, as tool and turn records stamped
-    `received_at` with when Claude Code wrote each."""
+    `received_at` with the time Claude Code wrote on each."""
     [path] = (home / ".claude" / "projects").glob(f"*/{session}.jsonl")
     records = []
     for line in path.read_text().splitlines():
@@ -443,93 +426,64 @@ def answering(browser, *, hooks_module: bool) -> Iterator[tuple[User, Callable]]
     """The user at the page an interactive Claude Code session serves, once it has,
     and the steps that follow."""
     require(shutil.which("tmux") is not None, "the claude-code journey drives tmux")
-    version = checkout_version()
-    run = run_directory(ROOT / ".tmp" / "journey")
-    # Outside any repository, so the session loads no project instructions. Claude
-    # Code records trust by the resolved path.
-    root = Path(tempfile.mkdtemp(prefix="leaf-journey-claude-code-")).resolve()
-    state, work, payload = root / "state", root / "work", root / "plugin"
-    work.mkdir()
-    page = work / "page"
-    extract_payload(payload)
-    home = claude_home(root / "home")
-    (home / ".claude.json").write_text(
-        json.dumps(
-            {
-                "hasCompletedOnboarding": True,
-                "theme": "dark",
-                "projects": {str(work): {"hasTrustDialogAccepted": True}},
-            }
+
+    def environment(place: Isolation) -> dict[str, str]:
+        home = claude_home(place.root / "home")
+        (home / ".claude.json").write_text(
+            json.dumps(
+                {
+                    "hasCompletedOnboarding": True,
+                    "theme": "dark",
+                    "projects": {str(place.work): {"hasTrustDialogAccepted": True}},
+                }
+            )
         )
-    )
-    settings = {
-        "pluginConfigs": {"leaf@inline": {"options": {"hooks_module": hooks_module}}}
-    }
-    argv = [
-        "claude", "--model", MODELS[ClaudeCodeHarness.name], "--plugin-dir", str(payload),
-        "--settings", json.dumps(settings), "--strict-mcp-config",
-        "--permission-mode", "default", "--add-dir", str(payload),
-        "--allowedTools", "Bash Read Write Edit Glob Grep Skill",
-        "--debug-file", str(run / "debug.log"),
-    ]  # fmt: skip
-    # This process reads the page, claim and Claude Code's session record under the
-    # home and state home the session writes, and every child inherits them, never
-    # the session running this.
-    inherited = dict(os.environ)
-    isolated = claude_environment(home, XDG_STATE_HOME=str(state), TERM="tmux-256color")
-    os.environ.clear()
-    os.environ.update(isolated)
-    passed = False
-    try:
-        prepare(ROOT, state, page)
-        cc = ClaudeCode(root, run, work, argv, isolated)
+        return claude_environment(
+            home, XDG_STATE_HOME=str(place.state), TERM="tmux-256color"
+        )
+
+    with isolated("claude-code", environment) as place:
+        prepare(ROOT, place.state, place.page)
+        settings = {
+            "pluginConfigs": {
+                "leaf@inline": {"options": {"hooks_module": hooks_module}}
+            }
+        }
+        argv = [
+            "claude", "--model", MODELS[ClaudeCodeHarness.name],
+            "--plugin-dir", str(place.payload), "--settings", json.dumps(settings),
+            "--strict-mcp-config", "--permission-mode", "default",
+            "--add-dir", str(place.payload),
+            "--allowedTools", "Bash Read Write Edit Glob Grep Skill",
+            "--debug-file", str(place.evidence / "debug.log"),
+        ]  # fmt: skip
+        cc = ClaudeCode(place, argv, dict(os.environ))
         try:
             started = time.monotonic()
             cc.say(REQUEST)
             cc.until(
-                lambda: page_claim(page) is not None,
+                lambda: page_claim(place.page) is not None,
                 "setup: the page was not claimed",
             )
-            cc.session = page_claim(page)["id"]
+            cc.session = page_claim(place.page)["id"]
             cc.until(
                 lambda: (
-                    running_server(page) is not None
+                    running_server(place.page) is not None
                     and cc.idle()
                     and wait_is_live(None, cc.session)
                 ),
                 "setup: the page was not served with the session idle and a watch "
                 "running",
             )
-            session = local_session(browser, running_server(page)["url"])
-            user = User(
-                session._replace(records=lambda: transcript(home, cc.session)),
-                version,
-                lambda: read_events(page),
-            )
-            settled(page, cc.session, {})
+            settled(place.page, cc.session, {})
             require(
                 not hooks_module or INLINE_DELIVERY not in cc.shown(),
                 "setup: a delivery was printed in the terminal",
             )
-            user.passed("setup", started)
             cc.keep("setup")
-            yield user, lambda: steps(cc, user, page, state, hooks_module)
+            with user_at(browser, place, cc, started) as user:
+                yield user, lambda: steps(cc, user, place, hooks_module)
         finally:
             # A failed step's screen; once Claude Code exits there is none.
             cc.keep("end")
             cc.close()
-            run_leaf(ROOT, state, "server", "stop", str(page))
-            shutil.copy(page / "events.jsonl", run / "events.jsonl")
-        passed = True
-    finally:
-        os.environ.clear()
-        os.environ.update(inherited)
-        if passed:
-            shutil.rmtree(root)
-        else:
-            click.echo(
-                f"Kept the session, its page and its state home in {root}", err=True
-            )
-        click.echo(
-            f"The session's screen, debug log and page log are in {run}", err=True
-        )

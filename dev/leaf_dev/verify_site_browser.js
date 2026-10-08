@@ -3,10 +3,19 @@
  * Shared startup evidence is installed separately. Visible-reply timestamps use sessionStorage
  * because the agent journey may navigate before Python reads them. __leafVerifier is
  * the website-specific Playwright boundary exposed to the Python orchestrator.
+ *
+ * A reply shows the user one of three ways, in the Threads panel or on a card at its
+ * passage, and the page records each as it happens, whatever the journey is doing:
+ * the reply's own message coming into view in an open thread; a thread's row in the panel, open or folded, dating its latest message
+ * activity at or after the reply, since a folded thread draws no messages; or a news
+ * notice on a thread holding the reply back, so as not to move what the user reads,
+ * changing what it says after the reply was admitted. Only the last compares the
+ * page's clock with the server's.
  */
 (() => {
   const visibleReplyStartedKey = "leaf-visible-reply-started";
   const visibleReplyAtKey = "leaf-visible-reply-at";
+  const threadActivityAtKey = "leaf-thread-activity-at";
   let activationCount = 0;
   let visibleReplyObservers = null;
   function serverScript() {
@@ -23,6 +32,37 @@
 
   function visibleReplies() {
     return JSON.parse(sessionStorage.getItem(visibleReplyAtKey) ?? "{}");
+  }
+
+  function threadActivity() {
+    return JSON.parse(sessionStorage.getItem(threadActivityAtKey) ?? "{}");
+  }
+
+  // When each thread's row first dated its latest message activity at each instant.
+  function recordThreadActivity() {
+    const found = threadActivity();
+    let changed = false;
+    for (const recency of document.querySelectorAll(
+      ".lf-thread[data-id] > .lf-thread-summary .lf-thread-recency[datetime]",
+    )) {
+      const thread = recency.closest(".lf-thread").dataset.id;
+      const latest = recency.getAttribute("datetime");
+      if (found[thread]?.[latest] !== undefined || !recency.checkVisibility()) continue;
+      found[thread] = { ...found[thread], [latest]: Date.now() };
+      changed = true;
+    }
+    // A thread's notice is recorded each time what it says changes, its going
+    // included, at the page's own time.
+    for (const node of document.querySelectorAll(".lf-thread[data-id]")) {
+      const thread = node.dataset.id;
+      const notice = node.querySelector(".lf-thread-news");
+      const said = notice?.checkVisibility() ? notice.textContent.trim() : null;
+      const notices = found[thread]?.news ?? [];
+      if ((notices.at(-1)?.[0] ?? null) === said) continue;
+      found[thread] = { ...found[thread], news: [...notices, [said, Date.now()]] };
+      changed = true;
+    }
+    if (changed) sessionStorage.setItem(threadActivityAtKey, JSON.stringify(found));
   }
 
   function watchVisibleAgentReply() {
@@ -50,8 +90,9 @@
       sessionStorage.setItem(visibleReplyAtKey, JSON.stringify(replies));
     });
     const observe = () => {
+      recordThreadActivity();
       for (const message of document.querySelectorAll(
-        ".lf-threads .lf-msg.agent[data-mid]",
+        ".lf-thread .lf-msg.agent[data-mid]",
       )) {
         if (
           seen.get(message) !== message.dataset.mid &&
@@ -115,12 +156,24 @@
       const started = Date.now();
       sessionStorage.setItem(visibleReplyStartedKey, String(started));
       sessionStorage.removeItem(visibleReplyAtKey);
+      sessionStorage.removeItem(threadActivityAtKey);
       stopVisibleReplyWatch();
       watchVisibleAgentReply();
       return started;
     },
     visibleReplyRecorded(id) {
       return visibleReplies()[id] !== undefined;
+    },
+    // When the user was first shown reply `id`, admitted at `ts`, in `thread`.
+    replyShownAt({ thread, id, ts }) {
+      const shown = [visibleReplies()[id]];
+      const { news = [], ...activity } = threadActivity()[thread] ?? {};
+      for (const [latest, at] of Object.entries(activity))
+        if (Date.parse(latest) >= Date.parse(ts)) shown.push(at);
+      for (const [said, at] of news)
+        if (said !== null && at >= Date.parse(ts)) shown.push(at);
+      const times = shown.filter((at) => at !== undefined);
+      return times.length ? Math.min(...times) : null;
     },
     visibleReplyAt(id) {
       return visibleReplies()[id] ?? null;
@@ -136,6 +189,19 @@
         traffic: document.documentElement.dataset.lfTraffic ?? null,
         revision: document.querySelector('meta[name="lf-revision"]')?.content ?? null,
         status: document.querySelector(".lf-status-text")?.textContent?.trim() || null,
+        // What each thread shows of itself, and what the page recorded of it.
+        threads: [...document.querySelectorAll(".lf-thread[data-id]")].map((node) => ({
+          id: node.dataset.id,
+          inPanel: Boolean(node.closest(".lf-threads")),
+          open: node.hasAttribute("open"),
+          visible: node.checkVisibility(),
+          latest:
+            node
+              .querySelector(":scope > .lf-thread-summary .lf-thread-recency")
+              ?.getAttribute("datetime") ?? null,
+          news: node.querySelector(".lf-thread-news")?.textContent.trim() ?? null,
+        })),
+        activity: threadActivity(),
         messages: [...document.querySelectorAll(".lf-msg")].map((node) => ({
           classes: [...node.classList],
           mid: node.dataset.mid ?? null,

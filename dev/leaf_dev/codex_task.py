@@ -13,9 +13,6 @@ from pathlib import Path
 import click
 from leaf.codex import app_server_connect, app_server_handshake, app_server_request
 
-STEP_LIMIT = 300
-QUIET = 10
-
 
 class Task:
     """The task's terminal: one App Server connection that opens the task, types the
@@ -39,7 +36,7 @@ class Task:
         self.running_commands: dict[str, str] = {}
         self.on_final: Callable[[str], None] | None = None
         app_server_handshake(
-            self.socket, next(self.ids), "verify", "Verify", self._hear
+            self.socket, next(self.ids), "leaf_dev", "leaf-dev", self._hear
         )
 
     def owns(self, message: dict) -> bool:
@@ -104,21 +101,6 @@ class Task:
             {"threadId": self.thread, "input": [{"type": "text", "text": text}]},
         )
         return started["turn"]["id"]
-
-    def settle(self, done: Callable[[], bool], what: str) -> None:
-        """Hear the task until it is idle with `done` true through QUIET. `done` is
-        asked on every hearing, so what it reads is read as it happens."""
-        deadline = time.monotonic() + STEP_LIMIT
-        while time.monotonic() < deadline:
-            self.listen(0.5)
-            if done() and not self.running:
-                self.listen(QUIET)
-                if not self.running and done():
-                    return
-        raise click.ClickException(
-            f"{what} within {STEP_LIMIT} s. The agent's last commands:\n"
-            + "\n".join(f"  {command}" for command in self.commands[-8:])
-        )
 
 
 def install_plugin(task: Task, payload: Path, cwd: Path) -> None:

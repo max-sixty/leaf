@@ -1181,7 +1181,7 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
     assert not Path(other["home"]).exists()
     assert not Path(other["site"]).exists()
     assert (
-        len(list((root / ".tmp" / "verify-site").glob("run-*/website-agent-local.log")))
+        len(list((root / ".tmp" / "verify-site").glob("run-*/website-adapter.log")))
         == 2
     )
     assert (host_home / "auth.json").read_text() == '{"test": "login"}'
@@ -1248,6 +1248,10 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     refused = runner.invoke(journey.journey, ["website-adapter", "--hooks-module"])
     assert refused.exit_code == 2
     assert "--hooks-module is an option of claude-code" in refused.output
+    for target in ("website-adapter", "claude-code", "pi"):
+        refused = runner.invoke(journey.journey, [target, "--preview"])
+        assert refused.exit_code == 2
+        assert "--preview is an option of the codex targets" in refused.output
     # A remote journey needs no local build: the origin names its release.
     remote_result = runner.invoke(journey.journey, ["https://leaf-dev.example/"])
     assert remote_result.exit_code == 0, remote_result.output
@@ -3210,6 +3214,18 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         expect(news).to_have_count(0)
         expect(thread.locator(".lf-msg.agent")).to_be_hidden()
         assert set(current_responses(page_dir, read_events(page_dir))) == {other["id"]}
+        # Its row is all the user sees of the answer, and the page times the answer
+        # from it whatever the journey is doing then.
+        [folded] = [
+            event
+            for event in read_events(page_dir)
+            if event["kind"] == "reply" and event["parent"] == comment["id"]
+        ]
+        shown = {"thread": comment["id"], "id": folded["id"], "ts": folded["ts"]}
+        assert (
+            page.evaluate("window.__leafVerifier.visibleReplyAt", folded["id"]) is None
+        )
+        assert page.evaluate("window.__leafVerifier.replyShownAt", shown) is not None
     else:
         # The short thread's reopened answer would move its writing box, so the
         # reader explicitly opens the news before the visibility clock can see it. The
@@ -3224,6 +3240,16 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
             event["id"]
             for event in read_events(page_dir)
             if event["kind"] == "reply" and event["parent"] == comment["id"]
+        )
+        # The held answer's notice is what the user is shown of it, and the page
+        # times the answer from the notice before anyone opens it.
+        held_answer = next(e for e in read_events(page_dir) if e["id"] == answer_id)
+        assert (
+            page.evaluate(
+                "window.__leafVerifier.replyShownAt",
+                {"thread": comment["id"], "id": answer_id, "ts": held_answer["ts"]},
+            )
+            is not None
         )
         if reveal == "click":
             assert journey.wait_for_visible_reply(page, comment["id"], answer_id)
@@ -4854,51 +4880,60 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
     assert journey.turn_failed(turn.replies)
 
 
-def test_a_title_written_after_the_reply_is_still_timed():
+def test_a_title_written_after_the_reply_is_still_timed(tmp_path):
     """The page server titles a thread beside the agent's turn, so the title can land
     after the reply that ended the turn's wait; the journey reads on for it rather
-    than reporting the title as never written."""
-    comment, title, reply = TURN_LOG
-    answered = {
-        "active": {"revision": 2},
-        "events": [comment, reply],
-        "browser": {"thread": {"threads": [{"id": comment["id"], "title": None}]}},
-    }
-    context = _StateReads(
-        [
+    than reporting the title as never written. The state it reads is the one a page
+    server serves, since the journey reads titles from it."""
+    from leaf.event_log import append_event
+    from leaf.thread import title_event
+    from leaf_dev.arms import PageClient, serving
+    from leaf_dev.review_scenario import prepare
+
+    state, page_dir = tmp_path / "state", tmp_path / "page"
+    prepare(ROOT, state, page_dir)
+    with serving(ROOT, state, page_dir) as url:
+        client = PageClient(url)
+        client.post(
             {
-                **answered,
-                "events": [comment, reply, title],
-                "browser": {
-                    "thread": {
-                        "threads": [{"id": comment["id"], "title": title["title"]}]
-                    }
-                },
+                "kind": "comment",
+                "revision": client.state()["active"]["revision"],
+                "attempt": "journey-title-wait",
+                "text": "Is the release recorded?",
             }
+        )
+        untitled = client.state()
+        [comment] = [
+            e for e in untitled["events"] if e.get("attempt") == "journey-title-wait"
         ]
-    )
-    session = journey.Session(
-        context,
-        None,
-        [],
-        "https://leaf.page/examples/triage-board/",
-        "https://leaf.page/examples/triage-board/api/state",
-        answered,
-        {},
-        None,
-    )
-    events = journey.await_title(session, comment["id"], answered)["events"]
-    published = {"activated_at": "2026-10-04T19:00:12+00:00"}
-    assert journey.recorded_steps(events, comment, published)["titled"] == 2.25
-    assert journey.recorded_steps(answered["events"], comment, published) == {
-        "queued": None,
-        "pickedUp": None,
-        "started": None,
-        "titled": None,
-        "progress": None,
-        "published": 12.0,
-        "replied": 12.5,
-    }
+        assert journey.title(untitled["events"], comment["id"]) is None
+        paused = []
+
+        def pause(seconds):
+            # The title lands while the journey waits on, as the page server's does.
+            if not paused:
+                append_event(
+                    page_dir,
+                    title_event(
+                        comment["id"],
+                        "Release recorded",
+                        {"agent": "The agent", "session": "journey-title"},
+                    ),
+                )
+            paused.append(seconds)
+
+        class Context:
+            request = SimpleNamespace(get=lambda *args, **kwargs: _Read(client.state()))
+
+        session = journey.Session(
+            Context(), None, [], url, url, untitled, {}, None, pause=pause
+        )
+        events = journey.await_title(session, comment["id"], untitled)["events"]
+    assert paused == [1]
+    assert journey.title(events, comment["id"]) == "Release recorded"
+    steps = journey.recorded_steps(events, comment, None)
+    assert steps["titled"] is not None and steps["titled"] > 0
+    assert steps["published"] is None
 
 
 def test_a_progress_update_is_timed_apart_from_the_answer():
@@ -5006,6 +5041,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
     comment, _, reply = TURN_LOG
     stream = [
         {"type": "system", "subtype": "hook_response", "received_at": at(0.2)},
+        result(0.3, "running"),
         {"type": "system", "subtype": "init", "received_at": at(0.5)},
         {
             "type": "assistant",
@@ -5019,7 +5055,9 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
         result(8.0, "edit"),
         call(12.0, ("reply", "leaf response reply 62af9e31:0:test-comment")),
     ]
-    assert journey.turn_phases(stream, comment["ts"], reply["ts"]) == [
+    # Delivery ends at the opened pickup, not at the first record the harness sends
+    # after admission: a tool result of a turn already running is no delivery.
+    assert journey.turn_phases(stream, comment["ts"], at(0.5), reply["ts"]) == [
         {"phase": "delivery", "startMs": 0, "ms": 500},
         {"phase": "model", "startMs": 500, "ms": 3500},
         {
@@ -5038,6 +5076,7 @@ def test_an_agent_turn_splits_into_delivery_model_and_tool_phases():
             "calls": ["leaf response reply 62af9e31:0:test-comment"],
         },
     ]
+    assert journey.turn_phases(stream, comment["ts"], None, reply["ts"]) == []
 
 
 class _PresentationWait:
@@ -5137,7 +5176,7 @@ class _DeployedPage:
             return True
         if script == "window.__leafVerifier.startVisibleReplyClock":
             return 100.0
-        if script == "id => window.__leafVerifier.visibleReplyAt(id)":
+        if script == "window.__leafVerifier.replyShownAt":
             return 12_600.0
         if script == "window.__leafStartup.reading":
             presented_at = (
@@ -5476,6 +5515,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                     "id": "test-answer",
                     "parent": "test-comment",
                     "text": "deployment verified",
+                    "ts": "2026-10-04T12:00:12.500-07:00",
                 },
             ),
             1,
@@ -5648,6 +5688,7 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
                     "id": "test-answer",
                     "parent": "test-comment",
                     "text": "deployment verified",
+                    "ts": "2026-10-04T12:00:12.500-07:00",
                 },
             ),
             1,
@@ -5786,8 +5827,7 @@ def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
 def test_journey_reads_and_times_inline_message_title():
     comment, _title, reply = TURN_LOG
     titled_reply = {**reply, "title": "Release recorded"}
-    threads = list(journey.build_threads([comment, titled_reply], {}).values())
-    assert journey.titled({"browser": {"thread": {"threads": threads}}}, comment["id"])
+    assert journey.title([comment, titled_reply], comment["id"]) == "Release recorded"
     assert (
         journey.recorded_steps(
             [comment, titled_reply], comment, {"activated_at": reply["ts"]}

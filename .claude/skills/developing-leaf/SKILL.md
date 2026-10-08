@@ -270,32 +270,36 @@ login.
 
 On a harness the journey runs a session of it with this working tree as its plugin,
 under a throwaway home holding the host's login, and goes on as the user at its
-terminal: it types turns, presses Escape, and kills the adapter, sending each
-comment through Threads. Each step checks every comment so far is answered once
-and picked up, a comment sent during a turn is picked up in that turn, and the
-page's claim names the session's last turn, closed; the suite stands in for each
-harness, and only this run shows what the harness itself does. Run it on the
-harness a change touches:
+terminal: it types turns, presses Escape, kills the adapter, and selects passages to
+comment on through Threads. Between steps it checks every comment so far is answered
+once and picked up, and the page's claim names the session with its turn closed. The
+suite stands in for each harness, and only this run shows what the harness itself
+does. Run it on the harness a change touches; each target also checks what its
+harness promises:
 
-- `claude-code`, an interactive session in a tmux pane, also checks comments after
-  an Escape are answered and quitting ends the session's claim. Run it, with and
-  without `--hooks-module`, after a change to `hooks/hooks.json`,
-  `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`, `loop-guard.py`, or the
-  watch between turns in `session.py`; with the flag it also checks that Escape
-  closes the turn and leaves a watch running.
-- `codex-app-server` and `codex-queue` run a Codex task through each transport of
-  automatic server handoff, the queue being the desktop app's. They check a comment
-  during queue-backed work is picked up and answered in that same turn, and each
-  turn is closed under App Server's id. Run both after a change to `codex.py`,
-  `codex_adapter.py`, `hooks.py`, `hook_transport.py`, or the claim's turn in
-  `service.py`. For a change to preview startup or lifetime, add `--preview`: setup
-  starts the canonical user preview, every step checks the keyed URL, and a last
-  step interrupts the isolated server to prove the preview restores both the
-  address and working feedback without a source edit.
-- `pi`, the version `dev/pi/` pins, on a copy of the host's Codex login, also checks
-  Escape closes the turn without waking Pi again and quitting ends the session's
-  claim. Run it after a change to `hooks/pi.ts`, `PiHarness`, `hooks.py`, or the
-  watch between turns in `session.py`.
+- `claude-code`, an interactive session in a tmux pane: a comment sent during a turn
+  is picked up in it, the Stop hook keeps a turn going for a comment pending as it
+  ends, comments after an Escape are answered, and quitting ends the session's claim
+  and its watch. Run it, with and without `--hooks-module`, after a change to
+  `hooks/hooks.json`, `hooks/claude-code.ts`, `ClaudeCodeHarness`, `hooks.py`,
+  `loop-guard.py`, or the watch between turns in `session.py`; with the flag it also
+  checks that Escape closes the turn and leaves a watch running.
+- `codex-app-server` and `codex-queue`, a Codex task through each transport of
+  automatic server handoff, the queue being the desktop app's: the page server
+  titles each thread, the claim names the user's turn while it runs and the task's
+  last turn by App Server's id after, and rich requests get clickable choices and a
+  question awaiting the user. On `codex-queue` a comment sent during the user's turn
+  must also enter that turn and be answered before its final response. Run both
+  after a change to `codex.py`, `codex_adapter.py`, `hooks.py`, `hook_transport.py`,
+  or the claim's turn in `service.py`. For a change to preview startup or lifetime,
+  add `--preview`: setup starts the canonical user preview, every step checks the
+  keyed URL, and a last step interrupts the isolated server to prove the preview
+  restores both the address and working feedback without a source edit.
+- `pi`, the version `dev/pi/` pins, on a copy of the host's Codex login: a comment
+  sent during a run is delivered into it with no run after, Escape closes the turn
+  without waking Pi again, a comment held at Escape enters a fresh run, and quitting
+  ends the session's claim and its watch. Run it after a change to `hooks/pi.ts`,
+  `PiHarness`, `hooks.py`, or the watch between turns in `session.py`.
 
 For the website, TARGET is `website-adapter` for its adapter against the host's
 Codex login (no Worker, container limits, credential proxy or Docker),

@@ -9,7 +9,7 @@ from leaf.files import list_revisions
 from leaf.registry.schema import json_value
 from leaf.registry.storage import require_registry
 from leaf.revision_artifact import read_revision
-from leaf.schema import MESSAGE_KINDS, THREAD_ANSWER_KINDS
+from leaf.schema import MESSAGE_KINDS
 from leaf.structure import SourceDocument
 from leaf.thread_context import thread_names, thread_structure
 
@@ -60,7 +60,7 @@ def thread_obligation(events: list, responses: dict, message: str) -> dict | Non
         (
             response
             for response in responses.values()
-            if response["kind"] in THREAD_ANSWER_KINDS
+            if response["kind"] == "reply"
             and names.get(response["to"], response["to"]) == thread
         ),
         None,

@@ -417,7 +417,7 @@
           }
         },
         {
-          "text": "This reply belongs to your provider turn's final commitment. Before your first tool call, open with a short message to the user: the answer, or what you are about to do. Leaf streams it into the thread at once, and later working messages stay in Codex. Finish with the answer or what changed and where it appears. For widgets, a question awaiting the user, a title or relocation, prepare the complete reply with `leaf response reply <answer.ref>` and the rich options in `references/threads.md`; your completed final commits that prepared content, including its text. Without preparation, your opening and final text become the reply.",
+          "text": "Leaf streams your opening into the thread and commits your completed final unless an explicit successful reply already answered this input. Before your first tool call, open with a short message to the user: the answer, or what you are about to do. Later working messages stay in Codex. Finish with the answer or what changed and where it appears. For an explicit answer, including widgets, a question awaiting the user, a title or relocation, use `leaf response reply <answer.ref>` and the rich options in `references/threads.md`; it validates saved edits and commits immediately. Your later final yields to that recorded answer.",
           "when": {
             "properties": {
               "answer": {

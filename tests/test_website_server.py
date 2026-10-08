@@ -3241,8 +3241,8 @@ def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
 ):
     """The page stops saying the agent is working, however the reply went.
 
-    `DeliveryReply` guards only the commit of a completed answer: setting the state
-    and releasing the binding open page transactions of their own, and the turn's own
+    `AppServerReplyStream` guards only the commit of a completed answer. Setting
+    its state and releasing the binding open their own page transactions; the turn's
     work may have left that page unopenable. The turn has ended either way, and until
     its Leaf turn closes the page tells its user the agent is working, with nothing
     but the claim's grace to correct it — and the move it was carrying goes without
@@ -3263,7 +3263,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
     def unopenable(*_args):
         raise OSError("the page could not be opened")
 
-    monkeypatch.setattr("leaf.thread.DeliveryReply._set_state", unopenable)
+    monkeypatch.setattr("leaf.codex.AppServerReplyStream._set_state", unopenable)
     with pytest.raises(OSError, match="could not be opened"):
         turn.commit({"id": "app-server-turn", "status": "completed", "items": []})
 

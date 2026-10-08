@@ -10,7 +10,7 @@ vars:
     You own a live Leaf page at ~/.local/state/leaf/pages/layout-review.
     A delivered user message user-request in thread layout-thread asks:
     "Stop the reply box jumping when I switch drafts."
-    Its current answer is {"kind":"reply","to":"user-request","for":"user-request"}.
+    Its current answer is {"kind":"reply","to":"user-request","for":"user-request","ref":"7f20c3d9:0:user-request","writer":"agent"}.
 
     You are still testing the fix. Send an interim message in that thread saying
     "Checking the keyboard route." Keep the user's actual answer due. When your
@@ -23,7 +23,7 @@ assert:
 - type: regex
   metric: declares-progress-without-answering
   value: >-
-    (?:^|\n)[^\n]*\bleaf\s+thread\s+reply\b(?=[^\n]*--ephemeral\b)(?=[^\n]*--for(?:=|\s+)['"]?user-request\b)(?=[^\n]*--text(?:=|\s+))[^\n]*
+    (?:^|\n)[^\n]*\bleaf\s+response\s+reply\s+['"]?7f20c3d9:0:user-request['"]?(?=[^\n]*--ephemeral\b)(?=[^\n]*--text(?:=|\s+))[^\n]*
 - type: not-regex
   metric: leaves-question-and-summary-out-of-progress
-  value: (?:^|\n)\s*(?:\S*/)?leaf\s+thread\s+(?:reply\b[^\n]*--awaits|summarize\b)
+  value: (?:^|\n)\s*(?:\S*/)?leaf\s+(?:thread|response)\s+(?:reply\b[^\n]*--awaits|summarize\b)

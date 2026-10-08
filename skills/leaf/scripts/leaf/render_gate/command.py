@@ -90,16 +90,13 @@ def page_code_check(
     errors, browser_name = ran
     if errors:
         print(
-            f"✗ page code: {len(errors)} error(s) the page would report to you",
+            f"Error: page code reported {len(errors)} error{'s' if len(errors) != 1 else ''}",
             file=sys.stderr,
         )
         for error in errors:
             print(f"  - {error}", file=sys.stderr)
         return 1
-    print(
-        f"✓ page code: runs through upgrade and first paint in {browser_name} "
-        "with no error reported"
-    )
+    print(f"✓ page code: no errors in {browser_name}")
     return 0
 
 
@@ -161,7 +158,7 @@ def render_check(
     (reading, screens), browser_name = ran
     if reading.failures:
         print(
-            f"✗ index.html: renders broken — {len(reading.failures)} issue(s)",
+            f"Error: index.html has {len(reading.failures)} render issue{'s' if len(reading.failures) != 1 else ''}",
             file=sys.stderr,
         )
         for f in reading.failures:
@@ -180,11 +177,8 @@ def render_check(
         else ""
     )
     print(
-        f"✓ index.html: renders clean in {browser_name}, light and dark at "
-        f"{viewport_names}{margins} — no "
-        "console errors or DevTools issues, every widget takes space, no words on top of other words, code that reads "
-        "against the block it is on, nothing past the "
-        f"column, no sideways scroll from {SWEEP_WIDTHS[0]}px to {SWEEP_WIDTHS[-1]}px wide"
+        f"✓ index.html: render checks passed in {browser_name}, light and dark at "
+        f"{viewport_names}{margins}; widths {SWEEP_WIDTHS[0]}–{SWEEP_WIDTHS[-1]}px"
     )
     for line in reading.advice:
         print(f"  · {line}")
@@ -205,8 +199,7 @@ def widget_quality_report(package: Path) -> int:
         )
     except UnreadablePage as error:
         print(
-            f"✗ widget quality failed — a page of worked examples could not be drawn: "
-            f"{error}",
+            f"Error: widget examples could not be drawn: {error}",
             file=sys.stderr,
         )
         return 1

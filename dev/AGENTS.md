@@ -59,6 +59,7 @@ reaches a module by importing it from this package, never through `sys.path`,
 - `leaf-dev stills [BASE_REF]` screenshots a catalogue of UI states, at rest and
   reached by input, on a base runtime and HEAD's, and crops each state that changed
   into a before/after pair in its own run directory under `.tmp/stills/`.
+  Repeat `--state NAME` to compare only the states a change touches.
 - `leaf-dev thread-snapshots` owns reviewed message-delivery images in leaf-assets;
   `thread_snapshots.py` owns capture and acceptance. Its shared journey replaces
   the former panel/card sent stills. Acceptance alone advances

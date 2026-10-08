@@ -1,12 +1,8 @@
 # Codex handoff and delivery
 
-This contract is for a Codex task that Leaf reaches through Codex's durable queue:
-the desktop app, an IDE extension, or a terminal CLI started the ordinary way. A task
-whose environment sets `LEAF_CODEX_APP_SERVER`, as a `leaf codex launch` terminal
-does, or whose App Server endpoint the user gave you, is one Leaf reaches over Codex
-App Server instead, and follows `references/harness-codex-app-server.md`. The desktop
-app runs an App Server of its own, but Leaf cannot connect to it, so a desktop task
-follows this contract.
+Use this contract when the main skill's "Harness selection" selects ordinary
+Codex. Leaf carries user input back to this task through Codex's durable queue,
+including in the desktop app, IDE, and an ordinary terminal session.
 
 ## Full Leaf handoff
 
@@ -17,8 +13,7 @@ This runs Leaf's theme, package widgets, anchored comments, versions, and state
 stream unchanged.
 
 Serving connects delivery before returning the URL, including when the page's
-server is already running. Set the page to `waiting`, then finish the turn with
-the URL and a concrete gesture. The browser pane is the presentation; the adapter
+server is already running. Follow `references/conversation-loop.md`, "Status and handoff". The browser pane is the presentation; the adapter
 below carries input back to this same task.
 
 ## Delivery
@@ -45,7 +40,7 @@ acknowledges queued delivery once Codex's queue accepts it, so do not run `leaf 
 uncertain queue response, which is the retry `references/event-batches.md` describes.
 
 Answer every obligation with the operation its delivered `handling` clause names,
-`leaf thread reply` for a plain reply. Your final message stays in the Codex
+`leaf response reply <answer.ref>` for a reply. Your final message stays in the Codex
 chat and never reaches the page. Leaf does not observe the task's turns either, so
 the banner shows only the items you start and the status you declare.
 
@@ -60,7 +55,7 @@ that wait holds the task's single wait lease.
 
 ## Routes without the adapter
 
-Two routes carry input without the adapter, and both answer with `leaf thread reply` as
+Two routes carry input without the adapter, and both answer with `leaf response reply <answer.ref>` as
 above.
 
 - This task runs `leaf wait` in unified exec, polls it with `write_stdin`, and

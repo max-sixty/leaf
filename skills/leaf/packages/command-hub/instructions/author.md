@@ -1,4 +1,6 @@
-A command hub has one authored goal tree in `lf-command`, whose entry says where
+A command hub is a Leaf page for coordinating a project. Its goal tree describes
+the work: a terminal goal has no child goals, while the page contains the whole
+tree and its controls. Author one goal tree in `lf-command`, whose entry says where
 each worker sits. The package derives the header, stopped-work reading, live-worker
 view, and action record from the tree and log. Put each Ask
 or input beside the goal it blocks, and author no role enum, progress count,

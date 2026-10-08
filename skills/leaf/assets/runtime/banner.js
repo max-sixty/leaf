@@ -139,7 +139,7 @@ const WORK_WORDS = {
   awaiting_user: "waiting for you",
   replying: "replying",
 };
-export const countMoves = (count) => `${count} move${count === 1 ? "" : "s"}`;
+export const countResponses = (count) => `${count} response${count === 1 ? "" : "s"}`;
 // What the banner and the leaves drawer both read off one page's server-owned `activity`
 // before either words it. Each seat keeps its own sentences; a fact they share changes
 // here once:
@@ -153,8 +153,10 @@ export const countMoves = (count) => `${count} move${count === 1 ? "" : "s"}`;
 export function activityFacts({ activity }) {
   const { counts } = activity;
   const waiting = [];
-  if (counts.queued) waiting.push(`${countMoves(counts.queued)} queued`);
-  if (counts.pending) waiting.push(`${countMoves(counts.pending)} waiting`);
+  if (counts.queued)
+    waiting.push(`${countResponses(counts.queued)} owed on queued updates`);
+  if (counts.pending)
+    waiting.push(`${countResponses(counts.pending)} owed on updates awaiting delivery`);
   return Object.freeze({
     tone: TONE[activity.kind],
     work: WORK_WORDS[activity.observed_kind] || "working",
@@ -266,9 +268,10 @@ let saidActionableWork;
 const QUEUE_WORDS = Object.freeze({
   ask: ["Ask", "Asks"],
   question: ["question", "questions"],
-  recovery: ["move to send again", "moves to send again"],
-  answer: ["reply", "replies"],
-  work: ["move in hand", "moves in hand"],
+  recovery: ["update to send again", "updates to send again"],
+  answer: ["answer", "answers"],
+  reply: ["reply", "replies"],
+  work: ["update with work started", "updates with work started"],
   task: ["task", "tasks"],
 });
 function queueKinds(items) {
@@ -543,7 +546,7 @@ function statusWords({
   saved,
   work,
 }) {
-  if (kind === "closed") return ["Leaf closed", "Leaf closed"];
+  if (kind === "closed") return ["Page closed", "Page closed"];
   if (kind === "unheld")
     return [
       "No session",
@@ -672,18 +675,17 @@ function renderStatusNow(state) {
   const { agent } = state;
   // What the user's words do meanwhile. The log takes them with nobody on the other
   // end; the only thing attendance changes is when they are read.
-  const saved = activity.counts.total
-    ? `${countMoves(activity.counts.total)} ${activity.counts.total === 1 ? "is" : "are"} saved.`
-    : "Your moves are saved.";
-  const checkedIn = `${agent} last checked in ${facts.silentSince}`;
+  const saved = "Your updates are saved.";
+  const checkedIn = facts.silentSince
+    ? `${agent} last checked in ${facts.silentSince}`
+    : `No check-in from ${agent} is recorded`;
+  const ended = `${agent}’s turn ended${facts.silentSince ? " " + facts.silentSince : ""}`;
   const age = kind === "working" && activity.ts ? ago(activity.ts) : "";
   const [summary, text] = statusWords({
     age,
     agent,
-    dated: facts.left
-      ? `${agent} left this when its turn ended ${facts.silentSince}`
-      : checkedIn,
-    shortDate: facts.left ? `${agent}’s turn ended ${facts.silentSince}` : checkedIn,
+    dated: facts.left ? ended : checkedIn,
+    shortDate: facts.left ? ended : checkedIn,
     detail,
     handling: {
       comments: activity.counts.handling_comments,
@@ -819,7 +821,7 @@ export function paintApproval(pendingApprovals, blockingAsks, acceptedApprovals)
   // Why a press is refused now, or null where it approves. A press already in flight
   // is refused silently: its aria-busy says so.
   const reason = approved
-    ? "Approved. Press z to take it back while it is still your last gesture"
+    ? "Approved. Press z to undo while approval is still your latest update"
     : runtime.currentStamp === null
       ? "There is no stamped version to approve yet"
       : !signoff ||

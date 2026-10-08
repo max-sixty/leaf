@@ -1306,7 +1306,7 @@ export function createResponseSurface({
 
   // Tab opens responses from the editor, while attachments keep native traversal.
   // Project this alongside the input owner's submit scope rather than replacing it.
-  const composerOptions = commandScope("In the composer", [
+  const composerOptions = commandScope("In the comment box", [
     {
       id: "comment.options",
       keys: ["Tab"],
@@ -1321,7 +1321,7 @@ export function createResponseSurface({
   // The composer's own rung is its own scope rather than the box's, because the box may not
   // have focus — the user clicked away and the composer still stands, holding their draft.
   pageScope("composer", {
-    title: "In the composer",
+    title: "In the comment box",
     at: () => composerOpen && !placement?.withheld(),
     rows: [
       {
@@ -1329,8 +1329,8 @@ export function createResponseSurface({
         keys: ["Escape"],
         description: () =>
           composerHolds()
-            ? "Close the composer, keeping the draft"
-            : "Close the composer",
+            ? "Close the comment box, keeping the draft"
+            : "Close the comment box",
         title: () => (composerHolds() ? "close — draft kept" : "close"),
         promoteEscape: false,
         when: () => !responseOptionsAreOpen(),

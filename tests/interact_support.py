@@ -119,6 +119,17 @@ def append_command(page_dir, command):
         return event_contracts_model.append_admitted(page, command)
 
 
+def response_reference(page_dir, event):
+    """Read the exact address emitted by the real delivery producer for an input."""
+    from leaf.delivery import batch_data, freeze_delivery
+
+    event_id = event["id"] if isinstance(event, dict) else event
+    with service_model.PageTransaction(page_dir) as page:
+        captured = next(item for item in page.events if item["id"] == event_id)
+        batch = batch_data(page_dir, page, [captured])
+    return freeze_delivery([batch])["batches"][0]["events"][0]["answer"]["ref"]
+
+
 def append_carried_log_record(page_dir, event):
     """Seed already-interpreted input for a storage or transport test.
 

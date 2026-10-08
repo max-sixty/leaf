@@ -15,6 +15,7 @@ from interact_support import (
     declare_work,
     end_work,
     record_claim,
+    response_reference,
     wait_for,
     working,
 )
@@ -2503,11 +2504,9 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     replied = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(d),
-            "--for",
-            "c-store",
+            response_reference(d, "c-store"),
             "--text",
             "Depends what you want to keep:",
             "--markup",
@@ -3177,7 +3176,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     text, dot = page.locator(".lf-status-detail"), page.locator(".lf-banner .lf-dot")
     summary = page.locator(".lf-status-text")
     UNHELD = (
-        "No session holds this page. 2 moves are saved."
+        "No session holds this page. Your updates are saved."
         " It picks up again when a session does."
     )
 
@@ -3251,7 +3250,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(page.locator(".lf-status-queues")).to_have_text("2 on Claude")
     expect(text).to_have_text(
         re.compile(
-            r"^Claude is working — revising the plan \(.+\)\. 1 move waiting\."
+            r"^Claude is working — revising the plan \(.+\)\. 1 response owed on updates awaiting delivery\."
             r" Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
         )
     )
@@ -3273,7 +3272,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(text).to_have_text(
         re.compile(
             r"^Claude is working — revising the plan \(.+\)\. "
-            r"1 move queued\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+            r"1 response owed on queued updates\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
         )
     )
     expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3315,7 +3314,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             re.compile(
                 r"^Claude is working — revising the plan \(.+\)\. "
-                r"1 move waiting\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+                r"1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3334,7 +3333,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         expect(text).to_have_text(
             re.compile(
                 r"^Claude is using a tool — revising the plan \(.+\) · "
-                r"Running the tests\. 1 move waiting\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
+                r"Running the tests\. 1 response owed on updates awaiting delivery\. Waiting on Claude: 1 reply, 1 task \(Work on the page\)\.$"
             )
         )
         expect(dot).to_have_class(re.compile(r"\bworking\b"))
@@ -3357,7 +3356,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # remedy — nobody needs to touch a terminal for a comment to reach a live wait.
         declare("working", "revising the plan", quiet_for=20 * 60)
         expect(text).to_have_text(
-            "Claude last checked in 20m ago: revising the plan. 1 move is saved."
+            "Claude last checked in 20m ago: revising the plan. Your updates are saved."
             " Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
@@ -3373,8 +3372,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # in just now" under an amber dot is the line arguing with the dot.
         declare("working", "revising the plan", quiet_for=6 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
-            "Claude left this when its turn ended 5m ago: revising the plan."
-            " 1 move is saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
+            "Claude’s turn ended 5m ago: revising the plan."
+            " Your updates are saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
         expect(dot).to_have_class(re.compile(r"\baway\b"))
 
@@ -3386,8 +3385,8 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # renewed by nothing after it.
         declare("working", "revising the plan", quiet_for=5 * 60, turn_ended=5 * 60)
         expect(text).to_have_text(
-            "Claude left this when its turn ended 5m ago: revising the plan."
-            " 1 move is saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
+            "Claude’s turn ended 5m ago: revising the plan."
+            " Your updates are saved. Waiting on Claude: 1 reply, 1 task (Work on the page)."
         )
 
         # A turn that has only just ended still holds it. An agent that ends its turn
@@ -3410,19 +3409,19 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
         # clipped, and a narrow window must not be why the decision goes unread.
         declare("waiting", "pick a storage engine")
         expect(text).to_have_text(
-            "Claude is listening — pick a storage engine. 1 move waiting."
+            "Claude is listening — pick a storage engine. 1 response owed on updates awaiting delivery."
             " Waiting on Claude: 1 reply."
         )
         expect(page.locator(".lf-status-button")).to_have_attribute(
             "title",
-            "Claude is listening — pick a storage engine. 1 move waiting."
+            "Claude is listening — pick a storage engine. 1 response owed on updates awaiting delivery."
             " Waiting on Claude: 1 reply.",
         )
 
     # No watcher, but Claude checked in moments ago, so it is between turns.
     declare("waiting")
     expect(text).to_have_text(
-        "Claude isn't watching right now. 1 move is saved."
+        "Claude isn't watching right now. Your updates are saved."
         " It picks them up next turn. Waiting on Claude: 1 reply."
     )
 
@@ -3433,7 +3432,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     # message was sent it as it arrived.
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
-        "Claude isn't watching right now. 1 move is saved."
+        "Claude isn't watching right now. Your updates are saved."
         " It picks them up next turn. Waiting on Claude: 1 reply, 1 task (Work on the page)."
     )
     expect(dot).to_have_class(re.compile(r"\baway\b"))
@@ -3453,7 +3452,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     )
     declare("working", "running the migration", quiet_for=6 * 60, turn_ended=5 * 60)
     expect(text).to_have_text(
-        "Claude left this when its turn ended 5m ago. 2 moves are saved."
+        "Claude’s turn ended 5m ago. Your updates are saved."
         " Nothing is answering them, so nudge it in the terminal."
         " Waiting on Claude: 2 replies, 1 task (Work on the page)."
     )
@@ -3492,7 +3491,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(text).to_have_text(re.compile(r"^Codex is working — revising the plan"))
 
     declare("idle")
-    expect(text).to_have_text("Leaf closed. Waiting on Claude: 2 replies.")
+    expect(text).to_have_text("Page closed. Waiting on Claude: 2 replies.")
 
 
 def test_the_page_dates_a_claim_by_the_clock_that_wrote_it(browser, serve):
@@ -5286,7 +5285,7 @@ customElements.define(TAG, class extends HTMLElement {
             "text": "Another feed.",
         },
     )
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         serve.page_dir,
         "question",
         "Frozen feed.",
@@ -6054,8 +6053,8 @@ def _hold_required_thread_panel(page):
         __lfRuntimeImport('/runtime/thread/state.js'),
         __lfRuntimeImport('/runtime/application.js')]);
       const elements=createThreadPanelElements();
-      elements.panel.style.cssText='position:fixed;left:8px;top:160px;width:400px;height:400px';
-      document.body.append(elements.panel);elements.panel.show();
+      elements.panel.style.cssText='position:relative;inset:auto;width:400px;height:400px;margin:0';
+      document.body.append(elements.panel);elements.panel.classList.add('open');
       const controller=createThreadListController(elements);
       const original=controller.renderThreads.bind(controller);
       controller.renderThreads=async(...args)=>{

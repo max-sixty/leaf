@@ -548,7 +548,7 @@ def test_tab_extends_the_comment_with_individual_emoji_buttons(browser, serve, s
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
     rows = page.locator(".lf-command-reference").inner_text()
-    assert "Take back: shorten on “The store is capped" in rows, rows
+    assert "Undo: shorten reaction on “The store is capped" in rows, rows
     page.keyboard.press("Escape")
     expect(page.locator(".lf-command-reference")).to_be_hidden()
 
@@ -2694,7 +2694,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
     painted(page, [["merge-both", "change"]])
     expect(page.locator(".lf-threads-toggle")).to_have_text("Threads: 0")
 
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         serve.page_dir,
         reaction["id"],
         "Which part — the case, or the answer?",

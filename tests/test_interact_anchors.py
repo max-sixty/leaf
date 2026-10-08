@@ -20,6 +20,7 @@ from interact_support import (
     page_state,
     publish,
     published,
+    response_reference,
     stamp,
     state_json,
     suggested,
@@ -211,16 +212,15 @@ def test_a_section_handed_a_message_id_is_sent_to_the_option_that_takes_one(page
     assert f"no element id {root['id']!r}" in mistaken.output
     assert (
         f"{root['id']} is a comment in this page's log — "
-        f"`leaf thread reply <page> --for {root['id']}` answers it"
+        f"`leaf response reply <answer.ref>` for {root['id']} answers it"
     ) in mistaken.output
     assert all(event["kind"] != "reply" for event in events_model.read_events(page_dir))
 
 
 def test_a_section_handed_a_message_owed_nothing_is_sent_to_its_thread(page_dir):
     """A message the log owes nothing still names its thread to `leaf thread reply`.
-    Naming a thread is the one writer keyed on the kind rather than the obligation, and
-    it is refused without `--for` only while a response is owed, so the agent's own comment — owed nothing — is
-    replied to there, and a refusal calling it unroutable would be a dead end."""
+    Proactive replies name PAGE THREAD when nothing is owed; the diagnostic
+    must provide a route the writer can take."""
     own = json.loads(
         comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output
     )
@@ -239,15 +239,11 @@ def test_a_section_handed_a_message_owed_nothing_is_sent_to_its_thread(page_dir)
     assert followed.exit_code == 0, followed.output
 
 
-def test_a_message_whose_thread_owes_a_reply_is_sent_to_for(page_dir):
-    """A thread's response is owed by the thread, not by the message carrying it.
-
-    A message with nothing against its own id can sit in a thread waiting on
-    one, and naming the thread without `--for` is refused for the whole thread. A refusal
-    reading the message's own obligation sent the agent to name the thread there, which the writer it named then
-    refused — so both readings are one, and the route is the `--for` that the
-    guard would have demanded.
-    """
+def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
+    page_dir,
+):
+    """A diagnostic on any message names the delivery route for the thread's
+    exact owed input; proactive replies cannot infer that input."""
     own = json.loads(
         comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output
     )
@@ -260,7 +256,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_for(page_dir):
     assert mistaken.exit_code != 0
     assert (
         f"{own['id']} is a comment in this page's log, and its thread is owed "
-        f"a reply — `leaf thread reply <page> --for {asked['id']}` answers it"
+        f"a reply — `leaf response reply <answer.ref>` for {asked['id']} answers it"
     ) in mistaken.output
 
     # The writer the refusal names takes it, and the one it passed over says so too.
@@ -269,10 +265,19 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_for(page_dir):
         ["thread", "reply", str(page_dir), own["id"], "--text", "more"],
     )
     assert posted.exit_code != 0
-    assert f"`leaf thread reply <page> --for {asked['id']}` answers it" in posted.output
+    assert (
+        f"`leaf response reply <answer.ref>` for {asked['id']} answers it"
+        in posted.output
+    )
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--for", asked["id"], "--text", "a week"],
+        [
+            "response",
+            "reply",
+            response_reference(page_dir, asked["id"]),
+            "--text",
+            "a week",
+        ],
     )
     assert answered.exit_code == 0, answered.output
 
@@ -280,7 +285,7 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_for(page_dir):
 def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
     """A route is only worth naming where the writer it names takes the value. What a
     writer takes is what the log still owes, not the event's kind: a resolve is owed
-    nothing, so sending the agent to `--for` with it hands it a second refusal with no
+    nothing, so sending the agent to a response command hands it a second refusal with no
     route at all."""
     root = append_carried_log_record(
         published(page_dir),
@@ -303,10 +308,9 @@ def test_a_section_handed_a_settled_move_is_told_nothing_is_owed(page_dir):
 
 def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     """A message is not the only id an agent is handed. A user's press on a widget
-    frozen into a reply is answered through that action's own id and nothing else —
-    `--for` is the only route to it — so a refusal that names no option is the one the
-    agent needed. The recourse names `--for` for every kind the log holds, and reserves
-    naming the thread for the kinds a message id also answers to."""
+    frozen into a reply is answered through its exact delivery reference. The
+    diagnostic must name that response route for the action rather than treating
+    its event id as a page element or a proactive thread destination."""
     publish(page_dir)
     append_carried_log_record(
         page_dir,
@@ -320,11 +324,9 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     answered = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--markup",
             frozen,
             "--text",
@@ -349,11 +351,9 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     mistaken = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            pressed["id"],
+            response_reference(page_dir, pressed["id"]),
             "--section",
             pressed["id"],
             "--text",
@@ -363,7 +363,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     assert mistaken.exit_code != 0
     assert (
         f"{pressed['id']} is an action in this page's log — "
-        f"`leaf thread reply <page> --for {pressed['id']}` answers it"
+        f"`leaf response reply <answer.ref>` for {pressed['id']} answers it"
     ) in mistaken.output
     assert "`leaf thread reply <page> <id>`" not in mistaken.output
 
@@ -452,7 +452,7 @@ def test_a_comment_may_name_a_declared_visual_part(page_dir):
         "x",
     )
     assert unknown.exit_code != 0
-    assert "known: ['node:A', 'node:B']" in unknown.output
+    assert 'known: ["node:A", "node:B"]' in unknown.output
 
     unseated = comment(page_dir, "--part", "node:A", "--text", "x")
     assert unseated.exit_code != 0
@@ -1254,11 +1254,9 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     moved = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            root["id"],
+            response_reference(page_dir, root["id"]),
             "--section",
             "backfill-first",
             "--text",
@@ -1272,11 +1270,9 @@ def test_a_reply_refuses_to_change_a_held_command_goal_anchor(page_dir):
     detached = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            root["id"],
+            response_reference(page_dir, root["id"]),
             "--detach",
             "--text",
             "Detach this hold.",
@@ -1992,11 +1988,9 @@ def test_resolve_closes_a_thread_the_way_the_panel_does(page_dir, monkeypatch):
         .invoke(
             cli_model.cli,
             [
-                "thread",
+                "response",
                 "reply",
-                str(page_dir),
-                "--for",
-                root["id"],
+                response_reference(page_dir, root["id"]),
                 "--text",
                 "fixed in v2",
             ],
@@ -2303,11 +2297,9 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
     clash = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--text",
             "See:",
             "--markup",
@@ -2319,11 +2311,9 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
     plain_clash = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--text",
             "See:",
             "--markup",

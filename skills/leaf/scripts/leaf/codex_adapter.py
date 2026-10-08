@@ -63,10 +63,10 @@ from .codex import (
     retire_gone_task_records,
     retry_delay,
     start_app_server_delivery,
-    stream_reply_target,
     write_record,
 )
 from .codex_state import delivery_lock_path, hook_turn, step_delivery_turn
+from .delivery import stream_reply_target
 from .detached import Handshake, starting_detached
 from .event_log import read_cursor
 from .harness import CodexHarness, Harness, session_harness

@@ -20,7 +20,7 @@ vars:
     for it. Before you began, Leaf's prompt hook delivered one user comment, event id
     c7e2a9d1, opening thread c7e2a9d1 on the rollout section, which you have already
     acknowledged: "The rollout section's second paragraph repeats the first. Tighten
-    it." Its answer is a reply addressed `--for c7e2a9d1`.
+    it." Its answer is `{kind: reply, writer: agent, ref: "7f20c3d9:0:c7e2a9d1"}`.
 
     You will tighten the rollout section and answer the comment, then write the
     glossary, then hand the page back asking the user which glossary terms to cut.
@@ -35,7 +35,7 @@ assert:
     Pass only if all three hold. First, before any edit for the comment, a command
     shows that work on the page against the comment itself, naming id c7e2a9d1, with
     a line saying what the work is: a `leaf task start` on it, or a progress update
-    in its thread (`leaf thread reply --for c7e2a9d1 --ephemeral`). Second, before
+    in its thread (`leaf response reply 7f20c3d9:0:c7e2a9d1 --ephemeral`). Second, before
     the glossary work starts, a command shows that work on the page with a line
     naming it; since no comment asked for it, this may be a page-wide working line
     or an item the agent opens for it and marks as in hand. Third, once the glossary

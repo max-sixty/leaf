@@ -7,6 +7,7 @@ from leaf.events import build_threads, is_reaction, standing_approvals, taken_ba
 from leaf.files import latest_revision, revision_label
 from leaf.gesture_words import GestureWords, revisions_on_disk
 from leaf.registry.reactions import reaction_tokens
+from leaf.registry.schema import json_value
 from leaf.registry.storage import active_registry
 from leaf.revision_artifact import read_revision
 from leaf.schema import agent_name
@@ -73,7 +74,7 @@ def _print_edits(page_dir: Path, events: list, registry: dict) -> None:
                         f"- `{wid}`: rewritten by v{e['version']}, retracting what was decided on it"
                     )
                 continue
-            detail = " ".join(f"{k}={v}" for k, v in e["detail"].items())
+            detail = " ".join(f"{k}={json_value(v)}" for k, v in e["detail"].items())
             verb = f"{e['action']} {detail}".strip()  # a bare answer carries no detail
             said = words.says(e) if words else {}
             said.pop(e["widget"], None)

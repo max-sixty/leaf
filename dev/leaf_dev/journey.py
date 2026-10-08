@@ -56,7 +56,9 @@ from typing import NamedTuple
 from urllib.parse import urljoin, urlsplit
 
 import click
+from leaf.events import build_threads
 from leaf.harness import ClaudeCodeHarness, CodexHarness
+from leaf.thread import successful_replies
 from playwright.sync_api import BrowserContext, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
@@ -64,9 +66,9 @@ from leaf_dev import ROOT
 from leaf_dev.arms import (
     HARNESSES,
     PAYLOAD,
-    URL,
     LiveChild,
     build_arm,
+    read_page_state,
     run_directory,
     run_leaf,
     scratch,
@@ -199,15 +201,16 @@ def recorded_steps(events: list[dict], comment: dict, published: dict) -> dict:
     thread = comment["id"]
     titled = next(
         (
-            e["ts"]
-            for e in events
-            if e["kind"] == "thread_title" and e["thread"] == thread
+            event["ts"]
+            for index, event in enumerate(events)
+            if build_threads(events[: index + 1], {}).get(thread, {}).get("title")
+            is not None
         ),
         None,
     )
     replies = [e for e in events if e["kind"] == "reply" and e.get("parent") == thread]
     progress = next((e["ts"] for e in replies if e.get("ephemeral")), None)
-    replied = deployment_answer(replies)
+    replied = deployment_answer(events, comment["id"])
     return {
         step: None if at is None else round(instant(at) - admitted, 3)
         for step, at in (
@@ -308,17 +311,9 @@ def turn_failed(replies: list[dict]) -> bool:
     return any("failure" in reply for reply in replies)
 
 
-def deployment_answer(replies: list[dict]) -> dict | None:
-    """Return the agent's answer, rather than a progress update or a
-    harness-generated failure receipt."""
-    return next(
-        (
-            reply
-            for reply in replies
-            if "failure" not in reply and not reply.get("ephemeral")
-        ),
-        None,
-    )
+def deployment_answer(events: list[dict], for_event: str) -> dict | None:
+    """Return the first successful agent answer to this exact input."""
+    return next(iter(successful_replies(events, for_event)), None)
 
 
 def check_turn_answered(
@@ -436,7 +431,7 @@ def await_turn(
             for event in current.get("events", [])
             if event.get("kind") == "reply" and event.get("parent") == comment["id"]
         ]
-        answer = deployment_answer(replies)
+        answer = deployment_answer(current.get("events", []), comment["id"])
         active = current["active"]
         if published is None and active["revision"] > revision:
             # The turn may publish a checkpoint first, so read the document for the
@@ -461,8 +456,12 @@ def await_turn(
     return TurnReading(current, published, replies, answer)
 
 
-def titled(events: list[dict], thread: str) -> bool:
-    return any(e["kind"] == "thread_title" and e["thread"] == thread for e in events)
+def titled(state: dict, thread: str) -> bool:
+    """Read the thread's title from the canonical browser projection."""
+    return any(
+        item["id"] == thread and item["title"] is not None
+        for item in state["thread"]["threads"]
+    )
 
 
 def await_title(session: Session, thread: str, state: dict) -> dict:
@@ -470,7 +469,7 @@ def await_title(session: Session, thread: str, state: dict) -> dict:
     last reading. The page server names a thread beside the agent's turn rather than
     within it, so the title can land after the reply that ended the turn."""
     deadline = time.monotonic() + TITLE_PATIENCE
-    while not titled(state["events"], thread) and time.monotonic() < deadline:
+    while not titled(state, thread) and time.monotonic() < deadline:
         time.sleep(1)
         state = read_state(session)
     return state
@@ -699,7 +698,6 @@ def harness_session(browser, harness: str) -> Iterator[tuple[Session, str, dict]
     page_dir = work / "page"
     version = working_version(build_arm(None, arm))
     prepare(arm, state, page_dir)
-    found: dict[str, str] = {}
     setup_ended = threading.Event()
     with (
         LiveChild(
@@ -721,8 +719,6 @@ def harness_session(browser, harness: str) -> Iterator[tuple[Session, str, dict]
             for line in child.records():
                 stream.write(json.dumps(line) + "\n")
                 stream.flush()
-                if "url" not in found and (served := URL.search(json.dumps(line))):
-                    found["url"] = served[0]
                 if line.get("type") == "result":
                     setup_ended.set()
 
@@ -730,11 +726,10 @@ def harness_session(browser, harness: str) -> Iterator[tuple[Session, str, dict]
         reader.start()
         deadline = time.monotonic() + SETUP_LIMIT
         try:
-            while not (
-                setup_ended.is_set()
-                and "url" in found
-                and page_state(arm, state, page_dir)["listening"]
-            ):
+            while True:
+                current = read_page_state(arm, state, page_dir)
+                if setup_ended.is_set() and current["server"] and current["listening"]:
+                    break
                 check(
                     reader.is_alive() and time.monotonic() < deadline,
                     f"the {harness} session stopped or ran past {SETUP_LIMIT} s "
@@ -742,7 +737,7 @@ def harness_session(browser, harness: str) -> Iterator[tuple[Session, str, dict]
                     f"{run / 'stream.jsonl'}",
                 )
                 time.sleep(1)
-            session = local_session(browser, found["url"])
+            session = local_session(browser, current["server"]["url"])
             named = {"target": harness, "harness": harness}
             if child.transport is not None:
                 named["transport"] = child.transport
@@ -767,12 +762,6 @@ def working_version(commit: str) -> str:
         check=True,
     ).stdout
     return f"{commit}+working-tree" if changed else commit
-
-
-def page_state(arm: Path, state: Path, page_dir: Path) -> dict:
-    return json.loads(
-        run_leaf(arm, state, "page", "state", str(page_dir), check=True).stdout
-    )
 
 
 def local_session(browser, url: str) -> Session:

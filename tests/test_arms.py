@@ -6,12 +6,22 @@ import pytest
 from leaf_dev.arms import accepted_starts, commands, completed, trace_result
 from leaf_dev.eval_codex import records_for
 
+EVENT_ENVELOPE = {
+    "attention": False,
+    "id": "a1b2c3d4",
+    "ts": "2026-10-07T12:00:00-07:00",
+    "author": "agent",
+    "seq": 1,
+}
+
 
 def test_codex_command_and_turn_success_are_observed_harness_results():
     # App Server's observed commandExecution notifications, reduced to the fields
     # relevant to successful Leaf start admission. Unknown/nonzero exits must
     # never turn a printed start into an accepted one.
-    output = json.dumps({"kind": "start", "item": "comment", "text": "editing"})
+    output = json.dumps(
+        {**EVENT_ENVELOPE, "kind": "start", "item": "comment", "text": "editing"}
+    )
     for exit_code in (0, 1, None):
         item = {
             "id": "claim",
@@ -26,6 +36,8 @@ def test_codex_command_and_turn_success_are_observed_harness_results():
         ) + records_for(
             {"method": "item/completed", "params": {"item": item}}, "session", ""
         )
+        trace[0]["received_at"] = "2026-10-07T11:59:59-07:00"
+        trace[1]["received_at"] = "2026-10-07T12:00:01-07:00"
         assert commands(trace[0]) == [item["command"]]
         assert accepted_starts(trace, "comment") == (
             {"claim": 1} if exit_code == 0 else {}
@@ -45,16 +57,28 @@ def test_codex_command_and_turn_success_are_observed_harness_results():
             assert trace_result(end)["result"] == "the actual final answer"
 
 
-def test_a_progress_update_on_an_owed_move_is_an_accepted_start():
-    """An ephemeral reply to a move takes it in hand and prints that start, so it
-    counts; a read of the log printing the same start record does not."""
-    start = json.dumps({"kind": "start", "item": "comment", "text": "editing"})
-    reply = json.dumps({"kind": "reply", "ephemeral": True, "text": "editing"})
+@pytest.mark.parametrize("record_kind", ["start", "reply"])
+def test_a_progress_update_on_an_owed_move_is_an_accepted_start(record_kind):
+    """Addressed progress takes a move in hand in its reply record; reading that
+    record from the log does not count as a new start."""
+    start = json.dumps(
+        {**EVENT_ENVELOPE, "kind": "start", "item": "comment", "text": "editing"}
+    )
+    reply_event = {
+        **EVENT_ENVELOPE,
+        "kind": "reply",
+        "parent": "comment",
+        "ephemeral": True,
+        "text": "editing",
+        "start": {"item": "comment"},
+    }
+    reply = json.dumps(reply_event)
 
     def call(identity, command, output):
         return [
             {
                 "type": "assistant",
+                "received_at": "2026-10-07T11:59:59-07:00",
                 "message": {
                     "content": [
                         {
@@ -68,6 +92,7 @@ def test_a_progress_update_on_an_owed_move_is_an_accepted_start():
             },
             {
                 "type": "user",
+                "received_at": "2026-10-07T12:00:01-07:00",
                 "message": {
                     "content": [
                         {
@@ -81,12 +106,82 @@ def test_a_progress_update_on_an_owed_move_is_an_accepted_start():
             },
         ]
 
-    trace = call(
-        "progress",
-        "leaf thread reply page --for comment \\\n  --ephemeral --text editing",
-        f"{reply}\n{start}",
-    ) + call("read", "leaf page events page", start)
+    command = (
+        "leaf page state page; leaf response reply delivery:0:comment \\\n  --ephemeral --text editing"
+        if record_kind == "reply"
+        else "leaf page state page; leaf task start page comment editing"
+    )
+    unrelated = [
+        json.dumps({"active": {"revision": 1}, "events": []}),
+        "[]",
+        "7",
+        '"other output"',
+        json.dumps({"kind": "status", "state": "working"}),
+        json.dumps({"kind": "status", "item": "comment", "text": "other"}),
+        json.dumps({"kind": "start"}),
+        json.dumps({"kind": "start", "item": False, "text": "other"}),
+        json.dumps({"kind": "start", "item": "comment"}),
+        json.dumps({"kind": "reply", "start": False}),
+        json.dumps({"kind": "reply", "start": {"item": "comment"}}),
+        *(
+            json.dumps({**reply_event, "start": declaration})
+            for declaration in (
+                {"item": "comment", "text": False},
+                {"item": "comment", "kind": "start"},
+                {"item": False},
+                {"item": ""},
+                {"item": "comment", "turn": None},
+            )
+        ),
+    ]
+    read = call("read", "leaf page events page", f"{reply}\n{start}")
+    read[0]["received_at"] = "2026-10-07T12:00:02-07:00"
+    read[1]["received_at"] = "2026-10-07T12:00:03-07:00"
+    trace = (
+        call(
+            "progress",
+            command,
+            "\n".join([*unrelated, reply if record_kind == "reply" else start]),
+        )
+        + read
+    )
     assert accepted_starts(trace, "comment") == {"progress": 1}
+    assert accepted_starts(
+        call("writer", "python -c 'write_the_work_start()'", start), "comment"
+    ) == {"writer": 1}
+    for output in unrelated:
+        assert accepted_starts(call("noise", command, output), "comment") == {}, output
+    for command in (
+        "leaf page events page # task start",
+        "printf '%s' 'task start'; leaf page events page",
+        "leaf task start page another-task editing; leaf page events page",
+    ):
+        other = json.dumps(
+            {
+                **EVENT_ENVELOPE,
+                "kind": "start",
+                "item": "another-task",
+                "text": "editing",
+                "ts": "2026-10-07T12:00:02.500-07:00",
+            }
+        )
+        old = call("old", command, f"{other}\n{start}")
+        old[0]["received_at"] = "2026-10-07T12:00:02-07:00"
+        old[1]["received_at"] = "2026-10-07T12:00:03-07:00"
+        assert accepted_starts(old, "comment") == {}
+        assert accepted_starts(old, "another-task") == {"old": 1}
+    for begin, end in (
+        (None, "2026-10-07T12:00:01-07:00"),
+        ("2026-10-07T11:59:59-07:00", None),
+        ("2026-10-07T12:00:03-07:00", "2026-10-07T12:00:02-07:00"),
+        ("2026-10-07T11:59:58-07:00", "2026-10-07T11:59:59-07:00"),
+        ("not an instant", "2026-10-07T12:00:01-07:00"),
+    ):
+        unbounded = call(
+            "unbounded", command, reply if record_kind == "reply" else start
+        )
+        unbounded[0]["received_at"], unbounded[1]["received_at"] = begin, end
+        assert accepted_starts(unbounded, "comment") == {}
 
 
 def test_codex_delivery_evidence_preserves_actual_input_and_hook_output():

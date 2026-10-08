@@ -325,13 +325,14 @@ export function createQueueWalk({
         id: "queue.next",
         binding: "a",
         title: "Next waiting on you",
-        description: "Next Ask, thread, task or move to resend waiting on you",
+        description: "Next Ask, thread, task or update to send again waiting on you",
       },
       {
         id: "queue.previous",
         binding: "Shift+a",
         title: "Previous waiting on you",
-        description: "Previous Ask, thread, task or move to resend waiting on you",
+        description:
+          "Previous Ask, thread, task or update to send again waiting on you",
       },
     ],
     title: "Waiting on you",

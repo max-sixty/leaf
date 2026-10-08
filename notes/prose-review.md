@@ -2,10 +2,11 @@
 
 The Layout-tab and factual-correction phase landed in
 [PR #1476](https://github.com/max-sixty/leaf/pull/1476). The maintainer rewrite is
-written but unlanded. Author instructions have received a focused clarity pass;
-the broader rewrite remains open. Site, UI vocabulary and example selection
-depend on decisions A–E below. Retire this note when the phases land and
-any standing rule has moved into its owning instructions.
+written but unlanded and has no active owner. The agent-instruction rewrite is
+complete: the routed references now separate author operation, harness
+setup and maintainer mechanisms. UI vocabulary is complete; site and
+example selection still depend on the decisions below. Retire this note when the
+phases land and any standing rule has moved into its owning instructions.
 
 Each phase recovers what its reader needs, rewrites the prose, and checks dropped
 claims against the code. Preserve behavior in agent and maintainer instructions unless
@@ -29,18 +30,17 @@ branch rather than starting a second maintainer rewrite.
 
 ## Phase 2: Agent instructions
 
-Apply the same reader-based rewrite to `skills/leaf/SKILL.md`, the routed references
-and package instructions. Score with `leaf-dev eval` before and after, following
-“Score an instruction change” in `/developing-leaf`. This phase needs no product decision.
+The rewrite of `skills/leaf/SKILL.md` and its routed references is complete.
+Harness selection, initial work status and the final URL each have one
+canonical home. Event handling precedes transport details; setup lives in its
+own reference. Revision and margin instructions describe the author's actions,
+and command-hub instructions distinguish a terminal goal from a Leaf page.
+Leaf's soul and the agent/principal distinction remain.
 
-- Give harness selection, initial work status and the URL-in-every-message rule one
-  canonical home each. Harness contracts should point to those homes.
-- Put event-handling instructions before transport details.
-- Reduce revision-state and margin instructions to what the author acts on. Keep package
-  record semantics in their existing owner.
-- Separate agent operation from user setup and maintainer mechanisms in serving
-  and harness references. Check uncertain setup passages against an actual fresh harness.
-- In command-hub instructions, distinguish a leaf goal from a Leaf page.
+The before/after eval scored 14/14 samples in each arm. Both real served handoffs
+met all 19 criteria, including the delivered input, the page revision and the
+exact final URL. Changes to response production need their own combined workflow
+check; this result describes the instruction rewrite on its tested interface.
 
 ## Phases 3 and 4: Site readers and structure
 
@@ -78,24 +78,23 @@ product-page tests; compare the rendered candidate before deciding.
 
 ## Phase 5: UI and CLI vocabulary
 
-Audit current rendered copy before changing strings: earlier counts and banner
-examples are a snapshot. Give one concept one user-visible word and cut every surface
-over together. Examples include “Undo”, “page”, “Threads” and “comment box”; delivery,
-work and an owed answer still need distinct meanings.
+The vocabulary cutover is complete. “All pages” names the neighboring-page
+drawer, “Showing vN” names the visible version, and “comment box” names its editor.
+Saved input, an owed answer and observed work remain distinct. A page Ask needs an
+answer; messages in one thread need one reply. “Your updates are saved” describes
+input without borrowing a count of response obligations. Historical work does not
+imply a current live turn.
 
-The CLI should use one error presentation, minimal success lines and self-contained
-hints. Remove Python representations and implementation vocabulary from reader-facing
-messages. A shared glossary owns the words, not a second table in this note.
+CLI refusals use the existing Click error presentation and self-contained, quoted
+path hints. Structured diagnostic values use one standard JSON renderer at the
+existing diagnostic owner. Refusal rules and event contracts remain with their
+owners. The shared glossary defines the vocabulary; this note keeps no second table.
 
-**Decision C — mixed user input.** Recommend “update” for a mixed count and the specific
-noun for an individual comment or choice; “Showing v4” keeps revision copy distinct.
-Alternatives are counts by kind, which require per-kind activity data, or “move” for
-the mix. Test the wording on actual banner and neighboring-page rows.
-
-**Decision D — sidebar naming.** `layout-sidebar` and `aside.sidebar` name different
-forms. Options are renaming the Layout to `layout-aside`, renaming the margin idiom,
-or keeping both with distinct descriptions. A rename cuts over validation, registry,
-instructions, examples and eval cases together; score instructions before and after.
+`layout-sidebar` and `aside.sidebar` retain their separate meanings and distinct
+descriptions. Blind desktop and phone use verified mixed input, undo, neighboring
+pages, versions and actual CLI recovery. The paired banner comparison and live
+candidate are on the review page. Startup uses the same code request count;
+timing is diagnostic rather than an acceptance threshold.
 
 ## Phase 6: Example subjects
 

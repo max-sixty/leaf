@@ -24,7 +24,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "5cc058420ee32fc5e60bca5998f45b9f7a8f3826f1a63292a246450fc2866807",
+  "lockfileSha256": "5b5e0964b386e1cdc96a788da3f8f438454cf3564048d0eac5b918229eab29c0",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -56,6 +56,7 @@
     "lit": "3.3.3",
     "lit-html": "3.3.0",
     "marked": "18.0.14",
+    "photoswipe": "5.4.4",
     "sortablejs": "1.15.7",
     "typescript": "7.0.2"
   },
@@ -167,8 +168,8 @@
       "sha256": "a7113a13edd12dc530a840ad6c7da47d90475ab3d589ef6b76de4b71766931df"
     },
     "build/browser/generated/browser-runtime.js.map": {
-      "bytes": 215408,
-      "sha256": "3669ca8bd1c606b69f77ba54d3a44705e92d90b117b022fb48662c136ad23d2b"
+      "bytes": 215506,
+      "sha256": "d3331b0ef8df10bd2336bfa281ab9ca98bd9daa3e433e251d862c396e7d69d89"
     },
     "skills/leaf/assets/vendor/lit.js": {
       "bytes": 32081,

@@ -133,6 +133,18 @@ has tried; settle that before building it.
   in Slack, Discord and Telegram, so an accidental press loses a long rewrite. Offer a
   way back, such as `g D` restoring the last discarded rewrite into its editor (the
   user's suggestion, 2026-10-06).
+- **Decide when a page merits a separate phone composition.** Many pages are
+  ephemeral and authored for a user reading on a large screen, so a bespoke phone
+  animation may not repay its cost. Decide how the agent weighs the user's viewing
+  context, expected reuse, and a readable fallback against that work. Distinguish
+  those pages from maintained public examples such as `wt-merge`, where a phone
+  design can be worth exploring.
+- **Improve maintained examples through a phone-quality queue.** Keep desktop
+  as the priority and address phone composition in a dedicated stream. Start with
+  `triage-board`: at 390px only one bucket is meaningfully visible, while other
+  buckets scroll horizontally and the release rationale sits below the board.
+  Keep comparison context available during a move, preserving direct destination
+  controls and undo.
 - **Consider automatic Leaf recovery on resume.** Reuse the reconnect notice's
   eligibility checks to restore serving, ownership, and feedback delivery, while
   respecting explicit stops and transfers to another session.

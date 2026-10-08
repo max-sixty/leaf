@@ -11,7 +11,7 @@ vars:
   prompt: |
     You own a live Leaf page at ~/.local/state/leaf/pages/cache-plan, a plan for the
     session cache. A `leaf wait` just printed a delivery. Its one event is a user
-    reply, id 7c41d0e2, in thread 3fa1c2d9, which has no title yet. The thread is
+    reply, id 7c41d0e2, in thread 3fa1c2d9, which has no title yet. Its answer is `{kind: reply, writer: agent, ref: "7f20c3d9:0:7c41d0e2"}`. The thread is
     long: the delivery's digest of it shows the opening comment and the last few
     messages, with `elided: 9`. The user wrote:
 
@@ -26,15 +26,14 @@ vars:
 assert:
 - type: regex
   metric: titles-in-the-reply
-  value: leaf thread reply\b(?:[^\n]|\\\n)*--title\b
+  value: leaf response reply\b(?:[^\n]|\\\n)*--title\b
 - type: llm-rubric
   metric: judgment
   value: |
     Read the commands. Pass only if all three hold. First, the earlier messages are
     read with `leaf page state <page> 3fa1c2d9` (or the same command naming
     7c41d0e2), optionally paged with `--after`, before the reply. Second, the answer
-    is one `leaf thread reply` naming the event (`--for 7c41d0e2`, or relying on the
-    single outstanding reply), and it or a progress update (`--ephemeral`) posted
+    is one `leaf response reply` naming the exact reference `7f20c3d9:0:7c41d0e2`, and it or a progress update (`--ephemeral`) posted
     before it carries `--title` with a few words naming the thread's subject; that
     progress update may come before the read. Third, no separate command names the
     thread: fail on any `leaf thread title`, `leaf thread read`, or `leaf page

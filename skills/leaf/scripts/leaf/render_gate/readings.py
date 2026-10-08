@@ -7,7 +7,6 @@ A reading about Leaf's own chrome or theme, including one that would have to
 recognize a Leaf control by its markup to judge it, belongs in the suite, which holds
 Leaf's half."""
 
-import json
 from dataclasses import dataclass
 from itertools import pairwise
 
@@ -21,6 +20,7 @@ from leaf.projection import (
     rewritten_bodies,
 )
 from leaf.registry.contract import retirement_slots
+from leaf.registry.schema import json_value
 from leaf.render_checks import evaluate_probe, one_frame, rendered
 from leaf.structure import SourceDocument
 
@@ -101,7 +101,11 @@ class DevtoolsIssues:
         for issue in self._raised:
             fields = list(_issue_fields(issue["details"]))
             nodes = [v for k, v in fields if k == "nodeId" or k.endswith("NodeId")]
-            facts = [f"{k}={v}" for k, v in fields if not k.endswith("Id") and v != ""]
+            facts = [
+                f"{k}={json_value(v)}"
+                for k, v in fields
+                if not k.endswith("Id") and v != ""
+            ]
             node = self._node(nodes[0]) if nodes else None
             if node is not None and not node["owned"]:
                 continue
@@ -201,8 +205,8 @@ def _verbatim_findings(context: _SchemeContext) -> list[str]:
         findings.append(
             f"{owner}{where} declares x-verbatim but shows "
             f"{reading['says'][:80]!r} with owned structure "
-            f"{reading['compositional']!r} where the file reads "
-            f"{expected.get(key, [])!r}"
+            f"{json_value(reading['compositional'])} where the file reads "
+            f"{json_value(expected.get(key, []))}"
         )
     return findings
 
@@ -324,7 +328,7 @@ def _scheme_findings(context: _SchemeContext) -> tuple[list, list]:
         )
     if tiny:
         found.append(
-            f"[{scheme}] widgets rendered with no usable size: {json.dumps(tiny)}"
+            f"[{scheme}] widgets rendered with no usable size: {json_value(tiny)}"
         )
     found += [
         f"[{scheme}] <{u['tag']} id={u['id']!r}> shows {u['w']}x{u['h']}px of words"

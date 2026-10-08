@@ -27,7 +27,7 @@ const ROW = "data-lf-row";
 const EMPTY_ROWS = Object.freeze([]);
 const EMPTY_MODEL = Object.freeze({
   offered: false,
-  label: "All leaves (0)",
+  label: "All pages (0)",
   rows: EMPTY_ROWS,
 });
 
@@ -165,7 +165,7 @@ class LiveLeavesList extends RetainedFace {
     for (const link of this.querySelectorAll(LINK)) {
       if (this.#wiredLinks.has(link)) continue;
       this.#wiredLinks.add(link);
-      keys(link, "In the leaves drawer", openCommand);
+      keys(link, "In the pages drawer", openCommand);
     }
     const offered = this.querySelector(LINK) !== null;
     if (offered !== this.#linksOffered) {

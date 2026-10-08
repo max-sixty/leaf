@@ -44,7 +44,7 @@ from .schema import (
     ANSWER_ASK_INSTRUCTION,
     PREVIEW_FILE,
 )
-from .served_state.page import full_state
+from .served_state.work import live_work
 from .service import (
     PageTransaction,
     owned_pages,
@@ -109,7 +109,8 @@ def read_plans(session_id: str) -> list[PagePlan]:
                 # lock over a page projection or taking locks in reverse order.
                 while True:
                     lifecycle = session_record(session_id)
-                    state = full_state(page_dir, page.events)
+                    work = live_work(page_dir, page.events)
+                    state = {**work.presence, "activity": work.activity}
                     claim = page.active_claim
                     if session_record(session_id) == lifecycle:
                         break
@@ -236,7 +237,8 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
                     plan.claim["turn"],
                 ):
                     continue
-                current = full_state(plan.page, page.events)
+                work = live_work(plan.page, page.events)
+                current = {**work.presence, "activity": work.activity}
                 still_owed = {
                     item["input"] for item in acknowledged_obligations(current)
                 }

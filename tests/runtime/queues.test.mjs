@@ -118,7 +118,7 @@ test("each item is called by how it ends", () => {
     "task",
     "recovery",
     "recovery",
-    "answer",
+    "reply",
     "task",
   ]);
 });

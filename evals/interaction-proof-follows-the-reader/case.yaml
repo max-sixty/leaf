@@ -5,6 +5,7 @@
 # both arms passed map comparison and intentional disclosure in 2/2 runs each.
 description: interaction-proof-follows-the-reader
 metadata:
+  instructions: .claude/skills/developing-leaf/SKILL.md
   purpose: A maintainer derives interaction proof from the reader's task, beyond successful
     dispatch and final state.
   tags:
@@ -13,8 +14,7 @@ metadata:
   - review
 vars:
   prompt: |
-    You are maintaining Leaf itself. Read its developing-leaf skill at
-    ../../.claude/skills/developing-leaf/SKILL.md relative to the Leaf skill directory.
+    You are maintaining Leaf itself.
 
     The user's request was: "Can we consider having a widget that displays markdown
     (or html or anything that can display rendered or previewed), and allow for
@@ -36,11 +36,6 @@ vars:
     a read-only run, so describe any actions still owed before that closeout. If the
     work is ready, present the result with its Preview / Source review link.
 assert:
-- type: javascript
-  metric: reads-maintainer
-  value: file://reference-read.cjs
-  config:
-    path: \.claude/skills/developing-leaf/SKILL\.md
 - type: llm-rubric
   metric: checks-the-reading-transition
   value: |
@@ -55,8 +50,7 @@ variants:
     metadata: {}
     vars:
       prompt: |
-        You are maintaining Leaf itself. Read its developing-leaf skill at
-        ../../.claude/skills/developing-leaf/SKILL.md relative to the Leaf skill directory.
+        You are maintaining Leaf itself.
 
         A user asked us to implement a figure widget so they can compare two versions
         of a map. We composed the existing switcher and image renderer. It starts with
@@ -73,11 +67,6 @@ variants:
         a read-only run, so describe any actions still owed before that closeout. If the
         work is ready, present the result with its comparison review link.
     assert:
-    - type: javascript
-      metric: reads-maintainer
-      value: file://reference-read.cjs
-      config:
-        path: \.claude/skills/developing-leaf/SKILL\.md
     - type: llm-rubric
       metric: checks-the-comparison-transition
       value: |
@@ -91,8 +80,7 @@ variants:
     metadata: {}
     vars:
       prompt: |
-        You are maintaining Leaf itself. Read its developing-leaf skill at
-        ../../.claude/skills/developing-leaf/SKILL.md relative to the Leaf skill directory.
+        You are maintaining Leaf itself.
 
         A user asked for ordinary in-flow details in a long report, so they can expand
         a methods section to read it with the result and conclusion that follow. The

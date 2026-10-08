@@ -53,7 +53,11 @@ export const endsByDone = (item) => item.ends === "done";
 
 const NOUNS = Object.freeze({ widget: "ask", reply: "question" });
 export const taskNoun = (item) =>
-  item.kind === "task" ? (NOUNS[item.ends] ?? "task") : item.kind;
+  item.kind === "task"
+    ? (NOUNS[item.ends] ?? "task")
+    : item.kind === "answer" && item.answer?.kind === "reply"
+      ? "reply"
+      : item.kind;
 
 const taskItem = (task) => ({
   kind: "task",

@@ -92,7 +92,8 @@ const characters = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 // normalization. That normalization can both remove prefixes and expand a tab into
 // spaces. The shared lossless aligner maps either transformation back to source.
 function inlineSourcePositions(source, raw, at, limit) {
-  const positions = [];
+  // Even an empty inline token has one boundary (for example, an empty table cell).
+  const positions = [at];
   let sourceAt = at;
   let inlineAt = 0;
   for (const run of alignText(source.slice(at, limit), raw, characters, Infinity)) {

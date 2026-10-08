@@ -46,6 +46,8 @@ test("a rendered Markdown caret keeps its exact source position in long and stru
     "- &amp; first\n\tcontinued [word300](https://example.com)",
     "> first\n>\tcontinued **word300**",
     "First\r\n\r\n**word300**",
+    "Intro **before**.\n\n| A | B |\n| --- | --- |\n| | **word300** |",
+    "| | B |\n| --- | --- |\n| | **word300** |",
   ]) {
     const body = document.createElement("div");
     paintMarkdown(body, source);

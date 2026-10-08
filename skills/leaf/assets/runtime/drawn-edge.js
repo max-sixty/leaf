@@ -31,9 +31,9 @@ let activeResize = null;
  * kept and the standing width is derived from it. Everything reads `width`; nothing holds
  * the number.
  *
- * One width, and a handle for each region on that side: the left edge holds two drawers one
- * at a time, and each wears the edge it is drawn by, because a handle outside them both
- * would not slide in with the drawer it belongs to. They are handles onto one fact rather
+ * One width, and a handle for each region on that side: the right edge holds the Threads
+ * and Questions panels one at a time, and each wears the edge it is drawn by, because a
+ * handle outside them both would not slide in with the panel it belongs to. They are handles onto one fact rather
  * than two facts — `state` is the one writer, and it says the same thing on every one.
  */
 export function drawnEdge({ side, noun, wide, min, prop, key, when, land }) {

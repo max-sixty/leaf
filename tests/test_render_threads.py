@@ -3699,7 +3699,7 @@ def test_explicit_navigation_reveals_held_panel_news(browser, serve, destination
         expect(
             thread.get_by_role("button", name="1 new reply", exact=True)
         ).to_be_visible()
-        page.keyboard.press("a")
+        page.keyboard.press("q")
         expect(thread.locator("#held-question")).to_be_focused()
     expect(message).to_be_visible()
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
@@ -4577,7 +4577,7 @@ def test_the_panel_reads_the_thread_in_the_pages_own_order(browser, serve):
         "placeholder", "Reply"
     )
     # From no place on the page the walk starts at the list's first thread; a caret a
-    # click leaves is a place, as it is for `a`.
+    # click leaves is a place, as it is for `q`.
     page.evaluate(
         "() => { document.activeElement?.blur(); getSelection().removeAllRanges(); }"
     )
@@ -4831,7 +4831,7 @@ def test_recent_order_lists_threads_by_their_latest_message(browser, serve):
 
     # The page's walk is the page's order whatever the panel shows.
     # From no place on the page, which is where the walk starts from its first thread:
-    # a caret a click leaves is a place, as it is for `a`.
+    # a caret a click leaves is a place, as it is for `q`.
     order.get_by_role("button", name="Recent").click()
     page.locator(".lf-threads-toggle").click()
     page.evaluate(
@@ -5182,7 +5182,7 @@ def test_the_panel_can_show_only_what_is_waiting_on_the_user(browser, serve):
     page.keyboard.press("n")
     expect(theirs_title).to_be_focused()
     # The card the narrowing hides keeps its node. A widget an agent sent in a reply is
-    # instantiated once, in that card, and the Ask reading and the Queue find it by
+    # instantiated once, in that card, and the Ask reading and the Questions panel find it by
     # id in the document — hidden is the list's business, gone would be a claim about the
     # log (test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page).
     expect(
@@ -7132,7 +7132,7 @@ def test_a_delayed_accordion_reveal_yields_to_the_users_new_thread(browser, serv
     page.locator(".lf-threads").focus()
     # The thread the list shows asks the user a question too, so focus on the list is
     # standing on that item of their queue; the hidden Ask stands before it on the page.
-    page.keyboard.press("Shift+a")
+    page.keyboard.press("Shift+q")
     page.wait_for_function(
         "window.visibleThreadPresentationHeld === true", timeout=3000
     )
@@ -8537,7 +8537,7 @@ def test_the_line_offers_the_thread_g_t_lands_on_its_own_keys(browser, serve):
 def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     browser, serve
 ):
-    """The Ask reading and the Queue read the log; the panel's narrowing is a view.
+    """The Ask reading and the Questions panel read the log; the panel's narrowing is a view.
 
     A question an agent asks in a reply is a widget instantiated once, in the panel's
     card, and every other reading of it finds that widget by id in the document. So
@@ -8546,7 +8546,7 @@ def test_a_narrowing_hides_a_thread_without_taking_its_question_off_the_page(
     minute later — the narrowing let go — both came back, with nothing in the log
     having moved. A blind drive spent a locator timeout on the flip.
 
-    The card the narrowing hides is hidden, not gone, so the count and the Queue hold."""
+    The card the narrowing hides is hidden, not gone, so the count and the Questions panel hold."""
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
     )
@@ -8967,6 +8967,80 @@ def test_leaving_a_long_threads_reply_keeps_the_list_where_it_was(browser, serve
     rendered(page)
     scroll_settled(page, ".lf-threads")
     assert page.locator(".lf-threads").evaluate("list => list.scrollTop") == before
+    assert card.locator(".lf-msg").last.evaluate(IN_LANDING_BAND)["inside"]
+
+
+def test_reopening_a_touch_panel_keeps_its_reading_position_and_draft(browser, serve):
+    """A modal panel returns to the turn being read; an explicit thread walk lands.
+
+    Reopening forwarded focus through the retained list as a fresh navigation and
+    carried an earlier reading to the latest turn, despite keeping the draft node.
+    """
+    url = serve(PANEL_PAGE)
+    root = seed_panel_threads(serve.page_dir, 1, long_index=0)[0]
+    context = browser.new_context(
+        has_touch=True,
+        viewport={"width": 390, "height": 740},
+        reduced_motion="reduce",
+    )
+    page = open_page(browser, url, context=context)
+    toggle = page.locator(".lf-threads-toggle")
+    toggle.tap()
+    panel_settled(page)
+    panel = page.locator(".lf-thread-panel")
+    envelope = page.locator(".lf-auxiliary-envelope")
+    assert envelope.evaluate("el => el.matches(':modal')")
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    if card.get_attribute("open") is None:
+        card.locator(":scope > .lf-thread-summary").tap()
+    earlier = card.get_by_role(
+        "button", name=re.compile(r"^Show \d+ earlier messages$")
+    )
+    if earlier.is_visible():
+        earlier.tap()
+    field = card.locator(".lf-thread-reply leaf-text")
+    field.tap()
+    draft = "\n".join(f"Draft line {n}" for n in range(20))
+    page.keyboard.insert_text(draft)
+    expect(field).to_have_js_property("value", draft)
+    retained = field.element_handle()
+    caret = field.evaluate("el => [el.selectionStart, el.selectionEnd]")
+    rendered(page)
+    listing = page.locator(".lf-threads")
+    limit = listing.evaluate("el => el.scrollHeight - el.clientHeight")
+    assert limit > listing.evaluate("el => el.clientHeight")
+    port = listing.bounding_box()
+    touch = context.new_cdp_session(page)
+    touch.send(
+        "Input.synthesizeScrollGesture",
+        {
+            "x": port["x"] + port["width"] * 0.7,
+            "y": port["y"] + min(80, port["height"] / 4),
+            "yDistance": limit + 100,
+            "gestureSourceType": "touch",
+            "speed": 10000,
+        },
+    )
+    scroll_settled(page, ".lf-threads")
+    before = listing.evaluate("el => el.scrollTop")
+    assert before < limit - 100, "the touch gesture must reveal an earlier turn"
+    panel.get_by_role("button", name="Close threads", exact=True).tap()
+    panel_settled(page, open=False)
+    assert not envelope.evaluate("el => el.matches(':modal')")
+    toggle.tap()
+    panel_settled(page)
+    rendered(page)
+    scroll_settled(page, ".lf-threads")
+    assert envelope.evaluate("el => el.matches(':modal')")
+    assert listing.evaluate("el => el.scrollTop") == before
+    assert field.evaluate("(el, retained) => el === retained", retained)
+    expect(field).to_have_js_property("value", draft)
+    assert field.evaluate("el => [el.selectionStart, el.selectionEnd]") == caret
+    page.keyboard.press("t")
+    page.wait_for_function(
+        "before => document.querySelector('.lf-threads').scrollTop > before", arg=before
+    )
+    scroll_settled(page, ".lf-threads")
     assert card.locator(".lf-msg").last.evaluate(IN_LANDING_BAND)["inside"]
 
 
@@ -10170,7 +10244,7 @@ def test_a_wheel_during_a_resolution_fold_outranks_the_landing_after_it(browser,
 
 
 def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve):
-    """A card the narrowing hid keeps its node, so the `a` walk can still name the
+    """A card the narrowing hid keeps its node, so the `q` walk can still name the
     question in it — and arriving there has to show it, the way showThread does:
     focus on a card with no box is a no-op and the announcement would say "1 of 2"
     over a list that shows something else. The thread the list shows asks the user a
@@ -10188,7 +10262,7 @@ def test_a_walk_to_a_question_the_narrowing_hides_widens_the_list(browser, serve
     page.get_by_role("searchbox", name="Find in threads").fill("stay blocked")
     expect(card).to_have_attribute("hidden", "")
     page.locator(".lf-threads").focus()
-    page.keyboard.press("Shift+a")
+    page.keyboard.press("Shift+q")
     expect(card).not_to_have_attribute("hidden", "")
     expect(page.get_by_role("searchbox", name="Find in threads")).to_have_value("")
     assert page.evaluate(

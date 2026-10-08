@@ -128,7 +128,7 @@ value and must be removed when that value returns.
 
 A widget that declares `x-awaits` says what its answered Ask was answered with: its class
 declares `static answerWords(state, element)`, returning concise words for its row
-under Done in the Queue panel and a queue's row. The Queue panel is experimental and
+under Done in the Questions panel and a queue's row. The Questions panel is experimental and
 expected to change a lot. `state` is the same complete state `renderState`
 receives, and `element` is the widget, for authored markup such as an option's name;
 read nothing the module renders. Leaf calls it only while the Ask is answered, with the
@@ -508,8 +508,8 @@ Declare ordinary local bindings in `keys` and explicitly forwardable aliases in
 the enclosing Ask's opening and its associated margin controls and threads. A route can
 declare its own `contextKeys`; an ordinary key on another route is never forwarded.
 Numbers are widget choices, not an Ask allocation: options own their stable numeric
-assignments, and a swipe deck declares Pass as `1` and Keep as `2`. The page owns `a`
-and `Shift+a` navigation between Asks. Do not assign numbers based on currently available
+assignments, and a swipe deck declares Pass as `1` and Keep as `2`. The page owns `q`
+and `Shift+q` navigation between Asks. Do not assign numbers based on currently available
 actions: disabling `1` must not turn `2` into a different action.
 
 ```javascript

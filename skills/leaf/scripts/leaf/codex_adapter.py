@@ -156,7 +156,9 @@ class TaskConnection:
     fold selection. A resume response uses its pre-request token, so intervening
     notifications or a newer prompt win; exact historical answers settle without
     adopting a current lifecycle. Matching completion refreshes the token for the
-    next natural provider turn.
+    next natural provider turn. Terminal provider IDs remain terminal for this
+    subscription, even after their heavy live folds are discarded; late output
+    and stale running snapshots cannot give them a new lifecycle.
     """
 
     def __init__(self, endpoint: str, thread_id: str):
@@ -166,6 +168,9 @@ class TaskConnection:
         self.turns: dict[str, TurnFold] = {}
         self.running: str | None = None
         self.lifecycle = session_record(thread_id)
+        self.terminal_turns: set[str] = set()
+        if self.lifecycle and self.lifecycle["turn_closed"] is not None:
+            self.terminal_turns.add(self.lifecycle["turn"])
         self.stop_event = threading.Event()
         self.socket = None
         self.started = False
@@ -407,6 +412,7 @@ class TaskConnection:
                     "cursor": cursor,
                 },
             )
+            self._observe_terminals(page["data"])
             for turn in page["data"]:
                 if not _turn_items_complete(turn):
                     raise RuntimeError(
@@ -486,6 +492,7 @@ class TaskConnection:
         # A completion with unloaded items says it ended, but cannot say what
         # it answered. Preserve its fold and reservation until full hydration.
         running = turn.get("status") == "inProgress"
+        self._observe_terminals([turn])
         complete = _turn_items_complete(turn)
         if not running and not complete:
             return False
@@ -524,12 +531,8 @@ class TaskConnection:
             turn_id = params.get("turnId") or self.running
         if turn_id is None:
             return
-        # Live evidence must still own the subscription's epoch before it can
-        # change running identity or reuse even an existing fold. Historical
-        # completion instead settles the exact delivery without reopening it.
-        if method != "turn/completed" and not self._observe_lifecycle(turn_id):
-            return
-
+        if method == "turn/completed":
+            self.terminal_turns.add(turn_id)
         delivery_id = app_server_delivery_id(message)
         # An offered delivery can name a turn whose `turn/started` reached the task
         # before this subscription was open to see it.
@@ -539,6 +542,22 @@ class TaskConnection:
             and delivery_record_state(self.thread_id, delivery_id)
             in {"offering", "abandoned"}
         )
+        if method != "turn/completed":
+            # Background output can outlive its turn. A start or exact offered
+            # delivery may introduce identity; ordinary items can only update
+            # a fold that still owns this subscription's current epoch.
+            if (
+                method != "turn/started"
+                and not adopting
+                and (
+                    turn_id not in self.turns
+                    or self.lifecycle is None
+                    or self.lifecycle["turn"] != turn_id
+                )
+            ):
+                return
+            if not self._observe_lifecycle(turn_id):
+                return
         fold = self._fold(
             turn_id,
             delivery_id,
@@ -555,10 +574,22 @@ class TaskConnection:
             fold.commit(terminal)
         self._refresh_lifecycle(turn_id)
 
+    def _observe_terminals(self, turns: list[dict]) -> None:
+        """Remember terminal identity even when items are unloaded or irrelevant.
+
+        These provider observations survive removal of their live folds. They
+        authorize no current state; they only prevent an ended ID from reopening.
+        """
+        self.terminal_turns.update(
+            turn["id"] for turn in turns if turn.get("status") != "inProgress"
+        )
+
     def _observe_lifecycle(
         self, turn_id: str, expected: dict | None | object = ...
     ) -> bool:
         """Adopt ordered live provider evidence only against this subscription's epoch."""
+        if turn_id in self.terminal_turns:
+            return False
         observed = start_session_turn(
             self.thread_id, turn_id, self.lifecycle if expected is ... else expected
         )

@@ -9860,15 +9860,16 @@ def test_a_watch_at_an_interrupted_ending_wakes_only_for_later_input(
     Escape settles a run, starts the watch with that Interrupt payload, which
     closes the turn before its first look. The user stopped the turn the pending
     input was handed to, so that input waits for their next prompt, and only
-    input arriving after the watch starts wakes the session. A watch at a Stop
-    ending wakes for the same pending input at once."""
+    unreceived input wakes the session. A watch at a Stop ending wakes for later
+    pending input at once."""
     leases_model.mark_hooks("s1")
     serving(claimed, 1)
     session_model.cmd_waiting(claimed, "")
     cleanup_model.prompt_turn("s1")
-    append_carried_log_record(
+    handed = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "handed over"}
     )
+    receive_through(claimed, handed["seq"])
 
     waiting = threading.Event()
     await_news = session_model.Watch.await_news
@@ -9905,6 +9906,157 @@ def test_a_watch_at_an_interrupted_ending_wakes_only_for_later_input(
         f"{claimed} has new input"
     )
     assert not waiting.is_set()
+
+
+@pytest.mark.parametrize("failure", [None, "turn_failed", "recovered"])
+def test_a_watch_does_not_reopen_for_answered_unreceived_input(
+    claimed, monkeypatch, failure
+):
+    """A status-visible move can be answered before its delivery is received.
+    It remains in the receipt batch, but that batch alone starts no new turn."""
+    publish(claimed)
+    leases_model.mark_hooks("s1")
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed, "")
+    cleanup_model.prompt_turn("s1")
+    source = append_command(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "already answered",
+        },
+    )
+    thread_model.post_reply(
+        claimed,
+        source["id"],
+        "done",
+        None,
+        for_event=source["id"],
+        failure="turn_failed" if failure else None,
+    )
+    if failure == "recovered":
+        thread_model.post_reply(
+            claimed,
+            source["id"],
+            "recovered answer",
+            None,
+            for_event=source["id"],
+            when_settled="post",
+        )
+    assert thread_model.answered_by_reply(
+        events_model.read_events(claimed), source["id"]
+    ) is (failure != "turn_failed")
+    cleanup_model.close_session_turn("s1")
+    observed, waiting = threading.Event(), threading.Event()
+    await_news = session_model.Watch.await_news
+
+    def after_a_pass(watch, mark, *args, **kwargs):
+        waiting.set()
+        observed.set()
+        return await_news(watch, mark, *args, **kwargs)
+
+    monkeypatch.setattr(session_model.Watch, "await_news", after_a_pass)
+    outcome = []
+
+    def run():
+        try:
+            outcome.append(
+                hooks_model.cmd_watch(
+                    "claude-code", {"hook_event_name": "Stop", "session_id": "s1"}
+                )
+            )
+        finally:
+            observed.set()
+
+    watch = threading.Thread(target=run)
+    watch.start()
+    try:
+        assert observed.wait(STATED_TIMEOUT)
+        assert waiting.is_set(), "answered input alone woke a new turn"
+        assert source["id"] in {
+            event["id"]
+            for event in service_model.unacknowledged(
+                events_model.read_events(claimed),
+                service_model.PageTransaction(claimed).cursor,
+            )
+        }
+    finally:
+        append_command(
+            claimed,
+            {
+                "kind": "reply",
+                "author": "user",
+                "parent": source["id"],
+                "text": "retry or new question",
+            },
+        )
+        watch.join(timeout=STATED_TIMEOUT)
+    assert not watch.is_alive()
+    assert outcome[0].startswith(f"{claimed} has new input")
+
+
+@pytest.mark.parametrize(
+    "event",
+    [
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "held outside context",
+        },
+        {"kind": "error", "author": "page", "text": "a widget failed"},
+    ],
+)
+def test_an_interrupt_watch_delivers_input_never_handed_to_the_stopped_turn(
+    claimed, monkeypatch, event
+):
+    """Pi can hold a mid-run notification without entering it into context.
+    Escape must not strand that input merely because it predates the watch."""
+    publish(claimed)
+    leases_model.mark_hooks("s1")
+    serving(claimed, 1)
+    session_model.cmd_waiting(claimed, "")
+    cleanup_model.prompt_turn("s1")
+    source = append_command(claimed, {**event, "revision": 1})
+    assert source["attention"]
+    observed, waiting = threading.Event(), threading.Event()
+    await_news = session_model.Watch.await_news
+
+    def after_a_pass(watch, mark, *args, **kwargs):
+        waiting.set()
+        observed.set()
+        return await_news(watch, mark, *args, **kwargs)
+
+    monkeypatch.setattr(session_model.Watch, "await_news", after_a_pass)
+    outcome = []
+
+    def run():
+        try:
+            outcome.append(
+                hooks_model.cmd_watch(
+                    "claude-code", {"hook_event_name": "Interrupt", "session_id": "s1"}
+                )
+            )
+        finally:
+            observed.set()
+
+    watch = threading.Thread(target=run)
+    watch.start()
+    try:
+        assert observed.wait(STATED_TIMEOUT)
+        assert not waiting.is_set(), (
+            "unreceived input was treated as handed to the stopped turn"
+        )
+    finally:
+        append_command(
+            claimed,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "after"},
+        )
+        watch.join(timeout=STATED_TIMEOUT)
+    assert not watch.is_alive()
+    assert outcome[0].startswith(f"{claimed} has new input")
 
 
 def test_a_late_interrupt_leaves_a_turn_opened_after_it_open(claimed):
@@ -11233,6 +11385,176 @@ def test_a_codex_ending_closes_a_page_claimed_before_its_first_tool_hook(
     assert not capsys.readouterr().out
     assert service_model.page_claim(page_dir)["turn_closed"]
     assert service_model.page_claim(page_dir)["turn"] == "user-turn"
+
+
+@pytest.mark.parametrize("late", ["notification", "snapshot", "start"])
+def test_completed_codex_predecessor_cannot_become_current_again(
+    page_dir, codex_loop, late
+):
+    """Terminal provider identity survives disposal of the observer's live fold."""
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "setup")
+    observer = _observer()
+    for turn in ("setup", "idle"):
+        observer._read(
+            {
+                "method": "turn/started",
+                "params": {"threadId": "codex-thread", "turn": {"id": turn}},
+            }
+        )
+        observer._read(
+            {
+                "method": "turn/completed",
+                "params": {
+                    "threadId": "codex-thread",
+                    "turn": {"id": turn, "status": "completed", "items": []},
+                },
+            }
+        )
+    ended = cleanup_model.session_record("codex-thread")
+    assert ended["turn"] == "idle" and ended["turn_closed"] is not None
+    if late == "notification":
+        observer._read(
+            {
+                "method": "item/commandExecution/outputDelta",
+                "params": {
+                    "threadId": "codex-thread",
+                    "turnId": "setup",
+                    "itemId": "late",
+                    "delta": "background output",
+                },
+            }
+        )
+    elif late == "start":
+        observer._read(
+            {
+                "method": "turn/started",
+                "params": {"threadId": "codex-thread", "turn": {"id": "setup"}},
+            }
+        )
+    else:
+        observer._resume(
+            {
+                "status": {"type": "active"},
+                "turns": [{"id": "setup", "status": "inProgress", "items": []}],
+            },
+            observer.lifecycle,
+        )
+    assert cleanup_model.session_record("codex-thread") == ended
+    assert observer.running is None
+    observer._read(
+        {
+            "method": "turn/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "resumed-new-identity"},
+            },
+        }
+    )
+    assert observer.running == "resumed-new-identity"
+    assert (
+        cleanup_model.session_record("codex-thread")["turn"] == "resumed-new-identity"
+    )
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["closed-lifecycle", "unloaded-snapshot", "unknown-output"],
+)
+def test_codex_observer_does_not_invent_a_turn_from_historical_evidence(
+    page_dir, codex_loop, source
+):
+    """Only a live start or exact delivery can introduce an observed turn."""
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "current")
+    cleanup_model.close_session_turn("codex-thread", "current")
+    observer = _observer()
+    ended = cleanup_model.session_record("codex-thread")
+    if source == "closed-lifecycle":
+        observer._read(
+            {
+                "method": "turn/started",
+                "params": {"threadId": "codex-thread", "turn": {"id": "current"}},
+            }
+        )
+    elif source == "unknown-output":
+        observer._read(
+            {
+                "method": "item/commandExecution/outputDelta",
+                "params": {
+                    "threadId": "codex-thread",
+                    "turnId": "unknown-old",
+                    "itemId": "late",
+                    "delta": "background output",
+                },
+            }
+        )
+    else:
+        terminal = {
+            "id": "historical",
+            "status": "interrupted",
+            "items": [],
+            "itemsView": "notLoaded",
+        }
+        running = {"id": "historical", "status": "inProgress", "items": []}
+        observer._reconcile(terminal)
+        observer._reconcile(running)
+    assert cleanup_model.session_record("codex-thread") == ended
+    assert observer.running is None
+    observer._read(
+        {
+            "method": "turn/started",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "resumed-new-identity"},
+            },
+        }
+    )
+    assert observer.running == "resumed-new-identity"
+    assert (
+        cleanup_model.session_record("codex-thread")["turn"] == "resumed-new-identity"
+    )
+
+
+def test_superseded_unfinished_codex_fold_cannot_reopen_on_late_output(
+    page_dir, codex_loop
+):
+    """A fold kept for historical recovery cannot restore its earlier live epoch."""
+    codex_loop(page_dir)
+    cleanup_model.prompt_turn("codex-thread", "old")
+    observer = _observer()
+    for turn in ("old", "new"):
+        observer._read(
+            {
+                "method": "turn/started",
+                "params": {"threadId": "codex-thread", "turn": {"id": turn}},
+            }
+        )
+    # The old completion was missed; its fold remains until history is hydrated.
+    observer._read(
+        {
+            "method": "turn/completed",
+            "params": {
+                "threadId": "codex-thread",
+                "turn": {"id": "new", "status": "completed", "items": []},
+            },
+        }
+    )
+    ended = cleanup_model.session_record("codex-thread")
+    assert "old" in observer.turns
+    observer._read(
+        {
+            "method": "item/commandExecution/outputDelta",
+            "params": {
+                "threadId": "codex-thread",
+                "turnId": "old",
+                "itemId": "late",
+                "delta": "background output",
+            },
+        }
+    )
+    assert cleanup_model.session_record("codex-thread") == ended
+    assert observer.running is None
 
 
 def test_a_late_codex_tool_hook_cannot_replace_a_newer_turn(page_dir, codex_loop):

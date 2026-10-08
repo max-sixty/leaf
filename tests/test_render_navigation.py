@@ -8668,6 +8668,39 @@ def test_the_reference_enters_named_go_to_destinations(
     )
 
 
+@pytest.mark.parametrize("viewport", [(1280, 800), (390, 800), (800, 320)])
+def test_the_reference_keeps_its_top_and_search_still_when_filtering(
+    browser, serve, viewport
+):
+    """Results shrink below the search field, including an empty result set."""
+    page = open_page(browser, serve(NOTED_PAGE))
+    resized(page, *viewport)
+    page.keyboard.press("?")
+    page.keyboard.press("?")
+    reference = page.locator(".lf-command-reference")
+    search = page.get_by_role("combobox", name="Search commands")
+    expect(search).to_be_focused()
+    initial_dialog = reference.bounding_box()
+    initial_search = search.bounding_box()
+
+    for query in ("page.search.open", "no command has these words", ""):
+        search.fill(query)
+        if query == "page.search.open":
+            expect(
+                reference.locator(".lf-command-reference-command:visible")
+            ).to_have_count(1)
+        if query == "no command has these words":
+            expect(reference.locator(".lf-command-reference-empty")).to_be_visible()
+            assert reference.bounding_box()["height"] < initial_dialog["height"]
+        expect(search).to_be_focused()
+        dialog = reference.bounding_box()
+        field = search.bounding_box()
+        assert dialog["y"] == pytest.approx(initial_dialog["y"], abs=0.5)
+        for axis in ("x", "y", "width", "height"):
+            assert field[axis] == pytest.approx(initial_search[axis], abs=0.5)
+        assert dialog["y"] + dialog["height"] <= viewport[1] - 16
+
+
 def test_the_reference_keeps_local_search_state_on_one_lit_surface(browser, serve):
     """Filtering and selection update one stable search surface through Lit.
 

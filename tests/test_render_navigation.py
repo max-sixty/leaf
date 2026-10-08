@@ -8089,11 +8089,14 @@ def test_inflight_native_paging_hides_hints_until_the_scene_settles(browser, ser
     page.clock.install(time=0)
     page.clock.pause_at(page.evaluate("() => (Date.now() + 100) / 1000"))
     page.evaluate(
-        """() => { window.firstPageScroll = new Promise(resolve =>
-          document.addEventListener('scroll', resolve, {once: true, capture: true})); }"""
+        """() => {
+          window.firstPageScroll = false;
+          document.addEventListener('scroll', () => { window.firstPageScroll = true; },
+            {once: true, capture: true});
+        }"""
     )
     page.keyboard.press("PageDown")
-    page.evaluate("() => window.firstPageScroll")
+    page.wait_for_function("() => window.firstPageScroll", polling=20)
     page.keyboard.press("g")
     page.clock.run_for(20)
     expect(page.locator("body")).to_have_attribute("data-lf-go-to-active", "")

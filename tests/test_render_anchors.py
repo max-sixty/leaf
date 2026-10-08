@@ -4501,7 +4501,6 @@ def test_version_notes_stay_readable_beside_compare_at_narrow_widths(
         ).to_be_visible()
         page.keyboard.press("Escape")
         page.keyboard.press("Escape")
-    context.close()
 
 
 @pytest.mark.watch_shifts

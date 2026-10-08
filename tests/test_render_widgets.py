@@ -1399,6 +1399,22 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     page.keyboard.press("ArrowRight")
     expect(rtl.first).to_have_attribute("aria-selected", "true")
 
+    # Paging observes the live motion preference too, in both text directions.
+    page.emulate_media(reduced_motion="reduce")
+    for strip_id, sign in (("framed", 1), ("rtl", -1)):
+        paged = page.evaluate(
+            """([id, sign]) => {
+          const strip = document.querySelector(`#${id} > .lf-tabstrip`);
+          strip.scrollLeft = 0;
+          const expected = sign * Math.min(
+            0.8 * strip.clientWidth, strip.scrollWidth - strip.clientWidth);
+          strip.querySelector('.lf-tabstrip-scroll[data-to="end"] > span').click();
+          return {expected, actual: strip.scrollLeft};
+        }""",
+            [strip_id, sign],
+        )
+        assert paged["actual"] == pytest.approx(paged["expected"], abs=1), paged
+
 
 def test_tab_reaches_the_open_panel_and_no_closed_one(browser, serve):
     """Tab from the open tab lands on its panel, whose prose holds nothing focusable,
@@ -2549,7 +2565,11 @@ def test_a_milestone_marker_is_centred_on_its_title(browser, serve):
         "milestone marker alignment",
         """
 <h1>Release plan</h1>
-<style>#rail { width: 160px; }</style>
+<style>
+#rail { width: 160px; }
+#publish { --lf-timeline-rule: 4px; }
+#publish::before { width: 22px; height: 22px; border-width: 3px; }
+</style>
 <lf-milestones id="rail">
   <lf-milestone id="publish" status="active"><strong>Publish the release after validation</strong></lf-milestone>
 </lf-milestones>
@@ -2569,13 +2589,47 @@ def test_a_milestone_marker_is_centred_on_its_title(browser, serve):
           return {
             title: title.top + lineHeight / 2,
             titleLines: title.height / lineHeight,
+            spineX: box.left + parseFloat(getComputedStyle(item).borderLeftWidth) / 2,
+            markerX: box.left + parseFloat(getComputedStyle(item).borderLeftWidth)
+              + parseFloat(marker.left) + parseFloat(marker.width) / 2
+              + new DOMMatrix(marker.transform === 'none' ? undefined : marker.transform).m41,
             marker: box.top + parseFloat(marker.top)
-              + (parseFloat(marker.height) + border) / 2,
+              + (parseFloat(marker.height) + border) / 2
+              + new DOMMatrix(marker.transform === 'none' ? undefined : marker.transform).m42,
           };
         }"""
     )
     assert centres["titleLines"] >= 2, centres
+    assert centres["markerX"] == pytest.approx(centres["spineX"], abs=0.1), centres
     assert centres["marker"] == pytest.approx(centres["title"], abs=0.5), centres
+
+
+@pytest.mark.parametrize("timestamp", ['at="09:14"', 'at=""', ""])
+def test_a_chronology_marker_follows_its_first_visible_line(browser, serve, timestamp):
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "chronology marker alignment",
+                f"""<h1>Observed events</h1><lf-chronology id="history">
+<lf-chronology-entry id="observed" {timestamp}><strong>Work started</strong>
+The team began validation.</lf-chronology-entry></lf-chronology>""",
+            )
+        ),
+    )
+    centres = page.locator("#observed").evaluate(
+        """item => {
+          const box = item.getBoundingClientRect(), marker = getComputedStyle(item, '::after');
+          const label = item.querySelector('[data-lf-said="at"]');
+          const first = label && label.getClientRects().length ? label : item;
+          const line = first.getBoundingClientRect().top
+            + parseFloat(getComputedStyle(first).lineHeight) / 2;
+          const matrix = new DOMMatrix(marker.transform === 'none' ? undefined : marker.transform);
+          return {line, marker: box.top + parseFloat(marker.top)
+            + parseFloat(marker.height) / 2 + matrix.m42};
+        }"""
+    )
+    assert centres["marker"] == pytest.approx(centres["line"], abs=0.1), centres
 
 
 def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, serve):
@@ -4399,6 +4453,20 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     assert rect["left"] >= 0 and rect["right"] <= viewport["width"]
     assert rect["top"] >= 0 and rect["bottom"] <= viewport["height"]
     bubble.hover()
+    expect(bubble).to_be_visible()
+
+    # A real pointer crosses the space between the phrase and its card; a single
+    # hover jump skips that space and cannot establish the hover-content route.
+    page.mouse.move(0, 0)
+    expect(bubble).to_be_hidden()
+    gloss.hover()
+    expect(bubble).to_be_visible()
+    card = bubble.bounding_box()
+    page.mouse.move(
+        card["x"] + card["width"] / 2,
+        card["y"] + card["height"] / 2,
+        steps=20,
+    )
     expect(bubble).to_be_visible()
 
     # WCAG's hover-content route: Escape dismisses the card without requiring the

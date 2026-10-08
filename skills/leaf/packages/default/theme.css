@@ -1996,7 +1996,9 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * the one reading of the route and keeps every word the map says; the open outline on
  * screen sits under the title and leaves it out. It is still navigation apparatus, so
  * weight and ink distinguish it within the same sans voice as the section labels. Their common inset then reads as one route rather than two typographic systems.
- * Depth changes only the labels' inset. Labels stop at two lines, so prose never
+ * The title and top-level sections use 9px and 6px rings; deeper sections use 3px
+ * dots. The current destination fills its marker. All markers share the spine's
+ * centre, while depth also changes the labels' inset. Labels stop at two lines, so prose never
  * distorts the document-scale rows.
  * The open and paper forms retain the complete words. */
 :scope:is(lf-toc) { display: block; margin: var(--sp-4) 0 30px; }
@@ -2060,6 +2062,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
                            transition: background-color .24s ease-out; }
       :scope:is(lf-toc) .lf-toc-heading { display: none; }
       :scope:is(lf-toc) .lf-toc-rows { position: relative; display: flex; height: 100%;
+                            --lf-toc-spine-width: 1px;
                             flex-direction: column; }
       /* At rest the map takes presses on its spine alone, a strip one step wide, so it
        * never stands over the page's words beside it (the column claims no margin for
@@ -2074,12 +2077,13 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
         :is(:scope:is(lf-toc), :scope:is(lf-toc) .lf-toc-nav){ pointer-events: auto; }
       }
       :scope:is(lf-toc) .lf-toc-rows::before { content: ""; position: absolute;
-                                    z-index: 0; top: 0; bottom: 0; left: 0; width: 1px;
+                                    z-index: 0; top: 0; bottom: 0; left: 0;
+                                    width: var(--lf-toc-spine-width);
                                     background: var(--border-2); }
       /* One pixel tall, scaled to the lens's length by the widget's scroll-driven
        * animation, which the compositor runs. */
       :scope:is(lf-toc) .lf-toc-window { display: block; position: absolute; z-index: 1;
-                              top: 0; left: 0; width: 1px; height: 1px;
+                              top: 0; left: 0; width: var(--lf-toc-spine-width); height: 1px;
                               transform-origin: top; background: var(--ink-2); }
       /* A row is a span of the spine, and its link hangs from the row's top and may run
        * past the row's foot when rows are dense. The row takes no presses, so the next
@@ -2094,12 +2098,19 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
       :scope:is(lf-toc) .lf-toc-start::before, :scope:is(lf-toc) li::before {
         content: ""; position: absolute; z-index: 2;
         top: var(--lf-toc-row-shift, 0px);
-        transform: translateY(-50%);
-        left: -1px; width: 3px; height: 3px; border-radius: 50%;
+        transform: translate(-50%, -50%);
+        left: calc(var(--lf-toc-spine-width) / 2);
+        box-sizing: border-box; width: 3px; height: 3px; border-radius: 50%;
         background: var(--muted);
       }
+      :scope:is(lf-toc) .lf-toc-start::before { width: 9px; height: 9px; }
+      :scope:is(lf-toc) li[data-lf-depth="0"]::before { width: 6px; height: 6px; }
+      :scope:is(lf-toc) .lf-toc-start::before,
+      :scope:is(lf-toc) li[data-lf-depth="0"]::before {
+        border: 1px solid var(--muted); background: var(--paper);
+      }
       :scope:is(lf-toc) :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
-        background: var(--ink-2);
+        background: var(--ink-2); border-color: var(--ink-2);
       }
       :scope:is(lf-toc) li[data-lf-depth="1"] { --lf-toc-indent: 10px; }
       :scope:is(lf-toc) li[data-lf-depth="2"] { --lf-toc-indent: 20px; }
@@ -2179,12 +2190,15 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 }
 @media (forced-colors: active) {
   :scope:is(lf-toc) .lf-toc-rows::before,
-  :scope:is(lf-toc) .lf-toc-start::before, :scope:is(lf-toc) li::before {
-    forced-color-adjust: none; background: CanvasText;
+  :scope:is(lf-toc) .lf-toc-start::before, :scope:is(lf-toc) li::before,
+  :scope:is(lf-toc) li[data-lf-depth="0"]::before {
+    forced-color-adjust: none; background: CanvasText; border-color: CanvasText;
   }
+  :scope:is(lf-toc) .lf-toc-start::before,
+  :scope:is(lf-toc) li[data-lf-depth="0"]::before { background: Canvas; }
   :scope:is(lf-toc) .lf-toc-window,
   :scope:is(lf-toc) :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
-    forced-color-adjust: none; background: Highlight;
+    forced-color-adjust: none; background: Highlight; border-color: Highlight;
   }
 }
 
@@ -2659,7 +2673,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
   :scope:is(lf-text-document)[data-lf-bound] { max-block-size: none; overflow: visible;
     --lf-top: inherit; }
   :scope:is(lf-text-document)[data-lf-bound] pre { max-block-size: var(--lf-bound, 28rem);
-    overflow: auto; overscroll-behavior: contain; --lf-bound-box: 1; --lf-top: 0px; }
+    overflow: auto; --lf-bound-box: 1; --lf-top: 0px; }
 }
 /* A long capture becomes a keyboard-reachable scroller inside the evidence frame.
    Keep its generic focus ring inside that frame: the figure clips at its rounded

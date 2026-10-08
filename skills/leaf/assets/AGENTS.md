@@ -17,7 +17,7 @@ desktop viewport.
 The page owns its arrangement: a shipped Layout class (`layouts.css`, `@layer
 lf-layouts`) or its own CSS. Leaf owns what pages and widgets coordinate through: the
 bands, the reading measure as typography, and each widget's contract to fill the box
-it is given, declare the minimum it needs, and never let its content size its holder.
+it is given, declare the minimum it needs, and never let its content widen its holder.
 
 Three things shape a page, and none of them reads another:
 
@@ -80,10 +80,14 @@ stylesheet's, a Layout's or the page's, which the runtime reads rather than deci
 The Queue panel is experimental and expected to change a lot: it replaced the Asks
 drawer to try one place for both queues (`runtime/queue-panel.js`).
 
-Ordinary content grows in flow. A bounded inspection object may scroll inside the
-document and chain into it at its edges; isolate scrolling only at a bounded task
-or modal boundary, and add no vertical scroller without an inspection need. Wheel
-and touch keep their navigation meaning; deliberate controls enter pan and zoom.
+Widgets in ordinary document flow grow with their content by default. Internal
+vertical scrolling needs a task that benefits from keeping a region in view while
+its contents move, or a live stream whose newest entry the reader follows; being
+an inspection object is not enough. Page-authoring choices live in
+`../references/page-authoring.md`, "Bounds and widths". A necessary scroller chains
+into the document at its edges; isolate scrolling only at a bounded task or modal
+boundary. Wheel and touch keep their navigation meaning; deliberate controls enter
+pan and zoom.
 Every necessary scroller has a keyboard route, visible bounds, and visible focus.
 Allocate room before shrinking evidence, and keep narrow screens' access to
 two-dimensional evidence deliberate. Expanding content keeps the allocation its

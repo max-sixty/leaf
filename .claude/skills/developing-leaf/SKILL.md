@@ -104,6 +104,11 @@ Open the exact preview URL in a fresh browser context and verify those outcomes
 on arrival and through ordinary input. Setup from a private probe that the user
 cannot repeat belongs in the fixture or a replay control.
 
+Judge legibility and layout in every visible state reached by ordinary input,
+in the affected color schemes. Pause after state changes to inspect them before
+continuing the journey.
+Every candidate and optional surface retained in the page belongs to that review.
+
 Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
 "Layout and motion"), and capture the viewport when fixed chrome should
 appear. A Playwright screenshot of an element taller than the viewport draws

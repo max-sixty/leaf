@@ -233,8 +233,9 @@ body:is(.lf-aiming, [data-lf-design-mode]).lf-over-item .lf-mark-el { cursor: po
   .lf-margin-thread .lf-thread-transcript { grid-row: 2; }
   .lf-margin-thread .lf-reply-space { grid-row: 3; }
   .lf-margin-thread .lf-thread-reply { grid-row: 4; }
+  /* The card accompanies a live page: scrolling continues there at either edge,
+     including when all turns fit and the transcript has no scroll travel. */
   .lf-margin-thread .lf-thread-transcript { min-height: 1lh; overflow-y: auto;
-    overscroll-behavior: contain;
     scroll-padding-block: var(--focus-ring-room); }
   /* The field stands at the card's inset; words stand one inset inside it. */
   .lf-margin-thread .lf-page-thread { padding: 0; background: var(--paper); }

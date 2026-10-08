@@ -5932,6 +5932,62 @@ LONG_THREAD = [
 ]
 
 
+@pytest.mark.parametrize("long", [False, True], ids=["fitting", "overflowing"])
+def test_floating_thread_chains_scrolling_to_its_page(browser, serve, long):
+    """A floating thread scrolls its turns, then the document at either edge.
+
+    A fitting transcript must not swallow the wheel just because it could scroll
+    with more messages. This also protects overflowing threads at their boundaries.
+    """
+    source = leaf_page(
+        "Scroll a contextual thread",
+        '<div style="height: 80vh"></div>'
+        '<p id="open">Review the open questions.</p>'
+        '<div style="height: 180vh"></div>',
+    )
+    page = open_page(
+        browser, serve(source, events=LONG_THREAD if long else [LONG_THREAD_ROOT])
+    )
+    resized(page, 1440, 900)
+    page.locator("#open").scroll_into_view_if_needed()
+    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_be_visible()
+    transcript = card.locator(".lf-thread-transcript")
+    room = transcript.evaluate("node => node.scrollHeight - node.clientHeight")
+    assert (room > 0) == long
+
+    if long:
+        transcript.evaluate(
+            "node => node.scrollTop = (node.scrollHeight - node.clientHeight) / 2"
+        )
+        before = transcript.evaluate("node => node.scrollTop")
+        page_at = page.evaluate("scrollY")
+        transcript.hover()
+        page.mouse.wheel(0, -80)
+        page.wait_for_function(
+            "([node, before]) => node.scrollTop < before",
+            arg=[transcript.element_handle(), before],
+        )
+        scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
+        assert page.evaluate("scrollY") == page_at
+
+    for direction in (-1, 1):
+        transcript.evaluate(
+            "(node, direction) => node.scrollTop = direction < 0 ? 0 : node.scrollHeight",
+            direction,
+        )
+        transcript.hover()
+        page_at = page.evaluate("scrollY")
+        page.mouse.wheel(0, direction * 80)
+        page.wait_for_function(
+            "([before, direction]) => (scrollY - before) * direction > 20",
+            arg=[page_at, direction],
+        )
+        scroll_settled(page)
+        expect(card).to_be_visible()
+
+
 def open_long_thread(browser, serve, height=900):
     """The long thread's margin card, which opens on its latest message, scrolled
     partway back up."""

@@ -73,10 +73,17 @@ directory it is given, the only place the judge may read. `metadata.conditions` 
 
 | Executor | Runs |
 | --- | --- |
-| `arrangement_eval` | Authors and revises a page from `request.md` and screenshots each version at three widths for the judge, and on Leaf seeds a user choice, has a fresh reader report it, and checks a further revision keeps it. |
+| `arrangement_eval` | Authors, checks and revises a page from `request.md`; screenshots each version on a laptop, at 900px with tall and short windows, and on a phone. For tasks that request a decision, Leaf also seeds a user choice, has a fresh reader report it, and checks a further revision keeps it. |
 | `usability_eval` | Seeded pages read, resumed and revised, and live handoffs where the harness posts user moves through the served page. Fixtures are in `usability/fixtures/`. |
 | `delivery_eval` | Comments posted between turns and mid-turn, each of which must be picked up, started and answered. |
 | `reader_eval` | Calibrates the screenshot judge: `dashboard/reader-seeded` and `reader-clean` each show it one triage board, with a seeded count defect or the correct count, and ask both whether the count matches the cards. |
+
+`sidebar-page-at-900px` runs the complete authoring and render loop. Its
+`/instructions` diagnostic retains the read-only source probe, and `/live` checks
+the contrasting bounded live stream. The primary judge reads the rendered record:
+the completed log grows in document flow, and checks and navigation stay reachable
+while reading, including in the short window. Source-property checks in the
+instruction diagnostic do not establish that rendered behavior.
 
 The assertion helpers live here: `reference-read.cjs` passes when the agent read a
 file matching `config.path` (Codex shell reads are matched heuristically, so read
@@ -86,8 +93,10 @@ the trace when it matters); `text-regex.cjs` is a regex with flags and negation;
 ## Isolation and models
 
 Every provider runs in a fresh workspace outside the repository, under a home of its
-own holding only a copy of the host's login, so runs spend the signed-in accounts'
-usage and never an API key. `harness.MODELS` pins the models: Opus for Claude
+own seeded only with a copy of the host's login, so runs spend the signed-in accounts'
+usage and never an API key. Native Codex probes install the complete arm through the
+host Codex CLI's plugin installer in that home, and use the same CLI to run the
+read-only task. `harness.MODELS` pins the models: Opus for Claude
 Code, `gpt-6.1-sol` at medium reasoning for Codex, Sonnet for `llm-rubric`, which
 grades text and opens nothing, and `gpt-6.1-sol` for the screenshot judge. That
 judge runs on the installed `codex` under a permission profile that lets it read

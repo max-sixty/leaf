@@ -179,6 +179,10 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
         rendered(page)
         news = thread.locator(".lf-thread-news")
         expect(news).to_be_visible()
+        news.hover()
+        expect(news).to_have_css("box-shadow", "none")
+        expect(news).to_have_css("background-color", "rgba(0, 0, 0, 0)")
+        expect(news).to_have_css("text-decoration-line", "underline")
         expect(thread.locator(".lf-msg")).to_have_count(1)
         assert geometry() == before
         if notice_box is None:
@@ -207,6 +211,19 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
     news.click()
     expect(thread.locator(".lf-msg")).to_have_count(3)
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
+
+
+def test_gallery_pending_title_opens_when_the_reader_requests_it(browser, serve):
+    page = open_page(browser, serve(FEATURE_GALLERY))
+    sample = page.frame_locator("#bg-title-sheen-sample iframe")
+    expect(sample.locator(".lf-thread-panel")).not_to_have_attribute("open", "")
+
+    page.locator("#bg-gallery-tabs").get_by_role("tab", name="Threads").click()
+    page.locator("#bg-title-sheen-show").click()
+    expect(sample.locator(".lf-thread-panel")).to_have_attribute("open", "")
+    expect(sample.locator('.lf-thread-topic[data-lf-pending-title=""]')).to_have_text(
+        "Generating title"
+    )
 
 
 def test_gallery_thread_rows_name_action_in_existing_status(browser, serve):

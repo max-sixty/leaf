@@ -270,11 +270,16 @@ on a board sent in a reply, keeps a delivery receipt and owes no reply, under th
 rule `workflows.py` states for page moves.
 
 An open structural Ask anywhere in an unresolved thread keeps it awaiting the
-user after later prose or a settling reaction. Without one, the latest spoken
-turn determines the prose obligation described above. A user reaction on that
-latest request whose token declares `settles` clears the prose obligation without
-resolving the thread. `asks.thread_awaits_user` owns this precedence, shared by
-`work_reading.WorkReading.questions` across admission and serving.
+user after later prose or a settling reaction. Without one, the latest unanswered
+prose question determines the obligation. Later agent updates leave it standing.
+A user turn answers every question before it; a reaction whose token declares
+`settles` answers only the question it names, so an older unanswered question may
+become current again. Neither answer resolves the thread. `asks.thread_questions`
+owns recognition, content identity and settlement for every prose question,
+including an agent opening comment.
+`work_reading.WorkReading.questions` shares that reading across admission and
+serving: thread attention selects its latest unanswered prompt, and tasks retain
+its settling event for Done history. Widget Asks remain their own reading.
 
 What each thread command does for its user, and when an agent uses it, is
 `../../references/threads.md`. The door and the fold hold these rules behind

@@ -146,7 +146,6 @@ document.querySelector('#comparison').prepend(summary);
     control.press("Space")
     expect(page.locator("#comparison")).not_to_have_attribute("open", "")
     assert control.bounding_box() == before
-    context.close()
 
 
 def test_offered_native_targets_keep_their_navigation_meaning(browser, serve):

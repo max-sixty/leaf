@@ -548,7 +548,6 @@ def test_shot_captions_have_disjoint_targets_inside_their_rail(browser, serve, t
     )
     assert "before" in page.evaluate("getSelection().toString()").lower()
     expect(page.locator("lf-shot wa-comparison")).to_have_attribute("position", "0")
-    context.close()
 
 
 def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):

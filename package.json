@@ -43,8 +43,12 @@
     "happy-dom": "20.14.5",
     "lit": "3.3.3",
     "lit-html": "3.3.0",
-    "marked": "18.0.14",
+    "markdown-it": "14.3.2",
+    "markdown-it-task-lists": "2.1.1",
+    "photoswipe": "5.4.4",
     "sortablejs": "1.15.7",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "viewerjs": "1.15.2",
+    "vis-timeline": "8.5.4"
   }
 }

@@ -34,7 +34,9 @@ subpackage's initializer is only a marker, never a second API.
   page and thread readings, what the user has not read, what a gesture's ids say,
   newest moves for `x-history`, and the Markdown export;
 - `thread_context`, `thread`: thread identity, frozen markup, delivery context,
-  thread writes, and the reply lifecycle;
+  thread writes, and reply reservations;
+- `work_reading`: the transaction-scoped durable work reading shared by admission,
+  serving and delivery;
 - `workflows`, `activity`: unsettled user moves with their evidence, and the
   page-level fold over workflows, tasks, starts, status, claim, turn, and watcher;
 - `asks`: the one implementation of page and thread Asks, which every surface reads;
@@ -50,8 +52,8 @@ subpackage's initializer is only a marker, never a second API.
 - `reconnect`: outage eligibility and once-per-outage notices, published under
   the ownership, service, and session lifecycle locks;
 - `codex_state`: Codex delivery eligibility and shared delivery serialization paths;
-- `codex`, `codex_adapter`: Codex delivery records and App Server turn folds, and
-  the detached adapter behind `leaf codex start`;
+- `codex`, `codex_adapter`: Codex delivery records, App Server reply lifecycles and
+  turn folds, and the detached adapter behind `leaf codex start`;
 - `thread_titles`: the title Leaf asks the harness's model for when a user opens a
   thread, before the agent's reply could name it;
 - `state`: dependency-free session lifetime and turn publication, standalone cold
@@ -86,6 +88,7 @@ declarations and provenance, `storage` owns the vendored-file cache, and
 `reactions` owns reaction descriptions.
 
 Within `served_state/`, `context` owns the live or captured inputs every fold reads;
+`work` enriches the shared durable reading with live activity and response bindings;
 `wire` serializes one declared fold, `thread` and `document`
 own their scoped readings, `browser` assembles the requested views, `page` composes
 the served response, `reading` names filesystem changes for freshness reads, and

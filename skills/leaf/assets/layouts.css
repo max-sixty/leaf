@@ -35,7 +35,7 @@
    *
    * The column moves off centre by `--lf-shift` where a sidebar or sidenote needs more
    * room on one side than centring leaves it; the margin pass measures and writes it
-   * (margin-layout.js, `settleResidency`), and the free room on each side follows.
+   * (prepaint.js, `residency`), and the free room on each side follows.
    *
    * The free room is the shell's (100cqi), so only a column on `main` has it. A column
    * Layout on a block inside another Layout keeps the measure and centres in its box,
@@ -50,19 +50,43 @@
     padding-inline: var(--col-pad);
     --lf-width: min(var(--col), max(0px, 100cqi - 2 * var(--col-pad)));
     --lf-beside: calc((100cqi - var(--lf-width)) / 2);
-    --lf-shift: 0px;
+    --lf-shift: var(--lf-column-shift, 0px);
     --lf-free-l: max(0px, calc(var(--lf-beside) + var(--lf-shift) - var(--col-pad)
       - var(--lf-taken-l, 0px)));
     --lf-free-r: max(0px, calc(var(--lf-beside) - var(--lf-shift) - var(--col-pad)
       - var(--lf-taken-r, 0px)));
     --lf-room: calc(var(--lf-width) + var(--lf-free-l) + var(--lf-free-r));
   }
+  @property --lf-column-shell { syntax: "*"; inherits: false; }
   @media screen {
-    main.layout-column { position: relative; inset-inline-start: var(--lf-shift); }
+    /* The column requests its shell tracks through --lf-column-shell; the initial
+     * geometry reader publishes that request on body before measuring the room.
+     * Place the column through shell tracks. An inset, transform or margin changing
+     * on a reading's ancestor suppresses native scroll anchoring just when residents
+     * enter or leave the flow. Edge tracks move the same axis without suppressing it.
+     * The column keeps its shell-based measure even where the middle track is narrow;
+     * other body rows, including the banner spacer, retain the whole shell. */
+    body[data-lf-column-shell] {
+      display: grid;
+      align-content: start;
+      grid-template-columns: max(0px, calc(2 * var(--lf-column-shift, 0px)))
+        minmax(0, 1fr) max(0px, calc(-2 * var(--lf-column-shift, 0px)));
+    }
+    body[data-lf-column-shell]:dir(rtl) {
+      grid-template-columns: max(0px, calc(-2 * var(--lf-column-shift, 0px)))
+        minmax(0, 1fr) max(0px, calc(2 * var(--lf-column-shift, 0px)));
+    }
+    body[data-lf-column-shell]::before,
+    body[data-lf-column-shell] > :not(main) { grid-column: 1 / -1; }
+    body > main.layout-column {
+      --lf-column-shell: grid;
+      grid-column: 2; justify-self: center;
+      width: max(0px, calc(100cqi - 2 * var(--col-pad)));
+    }
   }
   /* The column's margins. A column's first sidebar is a margin resident, as is every
    * sidenote: each states which it is (`--lf-resident`), and the margin pass admits it
-   * where the room beside the column holds it (margin-layout.js, `settleResidency`),
+   * where the room beside the column holds it (prepaint.js, `residency`),
    * moving the column over where one side lacks it. Each names the postures it may take,
    * in order of preference; these rules read the answer off `main`'s `data-lf-margin`,
    * one token per posture standing. Screen only: paper has no drawer and no margin to
@@ -78,8 +102,11 @@
    * and no formatting context separating the blocks on either side of it. */
   main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar):has(> lf-toc:only-child:empty) {
     display: block; margin-block: 0; }
-  main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar) { --lf-resident: sidebar; }
-  main.layout-column aside.sidenote { --lf-resident: note; }
+  /* A resident changes its relationship to the flow; anchor the reading to its
+   * passage instead of choosing the complementary text as a native scroll anchor. */
+  main.layout-column > aside.sidebar:nth-child(1 of aside.sidebar) {
+    --lf-resident: sidebar; overflow-anchor: none; }
+  main.layout-column aside.sidenote { --lf-resident: note; overflow-anchor: none; }
   @media screen {
     /* Sticky, it can stand level with any band of the page, so it takes its whole side: a
      * breakout grows only rightward past it. */

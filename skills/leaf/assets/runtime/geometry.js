@@ -332,18 +332,8 @@ export function landingInsets(scroller) {
 // the way down, which are not skipped and cheap to ask about — and it is drawn, so its
 // own style is not skipped either. A disclosure skips through a pseudo-element of its
 // own, so it is asked by its state rather than by its style.
-export function skipped(el) {
-  if (el.checkVisibility()) return false;
-  let child = el;
-  let box = renderedParent(el);
-  while (box && !box.checkVisibility()) {
-    child = box;
-    box = renderedParent(box);
-  }
-  if (!box) return false;
-  if (box.localName === "details") return !box.open && child.localName !== "summary";
-  return getComputedStyle(box).contentVisibility === "hidden";
-}
+export const skipped = (el) =>
+  document.documentElement.lfInitial.skipped(el, renderedParent);
 // The box an element shows as. An element that generates none of its own — a
 // display: contents wrapper — shows as what its contents paint, so its bounds are
 // theirs, and a range asks the platform for that union in one read. Its own rect is
@@ -673,6 +663,25 @@ export const declareOccluder = (surface) => {
   occluders.add(surface);
   return () => occluders.delete(surface);
 };
+// Where the surface standing at the window's right edge begins, or Infinity where none
+// stands: the side panel, Threads or Questions, whichever is open (drawers.js). What is
+// laid out beside the page, as the comment box is, keeps left of it, and a margin row it
+// reaches is one the user has lost (chrome-layout.js).
+export function rightCover() {
+  const edge = document.documentElement.clientWidth;
+  let left = Infinity;
+  for (const surface of occluders) {
+    if (
+      !surface.isConnected ||
+      surface.hasAttribute(LEAVING) ||
+      !surface.checkVisibility()
+    )
+      continue;
+    const box = standingBox(surface);
+    if (box.left > 0 && box.right >= edge - 1) left = Math.min(left, box.left);
+  }
+  return left;
+}
 // A clip pass that reads past some occluders. Travel asks what the page shows of a
 // destination beside the surface it leaves standing, which is the most any movement of
 // the page can show while that surface stands.

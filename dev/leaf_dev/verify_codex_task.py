@@ -20,6 +20,8 @@ The journey, in order:
 - `idle`: a comment posted while the task is idle is answered in a turn Leaf starts;
 - `mid-turn`: a comment posted during a shell command is answered once; the queue
   task must pick it up and answer it before that turn's first final response;
+- `resume`: the queue task resumes an interrupted turn with empty input and
+  receives a comment while that turn runs, without starting another turn;
 - `restart`: with the adapter killed, the user's next turn ends with the agent having
   started it again, and a comment posted afterwards is answered.
 
@@ -51,6 +53,7 @@ from pathlib import Path
 import click
 import psutil
 from leaf.codex import private_app_server
+from leaf.delivery import pickup_receipts
 from leaf.event_log import read_events
 from leaf.events import build_threads
 from leaf.leases import adapter_is_live, lock_is_held, titles_log
@@ -86,6 +89,11 @@ USER_TURN = (
     "`printf 'verified\\n'`. Then reply with the single word done."
 )
 RESTART_TURN = "Reply with the single word OK."
+RESUME_TURN = (
+    "Run `sleep 30` in the shell, then in a separate tool call run "
+    "`printf 'verified\\n'`, then say done. If interrupted and resumed, "
+    "skip the remaining shell command and report the interruption."
+)
 
 
 def adapter_processes(codex: str) -> list[psutil.Process]:
@@ -346,11 +354,10 @@ def journey(
         posted_id = comment_id(page, "mid-turn")
         require(
             any(
-                event["kind"] == "pickup"
-                and event["phase"] == "opened"
-                and event["turn"] == user_turn
-                and posted_id in event["events"]
-                for event in read_events(page)
+                event["turn"] == user_turn
+                for event in pickup_receipts(
+                    read_events(page), phase="opened", input_id=posted_id
+                )
             ),
             f"the active hook did not deliver the comment into turn {user_turn}",
         )
@@ -365,6 +372,68 @@ def journey(
             "the mid-turn comment started another turn instead of entering the active one",
         )
     step("mid-turn", started)
+    posted = ["idle", "mid-turn"]
+
+    if transport == "queue":
+        started = time.monotonic()
+        interrupted = task.say(RESUME_TURN)
+        deadline = time.monotonic() + STEP_LIMIT
+        while not any(
+            "sleep 30" in command for command in task.running_commands.values()
+        ):
+            task.listen(0.5)
+            require(
+                time.monotonic() < deadline and interrupted in task.running,
+                "the turn to interrupt did not start its sleep command",
+            )
+        task.request("turn/interrupt", {"threadId": task.thread, "turnId": interrupted})
+        while interrupted in task.running:
+            task.listen(0.5)
+            require(time.monotonic() < deadline, "the interrupted turn did not end")
+        # Aborted command items need not emit item/completed. They cannot stand
+        # in for execution of the resumed turn's first command.
+        task.running_commands.clear()
+        previous_turns = len(task.started)
+        resumed = task.request(
+            "turn/start",
+            {
+                "threadId": task.thread,
+                "input": [],
+                "turnTrigger": "resume_interrupted_task",
+            },
+        )["turn"]["id"]
+        deadline = time.monotonic() + STEP_LIMIT
+        while resumed not in task.started:
+            task.listen(0.5)
+            require(
+                time.monotonic() < deadline,
+                "the empty-input resume did not start",
+            )
+        require(resumed in task.running, "the empty-input resume already ended")
+        # Resume can continue tools or simply report the interruption. Post
+        # while that native turn is open, before its first delivery hook.
+        post(page, "escape")
+        task.settle(
+            lambda: bool(answers(page, "escape")),
+            "the comment posted during resume was not answered",
+        )
+        posted.append("escape")
+        check_step(posted)
+        require(
+            task.started[previous_turns:] == [resumed],
+            "the resumed-turn comment started another turn",
+        )
+        posted_id = comment_id(page, "escape")
+        require(
+            any(
+                event["turn"] == resumed
+                for event in pickup_receipts(
+                    read_events(page), phase="opened", input_id=posted_id
+                )
+            ),
+            "the comment did not enter the empty-input resumed turn",
+        )
+        step("resume", started)
 
     started = time.monotonic()
     for process in adapter_processes(codex):
@@ -400,13 +469,14 @@ def journey(
         lambda: adapter_is_live(task.thread),
         "the agent did not start the adapter again",
     )
-    check_step(["idle", "mid-turn"])
+    check_step(posted)
     post(page, "restart")
     task.settle(
         lambda: bool(answers(page, "restart")),
         "comment `restart` was not answered",
     )
-    check_step(["idle", "mid-turn", "restart"])
+    posted.append("restart")
+    check_step(posted)
     step("restart", started)
 
     if preview:
@@ -424,13 +494,13 @@ def journey(
             lambda: running_server(page) is not None,
             "the idle preview did not restore its server without an edit",
         )
-        check_step(["idle", "mid-turn", "restart"])
+        check_step(posted)
         post(page, "reconnect")
         task.settle(
             lambda: bool(answers(page, "reconnect")),
             "the restored preview's comment was not answered",
         )
-        check_step(["idle", "mid-turn", "restart", "reconnect"])
+        check_step([*posted, "reconnect"])
         step("reconnect", started)
 
 

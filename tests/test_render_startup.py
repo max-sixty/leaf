@@ -803,7 +803,12 @@ RESTORED_PROSE = "".join(
 @pytest.mark.parametrize(
     ("saved", "wide", "window"),
     [
-        ({"lf-auxiliary-surface": "queue", "lf-drawer-slot-width": "280"}, False, 1600),
+        # Questions stands on the Threads panel's edge, at the width the user drew it.
+        (
+            {"lf-auxiliary-surface": "queue", "lf-thread-panel-width": "380"},
+            False,
+            1600,
+        ),
         (
             {"lf-auxiliary-surface": "threads", "lf-thread-panel-width": "500"},
             True,
@@ -811,7 +816,7 @@ RESTORED_PROSE = "".join(
         ),
         # Where it would leave less than a usable page it covers the page instead.
         ({"lf-auxiliary-surface": "threads"}, True, 700),
-        # The Queue panel by the same rule: 300 of a 600px window leaves 300.
+        # The Questions panel by the same rule: 420 of a 600px window leaves 180.
         ({"lf-auxiliary-surface": "queue"}, False, 600),
     ],
     ids=["queue", "threads-wide-page", "covering", "queue-covering"],
@@ -882,7 +887,7 @@ def test_a_restored_auxiliary_surface_leaves_the_page_where_it_painted(
             "data-lf-auxiliary-surface", surface
         )
         expect(page.locator("html[data-lf-covering-surface]")).to_have_count(
-            1 if window < {"queue": 620, "threads": 740}[surface] else 0
+            1 if window < 740 else 0
         )
         presented = geometry()
         assert presented == pytest.approx(initial, abs=1), (
@@ -978,6 +983,123 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
           mark: link.querySelector('.lf-external-mark'),
         })"""
     ) == {"target": "_parent", "rel": "author next", "describedBy": None, "mark": None}
+
+
+@pytest.mark.parametrize("initial_motion", ["no-preference", "reduce"])
+def test_reduced_motion_reaches_declared_shadow_stages(
+    browser, serve, tmp_path, initial_motion
+):
+    """Package CSS has the same motion guard in the document and a declared tree.
+
+    The ordinary-motion control proves the package's animation and transition really
+    run. Both a preference held at navigation and one changed in the live document
+    must finish the animation once and make the next state change immediate.
+    """
+    entry = {
+        "description": "A package motion control.",
+        "type": "object",
+        "properties": {"id": {"type": "string", "pattern": f"^{ELEMENT_ID}$"}},
+        "required": ["id"],
+        "additionalProperties": False,
+        "x-content": "empty",
+        "x-upgrade": True,
+    }
+    registry = {
+        tag: {
+            **entry,
+            **({"x-shadow": True} if tree == "shadow" else {}),
+            "x-example": f'<{tag} id="{tree}-example"></{tag}>',
+        }
+        for tree, tag in (("light", "lf-motion-light"), ("shadow", "lf-motion-shadow"))
+    }
+    package = tmp_path / ".leaf"
+    package.mkdir()
+    (package / "shadow.css").write_text("""
+.pulse { animation: package-pulse 30s linear infinite; }
+.pulse::before { content: 'Activity'; animation: package-pulse 30s linear infinite; }
+@keyframes package-pulse { from { opacity: .25; } to { opacity: 1; } }
+button { transition: background-color 30s linear; background-color: rgb(10, 20, 30); }
+button.chosen { background-color: rgb(40, 50, 60); }
+""")
+    modules = {}
+    for tag, declaration in registry.items():
+        stage = (
+            "shadowStage(this, nodes)"
+            if declaration.get("x-shadow")
+            else "this.replaceChildren(...nodes)"
+        )
+        modules[f"{tag}.js"] = f"""
+import {{ once, shadowStage }} from '/runtime/widget-api.js';
+customElements.define('{tag}', class extends HTMLElement {{
+  connectedCallback() {{
+    if (!once(this)) return;
+    const pulse = document.createElement('span'); pulse.className = 'pulse';
+    pulse.textContent = 'Working';
+    pulse.ends = [];
+    pulse.addEventListener('animationend', event => pulse.ends.push(event.pseudoElement));
+    const button = document.createElement('button'); button.textContent = 'Choose';
+    button.style.transition = 'background-color 30s linear';
+    button.onclick = () => button.classList.toggle('chosen');
+    const nodes = [pulse, button];
+    {stage};
+  }}
+}});
+"""
+    url = serve(
+        leaf_page(
+            "Package motion",
+            '<h1>Package motion</h1><lf-motion-light id="light"></lf-motion-light>'
+            '<lf-motion-shadow id="shadow"></lf-motion-shadow>',
+        ),
+        layer_registry=registry,
+        layer_widgets=modules,
+    )
+    page = open_page(
+        browser, url, context=browser.new_context(reduced_motion=initial_motion)
+    )
+    if initial_motion == "no-preference":
+        for tree in ("light", "shadow"):
+            pulse = page.locator(f"#{tree} .pulse")
+            expect(pulse).to_have_css("animation-iteration-count", "infinite")
+            assert (
+                pulse.evaluate("node => node.getAnimations({subtree: true}).length")
+                == 2
+            )
+            button = page.locator(f"#{tree} button")
+            expect(button).to_have_css("transition-duration", "30s")
+            button.click()
+            assert button.evaluate("node => node.getAnimations().length") == 1
+            button.click()
+        page.emulate_media(reduced_motion="reduce")
+    for tree in ("light", "shadow"):
+        pulse = page.locator(f"#{tree} .pulse")
+        button = page.locator(f"#{tree} button")
+        button.click()
+        reading = button.evaluate("""node => ({
+            transition: getComputedStyle(node).transitionProperty,
+            colour: getComputedStyle(node).backgroundColor,
+            animations: node.getAnimations().length,
+        })""")
+        assert reading == {
+            "transition": "none",
+            "colour": "rgb(40, 50, 60)",
+            "animations": 0,
+        }
+        expect(pulse).to_have_css("animation-iteration-count", "1")
+        page.wait_for_function(
+            "tree => { const host = document.getElementById(tree); "
+            "return (host.shadowRoot ?? host).querySelector('.pulse').ends.length === 2; }",
+            arg=tree,
+        )
+        assert pulse.evaluate("node => node.getAnimations({subtree: true}).length") == 0
+    page.emulate_media(reduced_motion="no-preference")
+    for tree in ("light", "shadow"):
+        pulse = page.locator(f"#{tree} .pulse")
+        expect(pulse).to_have_css("animation-iteration-count", "infinite")
+        assert pulse.evaluate("node => node.getAnimations({subtree: true}).length") == 2
+        expect(page.locator(f"#{tree} button")).to_have_css(
+            "transition-duration", "30s"
+        )
 
 
 def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
@@ -1615,9 +1737,16 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     assert held, "the positive control did not hold the first state response"
     body = page.locator("body")
     expect(body).to_have_attribute("data-lf-auxiliary-surface", "queue")
-    expect_banner_control_offered(page.locator(".lf-queue"), offered=False)
+    # The door stands on every page, and claims no count before the log has answered.
+    expect(page.locator(".lf-queue")).to_have_text("Questions")
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
     expect_banner_control_offered(page.locator(".lf-answer-all"), offered=False)
+    # Opened by hand, the panel counts nothing yet either.
+    page.locator(".lf-queue").click()
+    expect(page.locator(".lf-queue-panel")).to_contain_text(
+        "Loading current questions…"
+    )
+    expect(page.locator(".lf-queue-panel")).not_to_contain_text("Questions · 0")
 
     comments = page.locator(".lf-threads-toggle")
     expect(comments).to_be_enabled()
@@ -1629,7 +1758,7 @@ def test_a_current_auxiliary_choice_replaces_a_persisted_drawer_during_replay(
     wait_until_ready(page)
     expect(page.locator("#sug")).to_have_attribute("data-lf-state", "accept")
     decisions = page.locator(".lf-queue")
-    expect_banner_control_offered(decisions)
+    expect(decisions).to_have_text("Questions: 0")
     expect_asks_answered(page, "1/1")
     expect(decisions).to_have_attribute("aria-expanded", "false")
     expect(page.locator(".lf-queue-panel")).to_be_hidden()
@@ -1653,8 +1782,8 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     held = []
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
-    page.route("**/vendor/marked.esm.js", lambda route: held.append(route))
-    with page.expect_request("**/vendor/marked.esm.js"):
+    page.route("**/vendor/markdown-it.esm.js", lambda route: held.append(route))
+    with page.expect_request("**/vendor/markdown-it.esm.js"):
         page.goto(url, wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the Markdown renderer"
@@ -2545,7 +2674,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
         primed(
             browser,
             lambda page: page.route(
-                "**/vendor/marked.esm.js", lambda route: marked.append(route)
+                "**/vendor/markdown-it.esm.js", lambda route: marked.append(route)
             ),
         ),
         serve(LONG_PAGE),
@@ -2587,7 +2716,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     old_route.fulfill(json=old_state)
     page.title()  # let the old response join the shared import before releasing it
     marked[0].continue_()
-    page.unroute("**/vendor/marked.esm.js")
+    page.unroute("**/vendor/markdown-it.esm.js")
 
     expect(page.locator(".lf-thread", has_text="Older snapshot")).to_have_count(1)
     expect(page.locator(".lf-thread", has_text="Newest snapshot")).to_have_count(1)
@@ -2634,20 +2763,17 @@ def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
     )
     page.evaluate("window.__originalDocument = true")
     reading = page.locator("body").get_attribute("data-lf-reading")
-    looks = []
-
-    def read_news(route):
-        answer = route.fetch()
-        looks.append((answer.headers, answer.text()))
-        route.fulfill(response=answer)
-
-    page.route("**/api/news", read_news)
-    serve.httpd.server_id = "replacement-server"
-    with page.expect_response("**/api/news", timeout=5000):
-        pass
-    page.unroute("**/api/news", read_news)
-    assert looks[-1][0]["leaf-server"] == "replacement-server"
-    assert looks[-1][1] == reading
+    # A poll already in flight can finish after the route is registered without
+    # passing through it. Read the response that actually identifies the new server.
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/news")
+            and response.headers.get("leaf-server") == "replacement-server"
+        ),
+        timeout=5000,
+    ) as restarted:
+        serve.httpd.server_id = "replacement-server"
+    assert restarted.value.text() == reading
     page.wait_for_timeout(500)
     assert page.evaluate("window.__originalDocument === true")
     expect(editor).to_be_focused()
@@ -3247,7 +3373,7 @@ def test_banner_reports_whether_anyone_is_attending(browser, serve, tmp_path, de
     expect(summary).to_have_text("Claude working — revising the plan")
     # The row's account of the agent's side is the queue count, not the delivery
     # count the disclosure keeps.
-    expect(page.locator(".lf-status-queues")).to_have_text("2 on Claude")
+    expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 2")
     expect(text).to_have_text(
         re.compile(
             r"^Claude is working — revising the plan \(.+\)\. 1 response owed on updates awaiting delivery\."
@@ -3594,11 +3720,11 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(other_workflow).to_have_text("Sent")
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude picked up your comment and hasn't said what it's doing yet"
-        " (just now). 1 move waiting. Waiting on Claude: 2 replies, 1 task"
+        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies, 1 task"
         " (Work on the page)."
     )
     expect(page.locator(".lf-others-self .lf-others-line")).to_have_text(
-        "Working · 1 move waiting"
+        "Working · 1 response owed on updates awaiting delivery"
     )
 
     # The agent finishes the earlier task and waits on the user.
@@ -3611,7 +3737,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     expect(held_workflow).to_have_text("Picked up")
     expect(page.locator(".lf-status-detail")).to_have_text(
         "Claude picked up your comment and hasn't said what it's doing yet"
-        " (just now). 1 move waiting. Waiting on Claude: 2 replies."
+        " (just now). 1 response owed on updates awaiting delivery. Waiting on Claude: 2 replies."
     )
 
     with service_model.PageTransaction(d) as transaction:
@@ -3625,7 +3751,7 @@ def test_a_thread_says_what_the_agent_is_doing_about_it(
     # The turn ended with both updates still the agent's to answer, so they are overdue
     # and the remedy is the user's.
     expect(page.locator(".lf-status-detail")).to_have_text(
-        "Claude last checked in just now. 2 moves are saved. "
+        "Claude last checked in just now. Your updates are saved. "
         "Nothing is answering them, so nudge it in the terminal."
         " Waiting on Claude: 2 replies."
     )
@@ -3849,7 +3975,7 @@ def test_ended_pickup_preserves_the_declared_invitation_in_banner_and_leaves(
         expect(page.locator(".lf-status-text")).to_have_text(
             "Claude awaits — pick a storage engine"
         )
-        expect(page.locator(".lf-status-queues")).to_have_text("1 on Claude")
+        expect(page.locator(".lf-status-queues")).to_have_text("Tasks: 1")
         expect(page.locator(".lf-status-detail")).to_have_text(
             "Claude awaits — pick a storage engine. Waiting on Claude: 1 reply."
         )

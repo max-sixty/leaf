@@ -15,6 +15,11 @@ a new capability.
 
 ## Public API
 
+Rendering work that reaches a resting state uses `nextRender`, `nextFrame` and
+`cancelRender`. Continuous mechanical motion, such as recording playback, uses
+`nextAnimation` and `cancelAnimation`: it schedules browser frames without holding
+page readiness open. Cancel it when the motion stops or its owner leaves.
+
 `/runtime/widget-api.js` is the whole Leaf API a behavior module gets: a module imports
 only that public helper surface, and does not reach into the runtime's private owners,
 query private chrome, or duplicate a runtime helper inside itself. Resolve canonical
@@ -31,8 +36,14 @@ shadow roots, without changing horizontal offsets.
 Use it for an explicit arrival; entering visible controls and ordinary repainting
 preserve their current reading position.
 
-Registry-declared inline Markdown formats authored text, not strings a module assigns
-with `textContent`. For changing Markdown prose, load the renderer with `loadMarkdown()`
+Registry `x-text-format: inline-markdown` formats direct authored text nodes;
+`markdown` renders a data body's exact source as safe block Markdown. The latter
+is delivered already formatted for first paint and its canonical body record stays
+source, while passages and comments read its visible words. A module adopts the
+prepared `.lf-markdown-body` and uses `paintMarkdown(body, source)` for changing
+block prose. `markdownSourceOffset(body, node, offset)` carries a rendered caret
+back to the exact source. Inline formatting does not interpret strings a module
+assigns with `textContent`. For changing Markdown prose, load the renderer with `loadMarkdown()`
 and paint the current value with `inlineMarkdownFragment()`; repaint that value when
 loading completes. A changing numeric readout keeps surrounding text still with
 tabular numerals and a slot wide enough for its largest value.
@@ -128,7 +139,7 @@ value and must be removed when that value returns.
 
 A widget that declares `x-awaits` says what its answered Ask was answered with: its class
 declares `static answerWords(state, element)`, returning concise words for its row
-under Done in the Queue panel and a queue's row. The Queue panel is experimental and
+under Done in the Questions panel and a queue's row. The Questions panel is experimental and
 expected to change a lot. `state` is the same complete state `renderState`
 receives, and `element` is the widget, for authored markup such as an option's name;
 read nothing the module renders. Leaf calls it only while the Ask is answered, with the
@@ -358,6 +369,12 @@ A temporary yellow cue calls `backgroundFlash(element, ms)`. It supplies only th
 starting tint; the browser fades to the element's live CSS background, including any
 hover or theme change during the cue, and shares `motion`'s gates and cleanup.
 
+A mechanical surface that must stop motion before a review gesture is handled uses
+`onUserInput(callback)`. The shared input owner calls it synchronously during capture
+for pointer, key, input, wheel, touch and window blur events; the callback observes and
+does not claim the event. Filter the events belonging to the surface and release the
+returned subscription when it disconnects. Keyboard commands still use `commands()`.
+
 A module implementing its own navigation captures `retainUserIntent()` in the gesture
 that starts it, before its
 first wait, and checks the returned predicate after every wait before moving focus or
@@ -481,7 +498,10 @@ draw a visual part it shows only in another state, opens its containing disclosu
 the addressed element, updates the fragment, and announces the supplied `success` or
 `missing` message. Commands at that focus use the datum's identity. A lazy target may implement
 `lfRevealDatum(key)` to return its hydration promise and `lfDataDatum(key)` to map a
-semantic key to the rendered projected element.
+semantic key to the rendered projected element. When that key is a source location
+rather than the datum's durable identity, translate it to the durable key and read
+`projectedDatum(widget, key)`: it returns the unique current projected element, or
+`null` when missing or ambiguous, including after a reveal replaced its node.
 
 ### Indicating (experimental)
 
@@ -514,8 +534,8 @@ Declare ordinary local bindings in `keys` and explicitly forwardable aliases in
 the enclosing Ask's opening and its associated margin controls and threads. A route can
 declare its own `contextKeys`; an ordinary key on another route is never forwarded.
 Numbers are widget choices, not an Ask allocation: options own their stable numeric
-assignments, and a swipe deck declares Pass as `1` and Keep as `2`. The page owns `a`
-and `Shift+a` navigation between Asks. Do not assign numbers based on currently available
+assignments, and a swipe deck declares Pass as `1` and Keep as `2`. The page owns `q`
+and `Shift+q` navigation between Asks. Do not assign numbers based on currently available
 actions: disabling `1` must not turn `2` into a different action.
 
 ```javascript
@@ -559,9 +579,13 @@ the source attachment withdraws its old routes. A nearer widget owns its declare
 an unavailable implemented binding reserves its key against a different outer meaning.
 
 Declare `bindingBadge` on a row or route to request an inline shortcut hint, whether or
-not the command is a Decision. An element names an empty face the widget positions;
-`null` requests a badge at the control's corner. Each supplied face belongs to one
-action. The shared keyboard presenter writes its first reachable binding while the
+not the command is a Decision. An element names an empty face the widget positions
+outside every rendered native button; descendants through shadow roots or assigned
+slots are rejected. The presenter gives each lent
+face the persistent `lf-binding-seat` class, whose shared style keeps it absolutely
+positioned even when empty or restored. Position that seat beside its control using
+its holder and offsets; filling it must not move the control. `null` requests a badge
+at the control's corner. Each supplied face belongs to one action. The shared keyboard presenter writes its first reachable binding while the
 whole face is connected, visible, and uncovered; a reachable Ask alias takes precedence
 over an intrinsic binding for the same command. Otherwise it paints a corner badge at
 the visible control. Commands without `bindingBadge` do not request an inline hint.

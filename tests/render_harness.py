@@ -1582,7 +1582,7 @@ def open_versions(page):
 def banner_control(page, selector):
     """Return a banner control, opening its fixed menu seat when needed.
 
-    Approval and Threads stand on the row; every secondary control stands in More at
+    Approval, Questions and Threads stand on the row; every secondary control stands in More at
     every width, and a gesture's next step stands on the row in their place. A caller
     reaching a gesture step reads it off the row rather than through this, since opening
     More would hide a step that had wrongly been seated there. A caller may already have
@@ -1617,7 +1617,7 @@ def expect_banner_control_offered(control, *, offered=True):
 
 
 # How many of the page's active Asks are answered, as "answered/total": the publisher's
-# own Ask reading, which the Queue panel's Done list and the `a` walk select from. Before
+# own Ask reading, which the Questions panel's Done list and the `q` walk select from. Before
 # the page has admitted a state answer the reading is empty, which is no count at all.
 _ASKS_ANSWERED = """async () => {
   const { readApplication } = await window.__lfRuntimeImport('/runtime/semantic-state.js');
@@ -2013,8 +2013,12 @@ def suggestion_owner(suggestion_id: str) -> str:
 
 
 def draft_control(scope, key: str, draft_id: str, *, visible=True):
-    """The draft `draft_id`'s margin entry `key` (edit, save, cancel)."""
-    return margin_control(scope, draft_owner(draft_id), key, visible=visible)
+    """A draft's local command button (edit, save, cancel, close or retry)."""
+    action = "save" if key == "retry" else key
+    return scope.locator(
+        f'lf-draft[id="{draft_id}"] [data-lf-draft-action="{action}"]'
+        + (":visible" if visible else "")
+    )
 
 
 def suggestion_control(scope, suggestion_id: str, key=None, *, visible=True):
@@ -2032,11 +2036,13 @@ def any_owner_entry(kind: str, key: str | None = None) -> str:
 
 
 def any_draft_control(scope, key: str | None = None, *, visible=True):
-    """Any draft's margin entry `key` on the page, for the same reason `any_owner_entry`
+    """Any draft's local control `key` on the page, for the same reason `any_owner_entry`
     exists rather than `draft_control`."""
-    return scope.locator(
-        any_owner_entry("draft", key) + (":visible" if visible else "")
-    )
+    action = "save" if key == "retry" else key
+    selector = "lf-draft [data-lf-draft-action]"
+    if action is not None:
+        selector += f'[data-lf-draft-action="{action}"]'
+    return scope.locator(selector + (":visible" if visible else ""))
 
 
 def any_suggestion_control(scope, key: str | None = None, *, visible=True):

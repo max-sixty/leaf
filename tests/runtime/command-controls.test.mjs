@@ -660,3 +660,52 @@ test("a disappearing projected command refuses instead of becoming a generic act
   registration.unregister();
   owner.remove();
 });
+
+// Filling a child shortcut face can resize its native click target before activation.
+test("a lent hint rejects button children and keeps its external seat after withdrawal", async () => {
+  const { createCommandHints } =
+    await import("../../skills/leaf/assets/runtime/keyboard/command-hints.js");
+  const { registerCoveringAuxiliarySurface } =
+    await import("../../skills/leaf/assets/runtime/keyboard/register.js");
+  registerCoveringAuxiliarySurface(() => null);
+  const owner = document.createElement("section");
+  const control = document.createElement("button");
+  const badge = document.createElement("kbd");
+  control.append(badge);
+  owner.append(control);
+  document.body.append(owner);
+  keys(owner, "Hint ownership", [
+    {
+      id: "probe.hint-seat",
+      title: "Apply",
+      keys: ["x"],
+      control,
+      bindingBadge: badge,
+      run: () => {},
+    },
+  ]);
+  reflectFirstScopes();
+  control.focus();
+  const hints = createCommandHints({ presentedControl: () => null });
+  try {
+    assert.throws(() => hints.paint(), {
+      name: "TypeError",
+      message: "leaf: probe.hint-seat binding badge must be outside native buttons",
+    });
+    const shadowHost = document.createElement("span");
+    control.append(shadowHost);
+    shadowHost.attachShadow({ mode: "open" }).append(badge);
+    assert.throws(() => hints.paint(), {
+      name: "TypeError",
+      message: "leaf: probe.hint-seat binding badge must be outside native buttons",
+    });
+    control.before(badge);
+    hints.paint();
+    assert.equal(badge.classList.contains("lf-binding-seat"), true);
+    hints.destroy();
+    assert.equal(badge.classList.contains("lf-binding-seat"), true);
+    assert.equal(control.contains(badge), false);
+  } finally {
+    owner.remove();
+  }
+});

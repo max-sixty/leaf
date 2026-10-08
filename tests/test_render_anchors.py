@@ -2818,16 +2818,16 @@ rename to "\\357\\273\\277new.js"'''
         details: shadow?.querySelectorAll('details').length ?? 0,
         diffs: shadow?.querySelectorAll('pre[data-diff]').length ?? 0,
         renameCount: renames.length,
-        from: rename?.querySelector('.lf-diff-before')?.textContent ?? null,
-        to: rename?.querySelector('.lf-diff-after')?.textContent ?? null,
+        from: rename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
+        to: rename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
         stat: rename?.querySelector('.lf-diff-stat')?.textContent ?? null,
         generated: rename?.dataset.lfGen === '1',
         saidOverride: rename?.hasAttribute('data-lf-said') ?? null,
         quotedFrom:
-          quotedRename?.querySelector('.lf-diff-before')?.textContent ?? null,
-        quotedTo: quotedRename?.querySelector('.lf-diff-after')?.textContent ?? null,
-        bomFrom: bomRename?.querySelector('.lf-diff-before')?.textContent ?? null,
-        bomTo: bomRename?.querySelector('.lf-diff-after')?.textContent ?? null,
+          quotedRename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
+        quotedTo: quotedRename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
+        bomFrom: bomRename?.querySelector('.lf-diff-source-path')?.textContent ?? null,
+        bomTo: bomRename?.querySelector('.lf-diff-destination-path')?.textContent ?? null,
         lines: [...(shadow?.querySelectorAll('[data-line]') ?? [])]
           .map(line => line.textContent),
         saysRename: says(document).includes('old-name.js → new-name.js'),
@@ -3957,7 +3957,7 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     page = open_page(browser, serve(example))
 
     # Served at the newest version, with the earlier one behind the picker.
-    expect(page.locator(".lf-version")).to_have_text("v2")
+    expect(page.locator(".lf-version")).to_have_text("Showing v2")
     expect(page.locator(".lf-version-menu .lf-version-row")).to_have_count(2)
 
     compare_with(page, 1)
@@ -4008,7 +4008,7 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     banner_control(page, ".lf-version").click()
     page.locator('.lf-version-row[data-lf-version="1"]').click()
     page.wait_for_url(re.compile(r"/versions/v1\.html"))
-    expect(page.locator(".lf-version")).to_have_text("v1")
+    expect(page.locator(".lf-version")).to_have_text("Showing v1")
     expect(page.locator("#ret-cost-keep")).to_have_count(0)
 
 
@@ -4451,6 +4451,58 @@ def test_the_versions_menu_can_close_from_every_door(browser, serve):
     page.keyboard.press("Escape")
 
 
+@pytest.mark.parametrize("color_scheme", ["light", "dark"])
+def test_version_notes_stay_readable_beside_compare_at_narrow_widths(
+    browser, serve, color_scheme
+):
+    """A revision note may contain a URL or an unbroken identifier. Both latest
+    rows spanning the menu and earlier rows sharing it with Compare wrap the whole
+    note inside their own press, rather than clipping it behind the next column.
+    """
+    long_url = (
+        "Source: https://github.com/max-sixty/leaf/blob/"
+        + "a" * 40
+        + "/skills/leaf/assets/runtime/version-picker.js"
+    )
+    long_token = "Revision artifact: " + "abcdef0123456789" * 12
+    url = serve(INLINE_PAGE)
+    _publish(serve.page_dir, 2, INLINE_PAGE, long_url)
+    _publish(serve.page_dir, 3, INLINE_PAGE, long_token)
+    context = browser.new_context(
+        viewport={"width": 320, "height": 568},
+        has_touch=True,
+        is_mobile=True,
+        color_scheme=color_scheme,
+    )
+    page = open_page(browser, live_url(url), context=context)
+    for width in (320, 1200):
+        page.set_viewport_size({"width": width, "height": 568 if width == 320 else 900})
+        open_versions(page)
+        menu = page.locator(".lf-version-menu")
+        expect(menu).to_be_visible()
+        for version, note in ((2, long_url), (3, long_token)):
+            row = menu.locator(f'.lf-version-row[data-lf-version="{version}"]')
+            expect(row.locator(".lf-version-note")).to_have_text(note)
+            row.scroll_into_view_if_needed()
+            boxes = row.evaluate("""row => {
+              const menu = row.closest('.lf-version-menu');
+              const note = row.querySelector('.lf-version-note');
+              const r = row.getBoundingClientRect(), n = note.getBoundingClientRect();
+              return {menuWidth: menu.clientWidth, menuScroll: menu.scrollWidth,
+                rowWidth: row.clientWidth, rowScroll: row.scrollWidth,
+                noteLeft: n.left, noteRight: n.right, rowLeft: r.left, rowRight: r.right};
+            }""")
+            assert boxes["menuScroll"] <= boxes["menuWidth"] + 1, boxes
+            assert boxes["rowScroll"] <= boxes["rowWidth"] + 1, boxes
+            assert boxes["noteLeft"] >= boxes["rowLeft"], boxes
+            assert boxes["noteRight"] <= boxes["rowRight"], boxes
+        expect(
+            menu.get_by_role("menuitemcheckbox", name="Compare with v2")
+        ).to_be_visible()
+        page.keyboard.press("Escape")
+        page.keyboard.press("Escape")
+
+
 @pytest.mark.watch_shifts
 @pytest.mark.parametrize("color_scheme", ["light", "dark"])
 def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_scheme):
@@ -4479,7 +4531,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
 
     btn = page.locator(".lf-version")
     menu = page.locator(".lf-version-menu")
-    expect(btn).to_have_text("v2")
+    expect(btn).to_have_text("Showing v2")
     expect(btn).to_have_attribute("aria-expanded", "false")
     expect(menu).to_be_hidden()
 
@@ -4606,7 +4658,7 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     # settled when the picker says so, and the base's document is a fetch away, so a test
     # that closed the menu on the press alone would ask where the walk stands from a loaded
     # machine and be told the version being read.
-    expect(btn).to_have_text("v2")
+    expect(btn).to_have_text("Showing v2")
     expect(btn).to_have_class(re.compile(r"\bon\b"))
 
     # Escape closes the menu and returns to its banner control.
@@ -4631,13 +4683,13 @@ def test_the_version_menu_is_worked_by_pointer_and_key(browser, serve, color_sch
     assert "1–3\nopen version" in menu_line, menu_line
     assert "back" not in menu_line, menu_line
     expect(page.locator('.lf-version-row[data-lf-version="1"]')).to_be_focused()
-    expect(btn).to_have_text("v2")
+    expect(btn).to_have_text("Showing v2")
     expect(btn).to_have_class(re.compile(r"\bon\b"))
     expect(btn).to_have_attribute("title", re.compile(r"\(g V\)$"))
     # And walking back up to the version being read is the way off it, which is the row
     # an open lands on with nothing standing.
     page.keyboard.press("ArrowUp")
-    expect(btn).to_have_text("v2")
+    expect(btn).to_have_text("Showing v2")
     expect(btn).not_to_have_class(re.compile(r"\bon\b"))
     # Inside the menu the letter is the menu's own — the newest version, tested where
     # it navigates — so Escape closes this and returns to the banner control.
@@ -5225,7 +5277,7 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
     url = serve(INLINE_PAGE)
     _publish(serve.page_dir, 2, v2, "reworded the neighbour")
     page = open_page(browser, live_url(url))
-    expect(page.locator(".lf-version")).to_have_text("v2")
+    expect(page.locator(".lf-version")).to_have_text("Showing v2")
 
     held = []
     requests = []
@@ -5253,7 +5305,7 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
 
         _publish(serve.page_dir, 3, v3, "reworded the compound")
         wait_for_revision(page, 3)
-        expect(page.locator(".lf-version")).to_have_text("v3")
+        expect(page.locator(".lf-version")).to_have_text("Showing v3")
         expect(page.locator("#compound")).to_have_class(re.compile(r"\blf-ins-block\b"))
         expect(page.locator(".lf-ins-block")).to_have_count(2)
         assert len(requests) >= 2, "the selected base was not restored after activation"
@@ -5262,7 +5314,7 @@ def test_pending_comparison_moves_with_a_live_revision(browser, serve):
         with page.expect_response(held[0].request.url):
             held[0].continue_()
         released = True
-        expect(page.locator(".lf-version")).to_have_text("v3")
+        expect(page.locator(".lf-version")).to_have_text("Showing v3")
         expect(page.locator(".lf-ins-block")).to_have_count(2)
     finally:
         if held and not released:
@@ -5308,7 +5360,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     # The closed face keeps its stable address while the comparison remains in the
     # control's accessible name and active treatment.
     picker = page.locator(".lf-version")
-    expect(picker).to_have_text("v3")
+    expect(picker).to_have_text("Showing v3")
     expect(picker).to_have_class(re.compile(r"\bon\b"))
     expect(picker).to_have_attribute(
         "aria-label", "v3: comparing with v1; open versions"
@@ -5330,7 +5382,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     # Pressing the standing base again is the way off, and clears the marks and state.
     page.locator('.lf-version-diff[data-lf-version="1"]').click()
     expect(page.locator(".lf-ins-block")).to_have_count(0)
-    expect(picker).to_have_text("v3")
+    expect(picker).to_have_text("Showing v3")
     expect(picker).not_to_have_class(re.compile(r"\bon\b"))
     expect(picker).to_have_attribute("aria-label", "v3: open versions")
 
@@ -5373,7 +5425,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     page.keyboard.press("ArrowDown")
     expect(page.locator(".lf-ins-block")).to_have_count(2)
     expect(page.locator("#p2")).to_have_class(re.compile(r"\blf-ins-block\b"))
-    expect(page.locator(".lf-version")).to_have_text("v3")
+    expect(page.locator(".lf-version")).to_have_text("Showing v3")
 
     # Back up, one version at a time: the earlier base's marks go with it rather than
     # standing beside the new one's, which is what a comparison being one base means.
@@ -5385,7 +5437,7 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     # row an open lands on when nothing is standing.
     page.keyboard.press("ArrowUp")
     expect(page.locator(".lf-ins-block")).to_have_count(0)
-    expect(page.locator(".lf-version")).to_have_text("v3")
+    expect(page.locator(".lf-version")).to_have_text("Showing v3")
     expect(menu).to_be_visible()
 
 

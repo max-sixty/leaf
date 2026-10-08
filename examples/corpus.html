@@ -1183,21 +1183,28 @@
         display: block;
       }
       lf-merge-film[data-phone] .film-bar {
-        grid-template-columns: 1fr 1fr 1fr auto;
+        display: flex;
+        flex-wrap: wrap;
         gap: 6px;
       }
       lf-merge-film[data-phone] .film-scrub {
-        grid-column: 1 / -1;
-        grid-row: 2;
+        order: 1;
+        flex: 0 0 100%;
         min-height: 32px;
       }
       lf-merge-film[data-phone] .film-inspect-next {
-        grid-column: 1 / -1;
-        grid-row: 3;
+        order: 2;
+      }
+      lf-merge-film[data-phone] .film-bar .film-speed {
+        order: 2;
+        flex: 0 0 auto;
+        min-width: 44px;
       }
       lf-merge-film[data-phone] .film-bar button {
+        flex: 1 0 auto;
         min-height: 44px;
         min-width: 0;
+        white-space: nowrap;
         padding: 6px;
         font: 14px var(--sans);
         color: var(--ink);
@@ -1268,6 +1275,24 @@
       lf-merge-film .film-phone-terminal > div {
         max-height: 16rem;
         overflow: auto;
+      }
+      lf-merge-film .film-terminal-line {
+        display: block;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        padding: 0;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        text-align: left;
+        white-space: pre;
+        font: 14px / 21px var(--mono);
+        cursor: pointer;
+      }
+      lf-merge-film .film-terminal-line:focus-visible {
+        outline-offset: -2px;
       }
       lf-merge-film .film-phone-line {
         display: block;
@@ -2523,8 +2548,7 @@ catalog.</p>
         <h2>CLI</h2>
         <lf-draft id="rn-cli">
           <pre>
-Adds `--dry-run` to every command that changes state. Existing scripts continue to work without it.
-</pre>
+Adds `--dry-run` to every command that changes state. Existing scripts continue to work without it.</pre>
         </lf-draft>
       </section>
 
@@ -2541,8 +2565,7 @@ Adds `--dry-run` to every command that changes state. Existing scripts continue 
         </p>
         <lf-draft id="rn-api">
           <pre>
-Deprecates the v1 auth header. It keeps working until 4.0, and v1 responses now include a Sunset header.
-</pre>
+Deprecates the v1 auth header. It keeps working until 4.0, and v1 responses now include a Sunset header.</pre>
         </lf-draft>
       </section>
 
@@ -2566,8 +2589,7 @@ Deprecates the v1 auth header. It keeps working until 4.0, and v1 responses now 
         ></lf-shot>
         <lf-draft id="rn-console">
           <pre>
-Run status now appears in the run list. Filtering by status is planned for 3.3.
-</pre>
+Run status now appears in the run list. Filtering by status is planned for 3.3.</pre>
         </lf-draft>
       </section>
 
@@ -2585,9 +2607,7 @@ Run status now appears in the run list. Filtering by status is planned for 3.3.
           >
         </lf-suggestion>
         <lf-draft id="rn-migration">
-          <pre>
-Run the online schema migration before deploying.
-</pre>
+          <pre>Run the online schema migration before deploying.</pre>
         </lf-draft>
       </section>
 </lf-tab>
@@ -5858,8 +5878,7 @@ stateDiagram-v2
     where refunded_minor is not null limit 1) to stdout with csv header"</code></pre>
                 <lf-draft id="ledger-cargo" needed>
                   <pre>
-  Paste the complete CSV row here. Remove customer_name and billing_email before saving.
-  </pre>
+Paste the complete CSV row here. Remove customer_name and billing_email before saving.</pre>
                 </lf-draft>
               </lf-ask>
             </lf-task>
@@ -6710,6 +6729,12 @@ observe --cohort staff</code></pre>
             </div>
           </section>
         </lf-tab>
+        <lf-tab id="summary-tab" label="Summary">
+          <section id="release-summary">
+            <h2>Release decision</h2>
+            <p>Advance only after the evidence meets every rollout gate.</p>
+          </section>
+        </lf-tab>
       </lf-tabs>
 </lf-tab>
 
@@ -6749,23 +6774,24 @@ observe --cohort staff</code></pre>
               An <code>lf-ask</code> is one complete Ask: its heading names the
               question, and one nested widget owns the answer. This sample uses
               <code>lf-options</code>, which records a choice Leaf can replay as page
-              state. Press <kbd>a</kbd> for the next thing waiting on you, in page
+              state. Press <kbd>q</kbd> for the next question waiting on you, in page
               order: an open Ask, a thread whose question is yours to answer, such as
-              the gallery thread that asks about a pasted image, a task the agent put on
-              you, or a move whose reply failed and needs sending again. After its
-              status, the banner counts what waits on you and what waits on the agent.
-              Press those counts, open <strong>Queue</strong> in More, or press
-              <kbd>g</kbd> then <kbd>Shift+Q</kbd>, to see both lists in one panel, with
-              answered Asks and finished tasks folded under Done; Enter on a row goes
-              where <kbd>a</kbd> would. The Queue panel is experimental. Within a view,
-              <kbd>a</kbd> scrolls to the question. When it opens another view, the
-              question appears immediately and its tab name briefly highlights.
-              <kbd>Shift+A</kbd> walks back. Reduced motion removes the glide and
-              highlight. When <kbd>a</kbd> reaches a commented Ask, its discussion stays
-              closed while you read and choose, including when Tab enters its controls.
-              Press <kbd>c</kbd> to reply in that existing discussion, <kbd>t</kbd> to
-              read it, or its Thread marker to open it under a finger. Returning to an
-              Ask you have answered also keeps its controls clear.
+              the gallery thread that asks about a pasted image, a to-do the agent put
+              on you, or a move whose reply failed and needs sending again. The banner's
+              <strong>Questions</strong> door, beside Threads, counts them, and the
+              agent's Tasks count follows its status. Press either, or press
+              <kbd>g</kbd> then <kbd>Shift+Q</kbd>, to see both lists in the panel
+              Threads also opens in, with answered Asks and finished tasks folded under
+              Done; Enter on a row goes where <kbd>q</kbd> would. The Questions panel is
+              experimental. Within a view, <kbd>q</kbd> scrolls to the question. When it
+              opens another view, the question appears immediately and its tab name
+              briefly highlights. <kbd>Shift+Q</kbd> walks back. Reduced motion removes
+              the glide and highlight. When <kbd>q</kbd> reaches a commented Ask, its
+              discussion stays closed while you read and choose, including when Tab
+              enters its controls. Press <kbd>c</kbd> to reply in that existing
+              discussion, <kbd>t</kbd> to read it, or its Thread marker to open it under
+              a finger. Returning to an Ask you have answered also keeps its controls
+              clear.
             </p>
             <lf-ask id="bg-choice-ask">
               <h3>Which map should the sample team carry?</h3>
@@ -6780,11 +6806,11 @@ observe --cohort staff</code></pre>
                 The agent put a task on you about this section with
                 <code>leaf task open … --on user</code>: check that the trail map marks
                 the shelter. Nothing here answers it, so it ends at your Done. It waits
-                under On you in the Queue panel, where its row has a Done button, and
-                <kbd>a</kbd> reaches it after the Ask above. Where <kbd>a</kbd> lands on
-                it, press <kbd>x</kbd>, or under a finger the banner's
-                <strong>Done</strong>. Done moves it under the panel's Done fold and
-                tells the agent.
+                under Questions in the Questions panel, as a To do whose row has a Done
+                button, and <kbd>q</kbd> reaches it after the Ask above. Where
+                <kbd>q</kbd> lands on it, press <kbd>x</kbd>, or under a finger the
+                banner's <strong>Done</strong>. Done moves it under the panel's Done
+                fold and tells the agent.
               </p>
             </section>
             <section id="bg-widget-shortcut-hints">
@@ -6879,9 +6905,10 @@ observe --cohort staff</code></pre>
               ><span class="bg-feature-detail">: editable passages and history</span>
             </h2>
             <p id="bg-editing-guide">
-              “Edit” opens the shared Markdown editor. Try emphasis or inline code;
-              “Save” records the exact source, and “Cancel” discards the unsaved edit.
-              “Changes” lists saved versions, and “Restore” reapplies one.
+              Drafts render Markdown as readable prose. “Edit” opens its exact source;
+              “Save” records it, “Cancel” discards the unsaved edit, and “Close” keeps
+              it for later. These controls stay in the box when annotations are hidden.
+              After an edit, “Changes” lists saved versions and “Restore” reapplies one.
             </p>
             <lf-draft id="bg-draft">
               <pre>
@@ -7403,6 +7430,21 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     into its reply box to see the thumbnail Leaf keeps in the draft
                     without exposing image Markdown.
                   </p>
+                  <figure id="bg-image-preview">
+                    <a href="/media/051bee487bfb5d13.png">
+                      <img
+                        src="/media/051bee487bfb5d13.png"
+                        width="1800"
+                        height="746"
+                        alt="A before-and-after screenshot of the draft controls"
+                      />
+                    </a>
+                    <figcaption>
+                      Open this screenshot, zoom to 100%, and pan by dragging or with
+                      arrow keys. Fit or z returns to the whole image; Escape or Close
+                      returns to this link.
+                    </figcaption>
+                  </figure>
                 </section>
               </div>
             </section>
@@ -8144,10 +8186,12 @@ gallery/
                 presents this same tab set at the root of a page, where it becomes
                 borderless top navigation for page-scale views. Both forms remember the
                 selected panel after reload. At page level, scroll a view and switch
-                away and back: each selection reaches the panel’s beginning below the
-                tab strip. Browser Back and Forward return to the corresponding views.
-                Narrow the window until the gallery’s own tab names overflow, then page
-                them with the edge arrows. Reduced motion makes that move immediate.
+                away and back: an unread view opens below the tab strip, and a view you
+                already read returns to its place. The strip stays put even when the
+                next view is shorter than the window. Browser Back and Forward return to
+                the corresponding views. Narrow the window until the gallery’s own tab
+                names overflow, then page them with the edge arrows. Reduced motion
+                makes that move immediate.
               </p>
               <lf-tabs id="bg-tabs">
                 <lf-tab id="bg-tab-current" label="Current">
@@ -8935,14 +8979,25 @@ switch --readers checkout-api,orders-api</code></pre>
         <p>
           This ordinary website has two buttons named Review. Playwright recorded each
           click; Leaf's comments identify the captured action, image or saved element.
+          Play the captured sequence, or drag the blue handle to scrub and pause on a
+          detail.
         </p>
       </header>
       <section id="trace-review">
-        <lf-trace
-          id="release-trace"
-          source="release-journey"
-          data-height="720"
-        ></lf-trace>
+        <lf-trace id="release-trace" source="release-journey">
+          <lf-trace-bookmark
+            label="Documentation reviewed"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-4e380b5061c4982e-after"
+          ></lf-trace-bookmark>
+          <lf-trace-bookmark
+            label="API reviewed"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-phase-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-call-0684e283ed722175-after"
+          ></lf-trace-bookmark>
+          <lf-trace-bookmark
+            label="Last filmstrip image"
+            target="trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-image-trace-11c45d01a23e65dd81f7916bab61ebb198259375367ecc49e5c771a6b42e3965-stream-fb486352db3c8a4a-image-73"
+          ></lf-trace-bookmark>
+        </lf-trace>
       </section>
       <details id="trace-scenarios">
         <summary>Review scenarios</summary>
@@ -8953,8 +9008,15 @@ switch --readers checkout-api,orders-api</code></pre>
             to the timeline controls to step through its checkpoints.
           </li>
           <li>
-            Step through a click’s Before, Action and After checkpoints on one timeline.
-            Each image and saved tree shows its own capture time.
+            Select Documentation reviewed or API reviewed on the timeline. Hover or
+            focus each number to read its name and time; close moments stay separate.
+            Zoom in to spread their times and Whole recording to restore the overview.
+          </li>
+          <li>
+            Use Fit image, Actual size, or image zoom to inspect captured pixels. Drag
+            the image to pan, or focus it and use arrow keys. Step through a click’s
+            Before, Action and After checkpoints on one timeline. Each image and saved
+            tree shows its own capture time.
           </li>
           <li>
             Enable Show intermediate frames to include the browser’s filmstrip on that

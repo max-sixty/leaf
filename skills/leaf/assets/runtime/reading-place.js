@@ -8,9 +8,10 @@
  * `capturePlace` reads one, of the page or of a reading region, and `restorePlace`
  * returns the user to it: the passage is found again by its words, so a place survives
  * what moved the pixels under it — a new revision, a resize, a view that was hidden
- * while its width changed. A visible native editor is the live place while that
- * editing gesture still holds focus in this region. Its DOM identity stays local;
- * serialized places and replaced fields use the ordinary passage reading. A restore
+ * while its width changed. A visible focused destination is the live place while that
+ * gesture still holds focus in this region. Focus on the reading surface itself keeps
+ * its passage as the place. The destination's DOM identity stays local;
+ * serialized places and replaced elements use the ordinary passage reading. A restore
  * jumps rather than glides.
  *
  * Whoever remembers a place owns when to take it and where to keep it: version
@@ -56,17 +57,16 @@ import { moveScrollerBy, pageScroller, scrollToEnd } from "./scrolling.js";
 import { renderedParent, under, upFrom } from "./shadow.js";
 import { recentPlaceInput, retainUserIntent } from "./user-intent.js";
 import { reveal } from "./widget-elements.js";
-import { TEXT_BOX } from "./control-selectors.js";
 import { focused } from "./keyboard/scopes.js";
 import { scrollIntoReadingBand } from "./landing-scroll.js";
 import { union } from "./rect.js";
 
-// A live editing place belongs to this DOM, not a serialized history record. Its
+// A live focused place belongs to this DOM, not a serialized history record. Its
 // symbol keeps that node out of JSON; the ordinary passage reading remains the
 // fallback when a replacement or a later gesture has given focus elsewhere.
-const EDITING_PLACE = Symbol("live editing place");
-const editingPlace = (reading) => {
-  const place = reading?.[EDITING_PLACE];
+const FOCUSED_PLACE = Symbol("live focused place");
+const focusedPlace = (reading) => {
+  const place = reading?.[FOCUSED_PLACE];
   return place?.node.isConnected &&
     place.node === focused() &&
     under(place.node, place.body) &&
@@ -235,19 +235,22 @@ export function capturePlace(region = null, blocks = textBlocks()) {
   const landmarkTop = (top, block, blockTop = top) =>
     block?.matches(HEADING) ? top + Math.max(0, -blockTop) : top;
   const view = { y: box.scrollTop, scroller: scrollerIdentity(box) };
-  const editing = focused();
+  const standing = focused();
   const body = region?.body ?? document.querySelector("body > main");
+  const standingBody = readingRegionFor(standing)?.body ?? body;
   if (
     recentPlaceInput() === "focus" &&
-    editing?.matches(TEXT_BOX) &&
-    under(editing, body) &&
-    seenRect(editing, new Map())
+    standing &&
+    under(standing, body) &&
+    // Focus on the reading surface itself names its contents, not a landmark.
+    !under(standingBody, standing) &&
+    seenRect(standing, new Map())
   )
-    view[EDITING_PLACE] = {
-      node: editing,
+    view[FOCUSED_PLACE] = {
+      node: standing,
       body,
-      region: containingReadingRegionFor(editing)?.id,
-      intent: retainUserIntent({ source: editing }),
+      region: containingReadingRegionFor(standing)?.id,
+      intent: retainUserIntent({ source: standing }),
     };
   if (region && followingItsEnd(box)) return { ...view, end: true };
   for (const [block, rect, runs] of blocksOnScreen(region, blocks)) {
@@ -296,7 +299,7 @@ export function capturePlace(region = null, blocks = textBlocks()) {
 // animating from the replacement's raw position is worse than the jump it replaces.
 // Moving to a mark the user asked for is the other case, and says so.
 export const hasLandmark = (reading) =>
-  Boolean(editingPlace(reading) || reading?.end || reading?.quote || reading?.section);
+  Boolean(focusedPlace(reading) || reading?.end || reading?.quote || reading?.section);
 export const rawOffsetFits = (reading, scroller) =>
   reading.scroller !== undefined && reading.scroller === scrollerIdentity(scroller);
 function scrollerIdentity(scroller) {
@@ -306,15 +309,19 @@ function scrollerIdentity(scroller) {
 
 export function restorePlace(view, region = null, currentIntent = retainUserIntent()) {
   if (!view || !currentIntent()) return;
-  const editing = editingPlace(view);
+  const box = region ? effectiveScroller(region) : pageScroller;
+  const standing = focusedPlace(view);
+  // A focus that remains visible after its region joins a different scroller can
+  // still be far from the passage's old reading band. Restore the landmark there;
+  // a focus with no saved landmark remains the only place to restore.
   if (
-    editing &&
-    under(editing, region?.body ?? document.querySelector("body > main"))
+    standing &&
+    (rawOffsetFits(view, box) || (!view.quote && !view.section && !view.end)) &&
+    under(standing, region?.body ?? document.querySelector("body > main"))
   ) {
-    scrollIntoReadingBand(editing, editing, "nearest", "instant");
+    scrollIntoReadingBand(standing, standing, "nearest", "instant");
     return;
   }
-  const box = region ? effectiveScroller(region) : pageScroller;
   if (view.end) {
     scrollToEnd(box);
     return;

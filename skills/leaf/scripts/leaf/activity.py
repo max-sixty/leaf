@@ -125,19 +125,13 @@ def _bind_reply(workflows: list[dict], reply: dict | None) -> None:
 def reply_binding_stands(
     binding: dict | None, session: str | None, turn: str | None, closed: str | None
 ) -> bool:
-    """Whether a reply binding still hands its move's answer to a turn's own
-    messages, given the page's claim session, turn, and when that turn closed.
+    """Whether the exact claim turn still reserves an automatic provider answer.
 
-    A binding names the claim turn it belongs to: the delivery's turn once that
-    turn's reply opens, and before then the turn that stood when the seat was
-    reserved. It stands while that is still the claim's turn and the turn is
-    open. A turn that opens without taking it over is not the delivery's, and a
-    turn that has ended writes nothing more; either way nothing says an App
-    Server client will still commit the delivery turn's messages: its start may
-    have produced no turn, or the client stopped reading. So the move is answered
-    the ordinary way again, and a client that does commit late yields to that
-    answer (`thread.post_reply`, `post`). A client that is still reading commits before
-    it closes the turn (`codex.TurnFold.commit`)."""
+    Before the provider reply opens, its binding names the claim turn standing
+    at reservation; afterward it names the delivery's turn. A different or closed
+    claim turn cannot retain that reservation. A client still following its turn
+    commits before closing it (`codex.TurnFold.commit`).
+    """
     return bool(
         binding
         and closed is None
@@ -151,7 +145,10 @@ def answer_command(answer: dict) -> str:
     if answer["kind"] == "reply" and answer.get("writer") != "turn":
         return f"`leaf response reply <answer.ref>` for {answer['for']}"
     if answer.get("writer") == "turn":
-        return f"your turn's final message for {answer['for']}"
+        return (
+            f"your turn's final message or `leaf response reply <answer.ref>` "
+            f"for {answer['for']}"
+        )
     return f"a stamped version whose markup records action {answer['action']}"
 
 
@@ -247,12 +244,6 @@ def turn_obligations(state: dict, *, watched: bool) -> list[dict]:
         for obligation in blocking_obligations(state, watched=watched)
         if not started_in_turn(obligation, state)
     ]
-
-
-def transition_due(activity: dict, now_iso: str) -> bool:
-    """Whether a projected activity reading has reached its refresh boundary."""
-    due = _moment(activity.get("next_transition_at"))
-    return bool(due and due <= datetime.fromisoformat(now_iso))
 
 
 class Turn(NamedTuple):
@@ -450,22 +441,23 @@ def canonical_activity(
     stream: dict | None = None,
     reply: dict | None = None,
     bindings: dict | None = None,
+    *,
+    task_reading=None,
 ) -> dict:
     """Return the one current reading of agent activity for a page snapshot.
 
     `interaction_evidence` are the page's workflows (`workflows.canonical_workflows`)
     and `events` the log they were read from, which holds the agent's open tasks and
-    the starts running on them (`tasks.canonical_tasks`). Both come back aged, as
+    the starts running on them (`tasks.TaskReading`). Both come back aged, as
     `workflows` and `tasks`.
 
-    `bindings` are the stream's reply bindings. A reply address whose binding
-    stands (`reply_binding_stands`) is the claimant's App Server turn to write,
-    with its own opening and final messages, so its workflow's answer reads as a
-    `turn` under the binding's attempt: every consumer that holds the agent to an
-    answer, or refuses a second writer, reads that answer rather than the
-    binding."""
-    from .tasks import owed_tasks
+    `bindings` reserve automatic replies from the claimant's exact App Server
+    turn (`reply_binding_stands`). Their workflows keep the `reply` answer kind
+    and add `writer: "turn"` and the binding's attempt. An explicit addressed
+    answer may commit first; the automatic final then yields to it."""
+    from .tasks import TaskReading
 
+    log = task_reading or TaskReading(events)
     now = datetime.fromisoformat(now_iso)
     status = present["status"]
     declared = declared_at(present, events)
@@ -488,9 +480,7 @@ def canonical_activity(
     workflows, aging = _canonical_workflows(
         interaction_evidence, present, now, held=held, turn=turn
     )
-    tasks, task_aging = _canonical_tasks(
-        owed_tasks(events), present, now, held=held, turn=turn
-    )
+    tasks, task_aging = _canonical_tasks(log.owed, present, now, held=held, turn=turn)
     _bind_reply(workflows, reply)
     for item in workflows:
         binding = (bindings or {}).get(item.get("input"))

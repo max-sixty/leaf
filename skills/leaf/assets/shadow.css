@@ -4,6 +4,35 @@
  * need is stated here, once: the stage copies the composed shadow.css into each declared
  * root, and the document reads the same rules at the head of this root's part of
  * /theme.css. A rule belongs here when a declared tree has to see it too. */
+/* Reduced motion: the shared sheet guards CSS animations and transitions in the
+ * document and every declared shadow stage (!important outranks inline styles, so
+ * JS-driven transitions stop too). JS-driven motion goes through the runtime's
+ * motion() and the live motion readings, which answer the same preference themselves.
+ *
+ * The two halves are not written alike, because a duration is a way of keeping
+ * an animation and no way at all of keeping a transition. An animation is
+ * declared and named, and `animationend` is how the layer knows one has run —
+ * the thread list takes `grow` off a card that way — so the near-zero duration
+ * keeps that event and spends no time on it. It runs once, since an endless
+ * animation at that duration repeats on every frame, showing a different point
+ * of its keyframes each time: a pulse becomes a flicker, and the page never
+ * rests. A transition is declared by
+ * nobody: `transition-property` is `all` until something says otherwise, so a
+ * duration on every element makes a transition out of every property that
+ * changes, on every element, and none of them is a transition this theme
+ * wrote. Nothing listens for `transitionend`, so they were kept for no one and
+ * were not free: a running transition's animated value is what the platform
+ * reports for the property, so for the frames one of these took, every reading
+ * of a box's style — the render gate's included — was told the value the
+ * property was leaving rather than the one on screen. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition: none !important;
+  }
+}
+
 /* The default face of native widget-injected controls. `offer()` writes `lf-ui-face` on each one it
  * builds, so this is the layer's answer for a control standing in the page's own prose:
  * the chrome's family, size and ink rather than the document's serif. The separate
@@ -109,6 +138,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     display: inline-flex; align-items: center; justify-content: center;
     user-select: none; -webkit-user-select: none; }
 .lf-key-badge:empty { display: none; }
+/* A lent command hint never participates in flow, whether empty, filled or restored.
+   Its widget positions the external seat beside the control it labels. */
+.lf-binding-seat { position: absolute; }
 .lf-external-mark { display: inline-block; width: .75em; height: .75em;
                     margin-inline-start: .24em; vertical-align: .03em;
                     fill: none; stroke: currentColor; stroke-width: 1.5;
@@ -234,13 +266,22 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    words run longer keeps them. The members left on min-height stand in rows or in
    flow, or state their own height.
 
+   Declared pressables join by their offer, rather than by adding their class here.
+   A resting skip control is transparent and has no pointer route; it takes its aim
+   size from chrome.css only when focus reveals it.
+   Native and selectable choice marks keep their enclosing labelled target; squeezing-prone button
+   faces and version rows keep the padding floor described above. Inline offered words
+   remain inline: like links in prose, their words determine their target.
+
    .lf-outline-chip is halved on how it is spelled, because the class dresses a standing
    chip as well as a press and a chip is not something to aim at. */
+[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer="checkbox"], [data-lf-offer="radio"], .lf-skip)),
 .lf-btn, .button, .lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-react-trigger,
 .lf-margin-entry,
 .lf-thread-action, .lf-preview, .lf-layer-reference, .lf-version-diff, .lf-version-row,
 .lf-command-reference-command, .lf-quote {
   min-width: var(--aim-floor); }
+[data-lf-offer]:where(:not([data-lf-offer=""], [data-lf-offer="checkbox"], [data-lf-offer="radio"], .lf-skip, .lf-btn, .lf-version-row, .lf-version-diff)),
 .lf-outline-chip:is(button, [role="button"]), .lf-thread-notice:is(button), .lf-react, .lf-react-trigger,
 .lf-margin-entry, .lf-thread-action, .lf-command-reference-command, .lf-quote {
   min-height: var(--aim-floor); }
@@ -976,11 +1017,13 @@ button.lf-media-open { cursor: zoom-in; }
   .lf-fab-bar[data-lf-presentation="inline"] { display: none !important; }
 }
 :is(.lf-btn, .button):is(.on, [aria-pressed="true"]) { border-color: var(--accent); color: var(--accent); background: var(--chip); }
-/* Draw mode takes page-widget presses before their controls can act. This rule is in
-   this file because document selectors do not cross a declared shadow root. */
+/* Draw mode takes page-word presses while offered controls keep their gestures.
+   Document selectors do not cross a declared shadow root. */
 :host-context(html[data-lf-draw-mode]):host-context(main) * { cursor: crosshair !important; }
 :host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat,
-:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat * {
+:host-context(html[data-lf-draw-mode]):host-context(main) .lf-thread-seat *,
+:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer],
+:host-context(html[data-lf-draw-mode]):host-context(main) [data-lf-offer] * {
   cursor: auto !important; }
 /* Copy floats over the code's corner without changing its box or scrolling text.
    Pointer and keyboard intent reveal it; touch keeps the control available. */

@@ -48,7 +48,6 @@ export const chromeSharedClasses = Object.freeze([
   "lf-react-mark",
   "lf-skip",
   "lf-ui",
-  "lf-ui-face",
   "lf-version-inline",
   "lf-version-inline-deletion",
 ]);

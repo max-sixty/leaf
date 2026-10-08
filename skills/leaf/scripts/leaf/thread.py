@@ -626,7 +626,7 @@ def post_reply(
             else:
                 from leaf.validation.source import check_source
 
-                checked = check_source(page_dir, source_events, allow_transition=False)
+                checked = check_source(page_dir, source_events)
                 if checked.errors:
                     operation = "reply" if validate_source else "detach"
                     sys.exit(
@@ -813,7 +813,7 @@ def _fail_markup_answer(
 
 @contract_writer
 def cmd_edit(page_dir: Path, to: str, text) -> dict:
-    """Append a text revision to one message authored by this agent session.
+    """Append a text revision to one agent-authored message.
 
     The message event is immutable: the edit points back to it, so the log retains
     every wording while thread folds project the latest one. Markup stays frozen with
@@ -829,11 +829,6 @@ def cmd_edit(page_dir: Path, to: str, text) -> dict:
         if target["author"] != "agent":
             sys.exit(f"message {to!r} is not agent-authored")
         identity = message_identity()
-        owner = target.get("session")
-        if not owner:
-            sys.exit(f"message {to!r} has no agent session identity")
-        if owner != identity.get("session"):
-            sys.exit(f"message {to!r} belongs to agent session {owner!r}")
         return append_admitted(
             page,
             {

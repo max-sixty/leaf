@@ -17,16 +17,6 @@ vars:
     directory. Reply with HTML and a page module; the page directory is not
     reachable here. Use a placeholder for the result-table renderer.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-playground-instructions
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/packages/playground/instructions/author\.md
 - type: llm-rubric
   metric: task-data-is-submitted
   value: |

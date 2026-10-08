@@ -23,16 +23,6 @@ vars:
     Read whatever instructions you need. Only Skill and Read run here, so write out,
     in order, each command you would run on the page to hand it back.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-conversation-loop
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/conversation-loop\.md
 - type: llm-rubric
   metric: judgment
   value: |

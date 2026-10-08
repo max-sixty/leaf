@@ -9,7 +9,8 @@
  * restore nothing. Every classification is one `swipe`; the deck's Ask is answered
  * while the queue stands empty, so returning any card reopens it. Complete projection
  * supplies the ordered cards in every pile; this module places the retained nodes and
- * carries only the live pointer gesture. A
+ * carries only the live pointer gesture. Return hands focus to the active card with
+ * its optimistic placement; delivery never takes focus from a later gesture. A
  * card's parent pile presents whether it is unseen, passed, or kept. The complete
  * painted reading is memoized, so a broad action heartbeat that changes no deck state
  * writes nothing and repaints keyboard scopes only when action availability changes.
@@ -35,7 +36,6 @@ import {
   paintKeys,
   quoted,
   rankAt,
-  retainUserIntent,
   widgetController,
   worksInside,
   rove,
@@ -65,7 +65,6 @@ customElements.define(
     #progress = null;
     #pointer = null;
     #interactive = false;
-    #returning = new Set();
     #painted = null;
     #keysAvailable = null;
     #controller = null;
@@ -202,7 +201,6 @@ customElements.define(
           card,
           active: card === active && available,
           returnable: Boolean(this.#returnable(card)),
-          returning: this.#returning.has(card.id),
         })),
       }));
       const reading = JSON.stringify({
@@ -210,11 +208,10 @@ customElements.define(
         progress,
         piles: piles.map(({ verdict, cards }) => ({
           verdict,
-          cards: cards.map(({ card, active, returnable, returning }) => ({
+          cards: cards.map(({ card, active, returnable }) => ({
             id: card.id,
             active,
             returnable,
-            returning,
           })),
         })),
       });
@@ -229,11 +226,10 @@ customElements.define(
         all.find(({ active }) => active)?.card ?? null,
       );
       for (const { pile, verdict, cards } of piles) {
-        for (const { card, returnable, returning } of cards) {
+        for (const { card, returnable } of cards) {
           const button = card.querySelector(":scope > .lf-swipe-return");
           if (!button) continue;
           keepsHidden(button, !returnable);
-          button.toggleAttribute("disabled", returning);
         }
         const label = pile.querySelector(':scope > [data-lf-said="verdict"]');
         keepsText(label, `${VERDICTS[verdict]} · ${cards.length}`);
@@ -271,27 +267,18 @@ customElements.define(
       const button = offer("button", "lf-swipe-return", "Return to queue");
       button.setAttribute("aria-label", `Return ${this.#title(card)} to queue`);
       button.hidden = true;
-      button.addEventListener("click", async () => {
+      button.addEventListener("click", () => {
         const command = this.#returnable(card);
-        if (!command || this.#returning.has(card.id)) return;
-        // The return waits on the log; a newer input meanwhile keeps the user where it
-        // put them.
-        const refocus = document.activeElement === button && retainUserIntent();
-        this.#returning.add(card.id);
+        if (!command) return;
+        const refocus = document.activeElement === button;
         const placed =
           command.kind === "action" && this.#place(card, this.#pile("unseen"), 0);
         this.#render();
         if (placed) layoutChanged(this);
-        let returned = false;
-        try {
-          returned = Boolean(await this.#controller.dispatch(command)?.delivery);
-        } finally {
-          this.#returning.delete(card.id);
-          if (this.isConnected) this.#render();
-        }
-        const destination = returned ? this.#active() : button;
-        if (refocus && destination)
-          refocus.handoff(() => focusDestination(destination, "return"));
+        const returned = this.#controller.dispatch(command);
+        const next = returned && refocus && this.#active();
+        if (next) focusDestination(next, "return");
+        void returned?.delivery;
       });
       card.append(button);
     }

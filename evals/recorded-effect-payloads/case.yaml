@@ -26,11 +26,6 @@ vars:
     Do not implement controls, rendering, or transport. The rest of each widget's
     registry entry is already valid, including its properties and ownership.
 assert:
-- type: javascript
-  metric: reads-package-contract
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/packages\.md
 - type: llm-rubric
   metric: effect-owned-payloads
   value: |

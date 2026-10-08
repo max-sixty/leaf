@@ -13,6 +13,7 @@
     "skills/leaf/assets/runtime/pending/model.js",
     "skills/leaf/assets/runtime/projection/model.js",
     "skills/leaf/assets/runtime/queues.js",
+    "skills/leaf/assets/runtime/registry-contract.js",
     "skills/leaf/assets/runtime/thread/identity.js",
     "skills/leaf/assets/runtime/thread/model.js",
     "skills/leaf/assets/runtime/thread/workflow.js"
@@ -162,12 +163,12 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 30612,
-      "sha256": "748aeccf706e19df94f8631a4f57b14addc1805ed39e905c7aa33e597b0ce33a"
+      "bytes": 32753,
+      "sha256": "b4e29f35696eb64e39e9811a5085e32743c93f8a674ed4fbd2267aaafa8ea53a"
     },
     "build/browser/generated/browser-runtime.js.map": {
-      "bytes": 200523,
-      "sha256": "2c8585d052ecb611728426582784bc42f1670dc83244d343352bcf5a0f288bea"
+      "bytes": 209722,
+      "sha256": "cf337f3c177beb0ff0886f8b36d4152e462b6271097f2a7b2dc8cdccd080f54d"
     },
     "skills/leaf/assets/vendor/lit.js": {
       "bytes": 32081,

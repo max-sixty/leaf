@@ -442,8 +442,8 @@ def admitting_registry(view, event: dict, events: list) -> dict:
     An event names the revision it was made against, and that revision's artifact
     holds the registry its page was rendered from — so a re-vendor, which replaces
     the layer without touching a standing revision, cannot reinterpret a command
-    the user made against the document in front of them. `admitted_contract_error`
-    reads the recorded side from that same capture. A sign-off names its version
+    the user made against the document in front of them. Admission records that
+    semantic definition in the event. A sign-off names its version
     instead, and admits under the revision that version stamped. An event naming
     neither takes the newest, which is the document any writer of one is looking
     at, and a page with no revision yet has the candidate's vocabulary.
@@ -698,17 +698,18 @@ def _publication_error(view, event: dict) -> str | None:
 
 
 def _reanchor_error(view, event: dict, events: list) -> str | None:
-    """A revision's automatic fallback changes a live quote to its own section."""
+    """A revision falls back to a thread's surviving section, or detaches it."""
     if event["kind"] != "reanchor":
         return None
     thread = build_threads(events, view.within).get(event["thread"])
     if thread is None or thread["resolved"] or not thread["anchor"]:
         return "reanchor needs an open anchored thread"
-    anchor = thread["anchor"]
-    if not anchor.get("quote") or event["anchor"] != {"section": anchor.get("section")}:
-        return "reanchor must retain the quoted thread's own section"
-    if anchor.get("section") not in view.document(event["revision"]).ids:
-        return "reanchor section must survive in its revision"
+    section = thread["anchor"].get("section")
+    if event["anchor"] is not None and (
+        event["anchor"] != {"section": section}
+        or section not in view.document(event["revision"]).ids
+    ):
+        return "reanchor must retain the thread's surviving section or detach it"
     return None
 
 

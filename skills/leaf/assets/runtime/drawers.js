@@ -16,6 +16,8 @@ import { createLiveLeavesList } from "./live-leaves-list.js";
 import { bannerControlDoor, dismissBannerControls } from "./banner-toolbar.js";
 import { createQueueList, shownItems, walkStops } from "./queue-list.js";
 import { keeps } from "./keeps.js";
+import { pressIsKeyboardActivation } from "./pointer.js";
+import { registerReadingRegion } from "./reading-regions.js";
 // The left side holds one drawer at a time, selected by the shared auxiliary-surface owner.
 // Both stand over the page and take no room from it. The leaves drawer covers the document
 // because its rows leave the page. The Queue drawer leaves the page live beside it, because
@@ -55,7 +57,8 @@ export const DRAWER_SLOT_PROP = "--lf-drawer-slot-width";
 // the layout reserves at the foot of one it reserves at the foot of every one, and a
 // drawer left out of a second list of them parks its last row under the shortcut bar.
 // Callers state the clearance; this owner decides which lists it reaches and how each
-// one spends it.
+// one spends it. Mounting registers each shell and list as a reading region, so
+// reading keys and travel select the list from its rows or header in either posture.
 function drawerFurniture(panel, name, list = el("div", "lf-drawer-list")) {
   const head = el("div", "lf-drawer-head");
   const title = el("span", "lf-auxiliary-title", name);
@@ -226,11 +229,18 @@ export function createDrawers({
     drawersEdge.handle(othersPanel, () => othersBtn);
     drawersEdge.handle(queuePanel, () => queueBtn);
     for (const [key, drawer] of drawers) {
+      registerReadingRegion({
+        id: drawer.panel.id,
+        host: drawer.panel,
+        body: drawer.panel.querySelector(".lf-drawer-list"),
+      });
       drawer.btn.classList.add("lf-auxiliary-toggle");
       for (const door of drawer.entrances) {
-        door.onclick = () => {
+        door.onclick = (event) => {
           openLayer(drawer.panel, door);
-          setOpenDrawer(drawerIsOpen(key) ? null : key);
+          setOpenDrawer(drawerIsOpen(key) ? null : key, {
+            focus: pressIsKeyboardActivation(event),
+          });
         };
         keeps(door, "aria-expanded", "false");
       }

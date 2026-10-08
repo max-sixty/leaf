@@ -578,7 +578,7 @@ def stamp_activation(d):
     from leaf.validation.source import check_source
 
     with service_model.PageTransaction(d) as page:
-        checked = check_source(d, page.events, allow_transition=True)
+        checked = check_source(d, page.events)
         return revisioning_model.activate_checked_source(page, checked)
 
 
@@ -683,9 +683,7 @@ def record_claim(page, /, harness="claude-code", **fields):
     }
     record["generation"] = session["generation"]
     record["acquisition"] = fields.get("acquisition", secrets.token_hex(16))
-    path = service_model.claim_path(page)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    cleanup_model.write_json(path, record)
+    service_model.publish_claim(page, record)
     return service_model.page_claim(page)
 
 
@@ -928,8 +926,8 @@ ACCEPT = {
 def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     """Hold one admitted writer at append and prove re-vendor cannot pass it.
 
-    Re-vendoring waits for the admitted writer, then refuses the incoming
-    vocabulary when it cannot replay that event. Release the writer before
+    Re-vendoring waits for the admitted writer, then commits the incoming
+    vocabulary while retaining that event. Release the writer before
     joining either worker, including when an assertion fails."""
     entering = threading.Event()
     resume = threading.Event()
@@ -984,7 +982,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
         refusal = vendoring.result(timeout=STATED_TIMEOUT)
 
     assert not passed_writer, f"re-vendor passed a validated {kind} writer"
-    assert refusal is not None
+    assert refusal is None
     return written, refusal
 
 
@@ -1304,12 +1302,37 @@ def _no_page_outlives_its_test(tmp_path, isolated_session):
     this sweep stopped every server standing there (tests/AGENTS.md, "A process
     the suite starts ends with the run")."""
     yield
+    retire_test_services(tmp_path, isolated_session)
+
+
+def retire_test_services(tmp_path, isolated_session):
+    """End the test's harnesses before removing their coordination files.
+
+    Detached adapters hold session leases outside any subprocess group. Their
+    lifecycle must end while its state directory still exists, so they can
+    retire normally rather than retry a deleted startup lock forever.
+    """
     while HELD_LEASES:
         leases_model.release_lease(HELD_LEASES.pop())
+    for path in (isolated_session / "sessions").glob(
+        f"*.{cleanup_model.SESSION_SUFFIX}"
+    ):
+        record = files_model.read_json(path)
+        if isinstance(record, dict) and isinstance(record.get("id"), str):
+            cleanup_model.end_session(record["id"])
     for root in (tmp_path, isolated_session):
         for lease in root.rglob("server.lock"):
             if server_model.running_server(lease.parent):
                 hosting_model.cmd_stop(lease.parent)
+    wait_for(
+        lambda: [
+            path.name
+            for path in (isolated_session / "sessions").glob("*.adapter")
+            if leases_model.lock_is_held(path)
+        ],
+        lambda held: not held,
+        failure="a detached adapter outlived its test's ended sessions",
+    )
 
 
 @contextmanager

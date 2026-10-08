@@ -67,6 +67,23 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     raster = widget.locator(".lf-trace-image img")
     expect(raster).to_have_attribute("width", "390")
     assert raster.bounding_box()["width"] <= 390
+    # Sources are visible and have their own arrow-key route: choosing an API
+    # stream must change the evidence, rather than stepping the page timeline.
+    sources = widget.get_by_role("radiogroup", name="Recorded page or API stream")
+    expect(sources).to_be_visible()
+    page_source = widget.get_by_role("radio", name="Page 1", exact=True)
+    api_source = widget.get_by_role("radio", name="API calls", exact=True)
+    expect(page_source).to_have_attribute("aria-checked", "true")
+    user.keyboard.press("Tab")
+    page_source.focus()
+    page_source.press("ArrowRight")
+    expect(api_source).to_be_focused()
+    expect(api_source).to_have_attribute("aria-checked", "true")
+    expect(widget.locator(".lf-trace-action")).to_have_text("BrowserContext.newPage")
+    expect(widget.locator(".lf-trace-missing-image")).to_be_visible()
+    page_source.click()
+    expect(page_source).to_have_attribute("aria-checked", "true")
+    expect(raster).to_have_attribute("width", "390")
     # The index keeps native driver times, while the review shows the elapsed
     # stream clock used by Playwright's viewer for this same captured checkpoint.
     first_page = record["pages"][0]

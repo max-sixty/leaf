@@ -21,7 +21,7 @@ from leaf import service as service_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.served_state import context as served_context
 from leaf.validation import compatibility as validation_model
-from PIL import Image, ImageChops
+from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
     ASK_PAGE,
@@ -82,6 +82,7 @@ from render_harness import (
     assert_follows_in_every_frame,
     draft_key,
     expect_comment_notes,
+    gesture_writes,
     hold_pending_thread_presentation,
     judge_watches,
     leaf_page,
@@ -1815,11 +1816,25 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     traced = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
     trace.evaluate("node => { node.style.visibility = 'hidden' }")
     untraced = Image.open(io.BytesIO(label.screenshot())).convert("RGB")
-    center = (3, 3, traced.width - 3, traced.height - 3)
-    assert (
-        ImageChops.difference(traced.crop(center), untraced.crop(center)).getbbox()
-        is None
-    ), "the target trace paints over the status label"
+    # Toggling the trace's paint layer can change Chrome's text antialiasing
+    # without changing which surface covers the trace. Compare the solid label
+    # background at the trace's crossing instead of its glyph pixels.
+    edge = round(
+        (trace_box["x"] + trace_box["width"] - label_box["x"])
+        * untraced.width
+        / label_box["width"]
+    )
+    background = untraced.getpixel((5, 5))
+    crossing = [
+        (x, y)
+        for x in range(max(3, edge - 3), min(untraced.width - 3, edge + 4))
+        for y in range(3, untraced.height - 3)
+        if untraced.getpixel((x, y)) == background
+    ]
+    assert crossing
+    assert all(traced.getpixel(point) == background for point in crossing), (
+        "the target trace paints over the status label"
+    )
 
 
 def test_the_aim_reads_the_pointer_where_the_press_is_dispatched_from(browser, serve):
@@ -4208,20 +4223,93 @@ HEADED_PAGE = LONG_PAGE.replace(
 ).replace("</p>\n</main>", "</p></section>\n</main>", 1)
 
 
+# A suggestion's accept and reject stand in the margin beside it, each wearing the digit
+# Ask travel gives it.
+ASK_PANE_PAGE = DESIGN_PANE_PAGE.replace(
+    '<p id="pane-later">A later finding.</p>',
+    '<p id="pane-later">Bring <lf-suggestion id="pane-ask"><lf-old>nine.</lf-old>'
+    "<lf-new>ten.</lf-new></lf-suggestion> now.</p>",
+)
+
+# What a paint over the page's targets is made of, by the places the write watch names.
+PAINT = re.compile(
+    r"lf-(chip-seat|key-chips|key-badge|paint-|legend|page-search-match|inspect|aim"
+    r"|drawing)"
+)
+
+
+# A drawing comment circling what it names, from above its left edge to past its right.
+def _drawn_on(section):
+    return {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "anchor": {"section": section},
+        "drawing": {
+            "format": "leaf-drawing/2",
+            "strokes": [[[-20, -10], [200, 30], [420, 60]]],
+            "box": [400, 40],
+            "viewport": [1280, 720],
+            "scheme": "light",
+        },
+    }
+
+
+def _paint_mode(page, mode, words):
+    page.evaluate(RELEASE_FOCUS)
+    if mode == "ask":
+        page.keyboard.press("a")
+        expect(page.locator("#pane-ask")).to_be_focused()
+        expect(page.locator(".lf-command-binding-badge")).to_have_count(2)
+    elif mode == "search":
+        page.keyboard.press("/")
+        page.keyboard.type(words)
+        expect(page.locator(".lf-page-search-match").first).to_be_visible()
+    elif mode == "design":
+        _design_mode(page)
+    elif mode == "ink":
+        expect(page.locator(".lf-drawing-posted")).to_have_count(1)
+    else:
+        page.keyboard.press({"picker": "s", "go-to": "g"}[mode])
+        expect(page.locator(".lf-key-hint[data-lf-hint-code]").first).to_be_visible()
+
+
 @pytest.mark.parametrize("scroller", ["window", "header", "pane"])
-def test_a_scroll_writes_nothing_to_the_design_legend(browser, serve, scroller):
-    """The legend stands in the planes of what it names, so a scroll of the window or
-    of a pane carries every box and tag with what it names, and writes none of them on
-    every step (design.js, `paintLegend`)."""
-    source = {"window": LONG_PAGE, "header": HEADED_PAGE, "pane": DESIGN_PANE_PAGE}
-    page = open_page(browser, serve(source[scroller]))
+@pytest.mark.parametrize("mode", ["design", "picker", "go-to", "search", "ask", "ink"])
+def test_a_scroll_carries_paint_over_targets_and_writes_it_once_settled(
+    browser, serve, mode, scroller
+):
+    """Paint over what the page shows, a mode's names, chips and marks, stands where
+    what it names is carried, anchored to it in the frames that cut it
+    (target-paint-geometry.js, `paintSet`), so a scroll of the window or of a pane moves
+    it with the scroll and writes none of it on the scroll's frames. What the scroll
+    changes, the map's members and a chip the banner holds in, is read once it
+    settles, and a legend's tags step inside their boxes as they cross a cut. The
+    design legend, its boxes and tags placed and written on every scroll, trailed a
+    pane by a frame, and so did the picker's and Go-to's chips, the search's mark and
+    an Ask's binding digits, each written on every frame of the gesture. Saved ink
+    stands the same way."""
+    if mode == "ask" and scroller != "pane":
+        pytest.skip("the Ask's digits stand beside a pane's suggestion")
+    source = {
+        "window": LONG_PAGE,
+        "header": HEADED_PAGE,
+        "pane": ASK_PANE_PAGE if mode == "ask" else DESIGN_PANE_PAGE,
+    }[scroller]
+    if mode == "go-to":
+        # Go-to names links.
+        source = source.replace(
+            "<p id='p", "<p><a href='#t'>Top</a></p><p id='p"
+        ).replace("finding", "<a href='#note'>finding</a>")
+    events = [_drawn_on("pane-target" if scroller == "pane" else "p3")]
+    page = open_page(browser, serve(source, events=events if mode == "ink" else []))
     resized(page, 1280, 720)
     if scroller == "pane":
         pane_posture(page, page.locator("#design-pane"), "bounded")
-    _design_mode(page)
-    named = "pane-target" if scroller == "pane" else "p3"
-    expect(page.locator(f'.lf-legend-box[data-for="{named}"]')).to_be_visible()
-    if scroller != "window":
+    _paint_mode(page, mode, "finding" if scroller == "pane" else "Paragraph 3")
+    if mode == "design":
+        named = ["pane-target", "pane-later"] if scroller == "pane" else ["p3", "p4"]
+        expect(page.locator(f'.lf-legend-box[data-for="{named[0]}"]')).to_be_visible()
         # The boxes one set of frames cuts share its stand, each anchored to what it
         # names.
         stand = page.evaluate(
@@ -4229,29 +4317,96 @@ def test_a_scroll_writes_nothing_to_the_design_legend(browser, serve, scroller):
               const box = (id) => document.querySelector(`.lf-legend-box[data-for="${id}"]`);
               return {shared: box(first).closest('.lf-paint-stand')
                         === box(next).closest('.lf-paint-stand'),
-                      frames: box(first).closest('.lf-paint-stand')
-                        .querySelectorAll('.lf-paint-frame').length,
                       anchors: [box(first), box(next)].map(
                         (b) => getComputedStyle(b).positionAnchor)};
             }""",
-            ["pane-target", "pane-later"] if scroller == "pane" else ["p3", "p4"],
+            named,
         )
-        assert (
-            stand["shared"]
-            and stand["frames"]
-            and all(anchor.startswith("--lf-a") for anchor in stand["anchors"])
+        assert stand["shared"] and all(
+            anchor.startswith("--lf-a") for anchor in stand["anchors"]
         ), stand
-    writes = scroll_writes(
+    writes, frames = gesture_writes(
         page,
-        (20, 20, -20, 20, 20),
+        200,
         scroller="document.querySelector('#design-pane > div')"
         if scroller == "pane"
         else "document.scrollingElement",
     )
-    # A tag crossing under the banner steps inside its box once; nothing follows.
-    assert not scroll_followers([w for w in writes if "lf-legend" in w["target"]]), (
-        writes
+    painted = [w for w in writes if PAINT.search(w["target"])]
+    assert not scroll_followers(painted, frames), painted
+
+
+def test_a_chip_seated_below_its_neighbour_rides_the_scroll_with_it(browser, serve):
+    """A chip the picker seats below a neighbour's, which rides the scroll, rides it too
+    (keyboard/hints.js, `seatHints`): only what stands still as the page scrolls, the
+    window's edge or the chrome, holds a chip where the window does. Held because the
+    shortcut bar shared its column, such a chip stood still mid-page through a scroll
+    and jumped once it settled."""
+    source = LONG_PAGE.replace(
+        "<p id='p10'>",
+        "<section id='outer' style='padding-bottom: 12px'><p id='inner'>A nested"
+        " line.</p></section><p id='p10'>",
     )
+    page = open_page(browser, serve(source))
+    resized(page, 1280, 720)
+    page.evaluate(
+        "() => document.getElementById('outer').scrollIntoView({block: 'center'})"
+    )
+    rendered(page)
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("s")
+    chips = page.locator(".lf-target-picker-hint[data-lf-hint-code]")
+    expect(chips.first).to_be_visible()
+    _, _, samples = gesture_writes(
+        page,
+        60,
+        sample="""() => {
+          const foot = document.querySelector('.lf-banner').getBoundingClientRect().bottom + 40;
+          return Object.fromEntries([...document.querySelectorAll(
+              '.lf-target-picker-hint[data-lf-hint-code]')]
+            .map((chip) => [chip.dataset.lfHintCode, chip.getBoundingClientRect().top])
+            .filter(([, top]) => top > foot && top < innerHeight - 120));
+        }""",
+    )
+    first, last = samples[0], samples[-1]
+    scrolled = last["scrolled"] - first["scrolled"]
+    assert scrolled > 20, samples
+    carried = {
+        code: round(top - last["read"][code], 1)
+        for code, top in first["read"].items()
+        if code in last["read"]
+    }
+    assert carried and all(abs(moved - scrolled) < 1 for moved in carried.values()), (
+        scrolled,
+        carried,
+    )
+
+
+def test_saved_ink_is_cut_where_its_pane_cuts_what_it_marks(browser, serve):
+    """Saved ink stands in the frames that cut what it marks, so a pane that scrolls
+    its element away cuts the ink at the pane's edge too, rather than leaving it drawn
+    over the pane's header and the page beside it."""
+    page = open_page(
+        browser, serve(DESIGN_PANE_PAGE, events=[_drawn_on("pane-target")])
+    )
+    resized(page, 1280, 720)
+    pane_posture(page, page.locator("#design-pane"), "bounded")
+    mark = page.locator(".lf-drawing-posted")
+    expect(mark).to_have_count(1)
+    page.evaluate("() => document.querySelector('#design-pane > div').scrollBy(0, 150)")
+    rendered(page)
+    cut = mark.evaluate(
+        """el => {
+          const pane = document.querySelector('#design-pane > div').getBoundingClientRect();
+          const frame = el.closest('.lf-paint-frame');
+          return {ink: el.getBoundingClientRect().top, pane: pane.top,
+                  frame: frame && frame.getBoundingClientRect().top,
+                  clip: frame && getComputedStyle(frame).clipPath};
+        }"""
+    )
+    assert cut["ink"] < cut["pane"], cut
+    assert cut["frame"] == pytest.approx(cut["pane"], abs=1), cut
+    assert cut["clip"].startswith("inset(0"), cut
 
 
 @pytest.mark.parametrize("paint", ["inspect", "legend"])

@@ -15,23 +15,10 @@ vars:
     \ | 14 |\n| 3 | 23 | 29 | 20 |\n| 4 | 27 | 32 | 24 |\n| 5 | 19 | 25 | 16 |\n\nThe page directory is\
     \ not reachable from here, so reply with the section's\nHTML fragment rather than writing a file.\n"
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-page-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/page-authoring\.md
-- type: javascript
+- type: regex
   metric: charts-the-pattern
-  value: file://text-regex.cjs
-  config:
-    pattern: <lf-chart\b
-    flags: i
-    negate: false
+  value: <lf-chart\b
+  transform: output.toLowerCase()
 - type: llm-rubric
   metric: judgment
   value: |

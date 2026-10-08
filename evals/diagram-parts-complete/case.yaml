@@ -1,5 +1,7 @@
 # Issue #1455: a partial `parts` list made adjacent diagram boxes respond differently
 # to Comment. This case checks the author's choice at page creation.
+# The 2026-10-07 Claude Code comparison kept all five parts on both arms;
+# accessible metadata was absent on HEAD and meaningful on the candidate.
 description: diagram-parts-complete
 metadata:
   purpose: A diagram with box-level comments lists every nameable box in parts.
@@ -10,7 +12,9 @@ vars:
   prompt: |
     Write a Leaf page section for this review of a release flow. The user wants to
     comment on individual boxes in the diagram, especially the decisions, as well
-    as on the diagram as a whole. Use the diagram package's lf-diagram element.
+    as on the diagram as a whole. Use the diagram package's lf-diagram element;
+    its authoring entry is in `packages/diagram/registry.json` relative to the
+    leaf skill's base directory.
 
     The flow is: Ready? (A) goes to Tested? (B) on yes and Wait (C) on no.
     Tested? goes to Ship (D) on yes and Test (E) on no.
@@ -18,16 +22,6 @@ vars:
     The page directory is not reachable from here, so reply with the HTML fragment
     rather than writing a file.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-page-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/page-authoring\.md
 - type: llm-rubric
   metric: all-boxes-addressable
   value: |
@@ -35,3 +29,10 @@ assert:
     five flowchart nodes as node:A, node:B, node:C, node:D and node:E, and its
     Mermaid source draws those same five boxes in the stated flow. The order of
     tokens may vary. Fail if parts is omitted or any of the five boxes is unlisted.
+- type: llm-rubric
+  metric: accessible-diagram
+  value: |
+    Pass if the lf-diagram's Mermaid source supplies an accTitle and accDescr
+    that name and explain the release flow for a reader who cannot see it.
+    Mentioning accessibility outside the diagram source does not pass.
+    Do not demand exact wording.

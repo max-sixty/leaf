@@ -115,7 +115,7 @@ export function createReactionController({
   hideComposer,
   syncResponseOptions,
   fabAnchorAt,
-  fabReturnTo,
+  fabReturnPlaces,
   fabTargetAt,
   hasPageSelectionTarget,
   showFab,
@@ -175,7 +175,7 @@ export function createReactionController({
     // The bar owns what that answer is. `setReact(false)` runs after the bar goes and the
     // palette makes a return of its own, so the user lands once, when everything has
     // settled, rather than once as the bar goes and again after the palette.
-    const returnTo = fabReturnTo();
+    const returnTo = fabReturnPlaces();
     if (!anchor) return;
     let sent;
     if (standing) sent = commands.withdrawReaction(standing);
@@ -195,7 +195,7 @@ export function createReactionController({
         showFab(null);
         setReact(false);
       },
-      () => handBack(returnTo),
+      () => handBack(...returnTo),
     );
     getSelection()?.removeAllRanges();
     await sent;
@@ -360,7 +360,6 @@ export function createReactionController({
             // off screen. Keep the semantic anchor without
             // asking a floating bar to find geometry; the shared element is the surface.
             showFab(target.target.anchor, {
-              origin: reactFrom(),
               place: false,
             });
             reactRaised = true;

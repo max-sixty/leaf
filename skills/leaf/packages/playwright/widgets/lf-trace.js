@@ -10,7 +10,9 @@
  * walks native action checkpoints chronologically; captured frames can join that
  * same timeline. Initial selection prefers its first nonempty saved tree, then
  * its first image; empty earlier stops stay navigable. Following a visual part restores its exact
- * stop and page. */
+ * stop and page. Visible source choices use the shared Web Awesome radio group;
+ * source switching and timeline stepping have separate keyboard focus. */
+import "../vendor/webawesome.esm.js";
 import {
   commands,
   compoundReadingRegionId,
@@ -67,19 +69,6 @@ function streamOrigins(trace) {
 const nodeName = (node) =>
   [node.role, node.name || node.text].filter(Boolean).join(" · ") ||
   "Unnamed saved element";
-
-function selector(name, label, entries) {
-  const select = offer("select", "lf-trace-select");
-  select.name = name;
-  select.setAttribute("aria-label", label);
-  for (const [value, title] of entries) {
-    const option = document.createElement("option");
-    option.value = value;
-    option.textContent = title;
-    select.append(option);
-  }
-  return select;
-}
 
 customElements.define(
   "lf-trace",
@@ -144,7 +133,11 @@ customElements.define(
 
     #build() {
       this.controls = offer("div", "lf-trace-controls");
-      this.pageSelect = selector(`${this.id}-page`, "Recorded page or API stream", []);
+      this.sources = offer("wa-radio-group", "lf-trace-sources");
+      this.sources.name = `${this.id}-page`;
+      this.sources.label = "Recorded page or API stream";
+      this.sources.size = "s";
+      this.sources.orientation = "horizontal";
       this.framesToggle = offer("input", "lf-trace-frames", undefined, "checkbox");
       this.framesToggle.name = `${this.id}-frames`;
       const framesLabel = document.createElement("label");
@@ -163,7 +156,7 @@ customElements.define(
       const stepper = offer("div", "lf-trace-stepper");
       stepper.append(this.previous, this.slider, this.next);
       const choices = offer("div", "lf-trace-choices");
-      choices.append(this.pageSelect, framesLabel, this.viewer);
+      choices.append(this.sources, framesLabel, this.viewer);
       this.controls.append(choices, stepper);
       this.clock = el("p", "lf-trace-clock");
       this.readout = el("p", "lf-trace-readout", "Waiting for a Playwright recording.");
@@ -206,8 +199,8 @@ customElements.define(
       this.slider.addEventListener("input", () => {
         this.#navigate(this.#items()[Number(this.slider.value)]?.id ?? null);
       });
-      this.pageSelect.addEventListener("change", () => {
-        this.#page = this.pageSelect.value;
+      this.sources.addEventListener("change", () => {
+        this.#page = this.sources.value;
         this.#navigate(null);
       });
       this.framesToggle.addEventListener("change", () => {
@@ -399,33 +392,34 @@ customElements.define(
           )
             choices.push([
               `${stream.id}-calls`,
-              `Stream ${index + 1} · API calls without a page`,
+              `API calls${this.#trace.streams.length > 1 ? ` · Stream ${index + 1}` : ""}`,
             ]);
         }
-        this.#selectOptions(this.pageSelect, choices);
+        this.#sourceChoices(choices);
         if (!choices.some(([id]) => id === this.#page))
           this.#page = choices[0]?.[0] ?? null;
         keeps(this.viewer, "href", this.#trace.viewerUrl);
         this.#indexTargets();
       } else {
         this.#targets.clear();
-        this.#selectOptions(this.pageSelect, []);
+        this.#sourceChoices([]);
       }
       this.#draw();
-      restore?.(this.pageSelect);
+      restore?.(this.sources);
     }
 
-    #selectOptions(select, choices) {
+    #sourceChoices(choices) {
       const prior = new Map(
-        [...select.options].map((option) => [option.value, option]),
+        [...this.sources.children].map((choice) => [choice.value, choice]),
       );
       setChildren(
-        select,
+        this.sources,
         choices.map(([value, label]) => {
-          const option = prior.get(value) ?? document.createElement("option");
-          keeps(option, "value", value);
-          keepsText(option, label);
-          return option;
+          const choice = prior.get(value) ?? offer("wa-radio", "lf-trace-source");
+          choice.appearance = "button";
+          keeps(choice, "value", value);
+          keepsText(choice, label);
+          return choice;
         }),
       );
     }
@@ -504,11 +498,12 @@ customElements.define(
       const position = Math.max(0, Math.min(this.#position(), items.length - 1));
       const point = items[position];
       this.#selected = point?.id ?? null;
-      this.pageSelect.value = this.#page ?? "";
+      if (this.sources.value !== (this.#page ?? ""))
+        this.sources.value = this.#page ?? "";
       this.framesToggle.checked =
         this.#frames().length > 0 &&
         (this.#intermediates || !this.#checkpoints().length);
-      keeps(this.pageSelect, "disabled", !this.#trace || quoted(this) ? "" : null);
+      keeps(this.sources, "disabled", !this.#trace || quoted(this) ? "" : null);
       keeps(
         this.framesToggle,
         "disabled",

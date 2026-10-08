@@ -1,5 +1,5 @@
 (() => {
-  // skills/leaf/packages/playground/runtime/initial.js
+  // skills/leaf/packages/playground/initial.js
   var own = (root, tag) => [...root.querySelectorAll(`:scope > ${tag}`)];
   var KINDS = /* @__PURE__ */ new Set(["range", "toggle", "choice", "color", "text"]);
   var NAME = /^[a-z][a-z0-9-]*$/;

@@ -43,8 +43,8 @@
      Escape row it answers through while it is the innermost one.
    - `when` says whether the capability exists. An owned native button derives its
      disabled state from this reading; a route may declare its own `when` for a sibling
-     control. A control's platform or ARIA disabled state also makes its command
-     unavailable. When a destination surface is available
+     control. Associated controls retain platform and ARIA constraints; owned buttons
+     retain their fieldset constraint and expose availability as ARIA output. When a destination surface is available
      independently of its members, its row stays live and opens the surface even when the
      collection is empty. Member-dependent rows use the collection as their capability.
    - `covering`, on a row of the page's own scope, keeps that command reachable while an
@@ -274,7 +274,8 @@ export const labelOf = (row) => {
 // Whether a row is live right now, asked through one predicate by the dispatcher, the line
 // and the overlay alike, so no surface can promise a press the dispatcher refuses. A guard
 // inside `run` instead is a liveness no surface can see. A declared visible control's
-// native or ARIA disabled state is part of that same availability reading.
+// native or ARIA disabled state constrains associated controls; an executable command
+// owns its button's disabled fields as output rather than reading them back.
 // Native and contribution painters identify their derived fields here. Availability
 // never reads its own previous paint as an input; source ARIA and disabled fieldsets
 // remain platform constraints. Each owner removes its claim when handing a node back.

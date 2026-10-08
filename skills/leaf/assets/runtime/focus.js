@@ -767,7 +767,10 @@ export const openerOf = (layer) => openers.get(layer) ?? null;
 // heard and counted as any is. Where `land` names none and the close left the user on
 // another node, as a platform hand-back does, readers hear it once as a `return`, which
 // is the layer's own and no newer word to a hold. One the close hid them under and no
-// landing put right is a drop, as any is.
+// landing put right is a drop, as any is. A native layer closed and shown again in one
+// act, as a modal posture change re-seats the auxiliary dialog and the layers above it
+// (layer-stack.js, `transitionNativeAncestor`), is such a close with no landing, after
+// which a hold put across it puts the user back.
 //
 // A close inside another, as a card closing while the page map that holds it closes,
 // is part of that act: it lands nobody and tells nobody. The outer close's landing

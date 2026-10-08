@@ -162,6 +162,10 @@
      workspace is the window less the two, so nothing about the page's size is measured
      off the chrome (chrome.css, at the shortcut bar). */
   --lf-bottom-bar-h: calc(44px + var(--lf-safe-bottom));
+  /* Startup's held keys and runtime status share the same seat. */
+  --lf-bottom-status-bottom: calc(var(--lf-safe-bottom) +
+    (var(--lf-bottom-bar-h) - var(--lf-safe-bottom)) / 2);
+  --lf-bottom-status-translate: 0 50%;
   /* What a page reads of the chrome, and only where it needs a number: a box that fills
      the window takes --lf-view-height, and a box that sticks stops at --lf-top, below
      the banner and any sticky header under it. Ordinary content never sees either band; the
@@ -478,10 +482,18 @@
 }
 /* Only a live page draws the banner. Without one, what sticks below the banner sticks
    to the top of the window. */
-html:not([data-lf-live]) { --lf-banner-h: 0px; --lf-bottom-bar-h: 0px; }
+html:not([data-lf-live]) {
+  --lf-banner-h: 0px; --lf-bottom-bar-h: 0px;
+  --lf-bottom-status-bottom: calc(14px + var(--lf-safe-bottom));
+  --lf-bottom-status-translate: none;
+}
 /* A touch screen has no keys to hint, so it draws no band (chrome.css); a status that
    shows there stands over the page like any other passing notice. */
-@media screen and (pointer: coarse) { :root { --lf-bottom-bar-h: 0px; } }
+@media screen and (pointer: coarse) { :root {
+  --lf-bottom-bar-h: 0px;
+  --lf-bottom-status-bottom: calc(14px + var(--lf-safe-bottom));
+  --lf-bottom-status-translate: none;
+} }
 /* The other half of --aim-floor and --entry-floor, and the whole of what a coarse pointer
    changes about how small a control, or the words typed in one, may be. Every rule that
    states a floor reads its token, so a control joins both answers by joining one of them. */
@@ -661,6 +673,8 @@ html { background: var(--paper); }
     --lf-banner-row: 48px;
     --lf-banner-rows: 1;
     --lf-bottom-bar-h: 0px;
+    --lf-bottom-status-bottom: calc(14px + var(--lf-safe-bottom));
+    --lf-bottom-status-translate: none;
     overflow-y: hidden;
     body { min-height: 0; }
     main { padding-block: 24px; }
@@ -757,8 +771,8 @@ html:not([data-lf-interactive]) [data-lf-prepaint] { display: none; }
 .lf-held-keys {
   position: fixed; z-index: var(--lf-z-bottom-status); pointer-events: none;
   right: calc(18px + var(--lf-safe-right));
-  bottom: calc(var(--lf-safe-bottom) + (var(--lf-bottom-bar-h) - var(--lf-safe-bottom)) / 2);
-  translate: 0 50%; margin: 0; padding: 5px 10px;
+  bottom: var(--lf-bottom-status-bottom);
+  translate: var(--lf-bottom-status-translate); margin: 0; padding: 5px 10px;
   max-width: calc(100vw - 36px - var(--lf-safe-left) - var(--lf-safe-right));
   overflow: hidden; display: flex; gap: 0.4em; align-items: center;
   color: var(--muted); font: var(--t-6)/var(--lf-ui-lh) var(--sans); white-space: nowrap;
@@ -1264,7 +1278,8 @@ ol.steps > li { counter-increment: step; position: relative; padding-left: 34px;
    apparatus rung would fill the disc; the room is what is scarce, as it is for the pick
    mark's ✓ and the binding badge's digit. */
 ol.steps > li::before { content: counter(step); position: absolute; left: 0;
-                        top: 2px; width: 21px; height: 21px; border-radius: 50%;
+                        top: 0.5lh; transform: translateY(-50%);
+                        line-height: 1lh; width: 21px; height: 21px; border-radius: 50%;
                         background: var(--accent); color: var(--card); font-size: 12px;
                         font-weight: 600; display: grid; place-items: center; }
 

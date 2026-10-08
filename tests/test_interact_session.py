@@ -2179,10 +2179,8 @@ def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
     ]
 
 
-def test_a_widget_task_outlives_its_seat_but_not_its_widget(page_dir):
-    """A widget's `x-work` admits a task on it; once open, the task stands beside the
-    widget even when a later layer of the page drops that seat, and a version that
-    removes the widget itself is refused until it completes the task."""
+def test_a_widget_task_outlives_its_seat_and_its_widget(page_dir):
+    """An admitted task stays open when its widget or work seat disappears."""
     work_page = PAGE.replace(
         '<lf-diagram id="flow">',
         '<lf-board id="rollout"><lf-column id="rollout-now" label="Now">\n'
@@ -2227,9 +2225,10 @@ def test_a_widget_task_outlives_its_seat_but_not_its_widget(page_dir):
     )
     (page_dir / "index.html").write_text(without_target)
     dropped = stamp(page_dir, "Removed")
-    assert dropped.exit_code == 1
-    assert "would remove the target of the open task on 'rollout-card'" in (
-        dropped.output
+    assert dropped.exit_code == 0, dropped.output
+    assert [item["id"] for item in state_json(page_dir)["tasks"]] == [task["id"]]
+    (page_dir / "index.html").write_text(
+        without_target.replace("<title>t</title>", "<title>t · completed</title>")
     )
     finished = stamp(page_dir, "Removed", completes=("rollout-card",))
     assert finished.exit_code == 0, finished.output
@@ -8771,14 +8770,14 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
 
 
 def test_a_refused_revendor_leaves_the_running_server_alone(page_dir):
-    """A re-vendor the page's log refuses is refused before the server goes down.
+    """A malformed incoming registry is refused before the server goes down.
 
     A restart after the refusal would put this Leaf's server over the layer the
     page keeps, so a page vendored by another Leaf would be served by code its
     runtime does not speak. The same process answers at the same URL before and
     after, which is what `Leaf-Server`, the server's incarnation, says."""
-    # A page made under a registry where lf-draft declared `decide`: the log keeps
-    # a decision the incoming layer no longer speaks.
+    # Original decision evidence can outlive its declaration. The malformed
+    # incoming registry, rather than that history, causes this refusal.
     version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
@@ -8817,10 +8816,15 @@ def test_a_refused_revendor_leaves_the_running_server_alone(page_dir):
 
     before = incarnation()
 
-    result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
+    overlay = page_dir.parent / ".leaf"
+    overlay.mkdir()
+    (overlay / "registry.json").write_text("{broken")
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "./.leaf", str(page_dir)]
+    )
 
     assert result.exit_code == 1
-    assert "no longer speaks" in result.output
+    assert "invalid JSON" in result.output
     assert server_model.running_server(page_dir)["url"] == url
     assert incarnation() == before
 

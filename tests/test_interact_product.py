@@ -101,7 +101,7 @@ def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
     assert repaired.error is None and repaired.created and repaired.revision == 3
 
 
-def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
+def test_later_events_do_not_veto_source_readings(page_dir):
     source = page_dir / "index.html"
     source.write_text(PAGE)
     live = revisioning_model.activate_source(page_dir)
@@ -122,23 +122,25 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
     )
     assert revisioning_model.activate_source(page_dir) is live
 
-    # A save that drops what the thread is anchored on is refused, and the event
-    # that releases the id clears the refusal without another save.
+    # Removing a thread's target activates immediately and detaches the thread;
+    # the original anchor stays in the log.
     dropped = re.sub(
         r'<lf-diagram id="flow">.*?</lf-diagram>', "", PAGE, flags=re.DOTALL
     )
     source.write_text(dropped)
-    refused = revisioning_model.activate_source(page_dir)
-    assert refused.revision == 1 and '"flow"' in refused.error
+    removed = revisioning_model.activate_source(page_dir)
+    assert removed.error is None and removed.created and removed.revision == 2
+    threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
+    assert threads["c1"]["anchor"] is None
+    assert threads["c1"]["root"]["anchor"] == {"section": "flow"}
     append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
     )
     released = revisioning_model.activate_source(page_dir)
-    assert released.error is None and released.created and released.revision == 2
+    assert released.error is None and not released.created and released.revision == 2
 
     # A tab still showing r1 may anchor a thread on the id r2 dropped. r2 is live
-    # and its transition was judged when it activated, so neither activation nor
-    # `page check` re-judges it against the later event; the thread detaches.
+    # and neither activation nor `page check` lets the later event veto it.
     append_carried_log_record(
         page_dir,
         {
@@ -154,6 +156,19 @@ def test_the_log_reopens_a_refused_save_but_never_the_active_revision(page_dir):
         settled = revisioning_model.activate_source(page_dir)
     assert settled.error is None and settled.revision == 2 and not settled.created
     assert check(page_dir).exit_code == 0
+
+    # Events cannot repair an invalid source either; only a corrected save does.
+    source.write_text(dropped.replace("</section>", ""))
+    refused = revisioning_model.activate_source(page_dir)
+    assert refused.error and refused.revision == 2 and not refused.created
+    append_carried_log_record(
+        page_dir, {"kind": "resolve", "author": "user", "parent": "c2"}
+    )
+    still_refused = revisioning_model.activate_source(page_dir)
+    assert still_refused.error == refused.error and still_refused.revision == 2
+    source.write_text(dropped.replace("<title>t</title>", "<title>repaired</title>"))
+    repaired = revisioning_model.activate_source(page_dir)
+    assert repaired.error is None and repaired.created and repaired.revision == 3
 
 
 def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
@@ -1162,7 +1177,7 @@ def test_an_agent_reply_records_only_a_question_it_leaves_with_the_user(page_dir
     assert replies[2]["awaits"] is True
 
 
-def test_an_agent_edits_its_own_messages_without_rewriting_history(
+def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     page_dir, monkeypatch
 ):
     """An edit changes what the thread says, not what the log said before it.
@@ -1171,8 +1186,8 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
     identity. The raw log therefore keeps each original and the revision as separate
     events, while user-facing folded readings show the latest words with an edited
     marker. Exact thread event selection returns the original and edit records without
-    copying either into page state. Another agent session — and an agent looking at the
-    user's words — cannot revise speech that is not its own.
+    copying either into page state. A successor agent may revise predecessor agent
+    speech; user-authored messages remain outside the author edit operation.
     """
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
@@ -1276,8 +1291,11 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         cli_model.cli,
         ["thread", "edit", str(page_dir), root["id"], "--text", "Taken over."],
     )
-    assert foreign.exit_code != 0
-    assert "belongs to agent session 'worker-1'" in foreign.output
+    assert foreign.exit_code == 0, foreign.output
+    replacement = json.loads(foreign.output)
+    assert replacement["session"] == "worker-2"
+    assert replacement["message"] == root["id"]
+    before = events_model.read_events(page_dir)
     user_edit = CliRunner().invoke(
         cli_model.cli,
         ["thread", "edit", str(page_dir), user["id"], "--text", "Changed."],
@@ -1295,7 +1313,6 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
         },
     )
     before_unidentified_edit = events_model.read_events(page_dir)
-    monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
     unidentified = CliRunner().invoke(
         cli_model.cli,
         [
@@ -1307,10 +1324,9 @@ def test_an_agent_edits_its_own_messages_without_rewriting_history(
             "Changed.",
         ],
     )
-    assert unidentified.exit_code != 0
-    assert "has no agent session identity" in unidentified.output
+    assert unidentified.exit_code == 0, unidentified.output
     assert before_unidentified_edit[-1]["id"] == sessionless["id"]
-    assert events_model.read_events(page_dir) == before_unidentified_edit
+    assert json.loads(unidentified.output)["message"] == sessionless["id"]
 
 
 def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(

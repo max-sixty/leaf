@@ -207,8 +207,8 @@ Usage: leaf page stamp [OPTIONS] PAGE
 
   Checks the exact source first, then records it as the next public version.
   Repeat --completes for each widget whose open tasks this version completes,
-  which ends them done, citing the version. A task on a widget otherwise
-  survives unrelated versions, and a version cannot silently remove its widget.
+  which ends them done, citing the version. A task otherwise remains open,
+  including when a revision removes its widget.
 
 Options:
   --text TEXT         changelog text (default: stdin)

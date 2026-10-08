@@ -25,7 +25,12 @@
    watchers, as `before` and `after`, retaining only scrollers inside that composition
    when regions become hidden or visible. Hidden connected regions remain registered and
    return null bounds. Cleanup removes live DOM bindings, so a replacement can reclaim an
-   id. */
+   id.
+
+   `onReadingInput` tells a reader where the user explicitly clicked or stepped by Tab.
+   It includes unfocusable words, which update the reading region without a focus
+   arrival. Mechanical returns, programmatic arrivals and scrolling are not choices
+   of another passage. Each consumer interprets that target in its own domain. */
 import { sizeObserver } from "./rendering.js";
 import { shownRect, skipped } from "./geometry.js";
 import { pageScroller } from "./scrolling.js";
@@ -151,6 +156,11 @@ let pageRegionId = null;
 // Chrome can focus body between pointerdown on unfocusable words and pointerup.
 // That focus belongs to the same press; pointerdown has already named its place.
 let pressing = false;
+const readingInputReaders = new Set();
+export const onReadingInput = (read) => readingInputReaders.add(read);
+const readingInput = (node) => {
+  for (const read of readingInputReaders) read(node);
+};
 const pageRoot = () => document.querySelector("body > main");
 const actedAt = (at, arriving) => {
   const region = readingRegionFor(at);
@@ -163,18 +173,24 @@ const actedAt = (at, arriving) => {
   )
     recentRegionId = pageRegionId = null;
 };
-for (const type of ["pointerdown", "wheel", "touchstart"])
+for (const type of ["pointerdown", "wheel", "touchstart", "click"])
   addEventListener(
     type,
     (event) => {
-      if (type === "pointerdown") pressing = true;
-      actedAt(event.composedPath()[0], false);
+      const at = event.composedPath()[0];
+      if (type === "click") {
+        if (event.isTrusted && event.button === 0) readingInput(at);
+      } else {
+        if (type === "pointerdown") pressing = true;
+        actedAt(at, false);
+      }
     },
     { capture: true, passive: true },
   );
 // An arrival, by whatever route, a move inside a widget's shadow tree included.
-onStanding((node) => {
+onStanding((node, cause) => {
   if (node) actedAt(node, true);
+  if (node && cause === "step") readingInput(node);
 });
 for (const type of ["pointerup", "pointercancel"])
   addEventListener(type, () => (pressing = false), { capture: true });

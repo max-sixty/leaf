@@ -215,8 +215,7 @@ def owed_tasks(events: list) -> list[dict]:
 
 
 def log_tasks_open(events: list) -> list[dict]:
-    """The log's tasks nothing has ended, on either side: what a version or a layer
-    must leave a target for (`work.tasks_without_targets`)."""
+    """The log's open tasks on either side, even when their targets are gone."""
     return [task for task in canonical_tasks(events) if task["state"] == "open"]
 
 

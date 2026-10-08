@@ -105,74 +105,35 @@ def declared_data_bindings(
     return bindings, seats, errors
 
 
-def _contract_semantics(
-    registry: dict, contract: str
-) -> tuple[dict, dict | None, frozenset[str]]:
-    """The validation, record and resource meaning of one contract.
-
-    Descriptions and agent instructions may improve without changing what a source value
-    means to a pinned document. Schema, record and resource declarations may not: an
-    old document keeps consuming the page's replaceable current value through the
-    registry captured with that document.
-    """
-    declaration = registry["$data"]["contracts"][contract]
-    return (
-        declaration["schema"],
-        declaration.get("records"),
-        frozenset(declaration.get("resources", [])),
-    )
-
-
 def merge_data_document_readings(
-    documents: list[tuple[list, str, dict]], registry: dict | None = None
+    documents: list[tuple[list, str, dict]],
 ) -> tuple[dict, list[str]]:
-    """Fold document bindings into one page-lifetime source meaning.
+    """Read each document independently; later documents own current bindings.
 
-    Each document normally keeps its captured registry. A layer transition can
-    instead interpret those same documents under the incoming registry, without
-    recapturing history or maintaining a second binding merger.
+    Conflicting contracts inside one document are ambiguous input. A later version,
+    thread, or candidate may freely replace an earlier source binding. Captured
+    registries remain attached to their historical documents, never reinterpreted
+    through an incoming layer.
     """
     bindings = {}
-    semantics = {}
-    seats = {}
     errors = []
-    for lf_elements, document, captured in documents:
-        reading_registry = captured if registry is None else registry
-        found, found_seats, found_errors = declared_data_bindings(
-            lf_elements, reading_registry, document
+    for lf_elements, document, registry in documents:
+        found, _seats, found_errors = declared_data_bindings(
+            lf_elements, registry, document
         )
         errors.extend(found_errors)
-        for source, contract in found.items():
-            seat = found_seats[source]
-            meaning = _contract_semantics(reading_registry, contract)
-            if source in bindings and bindings[source] != contract:
-                errors.append(
-                    f"source {source!r} is bound to both contract "
-                    f"{bindings[source]!r} at {seats[source]} and contract "
-                    f"{contract!r} at {seat}; use a new source id for the new meaning"
-                )
-                continue
-            if source in semantics and semantics[source] != meaning:
-                errors.append(
-                    f"source {source!r} keeps contract {contract!r}, but its schema, "
-                    f"record declaration, or resources change between {seats[source]} and "
-                    f"{seat}; use a new source id for the new meaning"
-                )
-                continue
-            bindings[source] = contract
-            semantics[source] = meaning
-            seats[source] = seat
+        bindings.update(found)
     return bindings, errors
 
 
 def page_data_document_readings(
     page_dir: Path, events: list, registry: dict
 ) -> list[tuple[list, str, dict]]:
-    """Capture the data-consuming history once, with each document's registry.
+    """Read each historical data consumer with its captured registry.
 
-    Thread markup uses the registry of its admitted revision; seeded markup on a
-    page without revisions uses the initial registry. Consumers can retain this
-    inventory to compare candidate interpretations without reopening revisions.
+    Thread markup uses its admitted revision's registry; seeded markup on a page
+    without revisions uses the initial registry. These readings permit historical
+    producers and inventories without restricting later documents' bindings.
     """
     documents = []
     registries = {}
@@ -182,6 +143,7 @@ def page_data_document_readings(
         documents.append(
             (reading.document.lf_elements, f"revision r{revision}", reading.registry)
         )
+    active_document = documents.pop() if documents else None
     for event in events:
         if event.get("markup"):
             revision = event.get("revision") or max(registries, default=None)
@@ -192,33 +154,10 @@ def page_data_document_readings(
                     registries[revision] if registries else registry,
                 )
             )
+    # The active document owns current bindings ahead of older thread markup.
+    if active_document is not None:
+        documents.append(active_document)
     return documents
-
-
-def data_contract_transition_errors(
-    documents: list[tuple[list, str, dict]], incoming: dict
-) -> list[str]:
-    """Historical source meanings an incoming registry would silently redefine."""
-    errors = []
-    seen = set()
-    for lf_elements, document, registry in documents:
-        bindings, seats, _ = declared_data_bindings(lf_elements, registry, document)
-        for source, contract in bindings.items():
-            key = source, contract
-            if key in seen:
-                continue
-            seen.add(key)
-            declaration = incoming.get("$data", {}).get("contracts", {}).get(contract)
-            if declaration is None:
-                continue  # the binding-loss reading names this more directly
-            if _contract_semantics(incoming, contract) != _contract_semantics(
-                registry, contract
-            ):
-                errors.append(
-                    f"source {source!r} contract {contract!r} changes its schema, "
-                    f"record declaration, or resources from {seats[source]}"
-                )
-    return errors
 
 
 def working_data_document_readings(
@@ -228,14 +167,9 @@ def working_data_document_readings(
     *,
     authored: list | None = None,
     incoming: list[tuple[list, str]] | None = None,
-    history: list[tuple[list, str, dict]] | None = None,
 ) -> list[tuple[list, str, dict]]:
     """Immutable readings plus candidate documents under the candidate registry."""
-    documents = list(
-        page_data_document_readings(page_dir, events, registry)
-        if history is None
-        else history
-    )
+    documents = page_data_document_readings(page_dir, events, registry)
     if authored is None:
         source = page_dir / "index.html"
         if source.exists():
@@ -268,7 +202,7 @@ def working_data_bindings(
     registry: dict,
     events: list,
 ) -> tuple[dict, list[str]]:
-    """Source contracts across immutable documents and the current source."""
+    """Latest source bindings, with the current authored document taking precedence."""
     return merge_data_document_readings(
         working_data_document_readings(page_dir, registry, events),
     )
@@ -279,23 +213,27 @@ def page_data_binding_inventory(
     registry: dict,
     events: list,
 ) -> dict:
-    """Page-lifetime bindings in the form a producer needs from `page state`."""
+    """Current producer bindings and their matching document consumers.
+
+    A later binding replaces an earlier contract for the same source. Consumers of
+    that former contract keep their captured registry and may receive a missing or
+    invalid current value; they do not constrain the producer's next write.
+    """
     documents = page_data_document_readings(page_dir, events, registry)
     bindings, errors = merge_data_document_readings(documents)
     if errors:
-        raise DataError(
-            "the page history has conflicting data bindings: " + "; ".join(errors)
-        )
-    inventory = {}
+        raise DataError("conflicting data bindings: " + "; ".join(errors))
+    inventory = {
+        source: {"contract": contract, "consumers": []}
+        for source, contract in bindings.items()
+    }
     for lf_elements, document, document_registry in documents:
         for source, binding in data_binding_inventory(
             lf_elements, document_registry
         ).items():
-            standing = inventory.setdefault(
-                source,
-                {"contract": bindings[source], "consumers": []},
-            )
-            standing["consumers"].extend(
+            if binding["contract"] != bindings[source]:
+                continue
+            inventory[source]["consumers"].extend(
                 {**consumer, "document": document} for consumer in binding["consumers"]
             )
     return {source: inventory[source] for source in sorted(inventory)}
@@ -371,13 +309,12 @@ def measurement_lag(lf_elements: list, registry: dict, stored: dict) -> list[str
 def data_binding_errors(
     page_dir: Path,
     registry: dict,
-    contracts: dict[str, str],
     events: list,
     *,
     authored: list | None = None,
     incoming: list[tuple[list, str]] | None = None,
 ) -> list[str]:
-    """Working-document conflicts and recorded contracts that contradict them."""
+    """Conflicting simultaneous bindings inside the working documents."""
     documents = working_data_document_readings(
         page_dir,
         registry,
@@ -385,22 +322,12 @@ def data_binding_errors(
         authored=authored,
         incoming=incoming,
     )
-    return data_document_errors(documents, contracts)
+    return data_document_errors(documents)
 
 
-def data_document_errors(
-    documents: list[tuple[list, str, dict]], contracts: dict[str, str]
-) -> list[str]:
-    """Bindings that conflict with each other or with the contract a source id
-    was recorded with."""
-    bindings, errors = merge_data_document_readings(documents)
-    for source, contract in bindings.items():
-        recorded = contracts.get(source)
-        if recorded is not None and recorded != contract:
-            errors.append(
-                f"source {source!r} is bound to contract {contract!r}, but it was "
-                f"recorded with {recorded!r}; use a new source id for the new meaning"
-            )
+def data_document_errors(documents: list[tuple[list, str, dict]]) -> list[str]:
+    """Ambiguous simultaneous bindings within each authored document."""
+    _bindings, errors = merge_data_document_readings(documents)
     return list(dict.fromkeys(errors))
 
 

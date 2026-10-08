@@ -1569,21 +1569,15 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             "markup": '<lf-local id="thread-local" choice="idle"></lf-local>',
         },
     )
-    append_carried_log_record(
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
-            "id": "frozen-widget-choice",
             "author": "user",
             "revision": 1,
             "widget": "thread-local",
             "action": "choose",
             "detail": {"value": "chosen"},
-            "meaning": {
-                "scope": "thread",
-                "unit": "thread-local",
-                "depends": ["thread-local"],
-            },
         },
     )
     page.wait_for_function(

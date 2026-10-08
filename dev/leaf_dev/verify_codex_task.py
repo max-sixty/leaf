@@ -91,7 +91,7 @@ RESTART_TURN = "Reply with the single word OK."
 RESUME_TURN = (
     "Run `sleep 30` in the shell, then in a separate tool call run "
     "`printf 'verified\\n'`, then say done. If interrupted and resumed, "
-    "report the interruption without running another tool."
+    "skip the remaining shell command and report the interruption."
 )
 
 

@@ -8,13 +8,13 @@ import shutil
 import subprocess
 import sys
 import threading
+import tomllib
 from datetime import datetime
 from pathlib import Path
 
 import playwright
 import pytest
 import tinycss2
-import tomllib
 import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool, _retire
@@ -724,8 +724,7 @@ def test_claude_and_codex_load_the_same_plugin_payload():
     # payload naming one — in the project file, or in a `uv.toml` beside it —
     # so that is what this forbids. Read off the lines rather than a parsed
     # table because a comment is free to discuss an index where a setting is
-    # not, and the project's own floor is 3.10, with no `tomllib` to parse
-    # with. The nightly test below drives the same claim through a real
+    # not. The nightly test below drives the same claim through a real
     # resolve against a closed port; this is the half every run sees.
     configured = [
         line

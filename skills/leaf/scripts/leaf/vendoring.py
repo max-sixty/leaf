@@ -152,7 +152,7 @@ class _PagePlan(NamedTuple):
     the page, the stamped layer, and the directories that layer needs."""
 
     fresh: bool
-    layer: "_VendoredLayer"
+    layer: _VendoredLayer
     directories: set[Path]
     changed: bool
 

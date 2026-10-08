@@ -15,7 +15,7 @@ second fold.
 | the item in hand: a move's event id or an open task's id, the line, and the claimant turn that wrote it, or none for another session's | an explicit `start` or an addressed progress reply's `start` metadata in `events.jsonl`, read by `tasks.start_reading` | `leaf task start`, or `leaf response reply --ephemeral` on a move owed, from a turn of the session driving the page | the item ending: a move's answer, or a task's end; a later `put_down` event, which `leaf status waiting` and `idle` write; and as a belief, a short grace after the turn that wrote it closes, about a quarter of an hour with no renewal, or at once when the claimant's lifetime has ended |
 | live App Server activity: session, turn, typed kind, detail, event floor | optional `stream` in `status.json` | the App Server connection that starts an embedded turn, or the detached adapter's task connection | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event |
 | live App Server reply: one displayed reply plus delivery attempt bindings and full authored content by response address | optional `stream.reply` and `stream.reply_bindings` in `status.json` | an App Server connection bound to a delivery's reply; `response reply` prepares full author content on the active binding | the displayed draft remains on failure or disconnect and is retired by a logged event naming its delivery attempt or its response address; each binding names the claim turn it belongs to (the delivery's turn once its reply opens, the turn standing at reservation before then), clears after durable commit or terminal failure, and survives a lost connection; it stands only while that is still the claim's turn and the turn is open (`activity.reply_binding_stands`), and a turn's answer committed after its binding lapsed yields to a reply another writer already gave |
-| turn identity, when it last opened or took a prompt, and open or closed state | the session lifecycle record | a prompt, a direct delivery, or an App Server client following a provider turn opens `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the id is the harness's where it names one (Codex's hooks and App Server name the same turn) and one Leaf mints otherwise; the Stop hook stamps `turn_closed` on whatever turn is open, and an App Server client on the turn it follows | the next opening of another id; the next closing stamps it, and a closed id never reopens |
+| turn identity, when it last opened or took a prompt, and open or closed state | the session lifecycle record | a prompt, a direct delivery, the queue adapter observing Codex’s native transcript, or an App Server client following a provider turn opens `turn` and stamps `turn_opened`, or renews that stamp on a turn still open; the id is the harness's where it names one (Codex's hooks and App Server name the same turn) and one Leaf mints otherwise; the Stop hook stamps `turn_closed` on whatever turn is open, and an App Server client on the turn it follows | the next opening of another id; the next closing stamps it, and a closed id never reopens |
 | the harness's own word on the claimant's session: `idle`, `waiting` on a dialog, or `busy`, dated by its last change | the harness's record, read at each state read (`Harness.live_turn`): for Claude Code, the `status` of the session's newest registry record whose process runs | the harness | read live, so it moves with the harness; absent where the harness publishes nothing, as for a background job whose worker has retired |
 | the turn ending this page nudged its session after | `messaged_ending` in the page's claim record: the turn id and its close stamp, or for an interrupted turn its last opening | browser-event admission, once the harness's nudge lands | a later ending, a close under a new id or an interrupt after a new prompt renewed the same one, differs |
 | wait lease | `waiter.lock`, or `sessions/<session>.wait` for a harness session | the live `leaf wait` process, or Claude Code's background Stop hook watching between turns (`leaf hook --harness claude-code --watch`), holding an exclusive kernel lock on a stable file; file existence does not prove liveness | descriptor close or process exit, including a crash |
@@ -27,6 +27,15 @@ second fold.
 | Codex delivery record | `sessions/<session>.deliveries/` in the state home | the detached adapter or an embedded App Server harness | an unaccepted record is inactive while the session owns no page; an accepted record moves under `history/` after every batch is receipted; a record, live or archived, goes at the next scan that finds its pages all gone: its own task's reading, its next archiving, or any Codex adapter's retirement, which scans every task's records and removes a directory it empties |
 | Codex adapter log | `sessions/<session>.codex.log` | the detached adapter's own output, begun afresh when serving or `leaf codex start` starts a new adapter | removed when the adapter retires owning no page; a run that ended any other way leaves it for the next start of that task |
 | Leaf delivery | `<state-home>/deliveries/<id>.json` | whatever presents a delivery freezes its harness-neutral envelope first | once every page it names is gone, removed when the next delivery is frozen; until then every transport resolves the same immutable id |
+
+Codex can resume an interrupted task with empty input, which runs no prompt
+hook. Its hooks register the native transcript path in the session record. The
+queue adapter and hooks read its ordered turn starts and endings through
+`codex_state.sync_transcript_turn`, publishing into that same lifecycle record.
+The source must name the session and establish the current provider turn before
+replacing it; a prompt ahead of the transcript therefore cannot be rolled back.
+A closed turn stays closed. Source timestamps date observations, so reading an
+old start does not renew its activity.
 
 Page activity describes ownership, watcher availability, and current work. Its
 `kind` is `closed`, `unheld`, `away`, `listening`, `working`, or `stalled`. Every
@@ -224,6 +233,11 @@ only with accepted messages and matching completion for its current provider tur
 Ordered starts adopt against this token before running identity or fold selection.
 A resume response uses its pre-request token even when newer notifications arrived
 during that request; a rejected stale snapshot never marks the observer running.
+Terminal provider identities remain terminal for the subscription, including
+endings with unloaded items or no live fold. The observer retains those identities
+when it discards completed folds; late background output and stale running
+snapshots cannot reopen them. An ordinary item notification updates only a fold
+matching the subscription epoch. Only a start or the task's exact offered delivery introduces live authority.
 Historical delivery completion settles its immutable answer without adopting a
 current lifecycle identity. The shared start boundary returns its admitted
 publication to both App Server clients, and their folds retain that generation and provider ID
@@ -409,15 +423,18 @@ reads `idle`; with no record, not until a Stop closes a later turn. The adapter
 and the host declare no nudge and need none: each queues or starts turns
 itself, and if it is gone so is the session it served.
 
-In Codex, the adapter and tool hook collect available input into the same delivery
+In Codex, the adapter and tool and Stop hooks collect input into the same delivery
 records under the session's delivery lock. Capture excludes events already in any
 standing record, including an offer whose transport has not yet accepted it.
 While a proven tool hook can reach the running claimant turn, the queue adapter
 holds input for that hook. The hook freezes a plain-reply envelope and records
-its offer's exact turn; another hook does not repeat that pointer or take an offer
+its offer's exact turn. Stop uses the same offer path, including when a resumed turn
+executes no tool. Another hook does not repeat that pointer or take an offer
 another transport owns. Reading the pointer in the task reserves acceptance before
-taking page receipts. The adapter reconciles interrupted receipts the same way as
-every accepted delivery. An unread hook offer takes the idle queue once Stop or
+taking page receipts. That exact reservation proves receipt eligibility even when
+no earlier tool hook proved between-step delivery; the queue likewise respects
+that reservation while its exact turn remains eligible. The adapter reconciles
+interrupted receipts the same way as every accepted delivery. An unread hook offer takes the idle queue once Stop or
 Interrupt closes the turn, or the canonical activity reading stops believing it.
 Input collected after the freeze belongs to a later delivery. Without an App Server
 observer, it hands the bounded id-only `leaf-delivery` pointer to Codex's durable

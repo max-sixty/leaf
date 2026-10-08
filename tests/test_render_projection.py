@@ -637,6 +637,22 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
     # no unique owner; canonical destination identities still name each file exactly.
     header = page.locator("#patch .lf-diff-head").nth(1)
     header.evaluate("node => { node.dataset.identityProbe = 'held'; node.focus(); }")
+    stat_before = header.locator(".lf-diff-stat").bounding_box()
+    long_preimage = (
+        patch.replace("a/b.py b/c.py", "a/legacy/very/long/original.py b/c.py")
+        .replace("rename from b.py", "rename from legacy/very/long/original.py")
+        .replace("--- a/b.py", "--- a/legacy/very/long/original.py")
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        patch_manifest(long_preimage) if manifest else long_preimage,
+    )
+    told(page)
+    expect(header).to_contain_text("legacy/very/long/original.py → c.py")
+    stat_long = header.locator(".lf-diff-stat").bounding_box()
+    assert stat_long["x"] == pytest.approx(stat_before["x"], abs=0.5)
+    assert stat_long["y"] == pytest.approx(stat_before["y"], abs=0.5)
     ambiguous = (
         patch.replace("a/b.py b/c.py", "a/a.py b/c.py")
         .replace("rename from b.py", "rename from a.py")
@@ -651,6 +667,9 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(
     expect(header).to_contain_text("a.py → c.py")
     expect(header).to_have_attribute("data-identity-probe", "held")
     expect(header).to_be_focused()
+    stat_after = header.locator(".lf-diff-stat").bounding_box()
+    assert stat_after["x"] == pytest.approx(stat_before["x"], abs=0.5)
+    assert stat_after["y"] == pytest.approx(stat_before["y"], abs=0.5)
     links.nth(1).click()
     expect(page.locator(".lf-live")).to_have_text(
         "a.py:2 is not present in the exact patch"

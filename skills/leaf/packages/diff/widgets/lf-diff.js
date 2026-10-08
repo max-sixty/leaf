@@ -239,11 +239,18 @@ const runsPast = (part) => {
 };
 const pathParts = (details) =>
   details?.matches("details")
-    ? [...details.firstElementChild.querySelector(".lf-diff-path").children]
+    ? [...details.firstElementChild.querySelectorAll(".lf-diff-dir, .lf-diff-base")]
     : [];
 const pathSizes = sizeObserver((entries) => {
-  const paths = new Set(entries.map(({ target }) => target.parentElement));
-  const readings = [...paths].map((path) => [path, [...path.children].some(runsPast)]);
+  const paths = new Set(
+    entries.map(({ target }) =>
+      target.closest(".lf-diff-head").querySelector(".lf-diff-path"),
+    ),
+  );
+  const readings = [...paths].map((path) => [
+    path,
+    [...path.querySelectorAll(".lf-diff-dir, .lf-diff-base")].some(runsPast),
+  ]);
   for (const [path, cut] of readings) {
     path.parentElement.toggleAttribute("data-path-cut", cut);
     keeps(path, "title", cut ? path.textContent : null);
@@ -256,12 +263,22 @@ function unwatchPathCut(details) {
   for (const part of pathParts(details)) pathSizes.unobserve(part);
 }
 
-function summaryPath(file) {
-  const path = file.prevName
-    ? `${file.prevName} → ${file.name}`
-    : file.name || "(unnamed file)";
-  const named = pathNode("lf-diff-path", path);
-  named.dataset.path = path.replaceAll("/", "/\u200b");
+function filePathNode(file) {
+  const named = file.prevName
+    ? Object.assign(document.createElement("span"), { className: "lf-diff-path" })
+    : pathNode("lf-diff-path", file.name || "(unnamed file)");
+  if (file.prevName) {
+    const arrow = Object.assign(document.createElement("span"), {
+      className: "lf-diff-arrow",
+      textContent: " → ",
+    });
+    named.append(
+      pathNode("lf-diff-source-path", file.prevName),
+      arrow,
+      pathNode("lf-diff-destination-path", file.name),
+    );
+  }
+  named.dataset.path = named.textContent.replaceAll("/", "/\u200b");
   return named;
 }
 
@@ -290,7 +307,7 @@ function summaryNode(file, open) {
     textContent: `+${adds} −${dels}`,
   });
   stat.dataset.lfGen = "1";
-  summary.append(summaryPath(file), stat);
+  summary.append(filePathNode(file), stat);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",
@@ -541,12 +558,7 @@ function renameNode(file) {
   row.className = "lf-diff-rename";
   row.dataset.lfGen = "1";
   row.append(
-    pathNode("lf-diff-path lf-diff-before", file.prevName),
-    Object.assign(document.createElement("span"), {
-      className: "lf-diff-arrow",
-      textContent: " → ",
-    }),
-    pathNode("lf-diff-path lf-diff-after", file.name),
+    filePathNode(file),
     Object.assign(document.createElement("span"), {
       className: "lf-diff-stat",
       textContent: "renamed",
@@ -1130,7 +1142,7 @@ customElements.define(
           });
           updateSummaryPath(
             entry.details,
-            summaryPath({ name: record.path, prevName: record.previousPath }),
+            filePathNode({ name: record.path, prevName: record.previousPath }),
           );
           keepsText(entry.details.querySelector(".lf-diff-stat"), `+${adds} −${dels}`);
           if (prepared) this.applyManifestEntry(entry);

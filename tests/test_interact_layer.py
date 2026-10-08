@@ -4978,7 +4978,7 @@ def test_pr_review_package_composes_its_data_brief(tmp_path, monkeypatch):
 def test_review_evidence_packages_export_independently(
     tmp_path, monkeypatch, package, markup
 ):
-    """Each package's delivered widgets have a closed module and reference graph."""
+    """Call navigation and PR metadata each export with their owning package alone."""
     monkeypatch.chdir(tmp_path)
     page = tmp_path / package
     runner = CliRunner()

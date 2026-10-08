@@ -25,7 +25,7 @@ import {
 
 import { diffLocationKey } from "./diff-coordinates.js";
 
-const LOCATION = /^(.*?)(?: {2,})(\S+:\d+(?:-\d+)?)$/;
+const LOCATION = /^(.*?)(?: {2,})((\S+):(\d+)(?:-\d+)?)$/;
 
 function parse(text) {
   const lines = text.split(/\r?\n/).filter((line) => line.trim());
@@ -71,6 +71,8 @@ function parse(text) {
       groupKey,
       key,
       location,
+      path: matched?.[3],
+      line: matched ? Number(matched[4]) : null,
       meta,
       root,
       status,
@@ -147,11 +149,9 @@ function groupLabel(records) {
 }
 
 function lineKey(record) {
-  const matched = record.location.match(/^(.*):(\d+)(?:-\d+)?$/);
-  if (!matched) return null;
-  const [, path, rawLine] = matched;
+  if (!record.location) return null;
   const side = record.status === "removed" ? "old" : "new";
-  return diffLocationKey(path, side, Number(rawLine));
+  return diffLocationKey(record.path, side, record.line);
 }
 
 async function travelToLine(owner, record) {

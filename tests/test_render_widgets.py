@@ -14239,13 +14239,24 @@ def test_a_phone_can_wrap_diff_lines_by_tapping_the_label(iphone, serve):
     expect(line).to_have_css("white-space", "pre")
 
 
-def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, serve):
+@pytest.mark.parametrize("renamed", [False, True])
+def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(
+    iphone, serve, renamed
+):
     """The space reserved above a landed row clears its sticky file header. The
     basename remains readable on a phone; the title retains the complete path, and
     WebKit draws the whole path a row says while the keyboard stands on it."""
     path = "plugins/worktrunk/skills/worktrunk/reference/config.md"
+    previous = (
+        "legacy/worktrunk/skills/worktrunk/reference/original.md" if renamed else path
+    )
+    rename = (
+        f"similarity index 50%\nrename from {previous}\nrename to {path}\n"
+        if renamed
+        else ""
+    )
     patch = (
-        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+        f"diff --git a/{previous} b/{path}\n{rename}--- a/{previous}\n+++ b/{path}\n"
         "@@ -1 +1 @@\n-old\n+new\n"
     )
     page = open_page(
@@ -14266,15 +14277,18 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, s
         const head = document.querySelector('lf-diff').shadowRoot
             .querySelector('summary');
         const path = head.querySelector('.lf-diff-path');
-        const base = path.querySelector('.lf-diff-base');
+        const bases = [...path.querySelectorAll('.lf-diff-base')];
         const reading = {
             height: head.getBoundingClientRect().height,
             reserved: parseFloat(getComputedStyle(
                 head.parentElement.querySelector('[data-line]')
             ).scrollMarginTop),
             title: path.title,
-            base: base.textContent,
-            baseCut: base.scrollWidth > base.clientWidth,
+            bases: bases.map(base => ({text: base.textContent,
+                cut: base.scrollWidth > base.clientWidth,
+                width: base.getBoundingClientRect().width})),
+            arrow: path.querySelector('.lf-diff-arrow')?.getBoundingClientRect().toJSON(),
+            path: path.getBoundingClientRect().toJSON(),
             room: parseFloat(getComputedStyle(head).paddingRight),
             bar: head.closest('.lf-diff-file')
                 .querySelector('.lf-diff-file-actions').getBoundingClientRect().width,
@@ -14291,11 +14305,22 @@ def test_a_phone_keeps_the_diff_file_name_and_the_sticky_header_height(iphone, s
     }"""
     )
     assert head["height"] == pytest.approx(head["reserved"], abs=0.5), head
-    assert head["base"] == "config.md" and not head["baseCut"], head
+    assert [base["text"] for base in head["bases"]] == (
+        ["original.md", "config.md"] if renamed else ["config.md"]
+    ), head
+    if renamed:
+        # Each basename has room before the stable arrow, even where two names
+        # cannot fit in full beside the statistics and review action.
+        assert all(base["width"] > 40 for base in head["bases"]), head
+        assert head["arrow"]["width"] > 0, head
+        assert head["path"]["x"] < head["arrow"]["x"], head
+        assert head["arrow"]["right"] < head["path"]["right"], head
+    else:
+        assert not head["bases"][0]["cut"], head
     # An inline patch's file has its review press and no comment press, and its row
     # holds open the bar's width and 14px beside it, inside its 10px padding.
     assert head["room"] == pytest.approx(10 + head["bar"] + 14, abs=0.5), head
-    assert head["title"] == path, head
+    assert head["title"] == (f"{previous} → {path}" if renamed else path), head
     assert path in said[0] and said[1] > 0, said
 
 

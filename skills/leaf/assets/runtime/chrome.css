@@ -1404,21 +1404,29 @@ html[data-lf-draw-mode] main [data-lf-runtime] * { cursor: auto !important; }
   .lf-command-reference.open { display: flex; flex-direction: column; }
   .lf-command-reference::backdrop { background: color-mix(in srgb, var(--ink) 24%, transparent); }
   .lf-media-viewer { position: fixed; inset: 0; z-index: var(--lf-z-media-viewer);
-    width: min(960px, calc(100vw - var(--lf-safe-left) - var(--lf-safe-right) - 32px));
-    height: min(82dvh, 760px); box-sizing: border-box; margin: auto; padding: 0;
+    width: 100%; max-width: none; height: 100dvh; max-height: none;
+    box-sizing: border-box; margin: 0; padding: 0;
     overflow: hidden; color: var(--ink); background: var(--card);
-    border: 1px solid var(--border-2); border-radius: 12px;
-    box-shadow: 0 18px 48px var(--shade); }
-  .lf-media-viewer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr); }
+    border: 0; border-radius: 0; }
+  .lf-media-viewer[open] { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
   .lf-media-viewer::backdrop {
     background: color-mix(in srgb, var(--ink) 38%, transparent); }
-  .lf-media-viewer-head { display: flex; align-items: center;
-    justify-content: space-between; gap: 12px; padding: 10px 12px;
+  .lf-media-viewer-head { position: relative; z-index: 1501; background: var(--card);
+    display: flex; align-items: center;
+    justify-content: space-between; gap: 12px;
+    padding: max(10px, var(--lf-safe-top)) max(12px, var(--lf-safe-right)) 10px max(12px, var(--lf-safe-left));
     border-bottom: 1px solid var(--rule); }
-  .lf-media-viewer-stage { min-width: 0; min-height: 0; overflow: auto;
-    display: grid; place-items: center; padding: 12px; background: var(--paper); }
-  .lf-media-viewer-stage img { display: block; max-width: 100%; max-height: 100%;
+  .lf-media-viewer-actions { display: flex; align-items: center; gap: 12px; }
+  .lf-media-viewer-zoom { min-width: 4em; }
+  .lf-media-viewer-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden;
+    display: grid; place-items: center; background: var(--paper); }
+  .lf-media-viewer-stage > img { display: block; max-width: 100%; max-height: 100%;
     object-fit: contain; }
+  .lf-media-viewer .pswp { position: absolute; --pswp-bg: var(--paper); --pswp-root-z-index: 0; }
+  .lf-media-viewer-caption { position: relative; z-index: 1501; background: var(--card);
+    margin: 0; padding: 10px max(12px, var(--lf-safe-right)) max(10px, var(--lf-safe-bottom)) max(12px, var(--lf-safe-left));
+    font-size: var(--t-sm); color: var(--muted); border-top: 1px solid var(--rule);
+    max-height: 20dvh; overflow: auto; }
   .lf-command-reference-head { display: flex; align-items: center; justify-content: space-between;
     gap: 12px; margin-bottom: 8px; }
   .lf-command-reference-title { font-weight: 600; }

@@ -113,6 +113,19 @@ def threads_panel(page: Page) -> None:
     )
 
 
+def image_preview(page: Page) -> None:
+    """Inspect the gallery's pasted screenshot through the shared image viewer."""
+    threads_panel(page)
+    thread = page.locator('.lf-thread[data-id="2be2443f0bb6cc49fc86b52f340e6073"]')
+    thread.locator(":scope > .lf-thread-summary").click()
+    thread.locator(".lf-media-open").click()
+    page.get_by_role("dialog", name="Image preview").wait_for(state="visible")
+    page.wait_for_function("""() => {
+      const zoom = document.querySelector('.lf-media-viewer-zoom');
+      return !zoom || !zoom.disabled;
+    }""")
+
+
 def panel_by_keyboard(page: Page) -> None:
     """The Threads panel with keyboard focus on its current title."""
     page.keyboard.press("g")
@@ -418,6 +431,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         card_reply_large,
         card_reply_resolved,
         threads_panel,
+        image_preview,
         panel_by_keyboard,
         composer,
         composer_long,
@@ -482,6 +496,17 @@ class State:
 
 
 STATES = (
+    State("image-preview", "developer/feature-gallery", image_preview),
+    State(
+        "image-preview-dark", "developer/feature-gallery", image_preview, scheme="dark"
+    ),
+    State(
+        "image-preview-phone",
+        "developer/feature-gallery",
+        image_preview,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("contents-spine", "developer/feature-gallery", at_rest),
     State("contents-spine-keyboard", "developer/feature-gallery", contents_by_keyboard),
     State(
@@ -770,16 +795,24 @@ def crop(folder: Path, regions: list[dict]) -> None:
 
 @click.command()
 @click.argument("base_ref", required=False)
-def stills(base_ref: str | None) -> None:
+@click.option(
+    "--state",
+    "states",
+    multiple=True,
+    type=click.Choice([state.name for state in STATES]),
+    help="Capture only these catalogue states; repeat to select several.",
+)
+def stills(base_ref: str | None, states: tuple[str, ...]) -> None:
     """Screenshot a catalogue of UI states on BASE_REF's runtime and HEAD's, and crop
     each state that changed into a before/after pair under .tmp/stills/."""
     out = run_directory(OUT)
+    selected = tuple(state for state in STATES if not states or state.name in states)
     failed: dict[str, str] = {}
     with tempfile.TemporaryDirectory(prefix="leaf-stills-") as built:
         scratch = Path(built)
         arms, commits = build_pair(base_ref, scratch)
         with chrome() as browser:
-            for state in STATES:
+            for state in selected:
                 for arm, arm_dir in arms.items():
                     # Every state starts from its authored fixture. A prior Send or
                     # Resolve must not become the next state's initial event log.
@@ -803,12 +836,12 @@ def stills(base_ref: str | None) -> None:
                         failed[state.name] = f"on {arm}: {str(error).splitlines()[0]}"
             read = differences(
                 browser,
-                [state.name for state in STATES if state.name not in failed],
+                [state.name for state in selected if state.name not in failed],
                 out,
             )
     click.echo(f"base {commits['base'][:10]} vs head {commits['head'][:10]}")
     unchanged = 0
-    for state in STATES:
+    for state in selected:
         folder = out / state.name
         if state.name in failed:
             click.echo(f"  failed  {state.name} {failed[state.name]}")
@@ -819,5 +852,5 @@ def stills(base_ref: str | None) -> None:
             )
         else:
             unchanged += 1
-    click.echo(f"{unchanged} of {len(STATES)} states unchanged")
+    click.echo(f"{unchanged} of {len(selected)} states unchanged")
     click.echo(f"files in {out}")

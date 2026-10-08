@@ -144,7 +144,14 @@ element, supplies its text. Add `collapsed` to a large diff so each file starts 
 a comment or navigation target still opens the file that owns its line.
 
 Run `leaf page media <page> <file>…` and use each printed `/media/…` `path` for
-images, video, and audio. Never inline media bytes. Use a recording for a fixed
+images, video, and audio. Never inline media bytes. Offer image inspection by
+linking the image to its own media URL: `<a href="/media/…"><img
+src="/media/…" alt="…"></a>`. A click or Enter opens Image preview, where the reader
+can zoom to actual size, pan, and return to the page. A figure's caption stays visible
+there; Original opens the file separately. Links to another destination retain that
+destination.
+
+Use a recording for a fixed
 demo or screen capture; keep a live widget where the user should manipulate the
 subject. Show a browser journey recorded with Playwright as its trace in `lf-trace`
 rather than as its video, so the user can step through each recorded action and

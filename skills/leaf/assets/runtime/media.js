@@ -5,18 +5,24 @@
    its text field, then materializes the same Markdown again when its visible words
    change or Send reads the draft. Each appended block carries its own two-newline
    separator; removing that suffix preserves every newline the user wrote.
-   Sent-message images open one native modal viewer. The document
+   Draft, sent-message, and authored links to their own image open one native modal
+   viewer. PhotoSwipe supplies image zoom, pan, and touch gestures on demand; native
+   modality, retained controls, and focus return remain Leaf's. Links to other
+   destinations and modified link presses keep their authored meaning. The document
    declares its public page root because a website module may live under an immutable
    release URL shared with a sample. All three resolve
    the same canonical `/media/…` text without rewriting durable content. The viewer's
-   native dialog remains a retained chrome node, with its title, retained Close control,
-   and image rendered synchronously by Lit. A queued close from an earlier opening
+   native dialog remains a retained chrome node. Its fitted image appears synchronously
+   while the manipulation module loads. A queued close from an earlier opening
    leaves a reopened viewer's image and focus intact. */
 
 import { html, render } from "../vendor/browser-runtime.js";
 import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 import { handBack } from "./focus.js";
 import { closeControl } from "./widget-elements.js";
+import { keys, paintKeys } from "./keyboard/scopes.js";
+import { keeps, keepsText } from "./keeps.js";
+import { reducedMotion, FOLD_MS } from "./motion.js";
 
 // Page media is whatever a reference names under this directory. The name a file there
 // takes is the server's (Python's `schema.MEDIA_DIGEST`), which answers no other, so the
@@ -56,16 +62,48 @@ const viewerClose = closeControl({
 });
 viewerClose.onclick = () => mediaViewer.close();
 
+const viewerZoom = document.createElement("button");
+viewerZoom.type = "button";
+viewerZoom.className = "lf-btn lf-media-viewer-zoom";
+viewerZoom.textContent = "100%";
+viewerZoom.disabled = true;
+viewerZoom.onclick = () => inspector?.toggleZoom();
+
+const stage = document.createElement("div");
+stage.className = "lf-media-viewer-stage";
+const caption = document.createElement("p");
+caption.className = "lf-media-viewer-caption";
+
+let inspector = null;
+let loading = null;
+let opening = 0;
+
+function imageTools() {
+  if (!loading) {
+    loading = import("../vendor/photoswipe.esm.js").then(
+      ({ default: PhotoSwipe, styles }) => {
+        const style = document.createElement("style");
+        style.textContent = styles;
+        // The authored head is replaced on revision; the viewer owns these styles.
+        mediaViewer.append(style);
+        return PhotoSwipe;
+      },
+    );
+  }
+  return loading;
+}
+
 function presentViewer(model) {
   render(
     html`
       <div class="lf-media-viewer-head">
         <strong id="lf-media-viewer-title">Image preview</strong>
-        ${viewerClose}
+        <div class="lf-media-viewer-actions">
+          ${model ? html`<a href=${model.url} target="_blank" rel="noopener">Original</a>` : null}
+          ${viewerZoom}${viewerClose}
+        </div>
       </div>
-      <div class="lf-media-viewer-stage">
-        ${model ? html`<img src=${model.url} alt=${model.alt} />` : null}
-      </div>
+      ${stage}${caption}
     `,
     mediaViewer,
   );
@@ -79,20 +117,139 @@ mediaViewer.setAttribute("aria-modal", "true");
 mediaViewer.setAttribute("aria-labelledby", "lf-media-viewer-title");
 presentViewer(null);
 
+keys(
+  mediaViewer,
+  "Image preview",
+  [
+    {
+      id: "image.close",
+      keys: ["Escape"],
+      title: "close image",
+      description: "Close image preview",
+      button: viewerClose,
+      run: () => mediaViewer.close(),
+    },
+    {
+      id: "image.zoom",
+      keys: ["z"],
+      title: "zoom / fit",
+      description: "Toggle actual size and fitted image",
+      button: viewerZoom,
+      when: () => Boolean(inspector),
+      run: () => inspector.toggleZoom(),
+    },
+    {
+      id: "image.pan",
+      keys: ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
+      title: "pan image",
+      description: "Pan the enlarged image",
+      repeat: true,
+      when: () => Boolean(inspector),
+      // PhotoSwipe owns the native key's directional panning.
+    },
+  ],
+  { when: () => mediaViewer.open },
+);
+
 let origin = null;
 const open = (url, alt, from) => {
+  const attempt = ++opening;
+  inspector?.destroy();
+  inspector = null;
   origin = from;
   presentViewer({ url, alt });
+  render(html`<img src=${url} alt=${alt} />`, stage);
+  keepsText(
+    caption,
+    from.closest("figure")?.querySelector("figcaption")?.textContent || alt,
+  );
+  viewerZoom.toggleAttribute("disabled", true);
+  keepsText(viewerZoom, "100%");
   if (!mediaViewer.open) mediaViewer.showModal();
   viewerClose.focus({ preventScroll: true });
+  const image = stage.querySelector("img");
+  Promise.all([imageTools(), image.decode()]).then(
+    ([PhotoSwipe]) => {
+      // A delayed load belongs only to the image the reader still has open.
+      if (attempt !== opening || !mediaViewer.open) return;
+      render(null, stage);
+      const current = new PhotoSwipe({
+        dataSource: [
+          { src: url, width: image.naturalWidth, height: image.naturalHeight, alt },
+        ],
+        appendToEl: mediaViewer,
+        paddingFn: () => ({
+          top: mediaViewer.querySelector(".lf-media-viewer-head").offsetHeight + 16,
+          right: 16,
+          bottom: caption.offsetHeight + 16,
+          left: 16,
+        }),
+        secondaryZoomLevel: 1,
+        close: false,
+        zoom: false,
+        counter: false,
+        arrowPrev: false,
+        arrowNext: false,
+        trapFocus: false,
+        returnFocus: false,
+        escKey: false,
+        // The native dialog owns its opening and closing. Zoom alone animates.
+        showHideAnimationType: "none",
+        zoomAnimationDuration: reducedMotion() ? 0 : FOLD_MS,
+        clickToCloseNonZoomable: false,
+        bgClickAction: "close",
+        tapAction: "zoom",
+      });
+      inspector = current;
+      current.on("keydown", (event) => {
+        if (event.originalEvent.defaultPrevented) event.preventDefault();
+      });
+      current.on("close", () => {
+        if (mediaViewer.open) mediaViewer.close();
+      });
+      current.on("zoomPanUpdate", () => {
+        const slide = current.currSlide;
+        const enlarged = slide.currZoomLevel > slide.zoomLevels.initial + 0.01;
+        keepsText(viewerZoom, enlarged ? "Fit" : "100%");
+        keeps(viewerZoom, "aria-label", enlarged ? "Fit image" : "Zoom to actual size");
+        paintKeys();
+      });
+      current.init();
+      // Modality belongs to the containing native dialog, not a second ARIA dialog.
+      current.element.removeAttribute("role");
+      current.element.removeAttribute("aria-modal");
+      viewerZoom.toggleAttribute("disabled", false);
+      paintKeys();
+    },
+    (error) => {
+      if (attempt !== opening || !mediaViewer.open) return;
+      keepsText(
+        caption,
+        `Image controls unavailable: ${error.message}. Open Original to inspect the file.`,
+      );
+    },
+  );
 };
 mediaViewer.addEventListener("close", () => {
   if (mediaViewer.open) return;
+  ++opening;
+  inspector?.destroy();
+  inspector = null;
+  render(null, stage);
   presentViewer(null);
   if (origin) handBack(origin);
   origin = null;
 });
 document.addEventListener("click", (event) => {
+  if (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  )
+    return;
   // The path ends at the document and the window, and an element whose id is
   // `matches` puts an object at `window.matches`, so only elements are asked.
   const trigger = event
@@ -101,10 +258,20 @@ document.addEventListener("click", (event) => {
       (node) =>
         node instanceof Element && node.matches(".lf-media-open[data-lf-media-url]"),
     );
-  if (trigger)
+  const link = event.composedPath().find((node) => node instanceof HTMLAnchorElement);
+  const image = link?.querySelector("img");
+  // A linked image explicitly names its inspection destination; other image links
+  // retain their author's destination.
+  const imageLink =
+    image &&
+    !link.hasAttribute("download") &&
+    (link.href === image.src || link.href === image.currentSrc);
+  if (trigger || imageLink) {
+    event.preventDefault();
     open(
-      trigger.dataset.lfMediaUrl,
-      trigger.querySelector("img")?.alt || "Pasted image",
-      trigger,
+      trigger?.dataset.lfMediaUrl || link.href,
+      (trigger?.querySelector("img") || image)?.alt || "Image",
+      trigger || link,
     );
+  }
 });

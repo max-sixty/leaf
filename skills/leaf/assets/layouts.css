@@ -76,7 +76,7 @@
     body:has(> main.layout-column)::before,
     body:has(> main.layout-column) > :not(main) { grid-column: 1 / -1; }
     body > main.layout-column {
-      grid-column: 2; justify-self: center; margin-inline: 0;
+      grid-column: 2; justify-self: center;
       width: max(0px, calc(100cqi - 2 * var(--col-pad)));
     }
   }

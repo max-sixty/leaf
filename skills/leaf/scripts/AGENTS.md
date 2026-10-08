@@ -34,7 +34,7 @@ subpackage's initializer is only a marker, never a second API.
   page and thread readings, what the user has not read, what a gesture's ids say,
   newest moves for `x-history`, and the Markdown export;
 - `thread_context`, `thread`: thread identity, frozen markup, delivery context,
-  thread writes, and the reply lifecycle;
+  thread writes, and reply reservations;
 - `work_reading`: the transaction-scoped durable work reading shared by admission,
   serving and delivery;
 - `workflows`, `activity`: unsettled user moves with their evidence, and the
@@ -52,8 +52,8 @@ subpackage's initializer is only a marker, never a second API.
 - `reconnect`: outage eligibility and once-per-outage notices, published under
   the ownership, service, and session lifecycle locks;
 - `codex_state`: Codex delivery eligibility and shared delivery serialization paths;
-- `codex`, `codex_adapter`: Codex delivery records and App Server turn folds, and
-  the detached adapter behind `leaf codex start`;
+- `codex`, `codex_adapter`: Codex delivery records, App Server reply lifecycles and
+  turn folds, and the detached adapter behind `leaf codex start`;
 - `thread_titles`: the title Leaf asks the harness's model for when a user opens a
   thread, before the agent's reply could name it;
 - `state`: dependency-free session lifetime and turn publication, standalone cold

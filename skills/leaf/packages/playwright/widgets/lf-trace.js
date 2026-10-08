@@ -6,7 +6,8 @@
  * saved tree path. Sequential image/tree captures never imply exact pixel alignment.
  * The authored height allocates one scrollable evidence region beneath retained
  * controls. Evidence starts that region; optional metadata follows it. Selecting
- * another point returns to its evidence. One cursor
+ * another timeline point preserves the reader's scroll, so stepping compares the
+ * same part of successive images. Changing source starts at its evidence. One cursor
  * walks native action checkpoints chronologically; captured frames can join that
  * same timeline. Initial selection prefers its first nonempty saved tree, then
  * its first image; empty earlier stops stay navigable. Following a visual part restores its exact
@@ -202,6 +203,7 @@ customElements.define(
       this.sources.addEventListener("change", () => {
         this.#page = this.sources.value;
         this.#navigate(null);
+        this.body.scrollTop = 0;
       });
       this.framesToggle.addEventListener("change", () => {
         const point = this.#items()[this.#position()];
@@ -334,9 +336,6 @@ customElements.define(
     #navigate(id) {
       this.#selected = id;
       this.#draw();
-      // A newly selected point starts at its evidence, including when the reader
-      // left the previous point down in its saved-element list.
-      if (this.body.scrollTop) this.body.scrollTop = 0;
     }
     #step(delta) {
       const items = this.#items();

@@ -500,7 +500,10 @@ draw a visual part it shows only in another state, opens its containing disclosu
 the addressed element, updates the fragment, and announces the supplied `success` or
 `missing` message. Commands at that focus use the datum's identity. A lazy target may implement
 `lfRevealDatum(key)` to return its hydration promise and `lfDataDatum(key)` to map a
-semantic key to the rendered projected element.
+semantic key to the rendered projected element. When that key is a source location
+rather than the datum's durable identity, translate it to the durable key and read
+`projectedDatum(widget, key)`: it returns the unique current projected element, or
+`null` when missing or ambiguous, including after a reveal replaced its node.
 
 ### Indicating (experimental)
 

@@ -36,6 +36,7 @@ import {
   once,
   paintKeys,
   projectData,
+  projectedDatum,
   placeThreads,
   relabel,
   reserve,
@@ -50,6 +51,12 @@ import {
   watchData,
   watchOwner,
 } from "/runtime/widget-api.js";
+import {
+  diffDatumKey,
+  findDiffFile,
+  findDiffLine,
+  readDiffCoordinate,
+} from "./diff-coordinates.js";
 import "../vendor/webawesome.esm.js";
 // Only a diff that is actually rendering has any use for Pierre's renderer —
 // an authored <lf-diff> bound to data
@@ -100,7 +107,7 @@ const changeCounts = (file) =>
 // rendered rows are a flat run with the separator chrome between them, so recovering
 // the grouping from the DOM afterwards would be reading a rendering for a fact the
 // parse already had. It rides on the same record the anchor coordinate is read off,
-// and `lineKey` names only the four fields that make a comment's coordinate, so a row
+// and `diffDatumKey` names only the fields that make a comment's coordinate, so a row
 // knowing which hunk it is in changes no anchor.
 function sourceLines(file) {
   const lines = [];
@@ -135,12 +142,6 @@ const hunkHeads = (entry) =>
   );
 
 const LINE_KEY = "data-lf-line";
-const lineKey = ({ path, side, oldLine, newLine }) =>
-  JSON.stringify(
-    side === "both"
-      ? [path, side, oldLine, newLine]
-      : [path, side, side === "old" ? oldLine : newLine],
-  );
 
 const lineLabel = ({ path, side, oldLine, newLine }) => {
   const file = path || "(unnamed file)";
@@ -149,7 +150,6 @@ const lineLabel = ({ path, side, oldLine, newLine }) => {
   return `${file} · old line ${oldLine} · new line ${newLine}`;
 };
 
-const fileKey = ({ path }) => JSON.stringify([path, "file"]);
 const fileLabel = ({ path }) => `${path || "(unnamed file)"} · file`;
 const fileNode = (entry) => entry.node;
 const fileDatum = (entry, origin = null) => ({
@@ -160,7 +160,7 @@ const fileDatum = (entry, origin = null) => ({
 });
 const projectionDatum = (record) => ({
   node: record.node,
-  key: record.file ? fileKey(record) : lineKey(record),
+  key: diffDatumKey(record),
   label: record.file ? fileLabel(record) : lineLabel(record),
   ...(record.origin ? { origin: record.origin } : {}),
 });
@@ -190,7 +190,7 @@ function renderedLines(file, rendered) {
       throw new Error(`Pierre returned an unexpected source line for ${file.name}`);
     // The line's identity, which its gutter's Comment carries too, so a hold across a
     // re-render finds the same line under its new node (`holdFileFocus`).
-    node.setAttribute(LINE_KEY, lineKey(record));
+    node.setAttribute(LINE_KEY, diffDatumKey(record));
     return { ...record, node };
   });
 }
@@ -228,7 +228,10 @@ function pathNode(className, path) {
 // of it, the folders or the name (at a new window width, face or press beside it), so
 // each part's size is watched rather than polled. A part is cut where its words run
 // past its box, measured by a Range to the layout unit: `scrollWidth` rounds to whole
-// pixels, and the ellipsis is drawn for a fraction of one.
+// pixels, and the ellipsis is drawn for a fraction of one. A folder region too small
+// for this font's ellipsis is left blank: the browser otherwise paints a glyph sliver.
+// Its CSS measurement box supplies the native width. Opacity elides only paint, leaving
+// flex allocation and the full path for accessibility, title and held-word intact.
 //
 // One observer watches every file's row, so a delivery reads every row it names before
 // writing any. A row is watched from when it becomes its file's row (`fileRow`,
@@ -243,14 +246,35 @@ const runsPast = (part) => {
 };
 const pathParts = (details) =>
   details?.matches("details")
-    ? [...details.firstElementChild.querySelector(".lf-diff-path").children]
+    ? [...details.firstElementChild.querySelectorAll(".lf-diff-dir, .lf-diff-base")]
     : [];
 const pathSizes = sizeObserver((entries) => {
-  const paths = new Set(entries.map(({ target }) => target.parentElement));
-  const readings = [...paths].map((path) => [path, [...path.children].some(runsPast)]);
-  for (const [path, cut] of readings) {
+  const paths = new Set(
+    entries.map(({ target }) =>
+      target.closest(".lf-diff-head").querySelector(".lf-diff-path"),
+    ),
+  );
+  const readings = [...paths].map((path) => {
+    const parts = [...path.querySelectorAll(".lf-diff-dir, .lf-diff-base")];
+    return {
+      path,
+      cut: parts.some(runsPast),
+      folders: parts
+        .filter((part) => part.matches(".lf-diff-dir"))
+        .map((part) => {
+          return [
+            part,
+            Number.parseFloat(getComputedStyle(part, "::before").width) >
+              part.getBoundingClientRect().width,
+          ];
+        }),
+    };
+  });
+  for (const { path, cut, folders } of readings) {
     path.parentElement.toggleAttribute("data-path-cut", cut);
     keeps(path, "title", cut ? path.textContent : null);
+    for (const [part, hidden] of folders)
+      part.toggleAttribute("data-folder-hidden", hidden);
   }
 });
 function watchPathCut(details) {
@@ -258,6 +282,34 @@ function watchPathCut(details) {
 }
 function unwatchPathCut(details) {
   for (const part of pathParts(details)) pathSizes.unobserve(part);
+}
+
+function filePathNode(file) {
+  const named = file.prevName
+    ? Object.assign(document.createElement("span"), { className: "lf-diff-path" })
+    : pathNode("lf-diff-path", file.name || "(unnamed file)");
+  if (file.prevName) {
+    const arrow = Object.assign(document.createElement("span"), {
+      className: "lf-diff-arrow",
+      textContent: " → ",
+    });
+    named.append(
+      pathNode("lf-diff-source-path", file.prevName),
+      arrow,
+      pathNode("lf-diff-destination-path", file.name),
+    );
+  }
+  named.dataset.path = named.textContent.replaceAll("/", "/\u200b");
+  return named;
+}
+
+// Keep the disclosure's native owner while its source/destination mapping changes.
+function updateSummaryPath(details, next) {
+  const current = details.querySelector(".lf-diff-head > .lf-diff-path");
+  if (current.dataset.path === next.dataset.path) return;
+  unwatchPathCut(details);
+  current.replaceWith(next);
+  watchPathCut(details);
 }
 
 function summaryNode(file, open) {
@@ -270,16 +322,13 @@ function summaryNode(file, open) {
   // space after each slash, since generated content takes no <wbr>.
   const summary = document.createElement("summary");
   summary.className = `lf-diff-head ${HOLDS_WORD}`;
-  const path = file.name || "(unnamed file)";
   const { adds, dels } = changeCounts(file);
   const stat = Object.assign(document.createElement("span"), {
     className: "lf-diff-stat",
     textContent: `+${adds} −${dels}`,
   });
   stat.dataset.lfGen = "1";
-  const named = pathNode("lf-diff-path", path);
-  named.dataset.path = path.replaceAll("/", "/\u200b");
-  summary.append(named, stat);
+  summary.append(filePathNode(file), stat);
   commands(summary, "On a diff", [
     {
       id: "diff.toggle",
@@ -372,11 +421,11 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
   const details = entry.details;
   const pre = details.querySelector("pre");
   const nextPre = rendered.node.querySelector("pre");
-  const prior = new Map(entry.lines.map((record) => [lineKey(record), record]));
+  const prior = new Map(entry.lines.map((record) => [diffDatumKey(record), record]));
   const retained = new Map();
   const gutters = new Map();
   for (const next of rendered.lines) {
-    const previous = prior.get(lineKey(next));
+    const previous = prior.get(diffDatumKey(next));
     if (!previous || previous.node.innerHTML !== next.node.innerHTML) continue;
     retained.set(next.node, previous.node);
     const nextGutter = nextPre.querySelector(
@@ -443,6 +492,10 @@ function replaceFileContent(entry, rendered, pairs, outlets) {
       }),
     );
   }
+  updateSummaryPath(
+    details,
+    rendered.node.querySelector(".lf-diff-head > .lf-diff-path"),
+  );
   keepsText(
     details.querySelector(".lf-diff-stat"),
     rendered.node.querySelector(".lf-diff-stat").textContent,
@@ -516,12 +569,7 @@ function renameNode(file) {
   row.className = "lf-diff-rename";
   row.dataset.lfGen = "1";
   row.append(
-    pathNode("lf-diff-path lf-diff-before", file.prevName),
-    Object.assign(document.createElement("span"), {
-      className: "lf-diff-arrow",
-      textContent: " → ",
-    }),
-    pathNode("lf-diff-path lf-diff-after", file.name),
+    filePathNode(file),
     Object.assign(document.createElement("span"), {
       className: "lf-diff-stat",
       textContent: "renamed",
@@ -1070,6 +1118,7 @@ customElements.define(
             const details = summaryNode(
               {
                 name: record.path,
+                prevName: record.previousPath,
                 additions: record.additions,
                 deletions: record.deletions,
               },
@@ -1105,6 +1154,10 @@ customElements.define(
             additions: record.additions,
             deletions: record.deletions,
           });
+          updateSummaryPath(
+            entry.details,
+            filePathNode({ name: record.path, prevName: record.previousPath }),
+          );
           keepsText(entry.details.querySelector(".lf-diff-stat"), `+${adds} −${dels}`);
           if (prepared) this.applyManifestEntry(entry);
           else entry.details.querySelector("pre")?.toggleAttribute("hidden", true);
@@ -1229,22 +1282,17 @@ customElements.define(
     }
 
     threadOutletFor({ anchor, placement }) {
-      const entry = this.fileEntryForDatum(anchor.datum);
+      const coordinate = readDiffCoordinate(anchor.datum);
+      const entry = findDiffFile(this.fileEntries, coordinate);
       if (!entry || entry.filtered) return null;
-      let coordinate;
-      try {
-        coordinate = JSON.parse(anchor.datum);
-      } catch {
-        return null;
-      }
-      const file = coordinate[1] === "file";
+      const file = coordinate.file;
       if (file) {
         if (placement.datumElement !== entry.node) return null;
       } else if (
         !entry.loaded ||
         (entry.details && !entry.details.open) ||
         placement.datumElement !==
-          entry.lines.find((line) => lineKey(line) === anchor.datum)?.node
+          entry.lines.find((line) => diffDatumKey(line) === anchor.datum)?.node
       )
         return null;
 
@@ -1360,70 +1408,26 @@ customElements.define(
       restore?.();
     }
 
-    fileEntryForDatum(key) {
-      if (!this.fileEntries) return null;
-      let coordinate;
-      try {
-        coordinate = JSON.parse(key);
-      } catch {
-        return null;
-      }
-      if (!Array.isArray(coordinate) || typeof coordinate[0] !== "string") return null;
-      return (
-        this.fileEntries.find(({ record }) => record.path === coordinate[0]) ?? null
-      );
-    }
-
     // Core can place a standing line thread at its file disclosure before that file's
     // patch exists in the DOM. Navigation asks the second method to make the exact line
     // real, then the ordinary datum resolver and anchor painter take over.
     lfDataDatum(key, { outdated = false } = {}) {
-      const entry = this.fileEntryForDatum(key);
+      const coordinate = readDiffCoordinate(key);
+      const entry = findDiffFile(this.fileEntries, coordinate);
       if (!entry) return null;
-      let coordinate;
-      try {
-        coordinate = JSON.parse(key);
-      } catch {
-        return null;
-      }
-      if (coordinate[1] === "file") return fileNode(entry);
+      if (coordinate.file) return fileNode(entry);
       if (outdated) return entry.node;
       if (!entry.loaded || entry.filtered) return entry.node;
-      const exact = entry.lines.find((line) => lineKey(line) === key);
-      if (exact) return exact.node;
-      const [, side, at] = coordinate;
-      if (!Number.isInteger(at) || !["old", "new"].includes(side)) return null;
-      const context = entry.lines.find(
-        (line) =>
-          line.side === "both" && (side === "old" ? line.oldLine : line.newLine) === at,
-      );
-      if (context) return context.node;
-      if (side === "new") {
-        const priorContext = entry.lines.find(
-          (line) => line.side === "both" && line.oldLine === at,
-        );
-        if (priorContext) return priorContext.node;
-      }
-      // A non-removed call-tree item normally names the new side. Falling back to an
-      // old coordinate preserves travel for analyzers whose location still names the
-      // pre-change call site, without making callers understand diff coordinates.
-      if (side === "new")
-        return (
-          entry.lines.find((line) => line.side === "old" && line.oldLine === at)
-            ?.node ?? null
-        );
-      return null;
+      const line = findDiffLine(entry.lines, coordinate);
+      return line ? projectedDatum(this, diffDatumKey(line)) : null;
     }
 
     lfRevealDatum(key) {
-      const entry = this.fileEntryForDatum(key);
+      const coordinate = readDiffCoordinate(key);
+      const entry = findDiffFile(this.fileEntries, coordinate);
       if (!entry) return null;
       if (entry.filtered) this.clearFilter();
-      try {
-        if (JSON.parse(key)[1] === "file") return null;
-      } catch {
-        return null;
-      }
+      if (coordinate.file) return null;
       if (!entry.details || entry.loaded || entry.failed) return null;
       entry.details.toggleAttribute("open", true);
       return this.loadManifestEntry(entry);
@@ -1493,7 +1497,7 @@ customElements.define(
         // target picker is the keyboard route to the same exact datum; this control is
         // the conventional pointer affordance in the line-number gutter.
         line.comment.tabIndex = -1;
-        line.comment.setAttribute(LINE_KEY, lineKey(line));
+        line.comment.setAttribute(LINE_KEY, diffDatumKey(line));
         line.node.addEventListener("pointerenter", () =>
           gutterRow.classList.toggle("lf-diff-line-hover", true),
         );

@@ -41,6 +41,8 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     )
     capture.get_by_role("button", name="Review").nth(0).click()
     capture.get_by_role("button", name="Review").nth(1).click()
+    second_capture = context.new_page()
+    second_capture.set_content("<h1>Another recorded page</h1>")
     archive = tmp_path / "trace.zip"
     context.tracing.stop(path=archive)
     context.close()
@@ -72,11 +74,14 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     sources = widget.get_by_role("radiogroup", name="Recorded page or API stream")
     expect(sources).to_be_visible()
     page_source = widget.get_by_role("radio", name="Page 1", exact=True)
+    second_page_source = widget.get_by_role("radio", name="Page 2", exact=True)
     api_source = widget.get_by_role("radio", name="API calls", exact=True)
     expect(page_source).to_have_attribute("aria-checked", "true")
     user.keyboard.press("Tab")
     page_source.focus()
     page_source.press("ArrowRight")
+    expect(second_page_source).to_be_focused()
+    second_page_source.press("ArrowRight")
     expect(api_source).to_be_focused()
     expect(api_source).to_have_attribute("aria-checked", "true")
     expect(widget.locator(".lf-trace-action")).to_have_text("BrowserContext.newPage")
@@ -113,15 +118,35 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     # Each gesture must advance exactly once, including at the keyboard.
     next_button = widget.get_by_role("button", name="Next", exact=True)
     previous_button = widget.get_by_role("button", name="Previous", exact=True)
-    for activation in ("click", "Enter", "Space"):
+    body = widget.locator(".lf-trace-body")
+    body.hover()
+    user.mouse.wheel(0, 80)
+    expect(body).not_to_have_js_property("scrollTop", 0)
+    reading_top = body.evaluate("node => node.scrollTop")
+    image_top = raster.bounding_box()["y"]
+    page_top = user.evaluate("scrollY")
+    for activation in ("click", "Enter", "Space", "ArrowRight"):
         if activation == "click":
             next_button.click()
+        elif activation == "ArrowRight":
+            slider.focus()
+            user.keyboard.press(activation)
         else:
             next_button.focus()
             user.keyboard.press(activation)
         expect(slider).to_have_value(str(after_index + 1))
+        rendered(user)
+        assert body.evaluate("node => node.scrollTop") == reading_top
+        assert raster.bounding_box()["y"] == pytest.approx(image_top, abs=1)
+        assert user.evaluate("scrollY") == page_top
         previous_button.click()
         expect(slider).to_have_value(str(after_index))
+    # A second page keeps the same tall viewport image, so native scroll clamping
+    # cannot hide a missing reset when changing sources.
+    second_page_source.click()
+    expect(body).to_have_js_property("scrollTop", 0)
+    page_source.click()
+    slider.fill(str(after_index))
     phase = action["phases"]["after"]
     image = next(image for image in record["images"] if image["id"] == phase["imageId"])
     stream = next(
@@ -250,8 +275,9 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     body.hover()
     user.mouse.wheel(0, 80)
     expect(body).not_to_have_js_property("scrollTop", 0)
+    reading_top = body.evaluate("node => node.scrollTop")
     frames_toggle.uncheck()
-    expect(body).to_have_js_property("scrollTop", 0)
+    expect(body).to_have_js_property("scrollTop", reading_top)
     user.keyboard.press("t")
     expect(frames_toggle).to_be_checked()
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()

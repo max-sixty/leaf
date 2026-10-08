@@ -243,13 +243,6 @@ export function createGoToSequence({
       list: pageTabs,
       go: press,
     },
-    // After Tab, because a tab a widget built answers both queries and the tab is the
-    // nearer meaning. The collapse above keeps whichever kind is read first.
-    {
-      kind: "Control",
-      list: pageControls,
-      go: press,
-    },
     {
       kind: "Link",
       list: pageLinks,
@@ -267,6 +260,13 @@ export function createGoToSequence({
         scrollToElement(summary.parentElement, undefined, "nearest");
         focusDestination(summary, "move");
       },
+    },
+    // Native and role-specific targets keep their meaning before the generic offered
+    // control reading. Collapse keeps the first kind for one activation surface.
+    {
+      kind: "Control",
+      list: pageControls,
+      go: press,
     },
   ];
   const TARGET_FILTERS = [

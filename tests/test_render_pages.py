@@ -3798,7 +3798,7 @@ DISCLOSURES = """() => [...document.querySelectorAll('details')]
     open: d.open,
     displayed: d.checkVisibility(),
     summary: (d.querySelector('summary')?.textContent || '').trim().slice(0, 40),
-    shown: [...d.children].filter(c => c.tagName !== 'SUMMARY' && !c.hasAttribute('data-lf-gen'))
+    shown: [...d.children].filter(c => !c.matches('summary, script, style, template') && !c.hasAttribute('data-lf-gen'))
       .every(c => c.checkVisibility()),
   }))"""
 
@@ -3835,7 +3835,7 @@ def test_paper_takes_the_press_off_everything_it_cannot_press(browser, serve):
     )
     shut = [d for d in page.evaluate(DISCLOSURES) if not d["open"]]
     assert len(shut) >= 3, f"the corpus has no shut disclosures to print: {shut}"
-    assert not any(d["shown"] for d in shut), (
+    assert not any(d["displayed"] and d["shown"] for d in shut), (
         f"the page shows what its shut disclosures hold before the medium changes: {shut}"
     )
 

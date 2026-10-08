@@ -271,19 +271,9 @@ export function createQueuePanel({ arriveAtItem, endTask, announce }) {
     });
   }
 
-  // The ages a row says move on the clock as well as on the log. A tick repaints the list
-  // directly; a publication paints through the presenter below, which reads the model
-  // inside this same clocked function so the clock knows which readings it made.
-  let presenting = false;
-  const model = clocked(queueList, () => {
-    const next = readModel();
-    if (!presenting)
-      void queueList.paint(next).then(
-        () => queueList.commit(),
-        (error) => console.error("leaf: Queue panel tick failed", error),
-      );
-    return next;
-  });
+  // Clock changes claim the same presenter as publications. Its scheduled paint
+  // captures the new row ages, and owns their commit and retention on failure.
+  const model = clocked(queueList, readModel, () => present());
 
   let shortcutsOffered = false;
   async function paintQueue(current) {
@@ -296,13 +286,7 @@ export function createQueuePanel({ arriveAtItem, endTask, announce }) {
       shortcutsOffered = offered;
       paintKeys();
     } else repaint();
-    presenting = true;
-    let next;
-    try {
-      next = model();
-    } finally {
-      presenting = false;
-    }
+    const next = model();
     try {
       const painted = await queueList.present(next);
       if (!current()) return [];

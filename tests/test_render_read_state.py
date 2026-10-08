@@ -25,6 +25,7 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
+    resized,
     round_trip,
     select,
     sending,
@@ -765,6 +766,22 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
     }""")
     _still_unread(child)
     page.evaluate("scrollBy(0, 700)")
+    _read_by_the_sample(page, child)
+
+
+def test_a_sample_in_a_native_modal_escapes_inherited_inertness(browser, serve):
+    page, _, child = _sample_reading_page(
+        browser,
+        serve,
+        "<h1>Native owner boundary</h1><section inert>"
+        '<dialog id="owner-modal" open>{sample}</dialog></section>',
+        "#owner-modal { width: 900px; height: 750px; }",
+    )
+    page.locator("#owner-modal").evaluate(
+        "dialog => { dialog.close(); dialog.showModal(); }"
+    )
+    child.locator(".lf-threads-toggle").focus()
+    _open_first_unread(page, child)
     _read_by_the_sample(page, child)
 
 
@@ -1608,13 +1625,15 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
     assert receipt(), "the answer shown whole was never marked read"
 
 
-def test_modal_blocks_exposure_until_user_returns_to_threads(browser, serve):
+@pytest.mark.parametrize("width", [1200, 400])
+def test_modal_blocks_exposure_until_user_returns_to_threads(browser, serve, width):
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "The earlier user thread.")
     root = panel_comment(
         serve.page_dir, "A short answer behind the dialog.", author="agent"
     )
     page = open_page(browser, url)
+    resized(page, width, 900)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     page.locator(".lf-threads-toggle").focus()

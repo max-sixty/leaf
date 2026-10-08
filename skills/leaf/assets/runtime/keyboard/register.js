@@ -129,7 +129,7 @@ const commands = new Map();
 const rungs = new Map();
 let resolved = null;
 let validated = false;
-let auxiliaryModality = null;
+let coveringSurface = null;
 
 const place = (where, name) => {
   if (!where.includes(name))
@@ -302,7 +302,7 @@ export const allButCommandReference = (binding) =>
 // The auxiliary layer's surface reading, held here because the dispatcher's own closure
 // stops at this register: it resolves a press against the register and the focused scope,
 // and an edge to the surface owner would give it that owner's whole initialization graph.
-export function registerAuxiliaryModality(modality) {
-  auxiliaryModality = modality;
+export function registerCoveringAuxiliarySurface(read) {
+  coveringSurface = read;
 }
-export const coveringAuxiliarySurface = () => auxiliaryModality.coveringSurface();
+export const coveringAuxiliarySurface = () => coveringSurface();

@@ -1140,8 +1140,8 @@ def test_a_response_draft_yields_focus_when_the_panel_leaves_no_usable_room(
     bar = page.locator(".lf-fab-bar")
 
     def enter_passage():
-        expect(page.locator(".lf-thread-panel")).not_to_have_attribute(
-            "aria-modal", "true"
+        assert not page.locator(".lf-thread-panel").evaluate(
+            "el => el.closest('dialog').matches(':modal')"
         )
         box = page.locator("#how-cap").bounding_box()
         select(

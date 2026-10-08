@@ -1430,8 +1430,8 @@ lf-suggestion:has(> :is(lf-old, lf-new) > :not(a, abbr, area, audio, b, bdi, bdo
  * survivor gives up its padding over the same span — a block slot's 10px is the sentence
  * the user is looking at stepping sideways, which is the jerk the fold is there to
  * remove, only smaller. Declared on the slot rather than on the decided state, because a
- * transition is read from the state the element is leaving; the reduced-motion guard at
- * the foot of this file takes it with everything else.
+ * transition is read from the state the element is leaving; the shared reduced-motion
+ * guard in shadow.css takes it with everything else.
  *
  * Padding alone. The tint going is paint, which a state change may do freely, and a
  * transitioned background is the thing the choose group's own comment above warns

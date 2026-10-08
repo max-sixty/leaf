@@ -76,7 +76,7 @@ from leaf.served_state.context import read_page
 from leaf.served_state.page import read_served_page
 from leaf.validation import compatibility as validation_model
 from leaf.validation.source import check_source
-from leaf.validation.source_history import PROTECTED_REMEDIES, predecessor_reading
+from leaf.validation.source_history import predecessor_reading
 from leaf_dev.example_data import captured_value, patch_manifest
 
 
@@ -833,21 +833,11 @@ def _drop_x_between_a_and_b(page_dir):
     return move
 
 
-def test_a_version_that_changes_the_moves_column_without_writing_it_is_refused(
-    page_dir,
-):
-    """A rank is a key among the cards the user saw, and a version that adds a card
-    above them shifts every authored rank under it: carried onto `n a b c`, x's "1i"
-    reads as the gap between n and a. So a version that changes the move's column
-    writes the moved card where the move put it."""
+def test_a_version_can_change_the_authored_column_after_a_user_move(page_dir):
     _drop_x_between_a_and_b(page_dir)
     _write_board(page_dir, "nabc", "x")
-    result = check(page_dir)
-    assert result.exit_code == 1, result.output
-    assert (
-        "the markup puts it in 'c-done' where their move (on r1) left it in "
-        "'c-todo' right after 'a'"
-    ) in result.output
+    revised = check(page_dir)
+    assert revised.exit_code == 0, revised.output
 
 
 def test_a_version_that_leaves_the_moves_column_alone_needs_not_write_it(page_dir):
@@ -878,10 +868,8 @@ def test_a_version_that_writes_the_move_owns_its_order(page_dir):
         )
 
 
-def test_a_later_version_keeps_a_written_move_unless_it_restates_the_card(page_dir):
-    """A version keeps a user's decision unless it takes it back: after a version
-    wrote the move, a later one keeps x right after a however it arranges the cards
-    away from it, and moving x itself takes `restated`."""
+def test_a_later_version_can_reposition_a_card_without_retracting_its_move(page_dir):
+    """Authored placements may change while the original move remains logged."""
     _drop_x_between_a_and_b(page_dir)
     _write_board(page_dir, "naxbc")
     publish(page_dir, 2)
@@ -889,13 +877,7 @@ def test_a_later_version_keeps_a_written_move_unless_it_restates_the_card(page_d
     assert check(page_dir).exit_code == 0, check(page_dir).output
     _write_board(page_dir, "nacxb")
     result = check(page_dir)
-    assert result.exit_code == 1
-    assert "their move (on r1) and r2 left it in 'c-todo' right after 'a'" in (
-        result.output
-    )
-    assert "keeps a user's placement unless it marks the card `restated`" in (
-        result.output
-    )
+    assert result.exit_code == 0, result.output
     (page_dir / "index.html").write_text(
         (page_dir / "index.html")
         .read_text()
@@ -905,9 +887,7 @@ def test_a_later_version_keeps_a_written_move_unless_it_restates_the_card(page_d
 
 
 def test_a_reorder_the_next_version_wrote_survives_a_later_one(page_dir):
-    """A card moved up its own column and written there by v2 is still the user's
-    order on v3: a v3 that puts the column back as v1 had it, beside an unrelated
-    edit, contradicts the user and is refused."""
+    """A later authored reorder is allowed without implicitly retracting a move."""
     _write_board(page_dir, "abc")
     publish(page_dir)
     _move(page_dir, "c", "c-todo", "0i")
@@ -918,8 +898,7 @@ def test_a_reorder_the_next_version_wrote_survives_a_later_one(page_dir):
         (page_dir / "index.html").read_text().replace("<h2>Plan</h2>", "<h2>Plans</h2>")
     )
     result = check(page_dir)
-    assert result.exit_code == 1
-    assert "id='c'" in result.output and "first in 'c-todo'" in result.output
+    assert result.exit_code == 0, result.output
 
 
 @pytest.mark.parametrize(
@@ -928,12 +907,12 @@ def test_a_reorder_the_next_version_wrote_survives_a_later_one(page_dir):
         ("baxc", True),  # a and b swapped: x still right after a
         ("naxbmc", True),  # cards added around the gap
         ("axc", True),  # b dropped
-        ("abxc", False),
-        ("abcx", False),
-        ("xabc", False),
+        ("abxc", True),
+        ("abcx", True),
+        ("xabc", True),
     ],
 )
-def test_the_gate_holds_a_move_to_the_gap_it_was_dropped_into(page_dir, todo, passes):
+def test_authored_cards_can_move_to_any_gap_after_a_user_move(page_dir, todo, passes):
     """The user put x between a and b: right after a, among the cards both versions
     list. A version that keeps that says what the user said however it arranges or
     adds cards elsewhere."""
@@ -942,7 +921,7 @@ def test_the_gate_holds_a_move_to_the_gap_it_was_dropped_into(page_dir, todo, pa
     assert (check(page_dir).exit_code == 0) == passes, check(page_dir).output
 
 
-def test_a_reorder_within_one_column_reaches_the_gate(page_dir):
+def test_a_later_authored_reorder_is_allowed_with_a_move_standing(page_dir):
     """A card moved up its own column changes no container, so a reading of the
     column alone would take a version that ignores the move as recording it. At the
     top, no card both versions list precedes it."""
@@ -952,8 +931,7 @@ def test_a_reorder_within_one_column_reaches_the_gate(page_dir):
     assert _todo_order(page_dir) == ["c", "a", "b"]
     _write_board(page_dir, "abcn")
     result = check(page_dir)
-    assert result.exit_code == 1
-    assert "first in 'c-todo' of the units both versions list" in result.output
+    assert result.exit_code == 0, result.output
     _write_board(page_dir, "ncab")
     assert check(page_dir).exit_code == 0
 
@@ -982,17 +960,16 @@ def test_a_move_on_a_replaced_revision_lands_only_where_its_column_held(page_dir
     assert _todo_order(page_dir) == ["n", "a", "x", "c"]
 
 
-def test_page_init_says_when_the_source_will_not_activate(page_dir):
-    """Re-vendoring succeeds on its own, but the new layer reaches the page only when
-    index.html activates; an index.html that would be refused is named then."""
-    _drop_x_between_a_and_b(page_dir)
-    _write_board(page_dir, "nabc", "x")
+def test_page_init_reports_malformed_current_source_after_revendoring(page_dir):
+    """A real layer repair reports current declaration errors that block activation."""
+    source = page_dir / "index.html"
+    source.write_text(PAGE.replace("</main>", '<p id="plan">Duplicate.</p></main>'))
     theme = page_dir / "theme.css"
     theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert "index.html will not activate until" in result.output
-    assert "id='x'" in result.output
+    assert "duplicate id" in result.output
 
 
 def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
@@ -1853,7 +1830,7 @@ def test_suggestion_resolves_a_thread_whose_opening_comment_was_lost(page_dir):
     assert check(page_dir).exit_code == 0, check(page_dir).output
 
 
-def test_accepting_licenses_retiring_the_replaced_markup(page_dir):
+def test_revising_suggestion_markup_preserves_its_recorded_answer(page_dir):
     # v2 honors the accept: the old paragraph and the wrapper are gone, the
     # proposal inlined. Nothing but a logged accept makes that legal.
     suggest(page_dir)
@@ -1863,8 +1840,7 @@ def test_accepting_licenses_retiring_the_replaced_markup(page_dir):
     )
     (page_dir / "index.html").write_text(honored)
     result = check(page_dir)
-    assert result.exit_code == 1
-    assert "refill-rule" in result.output
+    assert result.exit_code == 0, result.output
 
     decide(page_dir, "accept")
     assert check(page_dir).exit_code == 0, check(page_dir).output
@@ -1909,7 +1885,7 @@ def test_the_live_source_can_honor_the_latest_revision_decision(page_dir):
     assert result.exit_code == 0, result.output
 
 
-def test_an_unanswered_proposal_cant_be_kept_as_settled_content(page_dir):
+def test_an_unanswered_proposal_may_become_authored_content(page_dir):
     # Self-accepting: the wrapper goes but its proposal stays, presented as
     # ordinary prose the user never agreed to. Withdrawal is whole or not.
     insert = """<lf-suggestion id="sug-thistle">
@@ -1923,11 +1899,9 @@ def test_an_unanswered_proposal_cant_be_kept_as_settled_content(page_dir):
     )
     (page_dir / "index.html").write_text(kept)
     result = check(page_dir)
-    assert result.exit_code == 1
-    assert "sug-thistle" in result.output
-    # A refused version never published, so it is nobody's baseline: v3 stands
-    # against v1 — the page the user was actually looking at — and there a
-    # whole withdrawal is fine. So is honoring a logged accept.
+    assert result.exit_code == 0, result.output
+    # Source checks do not publish. Removing or incorporating the same authored
+    # proposal remains allowed before and after its explicit answer.
     (page_dir / "index.html").write_text(PAGE)
     assert check(page_dir).exit_code == 0
     decide(page_dir, "accept", widget="sug-thistle")
@@ -1935,7 +1909,7 @@ def test_an_unanswered_proposal_cant_be_kept_as_settled_content(page_dir):
     assert check(page_dir).exit_code == 0
 
 
-def test_rejecting_licenses_retiring_the_proposal(page_dir):
+def test_retiring_suggestion_markup_is_independent_of_its_answer(page_dir):
     # A reject is consent to drop the proposal, so it retires even while a
     # thread about it is open — the user has already answered.
     suggest(page_dir)
@@ -1955,17 +1929,16 @@ def test_rejecting_licenses_retiring_the_proposal(page_dir):
             "text": "cameras aren't reliable yet",
         },
     )
-    assert check(page_dir).exit_code == 1
+    assert check(page_dir).exit_code == 0
     decide(page_dir, "reject")
     assert check(page_dir).exit_code == 0
-    # The other slot is not licensed: dropping the markup a reject kept is refused.
+    # The answer does not prohibit a later edit of either authored slot.
     (page_dir / "index.html").write_text(PAGE)
     result = check(page_dir)
-    assert result.exit_code == 1
-    assert "refill-rule" in result.output
+    assert result.exit_code == 0, result.output
 
 
-def test_an_unanswered_deletion_cant_delete(page_dir):
+def test_an_unanswered_deletion_may_leave_the_page(page_dir):
     # The mirror of self-accepting an insertion: dropping the markup a pending
     # deletion wraps, without the accept that consents to losing it.
     delete = """<lf-suggestion id="sug-drop">
@@ -1975,8 +1948,7 @@ def test_an_unanswered_deletion_cant_delete(page_dir):
     suggest(page_dir, markup=delete)
     (page_dir / "index.html").write_text(PAGE)
     result = check(page_dir)
-    assert result.exit_code == 1
-    assert "hand-log" in result.output
+    assert result.exit_code == 0, result.output
     decide(page_dir, "accept", widget="sug-drop")
     assert check(page_dir).exit_code == 0
 
@@ -2003,8 +1975,7 @@ def test_withdrawing_an_unanswered_suggestion_needs_no_consent(page_dir):
         },
     )
     result = check(page_dir)
-    assert result.exit_code == 1
-    assert "refill-camera" in result.output
+    assert result.exit_code == 0, result.output
     append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
     )
@@ -2538,12 +2509,6 @@ def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
     assert 'ids dropped from revision r1: ["backfill-first", "plan"]' in result.output
 
 
-def _remedies(output: str) -> set:
-    """Which reasons' ways out a protected-ids refusal named, read from the gate's
-    own table so the wording stays free to change."""
-    return {why for why, remedy in PROTECTED_REMEDIES.items() if remedy in output}
-
-
 def test_any_id_names_one_subject_for_every_command(page_dir):
     """A page widget names itself, and a message, a widget frozen into one, or any
     other event a thread holds names that thread, for `page state`, `status --on`
@@ -2653,41 +2618,6 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
     assert "ids shaped like the event ids the log mints" in refused.output
 
 
-def test_an_id_held_twice_is_refused_for_both_reasons_at_once(page_dir):
-    live = OPTIONS.format(a="", b="", chip="", shim="Keep the old API.", stage="Two.")
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live)
-    )
-    publish(page_dir)
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": files_model.latest_revision(page_dir),
-            "widget": "g1",
-            "action": "choose",
-            "detail": {"value": ["o-shim"]},
-        },
-    )
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c1",
-            "author": "user",
-            "anchor": {"section": "o-shim"},
-            "text": "Why the shim?",
-        },
-    )
-    (page_dir / "index.html").write_text(PAGE)
-
-    # Settling one reason would otherwise only uncover the next refusal.
-    held = check(page_dir)
-    assert held.exit_code == 1
-    assert _remedies(held.output) == {"thread", "state"}
-
-
 def test_an_answered_ask_moves_into_a_collapsed_section_with_its_pick_standing(
     page_dir,
 ):
@@ -2726,225 +2656,7 @@ def test_an_answered_ask_moves_into_a_collapsed_section_with_its_pick_standing(
         complete(settled.replace("Keep the old API.", "Merged: keep the old API."))
     )
     reworded = check(page_dir)
-    assert reworded.exit_code == 1
-    assert "its words changed" in reworded.output and "'o-shim'" in reworded.output
-
-
-def test_a_suggestion_keeps_the_markup_its_withdrawal_does_not_retire(page_dir):
-    suggest(page_dir)
-    (page_dir / "index.html").write_text(PAGE)
-
-    whole = check(page_dir)
-    assert whole.exit_code == 1
-    assert "'refill-rule'" in whole.output
-    assert _remedies(whole.output) == {"retirement"}
-
-    # Following it: the page's own words stay, and the proposal leaves whole.
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<lf-options>",
-            '<p id="refill-rule">Refill every feeder each morning.</p><lf-options>',
-        )
-    )
-    kept = check(page_dir)
-    assert kept.exit_code == 0, kept.output
-
-
-def test_an_unresolved_anchor_protects_its_id_until_the_thread_resolves(page_dir):
-    publish(page_dir)
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c1",
-            "author": "user",
-            "anchor": {"section": "flow"},
-            "text": "Keep this diagram addressable.",
-        },
-    )
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            '  <lf-diagram id="flow"><pre>\n'
-            "graph LR\n"
-            "  A --> B\n"
-            "  </pre></lf-diagram>\n",
-            "",
-        )
-    )
-
-    unresolved = check(page_dir)
-    assert unresolved.exit_code == 1
-    assert "protected ids" in unresolved.output and '"flow"' in unresolved.output
-    # The refusal names the way out its own reason leaves open, and no other reason's.
-    assert _remedies(unresolved.output) == {"thread"}
-
-    append_carried_log_record(
-        page_dir, {"kind": "resolve", "author": "user", "parent": "c1"}
-    )
-    resolved = check(page_dir)
-    assert resolved.exit_code == 0, resolved.output
-    assert 'ids dropped from revision r1: ["flow"]' in resolved.output
-
-
-def test_a_standing_action_protects_its_id_until_it_is_retracted(page_dir):
-    v2 = _decided(page_dir, "Ship the flag dark, then backfill.")
-    (page_dir / "index.html").write_text(PAGE)
-
-    standing = check(page_dir)
-    assert standing.exit_code == 1
-    assert "protected ids" in standing.output and '"d1"' in standing.output
-    assert _remedies(standing.output) == {"state"}
-
-    # The route that remedy names: a restated rewrite, stamped, then the drop.
-    v2("Ship the flag dark, then backfill. Roll back with one flag.", attrs=" restated")
-    retracted = stamp(page_dir, "replace the draft")
-    assert retracted.exit_code == 0, retracted.output
-    (page_dir / "index.html").write_text(PAGE)
-
-    dropped = check(page_dir)
-    assert dropped.exit_code == 0, dropped.output
-    assert 'ids dropped from revision r2: ["d1"]' in dropped.output
-
-
-def test_a_standing_action_protects_its_fold_unit_until_undone(page_dir):
-    def write(todo):
-        (page_dir / "index.html").write_text(
-            PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + _board(todo, []))
-        )
-
-    write([X])
-    publish(page_dir)
-    moved = append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": files_model.latest_revision(page_dir),
-            "widget": "b1",
-            "action": "move",
-            "detail": {"unit": "card-x", "value": "c-done", "rank": "0i"},
-        },
-    )
-    write([])
-
-    standing = check(page_dir)
-    assert standing.exit_code == 1
-    assert "protected ids" in standing.output and '"card-x"' in standing.output
-
-    append_carried_log_record(
-        page_dir, {"kind": "undo", "author": "user", "undoes": moved["id"]}
-    )
-    undone = check(page_dir)
-    assert undone.exit_code == 0, undone.output
-    assert 'ids dropped from revision r1: ["card-x"]' in undone.output
-
-
-def test_an_effective_report_protects_detail_ids_its_record_needs(page_dir):
-    registry_path = page_dir / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-board"]["properties"]["overruled"] = {"type": "boolean"}
-    registry["lf-card"]["properties"]["flagged"] = {"type": "boolean"}
-    registry["lf-board"]["x-state"]["flag"] = {
-        "writer": "agent",
-        "unit": "widget",
-        "record": {"kind": "attribute", "attr": "flagged"},
-    }
-    registry_path.write_text(json.dumps(registry))
-
-    def report(cards):
-        append_command(
-            page_dir,
-            {
-                "kind": "report",
-                "author": "agent",
-                "revision": files_model.latest_revision(page_dir),
-                "widget": "b1",
-                "action": "flag",
-                "detail": {"value": cards},
-            },
-        )
-
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + _board([X, Y], []))
-    )
-    publish(page_dir)
-    report(["card-x"])
-
-    (page_dir / "index.html").write_text(
-        PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + _board([Y], []))
-    )
-
-    standing = check(page_dir)
-    assert standing.exit_code == 1
-    assert "protected ids" in standing.output and '"card-x"' in standing.output
-
-    # A newer report at the same coordinate is the state that stands now.
-    report(["card-y"])
-    superseded = check(page_dir)
-    assert superseded.exit_code == 0, superseded.output
-    assert 'ids dropped from revision r1: ["card-x"]' in superseded.output
-
-
-def test_a_version_may_not_quietly_rewrite_what_the_user_decided(page_dir):
-    """The runtime replays a recorded action onto every later version, so the
-    user's edit stands over whatever v2's markup says about that widget.
-    Which makes a rewritten widget a version talking to nobody — its new words
-    could never reach the user. `restated` is how a version says it means to
-    take the decision back, and this is the gate that makes it say so."""
-    v2 = _decided(page_dir, "Ship the flag dark, then backfill.")
-    assert check(page_dir).exit_code == 0
-
-    # Re-emitting what v1 said is the ordinary republish, and costs nothing:
-    # the user's edit is already on screen over it.
-    v2("Ship the flag dark, then backfill.")
-    assert check(page_dir).exit_code == 0, "a republish that changes nothing must pass"
-
-    # Writing their own words back is the other quiet case, and the commoner
-    # one: the version agrees with the edit rather than overruling it. A gate
-    # that fired here would fire on almost every version an author writes, and
-    # a gate that fires on correct work is one they learn to silence.
-    v2("Cut the flag; backfill first.")
-    assert check(page_dir).exit_code == 0, "honoring an edit must pass"
-
-    # Rewriting the words under the edit is the case that needs a decision.
-    v2("Ship the flag dark, then backfill. Roll back with one flag.")
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "its words changed" in result.output
-    assert "edit on r1" in result.output
-    assert "restated" in result.output
-
-    # Said out loud, the same version publishes.
-    v2("Ship the flag dark, then backfill. Roll back with one flag.", attrs=" restated")
-    assert check(page_dir).exit_code == 0, "a restated rewrite is allowed"
-
-
-def test_restating_on_the_first_version_is_refused(page_dir):
-    """There is nothing before v1 to take back, so `restated` there can only be
-    a misreading of what the word does — and one that would record a retraction
-    of nothing into the log."""
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2><lf-draft id="d1" restated><pre>Words.</pre></lf-draft>',
-        )
-    )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "nothing to retract" in result.output
-    assert "recorded nothing on it" in result.output
-
-
-def test_restating_a_widget_that_kept_its_words_is_refused(page_dir):
-    """`restated` discards what the user recorded, so a version may only
-    spend it where there is a rewrite to justify it. Unpoliced, it is the one
-    word that turns the gate back into the silence it replaced."""
-    v2 = _decided(page_dir, "Ship the flag dark, then backfill.")
-    v2("Ship the flag dark, then backfill.", attrs=" restated")
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "nothing to retract" in result.output
-    assert "unchanged since r1" in result.output
+    assert reworded.exit_code == 0, reworded.output
 
 
 def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch):
@@ -3017,43 +2729,6 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     assert printed == events_model.read_events(page_dir)[-1]
 
 
-def test_a_version_may_not_quietly_contradict_a_standing_report(page_dir):
-    """A report is provisional news with the reviewer precedence reversed:
-    silence leaves it painting, writing the reported state absorbs it, and a
-    version that writes something else must say so with `overruled` — the gate
-    refuses the silent contradiction, which would otherwise drop a worker's
-    news without anyone adjudicating it."""
-    _tasks_version(page_dir, "active")
-    publish(page_dir)
-    assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
-
-    # Unchanged markup leaves the report provisional without a copying warning.
-    _tasks_version(page_dir, "active")
-    silent = check(page_dir)
-    assert silent.exit_code == 0
-    assert "record behind the log" not in silent.output
-    assert state_json(page_dir)["updates"][0]["disposition"] == "effective"
-
-    # Honoring: writing the reported state.
-    _tasks_version(page_dir, "review")
-    assert check(page_dir).exit_code == 0, "honoring a report must pass"
-
-    # Contradiction, unnamed: refused, naming the report and both states.
-    _tasks_version(page_dir, "done")
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "contradicts a standing report" in result.output
-    assert '"done"' in result.output and '"review"' in result.output
-    assert "overruled" in result.output
-
-    # Said out loud, the same version publishes — including back to the state
-    # the report tried to move (rejecting the news without changing the page).
-    _tasks_version(page_dir, "done", " overruled")
-    assert check(page_dir).exit_code == 0
-    _tasks_version(page_dir, "active", " overruled")
-    assert check(page_dir).exit_code == 0
-
-
 def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_dir):
     """One durable relation ends both kinds of provisional agent information.
     Its typed targets keep report-event ids and widget-work ids distinct without
@@ -3098,12 +2773,10 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
     add_board()
     assert check(page_dir).exit_code == 0
 
-    # And a repeated `overruled` after the answer is the carried-forward
-    # attribute, refused the way a repeated `restated` is.
+    # Carrying an explicit transition attribute forward does not block edits.
     _tasks_version(page_dir, "done", " overruled")
     stale = check(page_dir)
-    assert stale.exit_code == 1
-    assert "r2 already answered" in stale.output
+    assert stale.exit_code == 0, stale.output
 
     # Reusing older source creates a new revision and the next public stamp. If
     # those current bytes state the reported value, that new stamp absorbs it.
@@ -3178,326 +2851,16 @@ def test_stamp_and_report_choose_one_log_order(page_dir, monkeypatch):
 
 
 def test_absorption_is_by_id_never_inferred_from_markup(page_dir):
-    """The bug put back: a v2 that writes the reported state but whose note
-    names no report ids (the shape a hand-built note has) leaves the report
-    standing, so a v3 that moves the state again is refused. Without the
-    id-explicit record the gate would infer absorption from v2's markup and let
-    the report die silently."""
+    """Editing a report's target preserves its recorded news until settlement."""
     _tasks_version(page_dir, "active")
     publish(page_dir)
     assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
     _tasks_version(page_dir, "review")
-    publish(page_dir, version=2)  # a bare note: honoring markup, nothing named
-
+    publish(page_dir, version=2)
     _tasks_version(page_dir, "done")
     result = check(page_dir)
-    assert result.exit_code == 1
-    assert "contradicts a standing report" in result.output
-
-
-def test_an_unearned_overruled_is_refused(page_dir):
-    """`overruled` discards a worker's news, so a version may only spend it
-    where a disagreement justifies it — agreeing with the report, or wearing it
-    with no report standing, is the reflex that would hollow the gate out."""
-    _tasks_version(page_dir, "active")
-    publish(page_dir)
-
-    # Nothing standing at all.
-    _tasks_version(page_dir, "active", " overruled")
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "nothing to overrule" in result.output
-
-    # Standing, but the markup writes the reported state: that is absorption.
-    assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
-    _tasks_version(page_dir, "review", " overruled")
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "writes the reported state" in result.output
-
-
-def test_an_effective_report_protects_its_unit_until_a_stamp_settles_it(page_dir):
-    """An effective report keeps its unit addressable until a stamp settles it."""
-    _tasks_version(page_dir, "active")
-    publish(page_dir)
-    assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
-
-    (page_dir / "index.html").write_text(PAGE)
-    standing = check(page_dir)
-    assert standing.exit_code == 1
-    assert "protected ids" in standing.output and '"t-parser"' in standing.output
-    assert _remedies(standing.output) == {"report"}
-    assert 'ids dropped from revision r1: ["tree"]' in standing.output
-
-    _tasks_version(page_dir, "review")
-    settled = stamp(page_dir, "absorb the report")
-    assert settled.exit_code == 0, settled.output
-    (page_dir / "index.html").write_text(PAGE)
-
-    dropped = check(page_dir)
-    assert dropped.exit_code == 0, dropped.output
-    assert 'ids dropped from revision r2: ["t-parser", "tree"]' in dropped.output
-
-
-def test_the_gate_asks_about_the_card_that_was_moved_and_not_the_board(page_dir):
-    """A `move` names the board, but what the user decided about is the card:
-    where it belongs. Holding the version to the board's whole contents would
-    refuse it for editing an untouched card or adding a new one — a rule that
-    fires on innocent versions is one authors learn to silence.
-
-    So the subject is the card, and `restated` on it retracts that card's moves
-    alone. The rest of the board stays where the user put it, which is what
-    keeps a typo fix from costing them an afternoon's arrangement."""
-
-    def write(todo, done):
-        (page_dir / "index.html").write_text(
-            PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + _board(todo, done))
-        )
-
-    write([X, Y], [])
-    publish(page_dir)
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "b1",
-            "action": "move",
-            "detail": {"unit": "card-x", "value": "c-done", "rank": "0i"},
-        },
-    )
-    assert check(page_dir).exit_code == 0
-
-    # The moved card written where the user put it, an untouched card rewritten.
-    write([("card-y", "", "Wire the importer and its backfill")], [X])
-    assert check(page_dir).exit_code == 0, (
-        "an untouched card is not the gate's business"
-    )
-
-    # The moved card left where the previous version had it: the move's column is
-    # authored as before, so the move still lands where the user dropped it.
-    write([X, ("card-y", "", "Wire the importer and its backfill")], [])
-    assert check(page_dir).exit_code == 0
-
-    # A card added to the move's column changes what the rank lies among, so the
-    # version writes the moved card too.
-    write([X, Y], [("card-z", "", "Cut over")])
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "card-x" in result.output and "card-y" not in result.output
-
-    # The moved card's own words rewritten: now the decision is in question.
-    write([("card-x", "", "Guard the delete behind the flag"), Y], [])
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "card-x" in result.output and "move on r1" in result.output
-    assert "card-y" not in result.output, (
-        "the gate named a card nobody had decided about"
-    )
-
-    write([("card-x", " restated", "Guard the delete behind the flag"), Y], [])
-    assert check(page_dir).exit_code == 0
-
-    # And the board itself never takes the attribute: every move names a card, so
-    # a board is never what a decision rests on, and offering `restated` there
-    # would be a door onto an error message about retracting nothing.
-    (page_dir / "index.html").write_text(
-        (page_dir / "index.html")
-        .read_text()
-        .replace('<lf-board id="b1">', '<lf-board id="b1" restated>')
-    )
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "restated" in result.output and "lf-board" in result.output
-
-
-def test_the_gate_reads_a_pick_the_same_way_it_reads_an_edit(page_dir):
-    """The rule was built on drafts and boards; a pick is the case it was not
-    built on. It lands the same way because nothing in it is per-widget: the
-    subject is what the detail names, so a pick rests on the option picked. What
-    the other options say is then free to change, and marking the pick `chosen`
-    — the one thing every version does after a pick — says nothing, so it is
-    invisible to the comparison.
-
-    A chip is content rather than a mark, so writing one onto a picked option is
-    changing what they picked and lands in the same comparison its prose does.
-    The gate reads the version the way the anchor pass does, which is what keeps
-    that true without anything here knowing a chip from a paragraph."""
-
-    def write(**kw):
-        opts = OPTIONS.format(
-            **{
-                "a": "",
-                "b": "",
-                "chip": "",
-                "shim": "Fastest to ship.",
-                "stage": "Table by table.",
-                **kw,
-            }
-        )
-        (page_dir / "index.html").write_text(
-            PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
-        )
-
-    write()
-    publish(page_dir)
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "g1",
-            "action": "choose",
-            "detail": {"value": ["o-shim"]},
-        },
-    )
-    assert check(page_dir).exit_code == 0
-
-    # A version may also incorporate the standing pick into authored markup.
-    write(a=" chosen")
-    assert check(page_dir).exit_code == 0, "marking the pick is not a rewrite"
-
-    # An option nobody picked, rewritten freely.
-    write(a=" chosen", stage="One table at a time, behind a flag.")
-    assert check(page_dir).exit_code == 0, "an unpicked option is free to change"
-
-    # The picked one, rewritten — the user chose those words.
-    write(a=" chosen", shim="Fastest to ship, and we own the shim forever.")
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "o-shim" in result.output and "choose on r1" in result.output
-
-    write(a=" chosen restated", shim="Fastest to ship, and we own the shim forever.")
-    assert check(page_dir).exit_code == 0
-
-    # A chip is a word on the page: one appearing on the option they picked reads
-    # to them as the option changing, and is caught the same way its prose is.
-    write(a=" chosen", chip="<lf-chip>effort: high</lf-chip>")
-    result = check(page_dir)
-    assert result.exit_code == 1, "a chip is words the user read"
-    assert "o-shim" in result.output
-
-    write(a=" chosen restated", chip="<lf-chip>effort: high</lf-chip>")
-    assert check(page_dir).exit_code == 0
-
-    # A later pick on the same coordinate releases the old option's words.
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "g1",
-            "action": "choose",
-            "detail": {"value": ["o-stage"]},
-        },
-    )
-    write(b=" chosen", shim="The shim now has a bounded removal date.")
-    assert check(page_dir).exit_code == 0
-
-
-def test_a_later_pick_keeps_a_user_added_option_live(page_dir):
-    """An option the user added survives without authored markup.
-    Its ``add`` stands on its own coordinate, so a later pick of a different
-    option leaves it live, and once a version carries it, removing or silently
-    rewriting it is refused until a version explicitly retracts it."""
-
-    added = "g1-option-user-route"
-
-    def write(*, added_words="Use the user's _route_.", attrs="", pick=" chosen"):
-        opts = OPTIONS.format(
-            a="",
-            b=pick,
-            chip="",
-            shim="Fastest to ship.",
-            stage="Table by table.",
-        )
-        if added_words is not None:
-            opts = opts.replace(
-                "</lf-options>",
-                f'<lf-option id="{added}"{attrs}>{added_words}</lf-option>'
-                "</lf-options>",
-            )
-        (page_dir / "index.html").write_text(
-            PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
-        )
-
-    write(added_words=None, pick="")
-    publish(page_dir)
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "g1",
-            "action": "add",
-            "detail": {"option": added, "text": "Use the user's _route_."},
-        },
-    )
-    for options in ([added], ["o-stage"]):
-        append_command(
-            page_dir,
-            {
-                "kind": "action",
-                "author": "user",
-                "revision": 1,
-                "widget": "g1",
-                "action": "choose",
-                "detail": {"value": options},
-            },
-        )
-
-    # The later pick superseded the selection and left the added option standing.
-    standing = {
-        entry["action"]: entry["detail"] for entry in state_json(page_dir)["state"]
-    }
-    assert standing == {
-        "add": {"option": added, "text": "Use the user's _route_."},
-        "choose": {"value": ["o-stage"]},
-    }
-    write(added_words=None)
-    unchanged = check(page_dir)
-    assert unchanged.exit_code == 0, unchanged.output
-
-    # Reusing the id elsewhere is not carrying the generated option. Neither an
-    # ordinary element elsewhere in the document nor a nested element inside the
-    # group is the direct option unit the action says this widget owns.
-    misplaced_markup = (
-        ("</main>", f'<p id="{added}">Use the user\'s route.</p></main>'),
-        (
-            "</lf-options>",
-            f'<span id="{added}">Use the user\'s route.</span></lf-options>',
-        ),
-    )
-    for needle, replacement in misplaced_markup:
-        write(added_words=None)
-        source = page_dir / "index.html"
-        source.write_text(source.read_text().replace(needle, replacement))
-        misplaced = check(page_dir)
-        assert misplaced.exit_code == 1
-        assert "direct children of their sending widgets" in misplaced.output
-        assert added in misplaced.output
-
-    write()
-    carried = check(page_dir)
-    assert carried.exit_code == 0, carried.output
-
-    write(added_words="Use a rewritten route.")
-    rewritten = check(page_dir)
-    assert rewritten.exit_code == 1
-    assert added in rewritten.output and "add on r1" in rewritten.output
-
-    write(added_words="Use a rewritten route.", attrs=" restated")
-    assert check(page_dir).exit_code == 0
-    assert stamp(page_dir, "replace the user-added option").exit_code == 0
-
-    write(added_words=None)
-    released = check(page_dir)
-    assert released.exit_code == 0, released.output
-    assert f'ids dropped from revision r2: ["{added}"]' in released.output
+    assert result.exit_code == 0, result.output
+    assert state_json(page_dir)["updates"][0]["disposition"] == "effective"
 
 
 def test_user_added_words_do_not_become_liveness_coordinates(page_dir):
@@ -3557,108 +2920,6 @@ def test_user_added_words_do_not_become_liveness_coordinates(page_dir):
     write("The shim now has a bounded removal date.")
     result = check(page_dir)
     assert result.exit_code == 0, result.output
-
-
-def test_a_cleared_pick_rests_on_the_group_that_holds_it(page_dir):
-    """Clearing a pick names no option (`{"options": []}`), so there is no part
-    of the widget for the decision to rest on and it rests on the group. That
-    falls out of the subject rule rather than being written for this case — which
-    is why the group takes `restated` and a board, whose every move names a card,
-    does not."""
-
-    def write(shim="Fastest to ship.", attrs=""):
-        opts = OPTIONS.format(a="", b="", chip="", shim=shim, stage="Table by table.")
-        (page_dir / "index.html").write_text(
-            PAGE.replace(
-                "<h2>Plan</h2>",
-                "<h2>Plan</h2>"
-                + opts.replace(
-                    '<lf-options id="g1" choose>', f'<lf-options id="g1" choose{attrs}>'
-                ),
-            )
-        )
-
-    write()
-    publish(page_dir)
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "g1",
-            "action": "choose",
-            "detail": {"value": []},
-        },
-    )
-    write(shim="Fastest to ship, and we own the shim forever.")
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "lf-options id='g1'" in result.output
-
-    write(shim="Fastest to ship, and we own the shim forever.", attrs=" restated")
-    assert check(page_dir).exit_code == 0
-
-
-def test_a_version_may_not_quietly_move_the_pick(page_dir):
-    """The words gate can't see `chosen` — the attribute says nothing — so this
-    is the state gate's own case: a version marking a different option than the
-    user picked is overruling them as surely as a rewrite is, and says so
-    with the group's `restated` or not at all. After the retraction the state is
-    the author's again: the next version moves the pick freely, because a unit
-    with no surviving folded action is exempt — that exemption is what keeps
-    the retract-and-decision-again flow from deadlocking one version later."""
-
-    def write(a="", b="", attrs="", shim="Fastest to ship."):
-        opts = OPTIONS.format(a=a, b=b, chip="", shim=shim, stage="Table by table.")
-        (page_dir / "index.html").write_text(
-            PAGE.replace(
-                "<h2>Plan</h2>",
-                "<h2>Plan</h2>"
-                + opts.replace(
-                    '<lf-options id="g1" choose>', f'<lf-options id="g1" choose{attrs}>'
-                ),
-            )
-        )
-
-    write()
-    publish(page_dir)
-    append_command(
-        page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "g1",
-            "action": "choose",
-            "detail": {"value": ["o-shim"]},
-        },
-    )
-
-    # The author's markup contradicting the recorded pick, words untouched.
-    write(b=" chosen")
-    result = check(page_dir)
-    assert result.exit_code == 1
-    assert "its state changed" in result.output
-    assert '"o-stage"' in result.output and '"o-shim"' in result.output
-
-    # Said out loud — on the group, the unit the fold keys the pick by.
-    write(b=" chosen", attrs=" restated")
-    assert check(page_dir).exit_code == 0, check(page_dir).output
-    result = stamp(page_dir, "moved the default")
-    assert result.exit_code == 0, result.output
-
-    # The retraction handed the state back: v3 owns it, no ritual to repeat.
-    write(a=" chosen")
-    assert check(page_dir).exit_code == 0, check(page_dir).output
-
-    # And the words gate agrees the pick is dead: the group's retraction floors
-    # everything resting inside it, so rewriting the once-picked option's words
-    # is free — one key space for liveness, or the gate would demand a second
-    # `restated` for a decision the browser already dropped.
-    publish(page_dir, 3)
-    write(a=" chosen", shim="Fastest to ship, and the shim is ours to keep.")
-    assert check(page_dir).exit_code == 0, check(page_dir).output
 
 
 def test_user_state_survives_without_source_copying(page_dir):
@@ -4206,10 +3467,9 @@ def test_data_set_reads_a_structured_value_from_a_file(page_dir, tmp_path):
     }
 
 
-def test_a_page_source_can_be_shared_but_cannot_change_contract_silently(page_dir):
-    """The page owns concrete source identity. Seats may share one typed feed, while
-    binding that id to a different meaning is refused before either the browser or a
-    producer can reinterpret its standing value."""
+def test_a_page_source_can_be_shared_but_needs_one_simultaneous_contract(page_dir):
+    """One document cannot tell two consuming widgets to read different contracts
+    from the same current source value."""
     declare_data_input(
         page_dir,
         "project-feed",
@@ -4261,19 +3521,22 @@ def test_a_page_source_can_be_shared_but_cannot_change_contract_silently(page_di
     assert reading["active"]["revision"] == 1
 
 
-def test_clearing_a_value_does_not_let_a_later_version_reuse_its_source(page_dir):
-    """Pinned versions share the page's current data store. Clearing removes a value,
-    not the meaning of the source id that a stamped version still consumes."""
+@pytest.mark.parametrize("clear", [False, True])
+def test_a_later_version_can_reuse_a_source(page_dir, clear):
+    """A changed binding replaces the index's contract and value in one write.
+    Captured old versions retain their own declaration and cannot accept new payloads.
+    """
     declare_data_input(page_dir, "project-feed", {"type": "array"}, contract="rows")
     publish(page_dir)
     data_model.cmd_data_set(page_dir, "project-feed", [])
-    data_model.cmd_data_clear(page_dir, "project-feed")
+    if clear:
+        data_model.cmd_data_clear(page_dir, "project-feed")
 
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["$data"]["contracts"]["other-rows"] = {
         "description": "Another meaning.",
-        "schema": {"type": "array"},
+        "schema": {"type": "object"},
     }
     registry["lf-other-data"] = {
         **registry["lf-test-data"],
@@ -4285,13 +3548,29 @@ def test_clearing_a_value_does_not_let_a_later_version_reuse_its_source(page_dir
     (page_dir / "index.html").write_text(first.replace("lf-test-data", "lf-other-data"))
 
     result = check(page_dir)
-    assert result.exit_code != 0
-    assert "use a new source id for the new meaning" in result.output
+    assert result.exit_code == 0, result.output
+    old_registry = data_contracts_model.read_revision(page_dir, 1).registry
+    with pytest.raises(data_model.DataError, match="value is invalid"):
+        data_model.cmd_data_set(page_dir, "project-feed", [])
+    assert data_model.read_contracts(page_dir) == {"project-feed": "rows"}
+    stored = data_model.source_file(page_dir, "project-feed")
+    assert not stored.exists() if clear else json.loads(stored.read_text()) == []
+    data_model.cmd_data_set(page_dir, "project-feed", {"ready": True})
+    assert data_model.read_contracts(page_dir) == {"project-feed": "other-rows"}
+    assert read_page_data(page_dir)["sources"]["project-feed"]["value"] == {
+        "ready": True
+    }
+    historical = data_model.read_data(page_dir, old_registry)["sources"]["project-feed"]
+    assert "error" in historical and "value" not in historical
+    publish(page_dir, version=2)
+    assert (
+        state_json(page_dir)["data_bindings"]["project-feed"]["contract"]
+        == "other-rows"
+    )
 
 
-def test_clear_keeps_source_identity_without_an_immutable_document(page_dir):
-    """A mutable-only bootstrap can be cleared before its first reviewed version.
-    The contract data.json recorded still prevents the source id changing meaning."""
+def test_a_source_can_change_contract_without_an_immutable_document(page_dir):
+    """The mutable-only bootstrap and a published page use the same write boundary."""
     declare_data_input(page_dir, "project-feed", {"type": "array"}, contract="rows")
     data_model.cmd_data_set(page_dir, "project-feed", [])
     data_model.cmd_data_clear(page_dir, "project-feed")
@@ -4307,12 +3586,9 @@ def test_clear_keeps_source_identity_without_an_immutable_document(page_dir):
     registry["lf-test-data"]["x-data"]["data"]["contract"] = "other-rows"
     registry_path.write_text(json.dumps(registry))
 
-    with pytest.raises(
-        data_contracts_model.DataError, match="use a new source id for the new meaning"
-    ):
-        data_model.cmd_data_set(page_dir, "project-feed", [])
-    assert data_model.read_contracts(page_dir) == {"project-feed": "rows"}
-    assert not data_model.source_file(page_dir, "project-feed").exists()
+    data_model.cmd_data_set(page_dir, "project-feed", [])
+    assert data_model.read_contracts(page_dir) == {"project-feed": "other-rows"}
+    assert data_model.source_file(page_dir, "project-feed").exists()
 
 
 def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
@@ -4359,13 +3635,18 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
     ]
 
 
-def test_thread_markup_cannot_rebind_a_page_source(page_dir):
-    declare_data_input(page_dir, "project-feed", {"type": "array"}, contract="rows")
+def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
+    """A later frozen thread does not redirect the active page's producer contract.
+    Its incompatible reading cannot become the page's valid payload.
+    """
+    declare_data_input(
+        page_dir, "project-feed", {"type": "array"}, contract="rows", activate=False
+    )
     registry_path = page_dir / "registry.json"
     registry = json.loads(registry_path.read_text())
     registry["$data"]["contracts"]["other-rows"] = {
         "description": "Another meaning.",
-        "schema": {"type": "array"},
+        "schema": {"type": "object"},
     }
     registry["lf-other-data"] = {
         **registry["lf-test-data"],
@@ -4385,21 +3666,48 @@ def test_thread_markup_cannot_rebind_a_page_source(page_dir):
         },
     )
 
-    with pytest.raises(SystemExit, match="use a new source id for the new meaning"):
-        thread_model.post_reply(
-            page_dir,
-            "data-question",
-            "Here it is.",
-            '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
-            for_event="data-question",
-        )
+    reply = thread_model.post_reply(
+        page_dir,
+        "data-question",
+        "Here it is.",
+        '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
+        for_event="data-question",
+    )
+
+    assert (
+        reply["markup"]
+        == '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>'
+    )
+
+    binding = state_json(page_dir)["data_bindings"]["project-feed"]
+    assert binding == {
+        "contract": "rows",
+        "consumers": [
+            {"widget": "test-data", "input": "data", "document": "revision r1"}
+        ],
+    }
+    data_model.cmd_data_set(page_dir, "project-feed", ["active page"])
+    assert data_model.read_contracts(page_dir)["project-feed"] == "rows"
+    active = read_page_data(page_dir)["sources"]["project-feed"]
+    assert active["contract"] == "rows" and active["value"] == ["active page"]
+    captured = artifact_model.read_revision(page_dir, reply["revision"]).registry
+    thread_bindings, _seats, errors = data_contracts_model.declared_data_bindings(
+        structure_model.SourceDocument(reply["markup"]).lf_elements, captured
+    )
+    assert errors == [] and thread_bindings == {"project-feed": "other-rows"}
+    frozen = data_model.read_source(
+        page_dir, "project-feed", thread_bindings["project-feed"], captured
+    )
+    assert "error" in frozen and "value" not in frozen
+    with pytest.raises(data_model.DataError, match="value is invalid"):
+        data_model.cmd_data_set(page_dir, "project-feed", {"thread": "wrong producer"})
+    assert read_page_data(page_dir)["sources"]["project-feed"] == active
 
 
-def test_thread_markup_cannot_rebind_a_draft_only_page_source(page_dir):
-    """The mutable source participates in the page currently being authored even before
-    its binding reaches an immutable revision. A reply becomes immutable immediately, so
-    admitting a different meaning there would leave set, clear, and source check reading
-    a conflict the reply door itself allowed."""
+def test_thread_markup_can_use_a_different_binding_from_a_draft_only_page_source(
+    page_dir,
+):
+    """Independent documents retain their own binding declarations."""
     declare_data_input(
         page_dir, "project-feed", {"type": "array"}, contract="rows", activate=False
     )
@@ -4441,14 +3749,13 @@ def test_thread_markup_cannot_rebind_a_draft_only_page_source(page_dir):
         },
     )
 
-    with pytest.raises(SystemExit, match="use a new source id for the new meaning"):
-        thread_model.post_reply(
-            page_dir,
-            "draft-data-question",
-            "Here it is.",
-            '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
-            for_event="draft-data-question",
-        )
+    thread_model.post_reply(
+        page_dir,
+        "draft-data-question",
+        "Here it is.",
+        '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
+        for_event="draft-data-question",
+    )
 
 
 def test_data_set_validates_the_json_value_it_writes(page_dir):
@@ -5457,7 +4764,7 @@ def test_a_crlf_source_rechecked_unchanged_is_the_active_revision(page_dir):
     assert activated.error is None, activated.error
     events = events_model.read_events(page_dir)
     with fresh_process():
-        checked = check_source(page_dir, events, allow_transition=False)
+        checked = check_source(page_dir, events)
         data = (page_dir / "index.html").read_bytes()
         assert b"\r\n" in data
         reading = artifact_model.read_revision(page_dir, activated.revision)
@@ -5491,7 +4798,9 @@ def test_an_activated_revision_adopts_the_reading_its_check_took(page_dir, monke
     assert reading.document.data == marker.read_bytes()
     assert b"\r\n" in reading.document.data
     assert reading.spoken
-    assert walks == []
+    assert len(walks) == 1
+    assert reading.spoken
+    assert len(walks) == 1
 
 
 def test_held_revision_readings_stay_within_their_source_budget(page_dir, monkeypatch):
@@ -5577,6 +4886,8 @@ def test_a_reading_under_outcomes_is_the_walk_under_them():
 
 
 def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_log():
+    from leaf.registry.contract import state_definition
+
     registry = {
         "lf-draft": {
             "x-upgrade": True,
@@ -5606,6 +4917,11 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
                 "depends": [identity],
                 "answer": None,
                 "scope": "page",
+                "state": state_definition(
+                    "lf-draft",
+                    registry["lf-draft"],
+                    registry["lf-draft"]["x-state"]["edit"],
+                ),
             },
             "seq": seq,
         }
@@ -5674,6 +4990,11 @@ def test_projected_verbatim_includes_generated_children():
         "seq": 1,
     }
 
+    from leaf.registry.contract import state_definition
+
+    event["meaning"]["state"] = state_definition(
+        "lf-list", registry["lf-list"], registry["lf-list"]["x-state"]["add"]
+    )
     expected = render_gate_readings._expected_verbatim(
         markup, [event], registry, here=1
     )
@@ -5689,3 +5010,137 @@ def test_a_unified_diff_capture_refuses_a_line_range(tmp_path):
     with pytest.raises(ValueError, match="takes the whole patch"):
         captured_value(source, {"format": "unified-diff", "lines": "1:2"})
     assert captured_value(source, {"lines": "2:3"}) == "two\nthree\n"
+
+
+def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
+    page_dir,
+):
+    """Edits remain free while the original user action keeps its recorded meaning."""
+    live = OPTIONS.format(a="", b="", chip="", shim="Fastest to ship.", stage="Two.")
+    source = page_dir / "index.html"
+    source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live))
+    publish(page_dir)
+    picked = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "g1",
+            "action": "choose",
+            "detail": {"value": ["o-shim"]},
+        },
+    )
+    edited = live.replace(
+        "Fastest to ship.", "A revised recommendation. <lf-chip>Recommended</lf-chip>"
+    ).replace('id="o-stage"', 'id="o-stage" chosen')
+    source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + edited))
+    assert stamp(page_dir, "revise recommendation").exit_code == 0
+    [standing] = [
+        item for item in state_json(page_dir)["state"] if item["action"] == "choose"
+    ]
+    assert standing["detail"] == {"value": ["o-shim"]}
+    source.write_text(PAGE)
+    assert stamp(page_dir, "retire answered ask").exit_code == 0
+    assert picked in events_model.read_events(page_dir)
+    assert not any(
+        event.get("restated") for event in events_model.read_events(page_dir)
+    )
+
+
+def test_revisions_change_edited_drafts_without_retracting_the_user_edit(page_dir):
+    v2 = _decided(page_dir, "Ship the flag dark, then backfill.")
+    v2("A new authored draft.")
+    assert stamp(page_dir, "revise draft").exit_code == 0
+    [edit] = [
+        item for item in state_json(page_dir)["state"] if item["action"] == "edit"
+    ]
+    assert edit["detail"] == {"value": "Cut the flag; backfill first."}
+    v2("Another authored draft.", attrs=" restated")
+    assert stamp(page_dir, "explicitly retract edit").exit_code == 0
+    assert not [
+        item for item in state_json(page_dir)["state"] if item["action"] == "edit"
+    ]
+
+
+def test_revisions_can_move_rewrite_or_remove_authored_generated_children(page_dir):
+    added = "g1-option-user-route"
+    live = OPTIONS.format(a="", b="", chip="", shim="Fastest to ship.", stage="Two.")
+    source = page_dir / "index.html"
+    source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live))
+    publish(page_dir)
+    event = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "g1",
+            "action": "add",
+            "detail": {"option": added, "text": "My route."},
+        },
+    )
+    for authored in (
+        live.replace(
+            "</lf-options>",
+            f'<lf-option id="{added}">Revised route.</lf-option></lf-options>',
+        ),
+        live + f'<p id="{added}">Relocated explanation.</p>',
+        live,
+    ):
+        source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + authored))
+        checked = check_source(page_dir, events_model.read_events(page_dir))
+        assert checked.errors == []
+        assert stamp(page_dir, "revise generated child").exit_code == 0
+        assert event in events_model.read_events(page_dir)
+
+
+def test_transition_attributes_do_not_require_earned_or_first_version_retractions(
+    page_dir,
+):
+    source = page_dir / "index.html"
+    source.write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            '<h2>Plan</h2><lf-draft id="d1" restated><pre>Words.</pre></lf-draft>',
+        )
+    )
+    for _ in range(2):
+        checked = check_source(page_dir, events_model.read_events(page_dir))
+        assert checked.errors == []
+        assert stamp(page_dir, "explicit declaration").exit_code == 0
+        source.write_text(source.read_text().replace("Words.", "New words."))
+    _tasks_version(page_dir, "active", " overruled")
+    checked = check_source(page_dir, events_model.read_events(page_dir))
+    assert checked.errors == []
+
+
+def test_revisions_drop_anchored_sections_and_relocate_lost_visual_parts(page_dir):
+    source = page_dir / "index.html"
+    source.write_text(
+        PAGE.replace(
+            '<lf-diagram id="flow">', '<lf-diagram id="flow" parts="node:A node:B">'
+        )
+    )
+    publish(page_dir)
+    root = append_command(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "flow", "visual": "node:A"},
+            "text": "Explain this node.",
+        },
+    )
+    source.write_text(
+        source.read_text().replace('parts="node:A node:B"', 'parts="node:B"')
+    )
+    assert stamp(page_dir, "revise drawing").exit_code == 0
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["anchor"] == {"section": "flow"}
+    source.write_text(PAGE.replace('id="flow"', 'id="new-flow"'))
+    assert stamp(page_dir, "replace drawing").exit_code == 0
+    [thread] = state_json(page_dir)["threads"]
+    assert thread["anchor"] is None
+    assert root in events_model.read_events(page_dir)

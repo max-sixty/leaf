@@ -1711,13 +1711,13 @@ def test_resolved_thread_has_one_surface_and_reopens_from_its_title(
     thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
     summary = thread.locator(".lf-thread-summary")
     reopen = thread.get_by_role("button", name="Reopen", include_hidden=True)
-    page.locator(f'.lf-thread[data-id="{other}"] > .lf-thread-summary').click()
-    rendered(page)
-    expect(thread).not_to_have_attribute("open", "")
-    expect(reopen).to_be_hidden()
+    collapsed = page.locator(f'.lf-threads > .lf-thread[data-id="{other}"]')
+    expect(collapsed).not_to_have_attribute("open", "")
+    expect(
+        collapsed.get_by_role("button", name="Reopen", include_hidden=True)
+    ).to_be_hidden()
+    expect(thread).to_have_attribute("open", "")
     assert reopen.evaluate("button => button.parentElement.tagName") == "DETAILS"
-    summary.click()
-    summary.focus()
     rendered(page)
     image = Image.open(io.BytesIO(thread.screenshot())).convert("RGB")
     start = int(summary.bounding_box()["height"]) + 4

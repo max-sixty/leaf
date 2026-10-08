@@ -71,21 +71,22 @@ owning session:
 leaf page init <page>
 ```
 
-Init checks the incoming layer first; refusal leaves the page and server
-unchanged. An unchanged layer and serving payload preserve installed files and
-the running server without reloading open tabs. A layer, server-code, dependency,
-package selection, or installed-file change writes a new layer epoch, restarts a
-running server at its recorded URL and lifetime, and reloads open tabs. Page status
-is preserved, and a stopped server stays stopped. For a session service, init
-refuses a change while another live session owns it. If its previous session has ended, init leaves it stopped;
+Init validates incoming layer declarations and file destinations first; refusal
+leaves the page and server unchanged. An unchanged layer and serving payload
+preserve installed files and the running server without reloading open tabs.
+A layer, server-code, dependency, package selection, or installed-file change
+writes a new layer epoch, restarts a running server at its recorded URL and
+lifetime, and reloads open tabs. Page status is preserved, and a stopped server
+stays stopped. For a session service, init refuses a change while another live
+session owns it. If its previous session has ended, init leaves it stopped;
 serve it from the session that will now own it. An enabled standing service
 restarts independently of session ownership.
 
 Serving an older runtime refuses with the same init command. If restart fails,
 follow init's diagnostic; an enabled page's watcher also tries one revival.
-When an earlier page's vocabulary or log cannot work on the current Leaf,
-initialize a new directory and write the current page there, then hand over its
-new URL.
+Init reads the log under Leaf's kernel transport contract. If an earlier page's
+log cannot be read or the page misbehaves after an update, initialize a new
+directory, write the current page there, and hand over its new URL.
 
 ## Page lifetime
 

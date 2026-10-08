@@ -16,6 +16,7 @@ import { createLiveLeavesList } from "./live-leaves-list.js";
 import { bannerControlDoor, dismissBannerControls } from "./banner-toolbar.js";
 import { createQueueList, shownItems, walkStops } from "./queue-list.js";
 import { keeps } from "./keeps.js";
+import { pressIsKeyboardActivation } from "./pointer.js";
 import { registerReadingRegion } from "./reading-regions.js";
 // The left side holds one drawer at a time, selected by the shared auxiliary-surface owner.
 // Both stand over the page and take no room from it. The pages drawer covers the document
@@ -244,9 +245,11 @@ export function createDrawers({
       });
       drawer.btn.classList.add("lf-auxiliary-toggle");
       for (const door of drawer.entrances) {
-        door.onclick = () => {
+        door.onclick = (event) => {
           drawer.openedBy = door;
-          setOpenDrawer(drawerIsOpen(key) ? null : key);
+          setOpenDrawer(drawerIsOpen(key) ? null : key, {
+            focus: pressIsKeyboardActivation(event),
+          });
         };
         keeps(door, "aria-expanded", "false");
       }

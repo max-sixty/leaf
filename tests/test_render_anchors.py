@@ -6509,6 +6509,49 @@ def test_a_deferred_load_keeps_the_manifest_source_revision(browser, serve):
         "deferred app.py",
         "current": replacement,
     }
+    result = page.evaluate(
+        """async () => {
+          const {loadDeferred} = await window.__lfRuntimeImport('/runtime/widget-api.js');
+          const {acceptData, notifyDataSubscribers} = await window.__lfRuntimeImport('/runtime/data.js');
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+          const manifest = document.querySelector('#patch').manifestSnapshot;
+          const original = runtime.data;
+          const failures = [];
+          try {
+            for (const change of ['contract', 'validity']) {
+              const candidate = structuredClone(original);
+              candidate.version = change;
+              if (change === 'contract')
+                candidate.sources['review-patch'].contract = 'another-contract';
+              else {
+                delete candidate.sources['review-patch'].value;
+                candidate.sources['review-patch'].error = 'source is no longer valid';
+              }
+              acceptData(candidate, runtime.state.taken);
+              try {
+                await loadDeferred(manifest, 'app.py');
+                failures.push(null);
+              } catch (error) {
+                failures.push(error.message);
+              }
+            }
+          } finally {
+            acceptData(original, runtime.state.taken);
+            await notifyDataSubscribers();
+          }
+          return {revision: manifest.revision, failures};
+        }"""
+    )
+    assert (
+        result["failures"]
+        == [
+            (
+                f"source review-patch revision {result['revision']} changed before loading "
+                "deferred app.py"
+            )
+        ]
+        * 2
+    )
 
 
 def test_a_failed_deferred_hydration_waits_for_a_user_retry(browser, serve):

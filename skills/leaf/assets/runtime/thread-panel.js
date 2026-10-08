@@ -1,6 +1,7 @@
 /* Open, close, and toggle the thread panel. The panel must be shown before
  * synchronous thread reconciliation: hidden-surface geometry is zero. Opening
- * preserves the invoker's focus. A close by pointer hands focus to the surviving toggle
+ * preserves the invoker's focus beside it unless a keyboard activation requests entry.
+ * A close by pointer hands focus to the surviving toggle
  * when focus was inside. Layout receives no surface commands, and refreshThread is
  * supplied by the application so this owner never imports a presenter.
  *
@@ -95,7 +96,7 @@ export function createThreadPanelController({
     }
     const inlineThread = pressed ?? threadAtStanding();
     if (inlineThread) showThread(inlineThread, { focus: "thread" });
-    else setPanel(true);
+    else setPanel(true, { focus: pressIsKeyboardActivation(event) });
   };
   function mountThreadPanel() {
     if (mounted) return;

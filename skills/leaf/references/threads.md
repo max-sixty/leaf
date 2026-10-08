@@ -131,9 +131,9 @@ leaf response reply <answer.ref> --section <diagram-id> --part node:<source-id> 
 ```
 
 When the subject itself leaves the page, detach the thread instead of moving it onto
-nearby surviving content. A thread with no surviving section needs an explicit move
-or detachment before that revision can activate; the check names the thread and the
-reply that corrects it:
+nearby surviving content. Activation automatically detaches a thread with no
+surviving section. You can also detach it explicitly in the reply that reports
+the removal:
 
 ```bash
 leaf response reply <answer.ref> --detach --text "Removed this; the thread no longer has a page target."
@@ -197,7 +197,7 @@ A widget whose registry entry declares a local `x-awaits` is already an Ask, a t
 on the user, and keeps its thread "On you" while that Ask stands. Leaf refuses
 `--awaits` beside such markup; the widget's state is the one reading.
 
-Correct one of this session's sent messages without adding another turn:
+Correct an agent-authored message, including a predecessor's, without adding another turn:
 
 ```bash
 leaf thread edit <page> <comment-or-reply-id> --text "Corrected wording."

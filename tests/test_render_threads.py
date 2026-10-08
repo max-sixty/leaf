@@ -2574,6 +2574,8 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
         expect(viewer).to_be_visible()
         zoom = viewer.get_by_role("button", name="Zoom to actual size", exact=True)
         expect(zoom).to_be_enabled()
+        if not offline:
+            expect(zoom).to_have_attribute("aria-keyshortcuts", "z")
         expect(viewer.locator(".lf-media-viewer-caption")).to_have_text(
             "Release output after the fix."
         )
@@ -2590,6 +2592,21 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
         expect(viewer.locator("img.pswp__img")).to_have_css("width", "1800px")
         zoomed = viewer.locator("img.pswp__img").bounding_box()
         assert zoomed["width"] == pytest.approx(1800, abs=1)
+        if not offline and width == 1440:
+            page.keyboard.press("?")
+            page.keyboard.press("?")
+            help_dialog = page.get_by_role(
+                "dialog", name="Command reference", exact=True
+            )
+            expect(help_dialog).to_be_visible()
+            search = help_dialog.get_by_role("combobox", name="Search commands")
+            search.press("ArrowRight")
+            search.press_sequentially("z")
+            expect(search).to_have_value("z")
+            rendered(page)
+            assert viewer.locator("img.pswp__img").bounding_box() == zoomed
+            page.keyboard.press("Escape")
+            expect(help_dialog).to_be_hidden()
         page.keyboard.press("ArrowRight")
         panned = viewer.locator("img.pswp__img").bounding_box()
         assert panned["x"] < zoomed["x"]
@@ -2608,6 +2625,23 @@ def test_linked_images_zoom_and_return_to_the_report(browser, serve, tmp_path, o
         viewer.get_by_role("button", name="Close image preview", exact=True).click()
         expect(viewer).to_be_hidden()
         expect(image_link).to_be_focused()
+    # Even an image that initially fits at 100% can be enlarged by a wheel gesture.
+    # Its retained Fit command must remain available after that manipulation.
+    resized(page, 2200, 1600)
+    image_link.click()
+    expect(viewer.locator("img.pswp__img")).to_be_visible()
+    expect(
+        viewer.get_by_role("button", name="Zoom to actual size", exact=True)
+    ).to_be_disabled()
+    page.mouse.move(1100, 800)
+    page.keyboard.down("Control")
+    page.mouse.wheel(0, -300)
+    page.keyboard.up("Control")
+    fit = viewer.get_by_role("button", name="Fit image", exact=True)
+    expect(fit).to_be_enabled()
+    fit.click()
+    expect(viewer.locator("img.pswp__img")).to_have_css("width", "1800px")
+    page.keyboard.press("Escape")
     page.locator("#other").click()
     expect(page).to_have_url(re.compile(r"#context$"))
     expect(viewer).to_be_hidden()

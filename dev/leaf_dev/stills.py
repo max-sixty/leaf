@@ -122,7 +122,7 @@ def image_preview(page: Page) -> None:
     page.get_by_role("dialog", name="Image preview").wait_for(state="visible")
     page.wait_for_function("""() => {
       const zoom = document.querySelector('.lf-media-viewer-zoom');
-      return !zoom || !zoom.disabled;
+      return !zoom || zoom.getAttribute('aria-disabled') !== 'true';
     }""")
 
 

@@ -21,6 +21,7 @@ import { offlineInteractive, pageUrl, runtimeResource } from "./context.js";
 import { handBack } from "./focus.js";
 import { closeControl } from "./widget-elements.js";
 import { keys, paintKeys } from "./keyboard/scopes.js";
+import { nativeLayers } from "./keyboard/layer-stack.js";
 import { keeps, keepsText } from "./keeps.js";
 import { reducedMotion, FOLD_MS } from "./motion.js";
 
@@ -60,14 +61,11 @@ const viewerClose = closeControl({
   name: "Close image preview",
   title: "Close image preview (Esc)",
 });
-viewerClose.onclick = () => mediaViewer.close();
 
 const viewerZoom = document.createElement("button");
 viewerZoom.type = "button";
 viewerZoom.className = "lf-btn lf-media-viewer-zoom";
 viewerZoom.textContent = "100%";
-viewerZoom.disabled = true;
-viewerZoom.onclick = () => inspector?.toggleZoom();
 
 const stage = document.createElement("div");
 stage.className = "lf-media-viewer-stage";
@@ -126,7 +124,7 @@ keys(
       keys: ["Escape"],
       title: "close image",
       description: "Close image preview",
-      button: viewerClose,
+      control: viewerClose,
       run: () => mediaViewer.close(),
     },
     {
@@ -134,8 +132,15 @@ keys(
       keys: ["z"],
       title: "zoom / fit",
       description: "Toggle actual size and fitted image",
-      button: viewerZoom,
-      when: () => Boolean(inspector),
+      control: viewerZoom,
+      when: () => {
+        const slide = inspector?.currSlide;
+        return Boolean(
+          slide &&
+          (slide.zoomLevels.initial < 1 ||
+            Math.abs(slide.currZoomLevel - slide.zoomLevels.initial) > 0.01),
+        );
+      },
       run: () => inspector.toggleZoom(),
     },
     {
@@ -163,7 +168,6 @@ const open = (url, alt, from) => {
     caption,
     from.closest("figure")?.querySelector("figcaption")?.textContent || alt,
   );
-  viewerZoom.toggleAttribute("disabled", true);
   keepsText(viewerZoom, "100%");
   if (!mediaViewer.open) mediaViewer.showModal();
   viewerClose.focus({ preventScroll: true });
@@ -202,7 +206,17 @@ const open = (url, alt, from) => {
       });
       inspector = current;
       current.on("keydown", (event) => {
-        if (event.originalEvent.defaultPrevented) event.preventDefault();
+        // PhotoSwipe owns only native panning in the active viewer. Leaf owns zoom,
+        // cancellation and scopes; the browser owns Tab. Its document listener must
+        // never act behind a newer layer or reinterpret text typed there.
+        const key = event.originalEvent;
+        if (
+          key.defaultPrevented ||
+          !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(key.key) ||
+          nativeLayers().at(-1)?.root !== mediaViewer ||
+          !mediaViewer.contains(key.target)
+        )
+          event.preventDefault();
       });
       current.on("close", () => {
         if (mediaViewer.open) mediaViewer.close();
@@ -218,7 +232,6 @@ const open = (url, alt, from) => {
       // Modality belongs to the containing native dialog, not a second ARIA dialog.
       current.element.removeAttribute("role");
       current.element.removeAttribute("aria-modal");
-      viewerZoom.toggleAttribute("disabled", false);
       paintKeys();
     },
     (error) => {

@@ -479,6 +479,7 @@
     "additionalProperties": false,
     "x-content": "data",
     "x-upgrade": true,
+    "x-initial": "/vendor/lf-tree-initial.js",
     "x-example": "<lf-tree id=\"feeder-tree\"><pre>\nfeeders/\n  mount.py  +2 -2\n  schedule.py  +1\n  sites/\n    north.toml\n</pre></lf-tree>"
   },
   "lf-code": {

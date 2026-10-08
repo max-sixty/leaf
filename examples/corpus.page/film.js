@@ -1228,13 +1228,13 @@ export class Painter {
 
   // Parts are the things a viewer can point at: every commit, ref, worktree and hook
   // chip visible in this frame, keyed `kind:id`. Ghosts left by a rebase are not parts.
+  // Visibility comes from the frame, before ancestry highlighting dims other commits.
   parts() {
     const out = [];
     for (const [key, element] of this.pool) {
       const [layer, id] = key.split(":");
       const kind = PART_KIND[layer];
-      if (!kind || id.includes("~") || Number(element.getAttribute("opacity")) < 0.3)
-        continue;
+      if (!kind || id.includes("~") || this.world[`${layer}s`][id].o < 0.3) continue;
       out.push({
         id: `${kind}:${id}`,
         element,
@@ -1248,6 +1248,7 @@ export class Painter {
   paint(film, fr, focus = null) {
     this.seen = new Set();
     const { world } = fr;
+    this.world = world;
     const lit = focus ? lineage(world, focus) : null;
     const dim = (id, o) => (lit && !lit.has(id) ? o * 0.22 : o);
     keepsText(this.termTitle, `${film.scenario.worktree} — zsh`);

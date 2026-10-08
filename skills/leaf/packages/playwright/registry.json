@@ -421,7 +421,8 @@
         "trace-"
       ]
     },
-    "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"></lf-trace>"
+    "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"></lf-trace>",
+    "x-prepaint": "<p class=\"lf-trace-waiting\">Waiting for a Playwright recording.</p>"
   },
   "lf-trace-bookmark": {
     "description": "An authored, labeled jump to an exact captured image or action phase in its trace.",

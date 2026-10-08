@@ -702,7 +702,6 @@ def test_trace_bookmarks_jump_to_exact_evidence_in_page_flow(browser, serve):
         f"After · {api_elapsed:.3f} s"
     )
     assert phone.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    context.close()
 
 
 def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve):
@@ -763,7 +762,7 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
             assert max(values) - min(values) <= 1, frames
         expect(position).to_have_text(paused)
         play.tap() if touch else play.click()
-        expect(play).to_be_visible(timeout=15000)
+        expect(play).to_be_visible()
         expect(position).to_have_text(end)
         play.tap() if touch else play.click()
         expect(pause).to_be_visible()
@@ -833,7 +832,6 @@ def test_trace_transport_scrubs_plays_and_freezes_review_evidence(browser, serve
         rendered(user)
         expect(position).to_have_text(frozen)
         user.keyboard.press("Escape")
-        context.close()
 
 
 def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serve):
@@ -915,7 +913,7 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         play = widget.get_by_role("button", name="Play", exact=True)
         play.tap() if touch else play.click()
         expect(widget.get_by_role("button", name="Pause", exact=True)).to_be_visible()
-        expect(play).to_be_visible(timeout=15000)
+        expect(play).to_be_visible()
         rendered(user)
         samples = user.evaluate(
             "() => {watchInspection = false; return inspectionFrames}"
@@ -990,7 +988,6 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         timeline.press("End")
         rendered(user)
         assert user.evaluate("inspectionView()") == pytest.approx(fitted, abs=0.003)
-        context.close()
 
 
 def test_trace_zoom_and_pan_stay_within_the_fitted_recording(browser, serve):
@@ -1265,7 +1262,6 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     )
     expect(phone.locator(".lf-trace-bookmark-list")).to_be_visible()
     assert phone.evaluate("document.documentElement.scrollWidth <= innerWidth")
-    context.close()
 
 
 def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(

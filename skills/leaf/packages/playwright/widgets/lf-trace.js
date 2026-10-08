@@ -31,6 +31,7 @@
  * together; viewed and decoded pixels commit before the retired surface leaves. */
 import {
   commands,
+  declarationFor,
   dragging,
   cancelRender,
   cancelAnimation,
@@ -40,10 +41,12 @@ import {
   registerReadingRegion,
   keepsHidden,
   el,
+  focused,
   holdFocus,
   keeps,
   keepsText,
   once,
+  onUserInput,
   offer,
   paintKeys,
   projectData,
@@ -161,10 +164,20 @@ customElements.define(
     #playFrame = 0;
     #playing = false;
     #playIntent = null;
+    #stopInput = null;
     #cursorTime = null;
     #scrubbing = false;
     #reviewGesture = (event) => {
       const path = event.composedPath();
+      if (event.type === "keydown") {
+        if (!path.includes(this)) return;
+        if (["Shift", "Alt", "Control", "Meta"].includes(event.key)) return;
+        this.#playIntent = null;
+        if (path.includes(this.play) && ["Enter", " "].includes(event.key)) return;
+        this.#pause();
+        return;
+      }
+      if (!["pointerdown", "wheel"].includes(event.type)) return;
       if (!path.includes(this.body) || path.includes(this.play)) return;
       this.#pause();
       // A review gesture freezes the pixels actually on screen, including when
@@ -224,12 +237,8 @@ customElements.define(
 
     connectedCallback() {
       document.addEventListener("visibilitychange", this.#visibility);
-      // Above document capture: drawing deliberately claims its pointer there.
-      window.addEventListener("pointerdown", this.#reviewGesture, true);
-      window.addEventListener("wheel", this.#reviewGesture, {
-        capture: true,
-        passive: true,
-      });
+      // The shared input owner observes synchronously before drawing claims input.
+      this.#stopInput ??= onUserInput(this.#reviewGesture);
       window.addEventListener("resize", this.#resize);
       const firstConnection = once(this);
       if (firstConnection) this.#build();
@@ -239,7 +248,10 @@ customElements.define(
         this.#keys ??= commands(this, "In a Playwright recording", [
           {
             id: "trace.previous",
-            keys: ["ArrowLeft"],
+            keys: () =>
+              this.timeline.contains(focused())
+                ? ["ArrowLeft", "ArrowDown", "PageDown"]
+                : ["ArrowLeft"],
             title: "previous timeline point",
             control: this.previous,
             when: () => this.#position() > 0,
@@ -247,7 +259,10 @@ customElements.define(
           },
           {
             id: "trace.next",
-            keys: ["ArrowRight"],
+            keys: () =>
+              this.timeline.contains(focused())
+                ? ["ArrowRight", "ArrowUp", "PageUp"]
+                : ["ArrowRight"],
             title: "next timeline point",
             control: this.next,
             when: () => this.#position() < this.#items().length - 1,
@@ -286,8 +301,8 @@ customElements.define(
       this.#pause(false);
       dragging(this, false);
       document.removeEventListener("visibilitychange", this.#visibility);
-      window.removeEventListener("pointerdown", this.#reviewGesture, true);
-      window.removeEventListener("wheel", this.#reviewGesture, true);
+      this.#stopInput?.();
+      this.#stopInput = null;
       window.removeEventListener("resize", this.#resize);
       this.#stopReading?.();
       this.#stopReading = null;
@@ -303,6 +318,12 @@ customElements.define(
     }
 
     #build() {
+      const waiting = document.createElement("template");
+      waiting.innerHTML = declarationFor(this, "x-prepaint");
+      this.waiting = waiting.content.firstElementChild;
+      this.waiting.dataset.lfGen = "1";
+      this.querySelector(":scope > [data-lf-prepaint]")?.remove();
+      this.append(this.waiting);
       this.controls = offer("div", "lf-trace-controls");
       this.sources = offer("wa-radio-group", "lf-trace-sources");
       this.sources.name = `${this.id}-page`;
@@ -335,9 +356,6 @@ customElements.define(
         this.#playIntent = this.#playing;
       });
       this.play.addEventListener("pointercancel", () => {
-        this.#playIntent = null;
-      });
-      this.play.addEventListener("keydown", () => {
         this.#playIntent = null;
       });
       const pauseIcon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -480,6 +498,9 @@ customElements.define(
       metadata.tabIndex = 0;
       metadata.setAttribute("role", "group");
       metadata.setAttribute("aria-label", "Selected point details");
+      // Point descriptions may wrap differently; the inspector and its retained
+      // disclosure keep their boxes while those words change inside them.
+      metadata.setAttribute("data-lf-reflow", "text");
       metadata.append(
         this.treeDetails,
         this.clock,
@@ -503,43 +524,20 @@ customElements.define(
       }
       // Vis owns time geometry. The native trace cursor owns discrete phase order,
       // including separately reachable phases sharing exactly one timestamp.
-      // A keyboard review gesture freezes its evidence before the layer handles it.
-      this.addEventListener(
-        "keydown",
-        (event) => {
-          if (event.target === this.play && ["Enter", " "].includes(event.key)) return;
-          if (!["Shift", "Alt", "Control", "Meta"].includes(event.key)) this.#pause();
+      commands(this.timeline, "On a recording timeline", [
+        {
+          id: "trace.first",
+          keys: ["Home"],
+          title: "first timeline point",
+          run: () => this.#navigate(this.#items().at(0)?.id ?? null),
         },
-        { capture: true },
-      );
-      this.timeline.addEventListener(
-        "keydown",
-        (event) => {
-          const items = this.#items();
-          if (
-            ![
-              "ArrowLeft",
-              "ArrowRight",
-              "ArrowUp",
-              "ArrowDown",
-              "Home",
-              "End",
-              "PageUp",
-              "PageDown",
-            ].includes(event.key)
-          )
-            return;
-          event.preventDefault();
-          event.stopImmediatePropagation();
-          if (event.key === "Home" || event.key === "End")
-            this.#navigate(items.at(event.key === "Home" ? 0 : -1)?.id ?? null);
-          else
-            this.#step(
-              ["ArrowLeft", "ArrowDown", "PageDown"].includes(event.key) ? -1 : 1,
-            );
+        {
+          id: "trace.last",
+          keys: ["End"],
+          title: "last timeline point",
+          run: () => this.#navigate(this.#items().at(-1)?.id ?? null),
         },
-        { capture: true },
-      );
+      ]);
       this.sources.addEventListener("change", () => {
         if (this.#page === this.sources.value) return;
         this.#selectPage(this.sources.value);
@@ -1269,6 +1267,11 @@ customElements.define(
       });
       widgetController(this).present(ready);
       this.#rail.addCustomTime(0, "selection");
+      // Vis seats moving time cursors on a stationary background plane, separate
+      // from moment buttons. Only that plane permits its live control to travel.
+      this.markers
+        .querySelector(".vis-panel.vis-background.vis-vertical")
+        .setAttribute("data-lf-reflow", "controls");
       this.#rail.setCustomTimeTitle(
         quoted(this) ? "Selected recorded point" : "Drag to scrub recording",
         "selection",
@@ -1427,6 +1430,9 @@ customElements.define(
     }
 
     #draw() {
+      keepsHidden(this.waiting, !!this.#trace);
+      keepsHidden(this.controls, !this.#trace);
+      keepsHidden(this.body, !this.#trace);
       this.#inventory = [];
       const projection = [];
       const add = (id, element, label, path, surface = element) => {

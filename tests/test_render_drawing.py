@@ -1404,16 +1404,50 @@ def test_drawing_ink_follows_pixels_inside_their_ancestor_viewport(browser, serv
     page.keyboard.press("Escape")
     mark = page.locator(".lf-drawing-posted")
     expect(mark).to_have_count(1)
-    target.evaluate("el => { el.style.transform = 'translateX(-100px)'; }")
-    rendered(page)
-    viewport = page.locator("#viewport").bounding_box()
-    # Read the pixels the mark paints, rather than merely its uncut SVG box.
-    shown = Image.open(BytesIO(page.screenshot(animations="disabled"))).convert("RGB")
-    mark.evaluate("el => { el.style.visibility = 'hidden'; }")
-    bare = Image.open(BytesIO(page.screenshot(animations="disabled"))).convert("RGB")
-    difference = ImageChops.difference(shown, bare).getbbox()
-    assert difference is not None, "the visible part of the stroke must remain"
-    assert difference[0] >= viewport["x"] - 1
-    assert difference[2] <= viewport["x"] + viewport["width"] + 1
-    assert difference[1] >= viewport["y"] - 1
-    assert difference[3] <= viewport["y"] + viewport["height"] + 1
+    for pan in (-100, 180):
+        target.evaluate(
+            "(el, x) => { el.style.transform = `translateX(${x}px)`; }", pan
+        )
+        rendered(page)
+        viewport = page.locator("#viewport").bounding_box()
+        pixels = target.bounding_box()
+        # The horizontal stroke's full band, including the hidden part of the
+        # surface. Whole-page chrome can change independently between captures.
+        left = min(viewport["x"], pixels["x"]) - 4
+        top = pixels["y"] + pixels["height"] * 0.4 - 4
+        clip = {
+            "x": left,
+            "y": top,
+            "width": max(
+                viewport["x"] + viewport["width"], pixels["x"] + pixels["width"]
+            )
+            + 4
+            - left,
+            "height": 8,
+        }
+        # Read painted pixels rather than the mark's deliberately uncut SVG box.
+        shown = Image.open(
+            BytesIO(page.screenshot(clip=clip, animations="disabled"))
+        ).convert("RGB")
+        mark.evaluate("el => { el.style.visibility = 'hidden'; }")
+        bare = Image.open(
+            BytesIO(page.screenshot(clip=clip, animations="disabled"))
+        ).convert("RGB")
+        mark.evaluate("el => { el.style.visibility = ''; }")
+        difference = ImageChops.difference(shown, bare).getbbox()
+        assert difference is not None, "the visible part of the stroke must remain"
+        assert difference[0] + left >= viewport["x"] - 1
+        assert difference[2] + left <= viewport["x"] + viewport["width"] + 1
+        assert difference[1] + top >= viewport["y"] - 1
+        assert difference[3] + top <= viewport["y"] + viewport["height"] + 1
+        # Panning moves the full stroke's coordinates; clipping must not refit it.
+        assert difference[0] + left == pytest.approx(
+            max(viewport["x"], pixels["x"] + pixels["width"] * 0.2 - 1.5), abs=1
+        )
+        assert difference[2] + left == pytest.approx(
+            min(
+                viewport["x"] + viewport["width"],
+                pixels["x"] + pixels["width"] * 0.7 + 1.5,
+            ),
+            abs=1,
+        )

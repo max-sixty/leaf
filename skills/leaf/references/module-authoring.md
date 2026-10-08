@@ -363,6 +363,12 @@ A temporary yellow cue calls `backgroundFlash(element, ms)`. It supplies only th
 starting tint; the browser fades to the element's live CSS background, including any
 hover or theme change during the cue, and shares `motion`'s gates and cleanup.
 
+A mechanical surface that must stop motion before a review gesture is handled uses
+`onUserInput(callback)`. The shared input owner calls it synchronously during capture
+for pointer, key, input, wheel, touch and window blur events; the callback observes and
+does not claim the event. Filter the events belonging to the surface and release the
+returned subscription when it disconnects. Keyboard commands still use `commands()`.
+
 A module implementing its own navigation captures `retainUserIntent()` in the gesture
 that starts it, before its
 first wait, and checks the returned predicate after every wait before moving focus or

@@ -17,7 +17,8 @@
   overflow-wrap: anywhere;
 }
 .lf-trace-body { min-inline-size: 0; }
-.lf-trace-controls { min-inline-size: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); margin-block-end: var(--sp-3); }
+.lf-trace-waiting { margin: 0; color: var(--muted); }
+.lf-trace-controls:not([hidden]) { min-inline-size: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); margin-block-end: var(--sp-3); }
 .lf-trace-choices { min-inline-size: 0; flex-wrap: wrap; display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
 /* Keep source names visible and let the shared control own keyboard selection.
  * Retain its accessible group label without adding a toolbar heading. */

@@ -2539,7 +2539,7 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     publish(page_dir, 1)
 
     def choose(widget, option):
-        return append_carried_log_record(
+        return append_command(
             page_dir,
             {
                 "kind": "action",
@@ -2548,7 +2548,6 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
                 "widget": widget,
                 "action": "choose",
                 "detail": {"value": [option]},
-                "meaning": {"scope": "page", "unit": widget, "depends": [widget]},
             },
         )
 
@@ -2558,8 +2557,8 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     approval = append_carried_log_record(
         page_dir, {"kind": "done", "author": "user", "version": 1}
     )
-    # The fold reads revision 2 from `documents`; it is never written to disk, since
-    # the door refuses to activate a revision that drops a standing decision.
+    # The fold reads both documents directly; admission above captures the sending
+    # revision's operation before the later document drops and restates widgets.
     append_carried_log_record(
         page_dir,
         {
@@ -4468,11 +4467,27 @@ def test_a_snapshot_holds_declared_data_media_with_the_current_value(
     reordered = revisioning_model.activate_source(page_dir)
     assert reordered.error is None and reordered.created
 
-    # A selector change cannot silently discard media from an already bound source.
+    # Revised selectors govern the current snapshot, while an earlier capture keeps
+    # its selected bytes. A producer can supply media for the revised declaration.
     registry["$data"]["contracts"]["test-data"]["resources"] = ["other[].url"]
     registry_path.write_text(json.dumps(registry))
-    refused = revisioning_model.activate_source(page_dir)
-    assert "record declaration, or resources change" in refused.error
+    changed = revisioning_model.activate_source(page_dir)
+    assert changed.error is None and changed.created
+    current = page_snapshot_model.capture_page_snapshot(
+        page_dir,
+        artifact_model.read_revision(page_dir, changed.revision).document,
+        {"revision": changed.revision, "version": None, "url": "/"},
+    )
+    assert current.data_resources == {}
+    assert snapshot.data_resources[urls[1]].data == second.read_bytes()
+    data_model.cmd_data_set(page_dir, "images", {"other": [{"url": urls[0]}]})
+    revised = page_snapshot_model.capture_page_snapshot(
+        page_dir,
+        artifact_model.read_revision(page_dir, changed.revision).document,
+        {"revision": changed.revision, "version": None, "url": "/"},
+    )
+    assert set(revised.data_resources) == {urls[0]}
+    assert revised.data_resources[urls[0]].data == first.read_bytes()
 
 
 def test_a_preview_uses_the_validated_module_graph_after_a_later_edit(page_dir):

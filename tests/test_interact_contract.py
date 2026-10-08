@@ -3329,6 +3329,7 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
     else:
         # An agent verb never answers an Ask, so the suggestion stops asking one.
         suggestion.pop("x-awaits")
+        suggestion.pop("x-withdrawn-as")
         suggestion["properties"].pop("resolves")
         decide["writer"] = "agent"
         suggestion["properties"]["outcome"] = decide.pop("detail")["properties"][
@@ -4778,7 +4779,7 @@ def test_sample_body_declarations_use_the_child_document_boundary(page_dir):
     [
         ("<noscript>invisible</noscript>", "the browser renders none of its content"),
         ('<lf-unknown id="bad">Unknown</lf-unknown>', "unknown widget"),
-        ('<lf-draft id="change" restated><pre>Text</pre></lf-draft>', "restated"),
+        ('<lf-draft id="change" restated><pre>Text</pre></lf-draft>', None),
         ("<template data-sample><h1>Child</h1></template>", "needs a stable id"),
         ('<p id="duplicate">One</p><p id="duplicate">Two</p>', "duplicate"),
         (
@@ -4795,6 +4796,9 @@ def test_check_validates_each_sample_document(page_dir, markup, error):
         )
     )
     result = check(page_dir)
+    if error is None:
+        assert result.exit_code == 0, result.output
+        return
     assert result.exit_code != 0, result.output
     assert "sample 'practice'" in result.output
     assert error in result.output
@@ -5449,14 +5453,17 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
         "widget": "sug-a",
         "action": "label",
         "detail": {},
-        "meaning": {
-            "scope": "page",
-            "unit": "sug-a",
-            "depends": ["sug-a"],
-        },
     }
-    events = [{**COMMENT, "seq": 1}, {**ACCEPT, "id": "accept1", "seq": 2}, event]
-    html = '<lf-suggestion id="sug-a"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
+    html = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
+    stated = ModelPage(html, registry=registry)
+    events = [{**COMMENT, "seq": 1}]
+    accepted = event_contracts_model.admitted_event(
+        stated,
+        events,
+        {key: value for key, value in ACCEPT.items() if key != "meaning"},
+    )
+    events.append({**accepted, "id": "accept1", "seq": 2})
+    events.append(event_contracts_model.admitted_event(stated, events, event))
     page = page_reading(
         passages_model.SourceReading(structure_model.SourceDocument(html), registry),
         events,

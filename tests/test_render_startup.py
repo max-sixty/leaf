@@ -2646,20 +2646,17 @@ def test_a_durable_server_restart_keeps_the_current_editor(browser, serve):
     )
     page.evaluate("window.__originalDocument = true")
     reading = page.locator("body").get_attribute("data-lf-reading")
-    looks = []
-
-    def read_news(route):
-        answer = route.fetch()
-        looks.append((answer.headers, answer.text()))
-        route.fulfill(response=answer)
-
-    page.route("**/api/news", read_news)
-    serve.httpd.server_id = "replacement-server"
-    with page.expect_response("**/api/news", timeout=5000):
-        pass
-    page.unroute("**/api/news", read_news)
-    assert looks[-1][0]["leaf-server"] == "replacement-server"
-    assert looks[-1][1] == reading
+    # A poll already in flight can finish after the route is registered without
+    # passing through it. Read the response that actually identifies the new server.
+    with page.expect_response(
+        lambda response: (
+            response.url.endswith("/api/news")
+            and response.headers.get("leaf-server") == "replacement-server"
+        ),
+        timeout=5000,
+    ) as restarted:
+        serve.httpd.server_id = "replacement-server"
+    assert restarted.value.text() == reading
     page.wait_for_timeout(500)
     assert page.evaluate("window.__originalDocument === true")
     expect(editor).to_be_focused()

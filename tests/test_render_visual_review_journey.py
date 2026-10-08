@@ -477,12 +477,14 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     ) == [8, 12, "backward"]
     user.keyboard.press("Escape")
     expect(field).to_be_hidden()
-    assert user.evaluate("() => document.activeElement === document.body")
+    # The composer returns to the reviewed case; the covered Threads panel uses a
+    # native modal envelope, which makes the page inert without an inert attribute.
+    expect(second).to_be_focused()
     user.keyboard.press("g")
     user.keyboard.press("Shift+t")
     expect(user.get_by_role("dialog")).to_be_visible()
     expect(user.locator(".lf-threads")).to_be_focused()
-    expect(user.locator("body > main")).to_have_attribute("inert", "")
+    expect(user.locator(".lf-auxiliary-envelope:modal")).to_have_count(1)
     user.keyboard.press("Escape")
     expect(user.get_by_role("dialog")).to_be_hidden()
     assert user.evaluate("() => document.activeElement === document.body")
@@ -500,12 +502,12 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     assert_keyboard_focus(user, field)
     user.keyboard.press("Escape")
     expect(field).to_be_hidden()
-    assert user.evaluate("() => document.activeElement === document.body")
+    expect(second).to_be_focused()
     user.keyboard.press("g")
     user.keyboard.press("Shift+t")
     expect(user.get_by_role("dialog")).to_be_visible()
     expect(user.locator(".lf-threads")).to_be_focused()
-    expect(user.locator("body > main")).not_to_have_attribute("inert", "")
+    expect(user.locator(".lf-auxiliary-envelope:modal")).to_have_count(0)
     user.keyboard.press("Escape")
     expect(user.get_by_role("dialog")).to_be_hidden()
     assert user.evaluate("() => document.activeElement === document.body"), (

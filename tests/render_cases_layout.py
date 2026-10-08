@@ -976,8 +976,8 @@ PAGE_MARKUP = r"""() => [...document.body.children]
                 el.style.anchorName = el.style.anchorName.split(",")
                     .map((name) => name.trim())
                     .filter((name) => !/^--lf-a\d+$/.test(name)).join(", ");
-                if (!el.getAttribute("style")) el.removeAttribute("style");
             }
+            if (!el.getAttribute("style")) el.removeAttribute("style");
         }
         return c.outerHTML;
     })

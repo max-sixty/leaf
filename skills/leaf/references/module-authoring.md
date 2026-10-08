@@ -715,7 +715,12 @@ grace, the same bound the page's own activity reads. For another
 rounded time reading, use `clockValue((now) => reading)`, whose `now` argument is the
 calibrated server-now value in milliseconds. For a paint outside these
 subscriptions, wrap it with `clocked(element, paint)` and call the returned function
-where state changes; call its `.stop()` on disconnect. Time reads after an `await`
+where state changes; call its `.stop()` on disconnect. If painting is scheduled by a
+presenter, pass its synchronous claim as the third argument,
+`clocked(element, paint, invalidate)`. A clock change calls `invalidate`; the scheduled
+pass calls the function returned by `clocked`, capturing fresh time readings.
+The claim's return is ignored; the presenter owns its completion and failure. Until that paint runs,
+the previous readings remain subscribed. Time reads after an `await`
 belong in a separate synchronous `clocked` paint. The timer does not reapply state or
 redeliver unchanged data to keep a timestamp current.
 

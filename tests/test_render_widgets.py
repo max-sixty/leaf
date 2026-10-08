@@ -10885,6 +10885,115 @@ def test_pending_action_waits_for_the_ask_list_paint_before_retiring(
     )
 
 
+def test_the_queue_clock_owns_held_paint_failure_and_retry(browser, serve):
+    """Age changes owe a same-epoch ticket and retain their prior rows on failure."""
+    url = serve(LONG_PAGE)
+    task = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "task",
+            "author": "agent",
+            "agent": "Agent",
+            "session": "queue-clock",
+            "owner": "agent",
+            "subject": {"kind": "page"},
+            "title": "Review the page",
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "task_end",
+            "author": "agent",
+            "agent": "Agent",
+            "session": "queue-clock",
+            "task": task["id"],
+            "outcome": "done",
+        },
+    )
+    page = open_page(browser, url)
+    banner_control(page, ".lf-queue").click()
+    page.locator(".lf-queue-done > summary").click()
+    row = page.locator("button.lf-queue-row")
+    expect(row).to_have_count(1)
+    expect(row).to_be_visible()
+    expect(row.locator(".lf-queue-where")).to_contain_text("now")
+    before = page.evaluate(
+        """async () => {
+          window.queuePresence = await window.__lfRuntimeImport('/runtime/presence.js');
+          window.queuePresentation = await window.__lfRuntimeImport('/runtime/semantic-state.js');
+          const list = document.querySelector('lf-queue-list');
+          window.queueClockRow = list.querySelector('.lf-queue-row');
+          const schedule = list.scheduleUpdate.bind(list);
+          let release;
+          const held = new Promise(resolve => { release = resolve; });
+          let armed = true;
+          list.scheduleUpdate = async () => {
+            if (armed) {
+              armed = false;
+              window.queueClockHeld = true;
+              await held;
+            }
+            return schedule();
+          };
+          window.releaseQueueClock = release;
+          return queuePresentation.readApplicationPresentation();
+        }"""
+    )
+    held = page.evaluate(
+        """() => {
+          queuePresence.observeServerNow(new Date(Date.now() + 60_000).toISOString());
+          window.queueClockTick = queuePresence.tickClock(() => {});
+          window.queueClockReady = false;
+          queuePresentation.whenApplicationPresented().then(() => {
+            window.queueClockReady = true;
+          });
+          return queuePresentation.readApplicationPresentation();
+        }"""
+    )
+    assert "queue" in held["pending"]
+    assert held["semanticEpoch"] == before["semanticEpoch"]
+    assert held["presentedEpoch"] == before["presentedEpoch"]
+    page.wait_for_function("queueClockHeld")
+    assert page.evaluate("queueClockReady") is False
+    expect(row.locator(".lf-queue-where")).to_contain_text("now")
+    # The next claim supersedes the held reading. Failing its paint must travel
+    # through the same retained-list proof as a failed semantic publication.
+    page.evaluate(
+        """() => {
+          const list = document.querySelector('lf-queue-list');
+          const render = list.render.bind(list);
+          list.render = () => {
+            list.render = render;
+            throw new Error('deliberate Queue clock failure');
+          };
+          queuePresence.observeServerNow(new Date(Date.now() + 120_000).toISOString());
+          window.queueClockTickAgain = queuePresence.tickClock(() => {});
+          releaseQueueClock();
+        }"""
+    )
+    page.wait_for_function("queueClockReady")
+    page.evaluate("Promise.all([queueClockTick, queueClockTickAgain])")
+    expect(row.locator(".lf-queue-where")).to_contain_text("now")
+    assert row.evaluate("node => node === window.queueClockRow")
+    assert take_browser_errors(page) == [
+        "leaf: Presentation failed: deliberate Queue clock failure"
+    ]
+    page.evaluate(
+        """async () => {
+          queuePresence.observeServerNow(new Date(Date.now() + 180_000).toISOString());
+          await queuePresence.tickClock(() => {});
+        }"""
+    )
+    expect(row.locator(".lf-queue-where")).to_contain_text("3m")
+    expect(row).to_be_visible()
+    assert row.evaluate("node => node === window.queueClockRow")
+    after = page.evaluate("queuePresentation.readApplicationPresentation()")
+    assert after["semanticEpoch"] == before["semanticEpoch"]
+    assert after["presentedEpoch"] == before["presentedEpoch"]
+    assert after["pending"] == []
+
+
 def test_a_failed_queue_list_paint_reports_once_and_retains_the_prior_list(
     browser, serve
 ):

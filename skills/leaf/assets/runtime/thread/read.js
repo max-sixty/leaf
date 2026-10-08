@@ -10,14 +10,17 @@
    encounter with the message's visible surface, not exhaustive inspection.
    Each observation pass batches newly completed versions into one `read` event, which
    the application sends outside the gesture queue (delivery.js). A refused receipt
-   leaves the message unread and is retried only on a new visit. */
+   leaves the message unread and is retried only on a new visit. The shared auxiliary
+   reach reading also schedules exposure: closing a nonmodal surface can reveal a body
+   without moving it or closing its permanent native ancestor. */
 import { nextRender, sizeObserver } from "../rendering.js";
 import { seenRect, shownBand } from "../geometry.js";
 import { SLIDE_END } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { moved } from "./model.js";
 import { readThreads } from "./state.js";
-import { under, upFrom } from "../shadow.js";
+import { excludedByInert, upFrom } from "../shadow.js";
+import { nativeModalAdmits } from "../keyboard/layer-stack.js";
 import { keeps, keepsHidden } from "../keeps.js";
 
 const keyOf = (item) => `${item.message}\u0000${item.version}`;
@@ -51,7 +54,13 @@ function frameBand() {
     } catch {
       return null;
     }
-    if (!frame || !frame.checkVisibility()) return null;
+    if (
+      !frame ||
+      !frame.checkVisibility() ||
+      excludedByInert(frame) ||
+      !nativeModalAdmits(frame)
+    )
+      return null;
     const owner = frame.ownerDocument.defaultView;
     const box = frame.getBoundingClientRect();
     x += box.left + frame.clientLeft;
@@ -64,12 +73,9 @@ function frameBand() {
         bottom: Math.min(band.bottom, rect.bottom - y),
       };
     };
-    const modal = owner.document.querySelector("dialog:modal");
-    if (modal && !under(frame, modal)) return null;
     for (let ancestor = upFrom(frame); ancestor; ancestor = upFrom(ancestor)) {
       const style = owner.getComputedStyle(ancestor);
       if (
-        ancestor.inert ||
         ancestor.getAttribute?.("aria-hidden") === "true" ||
         style.visibility === "hidden" ||
         style.display === "none"
@@ -85,11 +91,10 @@ function frameBand() {
 }
 
 function visibleInterval(body, clips, band) {
-  if (!body.checkVisibility()) return null;
+  if (!body.checkVisibility() || excludedByInert(body) || !nativeModalAdmits(body))
+    return null;
   for (let owner = body; owner; owner = upFrom(owner))
-    if (owner.inert || owner.getAttribute?.("aria-hidden") === "true") return null;
-  const modal = document.querySelector("dialog:modal");
-  if (modal && !under(body, modal)) return null;
+    if (owner.getAttribute?.("aria-hidden") === "true") return null;
   const box = body.getBoundingClientRect();
   // Sticky headers, the open thread panel standing over the right of the page, and the
   // banner and shortcut bar are left out of what is seen (geometry.js), so a message any
@@ -343,6 +348,7 @@ export function createReadTracking({ markRead, showThread, firstUnreadBtn }) {
     observeBody,
     forgetBody,
     firstUnread,
+    exposureChanged: scheduleScan,
     unreadCount: () => actionableUnread().length,
   };
 }

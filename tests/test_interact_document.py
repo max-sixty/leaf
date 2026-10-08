@@ -986,6 +986,8 @@ def test_page_init_says_when_the_source_will_not_activate(page_dir):
     index.html activates; an index.html that would be refused is named then."""
     _drop_x_between_a_and_b(page_dir)
     _write_board(page_dir, "nabc", "x")
+    theme = page_dir / "theme.css"
+    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert result.exit_code == 0, result.output
     assert "index.html will not activate until" in result.output

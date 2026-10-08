@@ -1041,13 +1041,21 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * inset is padding, so it stays inside the column the list keeps (`x-space`), as
  * lf-chronology's does. */
 :scope:is(lf-milestones) { display: block; margin: 14px 0; padding-inline-start: 8px; }
-:scope:is(lf-milestone) { display: block; position: relative; padding: 0 0 16px 26px;
-               border-left: 2px solid var(--rule); --lf-block-frame: 1; }
+/* Each row's border owns the rail width. A marker centres on that border from
+ * the padding-box origin, independent of the marker's diameter or border. */
+:scope:is(lf-milestone, lf-chronology-entry) {
+  --lf-timeline-rule: 2px;
+  display: block; position: relative; padding: 0 0 16px 26px;
+  border-left: var(--lf-timeline-rule) solid var(--rule); --lf-block-frame: 1;
+}
+:scope:is(lf-milestone)::before, :scope:is(lf-chronology-entry)::after {
+  content: ""; position: absolute;
+  left: calc(var(--lf-timeline-rule) / -2); top: 0.5lh;
+  transform: translate(-50%, -50%); box-sizing: border-box;
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--paper); border: 2px solid var(--muted);
+}
 :scope:is(lf-milestone):last-child { border-left-color: transparent; padding-bottom: 2px; }
-:scope:is(lf-milestone)::before { content: ""; position: absolute; left: -7px;
-                       top: calc(0.5lh - 7px);
-                       width: 10px; height: 10px; border-radius: 50%;
-                       background: var(--paper); border: 2px solid var(--muted); }
 :scope:is(lf-milestone)[status="done"]::before   { background: var(--ok); border-color: var(--ok); }
 :scope:is(lf-milestone)[status="active"]::before { border-color: var(--accent);
                                         box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
@@ -1081,21 +1089,21 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 /* lf-chronology / lf-chronology-entry: a chronology on a rail. The dot is ::after, absolute,
  * colored by kind; the time label is the `at` attribute, said above the title. */
 :scope:is(lf-chronology) { display: block; margin: 14px 0; padding-inline-start: 8px; }
-:scope:is(lf-chronology-entry) { display: block; position: relative; padding: 0 0 16px 26px;
-           border-left: 2px solid var(--rule); --lf-block-frame: 1; }
 :scope:is(lf-chronology-entry):last-child { border-left-color: transparent; padding-bottom: 2px; }
-:scope:is(lf-chronology-entry)::after { content: ""; position: absolute; left: -7px; top: 4px;
-                  width: 10px; height: 10px; border-radius: 50%;
-                  background: var(--paper); border: 2px solid var(--muted); }
+/* A timestamp is the row's first line. Its marker uses the same font size and
+ * inherited leading so 0.5lh names that line's centre before and after upgrade. */
+:scope:is(lf-chronology-entry)[at]:not([at=""])::after { font-size: var(--t-6); }
 :scope:is(lf-chronology-entry)[kind="observation"]::after    { background: var(--muted); }
 :scope:is(lf-chronology-entry)[kind="intervention"]::after  { background: var(--accent); border-color: var(--accent); }
 :scope:is(lf-chronology-entry)[kind="warning"]::after { background: var(--warn); border-color: var(--warn); }
 :scope:is(lf-chronology-entry)[kind="failure"]::after { background: var(--danger); border-color: var(--danger); }
-:scope:is(lf-chronology-entry)[at]::before,
+:scope:is(lf-chronology-entry)[at]:not([at=""])::before,
 :scope:is(lf-chronology-entry) > [data-lf-said="at"] { display: block; font-family: var(--mono);
                        font-size: var(--t-6); color: var(--muted); margin-bottom: 1px; }
-:scope:is(lf-chronology-entry)[at]::before { content: attr(at); }
-:scope:is(lf-chronology-entry):has(> [data-lf-said="at"])::before { content: none; }
+:scope:is(lf-chronology-entry)[at]:not([at=""]):not(:has(> [data-lf-said="at"]))::before {
+  content: attr(at);
+}
+:scope:is(lf-chronology-entry) > [data-lf-said="at"]:empty { display: none; }
 :scope:is(lf-chronology-entry) > strong { margin-right: 6px; }
 
 /* lf-compare / lf-variant: labeled columns; exhibition, not decision.

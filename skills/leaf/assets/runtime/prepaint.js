@@ -234,21 +234,16 @@
     if (!main) return false;
     const style = getComputedStyle(main);
     const need = (token) => parseFloat(style.getPropertyValue(token)) || 0;
-    // Remove the physical offset the shell's grid tracks actually apply, plus an
-    // author's relative offset. Read the rendered tracks rather than the last written
-    // shift: page CSS can override either placement, including under RTL.
+    // Remove only the physical offset the shell's grid tracks actually apply. An
+    // author's relative offset remains part of the available room. Read rendered
+    // tracks rather than the last written shift, including under RTL.
     const shellStyle = getComputedStyle(document.body);
     const tracks = shellStyle.gridTemplateColumns.split(" ").map(parseFloat);
-    const gridShift =
-      shellStyle.display === "grid" && style.gridColumnStart === "2"
-        ? ((tracks[0] - tracks.at(-1)) / 2) * (shellStyle.direction === "rtl" ? -1 : 1)
-        : 0;
-    const shifted =
-      gridShift +
-      (style.position === "relative"
-        ? parseFloat(style.left) || -parseFloat(style.right) || 0
-        : 0);
-    const written = parseFloat(main.style.getPropertyValue("--lf-shift")) || 0;
+    const canShift = shellStyle.display === "grid" && style.gridColumnStart === "2";
+    const gridShift = canShift
+      ? ((tracks[0] - tracks.at(-1)) / 2) * (shellStyle.direction === "rtl" ? -1 : 1)
+      : 0;
+    const shifted = gridShift;
     const shellWritten =
       parseFloat(document.body.style.getPropertyValue("--lf-column-shift")) || 0;
     const column = main.getBoundingClientRect();
@@ -291,6 +286,9 @@
         const [at, token] = POSTURES[posture];
         const wants = { ...taken, [at]: Math.max(taken[at], need(token)) };
         if (wants.left + wants.right > room.left + room.right + 0.5) continue;
+        // An authored shell can override the grid. It still admits residents where
+        // they fit, but cannot promise room that only moving the column would supply.
+        if (!canShift && (wants.left > room.left || wants.right > room.right)) continue;
         standing.push(posture);
         Object.assign(taken, wants);
         break;
@@ -304,7 +302,7 @@
     );
     const tokens = standing.join(" ");
     const seated = (main.getAttribute("data-lf-margin") ?? "") !== tokens;
-    if (!seated && shift === written && shift === shellWritten) return false;
+    if (!seated && shift === shellWritten) return false;
     // Source copies keep the authored shell before initial geometry writes to it;
     // children still follow their original routes as the parser continues.
     if (!sourceShells.has(main)) sourceShells.set(main, main.cloneNode(false));
@@ -316,10 +314,6 @@
     }
     // Module-time adoption announces changed seats to reading-region discovery;
     // before upgrade the same attributes already provide the final authored box.
-    if (shift !== written) {
-      if (shift) main.style.setProperty("--lf-shift", `${shift}px`);
-      else main.style.removeProperty("--lf-shift");
-    }
     if (shift) setRuntimeRootStyle(document.body, "--lf-column-shift", `${shift}px`);
     else removeRuntimeRootStyle(document.body, "--lf-column-shift");
     return true;

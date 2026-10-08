@@ -3526,7 +3526,6 @@ def test_authored_residency_runs_without_annotation_geometry(browser, serve, rai
             body="""<!doctype html><html><head><style>
 body { margin: 0 }
 main { width: 720px; margin: auto; position: relative;
- inset-inline-start: var(--lf-shift, 0px);
  --rail: 100px; --sidebar: 150px; --note: 80px }
 aside { --lf-resident: sidebar }
 aside.note { --lf-resident: note; display: none }
@@ -3559,8 +3558,8 @@ aside.note { --lf-resident: note; display: none }
     )
     expected = {
         "inert": True,
-        "tokens": "rail note" if rail else "sidebar note",
-        "shift": "" if rail else "35px",
+        "tokens": "rail note" if rail else "note",
+        "shift": "",
     }
     assert reading == expected
     page.evaluate("document.documentElement.dir='rtl'; residency.scheduleResidency()")
@@ -4022,6 +4021,30 @@ def test_document_reading_survives_width_reflow(browser, serve, notes, local_reg
         # Native anchoring keeps the reading, and a round trip restores its location.
         if width == 1440:
             assert after["quoteTop"] == pytest.approx(before["quoteTop"], abs=1)
+
+
+@pytest.mark.parametrize("display", ["block", "flex"])
+def test_an_authored_shell_admits_only_margin_room_it_can_supply(
+    browser, serve, display
+):
+    source = leaf_page(
+        "Authored shell",
+        '<h1>Migration</h1><aside class="sidenote" id="note">Keep earlier readers.</aside>'
+        '<p id="passage">Advance one cohort at a time.</p>',
+    ).replace(
+        "</head>",
+        f"<style>body {{ display: {display}; flex-direction: column; }}"
+        "main { position: relative; left: 60px; }</style></head>",
+    )
+    page = open_page(browser, serve(source))
+    for width, hanging in ((1600, False), (1800, True), (1440, False)):
+        resized(page, width, 900)
+        expect(page.locator("#note")).to_have_css(
+            "float", "right" if hanging else "none"
+        )
+        main = page.locator("main").bounding_box()
+        assert main["x"] == pytest.approx((width - main["width"]) / 2 + 60, abs=1)
+        assert root_overflow(page) == 0
 
 
 def test_margin_residency_ignores_concealed_ancestors(browser, serve):

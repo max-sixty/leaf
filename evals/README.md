@@ -61,6 +61,11 @@ prompt asking for its tool calls with their JSON input. The leading comment reco
 where the case came from and what it measured, `metadata.purpose` the behavior it
 pins, and `metadata.tags` its area.
 
+Grader controls set `providerOutput` to a fixed answer and reuse the case's rubric,
+with `not-llm-rubric` for an answer the judge should reject. Promptfoo skips agent
+generation and grades that answer; `review-shows-the-change/grader-*` exercises
+this path. These scores measure the judge, not the agent's behavior.
+
 A complete task instead names `metadata.executor`, a `leaf_dev` module, and
 `metadata.scenario`, a key of that module's `CASES`. The executor builds fixtures, runs the agent
 through resumed phases or live user rounds, and returns a boolean per check; its

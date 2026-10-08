@@ -104,9 +104,11 @@ Open the exact preview URL in a fresh browser context and verify those outcomes
 on arrival and through ordinary input. Setup from a private probe that the user
 cannot repeat belongs in the fixture or a replay control.
 
-Judge legibility and layout in every visible state reached by ordinary input,
-in the affected color schemes. Pause after state changes to inspect them before
-continuing the journey.
+Judge legibility and layout in the visible states ordinary input produces, in
+the affected color schemes. Inspect content affected by hover or keyboard
+navigation against its current background while the surface remains open;
+focus can stay on its trigger while a different item is targeted for activation.
+Pause before the next input replaces or dismisses that state.
 Every candidate and optional surface retained in the page belongs to that review.
 
 Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,

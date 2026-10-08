@@ -12,6 +12,8 @@ import shutil
 import subprocess
 import threading
 import time
+from collections.abc import Callable
+from contextlib import ExitStack
 from dataclasses import dataclass
 from html import unescape
 from pathlib import Path
@@ -589,23 +591,25 @@ def build_fixture(run: Run, name: str, page: Path) -> None:
 # Running
 
 
-def execute(run: Run) -> None:
+def execute(run: Run, work: Path) -> None:
     """One run: build the case's fixture, then run each phase, resuming the first
-    phase's session, or the live session."""
+    phase's session, or the live session. The caller keeps `work` alive through
+    scoring; this function archives pages before returning or raising."""
     case = CASES[run.case]
     run.state.mkdir(parents=True)
-    work = scratch()
     (run.dir / "work-dir").write_text(f"{work}\n")
     page = work / "page"
-    if case.fixture:
-        build_fixture(run, case.fixture, page)
-        shutil.copytree(page, run.dir / "fixture", ignore=ignore)
-    if case.rounds:
-        execute_live(run, case, work, page)
-    else:
-        execute_phases(run, case, work, page)
-    for found in pages(work, run.state):
-        shutil.copytree(found, run.dir / "pages" / found.name, ignore=ignore)
+    try:
+        if case.fixture:
+            build_fixture(run, case.fixture, page)
+            shutil.copytree(page, run.dir / "fixture", ignore=ignore)
+        if case.rounds:
+            execute_live(run, case, work, page)
+        else:
+            execute_phases(run, case, work, page)
+    finally:
+        for found in pages(work, run.state):
+            shutil.copytree(found, run.dir / "pages" / found.name, ignore=ignore)
 
 
 # How long a live session may run, how long a posted round may wait for the delivery
@@ -625,8 +629,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     turn's end the stream records the page's status."""
     prompt = case.prompts[0].replace("{page}", str(page))
     (run.dir / "prompt-1.txt").write_text(prompt)
-    # The deadline for the posted round's delivery; unstarted until the first post.
-    waiting = threading.Timer(DELIVERY_LIMIT, lambda: None)
+    waiting, closing = None, False
     url, posted, delivered = None, 0, 0
     pending_events: set[str] = set()
     attempts: set[str] = set()
@@ -645,7 +648,18 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 harness=run.harness,
             ) as child,
             (run.dir / "stream-1.jsonl").open("w") as stream,
+            ExitStack() as deadlines,
         ):
+
+            def deadline(
+                seconds: float, callback: Callable[[], None]
+            ) -> threading.Timer:
+                timer = threading.Timer(seconds, callback)
+                timer.start()
+                # Cancel and join before the native session leaves its context.
+                deadlines.callback(timer.join)
+                deadlines.callback(timer.cancel)
+                return timer
 
             def note(record: dict) -> None:
                 stream.write(json.dumps(record) + "\n")
@@ -658,8 +672,13 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 active_turn = observed_active_turn(run, page, child)
                 if run.case == "elided" and posted == 0:
                     append_elided_history(run, page)
+                waiting = deadline(DELIVERY_LIMIT, child.abort)
                 pending_events = post_round(
-                    run, page, PageClient(url), case.rounds[posted], posted
+                    run,
+                    page,
+                    PageClient(url),
+                    case.rounds[posted],
+                    posted,
                 )
                 attempts.update(
                     move.get("attempt", attempt_key(posted, i))
@@ -677,8 +696,6 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                         "received_at": now(),
                     }
                 )
-                waiting = threading.Timer(DELIVERY_LIMIT, child.close)
-                waiting.start()
 
             for record in child.records():
                 if delivered < posted:
@@ -722,10 +739,10 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                     continue
                 if url and posted < len(case.rounds):
                     post("idle")
-                else:
-                    threading.Timer(GRACE, child.close).start()
+                elif not closing:
+                    deadline(GRACE, child.close)
+                    closing = True
     finally:
-        waiting.cancel()
         run.leaf("server", "stop", str(page))
 
 
@@ -1743,13 +1760,14 @@ def execute_scenario(
 ) -> dict:
     """One Promptfoo provider call owns all phases, live rounds, and evidence."""
     run = Run(case, payload, work, harness)
-    execute(run)
-    traces = run.traces()
-    phases = [trace_scores(t) for t in traces]
-    replies = [p["reply"] for p in phases]
-    calls = [c for p in phases for c in p["calls"]]
-    usable = run.usable()
-    score = score_run(run, traces, replies, calls) if usable else {}
+    with scratch() as child_work:
+        execute(run, child_work)
+        traces = run.traces()
+        phases = [trace_scores(t) for t in traces]
+        replies = [p["reply"] for p in phases]
+        calls = [c for p in phases for c in p["calls"]]
+        usable = run.usable()
+        score = score_run(run, traces, replies, calls) if usable else {}
     checks = checks_for(case, score, phases, usable)
     usage = {
         field: count

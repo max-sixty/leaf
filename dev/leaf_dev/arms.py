@@ -10,8 +10,8 @@ A child runs from a scratch cwd outside any repository, so no project instructio
 load, under a home of its own beside that cwd, so its bypassed permissions write to
 that home rather than the user's `~` (children given the user's home once appended to
 the user's `~/.claude/CLAUDE.md`). The home carries only the login. A trace is the
-child's normalized tool/turn evidence; it counts when its actual harness turn
-completed without error (`completed`). Codex raw notifications are retained too.
+child's normalized tool/turn evidence; it counts when its harness turn completed
+(`completed`). CC raw stdout and Codex notifications are retained too.
 A `LiveChild` keeps its session open across turns, so a driver can post
 user moves to a served page (`PageClient`) as a tab would.
 """
@@ -22,6 +22,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import tempfile
 import threading
@@ -296,9 +297,13 @@ def pi_home(path: Path) -> Path:
     return path
 
 
-def scratch() -> Path:
-    """A fresh directory for a child's cwd, outside any repository."""
-    return Path(tempfile.mkdtemp(prefix="leaf-eval-"))
+@contextmanager
+def scratch():
+    """Own a scenario's cwd and sibling credential home until scoring ends."""
+    with tempfile.TemporaryDirectory(prefix="leaf-eval-") as directory:
+        work = Path(directory) / "cwd"
+        work.mkdir()
+        yield work
 
 
 def claude_child(
@@ -388,7 +393,7 @@ def run_agent(
                 stdin=subprocess.DEVNULL,
                 stdout=stdout,
                 stderr=stderr,
-                check=False,
+                check=True,
                 timeout=TURN_LIMIT,
             )
         except subprocess.TimeoutExpired:
@@ -396,24 +401,25 @@ def run_agent(
     return read_trace(out)
 
 
-class LiveChild:
-    """An isolated harness session kept open for delivery and later turns.
+def LiveChild(*args, harness="cc", **kwargs):
+    """Open the harness's native live session for automatic Leaf delivery."""
+    if harness == "codex":
+        from leaf_dev.eval_codex import CodexChild
 
-    `prompt` is its first message. `records` yields actual tool, hook and turn
-    evidence stamped `received_at`; Codex retains its raw notifications too.
+        return CodexChild(*args, **kwargs)
+    if harness == "cc":
+        return ClaudeSession(*args, **kwargs)
+    raise ValueError(f"unknown eval harness: {harness}")
 
-    `claude -p` terminates its background shells, such as a `leaf wait`, once stdin
-    closes, so stdin stays open until the caller calls `close`. A session still
-    running `limit` seconds after it started is killed and `timed_out` touched."""
 
-    def __new__(cls, *args, harness="cc", **kwargs):
-        if harness == "codex":
-            from leaf_dev.eval_codex import CodexChild
+class ClaudeSession:
+    """Keep a native session open while the driver exercises Leaf feedback.
 
-            return CodexChild(*args, **kwargs)
-        if harness != "cc":
-            raise ValueError(f"unknown eval harness: {harness}")
-        return super().__new__(cls)
+    The driver closes the session after observing the required page outcome.
+    Close sends SIGTERM so Claude retires its watcher and runs SessionEnd; neither
+    a final model reply nor a zero exit status is required after intentional close.
+    One timer bounds the whole session. Native output is retained beside stderr.
+    """
 
     def __init__(
         self,
@@ -425,7 +431,6 @@ class LiveChild:
         timed_out: Path,
         dirs: Iterable[Path] = (),
         env: dict | None = None,
-        harness: str = "cc",
     ) -> None:
         self.prompt, self.stderr, self.timed_out = prompt, stderr, timed_out
         self.popen = claude_child(
@@ -438,41 +443,89 @@ class LiveChild:
             env=env,
         )
         self.deadline = threading.Timer(limit, self._give_up)
+        self.closing = False
 
     def __enter__(self) -> Self:
-        self.proc = subprocess.Popen(
-            **self.popen,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=self.stderr.open("w"),
-            text=True,
-        )
-        message = {"type": "user", "message": {"role": "user", "content": self.prompt}}
-        self.proc.stdin.write(json.dumps(message) + "\n")
-        self.proc.stdin.flush()
+        self.raw = self.stderr.with_suffix(".cc.jsonl").open("w")
+        self.stderr_stream = self.stderr.open("w")
+        try:
+            self.proc = subprocess.Popen(
+                **self.popen,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=self.stderr_stream,
+                start_new_session=True,
+                text=True,
+            )
+        except BaseException:
+            self.raw.close()
+            self.stderr_stream.close()
+            raise
         self.deadline.start()
+        try:
+            message = {
+                "type": "user",
+                "message": {"role": "user", "content": self.prompt},
+            }
+            self.proc.stdin.write(json.dumps(message) + "\n")
+            self.proc.stdin.flush()
+        except BaseException:
+            self.__exit__()
+            raise
         return self
 
     def records(self):
-        """Each stream record until the child exits."""
+        """The native stream; malformed output and unexpected exits raise."""
         for line in self.proc.stdout:
+            self.raw.write(line)
+            self.raw.flush()
             yield {**json.loads(line), "received_at": now()}
-        self.proc.wait(timeout=60)
+        code = self.proc.wait()
+        if code and not self.closing:
+            raise subprocess.CalledProcessError(code, self.popen["args"])
 
     def close(self) -> None:
-        """End the session once the turn in progress, if any, has ended."""
-        if not self.proc.stdin.closed:
-            self.proc.stdin.close()
+        """Stop the native session once the driver has its required outcome."""
+        if self.closing:
+            return
+        self.closing = True
+        if self.proc.poll() is None:
+            self.proc.terminate()
+            try:
+                self.proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                self._kill_group()
+                self.proc.wait()
+        self._kill_group()
+
+    abort = close
+
+    def _kill_group(self) -> None:
+        self.proc.poll()
+        try:
+            os.killpg(self.proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
 
     def _give_up(self) -> None:
         self.timed_out.touch()
-        self.proc.kill()
+        self._kill_group()
 
     def __exit__(self, *exc) -> None:
         self.deadline.cancel()
-        if self.proc.poll() is None:
-            self.proc.kill()
-            self.proc.wait()
+        self.deadline.join()
+        try:
+            self.close()
+            # The caller joins its sole observer before leaving this context.
+            shutil.copyfileobj(self.proc.stdout, self.raw)
+        finally:
+            try:
+                self.proc.stdin.close()
+            except BrokenPipeError:
+                pass
+            self.proc.stdout.close()
+            self.stderr_stream.close()
+            self.raw.close()
 
 
 def now() -> str:
@@ -496,7 +549,9 @@ class PageClient:
         )
 
     def state(self) -> dict:
-        with self.opener.open(f"{self.origin}/api/state?t={self.token}") as response:
+        with self.opener.open(
+            f"{self.origin}/api/state?t={self.token}", timeout=20
+        ) as response:
             return json.loads(response.read())
 
     def post(self, event: dict) -> None:
@@ -508,7 +563,7 @@ class PageClient:
             headers={"Leaf-Layer": self.state()["layer"]["generation"]},
         )
         try:
-            self.opener.open(request).close()
+            self.opener.open(request, timeout=20).close()
         except urllib.error.HTTPError as error:
             raise click.ClickException(
                 f"posting {event}: HTTP {error.code} {error.read().decode()}"

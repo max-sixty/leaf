@@ -65,20 +65,22 @@ def stop_blocked(record: dict) -> bool:
 def run_session(arm: Path, case: str, run: Path, *, harness: str = "cc") -> None:
     """Drive delivery timing through the same feedback loop as larger examples."""
     run.mkdir(parents=True, exist_ok=True)
-    work = scratch()
-    (run / "work-dir").write_text(f"{work}\n")
-    page, state = work / "page", run / "state"
-    prepare(arm, state, page)
-    leaf = partial(run_leaf, arm, state)
-    rounds = tuple(
-        (dict(COMMENTS[n], kind="comment", attempt=attempt(n + 1)),)
-        for n in range(len(CASES[case]))
-    )
-    scenario = Case(case, (REQUEST,), rounds=rounds, injection=CASES[case])
-    execute_live(Run(case, arm, run, harness), scenario, work, page)
-    (run / "events.jsonl").write_text(
-        leaf("page", "events", str(page), check=True).stdout
-    )
+    with scratch() as work:
+        (run / "work-dir").write_text(f"{work}\n")
+        page, state = work / "page", run / "state"
+        prepare(arm, state, page)
+        leaf = partial(run_leaf, arm, state)
+        rounds = tuple(
+            (dict(COMMENTS[n], kind="comment", attempt=attempt(n + 1)),)
+            for n in range(len(CASES[case]))
+        )
+        scenario = Case(case, (REQUEST,), rounds=rounds, injection=CASES[case])
+        try:
+            execute_live(Run(case, arm, run, harness), scenario, work, page)
+        finally:
+            (run / "events.jsonl").write_text(
+                leaf("page", "events", str(page), check=True).stdout
+            )
 
 
 def score(run: Path) -> list[dict]:

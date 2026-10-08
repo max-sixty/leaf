@@ -208,10 +208,10 @@ def test_native_scenario_output_preserves_unavailable_usage(
     from leaf_dev import usability_eval
     from leaf_dev.arrangement_eval import trace_scores as arrangement_trace_scores
 
-    def observed_execution(run):
+    def observed_execution(run, work):
         # Replace the external model call with its recorded result shape; retain
         # actual trace files, metrics, scenario grading and provider translation.
-        (run.dir / "work-dir").write_text(str(tmp_path))
+        (run.dir / "work-dir").write_text(str(work))
         for phase, counts in enumerate(usage, 1):
             record = {"type": "result", "is_error": False, "result": "A short reply."}
             if counts is not None:

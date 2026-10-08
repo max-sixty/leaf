@@ -30,6 +30,7 @@ from leaf_dev.arms import (
     read_trace,
     run_agent,
     run_leaf,
+    scratch,
     serving,
     token_counts,
 )
@@ -254,7 +255,7 @@ def seed_and_read_choice(run: Run) -> None:
         events_before = (page / "events.jsonl").read_bytes()
         destination = run.directory / "reader"
         destination.mkdir()
-        with tempfile.TemporaryDirectory(prefix="leaf-authored-reader-") as temporary:
+        with scratch() as work:
             prompt = (
                 f"Read the Leaf skill at {run.payload}/skills/leaf/SKILL.md. "
                 f"The page at {page} has been reviewed by a user. Read its current "
@@ -263,7 +264,7 @@ def seed_and_read_choice(run: Run) -> None:
             )
             (destination / "prompt.txt").write_text(prompt)
             trace = run_agent(
-                Path(temporary),
+                work,
                 prompt,
                 out=destination / "stream.jsonl",
                 err=destination / "err.txt",

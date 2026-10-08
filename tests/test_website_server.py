@@ -2996,6 +2996,27 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     receipt_width = receipt_words()
     initial_receipt = receipt.inner_text()
     assert receipt.evaluate("node => node.scrollWidth <= node.clientWidth")
+    # The gap belongs to neither receipt nor notice. Read its actual paint as
+    # well as the retained parent box: unclipped glyphs can escape a child whose
+    # bounding box still fits, without changing any metadata/news geometry.
+    thread.evaluate(
+        "node => Promise.all(node.getAnimations({subtree: true})"
+        ".map(animation => animation.finished))"
+    )
+    gutter = receipt.evaluate(
+        """node => {
+      const metadata = node.closest('.lf-msg-meta').getBoundingClientRect();
+      const notice = node.closest('.lf-thread').querySelector('.lf-thread-news')
+        .getBoundingClientRect();
+      const receipt = node.getBoundingClientRect();
+      const x = Math.ceil(metadata.right);
+      const y = Math.floor(receipt.top);
+      return {x, y, width: Math.floor(notice.left) - x,
+        height: Math.ceil(receipt.bottom) - y};
+    }"""
+    )
+    assert gutter["width"] > 0, gutter
+    gutter_before = page.screenshot(clip=gutter)
     # Losing the provider watcher changes Replying to the longer stale receipt
     # while its answer still waits. The words spend their own retained box.
     watcher.close()
@@ -3009,6 +3030,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
         receipt_words(),
     )
     assert held_header() == held
+    assert (
+        page.screenshot(clip=gutter) == gutter_before
+    ), "the longer workflow receipt painted into the gap before held news"
     cmd_resolve(page_dir, comment["id"])
     told(page)
     rendered(page)

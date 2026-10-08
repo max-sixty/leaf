@@ -98,6 +98,60 @@ export function patchTransitions(source) {
       }
     }
   });
+  // A timed close must settle the consumer's feedback wait on completion OR
+  // supersession. Keep the earlier user-close route, with one cleanup callback.
+  walk(ast, (node) => {
+    if (node.type !== "BlockStatement") return;
+    for (let i = 0; i < node.body.length - 1; i++) {
+      const first = node.body[i],
+        next = node.body[i + 1];
+      const promise = first.expression?.right;
+      const executor = promise?.arguments?.[0];
+      const listener = executor?.body?.body?.[0]?.expression;
+      const timer = next.expression?.right;
+      const timerBody = timer?.arguments?.[0]?.body;
+      if (
+        promise?.type !== "NewExpression" ||
+        promise.callee.name !== "Promise" ||
+        listener?.callee?.property?.name !== "addEventListener" ||
+        listener.arguments[0]?.value !== "wa-after-hide" ||
+        timer?.callee?.property?.name !== "setTimeout" ||
+        !timerBody
+      )
+        continue;
+      const hide = timerBody.body.find(
+        (statement) =>
+          statement.expression?.type === "AwaitExpression" &&
+          statement.expression.argument.callee?.property?.name === "hide",
+      );
+      if (!hide) continue;
+      const target = source.slice(
+        listener.callee.object.start,
+        listener.callee.object.end,
+      );
+      const hideTarget = hide.expression.argument.callee.object;
+      if (source.slice(hideTarget.start, hideTarget.end) !== target) continue;
+      const closed = listener.arguments[1].body;
+      const timedClose =
+        source.slice(next.start, hide.end) +
+        "\nfinishClose();" +
+        source.slice(hide.end, next.end);
+      edits.push([
+        executor.body.start + 1,
+        next.end,
+        `let finished = false;
+        const finishClose = () => {
+          if (finished) return;
+          finished = true;
+          ${target}.removeEventListener("wa-after-hide", finishClose);
+          ${source.slice(closed.start + 1, closed.end - 1)}
+        };
+        ${target}.addEventListener("wa-after-hide", finishClose, {once:true});
+        ${timedClose}
+        });`,
+      ]);
+    }
+  });
   if (!edits.length) return source;
   edits.sort((a, b) => b[0] - a[0]);
   for (const [start, end, replacement] of edits)

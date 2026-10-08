@@ -13074,6 +13074,33 @@ def test_interrupted_library_popovers_finish_the_latest_request(browser, serve, 
             assert control.evaluate("n => !n.open && !n.popup.active && n.base.hidden")
         control.evaluate("n => n.parentElement.remove()")
 
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    # Copy feedback consumes tooltip completion. Reopening its timed hide must
+    # release the copy lock even though the obsolete after-hide never fires.
+    page.evaluate("""async () => {
+      const {offer} = await import('/runtime/widget-api.js');
+      const copy = offer('wa-copy-button', 'copy-feedback');
+      copy.id = 'copy-feedback'; copy.value = 'copied value';
+      copy.tooltip = 'copy'; copy.feedbackDuration = 80;
+      document.body.append(copy); await copy.updateComplete;
+      copy.activeTooltip.addEventListener('wa-hide', () => copy.activeTooltip.show(), {once:true});
+      copy.copied = 0;
+      copy.addEventListener('wa-copy', () => copy.copied++);
+    }""")
+    copy = page.locator("#copy-feedback")
+    copy.get_by_role("button").click()
+    page.wait_for_function("document.querySelector('#copy-feedback').copied === 1")
+    page.wait_for_function("!document.querySelector('#copy-feedback').isCopying")
+    assert copy.evaluate(
+        "n => n.status === 'rest' && n.activeTooltip.open && !n.copyIcon.hidden"
+    )
+    copy.get_by_role("button").click()
+    page.wait_for_function("document.querySelector('#copy-feedback').copied === 2")
+    page.wait_for_function("!document.querySelector('#copy-feedback').isCopying")
+    assert copy.evaluate(
+        "n => n.status === 'rest' && !n.activeTooltip.open && !n.copyIcon.hidden"
+    )
+
 
 # A phrase late in the diff's longest line: unwrapped it is off the right of the box, and
 # wrapped it is on a line box of its own — the two states the test below is about.

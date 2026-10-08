@@ -10,6 +10,7 @@ from interact_support import _start, append_carried_log_record, append_command
 from leaf import data as data_model
 from leaf import delivery as delivery_model
 from leaf import event_log as events_model
+from leaf import exporting as exporting_model
 from leaf import render_checks as render_checks_model
 from leaf import service as service_model
 from leaf import thread as thread_model
@@ -12076,6 +12077,451 @@ def test_a_file_row_a_revision_brings_reads_its_cut_path(browser, serve, manifes
     head = page.locator("lf-diff .lf-diff-head").first
     expect(head).to_have_attribute("data-path-cut", "")
     expect(head.locator(".lf-diff-path")).to_have_attribute("title", path)
+
+
+def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
+    browser, serve
+):
+    """Preview and source are two readings of one feed, reachable by press and key."""
+    text = (
+        "# A rendered document\n\n"
+        "Read [the details](https://example.com/details).\n\n"
+        "- First item\n- Second item\n\n"
+        "| Name | Value |\n| --- | --- |\n| Outcome | **Ready** |\n"
+    )
+    url = serve(
+        leaf_page(
+            "Document readings",
+            '<h1>Document readings</h1><lf-text-document id="document" '
+            'source="document-text" preview="markdown" label="Notes">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    page = open_page(browser, url)
+    document = page.locator("#document")
+    preview = document.get_by_role("tab", name="Preview", exact=True)
+    source = document.get_by_role("tab", name="Source", exact=True)
+    expect(preview).to_have_attribute("aria-selected", "true")
+    expect(document.get_by_role("heading", name="A rendered document")).to_be_visible()
+    expect(document.get_by_role("link", name="the details")).to_have_attribute(
+        "href", "https://example.com/details"
+    )
+    expect(document.get_by_role("listitem")).to_have_text(["First item", "Second item"])
+    expect(document.get_by_role("cell")).to_have_text(["Outcome", "Ready"])
+
+    source.click()
+    expect(source).to_have_attribute("aria-selected", "true")
+    expect(document.locator("pre")).to_be_visible()
+    assert document.locator("code").text_content() == text
+    source.press("ArrowLeft")
+    expect(preview).to_be_focused()
+    expect(preview).to_have_attribute("aria-selected", "true")
+    expect(document.get_by_role("heading", name="A rendered document")).to_be_visible()
+    preview.press("End")
+    expect(source).to_be_focused()
+    expect(source).to_have_attribute("aria-selected", "true")
+
+
+@pytest.mark.parametrize("preview", ["markdown", "html"])
+@pytest.mark.parametrize(
+    "height", [None, 240], ids=["default-height", "authored-height"]
+)
+def test_document_readings_share_a_stable_viewport_and_keep_their_scroll(
+    browser, serve, preview, height
+):
+    """Changing readings or evidence length leaves the surrounding page in place."""
+    paragraphs = [f"Evidence paragraph {i}: a passage to inspect." for i in range(70)]
+    if preview == "markdown":
+        long = "# Document title\n\n" + "\n\n".join(paragraphs)
+        short = "# Short document\n\nOne paragraph.\n"
+    else:
+        long = (
+            "<h1>Document title</h1>\n"
+            + "\n".join(f"<p>{paragraph}</p>" for paragraph in paragraphs)
+            + "\n"
+        )
+        short = "<h1>Short document</h1>\n<p>One paragraph.</p>\n"
+    style = f"<style>#document {{ --lf-bound: {height}px; }}</style>" if height else ""
+    url = serve(
+        leaf_page(
+            "Stable document readings",
+            '<h1>Inspect evidence</h1><lf-text-document id="document" '
+            f'source="document-text" preview="{preview}" label="Evidence">'
+            '</lf-text-document><p id="following">The following passage.</p>',
+            head=style,
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "document-text", long)
+    page = open_page(browser, url)
+    resized(page, 1280, 1000)
+    document = page.locator("#document")
+    preview_tab = document.get_by_role("tab", name="Preview", exact=True)
+    source_tab = document.get_by_role("tab", name="Source", exact=True)
+    source_panel = document.get_by_role("tabpanel", name="Source", exact=True)
+    preview_panel = document.get_by_role("tabpanel", name="Preview", exact=True)
+    geometry = """() => {
+      const box = node => {
+        const rect = node.getBoundingClientRect();
+        return [rect.top + scrollY, rect.height];
+      };
+      const owner = document.querySelector('#document');
+      return [box(owner), box(owner.querySelector('figcaption')),
+              box(owner.querySelector('[role="tablist"]')),
+              box(document.querySelector('#following')), scrollY];
+    }"""
+    before = page.evaluate(geometry)
+    preview_height = preview_panel.bounding_box()["height"]
+    if height:
+        assert preview_height == pytest.approx(height, abs=1)
+
+    if preview == "markdown":
+        preview_tab.click()
+        page.keyboard.press("Tab")
+        expect(preview_panel).to_be_focused()
+        page.keyboard.press("PageDown")
+        page.wait_for_function(
+            "() => document.querySelector('#document [role=tabpanel]:not([hidden])').scrollTop > 0"
+        )
+        scroll_settled(page, "#document [role=tabpanel]:not([hidden])")
+        first_scroll = preview_panel.evaluate("el => el.scrollTop")
+        page.keyboard.press("PageDown")
+        page.wait_for_function(
+            "at => document.querySelector('#document [role=tabpanel]:not([hidden])').scrollTop > at",
+            arg=first_scroll,
+        )
+        scroll_settled(page, "#document [role=tabpanel]:not([hidden])")
+        preview_scroll = preview_panel.evaluate("el => el.scrollTop")
+    else:
+        frame = document.locator("iframe").element_handle().content_frame()
+        frame.get_by_role("heading", name="Document title").click()
+        page.keyboard.press("PageDown")
+        frame.wait_for_function("() => document.scrollingElement.scrollTop > 0")
+        scroll_settled(frame)
+        first_scroll = frame.evaluate("document.scrollingElement.scrollTop")
+        page.keyboard.press("PageDown")
+        frame.wait_for_function(
+            "at => document.scrollingElement.scrollTop > at", arg=first_scroll
+        )
+        scroll_settled(frame)
+        preview_scroll = frame.evaluate("document.scrollingElement.scrollTop")
+    assert page.evaluate(geometry) == before
+
+    source_tab.click()
+    expect(source_panel).to_be_visible()
+    assert source_panel.bounding_box()["height"] == pytest.approx(preview_height, abs=1)
+    assert page.evaluate(geometry) == before
+    page.keyboard.press("Tab")
+    expect(source_panel).to_be_focused()
+    page.keyboard.press("PageDown")
+    page.wait_for_function(
+        "() => document.querySelector('#document [role=tabpanel]:not([hidden])').scrollTop > 0"
+    )
+    scroll_settled(page, "#document [role=tabpanel]:not([hidden])")
+    source_scroll = source_panel.evaluate("el => el.scrollTop")
+    assert source_scroll != preview_scroll
+    assert page.evaluate(geometry) == before
+
+    preview_tab.click()
+    if preview == "markdown":
+        assert preview_panel.evaluate("el => el.scrollTop") == preview_scroll
+    else:
+        assert frame.evaluate("document.scrollingElement.scrollTop") == preview_scroll
+    source_tab.click()
+    assert source_panel.evaluate("el => el.scrollTop") == source_scroll
+    assert page.evaluate(geometry) == before
+
+    data_model.cmd_data_set(serve.page_dir, "document-text", short)
+    told(page)
+    rendered(page)
+    assert document.locator("code").text_content() == short
+    assert page.evaluate(geometry) == before
+    source_tab.press("Home")
+    expect(preview_tab).to_have_attribute("aria-selected", "true")
+    assert page.evaluate(geometry) == before
+    if preview == "markdown":
+        expect(document.get_by_role("heading", name="Short document")).to_be_visible()
+    else:
+        expect(frame.get_by_role("heading", name="Short document")).to_be_visible()
+    assert preview_panel.bounding_box()["height"] == pytest.approx(
+        preview_height, abs=1
+    )
+
+
+def test_a_document_source_follows_appends_only_while_its_reader_is_at_the_end(
+    browser, serve
+):
+    """A preview switch retains the source's declared end-following reading policy."""
+    url = serve(
+        leaf_page(
+            "Following source evidence",
+            '<h1>Evidence</h1><lf-text-document id="document" source="document-text" '
+            'preview="markdown" data-bound="end"></lf-text-document>',
+            head="<style>#document { --lf-bound: 240px; }</style>",
+        )
+    )
+    text = "\n".join(f"Evidence line {i}" for i in range(80)) + "\n"
+    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    page = open_page(browser, url)
+    document = page.locator("#document")
+    source_tab = document.get_by_role("tab", name="Source", exact=True)
+    source_tab.click()
+    source = document.get_by_role("tabpanel", name="Source", exact=True)
+    at_end = """el => el.scrollHeight > el.clientHeight &&
+      el.scrollHeight - el.scrollTop - el.clientHeight <= 2"""
+    page.wait_for_function(
+        f"({at_end})(document.querySelector('#document [role=tabpanel]:not([hidden])'))"
+    )
+    text += "A newly appended line\n"
+    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    told(page)
+    rendered(page)
+    assert source.evaluate(at_end)
+    page.keyboard.press("Tab")
+    expect(source).to_be_focused()
+    page.keyboard.press("PageUp")
+    page.wait_for_function(
+        """() => {
+          const el = document.querySelector('#document [role=tabpanel]:not([hidden])');
+          return el.scrollHeight - el.scrollTop - el.clientHeight > 20;
+        }"""
+    )
+    scroll_settled(page, "#document [role=tabpanel]:not([hidden])")
+    position = source.evaluate("el => el.scrollTop")
+    text += "Another newly appended line\n"
+    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    told(page)
+    rendered(page)
+    assert source.evaluate("el => el.scrollTop") == position
+    assert not source.evaluate(at_end)
+    document.get_by_role("tab", name="Preview", exact=True).click()
+    source_tab.click()
+    assert source.evaluate("el => el.scrollTop") == position
+
+
+def test_a_hidden_document_preview_opens_at_its_fragment_without_resizing(
+    browser, serve
+):
+    """A fragment naming a closed reading opens it without changing its fixed box."""
+    url = serve(
+        leaf_page(
+            "Reveal document evidence",
+            '<h1>Evidence</h1><p><a href="#document--preview">Read the preview</a></p>'
+            '<lf-text-document id="document" source="document-text" preview="markdown" '
+            '></lf-text-document><p id="following">Following.</p>',
+            head="<style>#document { --lf-bound: 240px; }</style>",
+        )
+    )
+    text = "# Document\n\n" + "A paragraph of evidence.\n\n" * 30
+    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    page = open_page(browser, url)
+    document = page.locator("#document")
+    document.get_by_role("tab", name="Source", exact=True).click()
+    following = page.locator("#following").evaluate(
+        "el => el.getBoundingClientRect().top + scrollY"
+    )
+    page.get_by_role("link", name="Read the preview").click()
+    expect(document.get_by_role("tab", name="Preview", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    panel = document.get_by_role("tabpanel", name="Preview", exact=True)
+    expect(panel).to_be_in_viewport()
+    assert panel.bounding_box()["height"] == pytest.approx(240, abs=1)
+    expect(document.get_by_role("heading", name="Document", exact=True)).to_be_visible()
+    assert (
+        page.locator("#following").evaluate(
+            "el => el.getBoundingClientRect().top + scrollY"
+        )
+        == following
+    )
+
+
+def test_document_views_remember_independently_and_follow_live_source_updates(
+    browser, serve
+):
+    """Reading choices survive reload and news without becoming decisions in the log."""
+    url = serve(
+        leaf_page(
+            "Independent document readings",
+            '<h1>Documents</h1><lf-text-document id="first" source="first-text" '
+            'preview="markdown"></lf-text-document>'
+            '<lf-text-document id="second" source="second-text" '
+            'preview="markdown"></lf-text-document>',
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "first-text", "# First original\n")
+    data_model.cmd_data_set(serve.page_dir, "second-text", "# Second original\n")
+    page = open_page(browser, url)
+    first = page.locator("#first")
+    second = page.locator("#second")
+
+    def decisions():
+        return [
+            event
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] in {"action", "report", "undo"}
+        ]
+
+    before = decisions()
+    first.get_by_role("tab", name="Source", exact=True).click()
+    expect(second.get_by_role("tab", name="Preview", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    page.reload()
+    wait_until_ready(page)
+    expect(first.get_by_role("tab", name="Source", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    expect(second.get_by_role("tab", name="Preview", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    updated = "# First updated\n\nFresh **evidence**.\n"
+    data_model.cmd_data_set(serve.page_dir, "first-text", updated)
+    told(page)
+    rendered(page)
+    assert first.locator("code").text_content() == updated
+    expect(first.get_by_role("tab", name="Source", exact=True)).to_have_attribute(
+        "aria-selected", "true"
+    )
+    first.get_by_role("tab", name="Preview", exact=True).click()
+    expect(first.get_by_role("heading", name="First updated")).to_be_visible()
+    expect(first.locator("strong")).to_have_text("evidence")
+    expect(second.get_by_role("heading", name="Second original")).to_be_visible()
+    round_trip(page)
+    assert decisions() == before
+
+
+def test_an_exported_markdown_document_keeps_its_preview_and_source_switch(
+    browser, serve, tmp_path
+):
+    """The offline artifact carries both the source value and its renderers."""
+    serve(
+        leaf_page(
+            "Offline document",
+            '<h1>Offline document</h1><lf-text-document id="document" '
+            'source="document-text" preview="markdown"></lf-text-document>',
+        )
+    )
+    text = "# Captured heading\n\nA **captured** paragraph.\n"
+    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    out = tmp_path / "document.html"
+    exporting_model.cmd_export(serve.page_dir, out, None)
+    page = open_page(browser, out.as_uri())
+    document = page.locator("#document")
+    expect(document.get_by_role("heading", name="Captured heading")).to_be_visible()
+    expect(document.locator("strong")).to_have_text("captured")
+    source = document.get_by_role("tab", name="Source", exact=True)
+    source.click()
+    expect(document.locator("pre")).to_be_visible()
+    assert document.locator("code").text_content() == text
+    source.press("Home")
+    expect(document.get_by_role("heading", name="Captured heading")).to_be_visible()
+    page.keyboard.press("g")
+    rendered(page)
+    assert (
+        page.evaluate("""async () => {
+      const {PAGE_PAINT_ATTRIBUTE} = await window.__lfRuntimeImport('/runtime/page-paint.js');
+      return document.body.hasAttribute(PAGE_PAINT_ATTRIBUTE.goto);
+    }""")
+        is False
+    )
+    page.keyboard.press("?")
+    rendered(page)
+    expect(page.get_by_role("dialog")).to_have_count(0)
+    expect(page.locator(".lf-chrome")).to_have_count(0)
+    document.get_by_role("tab", name="Preview", exact=True).press("ArrowRight")
+    expect(source).to_have_attribute("aria-selected", "true")
+
+
+def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
+    browser, serve
+):
+    """HTML keeps its document styling inside the preview and retains literal source."""
+    text = (
+        "<!doctype html><html><head><style>"
+        "body { color: rgb(193, 2, 151); } h1 { font-size: 25px; }"
+        "</style></head><body><h1>Isolated document</h1>"
+        '<p id="execution"></p><p id="isolation"></p><script>'
+        "document.querySelector('#execution').textContent = 'Script executed';"
+        "try { parent.document.querySelector('#leaf-title').textContent = 'Changed';"
+        "document.querySelector('#isolation').textContent = 'Parent document accessible';"
+        "} catch { document.querySelector('#isolation').textContent = 'Parent document denied'; }"
+        "</script></body></html>"
+    )
+    url = serve(
+        leaf_page(
+            "HTML evidence",
+            '<h1 id="leaf-title">HTML evidence</h1><lf-text-document id="document" '
+            'source="html-text" preview="html" label="HTML capture">'
+            "</lf-text-document>",
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "html-text", text)
+    page = open_page(browser, url)
+    document = page.locator("#document")
+    frame = document.frame_locator("iframe")
+    heading = frame.get_by_role("heading", name="Isolated document")
+    expect(heading).to_be_visible()
+    expect(heading).to_have_css("color", "rgb(193, 2, 151)")
+    expect(heading).to_have_css("font-size", "25px")
+    expect(frame.locator("#execution")).to_have_text("Script executed")
+    expect(frame.locator("#isolation")).to_have_text("Parent document denied")
+    expect(page.locator("#leaf-title")).to_have_text("HTML evidence")
+    assert (
+        page.locator("#leaf-title").evaluate("el => getComputedStyle(el).color")
+        != "rgb(193, 2, 151)"
+    )
+    source = document.get_by_role("tab", name="Source", exact=True)
+    source.click()
+    expect(document.locator("pre")).to_be_visible()
+    assert document.locator("code").text_content() == text
+    held = []
+    page.route("**/preview-style.css", lambda route: held.append(route))
+    updated = text.replace("Isolated document", "Updated document").replace(
+        "</head>", '<link rel="stylesheet" href="/preview-style.css"></head>'
+    )
+    data_model.cmd_data_set(serve.page_dir, "html-text", updated)
+    holding(page, held, 1, "the HTML preview's stylesheet")
+    assert (
+        page.evaluate(
+            "() => document.querySelector('script[data-lf-entry]').lfReadiness()"
+        )
+        is not None
+    )
+    # The file's bytes identify its revision; JSON whitespace changes that identity
+    # without changing the HTML value, so this delivery must join the frame's load.
+    data_file = data_model.source_file(serve.page_dir, "html-text")
+    with data_file.open("a") as value_file:
+        value_file.write("\n")
+    answer = page.request.get(f"{page.evaluate('location.origin')}/api/state")
+    assert answer.ok
+    revision = answer.json()["data"]["sources"]["html-text"]["revision"]
+    page.wait_for_function(
+        """async revision => {
+          const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+          return runtime.data.sources['html-text'].revision === revision;
+        }""",
+        arg=revision,
+    )
+    assert (
+        page.evaluate(
+            "() => document.querySelector('script[data-lf-entry]').lfReadiness()"
+        )
+        is not None
+    )
+    held[0].fulfill(
+        status=200,
+        content_type="text/css",
+        body="h1 { color: rgb(12, 93, 47); }",
+    )
+    told(page)
+    rendered(page)
+    assert document.locator("code").text_content() == updated
+    source.press("Home")
+    expect(document.get_by_role("tab", name="Preview", exact=True)).to_be_focused()
+    updated_heading = frame.get_by_role("heading", name="Updated document")
+    expect(updated_heading).to_be_visible()
+    expect(updated_heading).to_have_css("color", "rgb(12, 93, 47)")
 
 
 @pytest.mark.parametrize("language", [None, "python"])

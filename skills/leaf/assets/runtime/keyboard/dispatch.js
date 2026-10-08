@@ -128,7 +128,8 @@ export const userIn = (scope) => !scope.at || scope.at();
 export const standing = (scope) => userIn(scope) && pageHas(scope);
 const nativeBoundary = (claims) => ({
   get rows() {
-    return [universalCommandReference()];
+    const reference = universalCommandReference();
+    return reference ? [reference] : [];
   },
   claims,
   escapeBoundary: true,

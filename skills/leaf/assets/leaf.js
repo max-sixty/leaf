@@ -943,12 +943,6 @@ if (!offlineInteractive) {
     setGoToSequence: goToSequence.setGoToSequence,
     setReact: reactions.setReact,
   });
-  mountKeyboard({
-    goToSequenceActive: goToSequence.goToSequenceActive,
-    setGoToSequence: goToSequence.setGoToSequence,
-    reactArmed: reactions.isReactArmed,
-    setReact: reactions.setReact,
-  });
   declareLeavesKeys();
   watchDisclosures(document);
   mountRepaint({
@@ -964,6 +958,15 @@ if (!offlineInteractive) {
   // own box shows: an options group's addition field paints there as it does live.
   mountRepaint({ paintStandingGeometry: inputs.paintInputs, reflectKeys });
 }
+
+// Widget commands belong to interactive documents, including offline exports.
+// The register admits page and chrome commands only in a live document.
+mountKeyboard({
+  goToSequenceActive: goToSequence.goToSequenceActive,
+  setGoToSequence: goToSequence.setGoToSequence,
+  reactArmed: reactions.isReactArmed,
+  setReact: reactions.setReact,
+});
 
 const replayReady = passiveSample
   ? import("./runtime/interaction-gallery-frame.js").then(({ mountReplay }) =>

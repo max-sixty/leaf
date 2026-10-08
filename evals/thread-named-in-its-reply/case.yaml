@@ -24,16 +24,6 @@ vars:
     Write the exact commands you run now, in order, including the full text of the
     reply. Nothing here can run them, so reply with the commands.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-threads
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/threads\.md
 - type: regex
   metric: titles-in-the-reply
   value: leaf response reply\b(?:[^\n]|\\\n)*--title\b

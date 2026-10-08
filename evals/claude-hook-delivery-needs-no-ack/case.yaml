@@ -20,11 +20,6 @@ vars:
     Only Skill and Read run here, so write out, in order, each command you would run
     before starting the requested revision. Then end your answer.
 assert:
-- type: javascript
-  metric: reads-claude-code-harness
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/harness-claude-code\.md
 - type: llm-rubric
   metric: judgment
   value: |

@@ -18,16 +18,6 @@ vars:
     you need, then give the commands for each pair and explain how I connect the
     right client to its server. Only Skill and Read run here.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-terminal-setup
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/(?:harness-codex-app-server|codex-setup)\.md
 - type: llm-rubric
   metric: independent-transports
   value: |

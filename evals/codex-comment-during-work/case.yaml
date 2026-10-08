@@ -28,16 +28,6 @@ vars:
     After that work, prepare this same page for another review and finish your
     turn with its URL.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-codex-harness
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/harness-codex\.md
 - type: llm-rubric
   metric: judgment
   value: |

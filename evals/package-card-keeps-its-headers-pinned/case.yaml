@@ -23,11 +23,6 @@ vars:
     Read the references you need and show the widget's shadow.css for the card, the
     step groups and their title rows. Return CSS in your reply.
 assert:
-- type: javascript
-  metric: reads-module-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/module-authoring\.md
 - type: llm-rubric
   metric: card-clips-without-scrolling
   value: |

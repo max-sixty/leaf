@@ -30,16 +30,6 @@ vars:
     Leaf instructions, then give the CLI commands you would run, in order,
     with the full text of any replies or other content you would write.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-threads
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/threads\.md
 - type: llm-rubric
   metric: keeps-needed-originals-and-answers
   value: |

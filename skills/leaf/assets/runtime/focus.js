@@ -333,7 +333,9 @@ document.addEventListener(
       const at = document.activeElement;
       if (at !== null && at !== document.body) return;
       if (!drawn(left)) return publish(null, "drop");
-      placements += 1;
+      // A borrowed body stop leaving for nowhere is the release itself, not
+      // another placement after the caller began waiting for its return.
+      if (left !== document.body) placements += 1;
       if (stood === left) stood = null;
       publish(null, cause(null));
     });
@@ -662,7 +664,8 @@ export function handBack(...destinations) {
   nextRender(() => {
     if (
       inputEpoch !== pendingInput ||
-      (yielded ? deepFocus() !== document.body : placements !== began) ||
+      placements !== began ||
+      (yielded && deepFocus() !== document.body) ||
       landed()
     )
       return;

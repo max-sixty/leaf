@@ -8880,6 +8880,12 @@ HAND_BACK = """async (step) => {
     document.dispatchEvent(new KeyboardEvent('keydown', {key: 'x', bubbles: true}));
     shut.hidden = false;
   }
+  if (step === 'user landed and let go') {
+    handBack(shut);
+    open.focus();
+    open.blur();
+    shut.hidden = false;
+  }
   await frame();
   await frame();
   const at = document.activeElement;
@@ -8893,11 +8899,11 @@ def test_a_closing_layer_hands_the_user_back_to_the_first_place_that_takes_them(
     """Every closer names where the user goes back to, most particular first, and
     `handBack` lands them on the first that takes focus. A place still in the document
     gets the next frame, for a close whose own paint still hides it, unless the user
-    moved or pressed another key first. With nowhere to go the user is let go on the
-    block they are reading, so their next Tab carries on from it: not from the closed
-    layer, which is where the browser left them, and not from the top of the document,
-    which is where focusing the body would. The body is nowhere, for an opener read
-    while nothing held focus."""
+    moved, let go after a landing, or pressed another key first. With nowhere to go
+    the user is let go on the block they are reading, so their next Tab carries on
+    from it: not from the closed layer, which is where the browser left them, and
+    not from the top of the document, which is where focusing the body would. The
+    body is nowhere, for an opener read while nothing held focus."""
     page = open_page(browser, serve(LONG_PAGE))
     landed = {
         step: page.evaluate(HAND_BACK, step)
@@ -8906,6 +8912,7 @@ def test_a_closing_layer_hands_the_user_back_to_the_first_place_that_takes_them(
             "shown by the next frame",
             "user moved on",
             "user pressed another key",
+            "user landed and let go",
         ]
     }
     assert landed == {
@@ -8913,6 +8920,7 @@ def test_a_closing_layer_hands_the_user_back_to_the_first_place_that_takes_them(
         "shown by the next frame": "shut",
         "user moved on": "open",
         "user pressed another key": "body",
+        "user landed and let go": "body",
     }
     for step in ["nothing to land on", "body"]:
         assert page.evaluate(HAND_BACK, step) == "body"

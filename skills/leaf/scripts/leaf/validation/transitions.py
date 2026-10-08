@@ -65,10 +65,11 @@ def restatement_errors(
     one-word ritual that would make this gate meaningless.
 
     The comparison is the words each version says (`spoken`), because words are
-    what a decision is about. Re-indenting a draft, marking the picked option
-    `chosen`, or relocating a card the user already moved is not a revision,
-    and neither is writing their own edit back — a version that says what they
-    said is agreeing with them.
+    what a decision is about. Marking the picked option `chosen`, or relocating
+    a card the user already moved is not a revision, and neither is writing their
+    own edit back — a version that says what they said is agreeing with them.
+    A Markdown body's indentation and paragraph breaks are part of its declared
+    source state, even where its visible passage words stay the same.
 
     Words are one divergence kind; declared state is the other. For each verb
     the registry declares (x-state), the fold gives the user's standing
@@ -171,7 +172,7 @@ def restatement_errors(
         # an action answers, so its value is a comment id rather than words
         # anybody sent. `action_rests_on` reads past it for the same reason.
         echoed = {
-            collapse(str(v))
+            collapse(shown_words(v, registry.get(rec["tag"], {}), added=True))
             for e in live
             for field, v in e["detail"].items()
             if field != "resolves" and isinstance(v, str)

@@ -1645,8 +1645,8 @@ def test_comments_wait_for_the_first_log_to_be_renderable(browser, serve):
     held = []
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
-    page.route("**/vendor/marked.esm.js", lambda route: held.append(route))
-    with page.expect_request("**/vendor/marked.esm.js"):
+    page.route("**/vendor/markdown-it.esm.js", lambda route: held.append(route))
+    with page.expect_request("**/vendor/markdown-it.esm.js"):
         page.goto(url, wait_until="load")
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the Markdown renderer"
@@ -2539,7 +2539,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
         primed(
             browser,
             lambda page: page.route(
-                "**/vendor/marked.esm.js", lambda route: marked.append(route)
+                "**/vendor/markdown-it.esm.js", lambda route: marked.append(route)
             ),
         ),
         serve(LONG_PAGE),
@@ -2581,7 +2581,7 @@ def test_a_state_waiting_for_markdown_cannot_overwrite_a_newer_one(browser, serv
     old_route.fulfill(json=old_state)
     page.title()  # let the old response join the shared import before releasing it
     marked[0].continue_()
-    page.unroute("**/vendor/marked.esm.js")
+    page.unroute("**/vendor/markdown-it.esm.js")
 
     expect(page.locator(".lf-thread", has_text="Older snapshot")).to_have_count(1)
     expect(page.locator(".lf-thread", has_text="Newest snapshot")).to_have_count(1)

@@ -1,9 +1,10 @@
 /* Inline command hints are a projection of the dispatcher's exact reachable bindings.
  *
  * A row or route opts in through `bindingBadge`: an Element lends a widget-positioned
- * face; null requests a runtime corner chip. Native command buttons also receive
+ * face outside every native button; null requests a runtime corner chip. Native command buttons also receive
  * accessible shortcuts without requesting a visual badge. The widget owns placement,
- * while this presenter owns words, visibility and the accessible shortcuts. Neither Decision
+ * while this presenter owns words, visibility and the accessible shortcuts. A lent
+ * face keeps its out-of-flow seat even when empty or its command leaves reach. Neither Decision
  * metadata nor a second focus predicate is needed. Contextual aliases and intrinsic
  * bindings to one original command share a face, with a reachable contextual alias
  * preferred. Every remaining reachable binding stays in the accessible projection.
@@ -19,7 +20,7 @@ import { buttonCommand, commandScope, projectCommandScope } from "./scopes.js";
 import { coveringAuxiliarySurface } from "./register.js";
 import { keyBadgePlacement } from "./key-badge-placement.js";
 import { documentPoint } from "../geometry.js";
-import { under } from "../shadow.js";
+import { renderedParent, under } from "../shadow.js";
 import { el } from "../widget-elements.js";
 import { keepsText } from "../keeps.js";
 import { repaint } from "../repaint.js";
@@ -56,11 +57,20 @@ function hintRoutes(available) {
         continue;
       if (!(control instanceof Element))
         throw new TypeError(`leaf: ${contribution.id} has no Element hint control`);
-      if (!control.isConnected) continue;
       // Undefined requests only accessible shortcuts; explicit null requests a chip.
       const bindingBadge = badge === undefined ? undefined : (word(badge) ?? null);
       if (bindingBadge != null && !(bindingBadge instanceof Element))
         throw new TypeError(`leaf: ${contribution.id} has no Element binding badge`);
+      if (bindingBadge) {
+        for (let at = bindingBadge; at; at = renderedParent(at))
+          if (at.matches("button"))
+            throw new TypeError(
+              `leaf: ${contribution.id} binding badge must be outside native buttons`,
+            );
+        if (!bindingBadge.classList.contains("lf-binding-seat"))
+          bindingBadge.classList.add("lf-binding-seat");
+      }
+      if (!control.isConnected) continue;
       let record = gathered.find(
         (prior) =>
           prior.original === original && prior.id === id && prior.control === control,

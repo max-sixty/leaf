@@ -107,6 +107,9 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
     display: inline-flex; align-items: center; justify-content: center;
     user-select: none; -webkit-user-select: none; }
 .lf-key-badge:empty { display: none; }
+/* A lent command hint never participates in flow, whether empty, filled or restored.
+   Its widget positions the external seat beside the control it labels. */
+.lf-binding-seat { position: absolute; }
 .lf-external-mark { display: inline-block; width: .75em; height: .75em;
                     margin-inline-start: .24em; vertical-align: .03em;
                     fill: none; stroke: currentColor; stroke-width: 1.5;

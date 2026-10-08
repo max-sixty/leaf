@@ -24,7 +24,7 @@ import {
   verbatimOwnerIdentity,
 } from "./passages.js";
 import { offlineInteractive, runtimeModule, runtimeResource } from "./context.js";
-import { prepareDeclaredInlineMarkdown } from "./markdown.js";
+import { prepareDeclaredMarkdown } from "./markdown.js";
 import { initialOrigin, initialSource } from "./initial-render.js";
 
 /* Registry loading and the one initial widget-upgrade lifecycle.
@@ -142,7 +142,7 @@ export async function importWidgets(scope) {
   // tag stands in some scope, and a tag declaring x-shadow brings the rules in on that
   // same call. The theme is read once for the tab however many scopes ask.
   await Promise.all([
-    prepareDeclaredInlineMarkdown(scope),
+    prepareDeclaredMarkdown(scope),
     ...(presentTags(scope, (entry) => entry["x-shadow"]).length
       ? [loadShadowRules()]
       : []),

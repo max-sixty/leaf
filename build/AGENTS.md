@@ -18,9 +18,9 @@ package authors continue to use native JavaScript without a build.
 - `initial.mjs` builds each package's synchronous initial drawing from its
   `runtime/initial.js` into the one bundle its registry declares with `x-initial`;
   `build:browser` and `check:browser` include these outputs.
-- `vendor.py` rebuilds every third-party bundle outside the framework. Where upstream publishes a loadable file
-  it copies it; `pierre/` and `webawesome/` are the inputs of the bundles it has
-  to build.
+- `vendor.py` rebuilds every third-party bundle outside the framework, bundling what
+  each consumer needs or adapting an upstream browser module. `pierre/` and
+  `webawesome/` hold the inputs their builders use.
 
 After `npm ci`, both reproduce the tracked bytes, so a diff after a rebuild means the
 lock, a build script, or the registry input changed:

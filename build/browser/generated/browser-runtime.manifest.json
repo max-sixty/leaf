@@ -9,7 +9,6 @@
     "build/browser/presentation.ts",
     "build/browser/snapshot.ts",
     "skills/leaf/assets/runtime/anchor-coordinate.js",
-    "skills/leaf/assets/runtime/collapse.js",
     "skills/leaf/assets/runtime/pending/model.js",
     "skills/leaf/assets/runtime/projection/model.js",
     "skills/leaf/assets/runtime/queues.js",
@@ -23,7 +22,7 @@
   },
   "outputRoot": "skills/leaf/assets/vendor",
   "lockfile": "package-lock.json",
-  "lockfileSha256": "5cc058420ee32fc5e60bca5998f45b9f7a8f3826f1a63292a246450fc2866807",
+  "lockfileSha256": "826a5111d246053dad018cfd45f0163f062217d436fd0b16be90ad6c75e6bba0",
   "commands": {
     "install": "npm ci",
     "build": "npm run build:browser",
@@ -54,7 +53,8 @@
     "happy-dom": "20.14.5",
     "lit": "3.3.3",
     "lit-html": "3.3.0",
-    "marked": "18.0.14",
+    "markdown-it": "14.3.2",
+    "markdown-it-task-lists": "2.1.1",
     "sortablejs": "1.15.7",
     "typescript": "7.0.2"
   },
@@ -162,12 +162,12 @@
   "pageModules": "Browser-ready authored page modules are captured with their revision; they are not contributor-build inputs.",
   "outputs": {
     "skills/leaf/assets/vendor/browser-runtime.js": {
-      "bytes": 30612,
-      "sha256": "748aeccf706e19df94f8631a4f57b14addc1805ed39e905c7aa33e597b0ce33a"
+      "bytes": 30473,
+      "sha256": "2dc34b5c874fc05e1ca97f0c7b1abd40c40e2e5ed9a6710f50b39d6d5580aab8"
     },
     "build/browser/generated/browser-runtime.js.map": {
-      "bytes": 200523,
-      "sha256": "2c8585d052ecb611728426582784bc42f1670dc83244d343352bcf5a0f288bea"
+      "bytes": 199331,
+      "sha256": "cab11893424cd351936c10c8185e941899f561b377b3b0e3c0fc334cab0c19ca"
     },
     "skills/leaf/assets/vendor/lit.js": {
       "bytes": 32081,

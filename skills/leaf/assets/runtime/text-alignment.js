@@ -33,7 +33,12 @@ export const sentenceUnits = new Intl.Segmenter(undefined, {
 });
 const MAX_EDIT_LENGTH = 1_000;
 
-export function alignText(before, after, units = textUnits) {
+export function alignText(
+  before,
+  after,
+  units = textUnits,
+  maxEditLength = MAX_EDIT_LENGTH,
+) {
   const left = [...units.segment(before)].map((part) => part.segment);
   const right = [...units.segment(after)].map((part) => part.segment);
   const runs = [];
@@ -65,7 +70,7 @@ export function alignText(before, after, units = textUnits) {
   const changes = diffArrays(
     left.slice(prefix, leftEnd),
     right.slice(prefix, rightEnd),
-    { maxEditLength: MAX_EDIT_LENGTH },
+    { maxEditLength },
   );
   if (changes) {
     for (const change of changes) {

@@ -112,7 +112,12 @@ test("a return stays interrupted until its refreshed reading is actually present
       let news = "initial";
       let reads = 0;
       t.mock.method(globalThis, "fetch", async (url) => {
-        if (new URL(url).pathname === "/api/news") return new Response(news);
+        const path = new URL(url).pathname;
+        if (path === "/api/news") return new Response(news);
+        // The real interaction logger may flush its already-scheduled first batch.
+        // Telemetry is a separate transport, not a state read or its failure.
+        if (path === "/api/interaction") return new Response(null, { status: 204 });
+        assert.equal(path, "/api/state");
         reads += 1;
         if (mode === "offline" && reads === 2) throw new Error("network absent");
         return Response.json(state(reads === 1 ? "first" : "second"));

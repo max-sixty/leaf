@@ -5,13 +5,9 @@ Nothing builds them at install time, so they are tracked. The files under
 `skills/leaf/assets/vendor/` and each package's own `vendor/` are page payload:
 `page init` copies them into a page directory and a user's browser runs them.
 
-They arrive two ways, which is the shape of this file. Where upstream already
-publishes a file a browser can load, vendoring is three values — the package,
-the file inside it, and where it lands — so those are rows in COPIES. Where
-nothing published is loadable as it stands, or what Leaf ships is cut down to
-what its registry declares, vendoring is a program, so those are functions.
-Either way, what comes out passes through `build/browser/shipped.mjs`, the
-owner `build/browser/build.mjs` shares: it refuses a module an export cannot
+Each builder bundles only what its consumer needs, using the installed packages
+and the registry's declarations. What comes out passes through
+`build/browser/shipped.mjs`, the owner `build/browser/build.mjs` shares: it refuses a module an export cannot
 load and writes the bundle's license notices (`vendor`).
 
 Every version they carry is the one `package-lock.json` resolved: `package.json`
@@ -61,15 +57,6 @@ class Copy(NamedTuple):
     package: str
     inside: str  # the file to take out of the published package
     out: Path
-
-
-COPIES = {
-    # marked is zero-dependency and its package export is already one
-    # browser-native ESM file. The runtime renders every message's text with it;
-    # what it may not do — pass raw HTML through, since a message injects widgets
-    # only through the event's `markup` field — is configured in leaf.js.
-    "marked": Copy("marked", "lib/marked.esm.js", ASSETS / "vendor/marked.esm.js"),
-}
 
 
 def run(*args: str, cwd: Path) -> None:
@@ -128,6 +115,26 @@ def build_syntax(work: Path) -> list[Path]:
         encoding="utf-8",
     )
     return [out, *sorted(directory.glob("*.js"))]
+
+
+def build_markdown(work: Path) -> list[Path]:
+    """One lazy Markdown parser bundle, including its task-list extension."""
+    out = ASSETS / "vendor/markdown-it.esm.js"
+    (work / "entry.mjs").write_text(
+        'export { default as MarkdownIt } from "markdown-it";\n'
+        'export { default as taskLists } from "markdown-it-task-lists";\n',
+        encoding="utf-8",
+    )
+    esbuild(
+        "entry.mjs",
+        "--bundle",
+        "--format=esm",
+        "--minify",
+        "--legal-comments=inline",
+        f"--outfile={out}",
+        cwd=work,
+    )
+    return [out]
 
 
 def build_jsdiff(work: Path) -> list[Path]:
@@ -403,6 +410,7 @@ def build_sortable(work: Path) -> list[Path]:
 
 
 BUILDS: dict[str, Callable[[Path], list[Path]]] = {
+    "markdown": build_markdown,
     "sortable": build_sortable,
     "agentic-mermaid": build_agentic_mermaid,
     "codemirror": build_codemirror,
@@ -441,9 +449,7 @@ def vendor(name: str) -> list[Path]:
     scratch.mkdir(exist_ok=True)
     with tempfile.TemporaryDirectory(dir=scratch, prefix="vendor-") as tmp:
         work = Path(tmp)
-        outputs = (
-            copy_published(COPIES[name], work) if name in COPIES else BUILDS[name](work)
-        )
+        outputs = BUILDS[name](work)
         first = outputs[0]
         notices = first.with_name(f"{first.name.split('.')[0]}.LICENSES.txt")
         run(
@@ -458,7 +464,7 @@ def vendor(name: str) -> list[Path]:
 
 
 def main() -> None:
-    known = sorted(COPIES | BUILDS)
+    known = sorted(BUILDS)
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("bundle", nargs="*", help=f"one or more of: {', '.join(known)}")
     args = parser.parse_args()

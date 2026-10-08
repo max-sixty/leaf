@@ -2906,16 +2906,12 @@ def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
     )
 
 
-def test_a_thread_questions_done_press_wears_its_address_and_one_workflow(
-    browser, serve
-):
-    """Done is a cell of the joined control, and the message shows one workflow.
+def test_a_thread_questions_done_press_keeps_its_keys_and_one_workflow(browser, serve):
+    """Done keeps its native button clear while the bar and ARIA expose its keys.
 
-    The Ask projection writes each option's key into the binding slot the row keeps
-    for it; Done kept none, so its chip was hung at the button's corner, half outside
-    the group's frame — a stray `4` a blind drive could not place. And a tick followed
-    by Done are two coordinates. The message carries their shared strongest workflow
-    once rather than painting two independent receipt classifiers."""
+    A tick followed by Done are two coordinates. The message carries their shared
+    strongest workflow once rather than painting two receipt classifiers.
+    """
     page = open_page(
         browser, serve(next(p for p in EXAMPLES if p.stem == "ship-review"))
     )
@@ -2931,18 +2927,14 @@ def test_a_thread_questions_done_press_wears_its_address_and_one_workflow(
     round_trip(page)
     done = question.locator(".lf-done")
     done.focus()
-    chip = done.locator(":scope > .lf-key-badge")
-    expect(chip).to_be_visible()
+    expect(done).to_have_attribute("aria-keyshortcuts", re.compile(r"\b4\b"))
+    expect(question.locator(":scope > lf-options-done .lf-key-badge")).to_have_count(0)
+    expect(page.locator(".lf-shortcut-bar")).to_contain_text("Done")
     frame = question.bounding_box()
     done_row = question.locator(":scope > lf-options-done").bounding_box()
     assert frame["y"] + frame["height"] - done_row["y"] - done_row[
         "height"
     ] == pytest.approx(1, abs=1)
-    box = chip.bounding_box()
-    assert (
-        frame["x"] <= box["x"]
-        and box["x"] + box["width"] <= frame["x"] + frame["width"]
-    ), f"Done's binding badge {box} stands outside the group {frame}"
     expect(
         page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_have_count(0)

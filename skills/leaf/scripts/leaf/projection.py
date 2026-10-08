@@ -13,7 +13,11 @@ from leaf.events import (
     retractions,
     taken_back,
 )
-from leaf.passages import EMPTY, SourceReading, collapse, enclosing_of
+from leaf.passages import (
+    EMPTY,
+    SourceReading,
+    enclosing_of,
+)
 from leaf.registry.contract import (
     WRITERS,
     decides,
@@ -502,7 +506,8 @@ def markup_value(unit: str, spec: dict, byid: dict, spk: dict, registry: dict):
     if record["kind"] == "value":
         rec = byid.get(unit)
         return rec["attrs"].get(record["attr"]) if rec else None
-    return collapse(spk.get(unit, EMPTY).words)  # "body"
+    rec = byid.get(unit)
+    return rec["body"] if rec else ""  # "body"
 
 
 def authored_positions(
@@ -638,15 +643,15 @@ def recorded_state(
 
 
 def folded_value(e: dict, spec: dict):
-    """The state the folded action left in detail.value,
-    collapsed the way `spoken` collapses where it compares against words, and
-    sorted where it compares against a set of marked elements."""
+    """The exact state left in detail.value, sorted only for unordered id sets.
+
+    Body source includes Markdown syntax and meaningful whitespace. Visible passage
+    words are a separate reading and never determine semantic equality.
+    """
     record = spec.get("record")
     if not record:
         return NO_RECORD
     value = e["detail"]["value"]
-    if record["kind"] == "body":
-        return collapse(value)
     if record["kind"] == "attribute":
         return sorted(value)
     return value

@@ -55,7 +55,6 @@ moves again or the markup records the move anyway.
 from .asks import ask_answered, part_of_ask
 from .events import (
     conversation_turns,
-    standing_approvals,
     unanswered_turns,
 )
 from .projection import (
@@ -100,7 +99,6 @@ def obligation_reading(readings) -> dict:
     work = readings.work
     page = work.page
     thread = work.thread
-    events = work.events
     workflows = work.workflows
     thread_asks = work.asks
     prompts = work.prompts
@@ -153,7 +151,7 @@ def obligation_reading(readings) -> dict:
             }
             for identity, subject in in_hand
         ],
-        "approvals": [event["id"] for event in standing_approvals(events)],
+        "approvals": [event["id"] for event in work.approvals],
     }
 
 

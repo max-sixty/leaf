@@ -457,7 +457,7 @@ def canonical_activity(
 
     `interaction_evidence` are the page's workflows (`workflows.canonical_workflows`)
     and `events` the log they were read from, which holds the agent's open tasks and
-    the starts running on them (`tasks.canonical_tasks`). Both come back aged, as
+    the starts running on them (`tasks.TaskReading`). Both come back aged, as
     `workflows` and `tasks`.
 
     `bindings` are the stream's reply bindings. A reply address whose binding

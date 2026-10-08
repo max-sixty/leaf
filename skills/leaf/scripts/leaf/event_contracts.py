@@ -9,7 +9,6 @@ domains: undo in `events` and widget meaning in `event_meaning`.
 """
 
 from leaf.asks import asking, projected_action_holders, quoted_in
-from leaf.document_reading import read_document
 from leaf.event_log import EventRefused, Refusal, new_event_id
 from leaf.event_meaning import (
     AdmissionReadings,
@@ -489,11 +488,9 @@ def _approval_error(view, event: dict, events: list, registry: dict):
             "approval to record"
         )
     page = page_reading(view.reading(revision, registry), events, revision)
-    threads = build_threads(events, page.within)
-    document_state = read_document(page, threads)
     work = WorkReading(events, registry, page)
     unanswered = [
-        *document_state.asks["unanswered"],
+        *work.document.asks["unanswered"],
         *work.asks["unanswered"],
     ]
     if unanswered:

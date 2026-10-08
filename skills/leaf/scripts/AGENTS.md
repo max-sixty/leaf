@@ -35,6 +35,8 @@ subpackage's initializer is only a marker, never a second API.
   newest moves for `x-history`, and the Markdown export;
 - `thread_context`, `thread`: thread identity, frozen markup, delivery context,
   thread writes, and the reply lifecycle;
+- `work_reading`: the transaction-scoped durable work reading shared by admission,
+  serving and delivery;
 - `workflows`, `activity`: unsettled user moves with their evidence, and the
   page-level fold over workflows, tasks, starts, status, claim, turn, and watcher;
 - `asks`: the one implementation of page and thread Asks, which every surface reads;
@@ -86,6 +88,7 @@ declarations and provenance, `storage` owns the vendored-file cache, and
 `reactions` owns reaction descriptions.
 
 Within `served_state/`, `context` owns the live or captured inputs every fold reads;
+`work` enriches the shared durable reading with live activity and response bindings;
 `wire` serializes one declared fold, `thread` and `document`
 own their scoped readings, `browser` assembles the requested views, `page` composes
 the served response, `reading` names filesystem changes for freshness reads, and

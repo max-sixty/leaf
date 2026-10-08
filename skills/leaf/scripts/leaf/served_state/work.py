@@ -125,11 +125,6 @@ def work_state(events, source, revision, present, now, live_stream=None) -> Work
     return WorkState(durable, activity, workflows, reply, present)
 
 
-def read_work(context) -> WorkState:
-    """Select the one work reading held by a live or captured serving context."""
-    return context.work
-
-
 def live_work(page_dir: Path, events: list, *, now: str | None = None) -> WorkState:
     """Read work inside the caller's transaction, without preparing a browser response."""
     active = active_descriptor(page_dir, events)

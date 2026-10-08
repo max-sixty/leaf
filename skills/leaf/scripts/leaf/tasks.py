@@ -56,9 +56,9 @@ declares `x-work` or holds an unsettled move (`work.widget_seat_error`), on any
 element of the page, or on the page, and a task on the user on any of those but a
 thread, a widget needing no seat; a start on an open task of the agent's or a move
 the agent owes; and an end of an open task, the user's only of one the agent opened
-on them (`task_error`). Every reader takes the log's tasks from `canonical_tasks`,
-every task on the page from `page_tasks` and `ask_tasks`, and starts from
-`item_starts`.
+on them (`task_error`). `TaskReading` holds the log's tasks, starts and endings
+for one event basis; `canonical_tasks` supplies the same fold to standalone callers.
+`page_tasks` and `ask_tasks` derive the tasks held by threads and documents.
 
 Not yet: a task whose session has ended reads open until another session ends it.
 

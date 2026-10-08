@@ -6,7 +6,6 @@ from ..events import (
     bare_reaction,
     conversation_turns,
     seat_root,
-    standing_approvals,
     unanswered_agent_turn,
 )
 from ..projection import FrozenThreadReading
@@ -125,7 +124,7 @@ def browser_thread(
             "threads": rendered_threads,
             # What the banner's own button reads to say whether the version has
             # been signed off.
-            "done": standing_approvals(events),
+            "done": work.approvals,
         },
         reading,
     )

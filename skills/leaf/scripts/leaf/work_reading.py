@@ -11,7 +11,7 @@ from functools import cached_property
 
 from .asks import thread_ask_readings, thread_awaits_user
 from .document_reading import read_document
-from .events import build_threads
+from .events import build_threads, standing_approvals
 from .projection import frozen_thread_reading
 from .tasks import TaskReading, page_tasks
 
@@ -77,6 +77,10 @@ class WorkReading:
             for identity, (_awaiting, prompt) in self.questions.items()
             if prompt is not None
         }
+
+    @cached_property
+    def approvals(self) -> list[dict]:
+        return standing_approvals(self.events, withdrawn=self.log.withdrawn)
 
     @cached_property
     def document(self):

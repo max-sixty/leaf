@@ -6,32 +6,16 @@
    from names or serialized values. Each door writes only what changes the root: a
    restated value on `html` or `body` restyles the whole document all the same. */
 
-import { keeps } from "./keeps.js";
-
-const runtimeAttributes = new WeakMap();
-
-function register(owners, root, name) {
-  let names = owners.get(root);
-  if (!names) {
-    names = new Set();
-    owners.set(root, names);
-  }
-  names.add(name);
-}
-
-export function setRuntimeRootAttribute(root, name, value) {
-  register(runtimeAttributes, root, name);
-  keeps(root, name, value);
-}
-
-// Root styles also exist before the module graph (initial margin placement).
-// Adopt that writer and ownership registry rather than starting a later one.
+// Root geometry exists before the module graph. Adopt the initial writers and
+// ownership registries rather than starting a later set of root facts.
+export const setRuntimeRootAttribute = (...args) =>
+  document.documentElement.lfInitial.setRuntimeRootAttribute(...args);
 export const setRuntimeRootStyle = (...args) =>
   document.documentElement.lfInitial.setRuntimeRootStyle(...args);
 export const removeRuntimeRootStyle = (...args) =>
   document.documentElement.lfInitial.removeRuntimeRootStyle(...args);
 
 export const runtimeRootState = (root) => ({
-  attributes: new Set(runtimeAttributes.get(root) ?? []),
+  attributes: document.documentElement.lfInitial.runtimeRootAttributes(root),
   styles: document.documentElement.lfInitial.runtimeRootStyles(root),
 });

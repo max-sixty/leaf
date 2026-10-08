@@ -122,8 +122,15 @@
   const sources = new WeakMap();
   const sourceScopes = new WeakSet();
   const sourceShells = new WeakMap();
-  // Initial geometry writes a root style before modules exist. Later root writers
-  // adopt this same registry, so a revision replaces only the authored share.
+  // Initial geometry writes root attributes and styles before modules exist. Later
+  // root writers adopt these registries, so revisions replace only the authored share.
+  const runtimeAttributes = new WeakMap();
+  const setRuntimeRootAttribute = (node, name, value) => {
+    let attributes = runtimeAttributes.get(node);
+    if (!attributes) runtimeAttributes.set(node, (attributes = new Set()));
+    attributes.add(name);
+    keepsAttribute(node, name, value);
+  };
   const runtimeStyles = new WeakMap();
   const setRuntimeRootStyle = (node, property, value, priority = "") => {
     let properties = runtimeStyles.get(node);
@@ -141,8 +148,16 @@
   };
   const origins = new WeakMap();
   const parents = new WeakMap();
+  // Null/undefined means absent; compare the string an attribute reads back. The
+  // module keeps.js adopts this same no-restatement door after initial producers.
   const keepsAttribute = (node, name, value) => {
-    if (node.getAttribute(name) !== value) node.setAttribute(name, value);
+    if (!node) return;
+    if (value == null) {
+      if (node.hasAttribute(name)) node.removeAttribute(name);
+    } else {
+      const said = String(value);
+      if (node.getAttribute(name) !== said) node.setAttribute(name, said);
+    }
   };
   const offerElement = (node, cls, pressable = false) => {
     if (node instanceof HTMLButtonElement && !node.hasAttribute("type"))
@@ -248,8 +263,22 @@
     return getComputedStyle(box).contentVisibility === "hidden";
   };
   const residency = () => {
+    const body = document.body;
+    if (!body) return false;
     const main = document.querySelector("main");
-    if (!main) return false;
+    // CSS declares the column's requested shell, without making the runtime read a
+    // Layout class or making a root :has() re-check the whole page on every insertion.
+    const tracksRequested =
+      main?.parentElement === body &&
+      getComputedStyle(main).getPropertyValue("--lf-column-shell").trim() === "grid";
+    const shellChanged = body.hasAttribute("data-lf-column-shell") !== tracksRequested;
+    if (!sourceShells.has(body)) sourceShells.set(body, body.cloneNode(false));
+    setRuntimeRootAttribute(body, "data-lf-column-shell", tracksRequested ? "" : null);
+    if (!main) {
+      const shifted = body.style.getPropertyValue("--lf-column-shift") !== "";
+      removeRuntimeRootStyle(body, "--lf-column-shift");
+      return shellChanged || shifted;
+    }
     const style = getComputedStyle(main);
     const need = (token) => parseFloat(style.getPropertyValue(token)) || 0;
     // Remove only the physical offset the shell's grid tracks actually apply. An
@@ -361,8 +390,6 @@
     // CSS is the placement authority. An authored track override can ignore our
     // requested shift even on a grid. Verify the supplied room before admitting it;
     // when it cannot supply the request, withdraw it and allocate in actual flow.
-    if (!sourceShells.has(document.body))
-      sourceShells.set(document.body, document.body.cloneNode(false));
     const place = (shift) => {
       if (shift) setRuntimeRootStyle(document.body, "--lf-column-shift", `${shift}px`);
       else removeRuntimeRootStyle(document.body, "--lf-column-shift");
@@ -387,7 +414,7 @@
     const { shift, standing } = allocation;
     const tokens = standing.join(" ");
     const seated = (main.getAttribute("data-lf-margin") ?? "") !== tokens;
-    if (!seated && shift === shellWritten) return false;
+    if (!seated && shift === shellWritten) return shellChanged;
     // Source copies keep the authored shell before initial geometry writes to it;
     // children still follow their original routes as the parser continues.
     if (!sourceShells.has(main)) sourceShells.set(main, main.cloneNode(false));
@@ -401,6 +428,9 @@
   };
 
   root.lfInitial = {
+    keepsAttribute,
+    setRuntimeRootAttribute,
+    runtimeRootAttributes: (node) => new Set(runtimeAttributes.get(node) ?? []),
     setRuntimeRootStyle,
     removeRuntimeRootStyle,
     runtimeRootStyles: (node) => new Set(runtimeStyles.get(node) ?? []),

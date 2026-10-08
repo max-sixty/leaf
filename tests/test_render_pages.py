@@ -3922,13 +3922,10 @@ def test_margin_residents_keep_their_first_painted_posture(
       const source = document.documentElement.lfInitial.authoredCopy(document.querySelector('main'));
       return [source.getAttribute('style'), source.getAttribute('data-lf-margin')];
     }""") == [None, None]
-    assert (
-        page.evaluate("""() => {
+    assert page.evaluate("""() => {
       const source = document.documentElement.lfInitial.authoredShell(document.body);
-      return source.getAttribute('style');
-    }""")
-        == "--authored: initial"
-    )
+      return [source.getAttribute('style'), source.hasAttribute('data-lf-column-shell')];
+    }""") == ["--authored: initial", False]
     page.evaluate("window.originalPassage = document.querySelector('#passage')")
     stamp_page(
         serve.page_dir,
@@ -3956,6 +3953,52 @@ def test_margin_residents_keep_their_first_painted_posture(
         assert page.evaluate(
             "document.body.style.getPropertyValue('--lf-column-shift')"
         ) == (initial_shift if resident else "")
+    assert page.evaluate("""async () => {
+      const {runtimeRootState} = await window.__lfRuntimeImport('/runtime/root-state.js');
+      return runtimeRootState(document.body).attributes.has('data-lf-column-shell');
+    }""")
+    for revision, layout in ((5, "wide"), (6, "column")):
+        next_source = source.replace(
+            "--authored: initial", f"--authored: revision{revision}"
+        )
+        next_source = next_source.replace("layout-column", f"layout-{layout}")
+        stamp_page(serve.page_dir, next_source, f"shell {layout}")
+        wait_for_revision(page, revision)
+        expect(page.locator("body")).to_have_css(
+            "display", "grid" if layout == "column" else "block"
+        )
+        assert page.locator("body").get_attribute("data-lf-column-shell") == (
+            "" if layout == "column" else None
+        )
+        assert (
+            page.evaluate("document.body.style.getPropertyValue('--authored')")
+            == f"revision{revision}"
+        )
+        assert page.evaluate(
+            "document.body.style.getPropertyValue('--lf-column-shift')"
+        ) == (initial_shift if layout == "column" else "")
+    # Authored pages require one direct main. Its temporary absence while replacing
+    # nodes must still withdraw the old shell before any missing-column early return.
+    page.evaluate("""() => {
+      window.column = document.querySelector('main');
+      column.remove();
+      document.documentElement.lfInitial.residency();
+    }""")
+    expect(page.locator("body")).to_have_css("display", "block")
+    assert page.locator("body").get_attribute("data-lf-column-shell") is None
+    assert (
+        page.evaluate("document.body.style.getPropertyValue('--lf-column-shift')") == ""
+    )
+    page.evaluate("""() => {
+      document.body.append(column);
+      document.documentElement.lfInitial.residency();
+    }""")
+    expect(page.locator("body")).to_have_css("display", "grid")
+    expect(page.locator("#note")).to_have_css("float", "right")
+    assert (
+        page.evaluate("document.body.style.getPropertyValue('--lf-column-shift')")
+        == initial_shift
+    )
 
 
 @pytest.mark.parametrize(
@@ -4159,4 +4202,3 @@ def test_margin_residency_ignores_concealed_ancestors(browser, serve):
             "note"
             in (page.locator("main").get_attribute("data-lf-margin") or "").split()
         ) is admitted
-        page.close()

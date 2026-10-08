@@ -4,7 +4,8 @@
  * viewport, keeping the page still when switching and its scroll place independent.
  * The syntax and Markdown renderers
  * reconcile unchanged text across source updates. HTML lives in a separate frame
- * so its styles and scripts cannot access Leaf’s document. */
+ * so its styles and scripts cannot access Leaf’s document. Source provenance is
+ * stamped with its text before awaiting the frame's presentation. */
 import {
   failSoft,
   projectData,
@@ -80,8 +81,6 @@ customElements.define(
             this.preview.srcdoc = source;
         }
         setChildren(this, [this.figure]);
-        if (loaded) await loaded;
-        if (rendering !== this.rendering || !this.isConnected) return;
         projectData(
           this,
           preview
@@ -92,6 +91,8 @@ customElements.define(
             : [{ key: "document", node: this.figure }],
           { snapshot },
         );
+        if (loaded) await loaded;
+        if (rendering !== this.rendering || !this.isConnected) return;
         this.classList.toggle("lf-rendered", true);
       } catch (error) {
         if (rendering !== this.rendering || !this.isConnected) return;

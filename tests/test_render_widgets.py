@@ -12509,6 +12509,34 @@ def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
         )
         is not None
     )
+    code = document.locator("code")
+    ends = code.evaluate("""el => {
+      const words = 'Updated document';
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const start = node.textContent.indexOf(words);
+        if (start < 0) continue;
+        const range = document.createRange();
+        range.setStart(node, start); range.setEnd(node, start + words.length);
+        const box = range.getBoundingClientRect();
+        return [[box.left, box.top + box.height / 2], [box.right, box.top + box.height / 2]];
+      }
+    }""")
+    select(page, *ends)
+    assert "Updated document" in page.evaluate("getSelection().toString()")
+    captured = page.evaluate("""async () => {
+      const {selectionAnchor} = await window.__lfRuntimeImport('/runtime/composing/capture.js');
+      const {runtime} = await window.__lfRuntimeImport('/runtime/context.js');
+      return {anchor: selectionAnchor(getSelection()),
+              revision: runtime.data.sources['html-text'].revision};
+    }""")
+    assert captured["anchor"]["source_revision"] == captured["revision"] == revision
+    assert captured["anchor"]["source"] == "html-text"
+    assert captured["anchor"]["datum"] == "source"
+    page.keyboard.press("c")
+    composer = page.locator(".lf-composer leaf-text")
+    expect(composer).to_be_focused()
+    write(composer, "Comment captured while the preview loads.")
     held[0].fulfill(
         status=200,
         content_type="text/css",
@@ -12516,6 +12544,15 @@ def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
     )
     told(page)
     rendered(page)
+    with sending(page, "the source comment captured during preview loading"):
+        composer.press("ControlOrMeta+Enter")
+    comment = next(
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+        and event.get("text") == "Comment captured while the preview loads."
+    )
+    assert comment["anchor"] == captured["anchor"]
     assert document.locator("code").text_content() == updated
     source.press("Home")
     expect(document.get_by_role("tab", name="Preview", exact=True)).to_be_focused()

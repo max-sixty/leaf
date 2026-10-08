@@ -16,6 +16,23 @@ rewriting that file. `leaf page state <page> <id>` narrows the reading to what t
 names: a page widget's element, standing moves, Asks and workflows, or a thread's
 messages with their frozen widget content, which changes only through that thread.
 
+## Publish several authored files together
+
+When HTML and its modules must change together, prepare a separate candidate
+directory containing `index.html` and the complete `page/` tree, with its referenced
+media already present in the live page. Tools read the current authored inputs with
+`leaf.publishing.authored_files` and obtain their precondition through
+`leaf.publishing.authored_digest`. Publish the candidate with:
+
+```sh
+leaf page stamp <page> --from-directory <candidate> --if-source <digest> --text 'Updated the page'
+```
+
+The stamp owner replaces, validates and publishes those authored inputs in one
+transaction. A stale precondition refuses the replacement; a refused candidate
+restores the previous inputs before the page can read them. This replacement
+includes neither the event log nor external data.
+
 ## Revisions and user-owned words
 
 Fresh content is authored directly. Rewrite prose the user has already seen as

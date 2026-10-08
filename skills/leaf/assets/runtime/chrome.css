@@ -286,13 +286,15 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   @media print { :scope { display: none; } }
   /* The details shelf rests where its notes' focused faces stand. It stands after the
      whole page, so a note focused while it rested in flow would scroll the page to the
-     chrome's end; fixed, focus moves nothing. */
-  .lf-details-shelf { position: fixed; top: calc(var(--lf-banner-h) + 6px); left: 8px; }
+     chrome's end; fixed, focus moves nothing. Its stacking context owns the escaped
+     controls' layer so page headers cannot cover a focused face inside it. */
+  .lf-details-shelf { position: fixed; z-index: var(--lf-z-escaped-control);
+    top: calc(var(--lf-banner-h) + 6px); left: 8px; }
   /* A picture's response proxies stand on the details shelf rather than as a role written
      onto the provider's drawing. Resting, each is a conventional clipped control; focus
      gives it a skip-link-style face under the banner. */
   .lf-visual-action { pointer-events: none; }
-  .lf-visual-action:focus-visible { position: fixed; z-index: var(--lf-z-escaped-control);
+  .lf-visual-action:focus-visible { position: fixed;
     top: calc(var(--lf-banner-h) + 6px); left: 8px;
     width: auto; height: auto; max-width: calc(100vw - 16px); padding: 6px 10px;
     overflow: visible; clip-path: none; pointer-events: auto; white-space: normal;

@@ -3677,7 +3677,8 @@ def test_q_walks_what_waits_on_you_and_the_banner_counts_both_queues(browser, se
 def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
     """The Questions panel lists the queues the `q` walk and the banner's counts read,
     the user's first and then the agent's, and folds what is done at the foot: here a
-    task the agent ended. A row arrives where `q` would, and a reply the user sends moves its
+    task the agent ended. The prose question is an agent opening comment, which
+    asks implicitly. A row arrives where `q` would, and a reply the user sends moves its
     thread from the user's list to the agent's in the turn it is sent."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
@@ -3690,15 +3691,7 @@ def test_the_questions_panel_lists_both_queues_and_what_is_done(browser, serve):
             d, {"author": author, "revision": 1, **agent, **event}
         )
 
-    asked = said("user", kind="comment", text="Weekly?", anchor={"section": "cadence"})
-    said(
-        "agent",
-        kind="reply",
-        parent=asked["id"],
-        responds=asked["id"],
-        text="Weekly or daily?",
-        awaits=True,
-    )
+    asked = said("agent", kind="comment", text="Weekly?", anchor={"section": "cadence"})
     owed = said(
         "user", kind="comment", text="Tighten this.", anchor={"section": "notes"}
     )

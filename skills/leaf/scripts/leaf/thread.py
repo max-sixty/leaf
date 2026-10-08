@@ -10,6 +10,7 @@ from leaf.asks import local_ask_entry
 from leaf.delivery import (
     ReceiptRefused,
     current_responses,
+    pickup_receipts,
     record_pickup,
     response_address,
 )
@@ -635,9 +636,8 @@ def post_reply(
                     f"thread {thread_id!r} currently requires a response; "
                     f"{answer_command(standing)} answers it"
                 )
-        if only_if_unclaimed and any(
-            event["kind"] == "pickup" and for_event in event["events"]
-            for event in events
+        if only_if_unclaimed and pickup_receipts(
+            events, phase=None, input_id=for_event
         ):
             return None
         moving = bool(content.quote or content.section or content.part)
@@ -965,11 +965,7 @@ def _fail_markup_answer(
         events = page.events
         answer = current_responses(page_dir, events).get(responds)
         if answer is None or (
-            only_if_unclaimed
-            and any(
-                event["kind"] == "pickup" and responds in event["events"]
-                for event in events
-            )
+            only_if_unclaimed and pickup_receipts(events, phase=None, input_id=responds)
         ):
             return None
         [move] = [event for event in events if event["id"] == responds]

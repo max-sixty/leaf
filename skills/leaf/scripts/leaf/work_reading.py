@@ -9,7 +9,7 @@ This object is transaction-scoped and never written to disk.
 
 from functools import cached_property
 
-from .asks import thread_ask_readings, thread_awaits_user
+from .asks import thread_ask_readings, thread_questions
 from .document_reading import read_document
 from .events import build_threads, standing_approvals
 from .projection import frozen_thread_reading
@@ -56,16 +56,14 @@ class WorkReading:
     @cached_property
     def questions(self) -> dict:
         open_asks = {ask["thread"] for ask in self.asks["user"]}
-        ended = set(self.log.ends)
         return {
-            identity: thread_awaits_user(
+            identity: thread_questions(
                 identity,
                 held,
                 self.registry,
-                self.asks["awaiting"],
                 self.thread.structure,
                 open_asks,
-                ended,
+                self.log.ends,
             )
             for identity, held in self.threads.items()
         }
@@ -73,9 +71,9 @@ class WorkReading:
     @property
     def prompts(self) -> dict:
         return {
-            identity: prompt
-            for identity, (_awaiting, prompt) in self.questions.items()
-            if prompt is not None
+            identity: reading.prompt
+            for identity, reading in self.questions.items()
+            if reading.prompt is not None
         }
 
     @cached_property
@@ -111,8 +109,5 @@ class WorkReading:
         return page_tasks(
             log,
             self.asks,
-            self.threads,
-            self.prompts,
-            self.log.ends,
-            self.registry.get("$reactions", {}).get("tokens", {}),
+            self.questions,
         )

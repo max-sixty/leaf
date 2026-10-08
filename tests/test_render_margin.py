@@ -65,6 +65,7 @@ from render_harness import (
     comment_note,
     compare_with,
     consume_browser_errors,
+    draft_control,
     example_media,
     held_frames,
     holding,
@@ -1513,22 +1514,20 @@ def test_suggestion_actions_stay_reachable_through_a_decision_and_its_undo(
 
 @pytest.mark.parametrize("width", MARGIN_POSTURE_WIDTHS)
 def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, width):
-    """A draft's Save and Cancel stand unfolded while it is edited, and the save outlasts
+    """A draft's local Save and Cancel stay reachable while it is edited, and the save outlasts
     a reload; a standing reaction's Remove is reachable from the Page Map by keyboard
     and withdraws the reaction."""
     page = open_page(browser, serve(MARGIN_ACTIONS_PAGE, events=MARGIN_ACTIONS_EVENTS))
     resized(page, width, 900)
-    draft_item = page.locator('[data-lf-margin-for="d-draft"]')
-    draft_item.locator(".lf-draft-pencil").click()
+    draft_control(page, "edit", "d-draft").click()
     editor = page.locator("#d-draft leaf-text")
     body = "The workshop moved outdoors.\nBring a folding chair."
     write(editor, body)
     page.locator("#editing-guide").click()
-    expect(draft_item.get_by_role("button", name="Save", exact=True)).to_be_visible()
-    expect(draft_item.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
-    expect(draft_item.locator(".lf-margin-more")).to_be_hidden()
+    expect(draft_control(page, "save", "d-draft")).to_be_visible()
+    expect(draft_control(page, "cancel", "d-draft")).to_be_visible()
     with sending(page, "save the draft"):
-        draft_item.get_by_role("button", name="Save", exact=True).click()
+        draft_control(page, "save", "d-draft").click()
     expect(page.locator("#d-draft .lf-draft-body")).to_have_text(body)
     navigate(page, page.url)
     expect(page.locator("#d-draft .lf-draft-body")).to_have_text(body)
@@ -3153,7 +3152,7 @@ def test_margin_target_pointer_ownership_ends_with_its_host(browser, serve):
 
 
 def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
-    """Each visible margin entry gets an exact route rather than an aggregate default."""
+    """Each margin entry has an exact route; local draft editing stays outside that map."""
     page = open_page(
         browser,
         serve(
@@ -3173,7 +3172,7 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
     action = page.get_by_role(
         "button", name="Accept the suggested change: the second phrase", exact=True
     )
-    disclosure = page.get_by_role("button", name="Edit address-disclosure", exact=True)
+    disclosure = draft_control(page, "edit", "address-disclosure")
     page.keyboard.press("g")
     suggestion_hints = page.locator(
         f'{CHIPS}[data-lf-go-to-kind="Margin entry"]'
@@ -3201,13 +3200,6 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
         page.keyboard.press("z")
     expect(action).to_be_visible()
 
-    disclosure.evaluate(
-        """button => {
-          button.setAttribute('aria-disabled', 'true');
-          button.dataset.lfState = 'busy';
-          button.tabIndex = -1;
-        }"""
-    )
     page.keyboard.press("g")
     expect(
         page.locator(
@@ -3217,15 +3209,7 @@ def test_g_hints_press_each_visible_page_map_margin_entry(browser, serve):
     ).to_have_count(0)
     page.keyboard.press("Escape")
     expect(page.locator("#address-disclosure leaf-text")).to_have_count(0)
-
-    disclosure.evaluate(
-        """button => {
-          button.setAttribute('aria-disabled', 'false');
-          button.dataset.lfState = 'idle';
-          button.tabIndex = 0;
-        }"""
-    )
-    go_to_address(page, "Margin entry", "address-disclosure", "edit")
+    disclosure.click()
     expect(page.locator("#address-disclosure leaf-text")).to_be_focused()
     expect(disclosure).to_be_hidden()
 
@@ -11273,16 +11257,16 @@ def test_rail_ask_draft_and_optimistic_undo(browser, serve):
 
     ask.click()
     page.wait_for_function("!!document.activeElement?.closest('#choice-question')")
-    rail.get_by_role("button", name="Edit draft", exact=True).click()
-    expect(rail.get_by_role("button", name="Cancel", exact=True)).to_be_visible()
+    draft_control(page, "edit", "draft").click()
+    expect(draft_control(page, "cancel", "draft")).to_be_visible()
     editor = page.locator("#draft leaf-text")
     expect(editor).to_be_focused()
     write(editor, "A canonical rail saved this draft.")
-    rail.get_by_role("button", name="Save", exact=True).click()
+    draft_control(page, "save", "draft").click()
     expect(page.locator("#draft .lf-draft-body")).to_have_text(
         "A canonical rail saved this draft."
     )
-    expect(rail.get_by_role("button", name="Edit draft", exact=True)).to_be_visible()
+    expect(draft_control(page, "edit", "draft")).to_be_visible()
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator("#route-a .lf-pick").click()
@@ -11299,15 +11283,14 @@ def test_rail_ask_draft_and_optimistic_undo(browser, serve):
 
 def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
     page = open_page(browser, serve(page_annotation_action_source()))
-    rail = page.locator("lf-annotation-rail")
     page.locator("#subject").hover()
     page.keyboard.press("w")
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    edit = rail.get_by_role("button", name="Edit draft", exact=True)
+    edit = draft_control(page, "edit", "draft")
     assert edit.evaluate("el => getComputedStyle(el).cursor") != "crosshair"
     edit.click()
     expect(page.locator("#draft leaf-text")).to_be_focused()
-    rail.get_by_role("button", name="Cancel", exact=True).click()
+    draft_control(page, "cancel", "draft").click()
     expect(edit).to_be_visible()
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-pending")).to_have_count(0)

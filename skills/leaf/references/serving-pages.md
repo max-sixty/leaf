@@ -72,10 +72,12 @@ leaf page init <page>
 ```
 
 Init checks the incoming layer first; refusal leaves the page and server
-unchanged. Success preserves page status and the recorded URL and lifetime,
-restarts a running server, and reloads open tabs onto the new layer. A stopped
-server stays stopped. For a session service, init refuses while another live
-session owns it. If its previous session has ended, init leaves it stopped;
+unchanged. An unchanged layer and serving payload preserve installed files and
+the running server without reloading open tabs. A layer, server-code, dependency,
+package selection, or installed-file change writes a new layer epoch, restarts a
+running server at its recorded URL and lifetime, and reloads open tabs. Page status
+is preserved, and a stopped server stays stopped. For a session service, init
+refuses a change while another live session owns it. If its previous session has ended, init leaves it stopped;
 serve it from the session that will now own it. An enabled standing service
 restarts independently of session ownership.
 

@@ -1,12 +1,22 @@
 """The catalog expands into Promptfoo tests run on one column per harness and arm."""
 
 import json
+import os
 from pathlib import Path
 
 import click
 import pytest
 import yaml
-from leaf_dev.eval import catalog, prepare, select_cases
+from leaf_dev.eval import catalog, native_provider, prepare, select_cases
+
+
+@pytest.fixture
+def codex_cli(monkeypatch):
+    """Use the eval dependency's real CLI for model-free installation checks;
+    the suite otherwise puts a failing harness stub ahead of installed programs."""
+    programs = Path(__file__).parents[1] / "evals/node_modules/.bin"
+    assert (programs / "codex").is_file(), "Install eval dependencies with npm ci"
+    monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
 
 
 def arms(tmp_path, *names):
@@ -15,6 +25,15 @@ def arms(tmp_path, *names):
         skill = tmp_path / arm / "skills" / "leaf"
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text(f"{arm} instructions")
+        payload = tmp_path / arm
+        for name in (".agents/plugins/marketplace.json", ".codex-plugin/plugin.json"):
+            target = payload / name
+            target.parent.mkdir(parents=True)
+            target.write_bytes((Path(__file__).parents[1] / name).read_bytes())
+        (payload / "bin").mkdir()
+        (payload / "bin" / "leaf").write_text(f"{arm} launcher")
+        (skill / "assets").mkdir()
+        (skill / "assets" / "registry.json").write_text(json.dumps({"arm": arm}))
         payloads[arm] = tmp_path / arm
     return payloads
 
@@ -30,7 +49,7 @@ def test_library_cases_supply_a_task_and_native_promptfoo_assertions(address):
     assert all(assertion["type"] and assertion["value"] for assertion in case["assert"])
 
 
-def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
+def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch, codex_cli):
     login = tmp_path / "harness-login"
     login.mkdir()
     (login / "auth.json").write_text('{"fixture": "local-login"}')
@@ -76,8 +95,9 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
             }
         else:
             homes.append(settings["cli_env"]["HOME"])
-            skill = Path(settings["cli_env"]["CODEX_HOME"]) / "skills" / "leaf"
-            assert skill.resolve() == payloads[arm] / "skills" / "leaf"
+            home = Path(settings["cli_env"]["CODEX_HOME"])
+            skill = next(home.glob("plugins/cache/leaf/leaf/*/skills/leaf/SKILL.md"))
+            assert skill.read_text() == f"{arm} instructions"
             assert settings["persist_threads"] is False
             assert settings["ephemeral"] is True
             assert "thread_id" not in settings
@@ -93,6 +113,30 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
         "no-outline",
         "judgment",
     ]
+
+
+def test_native_codex_discovers_the_complete_arm_with_root_relative_access(
+    tmp_path, monkeypatch, codex_cli
+):
+    """Use Codex's real installer without running a model. A skill-only symlink
+    hides the registry from ordinary discovery and loses its plugin-root launcher."""
+    login = tmp_path / "login"
+    login.mkdir()
+    (login / "auth.json").write_text("{}")
+    monkeypatch.setenv("CODEX_HOME", str(login))
+    payloads = arms(tmp_path, "candidate")
+    work = tmp_path / "work"
+    work.mkdir()
+    provider = native_provider("codex", payloads["candidate"], work)
+    settings = provider["config"]
+    home = Path(settings["cli_env"]["CODEX_HOME"])
+    registry = next(home.rglob("registry.json"), None)
+    assert registry is not None, f"No registry installed under {home}"
+    assert json.loads(registry.read_text()) == {"arm": "candidate"}
+    skill = registry.parent.parent
+    assert (skill / "SKILL.md").read_text() == "candidate instructions"
+    assert (skill / "../../bin/leaf").read_text() == "candidate launcher"
+    assert settings["sandbox_mode"] == "read-only"
 
 
 def test_native_javascript_assertions_and_asset_addresses_survive_preparation(
@@ -157,6 +201,21 @@ def test_catalog_contexts_keep_complete_original_check_coverage():
         assert covered == set(module.CASES)
     with pytest.raises(click.BadParameter, match="no case matches"):
         select_cases(("no-such-task",))
+
+
+def test_sidebar_primary_scores_rendered_work_and_retains_instruction_diagnostics():
+    from leaf_dev.arrangement_eval import expected_checks, rubrics
+
+    cases = catalog()
+    task = "sidebar-page-at-900px"
+    assert cases[task]["metadata"]["executor"] == "leaf_dev.arrangement_eval"
+    assert not any(check.startswith("choice-") for check in expected_checks(task))
+    assert any("completed rollout" in rubric["value"] for rubric in rubrics(task))
+    for variant in ("instructions", "live"):
+        case = cases[f"{task}/{variant}"]
+        assert case["metadata"]["executor"] is None
+        assert "page directory is not reachable" in case["vars"]["prompt"]
+        assert case["assert"]
 
 
 def test_workflows_run_declared_conditions_harnesses_and_fixed_checks(

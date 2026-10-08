@@ -1602,6 +1602,31 @@ def test_visual_review_gallery_gives_a_laptop_to_the_evidence(browser, serve):
     )
 
 
+def test_visual_review_fits_frames_using_the_authored_spacing(browser, serve):
+    """Fitting and the painted frame tracks agree when spacing is authored in rem."""
+    page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
+    widget = page.locator("#visual-review-run")
+    widget.locator(".lf-vr-shot-host").evaluate_all(
+        "nodes => nodes.forEach(node => node.style.setProperty('--sp-2', '1rem'))"
+    )
+    resized(page, 760, 800)
+    expect(widget).to_have_attribute("data-compare-layout", "side")
+    geometry = widget.locator(".lf-vr-case:not([hidden]) .lf-vr-shot-host").evaluate(
+        """host => {
+          const shot = host.querySelector('lf-shot');
+          const frames = [...shot.querySelectorAll('.lf-shotframe')]
+            .map(frame => frame.getBoundingClientRect());
+          return {available: host.clientWidth, width: shot.getBoundingClientRect().width,
+                  gap: frames[1].left - frames[0].right,
+                  rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
+                  overflow: host.scrollWidth - host.clientWidth};
+        }"""
+    )
+    assert geometry["gap"] == pytest.approx(geometry["rem"], abs=0.1), geometry
+    assert geometry["width"] == pytest.approx(geometry["available"], abs=0.1), geometry
+    assert geometry["overflow"] == 0, geometry
+
+
 def test_visual_review_discloses_focus_without_distorting_unsupported_browsers(
     browser, serve
 ):

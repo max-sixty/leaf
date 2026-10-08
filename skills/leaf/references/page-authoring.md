@@ -307,15 +307,19 @@ such as a source file or log, can keep its scrolling and the advisory finding.
 
 ### Bounds and widths
 
-A log, feed, or long listing bounds its own height with `data-bound`, naming the end
-its newest entry is at. Put the entries in the order the reader needs, then bound
-that order. A list that grows downward takes `data-bound="end"`, which opens it on
-its last line, keeps that line in view while the user is at the end, and leaves them
-where they scrolled back to otherwise. A newest-first list takes
-`data-bound="start"`, which opens it at the top, as the page's own activity feed
-does. Some widgets bound themselves by default. Don't make a box scroll vertically with page
-CSS: Leaf keeps no reading position in a scroller it did not make, and `page
-check` advises against one.
+Prefer one document scroll: let reading content and evidence grow in flow, with
+disclosures for supporting detail. Internal vertical scrolling needs a task that
+benefits from keeping a region in view while its contents move, as in a workspace,
+or a live stream whose newest entry the reader follows. Length alone is no reason
+to bound a listing or an inspection widget.
+
+For a live stream that needs a bounded reading region, use `data-bound`, naming
+the end its newest entry is at. A list that grows downward takes
+`data-bound="end"`, which follows its last line while the user is at the end and
+leaves them where they scrolled back to otherwise. A newest-first list takes
+`data-bound="start"`, which opens at the top, as the page's activity feed does.
+Don't make a box scroll vertically with page CSS: Leaf keeps no reading position
+in a scroller it did not make, and `page check` advises against one.
 
 An individual block or section may request a responsive allocation with
 `data-width="column"`, `data-width="wide"`, or `data-width="available"`. `column`
@@ -380,10 +384,11 @@ styles and geometry. Exact comments, Asks, decisions, Undo, live revisions and
 drawing capture still use the shared Leaf mechanisms. Changing the selection
 replaces the document through the ordinary revision lifetime.
 
-Place one empty `<lf-annotation-rail id="annotations"></lf-annotation-rail>`
-where the reader should find conversations and actions. Allocate its width and
-height in the page's CSS; it scrolls inside that box. At narrow widths, give it a
-place the user can reach by touch and keyboard. Leaf supplies native disclosures,
+When the task needs conversations and actions kept in an independent region
+("Bounds and widths"), place one empty
+`<lf-annotation-rail id="annotations"></lf-annotation-rail>` there. Allocate its
+width and height in the page's CSS; it scrolls inside that box. At narrow widths,
+give it a place the user can reach by touch and keyboard. Leaf supplies native disclosures,
 reply editors, action controls and retained reading; the page supplies their layout.
 Widget-local conversations keep their exact seats before the page rail takes
 remaining targets. The Threads panel remains the complete conversation index.

@@ -157,6 +157,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     this.count = 0;
     this.allowed = true;
     this.disabled = false;
+    this.ariaRefused = false;
     this.result = offer('output', '', '0');
     const editor = offer('input');
     editor.setAttribute('aria-label', 'Practice note');
@@ -169,8 +170,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     };
     const ariaDisable = offer('button', '', 'Toggle ARIA disabled');
     ariaDisable.onclick = () => {
-      keeps(this.control, 'aria-disabled',
-        this.control.getAttribute('aria-disabled') === 'true' ? null : 'true');
+      this.ariaRefused = !this.ariaRefused;
       paintKeys();
     };
     const guard = offer('button', '', 'Toggle availability');
@@ -189,7 +189,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         id: 'probe.apply', keys: ['x'], contextKeys: ['1'],
         control: () => this.control, bindingBadge: () => this.badge,
         title: 'Apply the operation', line: 'apply',
-        when: () => this.allowed && !this.disabled,
+        when: () => this.allowed && !this.disabled && !this.ariaRefused,
         run: () => keepsText(this.result, String(++this.count)),
       },
       {
@@ -249,11 +249,10 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
     badge = (
         widget.locator("kbd")
         if hint_seat == "widget"
-        else page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        else page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     )
     active_hints = page.locator(
-        "[data-lf-binding-badge], "
-        ".lf-command-binding-badges > .lf-command-binding-badge"
+        "[data-lf-binding-badge], .lf-command-binding-badges .lf-command-binding-badge"
     )
     result = widget.locator("output")
     action = widget.get_by_role("button", name="Apply", exact=True)
@@ -465,7 +464,7 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
         "DISABLE_FIRST",
         "true;"
         if disabled == "native"
-        else "false; first.setAttribute('aria-disabled', 'true');",
+        else "true; first.setAttribute('aria-disabled', 'true');",
     )
     page = open_page(
         browser,
@@ -698,7 +697,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     )
     assert routes == ["Escape"]
     expect(
-        page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+        page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_be_visible()
     expect(
         page.locator('.lf-shortcut-bar [data-lf-command-ids~="probe.escape"]')
@@ -965,7 +964,7 @@ def test_route_corner_hint_overrides_the_rows_face_in_ask_and_widget(browser, se
     )
     control = page.get_by_role("button", name="Inspect", exact=True)
     inherited = page.locator("#probe kbd")
-    chip = page.locator(".lf-command-binding-badges > .lf-command-binding-badge")
+    chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     result = page.locator("#probe output")
 
     page.keyboard.press("a")
@@ -1382,6 +1381,72 @@ def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
     assert events_model.read_events(serve.page_dir) == parent_before
 
 
+def test_sample_reset_keeps_the_keyboard_position_while_loading(browser, serve):
+    """Reset keeps its stop through loading and failure, without reclaiming focus."""
+    source = leaf_page(
+        "Practice reset",
+        """
+<h1>Practice reset</h1>
+<button id="continue-reading" type="button">Continue reading</button>
+<lf-sample id="practice" label="Practice page">
+  <template id="practice-source" data-sample><p>Start again here.</p></template>
+</lf-sample>
+""",
+    )
+    page = open_page(browser, serve(source))
+    sample = page.locator("#practice")
+    reset = sample.get_by_role("button", name="Reset", exact=True)
+    onward = page.locator("#continue-reading")
+    expect(reset).to_be_enabled()
+    held = []
+    navigation = re.compile(r"/api/samples/[^/]+/$")
+    page.route(navigation, lambda route: held.append(route))
+    onward.focus()
+    onward.press("Tab")
+    expect(reset).to_be_focused()
+    assert reset.evaluate("button => button.matches(':focus-visible')")
+    scroll_before = page.evaluate("scrollY")
+
+    reset.press("Enter")
+    holding(page, held, 1, "the replacement practice page")
+    expect(reset).to_be_disabled()
+    expect(reset).to_be_focused()
+    reset.press("Space")
+    reset.press("Enter")
+    rendered(page)
+    assert len(held) == 1
+    expect(reset).to_be_focused()
+    assert page.evaluate("scrollY") == scroll_before
+
+    # Completion must leave a newer keyboard destination alone.
+    reset.press("Shift+Tab")
+    expect(onward).to_be_focused()
+    held[0].continue_()
+    expect(reset).to_be_enabled()
+    expect(onward).to_be_focused()
+
+    onward.press("Tab")
+    reset.press("Space")
+    holding(page, held, 2, "the failed replacement practice page")
+    expect(reset).to_be_focused()
+    held[1].fulfill(
+        content_type="text/html",
+        body='<html data-lf-startup-error="Practice could not start"><body></body></html>',
+    )
+    expect(sample.get_by_role("status")).to_have_text("Practice could not start")
+    expect(reset).to_be_enabled()
+    expect(reset).to_be_focused()
+    assert page.evaluate("scrollY") == scroll_before
+
+    page.unroute(navigation)
+    reset.press("Enter")
+    expect(reset).to_be_enabled()
+    expect(reset).to_be_focused()
+    expect(
+        sample.frame_locator("iframe").get_by_text("Start again here.")
+    ).to_be_visible()
+
+
 def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, serve):
     """A sample is a full page: its choices and comments reach only its own log."""
     page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
@@ -1457,8 +1522,12 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
     other.locator(".lf-threads-toggle").click()
     write(other.locator(".lf-general leaf-text"), "Keep the other sample's draft.")
     other_scope = other.evaluate("location.pathname")
+    reset.scroll_into_view_if_needed()
+    reset_scroll = page.evaluate("scrollY")
     reset.click()
     expect(reset).to_be_enabled()
+    expect(reset).to_be_focused()
+    assert page.evaluate("scrollY") == reset_scroll
     reset_child = first.locator("iframe").element_handle().content_frame()
     assert reset_child.url != child_url
     expect(reset_child.locator("#child-a .lf-pick")).to_have_attribute(
@@ -2232,9 +2301,10 @@ def test_the_responsive_action_row_keeps_primary_actions_in_reach(browser, serve
         if here is None:
             break
         walk.append(here.split(" ").pop())
-    assert walk[:2] == ["lf-threads-toggle", "lf-banner-more"], (
-        f"a Tab walk across the phone row missed the reading loop: {walk}"
-    )
+    assert walk[:2] == [
+        "lf-threads-toggle",
+        "lf-banner-more",
+    ], f"a Tab walk across the phone row missed the reading loop: {walk}"
     page.locator(".lf-banner-more").focus()
     page.keyboard.press("Enter")
     expect(page.locator(".lf-banner-menu > :visible").first).to_have_class(
@@ -4619,6 +4689,12 @@ def test_the_banner_opens_a_panel_of_the_machines_leaves(
     # so the row says so — dot and words both the banner's own vocabulary.
     expect(link.locator(".lf-others-line")).to_have_text("Working — running the suite")
     expect(link.locator(".lf-dot")).to_have_class(re.compile(r"\bworking\b"))
+    for row in (self_row, link):
+        lefts = row.evaluate("""node => [
+          node.querySelector('.lf-others-title').getBoundingClientRect().left,
+          node.querySelector('.lf-others-line').getBoundingClientRect().left,
+        ]""")
+        assert lefts[0] == pytest.approx(lefts[1], abs=0.5), lefts
     # Every row is cut to the panel's width, so the hover holds the whole account.
     # This page's own row carries the work behind it, which is what tells two rows
     # apart when their titles are alike. Neighbors publish the same compact account.
@@ -6471,7 +6547,7 @@ def test_the_chrome_a_key_opens_has_no_serious_violations(
     # And the sequence's generated target hints, painted over the visible page rather than
     # inserted into it.
     page.keyboard.press("g")
-    expect(page.locator(".lf-go-to-hints > .lf-go-to-hint").first).to_be_visible()
+    expect(page.locator(".lf-go-to-hints .lf-go-to-hint").first).to_be_visible()
     sweep("with the visible-target sequence armed")
     page.keyboard.press("Escape")
 

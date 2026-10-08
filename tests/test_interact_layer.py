@@ -1009,7 +1009,7 @@ def test_init_and_revendoring_preserve_the_page_owned_contribution(
     revendored = runner.invoke(cli_model.cli, ["page", "init", str(page)])
 
     assert revendored.exit_code == 0, revendored.output
-    assert registry_storage.layer_generation(page) != generation
+    assert registry_storage.layer_generation(page) == generation
     assert {name: (authored / name).read_text() for name in files} == files
     assert "lf-local" not in registry_storage.load_registry(page)
     composed = registry_storage.read_page_registry(page)
@@ -1698,8 +1698,8 @@ def test_the_prepaint_shell_matches_the_runtime_s_saved_arrangements():
         assert literal in theme
 
 
-def test_layer_identity_distinguishes_content_from_a_vendoring_epoch(tmp_path):
-    """The stable identity follows bytes while generation still invalidates old tabs."""
+def test_identical_init_preserves_the_installed_layer(tmp_path):
+    """No contract transition means no writes or invalidation of an open tab."""
     runner = CliRunner()
     page = tmp_path / "page"
     first_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
@@ -1711,11 +1711,86 @@ def test_layer_identity_distinguishes_content_from_a_vendoring_epoch(tmp_path):
     assert state.exit_code == 0, state.output
     assert json.loads(state.output)["layer"] == first
 
+    files = {
+        path.relative_to(page): (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in page.rglob("*")
+        if path.is_file()
+    }
+    planned = runner.invoke(cli_model.cli, ["page", "init", "--dry-run", str(page)])
+    assert planned.exit_code == 0, planned.output
+    assert json.loads(planned.output) == {"page": str(page), "changed": False}
     second_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
     assert second_init.exit_code == 0, second_init.output
     second = interact_files.read_json(page / "registry.json")["$layer"]
     assert second["fingerprint"] == first["fingerprint"]
+    assert second == first
+    assert {
+        path.relative_to(page): (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in page.rglob("*")
+        if path.is_file()
+    } == files
+
+
+@pytest.mark.parametrize("damage", ["modified", "missing", "stale", "metadata"])
+def test_init_repairs_installed_files_with_a_new_generation(tmp_path, damage):
+    runner = CliRunner()
+    page = tmp_path / "page"
+    assert runner.invoke(cli_model.cli, ["page", "init", str(page)]).exit_code == 0
+    original = interact_files.read_json(page / "registry.json")["$layer"]
+    theme = (page / "theme.css").read_bytes()
+    if damage == "modified":
+        (page / "theme.css").write_bytes(theme + b"\n/* edited installed bytes */\n")
+    elif damage == "missing":
+        (page / "theme.css").unlink()
+    elif damage == "stale":
+        (page / "runtime" / "obsolete.js").write_text("export {};\n")
+    else:
+        registry = interact_files.read_json(page / "registry.json")
+        del registry["$layer"]["generation"]
+        (page / "registry.json").write_text(json.dumps(registry))
+    planned = runner.invoke(cli_model.cli, ["page", "init", "--dry-run", str(page)])
+    assert planned.exit_code == 0, planned.output
+    assert json.loads(planned.output)["changed"]
+    initialized = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert initialized.exit_code == 0, initialized.output
+    repaired = interact_files.read_json(page / "registry.json")["$layer"]
+    assert repaired["generation"] != original["generation"]
+    assert repaired["fingerprint"] == original["fingerprint"]
+    assert (page / "theme.css").read_bytes() == theme
+    assert not (page / "runtime" / "obsolete.js").exists()
+
+
+@pytest.mark.parametrize(
+    "input_name", ["server.py", "pyproject.toml", "uv.lock", "python"]
+)
+def test_server_inputs_require_a_transition_without_browser_changes(
+    tmp_path, monkeypatch, input_name
+):
+    """The installed browser bytes cannot identify a changed serving process."""
+    payload = tmp_path / "payload"
+    script = payload / "skills/leaf/scripts/server.py"
+    script.parent.mkdir(parents=True)
+    script.write_text("# original\n")
+    for name in ("pyproject.toml", "uv.lock"):
+        (payload / name).write_text("# original\n")
+    monkeypatch.setattr(layer_model, "PLUGIN_ROOT", payload)
+    runner = CliRunner()
+    page = tmp_path / "page"
+    first_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert first_init.exit_code == 0, first_init.output
+    first = interact_files.read_json(page / "registry.json")["$layer"]
+    if input_name == "python":
+        monkeypatch.setattr(layer_model.sys, "version", "a different interpreter")
+    else:
+        target = script if input_name == "server.py" else payload / input_name
+        target.write_text("# changed\n")
+    second_init = runner.invoke(cli_model.cli, ["page", "init", str(page)])
+    assert second_init.exit_code == 0, second_init.output
+    second = interact_files.read_json(page / "registry.json")["$layer"]
     assert second["generation"] != first["generation"]
+    assert second["server"] != first["server"]
+    assert second["fingerprint"] == first["fingerprint"]
+    assert second["runtime"] == first["runtime"]
 
 
 PLAIN_PAGE = (

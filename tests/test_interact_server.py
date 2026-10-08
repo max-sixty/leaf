@@ -1136,8 +1136,9 @@ def test_historical_deferred_reads_keep_the_document_revision_and_layer(
     ]["generation"]
 
     # Re-vendoring changes the active layer epoch while preserving the data contract.
+    theme = page_dir / "theme.css"
+    theme.write_text(theme.read_text() + "\n/* repair installed edit */\n")
     vendoring_model.cmd_init(page_dir)
-    (page_dir / "index.html").write_text(source.replace("<h1>A</h1>", "<h1>B</h1>"))
     second = revisioning_model.activate_source(page_dir)
     assert second.error is None and second.revision != first.revision
     second_layer = artifact_model.read_revision(page_dir, second.revision).registry[

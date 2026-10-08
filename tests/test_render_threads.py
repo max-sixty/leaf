@@ -179,6 +179,10 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
         rendered(page)
         news = thread.locator(".lf-thread-news")
         expect(news).to_be_visible()
+        news.hover()
+        expect(news).to_have_css("box-shadow", "none")
+        expect(news).to_have_css("background-color", "rgba(0, 0, 0, 0)")
+        expect(news).to_have_css("text-decoration-line", "underline")
         expect(thread.locator(".lf-msg")).to_have_count(1)
         assert geometry() == before
         if notice_box is None:

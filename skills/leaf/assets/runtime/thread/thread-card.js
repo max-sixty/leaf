@@ -203,7 +203,11 @@ function navigationSummary(model, control) {
       ${
         status
           ? html`<span
-              class="lf-thread-status"
+              class=${
+                control && model.news
+                  ? "lf-thread-status lf-thread-notice lf-thread-notice-news"
+                  : "lf-thread-status"
+              }
               data-lf-settlement=${control ? "" : nothing}
               data-lf-turn=${model.attention?.kind === "needs_user" ? "user" : nothing}
               data-lf-folded=${model.statusFolded ? "" : nothing}
@@ -219,7 +223,7 @@ function navigationSummary(model, control) {
       ${
         model.unreadCount
           ? html`<span
-              class="lf-thread-unread"
+              class="lf-thread-notice lf-thread-unread"
               data-lf-folded
               aria-label=${`${model.unreadCount} unread`}
               >${model.unreadCount} unread</span
@@ -756,10 +760,17 @@ export class ThreadView {
               >
                 ${
                   model.news?.reopened
-                    ? model.news.label
+                    ? html`<span class="lf-thread-notice lf-thread-notice-news"
+                        >${model.news.label}</span
+                      >`
                     : html`Resolved · ${model.messages.length}
                       message${model.messages.length === 1 ? "" : "s"}${
-                        model.news ? ` · ${model.news.label}` : ""
+                        model.news
+                          ? html` ·
+                              <span class="lf-thread-notice lf-thread-notice-news"
+                                >${model.news.label}</span
+                              >`
+                          : nothing
                       }`
                 }
               </summary>`

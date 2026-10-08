@@ -34,7 +34,10 @@
     cursor: help;
   }
 }
+/* The phrase takes the pointer; this one-pixel carrier supplies its keyboard route.
+   Keep its declared box independent of the floor for standalone offered controls. */
 .lf-gloss-mark {
+  min-width: 0; min-height: 0;
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
   opacity: 0; pointer-events: none;
 }
@@ -1802,7 +1805,8 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * of the host and the transparent native checkbox covers them — one fallback for loading
  * and controls-off alike.
  * Print stacks both frames. */
-:scope:is(lf-shot) { display: block; margin: 16px 0; }
+:scope:is(lf-shot) { display: block; margin: 16px 0;
+    --lf-shot-rail-size: max(34px, var(--aim-floor)); }
 :scope:is(lf-shot):has(.lf-shotframe) { display: grid; }
 /* Where the runtime runs, the rail and the frame stand empty from the first paint, the
  * frame in the pair's shape, which delivery reads from the images
@@ -1810,7 +1814,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
  * arrive in a box that is already there. */
 @scope (html[data-lf-interactive] :scope) {
   :scope:is(lf-shot):not(:has(> .lf-shotrail)){
-    &::before { content: ""; display: block; height: 34px; border: 1px solid var(--rule);
+    &::before { content: ""; display: block; height: var(--lf-shot-rail-size); border: 1px solid var(--rule);
       border-bottom: 0; border-radius: var(--r) var(--r) 0 0; background: var(--card); }
     &::after { content: ""; display: block; box-sizing: border-box;
       aspect-ratio: attr(data-lf-media-width type(<number>)) /
@@ -1848,7 +1852,7 @@ svg, template, textarea, time, u, var, video, wbr, :where([data-lf-inline]))) {
 :scope:is(lf-shot) .lf-shotframe img { display: block; width: 100%; height: auto;
     background: var(--card); }
 :scope:is(lf-shot) .lf-shotrail { display: flex; grid-area: 1 / 1; align-items: center;
-    justify-content: space-between; height: 34px; padding: 0 11px;
+    justify-content: space-between; height: var(--lf-shot-rail-size); padding: 0 11px;
     border: 1px solid var(--rule); border-bottom: 0;
     border-radius: var(--r) var(--r) 0 0; color: var(--muted);
     background: var(--card); }

@@ -132,14 +132,17 @@
     const face = node.localName.includes("-") ? "" : " lf-ui-face";
     keepsAttribute(node, "class", `${cls ? `${cls} ` : ""}lf-ui${face}`);
     keepsAttribute(node, "data-lf-gen", "1");
+    // Native summary is the browser's disclosure press, without a type property
+    // or a specialized HTML element class. Its offer must name that same control.
     keepsAttribute(
       node,
       "data-lf-offer",
       pressable
         ? node.localName
         : node instanceof HTMLButtonElement ||
+            node.localName === "summary" ||
             (node.localName === "input" && ["checkbox", "radio"].includes(node.type))
-          ? node.type
+          ? (node.type ?? node.localName)
           : "",
     );
     return node;

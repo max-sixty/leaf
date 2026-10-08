@@ -16,7 +16,9 @@
 
    Immutable descriptors contain generated presentation only. Retained native editors,
    margin controls and frozen message widgets keep their mechanical lifetime outside
-   those values.
+   those values. A quotation whose original words are no longer on the page keeps
+   a local full-reading disclosure, including when a rewritten section still has a
+   navigation destination. Its expansion lives with the card through presentation.
    The owner alone renders its native card root and all generated descendants; a
    failed candidate is restored by presenting its committed descriptor again. It owns
    title gesture policy, outgoing fold paint and local draft repaint. Surfaces receive
@@ -58,10 +60,8 @@ function quoteReading(thread, anchors) {
   // A version that rewrote the quoted words left the thread on their section
   // (`rewritten_from`, events.md); the head still names those words, marked as changed.
   const rewritten = thread.rewritten_from;
-  const label = anchorLabel(
-    rewritten ?? thread.detached_from ?? thread.anchor,
-    thread.root.about,
-  );
+  const quoted = rewritten ?? thread.detached_from ?? thread.anchor;
+  const label = anchorLabel(quoted, thread.root.about);
   if (!label) return null;
   const anchored = Boolean(thread.anchor) || Boolean(thread.detached_from);
   const found = !thread.detached_from && Boolean(placement);
@@ -72,6 +72,12 @@ function quoteReading(thread, anchors) {
     found,
     outdated,
     changed: Boolean(rewritten),
+    // A surviving element can still be a destination after its quoted words
+    // have gone (rewritten text, replaced data or a virtual datum). Only a
+    // resolved passage can supply the original quote's complete reading.
+    localReading:
+      Boolean(quoted?.quote) &&
+      (!found || Boolean(rewritten) || placement.kind !== "passage"),
     title: !anchored
       ? null
       : found
@@ -294,6 +300,7 @@ export class ThreadView {
   #settlements = new Map();
   #actions = document.createElement("span");
   #expandedSummaries = new Set();
+  #quoteExpanded = false;
   #marginControls = null;
   #marginControlsRow = null;
   #viewId = ++nextViewId;
@@ -309,7 +316,11 @@ export class ThreadView {
   #headerSlot = null;
   #newsReserved = false;
   #observedHeader = null;
-  #headerSizes = sizeObserver(() => this.#retainHeaderSlot());
+  #quoteNode = null;
+  #sizes = sizeObserver(() => {
+    this.#retainHeaderSlot();
+    this.#measureQuote();
+  });
 
   constructor(surface, commands) {
     this.#commands = commands;
@@ -565,6 +576,7 @@ export class ThreadView {
           this.#expandedSummaries.add(summary.id);
       }
     }
+    if (model.quote?.label !== prior?.quote?.label) this.#quoteExpanded = false;
     this.#model = model;
     const reply = model.reply || replyIsEditing(model.key);
     this.#replyShown = reply;
@@ -706,13 +718,27 @@ export class ThreadView {
       ${
         model.quote
           ? html`<header class="lf-thread-head">
+              ${
+                model.quote.localReading
+                  ? html`<button
+                      type="button"
+                      class="lf-thread-disclosure lf-quote-expand"
+                      aria-label="Full quote"
+                      hidden
+                      aria-expanded=${String(this.#quoteExpanded)}
+                      aria-controls=${`lf-quote-${this.#viewId}`}
+                      @click=${this.#toggleQuote}
+                    >
+                      Full quote
+                    </button>`
+                  : nothing
+              }
               <blockquote
+                id=${`lf-quote-${this.#viewId}`}
                 class=${`lf-quote${model.quote.anchored && !model.quote.found ? " detached" : ""}`}
-                role=${model.quote.anchored ? "button" : nothing}
-                tabindex=${model.quote.anchored ? "0" : nothing}
-                aria-disabled=${
-                  model.quote.anchored ? String(!model.quote.found) : nothing
-                }
+                data-expanded=${String(model.quote.localReading && this.#quoteExpanded)}
+                role=${model.quote.found ? "button" : nothing}
+                tabindex=${model.quote.found ? "0" : nothing}
                 title=${model.quote.title ?? nothing}
                 @click=${this.#returnToQuote}
               >
@@ -801,6 +827,7 @@ export class ThreadView {
     else this.#releaseHeaderSlot();
     this.#continuity?.after(bodyPlace);
     this.#wireKeys();
+    this.#measureQuote();
     // A summary gathering the message the user stands on moves it; a page thread whose
     // render took their place puts them in its reply, or on the thread itself.
     // Handing it on is the card's own act, which the list holding the card defers to.
@@ -813,8 +840,29 @@ export class ThreadView {
     return this.node;
   }
 
+  // The same native layout that clips the preview decides whether there is
+  // anything to disclose. Read it synchronously after render, before the frame
+  // paints; resizes update it through this card's shared size observation.
+  #measureQuote() {
+    const quote = this.#model.quote?.localReading
+      ? this.node.querySelector(`#lf-quote-${this.#viewId}`)
+      : null;
+    if (quote !== this.#quoteNode) {
+      if (this.#quoteNode) this.#sizes.unobserve(this.#quoteNode);
+      this.#quoteNode = quote;
+      if (quote) this.#sizes.observe(quote);
+    }
+    const control = quote?.previousElementSibling;
+    if (control?.classList.contains("lf-quote-expand"))
+      keeps(
+        control,
+        "hidden",
+        !this.#quoteExpanded && quote.scrollHeight <= quote.clientHeight ? "" : null,
+      );
+  }
+
   #releaseHeaderSlot() {
-    if (this.#observedHeader) this.#headerSizes.unobserve(this.#observedHeader);
+    if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);
     this.#observedHeader = null;
     this.#releaseHeaderItems();
     this.#newsReserved = false;
@@ -849,8 +897,8 @@ export class ThreadView {
     if (!box.width) return;
     const allocates = header.classList.contains("lf-msg-head");
     if (observe && this.#observedHeader !== header) {
-      if (this.#observedHeader) this.#headerSizes.unobserve(this.#observedHeader);
-      this.#headerSizes.observe(header);
+      if (this.#observedHeader) this.#sizes.unobserve(this.#observedHeader);
+      this.#sizes.observe(header);
       this.#observedHeader = header;
     }
     if (
@@ -950,7 +998,7 @@ export class ThreadView {
               ? nothing
               : html`<button
                   type="button"
-                  class="lf-summary-expand"
+                  class="lf-thread-disclosure lf-summary-expand"
                   aria-expanded=${String(range.expanded)}
                   aria-controls=${originalsId}
                   @click=${() => this.#setSummaryExpanded(id, !range.expanded)}
@@ -1095,6 +1143,13 @@ export class ThreadView {
     return { optimistic: () => land(), reverse: land };
   };
 
+  // Local reading belongs to this retained card, not the event log. Its trigger
+  // stands above the growing quote so a press never moves its own target.
+  #toggleQuote = () => {
+    this.#quoteExpanded = !this.#quoteExpanded;
+    this.repaint();
+  };
+
   #returnToQuote = (event) => {
     const model = this.#model;
     if (!model.quote?.anchored || !model.quote.found) return;
@@ -1237,6 +1292,8 @@ export class ThreadView {
   }
 
   dispose() {
+    this.#sizes.disconnect();
+    this.#quoteNode = null;
     this.#releaseHeaderSlot();
     if (this.#marginControlsRow) marginControlsSizes.unobserve(this.#marginControlsRow);
     this.#heldNews?.dispose();

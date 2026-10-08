@@ -114,6 +114,32 @@ def threads_panel(page: Page) -> None:
     )
 
 
+def retained_quote(page: Page) -> None:
+    """A detached passage's compact reading inside its native sample thread."""
+    page.locator('#bg-gallery-tabs [role="tab"]').get_by_text(
+        "Threads", exact=True
+    ).click()
+    sample = page.locator("#bg-retained-quote-sample")
+    sample.scroll_into_view_if_needed()
+    child = sample.frame_locator("iframe")
+    child.locator(".lf-threads-toggle").click()
+    child.locator(
+        '.lf-thread[data-id="bg-retained-quote-thread"] > .lf-thread-summary'
+    ).click()
+    child.locator('.lf-thread[data-id="bg-retained-quote-thread"] .lf-quote').wait_for(
+        state="visible"
+    )
+
+
+def retained_quote_full(page: Page) -> None:
+    """The same original words opened locally, where this runtime offers it."""
+    retained_quote(page)
+    child = page.locator("#bg-retained-quote-sample").frame_locator("iframe")
+    full = child.get_by_role("button", name="Full quote", exact=True)
+    if full.count():
+        full.click()
+
+
 def image_preview(page: Page) -> None:
     """Inspect the gallery's pasted screenshot through the shared image viewer."""
     threads_panel(page)
@@ -442,6 +468,8 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
         card_reply_resolved,
         threads_panel,
         image_preview,
+        retained_quote,
+        retained_quote_full,
         panel_by_keyboard,
         composer,
         composer_long,
@@ -575,6 +603,21 @@ STATES = (
         "trace-sources-phone",
         "developer/playwright-trace-gallery",
         trace_sources,
+        viewport=(390, 844),
+        touch=True,
+    ),
+    State("retained-quote", "developer/feature-gallery", retained_quote),
+    State("retained-quote-full", "developer/feature-gallery", retained_quote_full),
+    State(
+        "retained-quote-full-dark",
+        "developer/feature-gallery",
+        retained_quote_full,
+        scheme="dark",
+    ),
+    State(
+        "retained-quote-touch",
+        "developer/feature-gallery",
+        retained_quote_full,
         viewport=(390, 844),
         touch=True,
     ),

@@ -8,7 +8,12 @@ from datetime import datetime, timedelta
 
 import pytest
 from click.testing import CliRunner
-from interact_support import append_carried_log_record, append_command, record_claim
+from interact_support import (
+    append_carried_log_record,
+    append_command,
+    record_claim,
+    response_reference,
+)
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -66,6 +71,7 @@ from render_harness import (
     resized,
     round_trip,
     scroll_settled,
+    select_words,
     sending,
     shortcut_bar_text,
     stamp_page,
@@ -10966,3 +10972,179 @@ def test_pending_message_headers_match_their_bodies(browser, serve, surface):
     page.unroute("**/api/event", hold)
     round_trip(page)
     assert reading() == {"headers": [1, 1], "bodies": [1, 1]}
+
+
+@pytest.mark.parametrize(
+    ("removed", "touch"),
+    [(True, False), (False, False), (True, True)],
+    ids=["detached-keyboard", "rewritten-keyboard", "detached-touch"],
+)
+def test_original_quoted_words_remain_readable_after_the_page_rewrites_them(
+    browser, serve, removed, touch
+):
+    """A compact quotation cannot borrow its full reading from words no longer there."""
+    old = (
+        "The earlier plan keeps the conversation beside the selected passage. " * 12
+    ) + "FINAL IMPORTANT WORDS: manual review before release."
+    section = (
+        '<section id="plan"><h2>Earlier plan</h2><p id="passage">'
+        + old
+        + "</p></section>"
+    )
+    source = leaf_page(
+        "Retained quotation", '<h1 id="title">Release plan</h1>' + section
+    )
+    url = serve(source)
+    context = browser.new_context(
+        viewport={"width": 390 if touch else 1200, "height": 844 if touch else 900},
+        has_touch=touch,
+        is_mobile=touch,
+    )
+    page = open_page(browser, live_url(url), context=context)
+    select_words(page, "#passage")
+    if touch:
+        page.get_by_role("button", name="Comment on selection", exact=True).tap()
+    write(page.locator(".lf-composer leaf-text"), "Please revisit this earlier plan.")
+    with sending(page, "the long passage comment"):
+        page.locator(".lf-composer button.lf-compose-submit").click()
+    told(page)
+    d = serve.page_dir
+    root = next(e for e in events_model.read_events(d) if e["kind"] == "comment")
+    replacement = source.replace(
+        section,
+        '<section id="'
+        + ("current" if removed else "plan")
+        + '"><h2>Current plan</h2><p'
+        + ("" if removed else ' id="passage"')
+        + ">The revised plan uses automatic review.</p></section>",
+    )
+    if removed:
+        (d / "index.html").write_text(replacement)
+        result = CliRunner().invoke(
+            cli_model.cli,
+            [
+                "response",
+                "reply",
+                response_reference(d, root),
+                "--detach",
+                "--text",
+                "The earlier plan has been removed.",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+    else:
+        stamp_page(d, replacement, "Rewrote the plan")
+    wait_for_revision(page, 2)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root["id"]}"]')
+    quote = card.locator(".lf-quote")
+    expect(quote).to_contain_text("FINAL IMPORTANT WORDS")
+    if removed:
+        expect(quote).not_to_have_attribute("role", "button")
+    else:
+        expect(quote.locator(".lf-anchor-status")).to_have_text("Changed")
+        expect(quote).to_have_attribute("role", "button")
+    assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
+    disclosure = card.get_by_role("button", name="Full quote", exact=True)
+    expect(disclosure).to_be_visible()
+    before = disclosure.bounding_box()
+    if touch:
+        assert before["height"] >= 44
+        disclosure.tap()
+    else:
+        disclosure.focus()
+        page.keyboard.press("Enter")
+    expect(disclosure).to_have_attribute("aria-expanded", "true")
+    assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
+    after = disclosure.bounding_box()
+    assert after["x"] == pytest.approx(before["x"], abs=1)
+    assert after["y"] == pytest.approx(before["y"], abs=1)
+    # A current-state repaint, independent of the quotation, preserves its local reading.
+    append_agent_reply(d, root["id"], "I am checking the review requirement.")
+    told(page)
+    expect(disclosure).to_have_attribute("aria-expanded", "true")
+    assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
+    stamp_page(
+        d,
+        replacement.replace(
+            "</main>",
+            '<p id="extra">The current plan has an unrelated note.</p></main>',
+        ),
+        "Added a separate note",
+    )
+    wait_for_revision(page, 3)
+    expect(disclosure).to_have_attribute("aria-expanded", "true")
+    assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
+    if touch:
+        disclosure.tap()
+    else:
+        disclosure.click()
+    expect(disclosure).to_have_attribute("aria-expanded", "false")
+    assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
+
+
+def test_a_long_quote_of_replaced_data_has_a_local_reading(browser, serve):
+    """A surviving widget is a destination, but cannot show the old data's words."""
+    old = "The earlier deployment required a manual review before rollout. " * 12
+    url = serve(
+        leaf_page(
+            "Earlier data quotation",
+            '<h1 id="title">Deployment review</h1><lf-text-document id="source" source="document"></lf-text-document>',
+        )
+    )
+    data_model.cmd_data_set(serve.page_dir, "document", old)
+    page = open_page(browser, live_url(url))
+    select_words(page, "#source code")
+    write(page.locator(".lf-composer leaf-text"), "Does the manual review still apply?")
+    with sending(page, "the earlier data comment"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    told(page)
+    data_model.cmd_data_set(
+        serve.page_dir, "document", "The deployment now uses automatic review."
+    )
+    told(page)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    quote = page.locator(".lf-thread-panel .lf-thread .lf-quote")
+    expect(quote.locator(".lf-anchor-status")).to_have_text("Earlier data")
+    assert quote.evaluate("el => el.scrollHeight > el.clientHeight")
+    disclosure = page.locator(".lf-thread-panel").get_by_role(
+        "button", name="Full quote", exact=True
+    )
+    expect(disclosure).to_be_visible()
+    disclosure.click()
+    assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
+
+
+@pytest.mark.parametrize("quoted", [True, False], ids=["short-quote", "whole-section"])
+def test_a_retained_reference_with_nothing_hidden_offers_no_disclosure(
+    browser, serve, quoted
+):
+    source = leaf_page(
+        "Short retained reference",
+        '<h1 id="title">Plan</h1><p id="plan">Manual review first.</p>',
+    )
+    url = serve(source)
+    anchor = {
+        "section": "plan",
+        **({"quote": "Manual review first."} if quoted else {}),
+    }
+    root = panel_comment(serve.page_dir, "Does this still apply?", anchor)
+    page = open_page(browser, live_url(url))
+    stamp_page(
+        serve.page_dir,
+        source.replace(
+            '<p id="plan">Manual review first.</p>',
+            '<p id="new-plan">Automatic review.</p>',
+        ),
+        "Replaced the plan",
+    )
+    wait_for_revision(page, 2)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    card = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(card.locator(".lf-quote")).to_be_visible()
+    expect(
+        card.get_by_role("button", name="Full quote", exact=True)
+    ).not_to_be_visible()

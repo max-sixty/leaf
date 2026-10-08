@@ -10,6 +10,10 @@ Codex's synchronous prompt hook records the provider turn even before the sessio
 claims a page. Once the session has claimed one (`state.hook_needed`), its tool
 hook can identify an unknown session turn once, offer a pointer between steps, and
 leave receipt to the agent's actual delivery read.
+An accepted TurnStart opens the same lifecycle as UserPromptSubmit without
+reading or receiving page input. Pi calls it after its SDK reserves the run;
+accepted message finalization or a live turn boundary confirms the receipt.
+
 The payload names the session and turn: hook subprocesses need not have the tool
 process's environment. Stop or Interrupt closes that observed turn, including a
 turn not yet claimed by any page; a newer prompt protects its own epoch. A payload
@@ -77,9 +81,9 @@ def cmd_hook(harness: str, payload: dict) -> None:
                     )
         return
     turn_id = payload.get("turn_id")
-    if event == "UserPromptSubmit":
+    if event in {"UserPromptSubmit", "TurnStart"}:
         expected = prompt_turn(sid, turn_id)
-        if expected is None:
+        if expected is None or event == "TurnStart":
             return
     elif turn_id:
         # A first trusted step can identify an unknown session-scoped turn.

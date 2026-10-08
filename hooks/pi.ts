@@ -6,10 +6,12 @@
  * Highly experimental: a trial of Leaf on Pi. The site and most references
  * still name only Claude Code and Codex.
  *
- * It calls `bin/leaf hook --harness pi` with Claude Code's hook payload at the
+ * It calls `bin/leaf hook --harness pi` with Leaf's hook payload at the
  * same points of a run and puts what the hook returns in the run's context:
  *
- * - a user's prompt (`before_agent_start`) is the prompt hook;
+ * - an accepted run (`agent_start`) opens the turn without taking input;
+ * - an incoming message finalization (`message_end`) takes input before the
+ *   first request; a live turn boundary (`turn_end`) takes later input;
  * - a run about to settle (`agent_before_settle`) is the Stop hook, whose
  *   context keeps the run going (`continue`);
  * - a session that ends, or that `/new`, `/resume` or `/fork` replaces, is
@@ -18,16 +20,18 @@
  *
  * As a session starts and as each run settles, it starts the watch (the same
  * call with `--watch`), which prints a line and exits once one of the session's
- * pages has input. When no run is going, it then calls the prompt hook and
- * sends what it returns, which starts a run (and runs no prompt events of its
- * own). A running run gets the input at its next turn's end (`turn_end`), where
- * the extension calls the prompt hook and adds what it returns to the session:
+ * pages has input. When no run is going, it sends a notification to start one.
+ * The notification confirms no input: Pi may queue or clear it if a user run
+ * starts meanwhile. The accepted incoming message takes the input before the
+ * first model request. Input arriving during a live run enters at its next turn's end
+ * (`turn_end`), where the extension calls the prompt hook and returns entries:
  * the hook confirms what it hands over, so it hands it over only once Pi takes
  * it into the session, not to a steer Pi queues behind a running tool, which
  * Escape clears. A run that settles without going on from
  * there, as an Escape leaves it, starts the watch with the Interrupt payload:
- * it closes the turn, and wakes only for input that arrives after it, so an
- * Escape is not undone by the input the run was already handed.
+ * it closes the turn, and wakes for input that never entered the stopped turn,
+ * including a held notification Escape cleared before `turn_end`. Input the run
+ * received has a completed receipt cursor, so Escape is not undone by that input.
  *
  * The session's shell-tool commands find the launcher as `$LEAF` and on PATH,
  * and Pi's process as LEAF_PI_PID, which is the session's lifetime. Hook
@@ -38,7 +42,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const LEAF = path.join(ROOT, "bin", "leaf");
@@ -132,22 +136,16 @@ export default function leaf(pi: ExtensionAPI) {
 		void current.done.then((woke) => wake(current, woke));
 	}
 
-	async function wake(ended: Watch, woke: string) {
+	function wake(ended: Watch, woke: string) {
 		if (watch !== ended || disposed) return;
 		watch = undefined;
 		if (!woke.trim()) return;
-		if (running) {
-			handOff = true;
-			return;
-		}
-		const context = await hook({ hook_event_name: "UserPromptSubmit", session_id: session });
-		if (disposed) return;
-		if (!running) stopActive = false;
-		// A run that started meanwhile takes the message as a steer.
-		// TODO: the hook has already recorded that steer's pickup, and an Escape
-		// before Pi takes it clears it; the next prompt's hook then names the input
-		// only as moves owed their answer.
-		pi.sendMessage(message(context ?? `Leaf: ${woke.trim()}`), { triggerTurn: true, deliverAs: "steer" });
+		// A notification can be queued or cleared by Pi. Receipt belongs only to
+		// accepted message finalization or a live turn boundary Pi persists.
+		handOff = true;
+		if (running) return;
+		stopActive = false;
+		pi.sendMessage(message(`Leaf: ${woke.trim()}`), { triggerTurn: true, deliverAs: "steer" });
 	}
 
 	pi.on("session_start", (_event, ctx) => {
@@ -171,21 +169,41 @@ export default function leaf(pi: ExtensionAPI) {
 		}
 	});
 
-	pi.on("before_agent_start", async () => {
-		stopActive = false;
-		const context = await hook({ hook_event_name: "UserPromptSubmit", session_id: session });
-		return context ? { message: message(context) } : undefined;
-	});
-
-	pi.on("agent_start", () => {
+	pi.on("agent_start", async () => {
+		const first = !running;
 		running = true;
 		settledByStop = false;
+		// Internal continuations keep this run's Stop policy. Only an accepted
+		// new run opens Leaf's turn; prompt preparation accepts no delivery.
+		if (!first) return;
+		stopActive = false;
+		handOff = true;
+		await hook({ hook_event_name: "TurnStart", session_id: session });
 	});
 
-	pi.on("turn_end", async () => {
-		if (!handOff) return undefined;
+	async function takeInput(ctx: ExtensionContext): Promise<string | undefined> {
+		// Cancelled boundaries cannot receive held input. A receipt started while
+		// live is committed by Pi even if cancellation arrives during the hook.
+		if (!handOff || ctx.signal?.aborted) return undefined;
 		handOff = false;
-		const context = await hook({ hook_event_name: "UserPromptSubmit", session_id: session });
+		return hook({ hook_event_name: "UserPromptSubmit", session_id: session });
+	}
+
+	pi.on("message_end", async (event, ctx) => {
+		const incoming = event.message;
+		if (incoming.role !== "user" && !(incoming.role === "custom" && incoming.customType === CUSTOM_TYPE)) {
+			return undefined;
+		}
+		const context = await takeInput(ctx);
+		if (!context) return undefined;
+		// Pi finalizes this accepted message into both its session and model
+		// context before the first request. Preserve the original user's input.
+		const content = typeof incoming.content === "string" ? [{ type: "text" as const, text: incoming.content }] : incoming.content;
+		return { message: { ...incoming, content: [...content, { type: "text" as const, text: context }] } };
+	});
+
+	pi.on("turn_end", async (_event, ctx) => {
+		const context = await takeInput(ctx);
 		return context
 			? { entries: [{ type: "custom_message" as const, ...message(context) }], continue: true }
 			: undefined;
@@ -209,8 +227,8 @@ export default function leaf(pi: ExtensionAPI) {
 	pi.on("agent_settled", async () => {
 		const interrupted = running && !settledByStop;
 		running = false;
-		// Input an interrupted run never took waits for the user's next prompt;
-		// otherwise the watch this ending starts finds it.
+		// The queued handoff is gone. The new watch finds input this run never
+		// received; its receipt cursor keeps handed input for the next prompt.
 		handOff = false;
 		await ensureWatch(interrupted);
 	});

@@ -10,11 +10,11 @@ import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import NamedTuple
 
 from .detached import StartRefused
-from .event_log import read_events
 from .file_changes import (
     FileChanges,
     existing_root,
@@ -38,7 +38,6 @@ from .service import (
     claim_page,
     owned_pages,
     read_status,
-    requires_agent_attention,
     session_claims,
     unacknowledged,
 )
@@ -49,9 +48,8 @@ from .state import SESSION_SUFFIX, session_file
 # changes on the clock alone.
 REVIVAL_CHECK_S = 5
 
-# How long a turn-end watch holds input that was already pending as the turn ended:
-# the Stop hook running beside it hands such input to the turn it continues, and
-# this is that hook's timeout (`hooks/hooks.json`).
+# How long a normal turn-end watch gives the concurrent Stop hook to carry input:
+# this is that hook's timeout (`hooks/hooks.json`), not evidence of pickup.
 STOP_HOOK_S = 20
 
 
@@ -577,70 +575,65 @@ def cmd_wait(page_dir: Path | None = None, *, ack: str | None = None) -> int:
         watch.release()
 
 
-def _log_end(page_dir: Path) -> int:
-    """The last sequence number in a page's log, or 0 for an empty or gone log."""
-    with contextlib.suppress(FileNotFoundError):
-        return max((event["seq"] for event in read_events(page_dir)), default=0)
-    return 0
+def wake_inputs(page: PageTransaction, batch: list[dict]) -> list[dict]:
+    """Select what can wake a hook without changing its immutable receipt batch.
+
+    A settled thread input has already had its meaning answered, even when its
+    delivery was never received. Unsettled inputs read their existing canonical
+    workflow. A completed receipt advances the cursor, so handed input is already
+    absent from this unreceived batch. An opened record without the completed
+    cursor write does not prove delivery. Other admitted attention (including
+    reports, errors, reactions and widget moves) remains
+    transport input, independent of whether it carries a response obligation.
+    """
+    from .served_state.work import live_work
+
+    agent_inputs = {
+        item["input"]
+        for item in live_work(page.page_dir, page.events).durable.workflows
+        if item["next_actor"] == "agent"
+    }
+    pending = []
+    for event in batch:
+        if event["kind"] in {"comment", "reply"} and event["id"] not in agent_inputs:
+            continue
+        pending.append(event)
+    return pending
 
 
 def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str | None:
-    """The session's watch run by the harness's own Stop hook, which the harness starts
-    in the background as each turn ends (`Harness.watches_between_turns`), and
-    what it wakes the session with, or None where it ends without waking it.
+    """Wake for meaningful unreceived input, without treating a log look as pickup.
 
-    It wakes the session for a page with new input, which the prompt hook then
-    hands over as the turn the wake opens begins, and for live pages none of whose
-    servers can be brought back. It ends silently where another watch already
-    holds the session's lease, no page is left to watch, or the harness process that
-    started it has gone (`Harness.process_runs`), leaving the session's input to its
-    `nudge`.
-
-    Input that was already pending as the turn ended waits for the Stop hook
-    beside this one, which hands it to the turn it continues. It is the wake's to
-    carry only once that hook let the turn end over it, or failed to answer within
-    its own timeout. Input arriving later wakes the session at once, between two
-    turns or within one, where it reaches the turn at its next tool result.
-
-    A watch started as the user interrupted the turn wakes only for that later
-    input: the turn the pending input was handed to is the one the user stopped,
-    and their next prompt carries it. Input admitted between the interruption and
-    the watch's first look at the log waits for that prompt too, since nothing
-    records what the stopped turn was handed, unless the harness's `nudge` reaches
-    the session first: until that look no lease is held, so admission nudges."""
+    A normal watch gives the concurrent Stop hook its bounded opportunity to
+    carry input already present at startup. The turn's closing ends that grace;
+    input arriving while the watch runs wakes immediately. A watch after Escape
+    trusts the receipt cursor: input held outside the stopped turn's context can
+    wake, while that turn's received input waits for a prompt.
+    Settled thread input alone never wakes; it remains in the next receipt batch.
+    The session lease and each page transaction retain ownership of delivery,
+    revival and competing-watch decisions.
+    """
+    # Event timestamps have millisecond precision. Include the startup millisecond
+    # in immediate delivery rather than delaying an arrival in that millisecond.
+    began = int(time.time() * 1000) / 1000
+    settled = time.monotonic() + STOP_HOOK_S
     watch = Watch(harness)
-    # Where each page's log stood as the watch first saw it, and when the Stop
-    # hook's answer over what was pending then is due: an event past that point
-    # arrived since. A page claimed while the watch runs is first seen then. The
-    # first look precedes the lease, so the session reads as listening only once
-    # input admitted from then on is input that arrived after it.
-    began: dict[Path, tuple[int, float]] = {}
-
-    def first_sight(page_dir: Path, end: int) -> tuple[int, float]:
-        return began.setdefault(page_dir, (end, time.monotonic() + STOP_HOOK_S))
-
-    for page_dir in owned_pages(harness.session):
-        first_sight(page_dir, _log_end(page_dir))
     if not watch.acquire():
         return None
 
     def ready(reading: PageTick) -> bool:
-        claim = reading.transaction.active_claim
-        last = reading.batch[-1]["seq"]
-        end, settled = first_sight(reading.page_dir, last)
-        # TODO: read what the stopped turn was handed from its pickups rather than
-        # from where the log stood. Input that arrived mid-run and was never handed
-        # over (Pi holds it until `turn_end`) now waits for the next prompt instead
-        # of waking the session.
+        pending = wake_inputs(reading.transaction, reading.batch)
+        if not pending:
+            return False
         if interrupted:
-            return last > end
-        # TODO: this wakes for pending input the turn already answered without
-        # picking it up, as an agent does after `leaf status` names the move, and
-        # the turn it opens only says so (seen in `verify-claude-code-task`'s
-        # `ending` step).
+            return True
+        claim = reading.transaction.active_claim
         return (
             (claim is not None and claim.get("turn_closed") is not None)
-            or last > end
+            or any(
+                datetime.fromisoformat(event["ts"]).timestamp() >= began
+                for event in pending
+            )
             or time.monotonic() > settled
         )
 
@@ -648,9 +641,6 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
         while harness.process_runs():
             mark = watch.mark()
             reading = read_watch_pass(watch, None, lambda tick: tick.page_dir, ready)
-            for tick in reading.readings:
-                if tick.page_dir not in began:
-                    first_sight(tick.page_dir, _log_end(tick.page_dir))
             if reading.delivered is not None:
                 return new_input_line(reading.delivered)
             if reading.outcome is not None:
@@ -669,10 +659,7 @@ def watch_between_turns(harness: Harness, *, interrupted: bool = False) -> str |
     # lease is gone, any such input is nudged as admission would have.
     for page_dir in owned_pages(harness.session):
         with contextlib.suppress(FileNotFoundError), PageTransaction(page_dir) as page:
-            if any(
-                requires_agent_attention(event)
-                for event in unacknowledged(page.events, page.cursor)
-            ):
+            if wake_inputs(page, unacknowledged(page.events, page.cursor)):
                 from .event_endpoint import nudge_unwatched
 
                 nudge_unwatched(page)

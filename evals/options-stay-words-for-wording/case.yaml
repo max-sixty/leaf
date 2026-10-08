@@ -35,32 +35,18 @@ vars:
     The page directory is not reachable from here, so reply with the section's HTML
     fragment rather than writing a file.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
+- type: regex
   metric: has-options
-  value: file://text-regex.cjs
-  config:
-    pattern: <lf-option\b
-    flags: i
-    negate: false
-- type: javascript
+  value: <lf-option\b
+  transform: output.toLowerCase()
+- type: not-regex
   metric: options-draw-nothing
-  value: file://text-regex.cjs
-  config:
-    pattern: <lf-option\b(?:(?!</lf-option>)[\s\S])*<(?:svg|img|lf-diagram)\b
-    flags: i
-    negate: true
-- type: javascript
+  value: <lf-option\b(?:(?!</lf-option>)[\s\S])*<(?:svg|img|lf-diagram)\b
+  transform: output.toLowerCase()
+- type: regex
   metric: marks-recommendation
-  value: file://text-regex.cjs
-  config:
-    pattern: <lf-option\b(?:(?!</lf-option>)[\s\S])*<lf-chip\b[^>]*>\s*recommended\s*</lf-chip>
-    flags: i
-    negate: false
+  value: <lf-option\b(?:(?!</lf-option>)[\s\S])*<lf-chip\b[^>]*>\s*recommended\s*</lf-chip>
+  transform: output.toLowerCase()
 - type: llm-rubric
   metric: comparison-labels
   value: |

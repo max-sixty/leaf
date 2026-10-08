@@ -734,6 +734,9 @@ changed text, preserving native selections in text the source kept. Keep indepen
 stateful controls outside that subtree.
 
 After placing the nodes, annotate their words with `projectData(root, datums, {snapshot})`.
+Commit visible words and their snapshot labels in the same synchronous turn,
+before awaiting later resource settlement. Until replacement words are mounted,
+the previous words retain their previous snapshot's provenance.
 The root is an id-bearing seat. Each datum is `{node, key, label?, identity?, origin?}`;
 its node must already stand under that root, including inside a declared shadow stage.
 Leaf validates the coordinates and marks readable data rather than authored prose;

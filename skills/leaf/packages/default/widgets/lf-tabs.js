@@ -405,8 +405,9 @@ customElements.define(
           keeps(panel, "hidden", panel === active ? null : HIDDEN);
           // A tabpanel of prose has no focusable content, so Tab reaches the open
           // panel itself. hidden="until-found" skips only what a panel holds, not
-          // the panel, so a closed one would still be a stop with nothing on screen.
-          keeps(panel, "tabindex", panel === active ? 0 : null);
+          // the panel. A scrolling panel also takes a native browser stop without
+          // tabindex, so explicitly exclude closed panels from the tab order.
+          keeps(panel, "tabindex", panel === active ? 0 : -1);
           keeps(btn, "aria-selected", panel === active);
           keeps(btn, "tabindex", panel === active ? 0 : -1);
         }

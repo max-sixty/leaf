@@ -22,6 +22,7 @@ from leaf.service import requires_agent_attention
 
 from leaf_dev import ROOT
 from leaf_dev.arms import (
+    TURN_LIMIT,
     URL,
     LiveChild,
     PageClient,
@@ -609,10 +610,7 @@ def execute(run: Run) -> None:
         shutil.copytree(found, run.dir / "pages" / found.name, ignore=ignore)
 
 
-# How long a live session may run, how long a posted round may wait for the delivery
-# that carries it, and how long a finished session stays open for a trailing turn.
-LIVE_LIMIT = 1500
-DELIVERY_LIMIT = 300
+# How long a finished session stays open for a trailing turn.
 GRACE = 20
 
 
@@ -622,11 +620,10 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
     Each round retains its admitted inputs until delivery is confirmed. The next
     round goes out at a turn's end, or during work for a declared running injection.
     An idle injection pauses so Leaf's watcher can take its lease. The session closes
-    once the last round's turn ends, when delivery waits past DELIVERY_LIMIT, or at
-    LIVE_LIMIT, which voids the run. Each turn's end records the page's status."""
+    once the last round's turn ends or the session reaches TURN_LIMIT. Each turn's
+    end records the page's status."""
     prompt = case.prompts[0].replace("{page}", str(page))
     (run.dir / "prompt-1.txt").write_text(prompt)
-    waiting: threading.Timer | None = None
     closing: threading.Timer | None = None
     url, posted, delivered = None, 0, 0
     pending_events: set[str] = set()
@@ -639,7 +636,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 "--plugin-dir",
                 str(run.payload),
                 stderr=run.dir / "err-1.txt",
-                limit=LIVE_LIMIT,
+                limit=TURN_LIMIT,
                 timed_out=run.dir / "timed-out",
                 dirs=[run.payload],
                 env={"XDG_STATE_HOME": str(run.state)},
@@ -659,7 +656,6 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                         events, attempts
                     ) and pending_events <= opened_input_ids(events):
                         delivered = posted
-                        waiting.cancel()
                         note(
                             {
                                 "type": "eval_received",
@@ -681,8 +677,8 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                             "received_at": now(),
                         }
                     )
-                # Keep the round and its receipt deadline together: posting the next
-                # running round cannot replace an undelivered round's evidence.
+                # Posting the next running round cannot replace an undelivered
+                # round's evidence.
                 if delivered < posted:
                     continue
                 if not url or posted == len(case.rounds):
@@ -723,11 +719,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                         "received_at": now(),
                     }
                 )
-                waiting = threading.Timer(DELIVERY_LIMIT, child.close)
-                waiting.start()
     finally:
-        if waiting is not None:
-            waiting.cancel()
         if closing is not None:
             closing.cancel()
         run.leaf("server", "stop", str(page))
@@ -926,7 +918,9 @@ def trace_scores(trace: list[dict]) -> dict:
             else None
         ),
         "cost_known": done.get("total_cost_usd") is not None,
-        "minutes": round(sum(d.get("duration_ms", 0) for d in ended) / 60000, 1),
+        "minutes": round(sum(d["duration_ms"] for d in ended) / 60000, 1)
+        if ended and all("duration_ms" in d for d in ended)
+        else None,
         **token_counts(trace),
         "denials": len(done.get("permission_denials") or []),
         "leaf_skill": any("leaf" in s for s in skills)

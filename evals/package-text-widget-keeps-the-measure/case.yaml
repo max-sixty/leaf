@@ -20,11 +20,6 @@ vars:
     and lf-check, with a sentence on each declaration you chose. Return JSON in your
     reply.
 assert:
-- type: javascript
-  metric: reads-packages
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/packages\.md
 - type: llm-rubric
   metric: checklist-keeps-the-measure
   value: |

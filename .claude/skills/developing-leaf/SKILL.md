@@ -93,24 +93,36 @@ Present visible and interaction changes using the proof below.
 
 ## Prove and hand off a visible change
 
-The handoff lets the user inspect the changed behavior. Judge legibility and
-layout in every visible state reached by ordinary input, in the affected color
-schemes. Pause after state changes to inspect them before continuing the journey.
+Define the user's task and each step's expected visible outcome before choosing
+the controls or their checks. A reader should be able to associate related
+labels, symbols and destinations before activating them. Exercise each route
+from the reachable states that change its effect, including when its destination
+is already open or a different selection is active. A reader completing the task
+through one route proves only that route.
+
+Open the exact preview URL in a fresh browser context and verify those outcomes
+on arrival and through ordinary input. Setup from a private probe that the user
+cannot repeat belongs in the fixture or a replay control.
+
+Judge legibility and layout in every visible state reached by ordinary input,
+in the affected color schemes. Pause after state changes to inspect them before
+continuing the journey.
 Every candidate and optional surface retained in the page belongs to that review.
-Open the exact preview URL in a fresh browser context and verify that the review
-state is visible on arrival or reached by the route the handoff names. Setup from
-a private probe that the user cannot repeat belongs in the fixture or a replay control.
 
 Review at a representative desktop viewport (`skills/leaf/assets/AGENTS.md`,
 "Layout and motion"), and capture the viewport when fixed chrome should
 appear. A Playwright screenshot of an element taller than the viewport draws
 fixed overlays in the wrong place; crop a viewport capture instead.
 
-Make required visual relationships hold as content and sizes change. Express
-them through layout constraints or positions derived from one shared coordinate
-or dimension. Derive the relationships from the source and check their computed
-geometry in the delivered page, including embedded views; a screenshot alone
-can hide a small alignment error.
+Before declaring a visible change complete, derive its required visual relationships
+from the reader's task, rather than treating the implementation's passing checks as
+the complete target. For each ordinary input, state which content and controls the
+reader needs to keep in view or reach next, then verify their computed geometry
+before and after that input in the delivered page, including embedded views. Judge
+reflow by whether it serves that task and keeps the reader oriented. Make the
+relationships hold as content and sizes change through layout constraints or
+positions derived from one shared coordinate or dimension. Check those constraints
+in the source as well; a screenshot alone can hide a small alignment error.
 Re-vendor after a runtime, theme, registry, or widget change, then judge the
 composed page visually as well.
 
@@ -154,10 +166,12 @@ Show the trace on the Leaf page in `lf-trace`, as
 importing it with that viewer URL. Keep both previews running and verify that the
 viewer URL reaches the user's browser before handing it over.
 
-For an important result, perform the input and use a Playwright expectation to
-establish the intended browser state. Review the successful expectation's After
-checkpoint; returning from the input alone does not prove an asynchronous update
-finished. Native tracing groups name those operations without adding captures.
+For an important result, perform the input and use a Playwright expectation for
+the outcome defined from the user's task. Disclosure and focus prove their own
+effects; they do not prove a change to the content the user came to inspect.
+Review the successful expectation's After checkpoint; returning from the input
+alone does not prove an asynchronous update finished. Native tracing groups name
+those operations without adding captures.
 Add `--checkpoint-images` alongside `--record` when the review needs native PNG images
 at those checkpoints. Taking them adds capture work and briefly hides the live
 caret, so omit it when ordinary motion and caret behavior are the evidence.
@@ -349,10 +363,12 @@ case nearly fits, extend it with an assertion, a criterion, or context in its pr
 Add a new case only where the change needs measuring and no existing case can carry
 the behavior. What the suite holds then scores later edits, whether fixes or cuts,
 against the behaviors earlier edits had to produce. Keep a case small: one prompt
-carrying only the context the behavior needs, and a few assertions. Measure with
-whatever scenarios and guardrails the change needs, and keep what you add whether or
-not it separated the arms. The leading comment says
-whether the case told two wordings apart or has only guarded.
+carrying only the context the behavior needs, and a few assertions. Explore whatever
+scenarios the change needs, then retain only cases that cover distinct failures or
+necessary controls. Internal maintainer evals stay small and
+sparse; exploratory variants and their evidence stay in the run directory. Remove
+contexts another retained case already covers. The leading comment records the
+case's origin and whether it distinguished the instructions.
 
 The prompt never states the behavior under test. A prompt pointing at a file beyond
 the references names that file from the skill's base directory. Grade a fixed form
@@ -362,8 +378,9 @@ states the passing reading without requiring particular wording.
 Run cold, a case that states the situation plainly usually passes on both arms: the
 failing session had its own earlier turns or a competing instruction pulling the
 other way, so paste those into the prompt. A rule that loses only to a long
-session's context needs a replay of that session instead. Keep a task's diagnostic
-contexts until its complete workflow detects their original failures.
+session's context needs a replay of that session instead. Retain the smallest replay
+that detects the failure; a diagnostic does not need a complete workflow to earn or
+retire its place.
 
 ## Refresh the public catalog stills
 

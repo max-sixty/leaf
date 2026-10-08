@@ -110,12 +110,12 @@ def test_live_completion_requires_every_declared_round(tmp_path):
     assert not run.usable()
 
 
-def test_live_rounds_wait_for_delivery_and_cancel_their_deadlines(
+def test_live_rounds_wait_for_delivery_and_cancel_the_completion_timer(
     tmp_path, monkeypatch
 ):
     """A scripted model stream drives real HTTP admission and pickup records.
 
-    Two running injections must retain the first round's deadline and evidence
+    Two running injections must retain the first round's evidence
     until its receipt arrives, and completion must leave no delayed child closure.
     """
     from dataclasses import replace
@@ -175,7 +175,7 @@ def test_live_rounds_wait_for_delivery_and_cancel_their_deadlines(
         ]
         assert [r["round"] for r in records if r["type"] == "eval_post"] == [1, 2]
         assert [r["round"] for r in records if r["type"] == "eval_received"] == [1, 2]
-        assert len(timers) == 3
+        assert len(timers) == 1
         assert all(t.finished.is_set() for t in timers)
     finally:
         for scheduled in timers:

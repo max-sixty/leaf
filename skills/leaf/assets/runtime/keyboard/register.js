@@ -33,6 +33,7 @@ watchCommandScopes(() => [
   { rows: [...commands.values()] },
 ]);
 import { under } from "../shadow.js";
+import { offlineInteractive } from "../context.js";
 
 export const ELEMENTS = Symbol("the scopes of the focused element");
 const PAGE = Symbol("the page's own keys");
@@ -257,6 +258,9 @@ function assemble() {
 // read of it, by which time every owner stands. The assembled stack is published before
 // that reading, because a row's key set may consult the register on its way to answering.
 export function pageScopes() {
+  // Exports retain widget scopes and the native input claims the dispatcher places
+  // among them. Page navigation and chrome have no surfaces in that document.
+  if (offlineInteractive) return [ELEMENTS];
   resolved ??= assemble();
   if (!validated) {
     validated = true;
@@ -286,7 +290,8 @@ export function touchPresses() {
     ).filter(({ presses }) => presses.length),
   };
 }
-export const universalCommandReference = () => commands.get(COMMAND_REFERENCE);
+export const universalCommandReference = () =>
+  offlineInteractive ? undefined : commands.get(COMMAND_REFERENCE);
 export const textEntryScope = () => scopes.get("text entry")?.[0];
 // What an interaction claiming the whole keyboard still lets through: the one route to
 // another layer, read off the row so a fact about a binding cannot be written where the

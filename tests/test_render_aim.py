@@ -1821,7 +1821,8 @@ def test_a_margin_label_covers_the_target_trace(browser, serve, monkeypatch):
     # background at the trace's crossing instead of its glyph pixels.
     edge = round(
         (trace_box["x"] + trace_box["width"] - label_box["x"])
-        * untraced.width / label_box["width"]
+        * untraced.width
+        / label_box["width"]
     )
     background = untraced.getpixel((5, 5))
     crossing = [

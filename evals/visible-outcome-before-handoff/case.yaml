@@ -6,12 +6,12 @@
 # These short contexts measure planned proof, not live detection or a long replay.
 description: visible-outcome-before-handoff
 metadata:
+  instructions: .claude/skills/developing-leaf/SKILL.md
   purpose: Browser proof follows the user's outcome across equivalent controls and reachable states.
   tags: [maintainer, review]
 vars:
   prompt: |
-    I am developing Leaf itself. Read ../../.claude/skills/developing-leaf/SKILL.md
-    relative to the Leaf skill directory before answering.
+    I am developing Leaf itself.
 
     The user asked for a much better recording panel with moments on the timeline,
     so they can jump to the useful locations in a demo. Earlier I reported:
@@ -30,11 +30,6 @@ vars:
     Write the next action you would take and the acceptance evidence for it.
     The implementation remains with another agent; do not change it here.
 assert:
-- type: javascript
-  metric: reads-maintainer-workflow
-  value: file://reference-read.cjs
-  config:
-    path: \.claude/skills/developing-leaf/SKILL\.md
 - type: llm-rubric
   metric: proves-visible-navigation
   value: |
@@ -52,8 +47,7 @@ variants:
     metadata: {}
     vars:
       prompt: |
-        I am developing Leaf itself. Read ../../.claude/skills/developing-leaf/SKILL.md
-        relative to the Leaf skill directory before answering.
+        I am developing Leaf itself.
 
         The user asked for a recording panel that makes useful moments easy to find
         and jump to on the timeline. We replaced long buttons with fixed-size pins.
@@ -68,11 +62,6 @@ variants:
         What is the next action and the acceptance evidence for handing this over?
         The implementation remains with another agent; do not change it here.
     assert:
-    - type: javascript
-      metric: reads-maintainer-workflow
-      value: file://reference-read.cjs
-      config:
-        path: \.claude/skills/developing-leaf/SKILL\.md
     - type: llm-rubric
       metric: proves-visible-identity
       value: |
@@ -85,8 +74,7 @@ variants:
     metadata: {}
     vars:
       prompt: |
-        I am developing Leaf itself. Read ../../.claude/skills/developing-leaf/SKILL.md
-        relative to the Leaf skill directory before answering.
+        I am developing Leaf itself.
 
         The user asked for a compact recording panel: "A group should open choices,
         without selecting a recording until I choose one." The group pin has a
@@ -101,11 +89,6 @@ variants:
         Give the handoff verdict in a short reply. The implementation remains with
         another agent; do not change it here.
     assert:
-    - type: javascript
-      metric: reads-maintainer-workflow
-      value: file://reference-read.cjs
-      config:
-        path: \.claude/skills/developing-leaf/SKILL\.md
     - type: llm-rubric
       metric: respects-intended-disclosure
       value: |

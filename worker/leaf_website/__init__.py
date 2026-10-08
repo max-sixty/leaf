@@ -39,9 +39,8 @@ from leaf.codex import (
     prepare_codex_delivery,
     start_app_server_delivery,
     stop_app_server,
-    stream_reply_target,
 )
-from leaf.delivery import read_delivery
+from leaf.delivery import read_delivery, stream_reply_target
 from leaf.harness import EmbeddedHarness
 from leaf.hosting import LeafHTTPServer
 from leaf.http import PageEndpoint, scope_page_urls

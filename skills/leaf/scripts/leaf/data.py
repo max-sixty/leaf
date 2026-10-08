@@ -23,6 +23,7 @@ import click
 
 from .data_contracts import DataError, payload_error, working_data_bindings
 from .files import replace_files
+from .registry.schema import json_value
 from .registry.storage import read_page_registry
 from .schema import DATA_CONTRACT_NAME, DATA_DIR, DATA_FILE, DATA_SOURCE_NAME
 from .service import PageTransaction
@@ -277,7 +278,7 @@ def _write_source(page_dir: Path, source: str, value) -> dict:
         if contract is None:
             raise DataError(
                 f"source {source!r} is not bound by the page source, a version, or "
-                f"a thread widget; choose one of {sorted(bindings)}"
+                f"a thread widget; choose one of {json_value(sorted(bindings))}"
             )
         contracts = read_contracts(page_dir)
         recorded = contracts.get(source)

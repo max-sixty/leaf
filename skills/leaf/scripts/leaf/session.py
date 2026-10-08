@@ -512,7 +512,7 @@ def _ended_watch(readings: list[PageTick], page_dir: Path | None) -> int:
     one = len(held) == 1
     names = ", ".join(str(reading.page_dir) for reading in held)
     print(
-        f"the {'leaf' if one else 'leaves'} ended; {names} "
+        f"the {'page' if one else 'pages'} closed; {names} "
         f"{'is' if one else 'are'} idle",
         file=sys.stderr,
     )

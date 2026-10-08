@@ -355,52 +355,27 @@ scrolling; page-local width overrides and wheel handlers should not be needed.
 
 ### The rail and the margin
 
-Leaf marks each commented or decided element with a marker: a thread, an Ask, a
-suggestion's ✓/✗. Nothing Leaf draws moves the page's content, so plan the page's
-geometry without them:
+Lay out the page without reserving space for Leaf's annotation markers. With room
+beside the content, Leaf puts markers in a rail; otherwise it puts them near their
+targets on the page. Pins can overlap text in a crowded view. The user hides pins
+and passage marks with `o`, or Hide annotations in the banner's More menu under
+a finger, to read the content beneath them. Padding a heading for its pin leaves
+unused space when the marker is in the rail.
 
-- A column page keeps a rail, a strip `--rail` wide beside its column, wherever the
-  room beside the column holds it: from a window of about 960px with a mouse and about
-  1010px with a finger. Its markers stand in it, 22px past the column. A marker level
-  with a note hanging in the margin stands as a pin instead.
-- A column page's first `aside.sidebar` and its `aside.sidenote`s join the rail in the
-  margin where the window holds all of them beside the column: a sidebar from about
-  1130px, a note from about 1150px, both from about 1420px, the column moving off
-  centre to make the room. With a mouse, a sidebar holding the contents map needs only
-  the map's spine. Below that each stays where it was written. Leaf writes what stands
-  in the margin on `main` as `data-lf-margin` (`rail`, `map`, `sidebar`, `note`), so page
-  CSS that should follow the margin keys on it, such as
-  `main:not([data-lf-margin~="sidebar"]) #route { display: none }`.
-- A wide page fills the window up to its cap, so the rail stands beside it only in a
-  window of about 1920px or wider. Elsewhere its markers stand as pins over the page by
-  their targets, as every marker does where the rail does not stand: in a narrower
-  window, and in a pane that scrolls on its own. A
-  block's pin stands inside its top-right corner and a run of text's just after its
-  last word, unless that covers words, a control, or another block; then it takes the
-  nearest room beside its target that covers none, such as the free end of a line or
-  the gap below it. Where its target leaves no such room, it may take the empty end of
-  a neighbouring block's line, such as beside a short heading above it, unless that
-  block paints its box (a fill, border or shadow, as a card or table does). Where none
-  of that room lies within reach, it reaches one line further out, past a line of words
-  but never past a painted block or nearer another pin's target, such as to the end of
-  the section's heading above a full first line. A pin is 26px with a mouse and 44px
-  under a finger. A pair, such as a suggestion's Accept and Reject, that finds no such
-  room folds to one control, a marker wearing the face of what it folds (a suggestion's
-  is a change), that opens to both on a tap or when the keyboard arrives on it or on
-  its target, and takes room of that size; where even that finds none, as in a
-  phone's full lines deep in a paragraph, the pin stays in the corner over the block's
-  words.
-- A marker on a figure grown past the rail stands on the figure as a pin, at the
-  corner of the part it names when it names one.
-- The user hides every pin and passage mark with `o`, or with Hide annotations in the
-  banner's More under a finger, to see what lies under them; the rail stays, since it
-  covers nothing. So leave no room for a pin in the page's CSS, such as padding at the
-  end of a heading: wherever the rail stands, the room is left empty.
+On a column page, write its contents outline in the first `aside.sidebar` and
+short notes in `aside.sidenote`. Leaf moves them into the margin when they fit;
+in a narrow window they stay where you authored them. A `layout-sidebar` page
+instead has an authored body and `aside` region ("A wide page").
 
-`data-rail="right"` on `body` keeps the rail on a wide page, and `data-rail="none"`
-gives a column page's right margin to something of the page's own. A marker level
-with a hanging `aside.sidenote` stands as a pin on its block, so a page with notes needs
-neither.
+For CSS that depends on a margin resident, use `main`'s `data-lf-margin` tokens
+(`rail`, `map`, `sidebar`, `note`), such as
+`main:not([data-lf-margin~="sidebar"]) #route { display: none }`. Verify the
+page at the widths where a resident returns to the document flow.
+
+`data-rail="right"` on `body` keeps a rail on a wide page.
+`data-rail="none"` gives a column page's right margin to the page's own content.
+A marker beside a hanging `aside.sidenote` already appears as a pin, so notes
+need neither override.
 
 ### Page-owned annotations
 

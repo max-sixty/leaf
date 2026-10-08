@@ -2476,12 +2476,13 @@ def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
     """Readable part details survive a tap, including a move across commit branches."""
     example = Path(__file__).parent.parent / "examples" / "wt-merge.html"
     context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True
+        viewport={"width": 320, "height": 844}, has_touch=True
     )
     page = open_page(browser, serve(example), context=context)
     film = page.locator("lf-merge-film")
     inspector = film.locator(".film-inspect")
-    commits = film.locator('g[data-label^="commit "]')
+    graph = film.locator("svg:visible")
+    commits = graph.locator('g[data-label^="commit "]')
     first, last = commits.first, commits.last
     labels = [first.get_attribute("data-label"), last.get_attribute("data-label")]
     assert labels[0] != labels[1]
@@ -2491,13 +2492,28 @@ def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
         expect(inspector.locator("strong")).to_have_text(label)
         expect(inspector.locator("span")).to_have_text(part.get_attribute("data-info"))
         expect(film.locator(".film-play")).to_have_text("Play")
-    film.locator("svg").tap(position={"x": 3, "y": 3})
+    graph.tap(position={"x": 3, "y": 3})
     expect(inspector).to_be_hidden()
     inspect_next = film.get_by_role("button", name="Inspect next element")
     inspect_next.tap()
     expect(inspector).to_be_visible()
     expect(inspector.locator("strong")).to_have_text(labels[0])
     assert inspect_next.bounding_box()["height"] >= 44
+    # Cycling to worktree details keeps both the reader and the cycle control in view.
+    for _ in range(9):
+        inspect_next.tap()
+    expect(inspector.locator("strong")).to_have_text("worktree ~/repo.feature")
+    details = inspector.bounding_box()
+    assert details["y"] >= 0
+    assert details["y"] + details["height"] <= 844
+    assert inspect_next.bounding_box()["y"] >= 0
+    inspect_next.focus()
+    page.evaluate("window.scrollBy(0, 500)")
+    inspect_next.press("i")
+    details = inspector.bounding_box()
+    assert details["y"] >= 0
+    assert details["y"] + details["height"] <= 844
+    assert inspect_next.bounding_box()["y"] >= 0
     play = film.locator(".film-play")
     play.focus()
     play.press("i")
@@ -2523,6 +2539,7 @@ def test_merge_film_inspection_has_touch_and_keyboard_routes(browser, serve):
     expect(inspector).to_be_hidden()
     play.press("i")
     expect(inspector).to_be_visible()
+    film.locator(".film-settings summary").tap()
     film.get_by_label("--no-squash", exact=True).check()
     expect(inspector).to_be_hidden()
 
@@ -6260,7 +6277,7 @@ body { font-family: system-ui, sans-serif; }
         "<h1>Review the deployment notification</h1>",
         "<h1>Deployment notification revised</h1>",
     )
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         serve.page_dir,
         comment["id"],
         "Added the deployment-run link to the artifact.",

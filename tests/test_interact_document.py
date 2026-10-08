@@ -44,6 +44,7 @@ from interact_support import (
     model_layer,
     publish,
     read_page_data,
+    response_reference,
     stamp,
     state_json,
     suggest,
@@ -1214,7 +1215,7 @@ def test_check_rejects_widget_violations(page_dir):
     # any non-void tag, not only on the vocabulary's.
     assert out.count("self-closing") == 2
     assert "unknown widget" in out
-    assert "'medium' is not one of" in out
+    assert '"medium" is not one of' in out
     assert "must be a direct member of <lf-options>" in out
     assert "'id' is a required property" in out
     assert "does not match" in out  # id pattern
@@ -1653,8 +1654,8 @@ def test_check_rejects_loose_content_in_items_container(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "admits only ['lf-option'] members" in result.output
-    assert "'br'" in result.output  # self-closed strays count as children too
+    assert 'admits only ["lf-option"] members' in result.output
+    assert '"br"' in result.output  # self-closed strays count as children too
     assert "loose text" in result.output
 
 
@@ -1686,7 +1687,7 @@ def test_check_requires_one_child_for_each_declared_role(page_dir):
 
     assert result.exit_code != 0
     assert "exactly one direct <lf-milestone> for each `status` value" in result.output
-    assert "missing ['blocked'], repeated ['planned']" in result.output
+    assert 'missing ["blocked"], repeated ["planned"]' in result.output
 
 
 def test_flag_attribute_accepts_both_html_spellings(page_dir):
@@ -1699,7 +1700,7 @@ def test_flag_attribute_accepts_both_html_spellings(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "is not of type 'boolean'" in result.output
+    assert 'is not of type "boolean"' in result.output
 
 
 def test_retired_question_and_recommendation_attributes_are_rejected(page_dir):
@@ -1988,11 +1989,9 @@ def test_reply_refuses_a_suggestion(page_dir):
     result = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--text",
             "Fixed:",
             "--markup",
@@ -2003,7 +2002,7 @@ def test_reply_refuses_a_suggestion(page_dir):
     assert "frozen in the log" in result.output
 
 
-def test_reply_infers_one_obligation_and_activates_the_current_source(page_dir):
+def test_response_addresses_one_obligation_and_activates_the_current_source(page_dir):
     initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     comment = append_carried_log_record(
@@ -2024,7 +2023,7 @@ def test_reply_infers_one_obligation_and_activates_the_current_source(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--text", "Updated."],
+        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
     )
 
     assert result.exit_code == 0, result.output
@@ -2054,7 +2053,7 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--text", "Updated."],
+        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
     )
 
     assert result.exit_code != 0
@@ -2064,7 +2063,7 @@ def test_reply_refuses_an_invalid_current_source(page_dir):
     )
 
 
-def test_reply_uses_for_to_select_one_of_several_obligations(page_dir):
+def test_response_reference_selects_one_of_several_obligations(page_dir):
     initial = revisioning_model.activate_source(page_dir)
     assert initial.error is None and initial.revision == 1
     comments = []
@@ -2094,15 +2093,15 @@ def test_reply_uses_for_to_select_one_of_several_obligations(page_dir):
 
     ambiguous = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--text", "Updated."],
+        ["response", "reply", "--text", "Updated."],
     )
     assert ambiguous.exit_code != 0
-    assert "use --for EVENT_ID" in ambiguous.output
+    assert "Missing argument" in ambiguous.output
     assert files_model.list_revisions(page_dir) == [1]
 
     selected = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--for", "c2", "--text", "Updated."],
+        ["response", "reply", response_reference(page_dir, "c2"), "--text", "Updated."],
     )
 
     assert selected.exit_code == 0, selected.output
@@ -2112,7 +2111,7 @@ def test_reply_uses_for_to_select_one_of_several_obligations(page_dir):
     assert reply["responds"] == "c2"
 
 
-def test_inferred_reply_never_settles_a_newer_undelivered_correction(page_dir):
+def test_response_never_settles_a_newer_undelivered_correction(page_dir):
     delivered = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "make it blue"},
@@ -2126,6 +2125,7 @@ def test_inferred_reply_never_settles_a_newer_undelivered_correction(page_dir):
             session=claim["id"],
             turn=claim["turn"],
         )
+    reference = response_reference(page_dir, delivered)
     append_carried_log_record(
         page_dir,
         {
@@ -2139,18 +2139,18 @@ def test_inferred_reply_never_settles_a_newer_undelivered_correction(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--text", "Made it blue."],
+        ["response", "reply", reference, "--text", "Made it blue."],
     )
 
     assert result.exit_code != 0
-    assert "this turn's opened delivery holds 0 reply obligations" in result.output
+    assert "no longer requires a reply" in result.output
     assert not any(
         event["kind"] == "reply" and event["author"] == "agent"
         for event in events_model.read_events(page_dir)
     )
 
 
-def test_inferred_reply_belongs_to_the_session_with_the_opened_delivery(
+def test_response_belongs_to_the_session_with_the_opened_delivery(
     page_dir, monkeypatch
 ):
     comment = append_carried_log_record(
@@ -2166,18 +2166,21 @@ def test_inferred_reply_belongs_to_the_session_with_the_opened_delivery(
             session=claim["id"],
             turn=claim["turn"],
         )
+    reference = response_reference(page_dir, "c1")
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "different-reporter")
+    service_model.claim_page(page_dir)
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--text", "Updated."],
+        ["response", "reply", reference, "--text", "Updated."],
     )
 
     assert result.exit_code != 0
-    assert "this turn's opened delivery holds 0 reply obligations" in result.output
+    assert result.stderr.startswith("Error: ")
+    assert "claim no longer matches its delivery" in result.stderr
 
 
-def test_inferred_reply_cannot_borrow_a_closed_turns_delivery(page_dir):
+def test_response_address_survives_its_delivery_turn_closing(page_dir):
     comment = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
@@ -2195,11 +2198,11 @@ def test_inferred_reply_cannot_borrow_a_closed_turns_delivery(page_dir):
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--text", "Updated."],
+        ["response", "reply", response_reference(page_dir, "c1"), "--text", "Updated."],
     )
 
-    assert result.exit_code != 0
-    assert "this turn's opened delivery holds 0 reply obligations" in result.output
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["responds"] == comment["id"]
 
 
 def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
@@ -2222,7 +2225,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
         {"kind": "comment", "id": "c1", "author": "agent", "revision": 1, "text": "?"},
     )
     with pytest.raises(SystemExit) as refused:
-        thread_model.cmd_reply(
+        thread_model.post_reply(
             page_dir,
             "c1",
             "Answered.",
@@ -2242,7 +2245,7 @@ def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
     ]
 
 
-def test_inferred_reply_attempt_is_idempotent(page_dir):
+def test_response_attempt_is_idempotent(page_dir):
     """An attempt is an opaque durable key, and the append door holds every
     writer to the record contract's shape for one — the delivery transports mint
     theirs from a digest, so a short hand-written label is not a retry key."""
@@ -2261,22 +2264,9 @@ def test_inferred_reply_attempt_is_idempotent(page_dir):
             turn=claim["turn"],
         )
 
-    first = thread_model.cmd_reply(
-        page_dir,
-        None,
-        "Updated.",
-        "",
-        for_event=None,
-        attempt=attempt,
-    )
-    retried = thread_model.cmd_reply(
-        page_dir,
-        None,
-        "Updated.",
-        "",
-        for_event=None,
-        attempt=attempt,
-    )
+    reference = response_reference(page_dir, comment)
+    first = thread_model.post_response(reference, "Updated.", attempt=attempt)
+    retried = thread_model.post_response(reference, "Updated.", attempt=attempt)
 
     assert retried["id"] == first["id"]
     assert (
@@ -2296,24 +2286,24 @@ def test_reply_for_a_stale_event_reports_the_failed_fence(page_dir):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "update it"},
     )
-    thread_model.cmd_reply(
-        page_dir,
-        "c1",
-        "Updated.",
-        "",
-        for_event="c1",
-    )
+    reference = response_reference(page_dir, "c1")
+    thread_model.post_response(reference, "Updated.")
 
     result = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), "--for", "c1", "--text", "Again."],
+        [
+            "response",
+            "reply",
+            reference,
+            "--attempt",
+            "distinct-retry-attempt",
+            "--text",
+            "Again.",
+        ],
     )
 
     assert result.exit_code != 0
-    assert (
-        "event 'c1' takes no reply; c1 is a comment in this page's log, and nothing is "
-        "owed for it — `leaf thread reply <page> c1` replies to it"
-    ) in result.output
+    assert "no longer requires a reply" in result.output
 
 
 @pytest.mark.parametrize(
@@ -2445,7 +2435,7 @@ def test_check_owns_the_lf_meta_vocabulary(page_dir):
     (page_dir / "index.html").write_text(signoff.replace("sign-off", "approve"))
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "content must be one of ['sign-off'], found 'approve'" in result.output
+    assert "content must be one of [\"sign-off\"], found 'approve'" in result.output
 
     (page_dir / "index.html").write_text(signoff.replace("lf-review", "lf-signoff"))
     result = check(page_dir)
@@ -2498,7 +2488,7 @@ def test_check_rejects_an_id_containing_whitespace(page_dir):
     )
     result = check(page_dir)
     assert result.exit_code == 1
-    assert "whitespace" in result.output and "'layout-no class'" in result.output
+    assert "whitespace" in result.output and '"layout-no class"' in result.output
 
 
 def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
@@ -2516,7 +2506,7 @@ def test_unreferenced_ids_and_widget_items_may_leave_the_page(page_dir):
     result = check(page_dir)
 
     assert result.exit_code == 0, result.output
-    assert "ids dropped from revision r1: ['backfill-first', 'plan']" in result.output
+    assert 'ids dropped from revision r1: ["backfill-first", "plan"]' in result.output
 
 
 def test_any_id_names_one_subject_for_every_command(page_dir):
@@ -3209,14 +3199,18 @@ def test_package_data_is_validated_replaced_and_indexed_in_page_state(page_dir):
         }
     }
 
-    rejected = runner.invoke(
-        cli_model.cli,
-        ["data", "set", str(page_dir), "deployments"],
-        input='{"api": "ready"}',
-    )
-    assert rejected.exit_code != 0
-    assert "source 'deployments' value is invalid" in rejected.output
-    assert read_page_data(page_dir) == first
+    for invalid in [{"api": "ready"}, None, True, [False]]:
+        encoded = json.dumps(invalid)
+        rejected = runner.invoke(
+            cli_model.cli,
+            ["data", "set", str(page_dir), "deployments"],
+            input=encoded,
+        )
+        assert rejected.exit_code != 0
+        assert rejected.output.startswith("Error: ")
+        assert "source 'deployments' value is invalid" in rejected.output
+        assert ("false" if isinstance(invalid, list) else encoded) in rejected.output
+        assert read_page_data(page_dir) == first
 
     non_json = runner.invoke(
         cli_model.cli,
@@ -3618,7 +3612,7 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
             "text": "Show the feed here.",
         },
     )
-    reply = thread_model.cmd_reply(
+    reply = thread_model.post_reply(
         page_dir,
         "data-question",
         "Here it is.",
@@ -3672,7 +3666,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
         },
     )
 
-    reply = thread_model.cmd_reply(
+    reply = thread_model.post_reply(
         page_dir,
         "data-question",
         "Here it is.",
@@ -3755,7 +3749,7 @@ def test_thread_markup_can_use_a_different_binding_from_a_draft_only_page_source
         },
     )
 
-    thread_model.cmd_reply(
+    thread_model.post_reply(
         page_dir,
         "draft-data-question",
         "Here it is.",
@@ -4103,7 +4097,7 @@ def test_events_follow_ends_when_its_log_is_replaced(page_dir, spawn):
     os.replace(replacement, log)
 
     follower.process.wait(timeout=STATED_TIMEOUT)
-    assert follower.stop(signal.SIGTERM) == (1, f"{log} is gone\n")
+    assert follower.stop(signal.SIGTERM) == (1, f"Error: {log} is gone\n")
 
 
 def test_page_state_points_to_a_users_suggestion_record(page_dir):

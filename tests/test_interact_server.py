@@ -50,6 +50,7 @@ from interact_support import (
     read_page_data,
     record_claim,
     release_codex_command,
+    response_reference,
     retire_test_services,
     running_http_server,
     spawn_probe,
@@ -845,7 +846,7 @@ def test_a_visual_comment_must_name_an_authored_part(server, page_dir):
     }
     status, body = fetch(f"{server}/api/event", data=json.dumps(invalid).encode())
     assert status == 400
-    assert b"known: ['node:A', 'node:B']" in body
+    assert 'known: ["node:A", "node:B"]' in json.loads(body)["error"]
 
 
 def test_a_datum_comment_names_the_source_revision_its_section_displayed(
@@ -1043,17 +1044,20 @@ def test_deferred_data_sends_a_manifest_then_serves_one_exact_payload(server, pa
     )
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None
-    with pytest.raises(data_model.DataError, match="record keys must be unique"):
+    with pytest.raises(
+        data_model.DataError, match="record keys must be unique"
+    ) as repeated:
         data_model.cmd_data_set(
             page_dir,
             "review-patch",
             {
                 "files": [
-                    {"key": "src/a.py", "path": "first", "patch": "one"},
-                    {"key": "src/a.py", "path": "second", "patch": "two"},
+                    {"key": key, "path": "file", "patch": "diff"}
+                    for key in ["a,b", "a", "b", "a,b", "a", "b"]
                 ]
             },
         )
+    assert 'repeated ["a", "a,b", "b"]' in str(repeated.value)
     data_model.cmd_data_set(
         page_dir,
         "review-patch",
@@ -1972,11 +1976,9 @@ def test_server_takes_an_approval_only_where_the_version_asked_for_one(
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "approval-question",
+            response_reference(page_dir, "approval-question"),
             "--text",
             "Choose the follow-up:",
             "--markup",
@@ -2985,11 +2987,9 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
     reply = CliRunner().invoke(
         cli_model.cli,
         [
-            "thread",
+            "response",
             "reply",
-            str(page_dir),
-            "--for",
-            "c1",
+            response_reference(page_dir, "c1"),
             "--text",
             "Pick one:",
             "--markup",
@@ -3156,7 +3156,7 @@ def test_concurrent_posts_never_tear_the_log(server, page_dir):
 
 def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
     """An id is something the agent reads back and retypes. One user comment
-    shows the agent its id five times over and is answered with `leaf thread reply --for
+    shows the agent its id five times over and is answered with `leaf response reply <answer.ref>
     <id>`, so an id is eight hex characters. No kind is carved out of that: an
     id a harness keys an operation on is unique within this page either way, so the
     harness pairs it with the page rather than being handed a wider id and left to

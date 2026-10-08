@@ -348,7 +348,9 @@ def trace_scores(stream: Path) -> dict:
         "is_error": done.get("is_error"),
         "cost_usd": done.get("total_cost_usd"),
         "cost_known": done.get("total_cost_usd") is not None,
-        "minutes": round(done.get("duration_ms", 0) / 60000, 1),
+        "minutes": round(done["duration_ms"] / 60000, 1)
+        if "duration_ms" in done
+        else None,
         **token_counts(trace),
         "checks": checks,
         "renders": renders,

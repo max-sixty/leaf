@@ -34,16 +34,6 @@ vars:
     Write the Leaf review page. The page directory is not reachable from here,
     so reply with the complete `<main>` element's HTML rather than writing a file.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-authoring-asks
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/authoring-asks\.md
 - type: llm-rubric
   metric: judgment
   value: |

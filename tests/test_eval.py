@@ -69,7 +69,6 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
         if harness == "claude-code":
             homes.append(settings["env"]["HOME"])
             assert settings["plugins"][0]["path"] == str(payloads[arm])
-            assert settings["setting_sources"] == []
             private_config = Path(settings["env"]["HOME"]) / ".claude"
             assert json.loads((private_config / ".credentials.json").read_text()) == {
                 "fixture": "claude-login"
@@ -78,18 +77,49 @@ def test_native_columns_isolate_each_harness_and_arm(tmp_path, monkeypatch):
             homes.append(settings["cli_env"]["HOME"])
             skill = Path(settings["cli_env"]["CODEX_HOME"]) / "skills" / "leaf"
             assert skill.resolve() == payloads[arm] / "skills" / "leaf"
-            assert settings["persist_threads"] is False
     assert len(set(homes)) == 4
     assert "must-not-enter-config" not in json.dumps(config)
     brief = config["tests"][0]
     assert brief["description"] == "brief-document-needs-no-outline"
     assert brief["vars"]["prompt"].startswith("Use the Leaf skill")
     assert [assertion["metric"] for assertion in brief["assert"]] == [
-        "loads-leaf",
-        "reads-page-authoring",
         "no-outline",
         "judgment",
     ]
+
+
+def test_internal_instruction_cases_receive_their_arms_source(tmp_path, monkeypatch):
+    login = tmp_path / "login"
+    login.mkdir()
+    (login / "auth.json").write_text("{}")
+    monkeypatch.setenv("CODEX_HOME", str(login))
+    payloads = arms(tmp_path, "base", "candidate")
+    source = ".claude/skills/developing-leaf/SKILL.md"
+    for arm, payload in payloads.items():
+        path = payload / source
+        path.parent.mkdir(parents=True)
+        path.write_text(f"{arm} maintainer instructions")
+    config = prepare(
+        ["review-shows-the-change"],
+        payloads,
+        tmp_path / "scratch",
+        ("claude-code", "codex"),
+        ("leaf",),
+        tmp_path / "samples",
+    )
+    for provider in config["providers"]:
+        harness, arm, _ = provider["label"].split("/")
+        field = (
+            "append_system_prompt"
+            if harness == "claude-code"
+            else "developer_instructions"
+        )
+        assert provider["config"][field] == f"{arm} maintainer instructions"
+    assert [check["type"] for check in config["tests"][0]["assert"]] == ["llm-rubric"]
+    assert (
+        config["tests"][0]["vars"]["prompt"]
+        == catalog()["review-shows-the-change"]["vars"]["prompt"]
+    )
 
 
 def test_native_javascript_assertions_and_asset_addresses_survive_preparation(

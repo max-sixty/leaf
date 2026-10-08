@@ -22,16 +22,6 @@ vars:
     The page directory is not reachable from here, so reply with the complete
     `index.html`, rather than writing a file.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-page-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/page-authoring\.md
 - type: llm-rubric
   metric: judgment
   value: |

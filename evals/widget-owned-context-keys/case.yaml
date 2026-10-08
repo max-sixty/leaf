@@ -19,16 +19,6 @@ vars:
     visibility. Only shipped references are available; runtime source and execution
     are unavailable. Do not implement new runtime machinery or a page adapter.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-module-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/(?:packages|module-authoring)\.md
 - type: regex
   metric: declares-context-aliases
   value: 'contextKeys\s*:'

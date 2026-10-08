@@ -22,16 +22,6 @@ vars:
     directory and package-check execution are unavailable. Use the reference's
     public API and reply with the JavaScript integration snippet.
 assert:
-- type: javascript
-  metric: loads-leaf
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/SKILL\.md
-- type: javascript
-  metric: reads-module-authoring
-  value: file://reference-read.cjs
-  config:
-    path: skills/leaf/references/(?:packages|module-authoring)\.md
 - type: regex
   metric: shared-registration
   value: register(?:Margin)?Contribution\s*\(

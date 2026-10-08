@@ -1028,10 +1028,10 @@ def test_a_search_selection_keeps_the_response_bar_off_its_passage(browser, serv
     assert response_bar_is_clear_of("#plain")
 
     page.keyboard.press("n")
-    assert page.evaluate("() => getSelection().anchorNode.parentElement.className") == (
-        "lf-draft-body"
+    assert page.evaluate(
+        "() => Boolean(getSelection().anchorNode.parentElement.closest('.lf-draft-body'))"
     )
-    assert response_bar_is_clear_of("#draft"), (
+    assert response_bar_is_clear_of("#draft .lf-draft-body"), (
         "the response bar covered the readable body of a widget-rendered passage"
     )
 

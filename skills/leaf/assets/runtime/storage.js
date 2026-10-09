@@ -13,6 +13,21 @@ export const LIVE_ROOT = PAGE_PATH.endsWith("/");
 // has no server and no link, so no root: the file is the page.
 export const PAGE_ROOT =
   document.querySelector('link[rel="canonical"][data-lf-runtime]')?.href ?? null;
+// A keyed transport declares its share address even on a cookie-authorized reload.
+// Samples and the public website have no share address. Preserve the current
+// version path, query and passage while taking access from the transport's URL.
+export const SHARE_ROOT = document.querySelector(
+  "script[data-lf-runtime][data-lf-server]",
+)?.dataset.lfShareUrl;
+export function shareUrl() {
+  const url = new URL(SHARE_ROOT);
+  url.pathname = location.pathname;
+  const access = [...url.searchParams];
+  url.search = location.search;
+  for (const [key, value] of access) url.searchParams.set(key, value);
+  url.hash = location.hash;
+  return url.href;
+}
 // The same page as a prefix for what the tab keeps, which the prepaint declares on the
 // root before the first paint, since it reads the tab's memory then too (prepaint.js).
 export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;

@@ -45,7 +45,7 @@ def _validate(registry: dict, source) -> None:
     kinds, names, paths, tones, data, tokens = required_layer_declarations(
         registry, path
     )
-    validate_event_contracts(kinds, path)
+    validate_event_contracts(registry["$events"], path)
     validate_event_handling(registry["$events"], kinds, path)
     validate_layer_declarations(registry, path, names, paths, tones, data, tokens)
     declarations = element_declarations(registry, path)

@@ -22,6 +22,7 @@ from .leases import wait_is_live
 from .page_view import PageView
 from .presence import claimant_reading
 from .registry.contract import RegistryError
+from .registry.kernel import kernel_event_ownership
 from .registry.schema import json_value
 from .service import PageTransaction, requires_agent_attention
 from .thread_titles import name_admitted_thread
@@ -101,7 +102,7 @@ def accept_event(
         )
     # The server owns the record envelope and agent identity. Removing client
     # copies before validation prevents them from entering attempt identity too.
-    for field in ("id", "author", "agent", "session", "ts", "seq", "attention"):
+    for field in kernel_event_ownership()["browser_discard"]:
         event.pop(field, None)
     if error := browser_command_error(contracts[kind], event):
         return event_rejection(event, f"{kind} event is invalid: {error}")

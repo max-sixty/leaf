@@ -142,7 +142,6 @@ def build() -> dict:
                     {
                         "kind": "pickup",
                         "author": "page",
-                        "attention": False,
                         "events": ["e9"],
                         "phase": "failed",
                         "failure": "turn_failed",

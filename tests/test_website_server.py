@@ -5450,10 +5450,12 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                     "activity": {"kind": "away"},
                     "source_error": None,
                     "events": TURN_LOG,
-                    "thread": {
-                        "threads": [
-                            {"id": "test-comment", "title": "Deployment heading"}
-                        ]
+                    "browser": {
+                        "thread": {
+                            "threads": [
+                                {"id": "test-comment", "title": "Deployment heading"}
+                            ]
+                        }
                     },
                 },
                 published,
@@ -5620,10 +5622,12 @@ def test_a_reload_that_presented_offline_reports_the_banner_it_presented_under(
                     "activity": {"kind": "away"},
                     "source_error": None,
                     "events": TURN_LOG,
-                    "thread": {
-                        "threads": [
-                            {"id": "test-comment", "title": "Deployment heading"}
-                        ]
+                    "browser": {
+                        "thread": {
+                            "threads": [
+                                {"id": "test-comment", "title": "Deployment heading"}
+                            ]
+                        }
                     },
                 },
                 published,

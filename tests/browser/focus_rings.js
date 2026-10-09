@@ -526,8 +526,9 @@
           // box that holds the control answers nothing — the control is inside it — so the
           // walk stops there rather than reading its rank.
           //
-          // A z-index named on the way up stops the walk: it lifts the box past the holder
-          // this would rank, so the reading says what it said before. Position lifts a box
+          // A z-index named on the way up orders its box only inside the stacking context
+          // around it, so the walk goes on from that context, which paints in the
+          // positioned layer around it as a positioned box does. Position lifts a box
           // the same way without naming one — a positioned box leaves its holder's place in
           // the flow to paint in the positioned layer of the nearest ancestor stacking
           // context. A positioned holder still answers for it, since the two paint in that
@@ -547,12 +548,10 @@
             }
             return false;
           };
-          // A z-index orders its box only inside the stacking context around it, so a
-          // z-index named on the way up sends the walk on to that context rather than
-          // ending it: nothing inside the context paints outside the context's own place.
-          // Ending it there left the grip's ring reported under a thread's sticky title,
-          // whose z-index lifts it inside the list and no further, while every pixel of
-          // the ring's run was the ring's.
+          // Ending the walk at the first z-index left the grip's ring reported under a
+          // thread's sticky title, whose z-index lifts it inside the list and no further,
+          // while every pixel of the ring's run was the ring's. The context it goes on
+          // from is hoisted, so a static holder above it answers through `clears`.
           const forms = (n) => {
             const s = getComputedStyle(n);
             return (
@@ -581,7 +580,7 @@
               while (context && !holds(context, el) && !forms(context))
                 context = above(context);
               a = context;
-              hoisted = false;
+              hoisted = true;
               continue;
             }
             if (acs.position !== "static") hoisted = true;

@@ -1,5 +1,6 @@
 """Control stability, browser shell, accessibility, and ring tests."""
 
+import io
 import os
 import re
 import socket
@@ -7,6 +8,7 @@ from urllib.parse import urlsplit
 
 import pytest
 from browser_sources import browser_function
+from PIL import Image
 from interact_support import (
     append_carried_log_record,
     append_command,
@@ -7724,7 +7726,7 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
     # rank, and putting the band in the page leaves it with nothing to rank against.
     # Neither paints anything the grip does not already stand in front of, until the band
     # names the z-index that lifts it past.
-    plant = """({z, wrap}) => {
+    plant = """({z, wrap, isolate = false}) => {
       document.querySelector('.lf-under-plant')?.remove();
       const grip = document.querySelector('.lf-thread-panel > .lf-edge');
       const cs = getComputedStyle(grip);
@@ -7739,6 +7741,9 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
       // ranks then, and it stands in the flow where the grip is painted over it.
       const under = wrap ? holder.appendChild(document.createElement('div')) : holder;
       if (wrap) Object.assign(under.style, {height: '100%'});
+      // A static stacking context around the band, which orders the band's z-index inside
+      // it and paints in the positioned layer around it.
+      if (isolate) under.style.opacity = '0.99';
       const band = under.appendChild(document.createElement('div'));
       Object.assign(band.style, {
         position: 'fixed', background: 'red',
@@ -7775,6 +7780,27 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
         f"a band the grip's own z-index stands over read as {covers}, so leaving a "
         "holder's flow was taken for standing over the control that names one"
     )
+
+    # A band whose z-index orders it inside a static stacking context: the walk goes on
+    # from that context, so the reading has to agree with the pixels the page paints on
+    # the ring's run there, red where the band stands over it.
+    for z in (1, 2):
+        page.evaluate(plant, {"z": z, "wrap": True, "isolate": True})
+        x, y = page.evaluate("""() => {
+          const grip = document.querySelector('.lf-thread-panel > .lf-edge');
+          const cs = getComputedStyle(grip);
+          const b = grip.getBoundingClientRect();
+          return [b.right + parseFloat(cs.outlineOffset) + parseFloat(cs.outlineWidth) / 2,
+                  (b.top + b.bottom) / 2];
+        }""")
+        shot = page.screenshot(clip={"x": x - 0.5, "y": y - 0.5, "width": 1, "height": 1})
+        red, green, blue = Image.open(io.BytesIO(shot)).convert("RGB").getpixel((0, 0))
+        painted = red > 200 and green < 80 and blue < 80
+        covers = standing_ring(page)["covers"]
+        assert bool(covers) == painted, (
+            f"a band inside a stacking context at z-index {z} read as {covers} while "
+            f"the page {'paints' if painted else 'does not paint'} it over the ring"
+        )
 
     page.evaluate("() => document.querySelector('.lf-under-plant').remove()")
 
@@ -7832,6 +7858,26 @@ def test_the_ring_reading_sees_a_neighbour_lifted_out_of_the_flow_it_was_ranked_
     assert any("top edge is under" in c for c in covers), (
         f"a band standing over the ring read as {covers}, so a neighbour that left the "
         "flow its holder was ranked in goes unreported"
+    )
+
+    # The same band with a z-index of its own inside a static stacking context. The
+    # z-index orders it only inside that context, which paints in the control's layer
+    # after it, so the band still stands over the ring, and the walk that goes on from
+    # the context has to say so rather than rank the static holder.
+    page.evaluate(
+        """() => {
+          const band = document.querySelector('#ring-holder > div:last-child > div');
+          const context = document.createElement('div');
+          context.style.opacity = '0.99';
+          band.style.zIndex = '1';
+          band.replaceWith(context);
+          context.append(band);
+        }"""
+    )
+    covers = standing_ring(page)["covers"]
+    assert any("top edge is under" in c for c in covers), (
+        f"a band lifted inside a stacking context read as {covers}, so a z-index that "
+        "orders a box only inside its context hid a cover the page paints"
     )
 
 

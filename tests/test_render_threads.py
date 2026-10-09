@@ -2154,6 +2154,35 @@ def test_a_poll_accounted_settlement_repaints_before_its_post_response(
     round_trip(page)
 
 
+def test_a_sent_page_comment_keeps_its_room_without_stranding_send(browser, serve):
+    """A send leaves the page comment card open, its box keeping the room its words took
+    so Send stays under the press. That room is the box's to give back: a window that
+    later has less of it shrinks the editor before the card scrolls, as it does before a
+    send, so Send stays in the window."""
+    page = open_page(browser, serve(LONG_PAGE))
+    resized(page, 1200, 900)
+    card = page.locator(".lf-page-comment-card")
+    box = page_comment(page)
+    send = card.locator(".lf-compose-submit")
+    write(box, "\n".join(f"Page comment line {n}" for n in range(14)))
+    before = send.bounding_box()
+    with sending(page, "the long page comment"):
+        send.click()
+    expect(card).to_be_focused()
+    expect(box).to_have_js_property("value", "")
+    assert send.bounding_box() == before, "the send moved Send from under the press"
+
+    resized(page, 1200, 260)
+    assert send.evaluate("""el => {
+      const b = el.getBoundingClientRect();
+      return b.bottom <= innerHeight &&
+        el.contains(document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2));
+    }"""), "the held room kept Send outside a shorter window"
+    assert card.evaluate("el => el.scrollHeight <= el.clientHeight"), (
+        "the card scrolled before its empty editor gave back its room"
+    )
+
+
 def test_a_sent_comment_is_revealed_in_the_panel(browser, serve):
     """A send is the one gesture that produces a thread, so it gets the same answer a
     click on a page mark does: an open panel scrolls the new thread into its scrollport.

@@ -3929,6 +3929,71 @@ def test_a_revision_that_asks_for_sign_off_keeps_the_banner_s_rows(browser, serv
         )
 
 
+def test_open_banner_menu_holds_seats_until_the_next_opening(browser, serve):
+    """Passive removals and arrivals keep the reading and its keyboard destinations."""
+    page = open_page(browser, serve(SUGGESTION_PAGE))
+    page.evaluate("""async () => {
+      window.toolbar = await window.__lfRuntimeImport('/runtime/banner-toolbar.js');
+      for (const [key, rank, offered] of [
+        ['retiring', -30, true], ['arriving', -25, false], ['standing', -20, true],
+        ['returning', -15, false],
+      ]) {
+        const control = document.createElement('button');
+        control.className = `lf-ui lf-btn test-${key}`;
+        control.textContent = key;
+        toolbar.registerBannerControl({key, control, rank, conditional:true, offered});
+      }
+    }""")
+    more = page.locator(".lf-banner-more")
+    more.focus()
+    page.keyboard.press("Enter")
+    retiring = page.locator(".test-retiring")
+    standing = page.locator(".test-standing")
+    arriving = page.locator(".test-arriving")
+    retiring.focus()
+    expect(retiring).to_be_focused()
+    before = standing.bounding_box()
+    page.evaluate("""() => {
+      toolbar.showNews(document.querySelector('.test-retiring'), false);
+      toolbar.showNews(document.querySelector('.test-arriving'), true);
+      toolbar.markBannerControl(document.querySelector('.test-arriving'), 'new action');
+    }""")
+    expect(retiring).to_be_hidden()
+    assert arriving.is_hidden()
+    expect(standing).to_be_focused()
+    expect(more).to_have_attribute("aria-label", re.compile("new action"))
+    assert standing.bounding_box() == before
+    assert retiring.evaluate("node => node.offsetHeight") > 0
+    page.keyboard.press("Tab")
+    expect(arriving).not_to_be_focused()
+    page.keyboard.press("Escape")
+    expect(more).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(arriving).to_be_visible()
+    expect(arriving).to_be_focused()
+    assert retiring.evaluate("node => node.offsetHeight") == 0
+    # Explicit travel can reveal a newly offered destination in the held menu.
+    # Both the shared reveal route and a nested layer's return use that same owner.
+    page.evaluate("""async () => {
+      const {reveal} = await window.__lfRuntimeImport('/runtime/widget-elements.js');
+      const target = document.querySelector('.test-retiring');
+      document.querySelector('.test-arriving').onclick = () => reveal(target, () => true);
+      toolbar.showNews(target, true);
+    }""")
+    assert retiring.is_hidden()
+    arriving.press("Enter")
+    expect(retiring).to_be_visible()
+    page.evaluate("""() => {
+      const target = document.querySelector('.test-returning');
+      document.querySelector('.test-arriving').onclick = () => toolbar.returnToBannerControl(target);
+      toolbar.showNews(target, true);
+    }""")
+    returning = page.locator(".test-returning")
+    assert returning.is_hidden()
+    arriving.press("Enter")
+    expect(returning).to_be_focused()
+
+
 def test_ask_banner_controls_keep_identity_and_focus_in_the_fixed_menu(
     browser, serve, other_leaf
 ):

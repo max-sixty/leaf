@@ -10,7 +10,8 @@
 // parent. Controls and declared regions keep their actual boxes. Runtime-declared
 // bounded reflow retains its historical ownership, stationary-boundary and clipping
 // proof. An append region may carry following content inside its stationary
-// scrollport by its measured suffix growth; existing children retain their boxes.
+// scrollport by its measured suffix growth; existing children retain their boxes,
+// except a last child marked streaming, which may grow or shrink at its foot in place.
 // Layout coordinates remove scrolling; sticky descendants retain their
 // mechanical scroller's ownership. Portals with one unique anchor, in their tree or
 // inside the `anchor-scope` that limits its name, and a direct native anchor inset,
@@ -834,6 +835,9 @@
         paddingBottom: range ? null : pixels(style.paddingBottom),
         reflow: range ? null : node.getAttribute("data-lf-reflow"),
         appendChildren,
+        appendStreaming: Boolean(
+          appendChildren?.at(-1)?.hasAttribute("data-lf-streaming"),
+        ),
         runtime: !range && node.matches(".lf-chrome, [data-lf-runtime]"),
         control: !range && node.matches(interactive),
         reading: Boolean(range) || readingMedia(element),
@@ -1241,8 +1245,10 @@
   };
   // Append declarations own a source, not all motion in a container. The retained
   // prefix proves that growth came after the old children; unchanged old boxes keep
-  // a fold or a rewritten message from borrowing that growth. Only its normal-flow
-  // followers in the same stationary runtime scrollport may be carried by it.
+  // a fold or a rewritten message from borrowing that growth. The one exception is a
+  // last child the first reading marks streaming, which may change at its foot with no
+  // child after it. Only its normal-flow followers in the same stationary runtime
+  // scrollport may be carried by it.
   const appendGrowth = (around) => {
     if (around.length !== 3) return [];
     const first = around[0].at,
@@ -1253,18 +1259,31 @@
       );
       return rects.every(Boolean) && rects.every((rect) => !moved(rects[0], rect));
     };
+    // Stands where it stood, growing or shrinking only at its foot.
+    const grows = (node) => {
+      const rects = around.map(({ at }) => layoutAt(node, at));
+      return (
+        rects.every(Boolean) &&
+        rects.every((rect) =>
+          ["left", "right", "top"].every(
+            (edge) => Math.abs(rect[edge] - rects[0][edge]) < 1,
+          ),
+        )
+      );
+    };
     return around[0].nodes.flatMap((source) => {
       const readings = around.map(({ at }) => paintAt(source, at));
       if (!readings.every((paint) => paint?.reflow === "append")) return [];
       const before = readings[0].appendChildren,
         after = readings[2].appendChildren;
+      const streams = readings[0].appendStreaming && after.length === before.length;
       if (
         !before.length ||
-        after.length <= before.length ||
+        (after.length <= before.length && !streams) ||
         !before.every(
           (child, i) =>
             readings.every((paint) => paint.appendChildren[i] === child) &&
-            stable(child),
+            (streams && i === before.length - 1 ? grows(child) : stable(child)),
         )
       )
         return [];
@@ -1273,7 +1292,8 @@
       if (
         !prior ||
         !next ||
-        next.bottom - prior.bottom < 1 ||
+        (streams ? Math.abs(next.bottom - prior.bottom) : next.bottom - prior.bottom) <
+          1 ||
         !around.every(({ at }) => {
           const box = layoutAt(source, at);
           return (

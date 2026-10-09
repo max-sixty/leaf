@@ -125,7 +125,10 @@ export function foldThreads(threads, messages, reactions, settlements, withdrawn
     if (reply.kind !== "reply") continue;
     const thread = byName.get(reply.parent);
     if (!thread) continue;
-    thread.msgs.push(reply);
+    // A reply still streaming stands last, where the log will take its answer, so the
+    // user's message joins the thread above it and its acceptance moves nothing.
+    const streaming = thread.msgs.at(-1)?.provisional ? 1 : 0;
+    thread.msgs.splice(thread.msgs.length - streaming, 0, reply);
     if (!isReaction(reply)) {
       thread.resolved = null;
       thread.attention = sending(reply);

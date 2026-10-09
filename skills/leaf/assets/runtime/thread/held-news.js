@@ -168,9 +168,12 @@ const fold = (summary, drawn) =>
 // each message that joins it, each one whose words changed, each reaction put on a reply
 // or taken off it, each summary that comes or goes, and the thread's settlement. A turn
 // joining the thread counts as the agent's reply or as a message of the user's, such as
-// one from another tab. Words joining the reply still streaming at the thread's end, and
-// the answer that completes that reply, are that reply arriving: they grow the thread
-// at its end as an appended turn does. Words changing in any other message are an edit.
+// one from another tab. The reply still streaming, which a provisional message stands
+// for at the thread's end until its answer completes it, arrives with every change: its
+// words joining it grow the thread at its end as an appended turn does, and its answer
+// completing it is that reply's arrival even where the words stay as they were, which
+// counts it only when it folds earlier progress, since the words already stood drawn.
+// Words changing in any other message are an edit.
 // `changed` the keys of the messages the news changes in place, every one where the
 // settlement changes, which moves the thread's controls into or out of its head row and
 // draws or folds its reaction strips; `folds` the keys of the messages a summary that
@@ -181,7 +184,6 @@ const fold = (summary, drawn) =>
 // Null where nothing differs.
 function difference(was, now) {
   const drawn = new Map(was.messages.map((message) => [message.key, message]));
-  const last = was.messages.at(-1)?.key;
   const settled =
     Boolean(was.resolved) === Boolean(now.resolved)
       ? null
@@ -198,12 +200,16 @@ function difference(was, now) {
   };
   const changed = new Set();
   const arrived = new Set();
+  const completed = new Set();
   for (const message of now.messages) {
     const prior = drawn.get(message.key);
     const reworded =
       prior !== undefined &&
       JSON.stringify(prior.body) !== JSON.stringify(message.body);
-    if (!prior || (reworded && prior.provisional && message.key === last)) {
+    if (prior?.provisional && !message.provisional && !reworded)
+      completed.add(message.id);
+    if (prior?.provisional) arrived.add(message.id);
+    if (!prior || (reworded && prior.provisional)) {
       if (message.author === "agent") news.replies += 1;
       else news.messages += 1;
       news.appended = true;
@@ -228,6 +234,8 @@ function difference(was, now) {
   const gone = [...before].filter(([at]) => !after.has(at)).map(([, each]) => each);
   const told = (list) => list.filter(({ trigger }) => !arrived.has(trigger)).length;
   news.summaries = told(added) || told(gone);
+  const folding = new Set([...added, ...gone].map(({ trigger }) => trigger));
+  for (const id of completed) if (folding.has(id)) news.replies += 1;
   const keys = new Map(
     [...was.messages, ...now.messages].map(({ id, key }) => [id, key]),
   );
@@ -261,8 +269,9 @@ function withheld(was, now) {
   const msgs = was.msgs.flatMap((prior) => {
     const message = standing.get(messageKey(prior));
     if (!message) return isReaction(prior) || prior.provisional ? [prior] : [];
-    const { text, body, edited } = prior;
-    return [{ ...message, text, body, edited }];
+    // A streaming reply held as drawn is still the reply arriving, whatever completed it.
+    const { text, body, edited, provisional } = prior;
+    return [{ ...message, text, body, edited, provisional }];
   });
   return {
     ...now,

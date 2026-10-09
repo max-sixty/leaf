@@ -115,8 +115,10 @@ that boundary, and neighbours and ordinary page reading content stay put. Typing
 still cannot carry its field.
 An `append` region declares a transcript whose new children may grow its end within
 its stationary scrollport. Existing messages stay put; the idle reply row and later
-cards may move by that growth. The declaration permits no changes to existing
-messages or independent movement of following content.
+cards may move by that growth. A reply still streaming at the transcript's end
+(`data-lf-streaming`) is that growth arriving: it may change at its foot in place as its
+words come and as its answer completes it. The declaration permits no other changes to
+existing messages or independent movement of following content.
 News grows where the reader isn't looking: above the screen, where scroll anchoring
 takes the growth into what they scrolled past, or below it. A short thread's reply
 box follows its last message; a long panel thread pins the

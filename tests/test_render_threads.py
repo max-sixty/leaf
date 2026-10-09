@@ -778,36 +778,144 @@ def test_a_held_card_counts_a_streaming_reply_once_and_names_the_users_own_messa
 ):
     """While the user writes in a card, its news waits, and the notice says what waits.
 
-    A reply streaming in is one new reply however many times its words grow, and a turn
-    of the user's own from another tab is a message of theirs, not a reply.
+    A reply the card already streams is one new reply however often its words grow
+    and whatever answer completes it, through every later reading while it waits, and
+    a turn of the user's own from another tab is a message of theirs, not a reply.
     """
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
     claim_for_codex(serve.page_dir, request)
+    stream_reply(serve.page_dir, root, "First words")
 
     page = open_page(browser, url)
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    drawn = thread.locator(".lf-msg.agent .lf-msg-text")
+    expect(drawn).to_have_text("First words")
     write(thread.locator(":scope > .lf-thread-reply leaf-text"), "Also note the date")
 
-    stream_reply(serve.page_dir, root, "First words")
-    told(page)
     notice = thread.locator(".lf-thread-news")
-    expect(notice).to_have_text("1 new reply")
-    expect(thread.locator(".lf-msg.agent")).to_have_count(0)
-    stream_reply(serve.page_dir, root, "First words and more of them")
+    for words in ("First words and more", "First words and more of them"):
+        stream_reply(serve.page_dir, root, words)
+        told(page)
+        expect(notice).to_have_text("1 new reply")
+        expect(drawn).to_have_text("First words")
+
+    thread_model.post_reply(
+        serve.page_dir,
+        root,
+        "Recorded the release on the board.",
+        "",
+        for_event=root,
+        attempt="leaf-response-explicit",
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.clear_stream_reply("codex-thread", "leaf-turn")
     told(page)
     expect(notice).to_have_text("1 new reply")
+    expect(drawn).to_have_text("First words")
 
+    # A later reading compares against the held drawing, which still stands for the
+    # streaming reply the answer completed rather than an answer since reworded.
     append_user_reply(serve.page_dir, root, "Sent from my other tab")
     told(page)
     expect(notice).to_have_text("1 new reply · 1 new message")
     notice.click()
-    expect(thread.locator(".lf-msg.agent .lf-msg-text")).to_have_text(
+    expect(drawn).to_have_text("Recorded the release on the board.")
+    expect(thread.locator(".lf-msg.user")).to_have_count(2)
+
+
+@pytest.mark.watch_shifts
+def test_a_reply_sent_while_the_agent_streams_moves_nothing_when_accepted(
+    browser, serve, request
+):
+    """The user's message joins the thread above the reply still streaming, where the
+    log will take that reply's answer, so the log accepting it moves nothing, and the
+    stream's growth in the same readings is its arrival, not an edit.
+
+    The panel drew the user's pending message below the streaming reply, and the
+    accepted reading, whose live reply stands after every logged message, moved the
+    reply below it.
+    """
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
+    claim_for_codex(serve.page_dir, request)
+    stream_reply(serve.page_dir, root, "First words")
+
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    streamed = thread.locator(".lf-msg.agent")
+    expect(streamed.locator(".lf-msg-text")).to_have_text("First words")
+    write(thread.locator(":scope > .lf-thread-reply leaf-text"), "And note the date")
+    # The shift watch holds the acceptance to moving nothing; the order is where the
+    # send drew it.
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    told(page)
+    messages = thread.locator(".lf-msg")
+    expect(messages).to_have_count(3)
+    expect(messages.nth(1)).to_contain_text("And note the date")
+    expect(messages.nth(2)).to_have_attribute("data-lf-streaming", "")
+
+    page.locator("body").click(position={"x": 5, "y": 5})
+    stream_reply(serve.page_dir, root, "First words and more of them")
+    told(page)
+    expect(streamed.locator(".lf-msg-text")).to_have_text(
         "First words and more of them"
     )
-    expect(thread.locator(".lf-msg.user")).to_have_count(2)
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+
+
+def test_an_answer_completing_its_stream_with_the_same_words_folds_progress_as_its_own(
+    browser, serve, request
+):
+    """An App Server final repeats the words it streamed, and it folds the progress
+    before it into Previous updates. That fold is the answer's news, so a card that
+    holds it says a reply arrived rather than that a summary changed.
+    """
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Record the release", {"section": "h-how"})
+    claim_for_codex(serve.page_dir, request)
+    thread_model.post_reply(
+        serve.page_dir,
+        root,
+        "Checking the board",
+        "",
+        for_event=root,
+        ephemeral=True,
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    stream_reply(serve.page_dir, root, "Recorded the release.")
+
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-thread[data-id="{root}"]')
+    expect(thread.locator(".lf-msg.agent")).to_have_count(2)
+
+    thread_model.post_reply(
+        serve.page_dir,
+        root,
+        "Recorded the release.",
+        "",
+        for_event=root,
+        attempt=STREAM_ATTEMPT,
+        identity={"agent": "Codex", "session": "codex-thread"},
+    )
+    with service_model.PageTransaction(serve.page_dir) as transaction:
+        transaction.clear_stream_reply("codex-thread", "leaf-turn")
+    told(page)
+    notice = thread.locator(".lf-thread-news")
+    expect(notice).to_have_text("1 new reply")
+    notice.click()
+    expect(notice).to_have_count(0)
+    expect(thread.locator(".lf-msg.agent").last.locator(".lf-msg-text")).to_have_text(
+        "Recorded the release."
+    )
 
 
 def assert_arrival_returns_to_own_fill(page, destination):

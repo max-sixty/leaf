@@ -10,6 +10,7 @@ from ..events import (
 from ..projection import FrozenThreadReading
 from ..read_state import unread_content
 from ..schema import agent_name
+from ..thread import is_answer
 from .wire import browser_projection
 
 
@@ -36,24 +37,17 @@ def _response_key(responds: str) -> dict:
     under: an explicit `response reply` takes an author's retry key from a namespace of
     its own, so it can never consume the provider final's append identity. The input
     they both answer is the identity they share, and an input takes one answer. A
-    failure receipt is no answer (`thread.post_reply`): an answer may still follow it,
-    so the receipt keeps its own name."""
+    failure receipt is no answer (`thread.is_answer`), so it keeps its own name."""
     return {"key": f"response:{responds}"}
 
 
 def _named(event: dict) -> dict:
     """One served thread event carrying the name it is shown under (`agent_name`),
     and an agent's answer the name its provisional reply was drawn under."""
-    answers = (
-        event.get("author") == "agent"
-        and event.get("responds") is not None
-        and not event.get("failure")
-        and not event.get("ephemeral")
-    )
     return {
         **event,
         "agent": agent_name(event),
-        **(_response_key(event["responds"]) if answers else {}),
+        **(_response_key(event["responds"]) if is_answer(event) else {}),
     }
 
 

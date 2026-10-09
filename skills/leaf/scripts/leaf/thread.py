@@ -250,20 +250,25 @@ def cmd_comment(
         return append_admitted(page, event)
 
 
-def successful_replies(events: list[dict], for_event: str) -> list[dict]:
-    """Agent answers to this exact input, excluding progress and failure receipts.
+def is_answer(event: dict) -> bool:
+    """Whether an event is an agent's answer to the input its ``responds`` names.
 
     A thread parent locates presentation; only ``responds`` names the input an
-    answer settles. User replies, progress and failures do not assert an answer.
+    answer settles. User replies and progress carry none, and a failure receipt names
+    the input it gives up on without answering it, so an answer may still follow it.
     """
-    return [
-        event
-        for event in events
-        if event["kind"] == "reply"
+    return (
+        event["kind"] == "reply"
         and event["author"] == "agent"
-        and event.get("responds") == for_event
-        and not event.get("ephemeral")
+        and event.get("responds") is not None
         and "failure" not in event
+    )
+
+
+def successful_replies(events: list[dict], for_event: str) -> list[dict]:
+    """Agent answers to this exact input (`is_answer`)."""
+    return [
+        event for event in events if is_answer(event) and event["responds"] == for_event
     ]
 
 

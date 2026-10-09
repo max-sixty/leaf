@@ -490,9 +490,8 @@ def write_comment(session: Session, text: str, passage: str | None = None) -> Lo
     if passage is None:
         # The page comment card under the banner is where a page thread starts; a
         # send leaves it open, so an open card's box is pressed instead.
-        card = page.locator(".lf-page-comment-card")
-        box = card.locator("leaf-text")
-        if card.evaluate("card => card.matches(':popover-open')"):
+        box = page.locator(".lf-page-comment-card leaf-text")
+        if page.locator(".lf-page-comment-card:popover-open").count():
             box.click()
         else:
             page.locator(".lf-banner-actions > .lf-page-comment").click()

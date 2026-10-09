@@ -4,7 +4,6 @@ its pane."""
 
 import json
 import os
-import signal
 import subprocess
 import sys
 import time
@@ -13,6 +12,7 @@ from itertools import count
 from pathlib import Path
 
 import pytest
+from interact_support import STATED_TIMEOUT
 from leaf_dev import journey, journey_claude_code, journey_pi
 from leaf_dev.review_scenario import SLEEP
 
@@ -188,27 +188,18 @@ def test_a_permission_prompt_is_read_from_its_question_and_options(question):
     assert journey_claude_code.permission_prompt("❯ Try again\n") is None
 
 
-def test_the_users_command_is_found_only_among_the_panes_own_processes():
+def test_the_users_command_is_found_only_among_the_panes_own_processes(spawn):
     """Journeys run side by side run the same command; each finds only its own, among
     its pane's descendants, so another journey's command is not this one's turn."""
     command = [sys.executable, "-c", f"import time; {SLEEP}"]
-    # Each in a process group of its own, which the test ends whole.
-    pane = subprocess.Popen(
-        ["sh", "-c", f"{subprocess.list2cmdline(command)}; true"],
-        start_new_session=True,
-    )
-    other = subprocess.Popen(command, start_new_session=True)
-    neighbour = subprocess.Popen(["sh", "-c", "sleep 30; true"], start_new_session=True)
-    try:
-        deadline = time.monotonic() + 10
-        while not journey_claude_code.runs(pane.pid, SLEEP):
-            assert time.monotonic() < deadline, "the pane's command never ran"
-            time.sleep(0.1)
-        assert not journey_claude_code.runs(neighbour.pid, SLEEP)
-    finally:
-        for process in (pane, other, neighbour):
-            os.killpg(process.pid, signal.SIGKILL)
-            process.wait()
+    pane = spawn(["sh", "-c", f"{subprocess.list2cmdline(command)}; true"])
+    spawn(command)
+    neighbour = spawn(["sh", "-c", "sleep 30; true"])
+    deadline = time.monotonic() + STATED_TIMEOUT
+    while not journey_claude_code.runs(pane.pid, SLEEP):
+        assert time.monotonic() < deadline, "the pane's command never ran"
+        time.sleep(0.1)
+    assert not journey_claude_code.runs(neighbour.pid, SLEEP)
 
 
 def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):

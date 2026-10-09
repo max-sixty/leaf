@@ -4555,8 +4555,14 @@ class _FailedFirstTurn:
         assert selector in {
             ".lf-banner-actions > .lf-page-comment",
             ".lf-page-comment-card leaf-text",
+            ".lf-page-comment-card:popover-open",
         }
         return self
+
+    def count(self) -> int:
+        """The card is shut until a send leaves it open, and this page sends once
+        an ask."""
+        return 0
 
     def click(self) -> None:
         pass

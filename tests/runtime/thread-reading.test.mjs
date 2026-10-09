@@ -80,7 +80,6 @@ test("two Thread panels own separate controls and list state", () => {
   assert.notEqual(second.findInput.value, first.findInput.value);
   assert.equal(second.threadsBox.scrollTop, 0);
   assert.notEqual(first.panel, second.panel);
-  assert.notEqual(first.generalInput, second.generalInput);
   first.dispose();
   second.dispose();
 });
@@ -113,7 +112,6 @@ test("two mounted panel controllers keep independent visibility and keyboard run
       refreshThread: () => {},
       closeReactionMode: () => {},
       closePreview: () => {},
-      syncGeneral: () => {},
     });
   const firstController = make(first, "test-first");
   const secondController = make(second, "test-second");

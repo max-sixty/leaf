@@ -52,6 +52,7 @@ from render_harness import (
     navigate,
     nudge,
     open_page,
+    page_comment,
     pane_posture,
     panel_settled,
     refuse,
@@ -85,7 +86,7 @@ def test_a_refused_message_cannot_present_before_its_thread_reconciles(
     page = open_page(browser, serve(INLINE_PAGE))
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    field = page.locator(".lf-general leaf-text")
+    field = page_comment(page)
     write(field, "A message the server will refuse")
     field.press("ControlOrMeta+Enter")
     holding(page, held, 1, "the optimistic message")
@@ -1502,7 +1503,7 @@ def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, 
         pick.click()
     page.locator(".lf-threads-toggle").click()
     panel_settled(page)
-    field = page.locator(".lf-general leaf-text")
+    field = page_comment(page)
     write(field, "Words the server never read")
     field.press("ControlOrMeta+Enter")
     # Retried rather than dropped: the same send goes out again on the outbox's clock.
@@ -2632,8 +2633,8 @@ def test_pending_gestures_survive_an_accepted_view_waiting_for_a_thread_widget(
 
     suggestion_control(page, "sug-thistle", "accept").click()
     expect(page.locator("#sug-thistle")).to_have_attribute("data-lf-state", "accept")
-    write(page.locator(".lf-general leaf-text"), "Keep this newer comment visible.")
-    page.locator(".lf-general leaf-text").press("ControlOrMeta+Enter")
+    write(page_comment(page), "Keep this newer comment visible.")
+    page.keyboard.press("ControlOrMeta+Enter")
     message = page.locator(".lf-threads .lf-msg-body").filter(
         has_text="Keep this newer comment visible."
     )

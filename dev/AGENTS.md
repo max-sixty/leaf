@@ -153,7 +153,7 @@ harnesses share: the isolation and its evidence under `.tmp/journey/`, the
 `Terminal` every wait hears the session through, and the `User`, at one end for
 every step: over HTTP by default, posting each comment as the page's tab does with no
 browser, which is what agent and harness behaviour and timing need, or in Chrome with
-`--browser`, typing each comment in Threads and timing what the page shows, the whole
+`--browser`, typing each comment as a user does and timing what the page shows, the whole
 user journey. Either way each comment is timed from the page's log on the server's
 clock, with the agent's work on it split into delivery, model and tool phases.
 Between steps the journey fails unless every comment so far has one reply and

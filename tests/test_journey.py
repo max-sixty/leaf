@@ -241,6 +241,37 @@ def test_claude_codes_transcript_gives_tool_and_turn_records(tmp_path):
     ]
 
 
+def test_a_comment_picked_up_while_a_call_is_out_starts_in_that_tool_phase():
+    """A comment sent mid-turn enters the turn while the agent's command still runs;
+    the rest of that command's wait is tool time, not the model's."""
+
+    def record(seconds: float, kind: str, part: dict) -> dict:
+        return {
+            "type": kind,
+            "message": {"content": [part]},
+            "received_at": at(seconds),
+        }
+
+    records = [
+        record(
+            1,
+            "assistant",
+            {
+                "type": "tool_use",
+                "id": "s",
+                "name": "Bash",
+                "input": {"command": "sleep 4"},
+            },
+        ),
+        record(5, "user", {"type": "tool_result", "tool_use_id": "s"}),
+    ]
+    assert journey.turn_phases(records, at(0), at(3), at(6)) == [
+        {"phase": "delivery", "startMs": 0, "ms": 3000},
+        {"phase": "tool", "startMs": 3000, "ms": 2000, "calls": ["sleep 4"]},
+        {"phase": "model", "startMs": 5000, "ms": 1000},
+    ]
+
+
 def test_pis_events_give_the_turn_phases(monkeypatch):
     """Pi reports its runs and tool calls as RPC events; the journey keeps its tool
     calls as the records `turn_phases` reads, and tracks the shell commands

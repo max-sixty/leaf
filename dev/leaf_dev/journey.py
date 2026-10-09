@@ -307,17 +307,19 @@ def turn_phases(
     agent's context (`picked_up`, its opened pickup), whether that opened a turn or
     entered a running one, then alternating `model` (from the last tool result to the
     next tool call) and `tool` (from that call until every call it started has
-    returned), each tool phase naming its calls. A record's time is when it was
-    written or heard: Claude Code's transcript stamps each record itself, and the
-    journey stamps Codex's notifications and Pi's events as it hears them. A comment
-    never picked up has no phases."""
+    returned), each tool phase naming its calls. A comment that enters a running turn
+    while a call is out, as one sent mid-turn does, starts in a tool phase from its
+    pickup until those calls return. A record's time is when it was written or heard:
+    Claude Code's transcript stamps each record itself, and the journey stamps Codex's
+    notifications and Pi's events as it hears them. A comment never picked up has no
+    phases."""
     if picked_up is None:
         return []
     start, began, end = instant(admitted), instant(picked_up), instant(replied)
     timed = [
         (instant(record["received_at"]), record)
         for record in records
-        if began < instant(record["received_at"]) <= end
+        if instant(record["received_at"]) <= end
     ]
     phases: list[dict] = []
 
@@ -332,9 +334,20 @@ def turn_phases(
         )
 
     close("delivery", start, began)
-    phase, since, pending, calls = "model", began, set(), []
+    # The calls still out when the comment was picked up.
+    out: dict[str, str] = {}
     for at, record in timed:
-        if record["type"] not in ("assistant", "user"):
+        if at > began or record["type"] not in ("assistant", "user"):
+            continue
+        for part in record["message"]["content"]:
+            if part["type"] == "tool_use":
+                out[part["id"]] = part["input"].get("command", part["name"])[:200]
+            elif part["type"] == "tool_result":
+                out.pop(part["tool_use_id"], None)
+    phase = "tool" if out else "model"
+    since, pending, calls = began, set(out), list(out.values())
+    for at, record in timed:
+        if at <= began or record["type"] not in ("assistant", "user"):
             continue
         for part in record["message"]["content"]:
             if part["type"] == "tool_use":

@@ -183,6 +183,7 @@ def test_held_news_keeps_an_agent_header_and_resizes_its_notice(browser, serve):
     panel_settled(page)
     thread = page.locator(f'.lf-thread[data-id="{root}"]')
     focus_panel_thread(thread)
+    thread.locator("leaf-text").focus()
     message = thread.locator(".lf-msg").first
     message.hover()
     reaction = message.locator(".lf-react-trigger")
@@ -3143,9 +3144,6 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
         },
     )
     told(page)
-    page.locator(f'.lf-thread[data-id="{root}"]').get_by_role(
-        "button", name="1 new reply", exact=True
-    ).click()
     workflow = page.locator(f'.lf-msg[data-mid="{later["id"]}"] .lf-msg-sending')
     expect(workflow).to_have_text("Sent")
     assert workflow.evaluate(
@@ -3222,6 +3220,49 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         news.click()
     expect(card.locator(".lf-msg").filter(has_text="Cache is done")).to_be_visible()
     expect(page.locator("#fb-done > #fb-cache")).to_be_visible()
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("reply_size", ["short", "tall"])
+def test_an_idle_open_panel_thread_shows_appended_replies(browser, serve, reply_size):
+    """An append moves the idle reply and later cards, preserving existing messages.
+
+    Even an answer taller than the panel must leave the previous reading in place;
+    following the end is reserved for a reply row that was already pinned.
+    """
+    url = serve(PANEL_PAGE)
+    root = panel_comment(serve.page_dir, "Keep the discussion here.")
+    later = panel_comment(serve.page_dir, "A later conversation.")
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    focus_panel_thread(thread)
+    message = thread.locator(".lf-msg").first
+    field = thread.locator("leaf-text")
+    following = page.locator(f'.lf-threads > .lf-thread[data-id="{later}"]')
+    rendered(page)
+    before = {
+        "message": message.bounding_box(),
+        "reply": field.bounding_box(),
+        "following": following.bounding_box(),
+        "scroll": page.locator(".lf-threads").evaluate("list => list.scrollTop"),
+    }
+    words = "The answer arrived without another click."
+    if reply_size == "tall":
+        words = "\n\n".join([words] * 30)
+    reply = append_agent_reply(serve.page_dir, root, words)
+    told(page)
+    expect(thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_be_visible()
+    expect(thread.locator(".lf-thread-news")).to_have_count(0)
+    rendered(page)
+    assert message.bounding_box() == before["message"]
+    assert field.bounding_box()["y"] > before["reply"]["y"]
+    assert following.bounding_box()["y"] > before["following"]["y"]
+    assert (
+        page.locator(".lf-threads").evaluate("list => list.scrollTop")
+        == before["scroll"]
+    )
 
 
 @pytest.mark.parametrize("contents", ["short", "long"])
@@ -3994,7 +4035,7 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
 
 def test_a_dialog_handing_the_user_back_to_a_thread_is_no_arrival(browser, serve):
     """A layer that closes hands the user back to where they stood. The command
-    reference opened from a thread holding a reply, and closed with Escape, returns
+    reference opened from a thread with an unfinished draft, and closed with Escape, returns
     them to the thread's title, which they never left, so the reply stays held behind
     its notice."""
     url = serve(PANEL_PAGE)
@@ -4006,6 +4047,7 @@ def test_a_dialog_handing_the_user_back_to_a_thread_is_no_arrival(browser, serve
     summary = thread.locator(".lf-thread-summary")
     if thread.get_attribute("open") is None:
         summary.click()
+    write(thread.locator("leaf-text"), "An unfinished reply.")
     summary.focus()
     reply = append_carried_log_record(
         serve.page_dir,
@@ -6691,7 +6733,6 @@ def test_a_thread_reopened_mid_fold_folds_again_when_it_settles(browser, serve):
         },
     )
     told(page)
-    thread.get_by_role("button", name="1 new reply", exact=True).click()
     expect(thread.locator(".lf-msg")).to_have_count(2)
 
     focus_panel_thread(page.locator(f'.lf-thread[data-id="{c1}"]'))
@@ -11094,3 +11135,55 @@ def test_pending_messages_stay_readable_through_admission(browser, serve, surfac
         "pending": [False, False],
         "pendingCursors": [],
     }
+
+
+@pytest.mark.watch_shifts
+@pytest.mark.parametrize("reading", ["open-transcript", "later-card"])
+def test_appended_replies_keep_the_panel_reading_when_the_open_title_is_clipped(
+    browser, serve, reading
+):
+    """The open transcript holds the reading unless the reader names a later card.
+
+    A card-level anchor chosen only from visible titles instead scrolls old messages
+    away to hold the next title. Agent and other-tab user appends share the same rule.
+    """
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "\n\n".join(["Reading the existing conversation."] * 5)
+    )
+    later = [
+        panel_comment(serve.page_dir, f"Later conversation {i}.") for i in range(18)
+    ]
+    page = open_page(browser, url)
+    page.locator(".lf-threads-toggle").click()
+    panel_settled(page)
+    thread = page.locator(f'.lf-threads > .lf-thread[data-id="{root}"]')
+    focus_panel_thread(thread)
+    listing = page.locator(".lf-threads")
+    listing.hover()
+    page.mouse.wheel(0, 90)
+    scroll_settled(page)
+    following = page.locator(f'.lf-threads > .lf-thread[data-id="{later[0]}"]')
+    if reading == "later-card":
+        following.locator(":scope > .lf-thread-summary").hover()
+        reference = following
+    else:
+        page.mouse.move(100, 100)
+        reference = thread.locator(".lf-msg").first
+    rendered(page)
+    band = listing.bounding_box()
+    original = thread.locator(".lf-msg").first.bounding_box()
+    assert thread.bounding_box()["y"] < band["y"]
+    assert original["y"] + original["height"] > band["y"]
+    editor = thread.locator("leaf-text").bounding_box()
+    assert editor["y"] + editor["height"] < band["y"] + band["height"] - 1
+    before = reference.bounding_box()
+    for append in (append_agent_reply, append_user_reply):
+        reply = append(
+            serve.page_dir, root, "New material here.\n\nAnother paragraph follows."
+        )
+        told(page)
+        expect(thread.locator(f'.lf-msg[data-mid="{reply["id"]}"]')).to_have_count(1)
+        expect(thread.locator(".lf-thread-news")).to_have_count(0)
+        rendered(page)
+        assert reference.bounding_box() == before

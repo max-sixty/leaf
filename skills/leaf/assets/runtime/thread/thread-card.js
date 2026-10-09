@@ -459,6 +459,7 @@ export class ThreadView {
       tailStart: node.getBoundingClientRect().bottom,
       end: this.node.getBoundingClientRect().bottom,
       box: this.#reply?.node.getBoundingClientRect().top,
+      pinned: replyPinned(this.#reply?.node),
     };
   }
 
@@ -474,11 +475,23 @@ export class ThreadView {
   }
 
   // HeldNews compares readings; this owner decides whether their changed regions
-  // would move visible words. A pinned reply can absorb growth at the thread's end,
-  // but cannot absorb changes above it or settlement replacing the reply itself.
-  newsMoves({ news, changed, folds }) {
+  // would move visible words. An idle open panel card permits a suffix append to move
+  // its reply row and later cards. Existing-message changes and active compositions
+  // retain the hold. A pinned reply can absorb growth at the thread's end, but cannot
+  // absorb changes above it or settlement replacing the reply itself.
+  newsMoves({ news, changed, folds, appendedAtEnd }) {
     const pinned = replyPinned(this.#reply?.node);
-    const followed = pinned && !news.settled ? this.#foot : null;
+    const idleAppend =
+      this.#model?.surface === "panel" &&
+      this.node.open &&
+      !replyIsEditing(this.#model.key) &&
+      appendedAtEnd &&
+      !news.settled &&
+      !news.summaries &&
+      !changed.size &&
+      !folds.messages.length &&
+      !folds.summaries.length;
+    const followed = (pinned && !news.settled) || idleAppend ? this.#foot : null;
     return (
       [
         ...[...changed].map((message) => this.#messageNode(message)),
@@ -728,7 +741,12 @@ export class ThreadView {
             </header>`
           : nothing
       }
-      <div class="lf-thread-transcript">${transcript}</div>
+      <div
+        class="lf-thread-transcript"
+        data-lf-reflow=${model.surface === "panel" ? "append" : nothing}
+      >
+        ${transcript}
+      </div>
       ${
         threadActions
           ? marginControls

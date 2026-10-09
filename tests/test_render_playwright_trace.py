@@ -14,9 +14,25 @@ from leaf import exporting as exporting_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.page_fixtures import example_media
 from playwright.sync_api import expect
-from render_harness import holding, leaf_page, open_page, resized, sending, told
+from render_harness import (
+    at_rest,
+    holding,
+    leaf_page,
+    open_page,
+    resized,
+    sending,
+    still_page,
+    told,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.mark.nightly
+def test_trace_viewer_stays_idle_after_initial_presentation(browser, serve):
+    """The viewer's disabled transition cannot wake margin layout after readiness."""
+    url = serve(ROOT / "examples/developer/playwright-trace-gallery.html")
+    assert at_rest(still_page(browser, url)) == []
 
 
 def navigate_at(timeline, index):

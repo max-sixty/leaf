@@ -976,7 +976,8 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-threads { overflow-y: auto; overscroll-behavior: contain; z-index: 0;
     padding: var(--focus-ring-room) var(--lf-list-inset); --lf-block-frame: 1;
     scroll-padding: var(--focus-ring-room) 0;
-    --lf-top-start: calc(-1 * var(--focus-ring-room)); --lf-top: var(--lf-top-start); }
+    --lf-top-start: calc(-1 * var(--focus-ring-room)); --lf-top: var(--lf-top-start);
+    --lf-landing-room-start: var(--focus-ring-room); }
   /* The list holds focus itself only while it shows no thread (thread-list-view.js):
      an empty list, or the last one folding away as it resolves. That folding card is
      positioned, so it paints after the scrollport and an outline on the list itself

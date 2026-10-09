@@ -265,17 +265,22 @@ read itself:
 ```
 
 The rows' `scroll-margin-top` has a landing on a row, native or the runtime's, arrive
-below the header. The runtime reads what passes under it as off screen from `--lf-top`,
+below the header. Focus needs nothing declared: the runtime marks a box that sticks, and
+the layer's focus margin counts a control in a stuck header as shown where it sticks,
+and lands a focused row below the headers stacked over it. A box that scrolls with
+`scroll-padding` of its own states that room as `--lf-landing-room-start` beside its
+`--lf-top-start`. The runtime reads what passes under it as off screen from `--lf-top`,
 for read acknowledgement, arrival checks, and chrome placement, so nothing is declared.
 The stacked value goes on a box that does not itself scroll, since the runtime reads a
 box that scrolls where it stands. The runtime starts `--lf-top` again on every box that
 scrolls and doesn't itself stick, `overflow: hidden` included, so a header inside one
 sticks at that box's top. A box a package makes scroll also states `--lf-top: 0px`
-beside its overflow, so the restart holds from the first paint. A header sticks below its scroller's top padding;
-to have it stand on the scroller's top edge, state `--lf-top-start` at minus that
-padding and `--lf-top: var(--lf-top-start)`. A box that only clips, such as a card
-rounding its corners, uses `overflow: clip`, since a `hidden` box is a scroller and a
-header inside it would scroll off with the page rather than stick below the banner.
+beside its overflow, so the restart holds from the first paint. A header sticks below
+its scroller's top padding; to have it stand on the scroller's top edge, state
+`--lf-top-start` at minus that padding and `--lf-top: var(--lf-top-start)`. A box that
+only clips, such as a card rounding its corners, uses `overflow: clip`, since a `hidden`
+box is a scroller and a header inside it would scroll off with the page rather than
+stick below the banner.
 
 A box a package makes scroll text sideways carries the class `lf-text-scroller`. An
 overlay scrollbar paints over the box's lower edge and widens under the pointer, so while

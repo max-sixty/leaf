@@ -248,11 +248,19 @@ function sweep(root) {
 // column's sidebar, layouts.css). Read with the declaration, so a box that stops
 // scrolling at another width stops restarting the slot, or its headers would pin behind
 // the banner.
+//
+// A box that sticks at its scroller's top is marked too, for the focus margin of the
+// controls it holds (shadow.css, at `--lf-head-inset`): a control in a stuck header
+// stands inside its scroller's landing band, and the browser scrolled toward it on every
+// focus. Marked from the composed box for the same reason, so a header an author or a
+// package makes sticky is covered without declaring anything.
 function paintSlot(el, style) {
+  const sticks = style.position === "sticky";
   el.toggleAttribute(
     PAGE_PAINT_ATTRIBUTE.scrolls,
-    scrollsBy(style) && style.position !== "sticky" && !el.matches(TEXT_BOX),
+    scrollsBy(style) && !sticks && !el.matches(TEXT_BOX),
   );
+  el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.sticks, sticks && style.top !== "auto");
 }
 
 function classify(el) {

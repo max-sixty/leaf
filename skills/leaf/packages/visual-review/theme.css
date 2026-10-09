@@ -116,6 +116,50 @@
   padding-block: var(--focus-ring-w);
 }
 
+/* A pair taller than the window keeps the case navigation and the view controls in
+   reach while the reader scrolls through it. The pane's header is a sticky header
+   (kernel theme.css, at `--lf-top`) of a stated height, one row of its controls, and
+   the shown case's view controls stick under it. In a document the page scrolls them
+   both past; in a workspace the pane's body scrolls, so the header already stands above
+   it and the view controls stick at the body's top. The view controls' row wraps, so
+   its height is not stated and the evidence under it does not stack past it; its top
+   padding is the focus ring's room, so a ring there stays clear of the header above.
+   Screen only: paper has no scroll to stick against. */
+@media screen {
+  .lf-vr-evidence-region {
+    --lf-vr-queue-h: calc(max(30px, var(--aim-floor)) + 2 * var(--sp-2) + 1px);
+    --lf-top-outer: var(--lf-top);
+  }
+
+  .lf-vr-queue {
+    position: sticky;
+    top: var(--lf-top);
+    z-index: 2;
+    box-sizing: border-box;
+    block-size: var(--lf-vr-queue-h);
+    background: var(--paper);
+  }
+
+  .lf-vr-cases {
+    --lf-top: calc(var(--lf-top-outer) + var(--lf-vr-queue-h));
+  }
+
+  .lf-vr-toolbar-slot {
+    position: sticky;
+    top: var(--lf-top);
+    z-index: 1;
+    margin-inline: calc(-1 * var(--sp-3));
+    padding: var(--focus-ring-room) var(--sp-3) var(--focus-ring-w);
+    background: var(--paper);
+  }
+
+  /* What a capture raises inside it, a flip's handle and its marked regions, stays
+     under the controls stuck over it. */
+  .lf-vr-shot-host {
+    isolation: isolate;
+  }
+}
+
 .lf-vr-inspector[hidden] {
   display: none;
 }

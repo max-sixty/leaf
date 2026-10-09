@@ -172,6 +172,14 @@
      document already keeps clear of both (html[data-lf-live], below). */
   --lf-view-height: calc(100dvh - var(--lf-banner-h) - var(--lf-bottom-bar-h));
   --lf-top: var(--lf-banner-h);
+  /* A scroller's landing band, which its `scroll-padding-top` states (the root's, below),
+     in two parts: how much of the sticky-header slot it covers whole (`--lf-top-covered`:
+     on the root, the banner and a page tab strip), and the room it leaves below that
+     for a landing's focus ring (`--lf-landing-room`). The layer's focus margin reads
+     both (shadow.css, at `--lf-head-inset`), and a box that scrolls restarts them
+     (state.css). */
+  --lf-top-covered: calc(var(--lf-banner-h) + var(--lf-root-headers, 0px));
+  --lf-landing-room: 12px;
   /* The page tab strip's stated height: its 8px head, a name's 38px face or the aim
      floor where that is taller, and its 1px rule. The default package draws the strip
      at it, and the root's `scroll-padding` adds it where a page tab strip stands over
@@ -651,7 +659,7 @@ html { background: var(--paper); }
     overflow-y: scroll;
     /* A sticky header over the whole root, a page tab strip, adds its stated height as
      * `--lf-root-headers` (lf-tabs.js). */
-    scroll-padding-top: calc(var(--lf-banner-h) + var(--lf-root-headers, 0px) + 12px);
+    scroll-padding-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
     scroll-padding-bottom: calc(var(--lf-bottom-bar-h) + max(12px, var(--focus-ring-room)));
     /* The bottom bar's room is the body's own end, where content growing above it only
      * lengthens the body: a box standing after the content would move with each growth. */
@@ -867,6 +875,9 @@ main {
 /* Where a box that scrolls starts the slot for what it holds, read by the restart above;
  * its own, so not inherited, which would start a scroller inside it there too. */
 @property --lf-top-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
+/* Likewise the room a box that scrolls leaves below its slot for a landing, which a box
+ * that pads its scroll edge states (`--lf-landing-room`, above). */
+@property --lf-landing-room-start { syntax: "<length>"; inherits: false; initial-value: 0px; }
 /* The same for a box sticking at its scroller's foot: what it stands over takes its
  * height and offset as `--lf-bottom`, and the runtime's reading of what is on screen
  * leaves that band out too (geometry.js, `footerInset`). A long open thread's reply

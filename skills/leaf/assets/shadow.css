@@ -227,6 +227,26 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
    with it, the top of its ring cut off under the pane's header rule. At no weight, like
    the ring. */
 :where(:focus) { scroll-margin-block: var(--focus-ring-room); }
+/* A control in a stuck sticky header stands where the header sticks, which its
+   scroller's landing band can count as covered: the root's band starts
+   `--lf-landing-room` below where headers stick under the banner. The browser then
+   scrolled toward the control on every focus, and a stuck header never comes out from
+   under the band, so each Tab crept the page: 17px under a diff's file header, 14px
+   under a trace's toolbar, and a page tab strip, which stands wholly inside the band,
+   was centred, 313px a key.
+   So the margin is read from the slot. `--lf-top` less what the band covers whole
+   (`--lf-top-covered`, theme.css) is the headers stacked over the focused box that the
+   band does not count, so a landing clears them. A box in a header that sticks at its
+   top (reach.js marks it, `paintSlot`) stands at its own slot when stuck, so its margin
+   also takes the band's room back (`--lf-head-inset`, none) and a control focused there
+   counts as shown; anywhere else the margin keeps the focus ring's room. A page tab
+   strip, which the band covers whole, comes out negative by its height, so its names
+   count as shown too. */
+:where([data-lf-sticks]) { --lf-head-inset: 0px; }
+:where(:focus) {
+  scroll-margin-top: calc(var(--lf-top) - var(--lf-top-covered, var(--lf-top))
+    + var(--lf-head-inset, calc(var(--focus-ring-room) + var(--lf-landing-room, 0px)))
+    - var(--lf-landing-room, 0px)); }
 [data-lf-offer]:where(:not([data-lf-offer=""])) { cursor: pointer; }
 [data-lf-offer]:where(:not([data-lf-offer=""])):hover:where(:not([aria-disabled="true"], :disabled)) {
   box-shadow: inset 0 0 0 100px color-mix(in srgb, var(--ink) 7%, transparent); }

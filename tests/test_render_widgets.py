@@ -609,13 +609,8 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     assert stuck["shown"] == pytest.approx(stuck["strip"]["bottom"], abs=0.5), stuck
 
 
-def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
-    browser, serve
-):
-    """A diff's file header in a page tab pins under the stuck tab strip rather than
-    over it: each sticky header has a stated height and adds it to `--lf-top` for what
-    it stands over. A landing on one of the diff's rows arrives below both headers, and
-    the part of a row under the diff's header reads as not on screen."""
+def _stacked_headers(browser, serve):
+    """A page tab strip over the root with a long pinned diff in its first tab."""
     path = "src/lib.rs"
     rows = "".join(f"+    let value_{i} = {i};\n" for i in range(200))
     patch = (
@@ -637,6 +632,17 @@ def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
     )
     resized(page, 1280, 720)
     page.wait_for_function("() => document.querySelector('lf-diff.lf-rendered')")
+    return page
+
+
+def test_sticky_headers_stack_so_a_diff_in_a_page_tab_pins_under_the_strip(
+    browser, serve
+):
+    """A diff's file header in a page tab pins under the stuck tab strip rather than
+    over it: each sticky header has a stated height and adds it to `--lf-top` for what
+    it stands over. A landing on one of the diff's rows arrives below both headers, and
+    the part of a row under the diff's header reads as not on screen."""
+    page = _stacked_headers(browser, serve)
     read = page.evaluate(
         """async () => {
         const geometry = await window.__lfRuntimeImport('/runtime/geometry.js');
@@ -676,6 +682,43 @@ LONG_DIFF_PATCH = (
     "@@ -1 +1,81 @@\n fn main() {\n"
     + "".join(f"+    let value_{i} = {i};\n" for i in range(80))
 )
+
+
+def test_focus_in_a_stuck_header_leaves_the_page_where_it_is(browser, serve):
+    """A control in a stuck sticky header stands inside the root's landing band, so the
+    browser scrolled toward it on every focus and the header never came out from under
+    the band: the page crept 17px a focus under a diff's file header and was centred,
+    hundreds of pixels a key, under a page tab strip. The focus margin reads where a
+    stuck header's controls stand from the sticky-header slot, so focusing one where it
+    sticks scrolls nothing."""
+    page = _stacked_headers(browser, serve)
+    page.evaluate(
+        """() => {
+        const diff = document.querySelector('lf-diff');
+        const row = [...diff.shadowRoot.querySelectorAll('[data-line]')][150];
+        row.scrollIntoView({block: 'start', behavior: 'instant'});
+    }"""
+    )
+    rendered(page)
+    read = page.evaluate(
+        """async () => {
+        const page = document.scrollingElement;
+        const diff = document.querySelector('lf-diff');
+        const controls = {
+            tab: document.querySelector('#root-tabs > .lf-tabstrip [aria-selected="true"]'),
+            file: diff.shadowRoot.querySelector('.lf-diff-file > details > summary'),
+        };
+        const moved = {};
+        for (const [name, control] of Object.entries(controls)) {
+            const before = page.scrollTop;
+            control.focus();
+            await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+            moved[name] = page.scrollTop - before;
+        }
+        return moved;
+    }"""
+    )
+    assert read == {"tab": 0, "file": 0}, read
 
 
 def long_diff(id):

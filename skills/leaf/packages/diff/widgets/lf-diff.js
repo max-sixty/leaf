@@ -998,8 +998,7 @@ customElements.define(
           this.manifestEntries = null;
           this.sharedStyles = sharedStyles;
           this.diffTools ??= diffTools(this, this.reviewing());
-          for (const entry of fresh)
-            this.attachEntryControls(entry);
+          for (const entry of fresh) this.attachEntryControls(entry);
           for (const entry of entries) this.attachDisclosure(entry);
           for (const entry of entries) this.attachLineComments(entry);
           this.manifestBody ??= diffBody([]);
@@ -1173,8 +1172,7 @@ customElements.define(
         this.fileEntries = entries;
         this.sharedStyles = sharedStyles;
         this.diffTools ??= diffTools(this, this.reviewing());
-        for (const entry of fresh)
-          this.attachEntryControls(entry);
+        for (const entry of fresh) this.attachEntryControls(entry);
         for (const entry of entries) {
           keeps(entry.node, "data-lf-gen", "1");
           this.attachDisclosure(entry);

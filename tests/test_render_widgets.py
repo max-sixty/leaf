@@ -12286,7 +12286,8 @@ def test_inline_diff_lines_and_files_can_start_comments(browser, serve):
     with sending(page, "inline line comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     comments = [
-        event for event in events_model.read_events(serve.page_dir)
+        event
+        for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
     assert [event["anchor"] for event in comments] == [

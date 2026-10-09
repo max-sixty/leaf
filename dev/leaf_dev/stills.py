@@ -40,7 +40,7 @@ import click
 from leaf.render_checks import PageNotReady
 from PIL import Image, ImageDraw
 from playwright.sync_api import Error as PlaywrightError
-from playwright.sync_api import Page
+from playwright.sync_api import Page, expect
 
 from leaf_dev import ROOT
 from leaf_dev.arms import build_pair, copy_committed, run_directory, serving_source
@@ -443,6 +443,18 @@ def diff_path_by_keyboard(page: Page) -> None:
     head.scroll_into_view_if_needed()
     page.keyboard.press("Shift")
     head.focus()
+
+
+def diff_line_composer(page: Page) -> None:
+    """A line's thread control, number and shared composer in one reading."""
+    diff = page.locator("#pr-exact-patch")
+    head = diff.locator("summary").first
+    head.scroll_into_view_if_needed()
+    head.click()
+    comment = diff.locator(".lf-diff-line-comment").first
+    comment.locator("..").hover()
+    comment.click()
+    expect(diff.locator(".lf-fab-input")).to_be_visible()
 
 
 def code_source_by_touch(page: Page) -> None:
@@ -903,6 +915,20 @@ STATES = (
     State("triage-grabbed", "triage-board", card_grabbed),
     State("walkthrough-code", "pr-walkthrough", code_note),
     State("walkthrough-code-dark", "pr-walkthrough", code_note, scheme="dark"),
+    State("walkthrough-diff-comment", "pr-walkthrough", diff_line_composer),
+    State(
+        "walkthrough-diff-comment-dark",
+        "pr-walkthrough",
+        diff_line_composer,
+        scheme="dark",
+    ),
+    State(
+        "walkthrough-diff-comment-touch",
+        "pr-walkthrough",
+        diff_line_composer,
+        viewport=(390, 844),
+        touch=True,
+    ),
     State("walkthrough-copy-hover", "pr-walkthrough", code_copy_by_pointer),
     State("walkthrough-copy-keyboard", "pr-walkthrough", code_copy_by_keyboard),
     State(

@@ -2295,7 +2295,7 @@ CONTROL_STABILITY_PAGE = leaf_page(
     <lf-playground-value for="tone"></lf-playground-value> tone.
   </lf-playground-output>
 </lf-playground></lf-ask>
-<lf-diff id="stable-diff" review><pre>
+<lf-diff id="stable-diff"><pre>
 diff --git a/gateway/limits.py b/gateway/limits.py
 --- a/gateway/limits.py
 +++ b/gateway/limits.py
@@ -2375,24 +2375,6 @@ CONTROL_ARCHETYPES = (
     {
         "name": "tab",
         "target": "#stable-tabs .lf-tab-btn:nth-child(2)",
-    },
-    {
-        # The diff's own header: a filter, a count, the soft-wrap switch, and the
-        # next-unreviewed press, standing in one row. The switch is what makes this a
-        # row at all — before it the next-unreviewed press had no control beside it and
-        # the sweep passed it over — and it is also the press with something to prove,
-        # because wrapping rewrites the height of every line under the row it is in.
-        # Pressed by its own words, which is where a user aims and what a native label
-        # activation does either way.
-        "name": "diff-tools",
-        "target": "#stable-diff .lf-diff-wrap-label",
-    },
-    {
-        # The file actions share its summary line without sitting inside that disclosure.
-        # The review press changes label, so one width for both states keeps the summary
-        # and the optional comment press still.
-        "name": "diff-file",
-        "target": "#stable-diff .lf-diff-review",
     },
     {
         # The playground's action row: Reset, Copy instruction, and the send beside each
@@ -8111,7 +8093,6 @@ RING_CASES = (
             "pr-walkthrough": (
                 ("lf-gloss:visible > .lf-gloss-mark", "gloss-mark"),
                 (".lf-diff-search input", "text-entry"),
-                (".lf-diff-wrap", "diff-tools"),
                 ("lf-diff summary", "code-summary"),
                 ("lf-diff code", "code-pre-shadow"),
             ),
@@ -8323,7 +8304,7 @@ RING_SCOPE_OPENER = {
     "the Page Map dialog": ".lf-page-map-toggle",
     "a reaction palette": ".lf-react-strip > .lf-react-trigger",
     # Any control inside the diff puts the user in its scope, where `]` lands a line.
-    "a landed diff line": "#pr-exact-patch .lf-diff-wrap",
+    "a landed diff line": "#pr-exact-patch summary",
 }
 # The window a scope's own surface stands in, where that is not the page's own. These
 # entries are floors the layer states rather than preferences: the Page Map control is drawn

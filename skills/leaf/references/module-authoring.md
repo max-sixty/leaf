@@ -547,6 +547,13 @@ does not carry it. A widget whose parts have a face of their own styles
 what a key addresses calls `layoutChanged(this)`, and every standing indication resolves
 again.
 
+## Icons
+
+`iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's shared
+icons through `/runtime/widget-api.js`. Use `"comment"` for a thread control, with
+`lf-action-icon` inside an `lf-icon-action` button for the inherited stroke and
+hit area. The icon is decorative; the button supplies its accessible label.
+
 ## Commands and keyboard routes
 
 A widget contributes each command once with `commands(source, title, rows, options)`.

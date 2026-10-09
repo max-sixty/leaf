@@ -9313,37 +9313,6 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     expect(page.locator(".lf-walk-position")).to_have_text("Tab 1 of 2")
 
 
-def test_the_g_chord_reaches_a_checkbox_a_widget_built(browser, serve):
-    """A native press joins the generated route through the same offer that styles it."""
-    page = open_page(browser, serve(DIFF_PAGE))
-    checkbox = page.locator("#patch .lf-diff-wrap")
-    expect(checkbox).to_be_visible()
-    checkbox.evaluate("node => { node.id = 'soft-wrap'; }")
-
-    page.keyboard.press("g")
-    code = address_code(page, "Control", "soft-wrap")
-    # The repaint replaces Go-to hints. Resolve and measure the current hint in
-    # one browser turn rather than retaining a handle across that replacement.
-    index = page.evaluate(
-        """selector => {
-          const node = document.querySelector(selector);
-          return [...node.parentElement.children]
-            .filter(candidate => candidate.dataset.lfHintCode).indexOf(node);
-        }""",
-        f'{CHIPS}[data-lf-go-to-target="soft-wrap"]',
-    )
-    assert index >= 0
-    for _ in range(index + 1):
-        page.keyboard.press("Tab")
-    expect(page.locator(".lf-live")).to_have_text(
-        f"Hint {code}: Control, Soft wrap. Press Enter to go there."
-    )
-    page.keyboard.press("Enter")
-
-    expect(checkbox).to_be_checked()
-    expect(checkbox).to_be_focused()
-
-
 def test_generated_hints_branch_after_the_single_letter_alphabet(browser, serve):
     """A dense visible scene gets one prefix-free namespace with two-letter tails."""
     links = "".join(

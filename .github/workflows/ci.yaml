@@ -70,6 +70,8 @@ jobs:
           fetch-depth: 2
 
       - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
 
       - uses: actions/setup-node@v7
         with:

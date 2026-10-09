@@ -1146,9 +1146,38 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         tree_phase = widget.locator(".lf-trace-phase").get_attribute("data-lf-datum")
         user.evaluate("""() => {
           inspectionTargets = [];
-          watchInspection = true;
+          watchInspection = false;
           sampleInspection();
         }""")
+        # Real-time playback can skip a short checkpoint between frames. Visit
+        # both saved trees explicitly so their layout comparison always runs.
+        frames = widget.get_by_role("checkbox", name="Show intermediate frames")
+        frames.uncheck()
+        navigate_at(timeline, 0)
+        for phase in ("before", "after"):
+            target = f"trace-{archive}-phase-{first['id']}-{phase}"
+            # The overview also contains browser setup calls. Walk the native
+            # points until this saved tree, rather than assuming page-only indices.
+            while (
+                widget.locator(".lf-trace-phase").get_attribute("data-lf-datum")
+                != target
+            ):
+                expect(
+                    widget.get_by_role("button", name="Next", exact=True)
+                ).to_be_enabled()
+                timeline.press("ArrowRight")
+                rendered(user)
+            expect(widget.locator(".lf-trace-phase")).to_have_attribute(
+                "data-lf-datum", target
+            )
+            expect(tree.locator(".lf-trace-node")).to_have_count(
+                len(first["phases"][phase]["tree"]["nodes"])
+            )
+            user.evaluate("sampleInspection()")
+        timeline.press("End")
+        frames.check()
+        rendered(user)
+        user.evaluate("() => {watchInspection = true; sampleInspection()}")
         # Keep the inspected viewport while pressing the visible sticky Play
         # control; locator activation can scroll before it delivers input.
         box = play.bounding_box()
@@ -1195,7 +1224,9 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
             )
             > 1
             for action in {sample["action"] for sample in expanded}
-        ), "Expanded replay must replace differently sized trees for the same action"
+        ), (
+            "Expanded inspection must replace differently sized trees for the same action"
+        )
         summary.click()
         rendered(user)
 

@@ -164,7 +164,7 @@ def arrival_findings(browser, url):
         # the former design-decision example, and buys this nothing.
         page.goto(url, wait_until="load")
         render_checks_model.wait_until_ready(page)
-    except PlaywrightTimeout, render_checks_model.PageNotReady:
+    except (PlaywrightTimeout, render_checks_model.PageNotReady):
         return [
             "[arrivals] the page never came up unarranged, so nothing could be "
             "arranged — "
@@ -179,7 +179,7 @@ def arrival_findings(browser, url):
         try:
             page.reload(wait_until="load")
             render_checks_model.wait_until_ready(page)
-        except PlaywrightTimeout, render_checks_model.PageNotReady:
+        except (PlaywrightTimeout, render_checks_model.PageNotReady):
             found.append(
                 f"[{restore_case['name']}] the page never finished coming up — "
                 + ("; ".join([*errors, *notices]) or "and no console error says why")

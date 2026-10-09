@@ -1002,6 +1002,8 @@ def differences(browser, names: list[str], out: Path) -> dict[str, dict]:
         path = route.request.url.removeprefix(ORIGIN)
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
+        elif path.startswith("/vendor/"):
+            route.fulfill(path=ROOT / "skills/leaf/assets" / path.lstrip("/"))
         elif path.endswith(".png"):
             route.fulfill(path=out / path.lstrip("/"))
         else:

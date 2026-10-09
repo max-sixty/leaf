@@ -991,7 +991,7 @@ customElements.define(
           entry.details?.querySelector("pre")?.toggleAttribute("hidden", false);
           return entry;
         });
-        if (bound) for (const { node } of entries) keeps(node, "data-lf-gen", "1");
+        for (const { node } of entries) keeps(node, "data-lf-gen", "1");
         const resume = this.controller.defer();
         try {
           this.fileEntries = entries;
@@ -999,9 +999,9 @@ customElements.define(
           this.sharedStyles = sharedStyles;
           this.diffTools ??= diffTools(this, this.reviewing());
           for (const entry of fresh)
-            this.attachEntryControls(entry, { commentable: bound });
+            this.attachEntryControls(entry);
           for (const entry of entries) this.attachDisclosure(entry);
-          if (bound) for (const entry of entries) this.attachLineComments(entry);
+          for (const entry of entries) this.attachLineComments(entry);
           this.manifestBody ??= diffBody([]);
           setChildren(this.manifestBody, [
             this.diffTools.node,
@@ -1009,14 +1009,13 @@ customElements.define(
           ]);
           this.replaceChildren();
           this.stageFiles();
-          if (bound)
-            projectData(
-              this,
-              entries
-                .flatMap((entry) => [fileDatum(entry), ...entry.lines])
-                .map(projectionDatum),
-              { snapshot },
-            );
+          projectData(
+            this,
+            entries
+              .flatMap((entry) => [fileDatum(entry), ...entry.lines])
+              .map(projectionDatum),
+            { snapshot },
+          );
           this.classList.toggle("lf-rendered", true);
           this.filterFiles(this.diffTools.search.value);
           for (const restore of restores) restore();
@@ -1175,7 +1174,7 @@ customElements.define(
         this.sharedStyles = sharedStyles;
         this.diffTools ??= diffTools(this, this.reviewing());
         for (const entry of fresh)
-          this.attachEntryControls(entry, { commentable: true });
+          this.attachEntryControls(entry);
         for (const entry of entries) {
           keeps(entry.node, "data-lf-gen", "1");
           this.attachDisclosure(entry);
@@ -1474,19 +1473,17 @@ customElements.define(
       this.paintReviewAvailability();
     }
 
-    attachEntryControls(entry, { commentable }) {
-      if (commentable) {
-        const label = entry.record.path || "file";
-        entry.fileComment = commentButton(
-          label,
-          () => this.threadSurface?.open(entry.node, { origin: entry.fileComment }),
-          "lf-diff-file-comment",
-        );
-        entry.node
-          .querySelector(":scope > .lf-diff-file-actions")
-          .prepend(entry.fileComment);
-        this.attachLineComments(entry);
-      }
+    attachEntryControls(entry) {
+      const label = entry.record.path || "file";
+      entry.fileComment = commentButton(
+        label,
+        () => this.threadSurface?.open(entry.node, { origin: entry.fileComment }),
+        "lf-diff-file-comment",
+      );
+      entry.node
+        .querySelector(":scope > .lf-diff-file-actions")
+        .prepend(entry.fileComment);
+      this.attachLineComments(entry);
       this.attachReview(entry);
     }
 

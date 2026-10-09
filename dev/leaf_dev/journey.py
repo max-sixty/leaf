@@ -482,7 +482,7 @@ def titled(state: dict, thread: str) -> bool:
     """Read the thread's title from the canonical browser projection."""
     return any(
         item["id"] == thread and item["title"] is not None
-        for item in state["thread"]["threads"]
+        for item in state["browser"]["thread"]["threads"]
     )
 
 

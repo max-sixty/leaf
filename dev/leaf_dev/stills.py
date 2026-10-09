@@ -519,8 +519,8 @@ def margin_gallery(page: Page) -> None:
     ).first.evaluate("group => group.scrollIntoView({block: 'start'})")
 
 
-def trace_sources(page: Page) -> None:
-    """The recording's source controls in view, with its initial checkpoint ready."""
+def trace_controls(page: Page) -> None:
+    """The recording's moments and playback controls, with its checkpoint ready."""
     page.wait_for_function(
         "() => !!document.querySelector('#release-trace .lf-trace-action')?.textContent"
     )
@@ -529,22 +529,16 @@ def trace_sources(page: Page) -> None:
     )
 
 
-def trace_source_by_keyboard(page: Page) -> None:
-    """The selected source focused, after tabbing away from its control and back."""
-    trace_sources(page)
+def trace_timeline_by_keyboard(page: Page) -> None:
+    """The timeline focused, after tabbing away from it and back."""
+    trace_controls(page)
     page.keyboard.press("Tab")
     trace = page.locator("#release-trace")
-    native = trace.get_by_role("combobox", name="Recorded page or API stream")
-    if native.count():
-        native.focus()
-    else:
-        source = trace.get_by_role("radio", name="Page 1", exact=True)
-        source.focus()
+    trace.get_by_role("group", name="Recording timeline", exact=True).focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
     page.wait_for_function(
-        "() => document.activeElement?.matches("
-        "'#release-trace select, #release-trace wa-radio')"
+        "() => document.activeElement?.matches('#release-trace .lf-trace-timeline')"
     )
 
 
@@ -580,16 +574,16 @@ STATES = (
     ),
     State("targeting-menu", "code-comparison", targeting_menu),
     State("targeting-menu-dark", "code-comparison", targeting_menu, scheme="dark"),
-    State("trace-sources", "developer/playwright-trace-gallery", trace_sources),
+    State("trace-controls", "developer/playwright-trace-gallery", trace_controls),
     State(
-        "trace-source-keyboard",
+        "trace-timeline-keyboard",
         "developer/playwright-trace-gallery",
-        trace_source_by_keyboard,
+        trace_timeline_by_keyboard,
     ),
     State(
-        "trace-sources-phone",
+        "trace-controls-phone",
         "developer/playwright-trace-gallery",
-        trace_sources,
+        trace_controls,
         viewport=(390, 844),
         touch=True,
     ),

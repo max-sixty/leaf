@@ -337,6 +337,104 @@ def test_a_website_example_names_its_limited_agent(browser, serve):
     expect(page.locator(".lf-banner .lf-dot")).to_have_class(re.compile(r"^lf-dot\s*$"))
 
 
+@pytest.mark.parametrize("outcome", ["presented", "abandoned", "offline"])
+def test_public_startup_reports_upgrade_separately_from_held_state(
+    browser, serve, outcome, request
+):
+    """Public telemetry names the independent browser and state milestones.
+
+    A local delivered document gets the public release marker at the HTTP boundary.
+    The real widget runtime upgrades while its first state read is held. A full
+    Resource Timing buffer must not lose that response, an unrelated page's state
+    must not stand in for it, and later polling or departure must not send again.
+    A refused request has a Resource Timing entry but no state response to report.
+    """
+    url = serve(SHORT_SUGGESTION)
+    page = browser.new_page()
+    request.addfinalizer(page.close)
+    reports = []
+    held = []
+
+    def public_document(route):
+        response = route.fetch()
+        route.fulfill(
+            response=response,
+            body=response.text().replace(
+                "data-lf-server=", f'data-lf-release="{"a" * 64}" data-lf-server=', 1
+            ),
+        )
+
+    def report(route):
+        reports.append(route.request.post_data_json)
+        route.fulfill(status=204)
+
+    page.route("**/versions/v1.html?*", public_document)
+    page.route("**/api/performance", report)
+    page.route("**/api/state", lambda route: held.append(route))
+    page.route("**/other/api/state", lambda route: route.fulfill(json={}))
+    page.add_init_script(
+        """performance.setResourceTimingBufferSize(1);
+        window.firstStateResponses = [];
+        new PerformanceObserver(list => {
+          for (const entry of list.getEntries())
+            if (new URL(entry.name).pathname === '/api/state')
+              window.firstStateResponses.push(entry.responseEnd);
+        }).observe({type: 'resource', buffered: true});"""
+    )
+    page.goto(url, wait_until="load")
+    page.wait_for_function("document.body.dataset.lfUpgraded === '1'")
+    assert held, "the positive control did not hold the first state read"
+    expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
+    assert reports == []
+    assert page.evaluate("firstStateResponses") == []
+    upgraded_before_release = page.evaluate("Math.round(performance.now())")
+    page.evaluate("async () => await (await fetch('/other/api/state')).json()")
+
+    if outcome == "abandoned":
+        with page.expect_response("**/api/performance"):
+            page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
+        assert len(reports) == 1
+        assert reports[0]["firstStateResponseMs"] is None
+        assert reports[0]["presentedMs"] is None
+
+    released_at = page.evaluate("Math.round(performance.now())")
+    if outcome != "abandoned":
+        with page.expect_response("**/api/performance"):
+            first = held.pop(0)
+            if outcome == "offline":
+                refuse(first)
+                expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
+            else:
+                first.continue_()
+                wait_until_ready(page)
+    else:
+        held.pop(0).continue_()
+        wait_until_ready(page)
+    page.wait_for_function("firstStateResponses.length === 1")
+    with page.expect_request("**/api/state"):
+        page.evaluate("void fetch('/api/state').then(response => response.json())")
+    holding(page, held, 1, "the follow-up state read")
+    held.pop(0).continue_()
+    page.wait_for_function("firstStateResponses.length === 2")
+    page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
+    assert len(reports) == 1
+    reading = reports[0]
+    assert reading["version"] == 2
+    assert reading["outcome"] == ("presented" if outcome == "offline" else outcome)
+    assert 0 <= reading["upgradedMs"] <= upgraded_before_release
+    if outcome == "presented":
+        first_response = page.evaluate("Math.round(firstStateResponses[0])")
+        assert reading["firstStateResponseMs"] == first_response
+        assert released_at <= first_response <= reading["presentedMs"]
+        assert page.evaluate(
+            """performance.getEntriesByType('resource').every(entry =>
+                new URL(entry.name).pathname !== '/api/state')"""
+        ), "the response remained in the global timeline; eviction was not tested"
+    elif outcome == "offline":
+        assert reading["firstStateResponseMs"] is None
+        assert reading["presentedMs"] >= reading["upgradedMs"]
+
+
 def test_a_website_example_shows_its_public_session_reference(browser, serve):
     url = live_url(
         serve(

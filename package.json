@@ -17,7 +17,10 @@
     "build:browser": "node build/browser/build.mjs",
     "check:browser": "node build/browser/build.mjs --check",
     "test:browser": "node --test build/browser/*.test.mjs build/*.test.mjs",
-    "test:runtime": "node --import ./tests/runtime/dom.mjs --test tests/runtime/*.test.mjs"
+    "test:runtime": "node --import ./tests/runtime/dom.mjs --test tests/runtime/*.test.mjs",
+    "check:framework": "npm run check:browser && npm run test:browser",
+    "check:worker": "npm run typecheck --prefix worker && npm test --prefix worker",
+    "check:bundles": "uv run build/vendor.py > /dev/null && git status --porcelain && test -z \"$(git status --porcelain)\""
   },
   "devDependencies": {
     "@awesome.me/webawesome": "3.14.0",

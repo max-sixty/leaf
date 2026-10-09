@@ -28,15 +28,15 @@ eval-node = "npm ci --prefix evals"
 # The bundles build from the installed lock, so a rebuild reproduces the tracked bytes
 # exactly, and any difference is a lock nobody rebuilt from.
 [[pre-merge]]
-bundles = 'uv run build/vendor.py > /dev/null && git status --porcelain && test -z "$(git status --porcelain)"'
+bundles = "npm run check:bundles"
 
 # Broad discovery keeps the local gate quick, adding only the nightly-marked tests the
 # branch edits, as a pull request's gate does. CI runs the rest after main moves.
 [[pre-merge]]
 tests = "uv run pytest tests --nightly-changed-since main"
 folds = "npm run test:runtime"
-browser = "npm run check:browser && npm run test:browser"
-worker = "npm run typecheck --prefix worker && npm test --prefix worker"
+browser = "npm run check:framework"
+worker = "npm run check:worker"
 eval-assertions = "npm test --prefix evals"
 
 # A new worktree has no `node_modules`, so an ordinary `uv run pytest tests` fails before

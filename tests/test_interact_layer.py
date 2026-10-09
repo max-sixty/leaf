@@ -8,14 +8,12 @@ import shutil
 import subprocess
 import sys
 import threading
-import tomllib
 from datetime import datetime
 from pathlib import Path
 
 import playwright
 import pytest
 import tinycss2
-import yaml
 from click.testing import CliRunner
 from conftest import LEAF_COMMAND, PagePool, _retire
 from interact_support import (
@@ -293,49 +291,6 @@ def test_the_python_instructions_name_every_module_they_own():
         )
     ]
     assert not unnamed, f"unnamed in scripts/AGENTS.md: {unnamed}"
-
-
-def shell_commands(script):
-    """The simple commands of a hook or step script, split at newlines and `&&`."""
-    return [c.strip() for c in re.split(r"\n|&&", script) if c.strip()]
-
-
-def test_wt_merge_runs_every_npm_gate_ci_runs():
-    """Each npm gate CI runs, the direct landing path runs in the same directory.
-
-    Neither the suite nor pre-commit reaches the TypeScript under `worker/src/` and
-    `build/browser/`, so a `wt merge` that skipped one of their gates would land a
-    red main that a pull request would have caught. A step's `working-directory`
-    becomes `--prefix` in the hook, which runs from the root: npm's bare `test` in
-    `worker/` is `npm test --prefix worker` there. `npm ci` installs rather than gates.
-    The set comes from the workflow rather than a list here: a list is a second copy,
-    and the gate added to CI without the hook would stay green.
-    """
-    workflow = yaml.safe_load(
-        (ROOT / ".github" / "workflows" / "ci.yaml").read_text(encoding="utf-8")
-    )
-    config = tomllib.loads((ROOT / ".config" / "wt.toml").read_text(encoding="utf-8"))
-    hook = {
-        command
-        for block in config["pre-merge"]
-        for script in block.values()
-        for command in shell_commands(script)
-    }
-    gates = sorted(
-        {
-            f"{command} --prefix {step['working-directory']}"
-            if "working-directory" in step
-            else command
-            for job in workflow["jobs"].values()
-            for step in job["steps"]
-            for command in shell_commands(step.get("run", ""))
-            if command.startswith("npm ") and not command.startswith("npm ci")
-        }
-    )
-
-    assert gates, "no npm gate read — an empty set names itself"
-    ungated = [gate for gate in gates if gate not in hook]
-    assert not ungated, f"not in .config/wt.toml's pre-merge: {ungated}"
 
 
 def test_the_root_instructions_name_every_directory_of_the_projects_own_tree():

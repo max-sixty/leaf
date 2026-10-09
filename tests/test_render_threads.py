@@ -4159,6 +4159,7 @@ def test_walking_to_a_thread_shows_the_replies_it_held(
     summary = thread.locator(".lf-thread-summary")
     if thread.get_attribute("open") is None:
         thread.locator(".lf-thread-summary").click()
+    write(thread.locator("leaf-text"), "Keep this draft while reading replies.")
     thread.locator(".lf-thread-summary").focus()
     for turn in range(reply_count):
         reply = append_carried_log_record(

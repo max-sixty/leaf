@@ -80,6 +80,7 @@ from render_harness import (
     RELEASE_FOCUS,
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
+    ROOT,
     SHELL_BOX,
     CutOff,
     Traffic,
@@ -8425,6 +8426,23 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
         "the list's ring was removed and the reading still called its keyboard "
         f"landing seen ({lost})"
     )
+
+    # A tab's label carries focus inside its larger click target. Removing that child
+    # ring must still report the focused tab, rather than crediting selection's fill.
+    page = open_page(browser, serve(ROOT / "tests/fixtures/pages/root-tabs.html"))
+    page.keyboard.press("Tab")
+    page.locator(".lf-tab-btn").first.focus()
+    assert page.evaluate(SEEN_STOP) is None
+    name = page.locator(".lf-tab-name").first
+    name.evaluate("node => { node.style.display = 'none'; }")
+    lost = page.evaluate(SEEN_STOP)
+    assert lost and "lf-tab-btn" in lost, lost
+    name.evaluate("node => { node.style.removeProperty('display'); }")
+    page.add_style_tag(
+        content=".lf-tab-btn > .lf-tab-name { outline: none !important; }"
+    )
+    lost = page.evaluate(SEEN_STOP)
+    assert lost and "lf-tab-btn" in lost, lost
 
 
 def test_every_base_corpus_tab_stop_has_a_visible_focus_indicator(browser, serve):

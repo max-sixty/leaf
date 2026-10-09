@@ -58,6 +58,12 @@ def at_rest(page: Page) -> None:
     """The page as it loads."""
 
 
+def tab_by_keyboard(page: Page) -> None:
+    """The selected tab's focus beside its persistent selection mark."""
+    page.keyboard.press("Tab")
+    page.locator(".lf-tab-btn").first.focus()
+
+
 def drawing_comment(page: Page) -> None:
     """A freehand comment beside the page area its strokes describe."""
     guide = page.locator("#bg-drawing-comments-guide")
@@ -536,6 +542,7 @@ DRIVERS: dict[str, Callable[[Page], None]] = {
     drive.__name__.replace("_", "-"): drive
     for drive in (
         at_rest,
+        tab_by_keyboard,
         drawing_comment,
         card_by_pointer,
         card_by_keyboard,
@@ -766,6 +773,7 @@ STATES = (
         touch=True,
     ),
     State("gallery-tabs", "developer/feature-gallery", at_rest),
+    State("gallery-tab-focus", "developer/feature-gallery", tab_by_keyboard),
     State("frame-edges", "developer/feature-gallery", frame_edges),
     State("gallery-metrics", "developer/feature-gallery", gallery_metrics),
     State("gallery-plans", "developer/feature-gallery", gallery_plans),

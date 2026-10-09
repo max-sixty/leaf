@@ -628,6 +628,7 @@
         sample:
           el === focused ||
           holds(el, focused) ||
+          holds(focused, el) ||
           el.hasAttribute("data-lf-ring-sample"),
         scrolled,
         cuts,
@@ -659,7 +660,7 @@
   // `summary`, a widget's own native control — and replacing it everywhere would be a
   // change to how the product looks rather than a thing this test is owed.
   //
-  // The layer's focus ring is the second, on the stop or on an ancestor: a `choose` group
+  // The layer's focus ring is the second, on the stop, a child, or an ancestor: a `choose` group
   // takes the ring for the pick mark inside it, whose own rule states `outline: none`
   // exactly so the two do not both draw, and the user sees the group.
   //
@@ -726,6 +727,14 @@
     const named = (el) =>
       getComputedStyle(el).getPropertyValue("--lf-focus-ring").trim() !== "none";
     if (shown(e) || overlaid(e)) return null;
+    // Tabs draw focus on their label inside the larger hit target. Only a named ring
+    // counts here, for the same reason as on an ancestor below.
+    for (const child of e.querySelectorAll("*"))
+      if (
+        child.checkVisibility() &&
+        ((shown(child) && named(child)) || overlaid(child))
+      )
+        return null;
     for (
       let el = e.parentElement ?? e.getRootNode().host ?? null;
       el;

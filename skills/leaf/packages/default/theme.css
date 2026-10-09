@@ -1212,19 +1212,28 @@
                display: inline-flex; align-items: center; justify-content: center;
                color: var(--muted); cursor: pointer; }
 .lf-tabstrip .lf-tab-btn:hover { color: var(--ink-2); }
-/* A tab is a span the module gives a role and a tab stop to, so the only mark it wore
- * for the keyboard was the platform's own — beside a strip whose every other control
- * wears the layer's band, which reads as the walk leaving the page. Inset, because the
- * button's foot is on the strip's rule and an outset band would be drawn over it. */
+/* Focus follows the name, as in the ARIA tabs example: selection and keyboard focus
+ * remain separate marks on one compact face. The containing tab keeps its larger aim
+ * floor; neither mark changes layout. The gap fits inside that target's padding. */
 .lf-tabstrip .lf-tab-btn:is(:focus-visible, .lf-focus-visible) {
+               outline: none; }
+.lf-tabstrip .lf-tab-btn:is(:focus-visible, .lf-focus-visible) > .lf-tab-name {
                outline: var(--focus-ring); --lf-focus-ring: tab-btn;
-               outline-offset: calc(-1 * var(--focus-ring-w)); }
+               outline-offset: 2px; }
 /* Every name reserves the same square face; selection paints it without changing any
  * control's measure. */
 .lf-tabstrip .lf-tab-btn > .lf-tab-name {
                display: inline-block; padding: 2px 5px; }
 .lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
                background: var(--card); color: var(--ink); }
+/* System colors can remove the selected fill. Keep selection visible independently
+ * of the focus outline, including when focus has moved into the panel. */
+@media (forced-colors: active) {
+  .lf-tabstrip .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
+    text-decoration: underline; text-decoration-thickness: 2px;
+    text-underline-offset: 2px;
+  }
+}
 /* A tab counts the passages the version diff marks. An empty count takes no room. */
 .lf-tabdiff { font-size: var(--t-6); margin-left: 6px;
               padding: var(--chip-pad); line-height: var(--chip-lh);

@@ -5,7 +5,7 @@ import {
   declarationFor,
   elementsDeclaring,
   layerFact,
-  openAsks,
+  readAsks,
   quietSince,
   quoted,
   saidAt,
@@ -188,7 +188,7 @@ export function commandSnapshot(plan) {
     if (!readings.has(element)) readings.set(element, widgetController(element).read());
     return readings.get(element);
   };
-  const open = new Set(openAsks().map((ask) => ask.sourceId));
+  const open = new Set(readAsks().user.map((ask) => ask.sourceId));
   const goals = elementsWithCommandRole(plan, "goal").map((goal) =>
     goalView(goal, open, read),
   );

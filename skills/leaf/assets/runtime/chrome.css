@@ -564,9 +564,9 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
   .lf-banner-menu:popover-open { display: flex; }
   /* A secondary control keeps its own paint and states its own words in its fixed menu
      seat; what the menu decides is that it reads as a row rather than as a chip. It
-     does not state display: whether a control is drawn at all belongs to the control,
-     and a rule here stating it for the whole menu would put a control the page has
-     taken away — the map above 900, a chip with no news — into the list as a blank. */
+     does not state display: the toolbar owns the menu's seats. An open menu retains
+     retired rows as hidden seats, and its next opening draws only current controls;
+     a rule here stating display would keep absent controls in that new reading. */
   .lf-banner-menu .lf-btn { width: 100%; text-align: left; }
   .lf-banner-menu .lf-btn:where(:not(.primary)) { border-color: transparent;
     background: none; }

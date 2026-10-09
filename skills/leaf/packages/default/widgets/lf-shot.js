@@ -24,7 +24,7 @@
  * Pairs compare one per frame, so a page of large captures does not hold input for the
  * whole batch.
  *
- * One two-ended rail stays fixed above the frames while CSS moves its active rule. Its
+ * One two-ended rail sticks above the visible frames while CSS moves its active rule. Its
  * labels are generated page words, available to selection, and become the order key
  * above the two stacked frames on paper.
  * A parent that reuses the aligned frames under another inspector sets
@@ -321,8 +321,8 @@ customElements.define(
     // Each region is placed in shares of the pair's frame, the natural width by the
     // taller image's height that `--lf-shot-ratio` sizes, so the marks scale with the
     // images at every width.
-    #markDifference(shots) {
-      const reading = compareImages(...shots);
+    async #markDifference(shots) {
+      const reading = await compareImages(...shots);
       const { width, height, regions } = reading;
       const share = (length, whole) => `${(100 * length) / whole}%`;
       for (const frame of this.#frames) {

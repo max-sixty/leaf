@@ -1512,26 +1512,27 @@
     background: transparent;
     --lf-block-frame: 0;
   }
-    /* The strip is a sticky header over the page, so it is one row of a stated height
-     * (`--lf-tabstrip-h`), and what it stands over stacks below it through
-     * `--lf-top` (kernel theme.css): a diff's file header in a page tab pins under the
-     * strip rather than over it. The height is the kernel theme's token, since the
-     * root's `scroll-padding` adds it too (lf-tabs.js), and a package's rules reach
-     * only its widgets. */
-  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] { --lf-top-outer: var(--lf-top); }
-  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > lf-tab {
+  /* Horizontal indexes stay with the panel they identify. Each set owns its
+   * stacking context so a nested strip releases beneath its enclosing strip,
+   * and passes its stated row height to the headers inside its panel. */
+  :scope:is(lf-tabs):not([list="side"]) {
+    isolation: isolate;
+    --lf-top-outer: var(--lf-top);
+  }
+  :scope:is(lf-tabs):not([list="side"]) > lf-tab {
     --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
+  }
+  :scope:is(lf-tabs):not([list="side"]) > .lf-tabstrip {
+    position: sticky;
+    top: var(--lf-top);
+    --lf-head-inset: 8px;
+    z-index: 2;
+    block-size: var(--lf-tabstrip-h);
+  }
+  :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > lf-tab {
     --lf-landing-room: var(--lf-landing-gap);
   }
   :scope:is(lf-tabs)[data-lf-tabs-flow="page"] > .lf-tabstrip {
-    position: sticky;
-    top: var(--lf-top);
-    /* Its names stand 8px below where it sticks (`--lf-head-inset`, kernel
-       shadow.css), and the root's landing room counts the strip itself. */
-    --lf-head-inset: 8px;
-    z-index: 2;
-    box-sizing: border-box;
-    block-size: var(--lf-tabstrip-h);
     border-radius: 0;
     --lf-tabstrip-pad: 0px;
     --lf-tabstrip-bg: var(--paper);
@@ -1750,7 +1751,7 @@
     opacity: 1; scale: 1; }
 :scope:is(lf-shot) .lf-shotcomparison:is([position="0"], [position="100"]):not(:hover, :focus-within)::part(handle) {
     opacity: .18; scale: .68; }
-:scope:is(lf-shot) .lf-shotframe { position: relative; overflow: hidden; background: var(--card); }
+:scope:is(lf-shot) .lf-shotframe { position: relative; overflow: clip; background: var(--card); }
 :scope:is(lf-shot) .lf-shotframe img { display: block; width: 100%; height: auto;
     background: var(--card); }
 :scope:is(lf-shot) .lf-shotrail { display: grid; grid-area: 1 / 1; align-items: center;
@@ -1759,6 +1760,20 @@
     border: 1px solid var(--rule); border-bottom: 0;
     border-radius: var(--r) var(--r) 0 0; color: var(--muted);
     background: var(--card); }
+/* Keep the comparison's identity and endpoint controls over a tall pair. The rail
+ * stops at the shot's foot and stacks below any enclosing sticky header. Frames
+ * declare the covered band to the shared visibility reading; the extra pixel is
+ * the rail's top border, outside its stated content height. */
+@media screen {
+  :scope:is(lf-shot) { --lf-top-outer: var(--lf-top); }
+  :scope:is(lf-shot) > .lf-shotrail {
+    position: sticky; top: var(--lf-top); z-index: 1; --lf-head-inset: 1px;
+  }
+  :scope:is(lf-shot):not([data-lf-shot-controls="off"]):has(> .lf-shotrail)
+    > :is(.lf-shotcomparison, .lf-shotframe) {
+    --lf-top: calc(var(--lf-top-outer) + var(--lf-shot-rail-size) + 1px);
+  }
+}
 :scope:is(lf-shot) .lf-shotcap { display: flex; align-items: center; align-self: stretch;
     font-size: var(--t-6); font-weight: 650; text-transform: uppercase;
     letter-spacing: .04em; padding: 0 5px; margin: 0 -5px; color: var(--muted); }

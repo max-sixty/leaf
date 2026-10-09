@@ -587,6 +587,13 @@
               a useful command result. It moves above the bottom-left shortcuts when
               room is tight.
             </p>
+            <p id="bg-share-guide">
+              On a local server, open <strong>More → Share</strong> and copy the link,
+              then open it in a fresh browser profile. The link keeps the current
+              address and passage and includes the access key even after a reload. The
+              Share panel states that the key grants access to every Leaf page served by
+              the same machine. Sample windows and the public website omit Share.
+            </p>
             <p id="bg-history-return-guide">
               Follow
               <a id="bg-history-reference" href="#bg-kept-draft"
@@ -758,13 +765,13 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <p id="bg-page-comment-card-guide">
                 With Threads shut, press the comment symbol beside Threads on the
                 banner, or press <kbd>c</kbd> with nothing selected. A card hangs from
-                the symbol; write a sentence and send it. Focus stays on the open card
-                and Threads flashes yellow, its count one higher, while the panel stays
-                shut; the new thread is in Threads. Press <kbd>c</kbd> to write again.
-                <kbd>Escape</kbd> or a click elsewhere puts the card away, keeping what
-                you wrote for the next time it opens. With Threads open, the same press
-                goes to its own “Comment on the page” box. On a phone, “Comment on the
-                page” is in “More page controls”.
+                the symbol; write a sentence and send it. The card closes and focus
+                returns to the symbol. Threads flashes yellow, its count one higher,
+                while the panel stays shut; the new thread is in Threads. Press
+                <kbd>c</kbd> to write again. <kbd>Escape</kbd> or a click elsewhere puts
+                the card away, keeping what you wrote for the next time it opens. With
+                Threads open, the same press opens the same card over the panel. On a
+                phone, “Comment on the page” is in “More page controls”.
               </p>
             </section>
 
@@ -2085,13 +2092,15 @@ gallery/
                 This embedded sample is a framed tabbed section. The browser test also
                 presents this same tab set at the root of a page, where it becomes
                 borderless top navigation for page-scale views. Both forms remember the
-                selected panel after reload. At page level, scroll a view and switch
-                away and back: an unread view opens below the tab strip, and a view you
-                already read returns to its place. The strip stays put even when the
-                next view is shorter than the window. Browser Back and Forward return to
-                the corresponding views. Narrow the window until the gallery’s own tab
-                names overflow, then page them with the edge arrows. Reduced motion
-                makes that move immediate.
+                selected panel after reload. Horizontal tab strips stay at the top of
+                the view while their panel is being read, below any enclosing tabs.
+                Switching a pinned embedded strip opens its new panel at the start. At
+                page level, scroll a view and switch away and back: an unread view opens
+                below the tab strip, and a view you already read returns to its place.
+                The strip stays put even when the next view is shorter than the window.
+                Browser Back and Forward return to the corresponding views. Narrow the
+                window until the gallery’s own tab names overflow, then page them with
+                the edge arrows. Reduced motion makes that move immediate.
               </p>
               <lf-tabs id="bg-tabs">
                 <lf-tab id="bg-tab-current" label="Current">
@@ -2351,7 +2360,9 @@ gallery/
                 Sample labels invented content. Choose “Before” or “After” above the
                 image, or press the Shot control or image to flip. The selected label is
                 red for Before and green for After; a split colors both labels without
-                selecting either. This pair carries
+                selecting either. Scroll through a tall pair: the Before/After rail
+                stays at the top of the view until the pair ends, below any page tabs.
+                This pair carries
                 <code>outlines</code>, so outlines mark each region where the two images
                 differ, on both sides of the divider, and the rail counts them.
               </p>

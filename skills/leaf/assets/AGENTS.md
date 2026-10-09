@@ -382,10 +382,9 @@ owner of such a condition states it as an attribute on the element the rule styl
 
 ### One writer for each fact
 
-Each mutable fact has one authority and one browser writer. The application
-publisher combines authored state, the admitted server reading, and the ordered
-ledger of unresolved local work into the one semantic reading every component
-selects from:
+Each mutable fact has one authority and one browser writer. The application publisher
+combines authored state, the admitted server reading, and the ordered ledger of
+unresolved local work into the one reading every component selects from:
 
 | Fact | Authority |
 | --- | --- |
@@ -418,12 +417,11 @@ open menu.
 
 ## Startup and presentation
 
-Startup order is load-bearing:
+`leaf.js` boots in this order, each step relying on those before it:
 
-1. Construct the application, page commands, and UI owners in `leaf.js`; every
-   owner stands before the first input is wired, then sheets are adopted, chrome
-   attached, owners mounted, and the repaint phases wired.
-2. Begin the first state read without applying its answer.
+1. Construct every owner, then adopt sheets, attach chrome, mount the owners, and wire
+   the repaint phases, so no input is wired before its owner exists.
+2. Begin the first state read, without applying its answer.
 3. Restore the user's arrangement from storage.
 4. Fetch and validate the registry.
 5. Index passage fences and parent identities, then capture each widget's
@@ -471,27 +469,26 @@ condition behind a refusal can change without the user's words changing.
 
 ## The widget vocabulary stays open
 
-Core names a widget only when it is part of how Leaf works (root `AGENTS.md`,
-"Keep the layer open"); the merge grains are `../references/packages.md`,
-"Package contract". Layer-wide facts live under `$languages`, `$tones`,
-`$idioms`, and `$events`; each `x-` key's meaning is its `$keys` entry in
-`registry.json`. Use a boolean only when false has one clear meaning; otherwise
-declare named values.
+Core names a widget only when it is part of how Leaf works (root `AGENTS.md`, "Keep
+the layer open"; the merge grains are in `../references/packages.md`, "Package
+contract"). Each `x-` key's meaning is its `$keys` entry in `registry.json`. Use a
+boolean only when false has one clear meaning; otherwise declare named values.
 
-The Python reader models only transformations the registry declares. A module
-that changes text in a way the file cannot reproduce is fenced: browser capture
-stops at the fence, so a selection crossing it is not captured as a quote the file
-cannot confirm. Declare modelable words with `x-says`, `x-paints`, or the content
-key, and keep the widget fenced when its transformation cannot be represented.
+The Python reader models only transformations the registry declares. A module that
+changes text in a way the file cannot reproduce is fenced: browser capture stops at the
+fence, so a selection crossing it never becomes a quote the file cannot confirm.
+Declare modelable words with `x-says`, `x-paints`, or the content key, and keep a
+widget fenced when its transformation cannot be represented.
 
 ## Render gates
 
-`leaf page check <page> --render` is the browser contract: both color schemes,
-the runtime's actual readiness and motion boundary, screen and print, and
-reapplied standing state. Run it, or the relevant browser test file, after
-changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme.
-`leaf/render-checks/index.js` exports one probe per failure class, invoked by
-`leaf/render_checks.py` and composed by `leaf/render_gate/`:
+Run `leaf page check <page> --render`, or the relevant browser test file, after
+changing `leaf.js`, a runtime owner, a widget module, the registry, or the theme;
+`../scripts/leaf/validation.md`, "Browser validation", lists what it reads. Put a
+check on the side that can observe the fact: static validation owns schema, ids,
+nesting, passages, event shapes, and file readings; the browser owns computed layout,
+composed trees, module writes, focus, and replay idempotence. A test reads widget state
+through the publisher's own reading, never a test-only interpretation of it.
 
 | Reading | Contract |
 | --- | --- |

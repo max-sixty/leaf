@@ -296,7 +296,8 @@ export class MessageView {
                 class="lf-btn lf-page-thread-open lf-ui"
                 data-lf-gen="1"
                 data-lf-offer="button"
-                @click=${() => this.#commands.showThread(this.#model.id)}
+                @click=${() =>
+                  this.#commands.showThread(this.#model.id, { focus: "message" })}
               >
                 Open interactive reply in Threads
               </button>`

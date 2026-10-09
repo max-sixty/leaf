@@ -2224,6 +2224,29 @@ def test_live_samples_release_pending_allocations_and_can_reconnect(browser, ser
     page.evaluate("pendingHost.destroy()")
 
 
+def test_slow_sample_state_does_not_hold_up_other_child_loads(browser, serve):
+    """A child waiting for state releases its load slot for the next sample."""
+    page = open_page(browser, serve(LIVE_SAMPLES_PAGE))
+    held = []
+    page.route(
+        re.compile(r"/api/samples/[^/]+/api/state$"),
+        lambda route: held.append(route),
+    )
+    page.evaluate("""async () => {
+      const {mountSample} = await window.__lfRuntimeImport('/runtime/sample.js');
+      window.practiceHosts = Array.from({length: 4}, () => {
+        const frame = document.createElement('iframe');
+        document.body.append(frame);
+        return mountSample(frame, {template: 'first-source'});
+      });
+    }""")
+    holding(page, held, 4, "four sample state reads")
+    for route in held:
+        route.continue_()
+    page.evaluate("Promise.all(practiceHosts.map(host => host.ready))")
+    page.evaluate("Promise.all(practiceHosts.map(host => host.destroy()))")
+
+
 def test_live_samples_preserve_optimistic_refusal_and_child_escape(browser, serve):
     """Delivery rollback and nested Escape remain the ordinary child's behavior."""
     page = open_page(browser, serve(LIVE_SAMPLES_PAGE))

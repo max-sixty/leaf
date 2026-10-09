@@ -2,7 +2,8 @@
 
 The Layout-tab and factual-correction phase landed in
 [PR #1476](https://github.com/max-sixty/leaf/pull/1476). The maintainer rewrite is
-recovered in its existing branch and ready for review; landing remains pending.
+complete: its glossary, ownership, example and test guidance are shorter, and
+renamed heading references point to their owners.
 The agent-instruction rewrite is complete: the routed references now separate author operation, harness
 setup and maintainer mechanisms. UI vocabulary is complete; site and
 example selection still depend on the decisions below. Retire this note when the
@@ -16,14 +17,11 @@ Word counts describe the change; reader usefulness and preserved meaning judge i
 
 ## Phase 1: Maintainer instructions
 
-The existing branch `agent-a7d03ea41654f534b` is recovered and reconciled with
-current main. The useful simplifications remain, with current session lifetime,
-preview feedback, distribution and testing contracts retained. Renamed heading
-references are repaired. Independent prose and contract review and the relevant
-instruction checks passed.
-
-The resulting changes are ready for review. Landing remains pending and requires
-the current landing gates. Keep this work with its existing branch.
+The existing rewrite was reconciled with current main. The useful simplifications
+remain, with current session lifetime, preview feedback, distribution and testing
+contracts retained. Renamed heading references are repaired. Independent prose and
+contract review and the relevant instruction checks passed. Catalog guidance
+describes the current pipeline; the metadata-derived descriptions remain Phase 6.
 
 ## Phase 2: Agent instructions
 

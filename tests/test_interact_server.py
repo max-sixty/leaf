@@ -1493,10 +1493,35 @@ def test_server_round_trip(server, page_dir):
         cli_model.cli, ["page", "transcript", str(page_dir)]
     )
     assert "> § feeder-board · grip  — about the design" in transcript.output
+    status, _ = fetch(
+        f"{server}/api/event",
+        data=json.dumps(
+            {
+                "kind": "comment",
+                "revision": 2,
+                "text": "Keep this control readable",
+                "about": "design",
+                "anchor": {
+                    "section": "feeder-board",
+                    "part": "grip",
+                    "quote": "Remove",
+                },
+            }
+        ).encode(),
+    )
+    assert status == 200
+    transcript = CliRunner().invoke(
+        cli_model.cli, ["page", "transcript", str(page_dir)]
+    )
+    assert "> “Remove” · grip" in transcript.output
     drawing = {
-        "format": "leaf-drawing/2",
+        "format": "leaf-drawing/3",
         "strokes": [[[-20, 74], [50, 10], [120, 74]]],
         "box": [640.5, 96],
+        "frame": {
+            "root": "figure",
+            "path": [{"tag": "svg", "index": 0, "siblings": 1}],
+        },
         "says": "to reap every process … before exporting",
         "viewport": [1280, 720],
         "scheme": "dark",
@@ -1594,7 +1619,7 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/2",
+                "format": "leaf-drawing/3",
                 "strokes": [[[10, 60]]],
             },
         },
@@ -1604,7 +1629,7 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/2",
+                "format": "leaf-drawing/3",
                 "strokes": [[[10], [50, 20]]],
             },
         },
@@ -1614,7 +1639,7 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board"},
             "drawing": {
-                "format": "leaf-drawing/2",
+                "format": "leaf-drawing/3",
                 "strokes": [[[10, 60], [33554433, 20]]],
             },
         },
@@ -1631,6 +1656,15 @@ def test_server_round_trip(server, page_dir):
             "text": "x",
             "anchor": {"section": "feeder-board", "part": "Move"},
             "drawing": drawing,
+        },
+        {
+            "kind": "comment",
+            "revision": 2,
+            "anchor": {"section": "feeder-board"},
+            "drawing": {
+                **drawing,
+                "frame": {"root": "figure", "path": [{"tag": "svg", "index": 0}]},
+            },
         },
         {
             "kind": "comment",
@@ -5612,7 +5646,7 @@ def test_a_thread_predicate_cannot_follow_replayed_value_state(page_dir):
     """Thread seats are installed from authored predicates once. Refuse a
     declaration that would make replay and the POST hold gate disagree about one."""
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-task"]["x-thread-seat"]["when"] = {"status": ["blocked"]}
+    registry["lf-test-task"]["x-thread-seat"]["when"] = {"status": ["blocked"]}
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -5629,10 +5663,10 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
     version.write_text(
         PAGE.replace(
             "</section>",
-            '<lf-tasks id="work"><lf-task id="goal" status="active" talk>'
-            "<strong>Goal</strong></lf-task>"
-            '<lf-task id="plain-goal" status="active"><strong>Plain</strong>'
-            "</lf-task></lf-tasks></section>",
+            '<lf-test-tasks id="work"><lf-test-task id="goal" status="active" talk>'
+            "<strong>Goal</strong></lf-test-task>"
+            '<lf-test-task id="plain-goal" status="active"><strong>Plain</strong>'
+            "</lf-test-task></lf-test-tasks></section>",
         )
     )
     publish(page_dir)

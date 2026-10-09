@@ -43,7 +43,7 @@ import { paintKeys } from "./keyboard/scopes.js";
 import { shownBox } from "./geometry.js";
 import { pressIsKeyboardActivation } from "./pointer.js";
 import { iconElement } from "./icons.js";
-import { upFrom } from "./shadow.js";
+import { renderedParent } from "./shadow.js";
 import { keeps, keepsText } from "./keeps.js";
 import { Directive, PartType, directive, nothing } from "../vendor/lit.js";
 
@@ -63,7 +63,7 @@ export function reveal(el, mayReveal) {
   const chain = [];
   const pending = [];
   let replacedView = false;
-  for (let a = el; a; a = upFrom(a)) chain.push(a);
+  for (let a = el; a; a = renderedParent(a)) chain.push(a);
   // Reveal outside-in so an inner widget has geometry when it handles the signal.
   for (const a of chain.reverse()) {
     if (!mayReveal()) break;

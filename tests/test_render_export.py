@@ -49,6 +49,7 @@ from render_cases_navigation import (
     source_revision,
 )
 from render_harness import (
+    EXAMPLE_PACKAGES,
     REPLAYED_PAGE,
     example_media,
     leaf_page,
@@ -1870,17 +1871,18 @@ def test_an_export_draws_a_chart_whose_body_is_plot_code(browser, serve, tmp_pat
     expect(page.locator("#c .lf-error")).to_have_count(0)
 
 
-def test_an_export_keeps_its_quiet_words_off_screen(browser, serve, tmp_path):
+def test_an_export_keeps_its_quiet_words_off_screen(
+    browser, serve, tmp_path, declared_reading_package
+):
     """A status word written for a user listening (`.lf-quiet`) is clipped on screen in
     an export as in the live page. The rule that clips it once lived only in the
-    chrome's sheet, which an export never adopts, so every milestone in an exported
-    file read "done" or "active" beside the dot that already said it."""
+    chrome's sheet, which an export never adopts, so status words in an exported file appeared on screen as well as their tint."""
     serve(
         leaf_page(
             "Quiet words",
-            '<h1>Quiet words</h1><lf-milestones><lf-milestone id="m" status="done">'
-            "<strong>Ship</strong></lf-milestone></lf-milestones>",
-        )
+            '<h1>Quiet words</h1><lf-reading id="m" state="done">Ship</lf-reading>',
+        ),
+        packages=(*EXAMPLE_PACKAGES, declared_reading_package),
     )
     out = tmp_path / "quiet.html"
     exporting_model.cmd_export(serve.page_dir, out, None)

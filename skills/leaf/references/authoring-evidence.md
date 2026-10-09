@@ -3,7 +3,7 @@
 ## Measured facts
 
 Use `lf-num` for a repeatably measured scalar inside a sentence, with the snapshot
-that established it. A headline KPI belongs in `lf-metric`; a number without a
+that established it. A hand-authored headline KPI belongs in ordinary HTML; a number without a
 repeatable measurement feed remains ordinary text. Freeze a measured prose value
 with its provenance:
 

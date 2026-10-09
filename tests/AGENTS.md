@@ -87,7 +87,7 @@ diff.
 GitHub Actions on Ubuntu 24.04 is the Linux authority. Use the candidate's and base
 SHA's workflow runs for Linux-specific evidence; a local container is not that runner.
 The pull request's `test` job also owns the site build, Worker dry-run deploy, and
-`verify-site wrangler` delivery checks. Reserve local Docker runs for reproducing
+`verify-site website-worker` delivery checks. Reserve local Docker runs for reproducing
 concrete Worker/container failures. Wrangler's dry-run deploy builds the
 container image too, so it belongs to that same boundary.
 

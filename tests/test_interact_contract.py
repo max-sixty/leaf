@@ -58,8 +58,10 @@ from interact_support import (
     fresh_process,
     live_versions,
     lock_contention,
+    model_layer,
     publish,
     published,
+    queue_board_registry,
     read_page_data,
     stamp,
     stamp_activation,
@@ -261,9 +263,8 @@ STATED_LOG = [
 ]
 STATED_PICK = {"kind": "action", "author": "user", "revision": 1, "action": "choose"}
 
-# A deck with two cards still queued, so its first swipe classifies and only its
-# second empties the queue.
-STATED_DECK = """<!doctype html>
+# A queue with two cards: only the final move answers its Ask.
+STATED_QUEUE = """<!doctype html>
 <html lang="en">
 <head>
 <title>Triage</title>
@@ -272,24 +273,24 @@ STATED_DECK = """<!doctype html>
 <main>
 <lf-ask id="triage-decision">
   <h2>Which follow-ups should we keep?</h2>
-  <lf-swipe-deck id="triage">
-    <lf-swipe-pile id="queue" verdict="unseen">
-      <lf-swipe-card id="card-a"><strong>Rolling expiry</strong></lf-swipe-card>
-      <lf-swipe-card id="card-b"><strong>Bounded fallback</strong></lf-swipe-card>
-    </lf-swipe-pile>
-    <lf-swipe-pile id="keep" verdict="keep"></lf-swipe-pile>
-  </lf-swipe-deck>
+  <lf-board id="triage">
+    <lf-column id="queue" label="Queued">
+      <lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>
+      <lf-card id="card-b"><strong>Bounded fallback</strong></lf-card>
+    </lf-column>
+    <lf-column id="keep" label="Kept"></lf-column>
+  </lf-board>
 </lf-ask>
 </main>
 </body>
 </html>
 """
-STATED_SWIPE = {
+STATED_MOVE = {
     "kind": "action",
     "author": "user",
     "revision": 1,
     "widget": "triage",
-    "action": "swipe",
+    "action": "move",
 }
 
 
@@ -419,30 +420,26 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
     ]
 
 
-def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
-    """A deck's Ask is answered by its standing state, so admission marks the swipe
-    that empties the queue as the answer and no swipe before it.
+def test_the_move_that_empties_the_queue_answers_its_ask():
+    """Only moving the final real card answers the whole queue's Ask.
 
-    Every classification is the same verb carrying its own result, so the position
-    record is what keeps a crafted one honest: its unit must be a card the deck
-    actually holds, or a deck could stand answered on a classification that never
-    existed.
+    A crafted unknown unit must never count as completing the queue.
     """
-    page = ModelPage(STATED_DECK, packages=("swipe",))
+    page = ModelPage(STATED_QUEUE, registry=queue_board_registry(model_layer()))
 
     def admit(log, event):
         return event_contracts_model.admitted_event(page, log, dict(event))
 
     first = admit(
         [],
-        {**STATED_SWIPE, "detail": {"unit": "card-a", "value": "keep", "rank": "0i"}},
+        {**STATED_MOVE, "detail": {"unit": "card-a", "value": "keep", "rank": "0i"}},
     )
     assert first["meaning"]["unit"] == "card-a"
     assert "answer" not in first["meaning"]
     log = [{**first, "id": "s1", "ts": "2026-09-19T12:01:00+00:00", "seq": 1}]
     last = admit(
         log,
-        {**STATED_SWIPE, "detail": {"unit": "card-b", "value": "keep", "rank": "0r"}},
+        {**STATED_MOVE, "detail": {"unit": "card-b", "value": "keep", "rank": "0r"}},
     )
     assert last["meaning"]["answer"] is None
 
@@ -450,7 +447,7 @@ def test_the_swipe_that_empties_the_queue_is_the_decks_answer():
         admit(
             log,
             {
-                **STATED_SWIPE,
+                **STATED_MOVE,
                 "detail": {"unit": "not-a-card", "value": "keep", "rank": "0r"},
             },
         )
@@ -1103,8 +1100,8 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-tasks id="tree"><lf-task id="t1" status="active">'
-            "<strong>Parse</strong></lf-task></lf-tasks></section>",
+            '<lf-test-tasks id="tree"><lf-test-task id="t1" status="active">'
+            "<strong>Parse</strong></lf-test-task></lf-test-tasks></section>",
         )
     )
     publish(page_dir)
@@ -1119,11 +1116,11 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
     )
 
     registry = json.loads((page_dir / "registry.json").read_text())
-    task = registry["lf-task"]
+    task = registry["lf-test-task"]
     task.pop("x-state")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
+    (overlay / "registry.json").write_text(json.dumps({"lf-test-task": task}))
 
     result = CliRunner().invoke(
         cli_model.cli,
@@ -1277,11 +1274,11 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
     _tasks_version(page_dir, "active")
     publish(page_dir)
     registry = json.loads((page_dir / "registry.json").read_text())
-    task = registry["lf-task"]
+    task = registry["lf-test-task"]
     task.pop("x-state")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(json.dumps({"lf-task": task}))
+    (overlay / "registry.json").write_text(json.dumps({"lf-test-task": task}))
     _, refusal = assert_revendor_serializes_writer(
         page_dir,
         monkeypatch,
@@ -1294,7 +1291,8 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
     assert refusal is None
     assert events_model.read_events(page_dir)[-1]["kind"] == "report"
     assert (
-        "x-state" not in json.loads((page_dir / "registry.json").read_text())["lf-task"]
+        "x-state"
+        not in json.loads((page_dir / "registry.json").read_text())["lf-test-task"]
     )
 
 
@@ -2011,7 +2009,11 @@ def test_a_widget_data_input_is_one_complete_contract(page_dir, change, message)
         ("<div>", True, "must be one element"),
         ("<div><span>0</div>", True, "must be one element"),
         ('<div><span id="count">0</span></div>', True, "no id"),
-        ("<div><lf-chip>0</lf-chip></div>", True, "may not hold <lf-chip>"),
+        (
+            '<div><lf-gloss tip="Zero">0</lf-gloss></div>',
+            True,
+            "may not hold <lf-gloss>",
+        ),
         ({"as": "lf-nothing"}, True, "declares no x-prepaint markup"),
     ],
 )
@@ -2632,7 +2634,6 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
         ("x-awaits", []),
         ("x-awaits", {"when": {"choose": True}}),
         ("x-thread-seat", False),
-        ("x-required-members", []),
         ("x-content", "words"),
         ("x-owners", []),
         # Each of these names attributes, so an empty one declares nothing while
@@ -2665,7 +2666,7 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
     ("mutate", "message"),
     [
         (
-            lambda registry: registry["lf-chip"].update({"x-work": True}),
+            lambda registry: registry["lf-gloss"].update({"x-work": True}),
             "declares x-work but is inline",
         ),
         (
@@ -2677,46 +2678,6 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
 def test_a_work_seat_declaration_is_checked_whole(page_dir, mutate, message):
     registry = json.loads((page_dir / "registry.json").read_text())
     mutate(registry)
-    (page_dir / "registry.json").write_text(json.dumps(registry))
-
-    result = check(page_dir)
-
-    assert result.exit_code != 0
-    assert message in result.output
-
-
-@pytest.mark.parametrize(
-    ("mutation", "message"),
-    [
-        (
-            "unknown-child",
-            "x-required-members names unknown member declaration <lf-missing>",
-        ),
-        ("wrong-owner", "does not name it in x-owners"),
-        ("optional-role", "must name a required, non-empty string enum"),
-        ("open-role", "must name a required, non-empty string enum"),
-        ("markup-owner", "x-required-members requires x-content: members"),
-    ],
-)
-def test_one_each_child_declarations_are_checked_whole(page_dir, mutation, message):
-    registry = json.loads((page_dir / "registry.json").read_text())
-    option = registry["lf-option"]
-    option["properties"]["role"] = {"type": "string", "enum": ["first", "second"]}
-    option["required"].append("role")
-    registry["lf-options"]["x-required-members"] = {"lf-option": {"one-each": "role"}}
-
-    if mutation == "unknown-child":
-        registry["lf-options"]["x-required-members"] = {
-            "lf-missing": {"one-each": "role"}
-        }
-    elif mutation == "wrong-owner":
-        option["x-owners"] = ["lf-board"]
-    elif mutation == "optional-role":
-        option["required"].remove("role")
-    elif mutation == "open-role":
-        option["properties"]["role"] = {"type": "string"}
-    else:
-        registry["lf-options"]["x-content"] = "markup"
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -2824,7 +2785,7 @@ def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, mes
     elif mutation == "wrong-id":
         option["properties"]["id"]["pattern"] = "^option-.+$"
     elif mutation == "report-creates":
-        registry["lf-agent"]["x-state"]["state"]["creates"] = {
+        registry["lf-test-worker"]["x-state"]["state"]["creates"] = {
             "child": "lf-option",
             "words": "doing",
         }
@@ -2864,7 +2825,7 @@ def test_unrecorded_fold_units_are_required_strings(page_dir):
     [
         ("lf-options", "choose", "unit"),
         ("lf-draft", "edit", "unit"),
-        ("lf-task", "status", "unit"),
+        ("lf-test-task", "status", "unit"),
         ("lf-board", "move", "widget"),
     ],
 )
@@ -3050,7 +3011,7 @@ def test_recorded_declarations_cannot_override_the_fixed_payload(page_dir, mutat
     if mutation == "detail":
         spec["detail"] = {"type": "object", "additionalProperties": False}
     elif mutation == "update-field":
-        registry["lf-agent"]["x-state"]["state"]["update"] = "doing"
+        registry["lf-test-worker"]["x-state"]["state"]["update"] = "doing"
     else:
         spec["record"][mutation.removeprefix("record-")] = "custom"
     (page_dir / "registry.json").write_text(json.dumps(registry))
@@ -3063,7 +3024,10 @@ def test_recorded_declarations_cannot_override_the_fixed_payload(page_dir, mutat
 
 def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-agent"]["properties"]["state"] = {"type": "integer", "minimum": 0}
+    registry["lf-test-worker"]["properties"]["state"] = {
+        "type": "integer",
+        "minimum": 0,
+    }
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -3076,7 +3040,8 @@ def test_report_update_prose_is_required_only_when_declared(page_dir):
     """The report flag fixes nonempty text; reports without it carry just their value."""
     registry = json.loads((page_dir / "registry.json").read_text())
     page = ModelPage(
-        '<lf-agent id="agent" state="working">Agent</lf-agent>', registry=registry
+        '<lf-test-worker id="agent" state="working">Agent</lf-test-worker>',
+        registry=registry,
     )
     command = {
         "kind": "report",
@@ -3104,9 +3069,10 @@ def test_report_update_prose_is_required_only_when_declared(page_dir):
             page, [], {**command, "kind": "action", "author": "user", "detail": detail}
         )
 
-    del registry["lf-agent"]["x-state"]["state"]["update"]
+    del registry["lf-test-worker"]["x-state"]["state"]["update"]
     page = ModelPage(
-        '<lf-agent id="agent" state="working">Agent</lf-agent>', registry=registry
+        '<lf-test-worker id="agent" state="working">Agent</lf-test-worker>',
+        registry=registry,
     )
     admitted = event_contracts_model.admitted_event(
         page, [], {**command, "detail": {"value": "waiting"}}
@@ -3120,7 +3086,7 @@ def test_report_update_prose_is_required_only_when_declared(page_dir):
     ("tag", "verb", "field"),
     [
         ("lf-suggestion", "decide", "unit"),
-        ("lf-task", "status", "unit"),
+        ("lf-test-task", "status", "unit"),
     ],
 )
 def test_every_fold_verb_declares_its_coordinate(page_dir, tag, verb, field):
@@ -3140,7 +3106,7 @@ def test_every_fold_verb_declares_its_coordinate(page_dir, tag, verb, field):
     [
         ("lf-draft", "edit", "body"),
         ("lf-board", "move", "position"),
-        ("lf-task", "status", "value `status`"),
+        ("lf-test-task", "status", "value `status`"),
         ("lf-options", "choose", "attribute `chosen`"),
     ],
 )
@@ -3167,17 +3133,12 @@ def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
     registry = json.loads((page_dir / "registry.json").read_text())
 
     # A different host attribute is a different value slot on the same unit.
-    task = registry["lf-task"]
+    task = registry["lf-test-task"]
     owner = json.loads(json.dumps(task["x-state"]["status"]))
     owner["record"] = {"kind": "value", "attr": "owner"}
     task["properties"]["owner"] = {"type": "string"}
     task.setdefault("required", []).append("owner")
     task["x-state"]["owner"] = owner
-    registry["lf-tasks"]["x-example"] = re.sub(
-        r"<lf-task\b(?![^>]*\bowner=)",
-        '<lf-task owner="test"',
-        registry["lf-tasks"]["x-example"],
-    )
 
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
@@ -3402,13 +3363,13 @@ def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
             "a flag is there or it isn't",
         ),
         (
-            "lf-task",
+            "lf-test-task",
             "x-awaits",
             {"when": {"status": [True]}},
             "that attribute is not a flag",
         ),
         (
-            "lf-task",
+            "lf-test-task",
             "x-awaits",
             {"when": {"status": ["reviewing"]}},
             "its own enum does not admit",
@@ -3465,7 +3426,7 @@ def test_check_refuses_a_predicate_no_page_could_carry(
 )
 def test_a_local_ask_declares_its_answered_condition(page_dir, declaration, message):
     registry = json.loads((page_dir / "registry.json").read_text())
-    registry["lf-task"]["x-awaits"] = declaration
+    registry["lf-test-task"]["x-awaits"] = declaration
     (page_dir / "registry.json").write_text(json.dumps(registry))
 
     result = check(page_dir)
@@ -3476,12 +3437,10 @@ def test_a_local_ask_declares_its_answered_condition(page_dir, declaration, mess
 
 def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
     """A part record does not answer its whole Ask merely by standing."""
-    registry = json.loads((page_dir / "registry.json").read_text())
-    swipe = json.loads(
-        (schema_model.BUNDLED_PACKAGES / "swipe" / "registry.json").read_text()
+    registry = queue_board_registry(
+        json.loads((page_dir / "registry.json").read_text())
     )
-    registry.update(swipe)
-    registry["lf-swipe-deck"]["x-awaits"]["answered"]["swipe"].pop("empty")
+    registry["lf-board"]["x-awaits"]["answered"]["move"].pop("empty")
 
     with pytest.raises(
         registry_contract.RegistryError,
@@ -3577,16 +3536,16 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
     ("tag", "key", "value", "missing"),
     [
         (
-            "lf-chronology-entry",
+            "lf-gloss",
             "x-says",
-            {"at": "before", "colour": "after"},
+            {"tip": "after", "colour": "after"},
             "colour",
         ),
         ("lf-option", "x-refers", {"for": {}, "about": {}}, "about"),
-        ("lf-task", "x-paints", ["status", "urgency"], "urgency"),
+        ("lf-test-task", "x-paints", ["status", "urgency"], "urgency"),
         ("lf-code", "x-lines", ["hi", "upto"], "upto"),
         ("lf-code", "x-language", "dialect", "dialect"),
-        ("lf-chip", "x-tone", "shade", "shade"),
+        ("lf-column", "x-tone", "shade", "shade"),
     ],
 )
 def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
@@ -3621,7 +3580,7 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
             "names unknown registry map '$missing.widgets'",
         ),
         (
-            {"via": "$command.widgets", "where": {"role": "imaginary"}},
+            {"via": "$work.widgets", "where": {"role": "imaginary"}},
             "but no declared widget matches",
         ),
     ],
@@ -3885,7 +3844,7 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
         "comment with a drawing": {
             "kind": "comment",
             "drawing": {
-                "format": "leaf-drawing/2",
+                "format": "leaf-drawing/3",
                 "strokes": [[[0, 0], [9, 9]]],
                 "box": [640, 120],
                 "viewport": [1200, 900],
@@ -4534,7 +4493,7 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
 
 def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(page_dir):
     """`data-height` states the box of a widget whose declaration says it draws into one
-    (x-height), in whole CSS pixels. A chart takes it; a table and a tree take the
+    (x-height), in whole CSS pixels. A chart takes it; a table and a code block take the
     height of what they hold, so the attribute there would clip their words."""
     chart = '<lf-chart id="c" data-height="{}"><pre>{{ariaLabel: "x", marks: []}}</pre></lf-chart>'
     (page_dir / "index.html").write_text(
@@ -4548,7 +4507,7 @@ def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(pa
             "<h2>Plan</h2>"
             + chart.format("240px")
             + '<table data-height="80"><tr><td>A</td></tr></table>'
-            + '<lf-tree id="t" data-height="80"><pre>src/</pre></lf-tree>',
+            + '<lf-code id="t" data-height="80"><pre>src/</pre></lf-code>',
         )
     )
     result = check(page_dir)
@@ -4560,7 +4519,7 @@ def test_check_takes_a_stated_height_only_on_a_widget_that_draws_into_its_box(pa
     assert "<table data-height> (line 9) states the height of a widget" in (
         result.output
     )
-    assert "<lf-tree> takes the height of what it holds" in result.output
+    assert "<lf-code> takes the height of what it holds" in result.output
 
 
 def test_check_takes_a_page_s_width_from_a_layout_and_not_from_data_width(page_dir):
@@ -5058,8 +5017,8 @@ def test_init_allows_to_drop_the_contract_of_a_held_comment(page_dir):
     version.write_text(
         PAGE.replace(
             "</section>",
-            '<lf-tasks id="work"><lf-task id="goal" status="active" talk>'
-            "<strong>Goal</strong></lf-task></lf-tasks></section>",
+            '<lf-test-tasks id="work"><lf-test-task id="goal" status="active" talk>'
+            "<strong>Goal</strong></lf-test-task></lf-test-tasks></section>",
         )
     )
     publish(page_dir)
@@ -5076,7 +5035,7 @@ def test_init_allows_to_drop_the_contract_of_a_held_comment(page_dir):
     )
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
-    del registry["lf-task"]["x-thread-seat"]["hold"]
+    del registry["lf-test-task"]["x-thread-seat"]["hold"]
     registry_path.write_text(json.dumps(registry))
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])

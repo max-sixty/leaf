@@ -265,9 +265,7 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
     stored_data = read_data(page_dir, registry)
     contracts = read_contracts(page_dir)
     readings = (
-        working_data_document_readings(
-            page_dir, registry, events, authored=document.lf_elements
-        )
+        working_data_document_readings(page_dir, registry, events, authored=document)
         if registry is not None
         else []
     )
@@ -302,7 +300,7 @@ def check_source(page_dir: Path, events: list) -> SourceCheck:
                 child_events = []
             documents.append((child, child_events, name))
             child_readings = initial_data_document_readings(
-                child.lf_elements, child_events, registry
+                child, child_events, registry
             )
             child_errors = _authored_document_checks(
                 page_dir,

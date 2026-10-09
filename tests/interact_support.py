@@ -26,6 +26,7 @@ import urllib.request
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from copy import deepcopy
 from functools import cache
 from pathlib import Path
 
@@ -75,7 +76,7 @@ PLUGIN_ROOT = ROOT
 # spelled by hand the two are one plausible typo apart — a glob a level short matches
 # nothing and reports nothing.
 SKILL_ROOT = PLUGIN_ROOT / "skills" / "leaf"
-COMMAND_HUB_PACKAGE = SKILL_ROOT / "packages" / "command-hub"
+COMMAND_HUB_PACKAGE = ROOT / "tests" / "fixtures" / "packages" / "work"
 # The complete shipped vocabulary, in the order `page init` composes it for an example.
 # Read from examples/layer.json rather than listed here, because a floor that names its
 # own packages stops covering the next one: lf-diagram and lf-diff left the default
@@ -92,9 +93,9 @@ SHIPPED_PACKAGES = [
     ),
 ]
 COMMAND_SUBJECTS = (
-    '<lf-agent id="worker" state="waiting" on="goal"><strong>Worker</strong>'
-    '<lf-worktree id="tree" source="project-worktrees"></lf-worktree>'
-    "</lf-agent>"
+    '<lf-test-worker id="worker" state="waiting" on="goal"><strong>Worker</strong>'
+    '<lf-test-tree id="tree" source="project-worktrees"></lf-test-tree>'
+    "</lf-test-worker>"
 )
 
 # No path work: `leaf` is installed into the environment this interpreter runs
@@ -182,6 +183,21 @@ def model_layer(*packages: str) -> dict:
     is asking for the same registry. Nothing may mutate what this returns.
     """
     return compatibility_model.incoming_registry(layer_model.layer_inputs(packages))
+
+
+def queue_board_registry(registry: dict) -> dict:
+    """A page-owned queue asks until all cards leave its Queued column.
+
+    Extend the board's position verb with a completion condition to exercise
+    answers spanning units without a presentation-specific package.
+    """
+    registry = deepcopy(registry)
+    registry["lf-board"]["x-awaits"] = {
+        "answered": {
+            "move": {"empty": {"within": "lf-column", "when": {"label": ["Queued"]}}}
+        }
+    }
+    return registry
 
 
 class ModelPage:
@@ -479,10 +495,10 @@ PAGE = """<!doctype html>
   <lf-ask id="plan-choice-decision">
     <h3>Which plan should lead?</h3>
     <lf-options>
-      <lf-option id="flag-first"><lf-chip>effort: low</lf-chip><lf-chip>risk: med</lf-chip>
+      <lf-option id="flag-first"><small class="tag">effort: low</small><small class="tag">risk: med</small>
         <strong>Flag first</strong> Ship dark.
       </lf-option>
-      <lf-option id="backfill-first"><lf-chip>effort: med</lf-chip><lf-chip>risk: low</lf-chip>
+      <lf-option id="backfill-first"><small class="tag">effort: med</small><small class="tag">risk: low</small>
         <strong>Backfill first</strong> Verify, then flip. <em>My take: do this first.</em>
       </lf-option>
     </lf-options>
@@ -502,12 +518,16 @@ graph LR
 # lf-diagram and lf-diff declarations out of the vendored registry, so the selection
 # names the packages those three now travel in. The template cache is keyed by this
 # same list, so a page built for one selection is never handed to another.
-PAGE_PACKAGES = ("command-hub", "diagram", "diff", "swipe")
+PAGE_PACKAGES = (
+    "~/" + COMMAND_HUB_PACKAGE.relative_to(Path.home()).as_posix(),
+    "diagram",
+    "diff",
+)
 
 
 @pytest.fixture
 def page_dir(tmp_path, monkeypatch, initialized_page):
-    """A mutable page with the default, Command Hub, diagram, diff and swipe vocabularies."""
+    """A mutable page with the default, Command Hub, diagram and diff vocabularies."""
     monkeypatch.chdir(tmp_path)  # resolve fixture package paths
     d = tmp_path / "page"
 
@@ -524,7 +544,7 @@ def page_dir(tmp_path, monkeypatch, initialized_page):
         assert result.exit_code == 0, result.output
         (template / "index.html").write_text(PAGE)
 
-    initialized_page("-".join(PAGE_PACKAGES), d, initialize)
+    initialized_page("work-" + "-".join(PAGE_PACKAGES[1:]), d, initialize)
     return d
 
 
@@ -819,9 +839,9 @@ def _decided(page_dir, words):
 def _tasks(status, extra=""):
     """A one-task tree whose task carries the given status and extra attributes."""
     return (
-        '<lf-tasks id="tree">'
-        f'<lf-task id="t-parser" status="{status}"{extra}><strong>Parser</strong></lf-task>'
-        "</lf-tasks>"
+        '<lf-test-tasks id="tree">'
+        f'<lf-test-task id="t-parser" status="{status}"{extra}><strong>Parser</strong></lf-test-task>'
+        "</lf-test-tasks>"
     )
 
 
@@ -1005,26 +1025,26 @@ def _mutated_registry_check(page_dir, mutate):
 
 
 def _report_body_record(registry):
-    registry["lf-task"]["x-state"]["status"]["record"] = {"kind": "body"}
+    registry["lf-test-task"]["x-state"]["status"]["record"] = {"kind": "body"}
 
 
 def _report_position_record(registry):
-    registry["lf-task"]["x-state"]["status"]["record"] = {
+    registry["lf-test-task"]["x-state"]["status"]["record"] = {
         "kind": "position",
         "within": "lf-column",
     }
 
 
 def _report_no_record(registry):
-    del registry["lf-task"]["x-state"]["status"]["record"]
+    del registry["lf-test-task"]["x-state"]["status"]["record"]
 
 
 def _report_undeclared_attr(registry):
-    registry["lf-task"]["x-state"]["status"]["record"]["attr"] = "phase"
+    registry["lf-test-task"]["x-state"]["status"]["record"]["attr"] = "phase"
 
 
 def _report_says_attr(registry):
-    task = registry["lf-task"]
+    task = registry["lf-test-task"]
     task["required"].append("owner")
     task["x-says"] = {"owner": "before"}
     task["x-state"]["status"] = {
@@ -1035,18 +1055,18 @@ def _report_says_attr(registry):
 
 
 def _report_authored_detail(registry):
-    registry["lf-task"]["x-state"]["status"]["detail"] = {
+    registry["lf-test-task"]["x-state"]["status"]["detail"] = {
         "type": "object",
         "additionalProperties": False,
     }
 
 
 def _report_without_overruled(registry):
-    del registry["lf-task"]["properties"]["overruled"]
+    del registry["lf-test-task"]["properties"]["overruled"]
 
 
 def _report_without_upgrade(registry):
-    registry["lf-task"]["x-upgrade"] = False
+    registry["lf-test-task"]["x-upgrade"] = False
 
 
 def _user_verb_update(registry):
@@ -1922,6 +1942,24 @@ def add_test_widget(package: Path, tag: str, *, upgrade: bool = False) -> dict:
             packages_model.starter_widget_module(tag)
         )
     return declaration
+
+
+@pytest.fixture
+def declared_reading_package(tmp_path, monkeypatch):
+    """A module-free vocabulary for shared said-word and painted-fact contracts."""
+    monkeypatch.chdir(tmp_path)
+    package = tmp_path / ".leaf"
+    add_test_widget(package, "lf-reading")
+    registry_path = package / "registry.json"
+    registry = json.loads(registry_path.read_text())
+    reading = registry["lf-reading"]
+    reading["properties"].update(
+        {"label": {"type": "string"}, "state": {"type": "string"}}
+    )
+    reading["x-says"] = {"label": "before"}
+    reading["x-paints"] = ["state"]
+    registry_path.write_text(json.dumps(registry))
+    return "./.leaf"
 
 
 def element_declaration(tag: str, *, upgrade: bool = False) -> dict:

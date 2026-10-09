@@ -717,10 +717,9 @@ def test_a_module_the_page_never_receives_names_the_wait_that_stopped(browser, s
 def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
     browser, serve
 ):
-    """The proof holds the Leaf entry itself until after the theme stylesheet, so the
-    entry is open at every wait before that by the gate's own choice. Naming it
-    beside what the page is waiting for would point a reader at the hold rather than
-    at the file that never came."""
+    """A held head stylesheet may stop parsing before main. At whichever wait
+    stops first, the diagnostic names the page's request, not the entry held by
+    the gate itself."""
     source = leaf_page("held theme", "<h1>Waiting on a theme</h1>")
     page = browser.unwatched.new_page()
     page.set_default_timeout(5_000)
@@ -741,9 +740,10 @@ def test_a_wait_before_the_entry_is_released_names_only_the_page_s_own_request(
 
     assert holding, "the page asked for no theme stylesheet, so nothing was held"
     path = urlsplit(holding[0].request.url).path
-    assert str(stopped.value) == (
-        f"the document never reached its theme stylesheet; still requesting {path}"
-    )
+    message = str(stopped.value)
+    assert message.startswith("the document never reached ")
+    assert message.endswith(f"; still requesting {path}")
+    assert "leaf.js" not in message
 
 
 @pytest.fixture

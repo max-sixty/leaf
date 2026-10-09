@@ -568,6 +568,17 @@ html[data-lf-draw-mode] main [data-lf-offer] * { cursor: auto !important; }
      retired rows as hidden seats, and its next opening draws only current controls;
      a rule here stating display would keep absent controls in that new reading. */
   .lf-banner-menu .lf-btn { width: 100%; text-align: left; }
+  .lf-share > summary { list-style: none; }
+  .lf-share-panel { display: grid; gap: 8px; padding: 8px;
+    width: 280px; max-width: 100%; box-sizing: border-box; }
+  .lf-share-panel label { display: grid; gap: 4px; }
+  .lf-share-link { width: 100%; min-width: 0; box-sizing: border-box;
+    padding: 8px; border: 1px solid var(--border-2); border-radius: 4px;
+    background: var(--paper); color: var(--ink); font: inherit; }
+  .lf-share-link:focus-visible { outline: var(--focus-ring); outline-offset: 2px;
+    --lf-focus-ring: share-link; }
+  .lf-share-panel p { margin: 0; white-space: normal; color: var(--muted);
+    font-size: var(--t-6); }
   .lf-banner-menu .lf-btn:where(:not(.primary)) { border-color: transparent;
     background: none; }
   .lf-banner-menu .lf-btn:where(:not(.primary)):hover { background: var(--chip); }

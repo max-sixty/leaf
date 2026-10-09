@@ -1,8 +1,13 @@
 /* Focus readings shared by thread paint and commands. */
-import { focusDestination, holdStanding, forwardFocus } from "../focus.js";
+import {
+  focusDestination,
+  holdStanding,
+  forwardFocus,
+  focused,
+  onPress,
+} from "../focus.js";
 import { shownBox } from "../geometry.js";
 import { restrictUserIntent, retainUserIntent } from "../user-intent.js";
-import { focused } from "../keyboard/scopes.js";
 import { closestAcross } from "../passages.js";
 import { nextRender } from "../rendering.js";
 import { repaint } from "../repaint.js";
@@ -75,17 +80,9 @@ export function heldThreadId() {
 // such press. So the thread held at pointerdown stays the standing until the frame after
 // the press ends, when the standing repaint reads focus again. This is standing as drawn,
 // which lags focus across a press; a command acts on the held thread (`heldThreadId`).
+// The press is focus.js's (`onPress`), which ends it every way it can end.
 let pressed = null;
 let release = 0;
-document.addEventListener(
-  "pointerdown",
-  (ev) => {
-    if (ev.isPrimary && ev.button === 0) pressed = heldThreadId();
-  },
-  { capture: true },
-);
-// Every way a press can end: its release, the browser taking the pointer, a native menu
-// the press opened, which swallows the release, or the window losing it altogether.
 function releasePress() {
   if (!pressed || release) return;
   release = nextRender(() => {
@@ -94,9 +91,11 @@ function releasePress() {
     repaint();
   });
 }
-for (const type of ["pointerup", "pointercancel", "contextmenu"])
-  document.addEventListener(type, releasePress, { capture: true });
-window.addEventListener("blur", releasePress);
+onPress((start) => {
+  if (start.button !== 0) return null;
+  pressed = heldThreadId();
+  return releasePress;
+});
 
 export const standingThreadId = () => heldThreadId() ?? pressed;
 

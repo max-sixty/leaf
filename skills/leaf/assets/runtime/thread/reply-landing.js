@@ -27,11 +27,11 @@
    the turn the user was reading, even when it is not the latest one. A separate
    transcript opened for reading shows its latest turn (`showLatestTurn`). */
 import { landingBand, seenRect, shownBox } from "../geometry.js";
-import { focused } from "../keyboard/scopes.js";
+import { focused } from "../focus.js";
 import { scrollBehavior } from "../motion.js";
 import { whenDocumentPresented } from "../semantic-state.js";
 import { scrollerFor, scrollersOf } from "../reading-regions.js";
-import { renderedParent } from "../shadow.js";
+import { renderedParent, under } from "../shadow.js";
 import { bringBackSurfaceOf } from "../off-flow.js";
 import { retainUserIntent } from "../user-intent.js";
 import { scrollIntoReadingBand } from "../landing-scroll.js";
@@ -121,12 +121,7 @@ export function showLatestTurn(transcript) {
   if (over > 0) moveScrollerBy(transcript, -over);
 }
 
-export function scrollThreadIntoView(
-  held,
-  control,
-  behavior = scrollBehavior(),
-  block = "nearest",
-) {
+function landThread(held, control, behavior, block) {
   bringBackSurfaceOf(held, behavior);
   const transcript = separateTranscript(held);
   if (transcript && control !== held && replyRowOf(held, control)) {
@@ -139,6 +134,34 @@ export function scrollThreadIntoView(
   }
   const target = landingTarget(held, control);
   target.node?.scrollIntoView({ behavior, block: target.block ?? block });
+}
+
+// A geometry owner can fit a thread after its landing has already scrolled. Keep the
+// destination through those fits under the original gesture's authority: focus alone
+// cannot authorize moving a reader who has since scrolled elsewhere. Weak ownership
+// follows the thread's node lifetime, and a replay never captures fresh user intent.
+const landings = new WeakMap();
+export function keepThreadLanding(held) {
+  const landing = landings.get(held);
+  if (!landing) return;
+  if (!landing.mayLand()) {
+    landings.delete(held);
+    return;
+  }
+  landThread(held, landing.control, "instant", landing.block);
+}
+
+export function scrollThreadIntoView(
+  held,
+  control,
+  behavior = scrollBehavior(),
+  block = "nearest",
+) {
+  const mayLand = retainUserIntent({
+    available: () => held.isConnected && control.isConnected && under(control, held),
+  });
+  landings.set(held, { control, block, mayLand });
+  landThread(held, control, behavior, block);
 }
 
 // Taken as the user sends: once the page has drawn the new turn above the box, land the

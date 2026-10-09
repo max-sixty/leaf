@@ -41,6 +41,7 @@ import {
   sizeObserver,
   watchData,
   widgetController,
+  focused,
 } from "/runtime/widget-api.js";
 
 const CLASSIFICATION = {
@@ -933,6 +934,12 @@ customElements.define(
 
     #select(id, land = false, restoreFocus = holdFocus(this)) {
       if (!this.#caseEntries.has(id)) return;
+      // Changing case from a verdict is a route to its counterpart, not a passive
+      // return to the old control. The focus owner reveals that destination; a
+      // source refresh supplies its own hold and passes null here.
+      const disposition = restoreFocus
+        ? focused()?.closest?.(".lf-vr-disposition")?.dataset.disposition
+        : null;
       if (id !== this.#selected) this.#scope = "focus";
       this.#selected = id;
       this.#queue.value = id;
@@ -948,9 +955,15 @@ customElements.define(
       layoutChanged(this);
       this.#scheduleEvidenceLayout();
       paintKeys();
-      // Keep a surviving queue or shared inspector control. A hidden case-local
-      // destination hands the reader to the new case's evidence exactly once.
       if (land) this.#landOnEvidence("move");
+      else if (disposition)
+        focusDestination(
+          selected.article.querySelector(
+            `.lf-vr-disposition[data-disposition="${disposition}"]`,
+          ),
+          "move",
+          { scroll: true },
+        );
       else
         restoreFocus?.(() => {
           this.#landOnEvidence("move");

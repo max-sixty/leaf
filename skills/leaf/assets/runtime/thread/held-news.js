@@ -1,10 +1,9 @@
 /* News a thread surface holds back while it would move what the reader reads.
 
-   The rule: what the user continuously sees moves only in answer to a gesture of theirs
-   (`skills/leaf/assets/AGENTS.md`, "Layout and motion"). News is not one, so where
-   drawing it would move something on screen it waits, and the first gesture that takes
-   the user to it shows it, since the motion is then that gesture's. Everything here
-   follows from that. A hidden tab ends that reading. Returning reveals its held
+   These holds protect existing reading and active composition
+   (`skills/leaf/assets/AGENTS.md`, "Layout and motion"). Each surface's rule below
+   determines which surrounding content may move as messages arrive. A held change
+   shows when a gesture takes the user to it. A hidden tab ends that reading. Returning reveals its held
    news and its first refreshed reading through the shared reading-continuity owner;
    keyboard blur alone leaves the reading protected. The ordinary message arrival
    tint and retirement fold explain the changed layout without withholding its words.
@@ -35,7 +34,10 @@
      the thread to place (surfaces.js), and the margin draws it as it draws any thread
      no widget places, out of the flow.
 
-   A panel card uses the same hold for its own news, and a closed card holds nothing,
+   An open panel card shows appended messages immediately when no composition is
+   active: its idle reply row and later cards may move, while existing messages keep
+   their place. Changes to existing messages, reactions, folds and settlement use
+   the same hold as a seat in page flow. A closed card holds nothing,
    since its title row draws at one size whatever it says. A reply pinned to its
    scrollport lets a turn joining the thread's end grow up into the room scrolled past
    (thread-list.js, `followThreadEnd`), though nothing that changes above that end. A
@@ -71,8 +73,9 @@
    undrawn can take focus. Anything held in a seat is not drawn, so it stays unread until
    it shows.
 
-   Decisions. A panel card holds news behind its notice, like every other surface (#1694;
-   the user's decision, 2026-10-04). Rejected: filling the list (#1480), which makes the
+   Decisions. An idle open panel card shows appended messages (the user's decision,
+   2026-10-08, relaxing #1694's blanket hold). Its existing reading and active editor
+   remain protected. Rejected: filling the list (#1480), which makes the
    open card as tall as the panel and leaves later cards below the fold; and letting a
    list that cannot scroll push its contents down, which needs the shift watch to stop
    checking such lists. Arrival is read from where the user stands (the user's decision,
@@ -89,7 +92,7 @@ import { shownBand, whenOffScreen } from "../geometry.js";
 import { scrollersOf } from "../reading-regions.js";
 import { offer } from "../widget-elements.js";
 import { keeps, keepsText, layoutPx } from "../keeps.js";
-import { keys, focused } from "../keyboard/scopes.js";
+import { keys } from "../keyboard/scopes.js";
 import { PRESS } from "../keyboard/bindings.js";
 import { focusThread, threadFocusStop } from "./focus.js";
 import { isReaction, threadKey, threadNames } from "./model.js";
@@ -97,7 +100,7 @@ import { allThreads } from "./state.js";
 import { THREAD } from "./selectors.js";
 import { closestAcross } from "../passages.js";
 import { readApplication } from "../semantic-state.js";
-import { onStanding } from "../focus.js";
+import { onStanding, focused } from "../focus.js";
 import { readingIsContinuous } from "../reading-continuity.js";
 
 // Whether this page's ledger holds a gesture of the user's on `thread`: one of its
@@ -213,7 +216,10 @@ function difference(was, now) {
     summaries: gone.map(({ id }) => id),
   };
   if (!settled && !news.replies && !news.reactions && !news.summaries) return null;
-  return { news, changed, folds };
+  const appendedAtEnd =
+    news.appended &&
+    was.messages.every((message, index) => now.messages[index]?.key === message.key);
+  return { news, changed, folds, appendedAtEnd };
 }
 
 // The thread `now` with what `was`, the thread as the seat drew it, did not show held

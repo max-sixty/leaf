@@ -1,5 +1,5 @@
 import { rememberWriting } from "../drafts.js";
-import { focused, keys, paintKeys } from "../keyboard/scopes.js";
+import { keys, paintKeys } from "../keyboard/scopes.js";
 import { keeps, keepsHidden, keepsText } from "../keeps.js";
 import { advertisesKeys, submitBindings, submitLabel } from "../keyboard/bindings.js";
 import { readPastedMedia, scopedMediaUrl, writePastedMedia } from "../media.js";
@@ -9,7 +9,7 @@ import { drawingThumbnail } from "./drawing-ink.js";
 import { LitElement, html } from "../../vendor/browser-runtime.js";
 import "./text-field.js";
 import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
-import { focusDestination } from "../focus.js";
+import { focusDestination, focused } from "../focus.js";
 // One helper wires every durable composition surface: the general box, each per-thread
 // reply, the compact anchored composer, and composition boxes contributed by widgets.
 // `wireInput` gives every such text field one input contract: persist each edit, keep the

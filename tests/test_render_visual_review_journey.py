@@ -895,9 +895,32 @@ def test_visual_review_leads_with_evidence_and_walks_only_remaining_cases(
     expect(inspector).to_be_focused()
     expect(selected).to_have_js_property("value", first_id)
     inspector.click()
+    # Browsing from a verdict moves to the matching action in the next case,
+    # revealing it even when returning from a short capture to a tall one.
+    verdict = case.get_by_role("button", name="Needs work")
+    verdict.focus()
+    page.keyboard.press("ArrowDown")
+    expect(selected).not_to_have_js_property("value", first_id)
+    expect(verdict).to_be_focused()
+    expect(verdict).to_be_in_viewport(ratio=1)
+    page.keyboard.press("ArrowUp")
+    expect(selected).to_have_js_property("value", first_id)
+    expect(verdict).to_be_focused()
+    expect(verdict).to_be_in_viewport(ratio=1)
     with sending(page, "first visual verdict"):
         case.get_by_role("button", name="Looks right").click()
     expect(selected).to_have_js_property("value", first_id)
+    expect(case).to_have_attribute("data-disposition", "looks-right")
+    # A recorded article shares the disposition value with its verdict control.
+    # Navigation lands on the matching native button, not that container.
+    page.keyboard.press("ArrowDown")
+    expect(selected).not_to_have_js_property("value", first_id)
+    expect(case.get_by_role("button", name="Looks right")).to_be_focused()
+    expect(case.get_by_role("button", name="Looks right")).to_be_in_viewport(ratio=1)
+    page.keyboard.press("ArrowUp")
+    expect(selected).to_have_js_property("value", first_id)
+    expect(case.get_by_role("button", name="Looks right")).to_be_focused()
+    expect(case.get_by_role("button", name="Looks right")).to_be_in_viewport(ratio=1)
     case.get_by_role("button", name="Next unreviewed").click()
     expect(selected).not_to_have_js_property("value", first_id)
     second_id = selected.evaluate("node => node.value")

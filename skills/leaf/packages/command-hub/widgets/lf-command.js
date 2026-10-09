@@ -639,6 +639,8 @@ const render = (plan) => paint(plan);
 
 // Unopened lists draw every reading, which only paper shows.
 function paint(plan) {
+  keeps(plan, "role", "group");
+  keeps(plan, "aria-label", plan.getAttribute("label") || "Plan");
   const restoreFocus = projectionFocus(plan);
   const snapshot = commandSnapshot(plan);
   for (const goal of snapshot.goals) renderGoal(goal);

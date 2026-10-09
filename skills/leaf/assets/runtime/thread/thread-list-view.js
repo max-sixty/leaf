@@ -25,8 +25,7 @@
    once shown, drawn resolved in the shape it stood in, until its going would move
    nothing the user sees. */
 import { html, repeat } from "../../vendor/browser-runtime.js";
-import { focused } from "../keyboard/scopes.js";
-import { holdFocus, onStanding, focusDestination } from "../focus.js";
+import { holdFocus, onStanding, focusDestination, focused } from "../focus.js";
 import { RetainedFace } from "../retained-face.js";
 import { ThreadView } from "./thread-card.js";
 import { draftHasContent } from "../drafts.js";

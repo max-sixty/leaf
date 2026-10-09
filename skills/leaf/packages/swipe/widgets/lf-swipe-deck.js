@@ -22,23 +22,23 @@
  * controls or sample frames. Native moves retain their state; `motion` makes the
  * preview still under reduced motion and during initial state projection. */
 import {
-  dragging,
   commands,
+  dragging,
+  focusDestination,
   holdFocus,
-  keeps,
   keepsHidden,
   keepsText,
   layoutChanged,
   motion,
   motionPreview,
-  once,
   offer,
+  once,
   paintKeys,
   quoted,
   rankAt,
   widgetController,
   worksInside,
-  focusDestination,
+  rove,
 } from "/runtime/widget-api.js";
 
 const VERDICTS = {
@@ -220,9 +220,13 @@ customElements.define(
       const keysMoved = available !== this.#keysAvailable;
       keepsText(this.#progress, progress);
 
+      const all = piles.flatMap(({ cards }) => cards);
+      rove(
+        all.map(({ card }) => card),
+        all.find(({ active }) => active)?.card ?? null,
+      );
       for (const { pile, verdict, cards } of piles) {
-        for (const { card, active, returnable } of cards) {
-          keeps(card, "tabindex", active ? 0 : -1);
+        for (const { card, returnable } of cards) {
           const button = card.querySelector(":scope > .lf-swipe-return");
           if (!button) continue;
           keepsHidden(button, !returnable);

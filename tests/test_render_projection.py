@@ -5,6 +5,7 @@ import re
 import threading
 from copy import deepcopy
 from datetime import datetime, timedelta
+from itertools import pairwise
 
 import pytest
 from click.testing import CliRunner
@@ -9123,6 +9124,90 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     expect(page.locator("#ledger-cargo").get_by_role("textbox")).to_have_js_property(
         "value", provided
     )
+
+
+@pytest.mark.parametrize(
+    ("markup", "path", "leaf_id"),
+    [
+        (
+            COMMAND_HUB_PAGE,
+            [
+                "One clean shadow week",
+                "Replace the XML parser",
+                "Declarations and entities",
+                "CDATA edge cases",
+            ],
+            "parser-cdata",
+        ),
+        (
+            REPORT_PAGE,
+            ["Tasks", "Rebuild the feeders", "Fit squirrel baffles"],
+            "t-parser",
+        ),
+    ],
+)
+def test_task_hierarchy_is_accessible_through_reports_and_revisions(
+    browser, serve, markup, path, leaf_id
+):
+    """The listening reader gets the same parents as the visible task nesting.
+
+    Read Chrome's native accessibility tree: Playwright's DOM-based name calculator
+    does not yet read ariaLabelledByElements, although Chrome exposes those names to
+    assistive technology. A report repaints row metadata; a revision changes titles.
+    Neither may flatten the groups or retain the previous title as their name.
+    """
+    page = open_page(browser, live_url(serve(markup)))
+    session = page.context.new_cdp_session(page)
+
+    def hierarchy(expected):
+        nodes = session.send("Accessibility.getFullAXTree")["nodes"]
+        by_id = {node["nodeId"]: node for node in nodes}
+        groups = {
+            node.get("name", {}).get("value"): node
+            for node in nodes
+            if node.get("role", {}).get("value") == "group"
+        }
+        assert all(name in groups for name in expected), groups.keys()
+        for parent, child in pairwise(expected):
+            ancestor = by_id[groups[child]["parentId"]]
+            while ancestor.get("role", {}).get("value") != "group":
+                ancestor = by_id[ancestor["parentId"]]
+            assert ancestor["nodeId"] == groups[parent]["nodeId"]
+        return groups
+
+    hierarchy(path)
+    sent = CliRunner().invoke(
+        cli_model.cli,
+        ["page", "report", str(serve.page_dir), leaf_id, "status", "value=done"],
+    )
+    assert sent.exit_code == 0, sent.output
+    told(page)
+    leaf = page.locator(f"#{leaf_id}")
+    expect(leaf).to_have_attribute("status", "done")
+    hierarchy(path)
+    assert "done" in leaf.aria_snapshot()
+
+    # Naming references the title node, so a revision's replacement title is what
+    # the group says. The command root also reads its current label after patching.
+    changed = markup.replace(path[-1], "Verify the final corpus")
+    changed_path = [*path[:-1], "Verify the final corpus"]
+    if markup == COMMAND_HUB_PAGE:
+        changed = changed.replace(path[0], "Ready for the shadow week")
+        changed_path[0] = "Ready for the shadow week"
+    stamp_page(serve.page_dir, changed, "Clarify the plan's current titles")
+    wait_for_revision(page, 2)
+    groups = hierarchy(changed_path)
+    assert path[-1] not in groups
+    if markup == COMMAND_HUB_PAGE:
+        assert path[0] not in groups
+        # The richer projection remains a native control inside its goal group.
+        crew = page.locator("#goal-parser > .lf-task-meta").get_by_role(
+            "button", name="1 worker"
+        )
+        crew.click()
+        expect(crew).to_have_attribute("aria-expanded", "true")
+        expect(page.locator("#w-1")).to_be_visible()
+        hierarchy(changed_path)
 
 
 def test_command_hub_derives_the_operator_reading_from_its_goal_tree(browser, serve):

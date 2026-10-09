@@ -550,10 +550,17 @@ export function misplacedBoxes() {
   };
   for (const el of main.querySelectorAll("*")) {
     if (!pageBox(el) || !el.checkVisibility()) continue;
-    // Nothing inside an <svg> is the page's flow: a foreignObject clips by its
-    // nature, and diagram label boxes run an even 8px outside theirs on an
-    // ordinary graph — the drawing's own accounting, not the page losing words.
-    if (el.closest("svg")) continue;
+    // A drawing owns its internal coordinates: SVG clips foreignObject and diagram
+    // labels, while an HTML drawing can pan time cells or zoom image pixels through
+    // its viewport. --lf-drawing: 1 declares that viewport. The inherited value on
+    // the parent excludes its descendants, leaving the viewport's own box and its
+    // siblings accountable. Words and offered controls still answer their separate
+    // reachability readings; declaring a drawing does not make a lost press reachable.
+    if (
+      el.closest("svg") ||
+      getComputedStyle(el.parentElement).getPropertyValue("--lf-drawing").trim() === "1"
+    )
+      continue;
     const b = el.getBoundingClientRect();
     if (b.width < 1) continue;
     let a = holder(el),

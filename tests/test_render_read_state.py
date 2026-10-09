@@ -70,14 +70,12 @@ def _select_new_route(page):
     select(page, *points)
 
 
-def _agent_metric_reply(page_dir, root, number, for_event=None):
+def _agent_update_reply(page_dir, root, number, for_event=None):
     return thread_model.post_reply(
         page_dir,
         root,
-        f"Update {number}.",
-        (
-            f'<dl id="read-update-{number}"><dt>Completed steps</dt><dd>{number}</dd></dl>'
-        ),
+        f"Update {number}.\n\nCompleted steps: {number}.",
+        None,
         for_event=for_event,
         when_settled="post",
     )["id"]
@@ -86,13 +84,13 @@ def _agent_metric_reply(page_dir, root, number, for_event=None):
 def test_unread_summary_keeps_hidden_original_unread(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Can we review this?", author="user")
-    first = _agent_metric_reply(serve.page_dir, root, 1, for_event=root)
+    first = _agent_update_reply(serve.page_dir, root, 1, for_event=root)
     user = append_carried_log_record(
         serve.page_dir,
         {"kind": "reply", "author": "user", "parent": root, "text": "One more detail."},
     )["id"]
-    middle = _agent_metric_reply(serve.page_dir, root, 2, for_event=user)
-    _agent_metric_reply(serve.page_dir, root, 3)
+    middle = _agent_update_reply(serve.page_dir, root, 2, for_event=user)
+    _agent_update_reply(serve.page_dir, root, 3)
     accepted, _ = endpoint_model.accept_event(
         serve.page_dir,
         {
@@ -124,10 +122,10 @@ def test_unread_summary_keeps_hidden_original_unread(browser, serve):
 
 def test_first_unread_reveals_resolved_summary_original(browser, serve):
     url = serve(PANEL_PAGE)
-    root = panel_comment(serve.page_dir, "Is this metric settled?", author="user")
-    answer = _agent_metric_reply(serve.page_dir, root, 4, for_event=root)
+    root = panel_comment(serve.page_dir, "Is this progress settled?", author="user")
+    answer = _agent_update_reply(serve.page_dir, root, 4, for_event=root)
     thread_model.cmd_summarize(
-        serve.page_dir, root, answer, "The earlier metric discussion."
+        serve.page_dir, root, answer, "The earlier progress discussion."
     )
     append_carried_log_record(
         serve.page_dir, {"kind": "resolve", "author": "agent", "parent": root}
@@ -1746,17 +1744,17 @@ def test_reading_a_thread_moves_nothing_in_it(browser, serve):
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir,
-        "Review this metric.\n\n" + "The complete context matters. " * 250,
+        "Review this progress.\n\n" + "The complete context matters. " * 250,
         author="agent",
     )
-    second = _agent_metric_reply(serve.page_dir, root, 2)
+    second = _agent_update_reply(serve.page_dir, root, 2)
     accepted, _ = endpoint_model.accept_event(
         serve.page_dir,
         {"kind": "read", "messages": [{"message": second, "version": second}]},
         dict,
     )
     assert accepted == 200
-    third = _agent_metric_reply(serve.page_dir, root, 3)
+    third = _agent_update_reply(serve.page_dir, root, 3)
     page = open_page(browser, url)
     page.set_viewport_size({"width": 1440, "height": 1000})
     page.locator(".lf-threads-toggle").click()

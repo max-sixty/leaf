@@ -875,7 +875,8 @@ customElements.define(
 
     // lf-shot's rail stays hidden outside Flip, and a focus crop hides the outlines,
     // so Capture details states the complete reading in every view, including
-    // changes outside a focus. The heading contains only captured facts: computing
+    // regions extending beyond a focus, including groups crossing its edge.
+    // The heading contains only captured facts: computing
     // differences happens after presentation and must not move evidence or controls.
     #paintPosition(entry) {
       const { record, index, total, difference } = entry;
@@ -890,16 +891,16 @@ customElements.define(
           ? countAreas(
               difference.regions.filter(
                 (region) =>
-                  region.x >= (focus.x + focus.width) * ratio ||
-                  region.x + region.width <= focus.x * ratio ||
-                  region.y >= (focus.y + focus.height) * ratio ||
-                  region.y + region.height <= focus.y * ratio,
+                  region.x < focus.x * ratio ||
+                  region.x + region.width > (focus.x + focus.width) * ratio ||
+                  region.y < focus.y * ratio ||
+                  region.y + region.height > (focus.y + focus.height) * ratio,
               ),
             )
           : { changed: 0, moved: 0 };
         const left = outside.changed + outside.moved;
         parts.push(
-          describeDifference(difference) + (left ? ` (${left} outside the focus)` : ""),
+          describeDifference(difference) + (left ? ` (${left} beyond the focus)` : ""),
         );
       }
       setText(

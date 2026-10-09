@@ -345,8 +345,17 @@ const pageGeometry = () => ({
   width: pageScroller.clientWidth,
   band: landingBand(pageScroller)?.top ?? 0,
 });
-const pageMoved = (now = pageGeometry()) =>
-  pageSeen !== null && (now.width !== pageSeen.width || now.band !== pageSeen.band);
+// A band that moves with the window's width shifts the page. One that moves without
+// it, as a page tab strip arriving does (`--lf-root-headers`, lf-tabs.js), comes with
+// the content that moved it, whose owner keeps the reader's place across it, so it is
+// taken as seen wherever it is read: no size need change with it, and left unseen it
+// would read as unsettled, recording nothing, until the window next changed.
+const pageMoved = (now = pageGeometry()) => {
+  if (pageSeen === null) return false;
+  if (now.width !== pageSeen.width) return true;
+  pageSeen = now;
+  return false;
+};
 
 // Whether the page and every region stand as last seen. A layout that has handed a
 // region to another scroller or rewrapped it or the page, before the observer below has
@@ -391,16 +400,3 @@ const sizes = sizeObserver(() => {
   if (shifted.length) notify({ phase: "shift", shifted });
 });
 sizes.observe(pageScroller);
-// A band that moves with the window's width shifts the page (above). One that moves
-// without it, as a page tab strip arriving does (`--lf-root-headers`, lf-tabs.js), comes
-// with the content that moved it, which that content's owner keeps the reader's place
-// across, so it is only seen: otherwise the page would read as unsettled, and record
-// nothing, until the window next changed. The body changes size whenever that content
-// arrives or leaves. Uncounted, since a page's body can grow for as long as it plays.
-sizeObserver(
-  () => {
-    const now = pageGeometry();
-    if (pageSeen && now.width === pageSeen.width) pageSeen = now;
-  },
-  { counted: false },
-).observe(document.body);
